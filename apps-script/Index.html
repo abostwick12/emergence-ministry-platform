@@ -1,0 +1,36 @@
+<!doctype html>
+<html>
+  <head>
+    <base target="_top">
+    <?!= include_('Styles'); ?>
+  </head>
+  <body>
+    <div id="app" class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-name">EMERGE</div>
+          <div class="brand-line"></div>
+          <div class="brand-sub">MINISTRY PLATFORM</div>
+        </div>
+        <nav id="sideNav" class="side-nav"></nav>
+        <div class="assistant-card">
+          <div class="eyebrow">HELP & TOOLS</div>
+          <button class="side-action" data-action="ask-emma">Ask EMMA</button>
+          <button class="emma-button" data-action="ask-emma">+ EMMA</button>
+          <p>Your Emerge Ministry Momentum Assistant</p>
+        </div>
+      </aside>
+
+      <main class="main">
+        <nav id="topTabs" class="top-tabs"></nav>
+        <section id="view" class="view">
+          <div class="loading">Loading ministry command center...</div>
+        </section>
+      </main>
+    </div>
+
+    <div id="modal" class="modal hidden" role="dialog" aria-modal="true"></div>
+    <div id="toast" class="toast hidden"></div>
+    <?!= include_('Client'); ?>
+  </body>
+</html>
