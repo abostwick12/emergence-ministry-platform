@@ -1,8 +1,6 @@
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('EMERGEnce')
-    .addItem('Setup / Repair Platform', 'setupEmergencePlatform')
-    .addSeparator()
     .addItem('Go to Events', 'goToEvents')
     .addItem('Go to Kanban Board', 'goToKanban')
     .addItem('Go to Documents', 'goToDocuments')
@@ -11,32 +9,21 @@ function onOpen() {
     .addItem('Go to Student List', 'goToStudentList')
     .addItem('Go to Worship', 'goToWorship')
     .addSeparator()
-    .addSubMenu(
-      SpreadsheetApp.getUi()
-        .createMenu('Events')
-        .addItem('Add New Event', 'showAddEventDialog')
-        .addItem('Clear Event Filters', 'clearEventsFilters')
-        .addItem('Show All Event Columns', 'showAllEventsColumns')
-        .addItem('View Calendar', 'showCalendarComingSoon')
-    )
-    .addSubMenu(
-      SpreadsheetApp.getUi()
-        .createMenu('Kanban Board')
-        .addItem('Refresh Kanban Shell', 'refreshKanbanBoard')
-    )
-    .addSeparator()
     .addItem('Open EMMA Sidebar', 'openEmmaSidebar')
+    .addSeparator()
+    .addItem('Setup / Repair Platform', 'setupEmergencePlatform')
     .addItem('Run Package 1 Smoke Test', 'runPackageOneSmokeTest')
     .addToUi();
 }
 
 function goToSheetByName(sheetName) {
-  const sheet = getSheet_(sheetName);
+  const spreadsheet = getActiveSpreadsheet_();
+  const sheet = spreadsheet.getSheetByName(sheetName);
   if (!sheet) {
-    showComingSoon(`Sheet navigation for ${sheetName}`, 'Package 1 setup');
+    SpreadsheetApp.getUi().alert('The sheet "' + sheetName + '" does not exist yet.');
     return;
   }
-  getActiveSpreadsheet_().setActiveSheet(sheet);
+  spreadsheet.setActiveSheet(sheet);
 }
 
 function goToEvents() {
