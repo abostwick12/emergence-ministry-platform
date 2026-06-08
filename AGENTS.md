@@ -1,155 +1,61 @@
-# EMERGEnce Ministry Platform - Codex Instructions
+# EMERGEnce Ministry Platform — Agent Instructions
 
-You are helping build the EMERGEnce Ministry Platform, a Google Sheets + Google Apps Script ministry operations system.
+This repository is the **Next.js web-app version** of the EMERGEnce Ministry Platform.
 
-## Primary Goal
+Do not follow any previous Google Sheets, Apps Script, clasp, or spreadsheet-specific instructions unless they are located inside `/archive/google-sheets-v1/` and are explicitly referenced for historical context.
 
-Create a user-friendly, uncluttered, professional, and engaging ministry planning platform for Emerge student ministry.
+## Active Stack
 
-The main users are ministry staff and leaders who need to manage events, task lists, communication drafts, leader information, documents, budget tracking, and Kanban-style planning.
+- Next.js App Router
+- TypeScript
+- Tailwind CSS
+- Supabase-ready data model
+- Stubbed integrations for MVP 1
 
-## Tech Stack
+## Active Source Folders
 
-- Front end: Google Sheets tabs and Apps Script UI elements
-- Backend: Google Apps Script
-- Storage: Google Sheets + Google Drive folders
-- Calendar: Emerge Google Calendar
-- Future AI: Gemini API or similar
-- Code management: GitHub, synced manually or through clasp
+The active application source should live in:
 
-## Core Rules
+- `app/`
+- `components/`
+- `lib/`
+- `supabase/`
 
-- Never delete existing working functions unless explicitly instructed.
-- Do not use API keys directly in code.
-- Use Script Properties or environment-style configuration for secrets.
-- Keep the system easy to maintain.
-- Prefer clear Apps Script functions over overly clever code.
-- Add comments where future ministry staff will need to understand the code.
-- Prioritize stability, readability, and safety over complexity.
-- Never send emails, texts, GroupMe messages, or notifications automatically unless explicitly approved.
-- All communication automation should create drafts for review only.
+Do not treat `/archive/google-sheets-v1/` as active application code.
 
-## Required Tabs
+## MVP 1 Scope
 
-- Events
-- Budget
-- Kanban
-- Leader List
-- Documents
-- Settings
-- Archive
+Build only the Admin/Leader event automation vertical slice:
 
-## Event Requirements
+Create event → generate baseline tasks → assign/update tasks → view event workspace → preview communications → view budget shell → view integration activity → record activity log.
 
-Each event should support:
+## Do Not Build in MVP 1
 
-- Event title
-- Ministry Event Type
-- Start date
-- End date
-- Start time
-- Location
-- Owner
-- Priority
-- Vision field
-- Volunteer requirement
-- Status
-- Budget estimate
-- Actual cost
-- Google Drive folder link
-- Planning Center registration link
-- Communication draft status
-- Expandable/collapsible subtasks
+- live Planning Center OAuth
+- live Google Calendar sync
+- live Google Drive folder creation
+- live ProPresenter playlist creation
+- live AI/OpenAI/Gemini calls
+- real email/text/GroupMe sending
+- parent portal
+- student portal
+- QR check-in
+- attendance system
+- advanced analytics
 
-## Subtask Requirements
+## Integration Rule
 
-Subtasks should be visually smaller than main event rows.
+All integrations must use Stub Mode adapters in MVP 1.
 
-Each subtask should support:
+Do not call external APIs or require live credentials.
 
-- Parent event
-- Task title
-- Due date
-- Owner
-- Status
-- Priority
-- Critical flag
-- Attachment link
-- Notes
+## Verification Rule
 
-Critical tasks include tickets, transportation, lodging, waivers, parent emails, packing lists, slides, registration, and volunteer needs.
+Before marking work complete, run:
 
-## Status Terms
-
-Use these statuses:
-
-- Not Started
-- In Progress
-- Working on It
-- Stuck
-- Completed
-
-Completed tasks should eventually move to Archive.
-
-## Kanban Requirements
-
-The Kanban tab should show items due in the next 7 days.
-
-Cards should show:
-
-- Event title
-- Owner
-- Date
-- Status
-- Percent complete
-- Circle progress indicator
-- Time remaining indicator
-
-Cards should be clear, uncluttered, and visually engaging.
-
-## Calendar Requirements
-
-Events should span their full duration on the calendar, not only the start date.
-
-## Communication Rules
-
-When an event is created, the system may prompt the user to create communication drafts.
-
-Draft channels:
-
-- Email
-- GroupMe
-- Text
-
-Tone:
-
-- Warm
-- Fun
-- Clear
-- Youth-ministry appropriate
-- No emojis unless explicitly requested
-- First-name style when appropriate
-
-All messages must be saved as drafts for review, not sent.
-
-## Design Direction
-
-Use a clean, modern, ministry-friendly interface.
-
-Working tabs should feel bright and active.
-
-Settings/Admin areas should feel slightly darker and more controlled.
-
-Avoid clutter.
-Use collapsible sections where possible.
-Make ownership, due dates, and status easy to see quickly.
-
-## Development Process
-
-When making changes:
-
-1. Explain what you are changing.
-2. Make the smallest safe change that moves the project forward.
-3. Preserve existing structure unless there is a clear reason to refactor.
-4. Include any needed setup instructions.
-5. Mention any manual Apps Script steps required.
+```bash
+npm install
+npm run typecheck
+npm run lint
+npm run build
+```
