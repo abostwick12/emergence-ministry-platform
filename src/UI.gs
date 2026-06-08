@@ -9,8 +9,6 @@ function onOpen() {
     .addItem('Go to Student List', 'goToStudentList')
     .addItem('Go to Worship', 'goToWorship')
     .addSeparator()
-    .addItem('Open EMMA Sidebar', 'openEmmaSidebar')
-    .addSeparator()
     .addItem('Setup / Repair Platform', 'setupEmergencePlatform')
     .addItem('Run Package 1 Smoke Test', 'runPackageOneSmokeTest')
     .addToUi();
