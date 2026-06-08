@@ -23,6 +23,11 @@ function renderKanbanShell() {
   renderCompletionTickerShell();
   sheet.setFrozenRows(11);
   sheet.setColumnWidths(1, 15, 115);
+  sheet.setRowHeights(1, 2, 30);
+  sheet.setRowHeights(4, 3, 28);
+  sheet.setRowHeights(8, 4, 32);
+  sheet.setRowHeights(13, 20, 28);
+  sheet.setHiddenGridlines(true);
 }
 
 function buildKanbanHeader_(sheet) {
@@ -34,42 +39,29 @@ function buildKanbanHeader_(sheet) {
   sheet.getRange('A2:O2').merge().setValue(`Environment: ${getCurrentEnvironment()} | ${EMERGENCE_APP.packageName}`)
     .setBackground(UI_COLORS.SOFT_BG)
     .setFontColor(UI_COLORS.MUTED);
-  sheet.getRange('A4:C6').merge().setValue('KANBAN BOARD')
-    .setBackground('#FFFFFF')
-    .setFontColor(UI_COLORS.KANBAN)
-    .setFontWeight('bold')
-    .setFontSize(24)
-    .setVerticalAlignment('middle');
-  sheet.getRange('D4:G6').merge().setValue('Visualize the work. Move the mission forward.')
-    .setBackground('#FFFFFF')
-    .setFontColor(UI_COLORS.MUTED)
-    .setVerticalAlignment('middle');
-  sheet.getRange('H4:O6').merge()
-    .setValue('Menu actions: Refresh Kanban Shell, Open EMMA Sidebar, Go to Events')
-    .setBackground(UI_COLORS.SOFT_BG)
-    .setFontColor(UI_COLORS.NAVY)
-    .setFontWeight('bold')
-    .setHorizontalAlignment('right')
-    .setVerticalAlignment('middle');
+  setDashboardHeader_(
+    sheet,
+    'A4:C6',
+    'KANBAN BOARD',
+    UI_COLORS.KANBAN,
+    'D4:G6',
+    'Visualize the work. Move the mission forward.',
+    'H4:O6',
+    'Use the EMERGEnce menu for navigation, setup, smoke tests, and EMMA.'
+  );
 }
 
 function buildKanbanKpis_(sheet) {
   const kpis = [
-    ['Total Tasks', '0', 'Task logic arrives in Package 2'],
-    ['In Progress', '=COUNTIF(Events!H15:H,"In Progress")+COUNTIF(Events!H15:H,"Working on It")', 'Active work'],
-    ['Overdue', '0', 'Needs task due dates'],
-    ['Complete', '=COUNTIF(Events!H15:H,"Completed")', 'Completed events'],
-    ['Avg. Completion', '=IFERROR(AVERAGE(FILTER(Events!I15:I,Events!B15:B<>"")),0)', 'From Events table']
+    ['Total Tasks', '0', 'Task logic arrives in Package 2', UI_COLORS.NAVY],
+    ['In Progress', '=COUNTIF(Events!H15:H,"In Progress")+COUNTIF(Events!H15:H,"Working on It")', 'Active work', UI_COLORS.KANBAN],
+    ['Overdue', '0', 'Needs task due dates', UI_COLORS.DANGER],
+    ['Complete', '=COUNTIF(Events!H15:H,"Completed")', 'Completed events', UI_COLORS.SUCCESS],
+    ['Avg. Completion', '=IFERROR(AVERAGE(FILTER(Events!I15:I,Events!B15:B<>"")),0)', 'From Events table', UI_COLORS.NAVY]
   ];
   kpis.forEach((kpi, index) => {
     const column = 1 + (index * 3);
-    sheet.getRange(8, column, 4, 2)
-      .setBackground('#FFFFFF')
-      .setBorder(true, true, true, true, true, true, UI_COLORS.BORDER, SpreadsheetApp.BorderStyle.SOLID);
-    sheet.getRange(8, column, 1, 2).merge().setValue(kpi[0]).setFontWeight('bold').setFontColor(UI_COLORS.NAVY).setHorizontalAlignment('center');
-    sheet.getRange(9, column, 1, 2).merge().setFormula(kpi[1]).setFontWeight('bold').setFontSize(18).setFontColor(UI_COLORS.KANBAN).setHorizontalAlignment('center');
-    sheet.getRange(10, column, 1, 2).merge().setValue(kpi[2]).setFontSize(9).setFontColor(UI_COLORS.MUTED).setHorizontalAlignment('center');
-    sheet.getRange(11, column, 1, 2).merge().setValue('Package 1 foundation').setFontSize(8).setFontColor(UI_COLORS.MUTED).setHorizontalAlignment('center');
+    setDashboardKpiCard_(sheet, 8, column, 4, 2, kpi[0], kpi[1], kpi[2], kpi[3]);
   });
 }
 
