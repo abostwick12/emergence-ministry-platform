@@ -1,111 +1,113 @@
+const EVENTS_VISIBLE_HEADERS = [
+  'Event ID',
+  'Event Name',
+  'Event Type',
+  'Start Date',
+  'End Date',
+  'Status',
+  'Completion',
+  'Days Away',
+  'Budgeted',
+  'Spent',
+  'Health',
+  'Owner',
+  'Last Updated'
+];
+
 function setupEventsSheet() {
   const sheet = getOrCreateSheet_(SHEET_NAMES.EVENTS);
-  const existingRows = getExistingEventsTableRows_(sheet);
-  clearDashboardArea_(sheet, 1, 1, 44, 26);
+  resetDashboardRange_(sheet, 80, 18);
   sheet.setTabColor(TAB_COLORS[SHEET_NAMES.EVENTS]);
-  buildEventsHeader_(sheet);
-  buildEventsMetricCards_(sheet);
-  buildEventsTable_(sheet);
-  restoreEventsTableRows_(sheet, existingRows);
+  buildEventsDashboard_();
   applyEventsFormatting();
 }
 
 function applyEventsFormatting() {
   const sheet = getSheet_(SHEET_NAMES.EVENTS);
   if (!sheet) return;
-  const headerRow = TABLE_START_ROWS.EVENTS;
-  const columnCount = PACKAGE_ONE_COLUMNS.EVENTS.length;
-  sheet.getRange(headerRow, 1, 1, columnCount)
-    .setBackground(UI_COLORS.EVENTS)
-    .setFontColor('#FFFFFF')
-    .setFontWeight('bold')
-    .setHorizontalAlignment('center');
-  sheet.setFrozenRows(headerRow);
-  sheet.setFrozenColumns(4);
-  sheet.setColumnWidths(1, columnCount, 130);
-  sheet.setColumnWidth(2, 220);
-  sheet.setColumnWidth(4, 110);
-  sheet.setColumnWidth(8, 130);
-  sheet.setColumnWidth(9, 110);
-  sheet.setColumnWidth(14, 120);
-  sheet.getRange(headerRow + 1, 4, Math.max(sheet.getMaxRows() - headerRow, 1), 2).setNumberFormat('m/d/yyyy');
-  sheet.getRange(headerRow + 1, 11, Math.max(sheet.getMaxRows() - headerRow, 1), 2).setNumberFormat('$#,##0.00');
-  sheet.getRange(headerRow + 1, 9, Math.max(sheet.getMaxRows() - headerRow, 1), 1).setNumberFormat('0%');
-  sheet.setRowHeights(1, 2, 30);
-  sheet.setRowHeights(4, 3, 28);
-  sheet.setRowHeights(8, 5, 30);
-  sheet.setRowHeight(headerRow, 28);
-  sheet.setHiddenGridlines(true);
-  applyColumnValidation_(SHEET_NAMES.EVENTS, 'Event Type', NAMED_RANGES.EVENT_TYPES);
-  applyColumnValidation_(SHEET_NAMES.EVENTS, 'Status', NAMED_RANGES.STATUSES);
-  applyColumnValidation_(SHEET_NAMES.EVENTS, 'Health', NAMED_RANGES.HEALTH);
-  applyColumnValidation_(SHEET_NAMES.EVENTS, 'Owner', NAMED_RANGES.OWNERS);
-  applyEventsHelperColumnVisibility_(sheet);
+
+  sheet.setFrozenRows(12);
+  sheet.setFrozenColumns(0);
+  sheet.setColumnWidths(1, 15, 118);
+  sheet.setColumnWidth(2, 190);
+  sheet.setColumnWidth(3, 130);
+  sheet.setColumnWidths(4, 2, 100);
+  sheet.setColumnWidth(6, 125);
+  sheet.setColumnWidth(7, 105);
+  sheet.setColumnWidth(8, 90);
+  sheet.setColumnWidths(9, 2, 105);
+  sheet.setColumnWidth(11, 115);
+  sheet.setColumnWidth(12, 100);
+  sheet.setColumnWidth(13, 115);
+  sheet.setColumnWidths(14, 2, 115);
+  sheet.setColumnWidths(16, 3, 40);
+
+  sheet.setRowHeights(1, 2, 28);
+  sheet.setRowHeights(4, 2, 30);
+  sheet.setRowHeight(6, 24);
+  sheet.setRowHeights(7, 4, 28);
+  sheet.setRowHeight(12, 32);
+  sheet.setRowHeights(13, 30, 30);
+
+  const bodyRows = 48;
+  sheet.getRange(13, 4, bodyRows, 2).setNumberFormat('m/d/yyyy');
+  sheet.getRange(13, 7, bodyRows, 1).setNumberFormat('0%');
+  sheet.getRange(13, 9, bodyRows, 2).setNumberFormat('$#,##0');
+  applyValidationToRange_(sheet.getRange(13, 6, bodyRows, 1), NAMED_RANGES.STATUSES);
+  applyValidationToRange_(sheet.getRange(13, 11, bodyRows, 1), NAMED_RANGES.HEALTH);
+}
+
+function buildEventsDashboard_() {
+  const sheet = getSheet_(SHEET_NAMES.EVENTS);
+
+  setMergedBlock_(sheet, 'A1:O1', EMERGENCE_APP.name, {
+    background: UI_COLORS.NAVY,
+    fontColor: '#FFFFFF',
+    fontSize: 15,
+    bold: true,
+    horizontalAlignment: 'left'
+  });
+  setMergedBlock_(sheet, 'A2:O2', `Environment: ${getCurrentEnvironment()} | ${EMERGENCE_APP.packageName}`, {
+    background: '#EEF3F7',
+    fontColor: UI_COLORS.MUTED,
+    fontSize: 9,
+    horizontalAlignment: 'left'
+  });
+
+  setMergedBlock_(sheet, 'A4:C5', 'EVENTS', {
+    background: '#FFFFFF',
+    fontColor: UI_COLORS.EVENTS,
+    fontSize: 20,
+    bold: true,
+    horizontalAlignment: 'left'
+  });
+  setMergedBlock_(sheet, 'D4:H5', 'Plan with clarity. Execute with excellence.', {
+    background: '#FFFFFF',
+    fontColor: UI_COLORS.MUTED,
+    fontSize: 10,
+    horizontalAlignment: 'left'
+  });
+  setPlaceholderControl_(sheet, 'J4:K5', 'Add New Event');
+  setPlaceholderControl_(sheet, 'L4:M5', 'Clear Filters');
+  setPlaceholderControl_(sheet, 'N4:O5', 'Ask EMMA');
+  setMergedBlock_(sheet, 'J6:O6', 'Use the EMERGEnce menu for Package 1 actions.', {
+    background: '#FFFFFF',
+    fontColor: UI_COLORS.MUTED,
+    fontSize: 8,
+    horizontalAlignment: 'center'
+  });
+
+  setKpiCard_(sheet, 'A7:C10', 'ACTIVE EVENTS', '0', 'Events in progress', UI_COLORS.EVENTS);
+  setKpiCard_(sheet, 'D7:F10', 'UPCOMING EVENTS', '0', 'Next 90 days', UI_COLORS.KANBAN);
+  setKpiCard_(sheet, 'G7:I10', 'COMPLETION AVG', '0%', 'Formula-ready', UI_COLORS.DOCUMENTS);
+  setKpiCard_(sheet, 'J7:L10', 'OVERDUE TASKS', '0', 'Needs attention', UI_COLORS.DANGER);
+  setKpiCard_(sheet, 'M7:O10', 'TOTAL BUDGETED', '$0', 'All events', UI_COLORS.NAVY);
+
+  setTableHeader_(sheet, 12, EVENTS_VISIBLE_HEADERS, UI_COLORS.EVENTS);
+  applyAlternatingBody_(sheet, 13, 48, EVENTS_VISIBLE_HEADERS.length);
 }
 
 function applyEventsHelperColumnVisibility_(sheet) {
-  const helperStartColumn = 16;
-  const helperColumnCount = PACKAGE_ONE_COLUMNS.EVENTS.length - helperStartColumn + 1;
-  if (helperColumnCount > 0) {
-    sheet.hideColumns(helperStartColumn, helperColumnCount);
-  }
-}
-
-function buildEventsHeader_(sheet) {
-  sheet.getRange('A1:Z1').merge().setValue(EMERGENCE_APP.name)
-    .setBackground(UI_COLORS.NAVY)
-    .setFontColor('#FFFFFF')
-    .setFontWeight('bold')
-    .setFontSize(20);
-  sheet.getRange('A2:Z2').merge().setValue(`Environment: ${getCurrentEnvironment()} | ${EMERGENCE_APP.packageName}`)
-    .setBackground(UI_COLORS.SOFT_BG)
-    .setFontColor(UI_COLORS.MUTED);
-  setDashboardHeader_(
-    sheet,
-    'A4:D6',
-    'EVENTS',
-    UI_COLORS.EVENTS,
-    'E4:J6',
-    'Plan with clarity. Execute with excellence.',
-    'K4:Z6',
-    'Use the EMERGEnce menu for navigation, setup, smoke tests, and EMMA.'
-  );
-}
-
-function buildEventsMetricCards_(sheet) {
-  const cards = [
-    ['Active Events', '=COUNTIFS(H15:H,"<>Completed",D15:D,">="&TODAY())', 'Events in progress', UI_COLORS.EVENTS],
-    ['Upcoming Events', '=COUNTIFS(D15:D,">="&TODAY(),D15:D,"<="&TODAY()+90)', 'Next 90 days', UI_COLORS.NAVY],
-    ['Completion Avg', '=IFERROR(AVERAGE(FILTER(I15:I,B15:B<>"")),0)', 'All active events', UI_COLORS.NAVY],
-    ['Overdue Tasks', '0', 'Needs task logic', UI_COLORS.DANGER],
-    ['Total Budgeted', '=IFERROR(SUM(K15:K),0)', 'All active events', UI_COLORS.NAVY],
-    ['Total Spent', '=IFERROR(SUM(L15:L),0)', 'From Events table', UI_COLORS.SUCCESS]
-  ];
-  cards.forEach((card, index) => {
-    const column = 1 + (index * 4);
-    setDashboardKpiCard_(sheet, 8, column, 5, 3, card[0], card[1], card[2], card[3]);
-  });
-}
-
-function buildEventsTable_(sheet) {
-  const headerRow = TABLE_START_ROWS.EVENTS;
-  sheet.getRange(headerRow, 1, 1, PACKAGE_ONE_COLUMNS.EVENTS.length).setValues([PACKAGE_ONE_COLUMNS.EVENTS]);
-  if (!sheet.getFilter()) {
-    sheet.getRange(headerRow, 1, Math.max(sheet.getMaxRows() - headerRow + 1, 2), PACKAGE_ONE_COLUMNS.EVENTS.length).createFilter();
-  }
-}
-
-function getExistingEventsTableRows_(sheet) {
-  const headerRow = TABLE_START_ROWS.EVENTS;
-  if (sheet.getLastRow() <= headerRow) return [];
-  const headers = sheet.getRange(headerRow, 1, 1, PACKAGE_ONE_COLUMNS.EVENTS.length).getValues()[0];
-  if (headers.join('|') !== PACKAGE_ONE_COLUMNS.EVENTS.join('|')) return [];
-  return sheet.getRange(headerRow + 1, 1, sheet.getLastRow() - headerRow, PACKAGE_ONE_COLUMNS.EVENTS.length)
-    .getValues()
-    .filter((row) => row.some((cell) => cell !== ''));
-}
-
-function restoreEventsTableRows_(sheet, rows) {
-  if (!rows || !rows.length) return;
-  sheet.getRange(TABLE_START_ROWS.EVENTS + 1, 1, rows.length, PACKAGE_ONE_COLUMNS.EVENTS.length).setValues(rows);
+  if (!sheet) return;
+  sheet.showColumns(1, 18);
 }
