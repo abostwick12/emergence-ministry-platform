@@ -1,0 +1,34 @@
+<!doctype html>
+<html>
+  <head>
+    <base target="_top">
+    <style>
+      body { font-family: Arial, sans-serif; color:#071635; padding:16px; }
+      h2 { color:#0589A5; margin:0 0 8px; }
+      .card { border:1px solid #DDE5F0; border-radius:10px; padding:12px; margin:10px 0; background:#FBFCFE; }
+      textarea { width:100%; min-height:100px; border:1px solid #DDE5F0; border-radius:8px; padding:10px; box-sizing:border-box; }
+      button { width:100%; border:0; border-radius:8px; padding:11px; margin-top:10px; background:#0589A5; color:white; font-weight:700; cursor:pointer; }
+      pre { white-space:pre-wrap; background:#F3F6FA; padding:10px; border-radius:8px; }
+    </style>
+  </head>
+  <body>
+    <h2>EMMA</h2>
+    <div class="card">
+      <b>Platform Snapshot</b><br>
+      Active events: <?= context.activeEvents ?><br>
+      Attention items: <?= context.overdueTasks ?><br>
+      Avg completion: <?= context.avgCompletion ?>%
+    </div>
+    <textarea id="prompt" placeholder="Ask EMMA what this event needs, draft communication, or suggest next steps..."></textarea>
+    <button onclick="ask()">Ask EMMA</button>
+    <pre id="response"></pre>
+    <script>
+      function ask() {
+        document.getElementById('response').textContent = 'Thinking...';
+        google.script.run
+          .withSuccessHandler(text => document.getElementById('response').textContent = text)
+          .askEmma(document.getElementById('prompt').value);
+      }
+    </script>
+  </body>
+</html>
