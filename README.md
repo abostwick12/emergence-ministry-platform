@@ -70,6 +70,7 @@ npm run dev
 npm run typecheck
 npm run lint
 npm run build
+npm run test:e2e
 ```
 
 ## CI
@@ -81,6 +82,7 @@ npm install
 npm run typecheck
 npm run lint
 npm run build
+npm run test:e2e
 ```
 
 ## Development Rules
