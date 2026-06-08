@@ -1,26 +1,57 @@
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('EMERGEnce')
-    .addItem('Set Up / Repair Platform', 'setupEmergencePlatform')
-    .addItem('Reset Platform Formatting', 'resetPlatformFormatting')
+    .addItem('Go to Events', 'goToEvents')
+    .addItem('Go to Kanban Board', 'goToKanban')
+    .addItem('Go to Documents', 'goToDocuments')
+    .addItem('Go to Budget', 'goToBudget')
+    .addItem('Go to Leader List', 'goToLeaderList')
+    .addItem('Go to Student List', 'goToStudentList')
+    .addItem('Go to Worship', 'goToWorship')
     .addSeparator()
-    .addSubMenu(
-      SpreadsheetApp.getUi()
-        .createMenu('Events')
-        .addItem('Add New Event', 'showAddEventDialog')
-        .addItem('Clear Event Filters', 'clearEventsFilters')
-        .addItem('Show All Event Columns', 'showAllEventsColumns')
-        .addItem('View Calendar', 'showCalendarComingSoon')
-    )
-    .addSubMenu(
-      SpreadsheetApp.getUi()
-        .createMenu('Kanban Board')
-        .addItem('Refresh Kanban Shell', 'refreshKanbanBoard')
-    )
+    .addItem('Open EMMA Sidebar', 'openEmmaSidebar')
     .addSeparator()
-    .addItem('Ask EMMA', 'showEmmaSidebar')
+    .addItem('Setup / Repair Platform', 'setupEmergencePlatform')
     .addItem('Run Package 1 Smoke Test', 'runPackageOneSmokeTest')
     .addToUi();
+}
+
+function goToSheetByName(sheetName) {
+  const spreadsheet = getActiveSpreadsheet_();
+  const sheet = spreadsheet.getSheetByName(sheetName);
+  if (!sheet) {
+    SpreadsheetApp.getUi().alert('The sheet "' + sheetName + '" does not exist yet.');
+    return;
+  }
+  spreadsheet.setActiveSheet(sheet);
+}
+
+function goToEvents() {
+  goToSheetByName(SHEET_NAMES.EVENTS);
+}
+
+function goToKanban() {
+  goToSheetByName(SHEET_NAMES.KANBAN);
+}
+
+function goToDocuments() {
+  goToSheetByName(SHEET_NAMES.DOCUMENTS);
+}
+
+function goToBudget() {
+  goToSheetByName(SHEET_NAMES.BUDGET);
+}
+
+function goToLeaderList() {
+  goToSheetByName(SHEET_NAMES.LEADERS);
+}
+
+function goToStudentList() {
+  goToSheetByName(SHEET_NAMES.STUDENTS);
+}
+
+function goToWorship() {
+  goToSheetByName(SHEET_NAMES.WORSHIP);
 }
 
 function showComingSoon(featureName, buildPackage) {
@@ -28,10 +59,6 @@ function showComingSoon(featureName, buildPackage) {
   SpreadsheetApp.getUi().alert(
     `${featureName} is coming in ${packageLabel}. Package 1 built the safe foundation and visual shell first.`
   );
-}
-
-function showEmmaSidebar() {
-  openEmmaSidebar();
 }
 
 function showAddEventDialog() {
