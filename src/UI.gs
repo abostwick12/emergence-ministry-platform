@@ -1,8 +1,15 @@
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('EMERGEnce')
-    .addItem('Set Up / Repair Platform', 'setupEmergencePlatform')
-    .addItem('Reset Platform Formatting', 'resetPlatformFormatting')
+    .addItem('Setup / Repair Platform', 'setupEmergencePlatform')
+    .addSeparator()
+    .addItem('Go to Events', 'goToEvents')
+    .addItem('Go to Kanban Board', 'goToKanban')
+    .addItem('Go to Documents', 'goToDocuments')
+    .addItem('Go to Budget', 'goToBudget')
+    .addItem('Go to Leader List', 'goToLeaderList')
+    .addItem('Go to Student List', 'goToStudentList')
+    .addItem('Go to Worship', 'goToWorship')
     .addSeparator()
     .addSubMenu(
       SpreadsheetApp.getUi()
@@ -18,9 +25,46 @@ function onOpen() {
         .addItem('Refresh Kanban Shell', 'refreshKanbanBoard')
     )
     .addSeparator()
-    .addItem('Ask EMMA', 'showEmmaSidebar')
+    .addItem('Open EMMA Sidebar', 'openEmmaSidebar')
     .addItem('Run Package 1 Smoke Test', 'runPackageOneSmokeTest')
     .addToUi();
+}
+
+function goToSheetByName(sheetName) {
+  const sheet = getSheet_(sheetName);
+  if (!sheet) {
+    showComingSoon(`Sheet navigation for ${sheetName}`, 'Package 1 setup');
+    return;
+  }
+  getActiveSpreadsheet_().setActiveSheet(sheet);
+}
+
+function goToEvents() {
+  goToSheetByName(SHEET_NAMES.EVENTS);
+}
+
+function goToKanban() {
+  goToSheetByName(SHEET_NAMES.KANBAN);
+}
+
+function goToDocuments() {
+  goToSheetByName(SHEET_NAMES.DOCUMENTS);
+}
+
+function goToBudget() {
+  goToSheetByName(SHEET_NAMES.BUDGET);
+}
+
+function goToLeaderList() {
+  goToSheetByName(SHEET_NAMES.LEADERS);
+}
+
+function goToStudentList() {
+  goToSheetByName(SHEET_NAMES.STUDENTS);
+}
+
+function goToWorship() {
+  goToSheetByName(SHEET_NAMES.WORSHIP);
 }
 
 function showComingSoon(featureName, buildPackage) {
@@ -28,10 +72,6 @@ function showComingSoon(featureName, buildPackage) {
   SpreadsheetApp.getUi().alert(
     `${featureName} is coming in ${packageLabel}. Package 1 built the safe foundation and visual shell first.`
   );
-}
-
-function showEmmaSidebar() {
-  openEmmaSidebar();
 }
 
 function showAddEventDialog() {
