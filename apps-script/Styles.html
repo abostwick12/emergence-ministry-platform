@@ -1,0 +1,426 @@
+<style>
+  :root {
+    --navy: #071b42;
+    --ink: #081838;
+    --muted: #64748b;
+    --line: #dbe5f2;
+    --bg: #f5f8fc;
+    --panel: #ffffff;
+    --pink: #ee244f;
+    --orange: #e58c00;
+    --blue: #256fdb;
+    --green: #168344;
+    --purple: #6e35c4;
+    --teal: #0589a5;
+    --red: #e5251a;
+    --shadow: 0 18px 42px rgba(7, 27, 66, .10);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    color: var(--ink);
+    background: var(--bg);
+    font-family: Arial, Helvetica, sans-serif;
+  }
+  button, input, select, textarea { font: inherit; }
+  button { cursor: pointer; }
+  .app-shell {
+    min-height: 100vh;
+    display: grid;
+    grid-template-columns: 236px minmax(980px, 1fr);
+    background: var(--bg);
+  }
+  .sidebar {
+    background: #fff;
+    border-right: 1px solid var(--line);
+    padding: 18px 18px 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+  }
+  .brand { width: 170px; }
+  .brand-name {
+    color: var(--navy);
+    font-size: 34px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    line-height: .85;
+    transform: skew(-8deg);
+  }
+  .brand-line {
+    height: 4px;
+    margin: 7px 0 4px;
+    background: linear-gradient(90deg, var(--teal), var(--pink));
+  }
+  .brand-sub {
+    color: var(--teal);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 3px;
+  }
+  .side-nav { display: grid; gap: 8px; }
+  .side-link {
+    border: 0;
+    background: transparent;
+    color: var(--navy);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 42px;
+    padding: 0 12px;
+    border-radius: 8px;
+    font-weight: 700;
+    text-align: left;
+  }
+  .side-link .icon {
+    width: 18px;
+    height: 18px;
+    border: 2px solid currentColor;
+    border-radius: 5px;
+    display: inline-block;
+  }
+  .side-link.active {
+    color: var(--active, var(--pink));
+    background: color-mix(in srgb, var(--active, var(--pink)) 12%, white);
+  }
+  .assistant-card {
+    margin-top: auto;
+    border-top: 1px solid var(--line);
+    padding-top: 22px;
+  }
+  .eyebrow {
+    color: var(--navy);
+    font-size: 11px;
+    font-weight: 900;
+    margin-bottom: 14px;
+  }
+  .side-action {
+    color: var(--teal);
+    background: transparent;
+    border: 0;
+    padding: 0;
+    font-weight: 900;
+    margin-bottom: 12px;
+  }
+  .emma-button {
+    width: 110px;
+    height: 36px;
+    color: #fff;
+    background: var(--teal);
+    border: 0;
+    border-radius: 7px;
+    font-weight: 900;
+    box-shadow: 0 8px 20px rgba(5, 137, 165, .24);
+  }
+  .assistant-card p {
+    max-width: 150px;
+    color: var(--navy);
+    font-size: 12px;
+    line-height: 1.45;
+  }
+  .main { min-width: 0; padding: 18px 22px 28px; }
+  .top-tabs {
+    display: flex;
+    align-items: flex-end;
+    gap: 6px;
+    min-height: 50px;
+    margin-bottom: 14px;
+    overflow-x: auto;
+  }
+  .top-tab {
+    min-width: 118px;
+    height: 46px;
+    color: #fff;
+    border: 0;
+    border-radius: 8px 8px 0 0;
+    background: var(--tab-color);
+    font-weight: 900;
+    white-space: nowrap;
+    box-shadow: inset 0 -4px rgba(255,255,255,.16);
+  }
+  .top-tab.active { height: 52px; }
+  .view {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    min-height: 720px;
+    padding: 26px;
+    box-shadow: var(--shadow);
+  }
+  .page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    margin-bottom: 22px;
+  }
+  .title-row { display: flex; align-items: center; gap: 14px; }
+  .page-icon {
+    width: 36px;
+    height: 36px;
+    border: 3px solid currentColor;
+    border-radius: 7px;
+  }
+  h1 {
+    margin: 0;
+    color: var(--accent);
+    font-size: 30px;
+    letter-spacing: 0;
+  }
+  .subtitle { color: var(--navy); font-size: 14px; }
+  .actions { display: flex; gap: 14px; align-items: center; }
+  .btn {
+    min-height: 38px;
+    padding: 0 18px;
+    border-radius: 7px;
+    border: 1px solid #bdd0e8;
+    background: #fff;
+    color: var(--navy);
+    font-weight: 800;
+  }
+  .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .btn.emma { background: var(--teal); color: #fff; border-color: var(--teal); }
+  .kpis {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(150px, 1fr));
+    gap: 18px;
+    margin-bottom: 22px;
+  }
+  .kpi {
+    min-height: 100px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: linear-gradient(180deg, #fff, #fbfdff);
+    display: grid;
+    place-items: center;
+    text-align: center;
+    padding: 14px;
+  }
+  .kpi.warning { background: #fff3f1; color: var(--red); }
+  .kpi.success { background: #effaf3; color: var(--green); }
+  .kpi .label { font-size: 11px; font-weight: 900; color: inherit; }
+  .kpi .value { font-size: 28px; font-weight: 900; margin: 5px 0; color: inherit; }
+  .kpi .hint { font-size: 12px; color: var(--muted); }
+  .table-wrap {
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    overflow: hidden;
+    background: #fff;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th {
+    background: var(--accent);
+    color: #fff;
+    padding: 11px 12px;
+    font-size: 11px;
+    text-align: left;
+  }
+  td {
+    padding: 11px 12px;
+    border-bottom: 1px solid #edf2f8;
+    vertical-align: middle;
+  }
+  tr:hover td { background: #f8fbff; }
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 78px;
+    height: 24px;
+    padding: 0 10px;
+    border-radius: 999px;
+    background: #dbe9ff;
+    color: var(--navy);
+    font-weight: 800;
+    font-size: 12px;
+  }
+  .health { font-weight: 900; }
+  .health.OnTrack { color: var(--green); }
+  .health.Caution { color: var(--orange); }
+  .health.AtRisk { color: var(--red); }
+  .progress {
+    display: grid;
+    grid-template-columns: 42px 1fr;
+    align-items: center;
+    gap: 8px;
+  }
+  .bar { height: 8px; background: #edf1f5; border-radius: 999px; overflow: hidden; }
+  .bar span { display: block; height: 100%; background: #477de0; border-radius: inherit; }
+  .kanban-metrics {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(170px, 1fr));
+    gap: 18px;
+    margin-bottom: 22px;
+  }
+  .metric-card {
+    min-height: 118px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 18px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: #f8fbff;
+  }
+  .metric-symbol {
+    width: 58px;
+    height: 58px;
+    border: 4px solid currentColor;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-weight: 900;
+  }
+  .metric-value { font-size: 28px; font-weight: 900; }
+  .metric-label { font-weight: 900; }
+  .metric-hint { color: var(--muted); font-size: 13px; }
+  .kanban-board {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(210px, 1fr));
+    gap: 16px;
+  }
+  .kanban-col {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    min-height: 430px;
+    background: #fbfdff;
+    overflow: hidden;
+  }
+  .col-head {
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 14px;
+    font-weight: 900;
+    background: var(--soft);
+    color: var(--col);
+  }
+  .count {
+    min-width: 26px;
+    height: 26px;
+    padding: 0 8px;
+    border-radius: 999px;
+    background: var(--col);
+    color: #fff;
+    display: grid;
+    place-items: center;
+    font-size: 12px;
+  }
+  .task-list { display: grid; gap: 12px; padding: 12px; }
+  .task-card {
+    background: #fff;
+    border: 1px solid #e1e8f2;
+    border-left: 5px solid var(--col);
+    border-radius: 9px;
+    padding: 12px;
+    box-shadow: 0 8px 20px rgba(7,27,66,.07);
+  }
+  .task-top { display: flex; gap: 10px; align-items: center; }
+  .ring {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: conic-gradient(var(--col) var(--pct), #edf1f5 0);
+    font-size: 12px;
+    font-weight: 900;
+  }
+  .ring::before {
+    content: '';
+    position: absolute;
+  }
+  .task-name { font-weight: 900; color: var(--navy); }
+  .task-meta { color: var(--muted); font-size: 12px; line-height: 1.6; }
+  .task-actions { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .task-actions button {
+    border: 1px solid var(--line);
+    background: #fff;
+    color: var(--navy);
+    border-radius: 6px;
+    min-height: 28px;
+    padding: 0 8px;
+    font-size: 11px;
+    font-weight: 800;
+  }
+  .placeholder {
+    border: 1px dashed var(--line);
+    border-radius: 12px;
+    min-height: 470px;
+    display: grid;
+    place-items: center;
+    text-align: center;
+    color: var(--muted);
+    background: #fbfdff;
+    padding: 30px;
+  }
+  .placeholder h2 { color: var(--navy); margin: 0 0 8px; }
+  .modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(7, 27, 66, .34);
+    display: grid;
+    place-items: center;
+    padding: 30px;
+  }
+  .modal.hidden, .toast.hidden { display: none; }
+  .modal-card {
+    width: min(760px, 100%);
+    max-height: 86vh;
+    overflow: auto;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    padding: 24px;
+  }
+  .modal-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 18px;
+  }
+  .modal-head h2 { margin: 0; color: var(--navy); }
+  .close {
+    border: 0;
+    background: #eef3fa;
+    border-radius: 7px;
+    width: 34px;
+    height: 34px;
+    font-weight: 900;
+  }
+  .form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+  label { display: grid; gap: 7px; color: var(--navy); font-size: 12px; font-weight: 900; }
+  input, select, textarea {
+    border: 1px solid #cbd7e8;
+    border-radius: 8px;
+    min-height: 40px;
+    padding: 10px;
+    color: var(--ink);
+    background: #fff;
+  }
+  textarea { min-height: 92px; resize: vertical; }
+  .span-2 { grid-column: span 2; }
+  .toast {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    background: var(--navy);
+    color: #fff;
+    border-radius: 9px;
+    padding: 14px 18px;
+    box-shadow: var(--shadow);
+    font-weight: 800;
+  }
+  @media (max-width: 1100px) {
+    .app-shell { grid-template-columns: 1fr; }
+    .sidebar { display: none; }
+    .main { padding: 12px; }
+    .kpis, .kanban-metrics, .kanban-board { grid-template-columns: 1fr; }
+    .view { min-height: 0; }
+  }
+</style>
