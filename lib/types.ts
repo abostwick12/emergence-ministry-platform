@@ -8,6 +8,7 @@ export type TaskStatus = "todo" | "in_progress" | "blocked" | "done";
 
 export type ActivityType =
   | "event_created"
+  | "event_updated"
   | "task_generated"
   | "task_status_changed"
   | "task_owner_changed"

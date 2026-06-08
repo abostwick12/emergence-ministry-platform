@@ -145,6 +145,22 @@ export default function HomePage() {
     await refresh();
   }
 
+  async function updateEvent(eventId: string, body: Partial<MinistryEvent>) {
+    const response = await fetch(`/api/events/${eventId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+
+    if (!response.ok) {
+      setNotice("Event update failed. Check the event details and try again.");
+      return;
+    }
+
+    setNotice("Event details updated.");
+    await refresh(eventId);
+  }
+
   async function postEventAction(path: string, message: string) {
     if (!selectedEventId) return;
     await fetch(`/api/events/${selectedEventId}/${path}`, { method: "POST" });
@@ -304,6 +320,7 @@ export default function HomePage() {
                     onDriveStub={() => postEventAction("generate-drive-folder", "Google Drive Stub Mode action recorded.")}
                     onProStub={() => postEventAction("generate-propresenter", "ProPresenter Stub Mode action recorded.")}
                     onCalendarStub={() => postEventAction("sync-calendar", "Google Calendar Stub Mode action recorded.")}
+                    onUpdateEvent={updateEvent}
                   />
                 ) : null}
               </div>
@@ -402,10 +419,12 @@ function TaskCard({
   onUpdate: (taskId: string, body: Partial<ActiveTask>) => Promise<void>;
 }) {
   const [title, setTitle] = useState(task.taskTitle);
+  const [dueDate, setDueDate] = useState(toDateInputValue(task.dueDate));
 
   useEffect(() => {
     setTitle(task.taskTitle);
-  }, [task.taskTitle]);
+    setDueDate(toDateInputValue(task.dueDate));
+  }, [task.dueDate, task.taskTitle]);
 
   return (
     <article className="task-card">
@@ -448,8 +467,16 @@ function TaskCard({
         <label htmlFor={`title-${task.id}`}>Edit task title</label>
         <input className="input" id={`title-${task.id}`} value={title} onChange={(event) => setTitle(event.target.value)} />
       </div>
+      <div className="field">
+        <label htmlFor={`due-${task.id}`}>Due date</label>
+        <input className="input" id={`due-${task.id}`} type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
+      </div>
       <div className="toolbar">
-        <button className="button" type="button" onClick={() => void onUpdate(task.id, { taskTitle: title })}>
+        <button
+          className="button"
+          type="button"
+          onClick={() => void onUpdate(task.id, { taskTitle: title, dueDate: new Date(`${dueDate}T12:00:00`).toISOString() })}
+        >
           Save
         </button>
         <button className="button" type="button" onClick={onSelectEvent}>
@@ -466,7 +493,8 @@ function EventWorkspacePanel({
   onGeneratePreview,
   onDriveStub,
   onProStub,
-  onCalendarStub
+  onCalendarStub,
+  onUpdateEvent
 }: {
   workspace: EventWorkspace;
   users: User[];
@@ -474,6 +502,7 @@ function EventWorkspacePanel({
   onDriveStub: () => void;
   onProStub: () => void;
   onCalendarStub: () => void;
+  onUpdateEvent: (eventId: string, body: Partial<MinistryEvent>) => Promise<void>;
 }) {
   const spent = workspace.expenses.reduce((sum, expense) => sum + expense.amount, 0);
   const target = workspace.event.budgetTarget ?? 0;
@@ -487,6 +516,7 @@ function EventWorkspacePanel({
       </p>
 
       <div className="grid">
+        <EventDetailsForm key={workspace.event.id} workspace={workspace} users={users} onUpdateEvent={onUpdateEvent} />
         <MissingInformationPanel items={workspace.missingInformation} />
 
         <section className="card">
@@ -553,6 +583,117 @@ function EventWorkspacePanel({
           <ActivityList items={workspace.activity} />
         </section>
       </div>
+    </section>
+  );
+}
+
+function EventDetailsForm({
+  workspace,
+  users,
+  onUpdateEvent
+}: {
+  workspace: EventWorkspace;
+  users: User[];
+  onUpdateEvent: (eventId: string, body: Partial<MinistryEvent>) => Promise<void>;
+}) {
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const startTime = String(form.get("startTime") || "");
+    const endTime = String(form.get("endTime") || "");
+
+    void onUpdateEvent(workspace.event.id, {
+      title: String(form.get("title") || ""),
+      description: String(form.get("description") || ""),
+      startTime: new Date(startTime).toISOString(),
+      endTime: new Date(endTime).toISOString(),
+      location: String(form.get("location") || "") || undefined,
+      budgetTarget: Number(form.get("budgetTarget") || 0) || undefined,
+      contactOwnerId: String(form.get("contactOwnerId") || "") || undefined
+    });
+  }
+
+  return (
+    <section className="card">
+      <h3 className="section-title">Event Information</h3>
+      <form className="grid" onSubmit={submit}>
+        <div className="grid grid-2">
+          <div className="field">
+            <label htmlFor={`event-title-${workspace.event.id}`}>Title</label>
+            <input className="input" id={`event-title-${workspace.event.id}`} name="title" defaultValue={workspace.event.title} required />
+          </div>
+          <div className="field">
+            <label htmlFor={`event-owner-${workspace.event.id}`}>Communication owner</label>
+            <select
+              className="input"
+              id={`event-owner-${workspace.event.id}`}
+              name="contactOwnerId"
+              defaultValue={workspace.event.contactOwnerId ?? users[0]?.id}
+            >
+              {users.map((user) => (
+                <option key={user.id} value={user.id}>
+                  {user.firstName} {user.lastName} / {roleLabels[user.role]}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div className="field">
+          <label htmlFor={`event-description-${workspace.event.id}`}>Description</label>
+          <textarea
+            className="input"
+            id={`event-description-${workspace.event.id}`}
+            name="description"
+            rows={3}
+            defaultValue={workspace.event.description}
+          />
+        </div>
+        <div className="grid grid-2">
+          <div className="field">
+            <label htmlFor={`event-start-${workspace.event.id}`}>Start</label>
+            <input
+              className="input"
+              id={`event-start-${workspace.event.id}`}
+              name="startTime"
+              type="datetime-local"
+              defaultValue={toDateTimeLocalValue(workspace.event.startTime)}
+              required
+            />
+          </div>
+          <div className="field">
+            <label htmlFor={`event-end-${workspace.event.id}`}>End</label>
+            <input
+              className="input"
+              id={`event-end-${workspace.event.id}`}
+              name="endTime"
+              type="datetime-local"
+              defaultValue={toDateTimeLocalValue(workspace.event.endTime)}
+              required
+            />
+          </div>
+        </div>
+        <div className="grid grid-2">
+          <div className="field">
+            <label htmlFor={`event-location-${workspace.event.id}`}>Location</label>
+            <input className="input" id={`event-location-${workspace.event.id}`} name="location" defaultValue={workspace.event.location ?? ""} />
+          </div>
+          <div className="field">
+            <label htmlFor={`event-budget-${workspace.event.id}`}>Budget target</label>
+            <input
+              className="input"
+              id={`event-budget-${workspace.event.id}`}
+              name="budgetTarget"
+              min="0"
+              step="50"
+              type="number"
+              defaultValue={workspace.event.budgetTarget ?? ""}
+            />
+          </div>
+        </div>
+        <button className="button" type="submit">
+          Save event details
+        </button>
+      </form>
     </section>
   );
 }
@@ -635,4 +776,14 @@ function ActivityList({ items }: { items: ActivityLog[] }) {
       ))}
     </div>
   );
+}
+
+function toDateInputValue(value: string) {
+  return new Date(value).toISOString().slice(0, 10);
+}
+
+function toDateTimeLocalValue(value: string) {
+  const date = new Date(value);
+  const offset = date.getTimezoneOffset() * 60000;
+  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
 }

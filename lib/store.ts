@@ -196,6 +196,35 @@ export function createEvent(input: {
   return getWorkspace(event.id);
 }
 
+export function updateEvent(
+  id: string,
+  input: Partial<Pick<MinistryEvent, "title" | "description" | "startTime" | "endTime" | "location" | "budgetTarget" | "contactOwnerId">>
+) {
+  const event = getEvent(id);
+  if (!event) return undefined;
+
+  const changedFields: string[] = [];
+
+  (["title", "description", "startTime", "endTime", "location", "budgetTarget", "contactOwnerId"] as const).forEach((field) => {
+    if (input[field] !== undefined && input[field] !== event[field]) {
+      changedFields.push(field);
+    }
+  });
+
+  Object.assign(event, input);
+
+  if (changedFields.length > 0) {
+    recordActivity({
+      type: "event_updated",
+      eventId: event.id,
+      message: `Updated event details: ${event.title}`,
+      metadata: { fields: changedFields.join(", ") }
+    });
+  }
+
+  return getWorkspace(event.id);
+}
+
 export function updateTask(
   id: string,
   input: Partial<Pick<ActiveTask, "taskTitle" | "dueDate" | "assignedUserId" | "status">>
@@ -206,6 +235,7 @@ export function updateTask(
   const previousStatus = task.status;
   const previousOwner = task.assignedUserId;
   const previousTitle = task.taskTitle;
+  const previousDueDate = task.dueDate;
 
   Object.assign(task, input);
 
@@ -236,6 +266,16 @@ export function updateTask(
       taskId: task.id,
       message: `Edited task title: ${input.taskTitle}`,
       metadata: { from: previousTitle, to: input.taskTitle }
+    });
+  }
+
+  if (input.dueDate && input.dueDate !== previousDueDate) {
+    recordActivity({
+      type: "task_edited",
+      eventId: task.eventId,
+      taskId: task.id,
+      message: `Changed due date for task: ${task.taskTitle}`,
+      metadata: { from: previousDueDate, to: input.dueDate }
     });
   }
 

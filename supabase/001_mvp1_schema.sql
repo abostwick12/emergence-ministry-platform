@@ -7,6 +7,7 @@ create type task_status as enum ('todo', 'in_progress', 'blocked', 'done');
 create type integration_type as enum ('planning_center', 'google_calendar', 'google_drive', 'propresenter');
 create type activity_type as enum (
   'event_created',
+  'event_updated',
   'task_generated',
   'task_status_changed',
   'task_owner_changed',
