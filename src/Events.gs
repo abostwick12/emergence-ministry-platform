@@ -31,6 +31,11 @@ function applyEventsFormatting() {
   sheet.getRange(headerRow + 1, 4, Math.max(sheet.getMaxRows() - headerRow, 1), 2).setNumberFormat('m/d/yyyy');
   sheet.getRange(headerRow + 1, 11, Math.max(sheet.getMaxRows() - headerRow, 1), 2).setNumberFormat('$#,##0.00');
   sheet.getRange(headerRow + 1, 9, Math.max(sheet.getMaxRows() - headerRow, 1), 1).setNumberFormat('0%');
+  sheet.setRowHeights(1, 2, 30);
+  sheet.setRowHeights(4, 3, 28);
+  sheet.setRowHeights(8, 5, 30);
+  sheet.setRowHeight(headerRow, 28);
+  sheet.setHiddenGridlines(true);
   applyColumnValidation_(SHEET_NAMES.EVENTS, 'Event Type', NAMED_RANGES.EVENT_TYPES);
   applyColumnValidation_(SHEET_NAMES.EVENTS, 'Status', NAMED_RANGES.STATUSES);
   applyColumnValidation_(SHEET_NAMES.EVENTS, 'Health', NAMED_RANGES.HEALTH);
@@ -55,44 +60,30 @@ function buildEventsHeader_(sheet) {
   sheet.getRange('A2:Z2').merge().setValue(`Environment: ${getCurrentEnvironment()} | ${EMERGENCE_APP.packageName}`)
     .setBackground(UI_COLORS.SOFT_BG)
     .setFontColor(UI_COLORS.MUTED);
-  sheet.getRange('A4:D6').merge().setValue('EVENTS')
-    .setBackground('#FFFFFF')
-    .setFontColor(UI_COLORS.EVENTS)
-    .setFontWeight('bold')
-    .setFontSize(26)
-    .setVerticalAlignment('middle');
-  sheet.getRange('E4:J6').merge().setValue('Plan with clarity. Execute with excellence.')
-    .setBackground('#FFFFFF')
-    .setFontColor(UI_COLORS.MUTED)
-    .setVerticalAlignment('middle');
-  sheet.getRange('K4:Z6').merge()
-    .setValue('Menu actions: Add New Event, Clear Filters, View Calendar, Open EMMA Sidebar')
-    .setBackground(UI_COLORS.SOFT_BG)
-    .setFontColor(UI_COLORS.NAVY)
-    .setFontWeight('bold')
-    .setHorizontalAlignment('right')
-    .setVerticalAlignment('middle');
+  setDashboardHeader_(
+    sheet,
+    'A4:D6',
+    'EVENTS',
+    UI_COLORS.EVENTS,
+    'E4:J6',
+    'Plan with clarity. Execute with excellence.',
+    'K4:Z6',
+    'Use the EMERGEnce menu for navigation, setup, smoke tests, and EMMA.'
+  );
 }
 
 function buildEventsMetricCards_(sheet) {
   const cards = [
-    ['Active Events', '=COUNTIFS(H15:H,"<>Completed",D15:D,">="&TODAY())'],
-    ['Upcoming Events', '=COUNTIFS(D15:D,">="&TODAY(),D15:D,"<="&TODAY()+90)'],
-    ['Completion Avg', '=IFERROR(AVERAGE(FILTER(I15:I,B15:B<>"")),0)'],
-    ['Overdue Tasks', '0'],
-    ['Total Budgeted', '=IFERROR(SUM(K15:K),0)'],
-    ['Total Spent', '=IFERROR(SUM(L15:L),0)']
+    ['Active Events', '=COUNTIFS(H15:H,"<>Completed",D15:D,">="&TODAY())', 'Events in progress', UI_COLORS.EVENTS],
+    ['Upcoming Events', '=COUNTIFS(D15:D,">="&TODAY(),D15:D,"<="&TODAY()+90)', 'Next 90 days', UI_COLORS.NAVY],
+    ['Completion Avg', '=IFERROR(AVERAGE(FILTER(I15:I,B15:B<>"")),0)', 'All active events', UI_COLORS.NAVY],
+    ['Overdue Tasks', '0', 'Needs task logic', UI_COLORS.DANGER],
+    ['Total Budgeted', '=IFERROR(SUM(K15:K),0)', 'All active events', UI_COLORS.NAVY],
+    ['Total Spent', '=IFERROR(SUM(L15:L),0)', 'From Events table', UI_COLORS.SUCCESS]
   ];
   cards.forEach((card, index) => {
     const column = 1 + (index * 4);
-    const range = sheet.getRange(8, column, 5, 3);
-    range
-      .setBackground('#FFFFFF')
-      .setBorder(true, true, true, true, true, true, UI_COLORS.BORDER, SpreadsheetApp.BorderStyle.SOLID);
-    sheet.getRange(8, column, 1, 3).merge().setValue(card[0]).setFontWeight('bold').setFontColor(UI_COLORS.NAVY).setHorizontalAlignment('center');
-    sheet.getRange(9, column, 2, 3).merge().setFormula(card[1]).setFontWeight('bold').setFontSize(18).setFontColor(index === 3 ? UI_COLORS.DANGER : UI_COLORS.NAVY).setHorizontalAlignment('center').setVerticalAlignment('middle');
-    sheet.getRange(11, column, 1, 3).merge().setValue('Calculated from table data').setFontColor(UI_COLORS.MUTED).setFontSize(9).setHorizontalAlignment('center');
-    sheet.getRange(12, column, 1, 3).merge().setValue('Package 1 foundation').setFontColor(UI_COLORS.MUTED).setFontSize(8).setHorizontalAlignment('center');
+    setDashboardKpiCard_(sheet, 8, column, 5, 3, card[0], card[1], card[2], card[3]);
   });
 }
 
@@ -117,10 +108,4 @@ function getExistingEventsTableRows_(sheet) {
 function restoreEventsTableRows_(sheet, rows) {
   if (!rows || !rows.length) return;
   sheet.getRange(TABLE_START_ROWS.EVENTS + 1, 1, rows.length, PACKAGE_ONE_COLUMNS.EVENTS.length).setValues(rows);
-}
-
-function clearDashboardArea_(sheet, row, column, rowCount, columnCount) {
-  const range = sheet.getRange(row, column, rowCount, columnCount);
-  range.breakApart();
-  range.clear({ contentsOnly: false });
 }
