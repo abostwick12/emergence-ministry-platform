@@ -1,0 +1,381 @@
+<script>
+  const model = {
+    active: 'events',
+    state: null,
+    config: null
+  };
+
+  const statusStyles = {
+    'Not Started': { color: '#64748b', soft: '#eef3f7' },
+    'In Progress': { color: '#e58c00', soft: '#fff2d9' },
+    'Waiting / Blocked': { color: '#e5251a', soft: '#fde8e6' },
+    'In Review': { color: '#6e35c4', soft: '#f0e7ff' },
+    'Complete': { color: '#168344', soft: '#e9f7ef' }
+  };
+
+  const pageCopy = {
+    dashboard: ['Dashboard', 'Ministry command center snapshot.'],
+    events: ['Events', 'Plan with clarity. Execute with excellence.'],
+    kanban: ['Kanban Board', 'Visualize the work. Move the mission forward.'],
+    documents: ['Documents', 'Connect files to the right events, tasks, and drafts.'],
+    budget: ['Budget', 'Track commitments, spending, gaps, and approvals.'],
+    leaders: ['Leader List', 'Coordinate roles, availability, and care.'],
+    students: ['Student List', 'Keep follow-up visible while protecting sensitive data.'],
+    worship: ['Worship', 'Plan songs, rehearsals, slides, and service assignments.'],
+    communication: ['Communication', 'Draft, review, approve, and log ministry messages.'],
+    voices: ['Voice Profiles', 'Save sender and audience voice rules.'],
+    prompts: ['Prompt Templates', 'Reusable workflows for recurring ministry tasks.'],
+    settings: ['System Settings', 'Configure review emails, calendar IDs, and defaults.']
+  };
+
+  document.addEventListener('click', (event) => {
+    const action = event.target.closest('[data-action]')?.dataset.action;
+    const route = event.target.closest('[data-route]')?.dataset.route;
+    const taskStatus = event.target.closest('[data-task-status]');
+    if (route) navigate(route);
+    if (action === 'add-event') openEventModal();
+    if (action === 'ask-emma') openEmmaModal();
+    if (action === 'new-communication') openCommunicationModal();
+    if (action === 'refresh') loadState();
+    if (taskStatus) moveTask(taskStatus.dataset.taskId, taskStatus.dataset.taskStatus);
+  });
+
+  function loadState() {
+    setLoading();
+    google.script.run
+      .withSuccessHandler((state) => {
+        model.state = state;
+        model.config = state.config;
+        renderShell();
+        renderView();
+      })
+      .withFailureHandler(showError)
+      .getInitialState();
+  }
+
+  function renderShell() {
+    const nav = model.config.nav;
+    document.getElementById('sideNav').innerHTML = nav.filter(item => item.id !== 'dashboard').slice(0, 6).map(item => `
+      <button class="side-link ${model.active === item.id ? 'active' : ''}" style="--active:${item.color}" data-route="${item.id}">
+        <span class="icon"></span><span>${item.id === 'events' ? 'All Events' : item.label}</span>
+      </button>
+    `).join('');
+    document.getElementById('topTabs').innerHTML = nav.filter(item => item.id !== 'dashboard').map(item => `
+      <button class="top-tab ${model.active === item.id ? 'active' : ''}" style="--tab-color:${item.color}" data-route="${item.id}">
+        ${item.label}
+      </button>
+    `).join('');
+  }
+
+  function navigate(route) {
+    model.active = route;
+    renderShell();
+    renderView();
+  }
+
+  function renderView() {
+    if (model.active === 'events') return renderEvents();
+    if (model.active === 'kanban') return renderKanban();
+    if (model.active === 'communication') return renderCommunication();
+    renderPlaceholder(model.active);
+  }
+
+  function renderHeader(route, actions = '') {
+    const navItem = model.config.nav.find(item => item.id === route) || model.config.nav[1];
+    const copy = pageCopy[route] || [navItem.label, 'Module ready for buildout.'];
+    return `
+      <div class="page-header" style="--accent:${navItem.color}">
+        <div class="title-row">
+          <span class="page-icon"></span>
+          <div>
+            <h1>${copy[0].toUpperCase()}</h1>
+            <div class="subtitle">${copy[1]}</div>
+          </div>
+        </div>
+        <div class="actions">${actions}<button class="btn emma" data-action="ask-emma">Ask EMMA</button></div>
+      </div>
+    `;
+  }
+
+  function renderEvents() {
+    const { events, metrics } = model.state.dashboard;
+    document.getElementById('view').innerHTML = `
+      ${renderHeader('events', `
+        <button class="btn primary" data-action="add-event">+ Add New Event</button>
+        <button class="btn" data-action="refresh">Refresh</button>
+      `)}
+      <section class="kpis">
+        ${kpi('ACTIVE EVENTS', metrics.activeEvents, 'Events in progress')}
+        ${kpi('UPCOMING EVENTS', metrics.upcomingEvents, 'Next 90 days')}
+        ${kpi('COMPLETION AVG', metrics.avgCompletion + '%', 'All active events')}
+        ${kpi('ATTENTION TASKS', metrics.attentionTasks, 'Needs attention', 'warning')}
+        ${kpi('TOTAL BUDGETED', money(metrics.totalBudgeted), 'All active events')}
+        ${kpi('TOTAL SPENT', money(metrics.totalSpent), metrics.spendPercent + '% of budget', 'success')}
+      </section>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Event ID</th><th>Event Name</th><th>Type</th><th>Start</th><th>End</th><th>Status</th>
+              <th>Completion</th><th>Days Away</th><th>Budgeted</th><th>Spent</th><th>Health</th><th>Owner</th>
+            </tr>
+          </thead>
+          <tbody>${events.map(eventRow).join('')}</tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  function renderKanban() {
+    const { columns, metrics } = model.state.kanban;
+    document.getElementById('view').innerHTML = `
+      ${renderHeader('kanban', `
+        <button class="btn" data-action="refresh">Refresh</button>
+        <button class="btn primary" data-action="add-event">+ Add Event</button>
+      `)}
+      <section class="kanban-metrics">
+        ${metric('66', metrics.totalTasks, 'Total Tasks', 'Across all events', '#256fdb')}
+        ${metric('18', metrics.inProgress, 'In Progress', 'Active work', '#e58c00')}
+        ${metric('8', metrics.overdue, 'Overdue', 'Needs attention', '#e5251a')}
+        ${metric('27', metrics.complete, 'Complete', 'Well done', '#168344')}
+        ${metric('68%', metrics.avgCompletion + '%', 'Avg. Completion', 'All active events', '#256fdb')}
+      </section>
+      <section class="kanban-board">
+        ${columns.map(columnView).join('')}
+      </section>
+    `;
+  }
+
+  function renderCommunication() {
+    const communications = model.state.communications;
+    document.getElementById('view').innerHTML = `
+      ${renderHeader('communication', `<button class="btn primary" data-action="new-communication">+ New Draft</button>`)}
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Draft</th><th>Event</th><th>Platform</th><th>Audience</th><th>Voice</th><th>Status</th><th>Subject</th></tr></thead>
+          <tbody>${communications.map(item => `
+            <tr><td>${item.id}</td><td><strong>${escapeHtml(item.eventName)}</strong></td><td>${item.platform}</td><td>${item.audience}</td><td>${item.voice}</td><td><span class="pill">${item.reviewStatus}</span></td><td>${escapeHtml(item.subject)}</td></tr>
+          `).join('')}</tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  function renderPlaceholder(route) {
+    const navItem = model.config.nav.find(item => item.id === route) || { color: '#071b42', label: route };
+    const copy = pageCopy[route] || [navItem.label, 'Module ready for buildout.'];
+    document.getElementById('view').innerHTML = `
+      ${renderHeader(route)}
+      <div class="placeholder">
+        <div>
+          <h2>${copy[0]} module</h2>
+          <p>${copy[1]}</p>
+          <p>This area is wired into the product shell and ready for the next feature pass.</p>
+        </div>
+      </div>
+    `;
+  }
+
+  function kpi(label, value, hint, tone = '') {
+    return `<div class="kpi ${tone}"><div><div class="label">${label}</div><div class="value">${value}</div><div class="hint">${hint}</div></div></div>`;
+  }
+
+  function metric(symbol, value, label, hint, color) {
+    return `<div class="metric-card" style="color:${color}"><div class="metric-symbol">${symbol}</div><div><div class="metric-value">${value}</div><div class="metric-label">${label}</div><div class="metric-hint">${hint}</div></div></div>`;
+  }
+
+  function eventRow(event) {
+    return `
+      <tr>
+        <td>${event.id}</td><td><strong>${escapeHtml(event.name)}</strong></td><td>${event.type}</td><td>${event.startDate}</td><td>${event.endDate}</td>
+        <td><span class="pill">${event.status}</span></td><td>${progress(event.completion)}</td><td>${event.daysAway}</td>
+        <td>${money(event.budgeted)}</td><td>${money(event.spent)}</td><td class="health ${className(event.health)}">${event.health}</td><td>${event.owner}</td>
+      </tr>
+    `;
+  }
+
+  function columnView(column) {
+    const style = statusStyles[column.status] || statusStyles['Not Started'];
+    return `
+      <div class="kanban-col" style="--col:${style.color};--soft:${style.soft}">
+        <div class="col-head"><span>${column.status.toUpperCase()}</span><span class="count">${column.tasks.length}</span></div>
+        <div class="task-list">
+          ${column.tasks.map(taskCard).join('')}
+          <button class="btn" data-action="add-event">+ Add Task</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function taskCard(task) {
+    const pct = Math.round(task.completion * 100);
+    return `
+      <article class="task-card" style="--pct:${pct}%">
+        <div class="task-top">
+          <div class="ring">${pct}%</div>
+          <div>
+            <div class="task-name">${escapeHtml(task.name)}</div>
+            <div class="task-meta">${escapeHtml(task.eventName)}<br>${task.dueDate} · ${task.type} · ${task.owner}</div>
+          </div>
+        </div>
+        <div class="task-actions">
+          ${['Not Started', 'In Progress', 'Waiting / Blocked', 'In Review', 'Complete'].map(status => `<button data-task-id="${task.id}" data-task-status="${status}">${status}</button>`).join('')}
+        </div>
+      </article>
+    `;
+  }
+
+  function progress(value) {
+    const pct = Math.round((value || 0) * 100);
+    return `<div class="progress"><span>${pct}%</span><div class="bar"><span style="width:${pct}%"></span></div></div>`;
+  }
+
+  function openEventModal() {
+    openModal(`
+      <div class="modal-card">
+        <div class="modal-head"><h2>Add New Event</h2><button class="close" onclick="closeModal()">X</button></div>
+        <form id="eventForm" class="form-grid">
+          <label class="span-2">Event Name<input name="eventName" required placeholder="Camp Oakwood 2026"></label>
+          <label>Event Type<select name="eventType">${model.config.eventTypes.map(option).join('')}</select></label>
+          <label>Owner<select name="owner">${model.config.owners.map(option).join('')}</select></label>
+          <label>Start Date<input name="startDate" type="date" required></label>
+          <label>End Date<input name="endDate" type="date"></label>
+          <label>Budgeted<input name="budgeted" type="number" min="0" value="0"></label>
+          <label>Health<select name="health">${model.config.health.map(option).join('')}</select></label>
+          <label class="span-2">Vision<textarea name="vision" placeholder="What ministry outcome should this event serve?"></textarea></label>
+          <label>Volunteer Needs<textarea name="volunteerNeeds"></textarea></label>
+          <label>Communication Needs<textarea name="communicationNeeds"></textarea></label>
+          <label class="span-2">Follow Up Plan<textarea name="followUpPlan"></textarea></label>
+          <button class="btn primary span-2" type="submit">Create Event</button>
+        </form>
+      </div>
+    `);
+    document.getElementById('eventForm').addEventListener('submit', submitEvent);
+  }
+
+  function submitEvent(event) {
+    event.preventDefault();
+    const form = Object.fromEntries(new FormData(event.target).entries());
+    google.script.run
+      .withSuccessHandler(() => {
+        closeModal();
+        showToast('Event created with baseline tasks.');
+        loadState();
+      })
+      .withFailureHandler(showError)
+      .createEvent(form);
+  }
+
+  function moveTask(taskId, status) {
+    google.script.run
+      .withSuccessHandler(() => {
+        showToast('Task updated.');
+        loadState();
+      })
+      .withFailureHandler(showError)
+      .updateTaskStatus(taskId, status);
+  }
+
+  function openCommunicationModal() {
+    const events = model.state.dashboard.events;
+    openModal(`
+      <div class="modal-card">
+        <div class="modal-head"><h2>New Communication Draft</h2><button class="close" onclick="closeModal()">X</button></div>
+        <form id="commForm" class="form-grid">
+          <label>Event<select name="eventId">${events.map(event => `<option value="${event.id}">${escapeHtml(event.name)}</option>`).join('')}</select></label>
+          <label>Platform<select name="platform">${['Email', 'GroupMe', 'SMS', 'Push Notification'].map(option).join('')}</select></label>
+          <label>Audience<select name="audience">${['Parents', 'Leaders', 'Students', 'Volunteers'].map(option).join('')}</select></label>
+          <label>Voice<select name="voice">${['Parent Trustworthy', 'Leader Actionable'].map(option).join('')}</select></label>
+          <label class="span-2">Goal<textarea name="goal" placeholder="What should this message accomplish?"></textarea></label>
+          <button class="btn primary span-2" type="submit">Create Draft for Review</button>
+        </form>
+      </div>
+    `);
+    document.getElementById('commForm').addEventListener('submit', submitCommunication);
+  }
+
+  function submitCommunication(event) {
+    event.preventDefault();
+    const form = Object.fromEntries(new FormData(event.target).entries());
+    google.script.run
+      .withSuccessHandler(() => {
+        closeModal();
+        showToast('Draft created and logged.');
+        loadState();
+        navigate('communication');
+      })
+      .withFailureHandler(showError)
+      .createCommunicationDraft(form);
+  }
+
+  function openEmmaModal() {
+    openModal(`
+      <div class="modal-card">
+        <div class="modal-head"><h2>Ask EMMA</h2><button class="close" onclick="closeModal()">X</button></div>
+        <form id="emmaForm" class="form-grid">
+          <label class="span-2">Prompt<textarea name="prompt" placeholder="What should I focus on next?"></textarea></label>
+          <button class="btn emma span-2" type="submit">Ask EMMA</button>
+          <pre id="emmaAnswer" class="span-2" style="white-space:pre-wrap;background:#f6f9fd;border:1px solid #dbe5f2;border-radius:8px;padding:14px;min-height:120px"></pre>
+        </form>
+      </div>
+    `);
+    document.getElementById('emmaForm').addEventListener('submit', (event) => {
+      event.preventDefault();
+      google.script.run
+        .withSuccessHandler(answer => document.getElementById('emmaAnswer').textContent = answer)
+        .withFailureHandler(showError)
+        .askEmma(new FormData(event.target).get('prompt'));
+    });
+  }
+
+  function openModal(html) {
+    const modal = document.getElementById('modal');
+    modal.innerHTML = html;
+    modal.classList.remove('hidden');
+  }
+
+  function closeModal() {
+    document.getElementById('modal').classList.add('hidden');
+    document.getElementById('modal').innerHTML = '';
+  }
+
+  function setLoading() {
+    document.getElementById('view').innerHTML = '<div class="loading">Loading ministry command center...</div>';
+  }
+
+  function showToast(message) {
+    const toast = document.getElementById('toast');
+    toast.textContent = message;
+    toast.classList.remove('hidden');
+    setTimeout(() => toast.classList.add('hidden'), 2600);
+  }
+
+  function showError(error) {
+    const message = error && error.message ? error.message : String(error);
+    showToast(message);
+  }
+
+  function money(value) {
+    return Number(value || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+  }
+
+  function option(value) {
+    return `<option>${escapeHtml(value)}</option>`;
+  }
+
+  function className(value) {
+    return String(value || '').replace(/\s+/g, '');
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, char => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;'
+    }[char]));
+  }
+
+  loadState();
+</script>
