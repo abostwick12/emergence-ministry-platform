@@ -1,0 +1,79 @@
+<!doctype html>
+<html>
+  <head>
+    <base target="_top">
+    <style>
+      body { font-family: Arial, sans-serif; color: #071635; padding: 18px; }
+      h2 { color: #EE244F; margin: 0 0 12px; }
+      label { display:block; font-weight:700; font-size:12px; margin-top:12px; }
+      input, select, textarea { width:100%; box-sizing:border-box; padding:10px; border:1px solid #DDE5F0; border-radius:8px; }
+      button { margin-top:18px; width:100%; padding:12px; border:0; border-radius:8px; color:white; background:#EE244F; font-weight:700; cursor:pointer; }
+      .row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+      .hint { color:#53627A; font-size:12px; }
+    </style>
+  </head>
+  <body>
+    <h2>Add New Event</h2>
+    <p class="hint">Creates a new event row and refreshes the Kanban summary.</p>
+    <label>Event Name</label>
+    <input id="eventName" placeholder="Camp Oakwood 2026">
+    <div class="row">
+      <div>
+        <label>Start Date</label>
+        <input id="startDate" type="date">
+      </div>
+      <div>
+        <label>End Date</label>
+        <input id="endDate" type="date">
+      </div>
+    </div>
+    <div class="row">
+      <div>
+        <label>Owner</label>
+        <select id="owner">
+          <? for (const owner of owners) { ?><option><?= owner ?></option><? } ?>
+        </select>
+      </div>
+      <div>
+        <label>Event Type</label>
+        <select id="eventType">
+          <? for (const type of eventTypes) { ?><option><?= type ?></option><? } ?>
+        </select>
+      </div>
+    </div>
+    <div class="row">
+      <div>
+        <label>Budgeted</label>
+        <input id="budgeted" type="number" min="0" step="1" value="0">
+      </div>
+      <div>
+        <label>Status</label>
+        <select id="status">
+          <option>Planning</option>
+          <option>Not Started</option>
+          <option>In Progress</option>
+          <option>Waiting / Blocked</option>
+          <option>In Review</option>
+          <option>Complete</option>
+        </select>
+      </div>
+    </div>
+    <button onclick="submitEvent()">Create Event</button>
+    <script>
+      function submitEvent() {
+        const form = {
+          eventName: document.getElementById('eventName').value,
+          startDate: document.getElementById('startDate').value,
+          endDate: document.getElementById('endDate').value,
+          owner: document.getElementById('owner').value,
+          eventType: document.getElementById('eventType').value,
+          budgeted: document.getElementById('budgeted').value,
+          status: document.getElementById('status').value
+        };
+        google.script.run
+          .withSuccessHandler(() => google.script.host.close())
+          .createEvent(form);
+      }
+    </script>
+  </body>
+</html>
