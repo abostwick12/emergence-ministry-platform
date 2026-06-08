@@ -1,5 +1,16 @@
-function clearDashboardArea_(sheet, row, column, rowCount, columnCount) {
-  const range = sheet.getRange(row, column, rowCount, columnCount);
+function resetDashboardRange_(sheet, rowCount, columnCount) {
+  const filter = sheet.getFilter();
+  if (filter) {
+    filter.remove();
+  }
+
+  sheet.showRows(1, Math.min(sheet.getMaxRows(), rowCount));
+  sheet.showColumns(1, Math.min(sheet.getMaxColumns(), columnCount));
+  sheet.setFrozenRows(0);
+  sheet.setFrozenColumns(0);
+  sheet.setHiddenGridlines(false);
+
+  const range = sheet.getRange(1, 1, rowCount, columnCount);
   range.breakApart();
   range.clearContent();
   range.clearFormat();
@@ -7,76 +18,95 @@ function clearDashboardArea_(sheet, row, column, rowCount, columnCount) {
   range
     .setFontFamily('Arial')
     .setFontColor(UI_COLORS.INK)
-    .setBackground(UI_COLORS.CARD_BG);
+    .setFontSize(10)
+    .setBackground('#FFFFFF')
+    .setWrap(true)
+    .setVerticalAlignment('middle');
 }
 
-function setDashboardHeader_(sheet, titleRangeA1, title, titleColor, subtitleRangeA1, subtitle, noteRangeA1, note) {
-  sheet.getRange(titleRangeA1).merge()
-    .setValue(title)
-    .setBackground(UI_COLORS.CARD_BG)
-    .setFontColor(titleColor)
-    .setFontWeight('bold')
-    .setFontSize(24)
-    .setHorizontalAlignment('left')
-    .setVerticalAlignment('middle');
-
-  sheet.getRange(subtitleRangeA1).merge()
-    .setValue(subtitle)
-    .setBackground(UI_COLORS.CARD_BG)
-    .setFontColor(UI_COLORS.MUTED)
-    .setFontSize(10)
-    .setHorizontalAlignment('left')
-    .setVerticalAlignment('middle');
-
-  sheet.getRange(noteRangeA1).merge()
-    .setValue(note)
-    .setBackground(UI_COLORS.SOFT_BG)
-    .setFontColor(UI_COLORS.NAVY)
-    .setFontSize(10)
-    .setFontWeight('bold')
-    .setHorizontalAlignment('right')
-    .setVerticalAlignment('middle')
-    .setWrap(true);
+function setMergedBlock_(sheet, a1, value, options) {
+  const range = sheet.getRange(a1);
+  range.merge();
+  range.setValue(value);
+  applyBlockStyle_(range, options || {});
+  return range;
 }
 
-function setDashboardKpiCard_(sheet, row, column, rowCount, columnCount, label, value, helper, accentColor) {
-  const card = sheet.getRange(row, column, rowCount, columnCount);
-  card
-    .setBackground(UI_COLORS.CARD_BG)
-    .setBorder(true, true, true, true, false, false, UI_COLORS.BORDER, SpreadsheetApp.BorderStyle.SOLID)
-    .setHorizontalAlignment('center')
-    .setVerticalAlignment('middle')
-    .setWrap(true);
-
-  sheet.getRange(row, column, 1, columnCount).merge()
-    .setValue(label)
-    .setFontColor(UI_COLORS.NAVY)
-    .setFontWeight('bold')
-    .setFontSize(9)
-    .setHorizontalAlignment('center');
-
-  const valueRange = sheet.getRange(row + 1, column, Math.max(rowCount - 3, 1), columnCount).merge()
-    .setFontColor(accentColor)
-    .setFontWeight('bold')
-    .setFontSize(20)
-    .setHorizontalAlignment('center')
-    .setVerticalAlignment('middle');
-
-  if (typeof value === 'string' && value.charAt(0) === '=') {
-    valueRange.setFormula(value);
-  } else {
-    valueRange.setValue(value);
+function applyBlockStyle_(range, options) {
+  if (options.background) range.setBackground(options.background);
+  if (options.fontColor) range.setFontColor(options.fontColor);
+  if (options.fontSize) range.setFontSize(options.fontSize);
+  if (options.bold !== undefined) range.setFontWeight(options.bold ? 'bold' : 'normal');
+  if (options.horizontalAlignment) range.setHorizontalAlignment(options.horizontalAlignment);
+  if (options.verticalAlignment) range.setVerticalAlignment(options.verticalAlignment);
+  if (options.wrap !== undefined) range.setWrap(options.wrap);
+  if (options.borderColor) {
+    range.setBorder(true, true, true, true, false, false, options.borderColor, SpreadsheetApp.BorderStyle.SOLID);
   }
+}
 
-  sheet.getRange(row + rowCount - 2, column, 1, columnCount).merge()
-    .setValue(helper)
-    .setFontColor(UI_COLORS.MUTED)
+function setPlaceholderControl_(sheet, a1, label) {
+  setMergedBlock_(sheet, a1, label + '\nPlaceholder', {
+    background: '#FFFFFF',
+    fontColor: UI_COLORS.NAVY,
+    fontSize: 9,
+    bold: false,
+    horizontalAlignment: 'center',
+    verticalAlignment: 'middle',
+    borderColor: '#CBD8E6'
+  });
+}
+
+function setKpiCard_(sheet, a1, label, value, helper, accentColor) {
+  const range = sheet.getRange(a1);
+  range.merge();
+  range
+    .setBackground('#FFFFFF')
+    .setBorder(true, true, true, true, false, false, '#CBD8E6', SpreadsheetApp.BorderStyle.SOLID)
+    .setHorizontalAlignment('center')
+    .setVerticalAlignment('middle')
+    .setWrap(true);
+
+  const text = label + '\n' + value + '\n' + helper;
+  const richText = SpreadsheetApp.newRichTextValue()
+    .setText(text)
+    .setTextStyle(0, label.length, SpreadsheetApp.newTextStyle()
+      .setFontSize(9)
+      .setBold(true)
+      .setForegroundColor(UI_COLORS.NAVY)
+      .build())
+    .setTextStyle(label.length + 1, label.length + 1 + String(value).length, SpreadsheetApp.newTextStyle()
+      .setFontSize(20)
+      .setBold(true)
+      .setForegroundColor(accentColor)
+      .build())
+    .setTextStyle(label.length + 2 + String(value).length, text.length, SpreadsheetApp.newTextStyle()
+      .setFontSize(9)
+      .setForegroundColor(UI_COLORS.MUTED)
+      .build())
+    .build();
+
+  range.setRichTextValue(richText);
+}
+
+function setTableHeader_(sheet, row, headers, fillColor) {
+  sheet.getRange(row, 1, 1, headers.length)
+    .setValues([headers])
+    .setBackground(fillColor)
+    .setFontColor('#FFFFFF')
+    .setFontWeight('bold')
     .setFontSize(9)
-    .setHorizontalAlignment('center');
+    .setHorizontalAlignment('center')
+    .setVerticalAlignment('middle')
+    .setWrap(true)
+    .setBorder(true, true, true, true, true, true, fillColor, SpreadsheetApp.BorderStyle.SOLID);
+}
 
-  sheet.getRange(row + rowCount - 1, column, 1, columnCount).merge()
-    .setValue(EMERGENCE_APP.packageName)
-    .setFontColor(UI_COLORS.MUTED)
-    .setFontSize(8)
-    .setHorizontalAlignment('center');
+function applyAlternatingBody_(sheet, startRow, rowCount, columnCount) {
+  for (let i = 0; i < rowCount; i++) {
+    const fill = i % 2 === 0 ? '#FFFFFF' : '#F6F9FC';
+    sheet.getRange(startRow + i, 1, 1, columnCount)
+      .setBackground(fill)
+      .setBorder(true, true, true, true, true, true, '#E2E8F0', SpreadsheetApp.BorderStyle.SOLID);
+  }
 }
