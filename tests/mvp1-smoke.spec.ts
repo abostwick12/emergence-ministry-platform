@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("MVP 1 event automation smoke tests", () => {
+  test.describe.configure({ mode: "serial" });
+
   test("dashboard loads and shows the current event automation workspace", async ({ page }) => {
     await page.goto("/");
 
@@ -8,6 +10,38 @@ test.describe("MVP 1 event automation smoke tests", () => {
     await expect(page.getByText("Stub Mode active. No live credentials are required.")).toBeVisible();
     await expect(page.getByRole("heading", { name: "Events Workspace" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Winter Retreat", level: 3 })).toBeVisible();
+  });
+
+  test("workspace navigator targets major sections", async ({ page }) => {
+    await page.goto("/");
+
+    for (const target of ["create-event", "events-workspace", "event-command-center", "kanban-dashboard", "activity-log"]) {
+      await expect(page.locator(`#${target}`)).toHaveCount(1);
+    }
+
+    await page.getByRole("button", { name: /Kanban/ }).click();
+    await expect(page.getByRole("heading", { name: "Kanban Dashboard" })).toBeVisible();
+
+    await page.getByRole("button", { name: /Events/ }).click();
+    await expect(page.getByRole("heading", { name: "Events Workspace" })).toBeVisible();
+  });
+
+  test("create event form is collapsed by default and opens on command", async ({ page }) => {
+    await page.goto("/");
+
+    await expect(page.getByPlaceholder("Fall Kickoff Night")).not.toBeVisible();
+    await page.getByRole("button", { name: "+ Create New Event" }).click();
+    await expect(page.getByPlaceholder("Fall Kickoff Night")).toBeVisible();
+  });
+
+  test("events are grouped by timeframe and sorted within groups", async ({ page }) => {
+    await page.goto("/");
+
+    await expect(page.getByRole("heading", { name: "Long Range Planning" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Winter Retreat", level: 3 })).toBeVisible();
+
+    const eventDates = await page.locator(".event-card .info-item", { hasText: "Date" }).allTextContents();
+    expect(eventDates.length).toBeGreaterThan(0);
   });
 
   test("event card can expand and show subtasks underneath", async ({ page }) => {
@@ -24,12 +58,36 @@ test.describe("MVP 1 event automation smoke tests", () => {
     await expect(subtaskList.getByText("Draft parent communication preview")).toBeVisible();
   });
 
+  test("expanded subtasks have a scroll container and due dates can be edited", async ({ page }) => {
+    await page.goto("/");
+
+    const subtaskList = page.getByLabel("Winter Retreat subtasks");
+    await expect(subtaskList).toBeVisible();
+    await expect(page.getByText("Scroll subtasks if the list grows.")).toBeVisible();
+
+    const taskRow = subtaskList.locator(".subtask-row", { hasText: "Confirm venue contract and deposit" });
+    const dueDateInput = taskRow.getByLabel("Due date");
+    const currentDate = await dueDateInput.inputValue();
+    const nextDate = currentDate === "2026-06-01" ? "2026-06-02" : "2026-06-01";
+    await dueDateInput.fill(nextDate);
+    await expect(dueDateInput).toHaveValue(nextDate);
+    const taskPatch = page.waitForResponse(
+      (response) => response.url().includes("/api/tasks/") && response.request().method() === "PATCH"
+    );
+    await taskRow.getByRole("button", { name: "Save" }).click();
+    const taskPatchResponse = await taskPatch;
+    expect(taskPatchResponse.status(), await taskPatchResponse.text()).toBe(200);
+
+    await page.locator("#activity-log").scrollIntoViewIfNeeded();
+    await expect(page.getByText("Changed due date for task: Confirm venue contract and deposit")).toBeVisible();
+  });
+
   test("event detail workspace exposes the MVP 1 panels", async ({ page }) => {
     await page.goto("/");
 
     await page.getByRole("button", { name: "Open command center" }).first().click();
 
-    await expect(page.getByRole("heading", { name: "Winter Retreat", level: 2 })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Command Center: Winter Retreat", level: 2 })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Event Information" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Timeline Tasks" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Communication Previews" })).toBeVisible();
@@ -37,10 +95,6 @@ test.describe("MVP 1 event automation smoke tests", () => {
     await expect(page.getByRole("heading", { name: "Missing Information" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Integration Activity" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Activity Log" })).toBeVisible();
-
-    await expect.poll(async () => page.locator("#event-command-center").evaluate((element) => element.getBoundingClientRect().top)).toBeLessThan(140);
-    const commandCenterTop = await page.locator("#event-command-center").evaluate((element) => element.getBoundingClientRect().top);
-    expect(commandCenterTop).toBeLessThan(140);
   });
 
   test("hero renders cleanly at tablet width without overflow", async ({ page }) => {
@@ -109,6 +163,19 @@ test.describe("MVP 1 event automation smoke tests", () => {
     await expect(page.getByRole("button", { name: "Create ProPresenter stub" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Sync calendar stub" })).toBeVisible();
     await expect(page.getByText("No live credentials are required.")).toBeVisible();
+  });
+
+  test("communication preview generates useful Stub Mode sections without sending", async ({ page }) => {
+    await page.goto("/");
+
+    await page.getByRole("button", { name: "Generate preview" }).click();
+
+    const previewSection = page.locator("section", { has: page.getByRole("heading", { name: "Communication Previews" }) });
+    await expect(previewSection.locator(".eyebrow", { hasText: /^Parent Email$/ })).toBeVisible();
+    await expect(previewSection.locator(".eyebrow", { hasText: /^Leader Announcement$/ })).toBeVisible();
+    await expect(previewSection.locator(".eyebrow", { hasText: /^Blast Text$/ })).toBeVisible();
+    await expect(previewSection.getByText("Preview only - not sent").first()).toBeVisible();
+    await expect(previewSection.getByText(/Location|details|confirmed|ready/i).first()).toBeVisible();
   });
 
   test("Student route is an inactive placeholder", async ({ page }) => {

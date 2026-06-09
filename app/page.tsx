@@ -42,6 +42,15 @@ const roleLabels: Record<Role, string> = {
 
 const eventTypes: EventType[] = ["retreat", "weekly", "service", "camp"];
 
+type EventGroupKey = "thisWeek" | "thisMonth" | "longRange" | "past";
+
+const eventGroupLabels: Record<EventGroupKey, string> = {
+  thisWeek: "This Week",
+  thisMonth: "This Month",
+  longRange: "Long Range Planning",
+  past: "Past Events"
+};
+
 export default function HomePage() {
   const [overview, setOverview] = useState<Overview | null>(null);
   const [selectedEventId, setSelectedEventId] = useState<string>("");
@@ -50,6 +59,7 @@ export default function HomePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [notice, setNotice] = useState("Stub Mode active. No live credentials are required.");
   const [expandedEventIds, setExpandedEventIds] = useState<string[]>(["evt_winter_retreat"]);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
 
   async function loadOverview(nextSelectedId?: string) {
     const response = await fetch("/api/events", { cache: "no-store" });
@@ -139,8 +149,13 @@ export default function HomePage() {
 
     const created = (await response.json()) as EventWorkspace;
     formElement.reset();
+    setIsCreateOpen(false);
+    setExpandedEventIds((current) => [...new Set([created.event.id, ...current])]);
     setNotice(`Created ${created.event.title} and generated baseline timeline tasks.`);
     await refresh(created.event.id);
+    window.requestAnimationFrame(() => {
+      document.getElementById("events-workspace")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   }
 
   async function updateTask(taskId: string, body: Partial<ActiveTask>) {
@@ -232,6 +247,7 @@ export default function HomePage() {
       </aside>
 
       <main className="main">
+        <WorkspaceNavigator />
         <header className="topbar">
           <div>
             <p className="eyebrow">MVP 1 / Stub Mode</p>
@@ -257,9 +273,22 @@ export default function HomePage() {
             <section className="grid workflow-stack">
               <div className="grid">
                 {activeRole === "admin" ? (
-                  <EventForm users={activeUsers} onSubmit={createEvent} />
+                  <section className="panel" id="create-event">
+                    <div className="toolbar" style={{ justifyContent: "space-between" }}>
+                      <div>
+                        <p className="eyebrow">Admin</p>
+                        <h2 className="section-title" style={{ margin: 0 }}>
+                          Create Event
+                        </h2>
+                      </div>
+                      <button className="button primary" type="button" onClick={() => setIsCreateOpen((current) => !current)}>
+                        {isCreateOpen ? "Close form" : "+ Create New Event"}
+                      </button>
+                    </div>
+                    {isCreateOpen ? <EventForm users={activeUsers} onSubmit={createEvent} /> : null}
+                  </section>
                 ) : (
-                  <section className="panel">
+                  <section className="panel" id="create-event">
                     <p className="eyebrow">Leader View</p>
                     <h2 className="section-title">Assigned Ministry Work</h2>
                     <p className="muted" style={{ margin: 0 }}>
@@ -296,7 +325,7 @@ export default function HomePage() {
                 />
               ) : null}
 
-              <section className="panel">
+              <section className="panel" id="kanban-dashboard">
                 <h2 className="section-title">Kanban Dashboard</h2>
                 <p className="muted">Status overview for current ministry tasks. Open a card only when edits are needed.</p>
                 <div className="kanban">
@@ -341,11 +370,34 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
+function WorkspaceNavigator() {
+  const links = [
+    { label: "Create Event", shortLabel: "Create", target: "create-event" },
+    { label: "Events", shortLabel: "Events", target: "events-workspace" },
+    { label: "Command Center", shortLabel: "Command", target: "event-command-center" },
+    { label: "Kanban", shortLabel: "Kanban", target: "kanban-dashboard" },
+    { label: "Activity", shortLabel: "Activity", target: "activity-log" }
+  ];
+
+  function scrollToSection(target: string) {
+    document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  return (
+    <nav className="workspace-nav" aria-label="Workspace Navigator">
+      {links.map((link) => (
+        <button className="workspace-nav-link" key={link.target} type="button" onClick={() => scrollToSection(link.target)}>
+          <span className="nav-full">{link.label}</span>
+          <span className="nav-short">{link.shortLabel}</span>
+        </button>
+      ))}
+    </nav>
+  );
+}
+
 function EventForm({ users, onSubmit }: { users: User[]; onSubmit: (event: FormEvent<HTMLFormElement>) => void }) {
   return (
-    <section className="panel">
-      <p className="eyebrow">Admin</p>
-      <h2 className="section-title">Create Event</h2>
+    <div className="create-form-wrap">
       <form className="grid" onSubmit={onSubmit}>
         <div className="grid grid-2">
           <div className="field">
@@ -401,7 +453,7 @@ function EventForm({ users, onSubmit }: { users: User[]; onSubmit: (event: FormE
           + Create event and generate tasks
         </button>
       </form>
-    </section>
+    </div>
   );
 }
 
@@ -426,54 +478,74 @@ function EventsWorkspace({
   onOpenEvent: (eventId: string) => void;
   onUpdateTask: (taskId: string, body: Partial<ActiveTask>) => Promise<void>;
 }) {
+  const groupedEvents = groupEventsByTimeframe(events);
+
   return (
-    <section className="panel">
+    <section className="panel" id="events-workspace">
       <p className="eyebrow">Primary Workflow</p>
       <h2 className="section-title">Events Workspace</h2>
       <div className="grid">
-        {events.map((event) => {
-          const eventTasks = tasks.filter((task) => task.eventId === event.id);
-          const completeTasks = eventTasks.filter((task) => task.status === "done").length;
-          const owner = users.find((user) => user.id === event.contactOwnerId);
-          const isExpanded = expandedEventIds.includes(event.id);
-          const missingCount =
-            selectedWorkspace?.event.id === event.id ? selectedWorkspace.missingInformation.length : estimateMissingInformationCount(event);
+        {(Object.keys(eventGroupLabels) as EventGroupKey[]).map((groupKey) => {
+          const groupEvents = groupedEvents[groupKey];
+          if (groupEvents.length === 0) return null;
 
           return (
-            <article className={event.id === selectedEventId ? "event-card selected" : "event-card"} key={event.id}>
-              <div className="event-card-main">
-                <div className="event-card-title">
-                  <span className="pill">{eventTypeLabels[event.type]}</span>
-                  <h3>{event.title}</h3>
-                  <p className="muted">{event.description || "No event description yet."}</p>
-                </div>
-                <div className="event-card-meta">
-                  <InfoItem label="Date" value={formatDateTime(event.startTime)} />
-                  <InfoItem label="Location" value={event.location ?? "Missing location"} />
-                  <InfoItem label="Owner" value={owner ? `${owner.firstName} ${owner.lastName}` : "Missing owner"} />
-                  <InfoItem label="Budget" value={event.budgetTarget ? money(event.budgetTarget) : "Missing target"} />
-                  <InfoItem label="Tasks" value={`${completeTasks}/${eventTasks.length} complete`} />
-                  <InfoItem label="Missing" value={`${missingCount} open`} />
-                  <InfoItem label="Status" value={event.status} />
-                </div>
-                <div className="event-card-actions">
-                  <button className="button" type="button" onClick={() => onToggleEvent(event.id)}>
-                    {isExpanded ? "Collapse" : "Expand"}
-                  </button>
-                  <button className="button primary" type="button" onClick={() => onOpenEvent(event.id)}>
-                    Open command center
-                  </button>
-                </div>
+            <section className={groupKey === "thisWeek" || groupKey === "thisMonth" ? "event-group priority" : "event-group"} key={groupKey}>
+              <div className="event-group-header">
+                <h3>{eventGroupLabels[groupKey]}</h3>
+                <span className="pill">{groupEvents.length}</span>
               </div>
+              <div className="grid">
+                {groupEvents.map((event) => {
+                  const eventTasks = tasks.filter((task) => task.eventId === event.id);
+                  const completeTasks = eventTasks.filter((task) => task.status === "done").length;
+                  const owner = users.find((user) => user.id === event.contactOwnerId);
+                  const isExpanded = expandedEventIds.includes(event.id);
+                  const missingCount =
+                    selectedWorkspace?.event.id === event.id ? selectedWorkspace.missingInformation.length : estimateMissingInformationCount(event);
 
-              {isExpanded ? (
-                <div className="subtask-list" aria-label={`${event.title} subtasks`}>
-                  {eventTasks.map((task) => (
-                    <EventSubtaskRow key={task.id} task={task} users={users} onUpdateTask={onUpdateTask} />
-                  ))}
-                </div>
-              ) : null}
-            </article>
+                  return (
+                    <article className={event.id === selectedEventId ? "event-card selected" : "event-card"} key={event.id}>
+                      <div className="event-card-main">
+                        <div className="event-card-title">
+                          <span className="pill">{eventTypeLabels[event.type]}</span>
+                          <h3>{event.title}</h3>
+                          <p className="muted">{event.description || "No event description yet."}</p>
+                        </div>
+                        <div className="event-card-meta">
+                          <InfoItem label="Date" value={formatDateTime(event.startTime)} />
+                          <InfoItem label="Location" value={event.location ?? "Missing location"} />
+                          <InfoItem label="Owner" value={owner ? `${owner.firstName} ${owner.lastName}` : "Missing owner"} />
+                          <InfoItem label="Budget" value={event.budgetTarget ? money(event.budgetTarget) : "Missing target"} />
+                          <InfoItem label="Tasks" value={`${completeTasks}/${eventTasks.length} complete`} />
+                          <InfoItem label="Missing" value={`${missingCount} open`} />
+                          <InfoItem label="Status" value={event.status} />
+                        </div>
+                        <div className="event-card-actions">
+                          <button className="button" type="button" onClick={() => onToggleEvent(event.id)}>
+                            {isExpanded ? "Collapse" : "Expand"}
+                          </button>
+                          <button className="button primary" type="button" onClick={() => onOpenEvent(event.id)}>
+                            Open command center
+                          </button>
+                        </div>
+                      </div>
+
+                      {isExpanded ? (
+                        <div className="subtask-scroll-wrap">
+                          <span className="muted subtask-scroll-label">Scroll subtasks if the list grows.</span>
+                          <div className="subtask-list" aria-label={`${event.title} subtasks`}>
+                            {eventTasks.map((task) => (
+                              <EventSubtaskRow key={task.id} task={task} users={users} onUpdateTask={onUpdateTask} />
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+                    </article>
+                  );
+                })}
+              </div>
+            </section>
           );
         })}
       </div>
@@ -491,6 +563,11 @@ function EventSubtaskRow({
   onUpdateTask: (taskId: string, body: Partial<ActiveTask>) => Promise<void>;
 }) {
   const owner = users.find((user) => user.id === task.assignedUserId);
+  const [dueDate, setDueDate] = useState(toDateInputValue(task.dueDate));
+
+  useEffect(() => {
+    setDueDate(toDateInputValue(task.dueDate));
+  }, [task.dueDate]);
 
   return (
     <div className={task.status === "done" ? "subtask-row completed" : "subtask-row"}>
@@ -519,6 +596,19 @@ function EventSubtaskRow({
           ))}
         </select>
       </div>
+      <div className="field compact-field">
+        <label htmlFor={`event-due-${task.id}`}>Due date</label>
+        <div className="inline-edit-row">
+          <input className="input" id={`event-due-${task.id}`} type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
+          <button
+            className="button"
+            type="button"
+            onClick={() => void onUpdateTask(task.id, { dueDate: new Date(`${dueDate}T12:00:00`).toISOString() })}
+          >
+            Save
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -540,6 +630,38 @@ function estimateMissingInformationCount(event: MinistryEvent) {
     !event.budgetTarget,
     !event.googleDriveFolderId
   ].filter(Boolean).length;
+}
+
+function groupEventsByTimeframe(events: MinistryEvent[]) {
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const endOfWeek = new Date(startOfToday);
+  endOfWeek.setDate(startOfToday.getDate() + 7);
+  const endOfMonth = new Date(startOfToday.getFullYear(), startOfToday.getMonth() + 1, 1);
+
+  const groups: Record<EventGroupKey, MinistryEvent[]> = {
+    thisWeek: [],
+    thisMonth: [],
+    longRange: [],
+    past: []
+  };
+
+  [...events]
+    .sort((first, second) => new Date(first.startTime).getTime() - new Date(second.startTime).getTime())
+    .forEach((event) => {
+      const start = new Date(event.startTime);
+      if (start < startOfToday) {
+        groups.past.push(event);
+      } else if (start < endOfWeek) {
+        groups.thisWeek.push(event);
+      } else if (start < endOfMonth) {
+        groups.thisMonth.push(event);
+      } else {
+        groups.longRange.push(event);
+      }
+    });
+
+  return groups;
 }
 
 function TaskCard({
@@ -670,8 +792,8 @@ function EventWorkspacePanel({
 
   return (
     <section className="panel command-center-panel" id="event-command-center">
-      <p className="eyebrow">Event Detail</p>
-      <h2 className="section-title">{workspace.event.title}</h2>
+      <p className="eyebrow">Selected Event</p>
+      <h2 className="section-title">Command Center: {workspace.event.title}</h2>
       <p className="muted">
         {eventTypeLabels[workspace.event.type]} / {formatDateTime(workspace.event.startTime)}
       </p>
@@ -680,7 +802,7 @@ function EventWorkspacePanel({
         <EventDetailsForm key={workspace.event.id} workspace={workspace} users={users} onUpdateEvent={onUpdateEvent} />
         <MissingInformationPanel items={workspace.missingInformation} />
 
-        <section className="card">
+        <section className="card" id="activity-log">
           <h3 className="section-title">Timeline Tasks</h3>
           <div className="grid">
             {workspace.tasks.map((task) => (
@@ -893,13 +1015,20 @@ function PreviewList({ communications }: { communications: CommunicationPackage[
     <div className="grid">
       {communications.map((item) => (
         <article className="card" key={item.id}>
-          <span className="pill">Preview only</span>
+          <span className="pill">Preview only - not sent</span>
+          <p className="eyebrow">{communicationTypeLabel(item.type)}</p>
           <h4>{item.payload.subject}</h4>
           <p className="muted">{item.payload.body}</p>
         </article>
       ))}
     </div>
   );
+}
+
+function communicationTypeLabel(type: CommunicationPackage["type"]) {
+  if (type === "parent_email") return "Parent Email";
+  if (type === "leader_brief") return "Leader Announcement";
+  return "Blast Text";
 }
 
 function IntegrationList({ logs }: { logs: IntegrationSyncLog[] }) {
