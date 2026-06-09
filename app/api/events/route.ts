@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createEvent, listActivity, listEvents, listTasks, listUsers } from "@/lib/store";
+import { createEvent, listActivity, listEvents, listExpenses, listTasks, listUsers } from "@/lib/store";
 import type { EventType } from "@/lib/types";
 
 export async function GET() {
@@ -7,6 +7,7 @@ export async function GET() {
     events: listEvents(),
     tasks: listTasks(),
     users: listUsers(),
+    expenses: listExpenses(),
     activity: listActivity()
   });
 }

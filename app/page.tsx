@@ -7,6 +7,7 @@ import type {
   ActiveTask,
   ActivityLog,
   CommunicationPackage,
+  EventExpense,
   EventType,
   EventWorkspace,
   IntegrationSyncLog,
@@ -21,6 +22,7 @@ type Overview = {
   events: MinistryEvent[];
   tasks: ActiveTask[];
   users: User[];
+  expenses: EventExpense[];
   activity: ActivityLog[];
 };
 
@@ -150,7 +152,9 @@ export default function HomePage() {
     const created = (await response.json()) as EventWorkspace;
     formElement.reset();
     setIsCreateOpen(false);
-    setExpandedEventIds((current) => [...new Set([created.event.id, ...current])]);
+    setExpandedEventIds((current) =>
+      current.includes(created.event.id) ? current : [created.event.id].concat(current)
+    );
     setNotice(`Created ${created.event.title} and generated baseline timeline tasks.`);
     await refresh(created.event.id);
     window.requestAnimationFrame(() => {
@@ -175,11 +179,11 @@ export default function HomePage() {
     });
 
     if (!response.ok) {
-      setNotice("Event update failed. Check the event details and try again.");
+      setNotice("Event update failed. Check the event information and try again.");
       return;
     }
 
-    setNotice("Event details updated.");
+    setNotice("Event information updated.");
     await refresh(eventId);
   }
 
@@ -302,6 +306,7 @@ export default function HomePage() {
                   events={overview.events}
                   tasks={overview.tasks}
                   users={activeUsers}
+                  expenses={overview.expenses}
                   selectedEventId={selectedEventId}
                   expandedEventIds={expandedEventIds}
                   selectedWorkspace={workspace}
@@ -379,17 +384,13 @@ function WorkspaceNavigator() {
     { label: "Activity", shortLabel: "Activity", target: "activity-log" }
   ];
 
-  function scrollToSection(target: string) {
-    document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
-
   return (
     <nav className="workspace-nav" aria-label="Workspace Navigator">
       {links.map((link) => (
-        <button className="workspace-nav-link" key={link.target} type="button" onClick={() => scrollToSection(link.target)}>
+        <a className="workspace-nav-link" href={`#${link.target}`} key={link.target}>
           <span className="nav-full">{link.label}</span>
           <span className="nav-short">{link.shortLabel}</span>
-        </button>
+        </a>
       ))}
     </nav>
   );
@@ -461,6 +462,7 @@ function EventsWorkspace({
   events,
   tasks,
   users,
+  expenses,
   selectedEventId,
   expandedEventIds,
   selectedWorkspace,
@@ -471,6 +473,7 @@ function EventsWorkspace({
   events: MinistryEvent[];
   tasks: ActiveTask[];
   users: User[];
+  expenses: EventExpense[];
   selectedEventId: string;
   expandedEventIds: string[];
   selectedWorkspace: EventWorkspace | null;
@@ -495,55 +498,41 @@ function EventsWorkspace({
                 <h3>{eventGroupLabels[groupKey]}</h3>
                 <span className="pill">{groupEvents.length}</span>
               </div>
-              <div className="grid">
-                {groupEvents.map((event) => {
-                  const eventTasks = tasks.filter((task) => task.eventId === event.id);
-                  const completeTasks = eventTasks.filter((task) => task.status === "done").length;
-                  const owner = users.find((user) => user.id === event.contactOwnerId);
-                  const isExpanded = expandedEventIds.includes(event.id);
-                  const missingCount =
-                    selectedWorkspace?.event.id === event.id ? selectedWorkspace.missingInformation.length : estimateMissingInformationCount(event);
+              <div className="event-board" role="table" aria-label={`${eventGroupLabels[groupKey]} event card-row board`}>
+                <div className="event-board-header" role="row">
+                  <span role="columnheader">Event Identity</span>
+                  <span role="columnheader">Date / Time</span>
+                  <span role="columnheader">Scrollable Summary</span>
+                </div>
+                <div className="event-board-rows">
+                  {groupEvents.map((event) => {
+                    const eventTasks = tasks.filter((task) => task.eventId === event.id);
+                    const completeTasks = eventTasks.filter((task) => task.status === "done").length;
+                    const owner = users.find((user) => user.id === event.contactOwnerId);
+                    const eventExpenses = expenses.filter((expense) => expense.eventId === event.id);
+                    const isExpanded = expandedEventIds.includes(event.id);
+                    const missingCount =
+                      selectedWorkspace?.event.id === event.id ? selectedWorkspace.missingInformation.length : estimateMissingInformationCount(event);
 
-                  return (
-                    <article className={event.id === selectedEventId ? "event-card selected" : "event-card"} key={event.id}>
-                      <div className="event-card-main">
-                        <div className="event-card-title">
-                          <span className="pill">{eventTypeLabels[event.type]}</span>
-                          <h3>{event.title}</h3>
-                          <p className="muted">{event.description || "No event description yet."}</p>
-                        </div>
-                        <div className="event-card-meta">
-                          <InfoItem label="Date" value={formatDateTime(event.startTime)} />
-                          <InfoItem label="Location" value={event.location ?? "Missing location"} />
-                          <InfoItem label="Owner" value={owner ? `${owner.firstName} ${owner.lastName}` : "Missing owner"} />
-                          <InfoItem label="Budget" value={event.budgetTarget ? money(event.budgetTarget) : "Missing target"} />
-                          <InfoItem label="Tasks" value={`${completeTasks}/${eventTasks.length} complete`} />
-                          <InfoItem label="Missing" value={`${missingCount} open`} />
-                          <InfoItem label="Status" value={event.status} />
-                        </div>
-                        <div className="event-card-actions">
-                          <button className="button" type="button" onClick={() => onToggleEvent(event.id)}>
-                            {isExpanded ? "Collapse" : "Expand"}
-                          </button>
-                          <button className="button primary" type="button" onClick={() => onOpenEvent(event.id)}>
-                            Open command center
-                          </button>
-                        </div>
-                      </div>
-
-                      {isExpanded ? (
-                        <div className="subtask-scroll-wrap">
-                          <span className="muted subtask-scroll-label">Scroll subtasks if the list grows.</span>
-                          <div className="subtask-list" aria-label={`${event.title} subtasks`}>
-                            {eventTasks.map((task) => (
-                              <EventSubtaskRow key={task.id} task={task} users={users} onUpdateTask={onUpdateTask} />
-                            ))}
-                          </div>
-                        </div>
-                      ) : null}
-                    </article>
-                  );
-                })}
+                    return (
+                      <EventRowCard
+                        key={event.id}
+                        event={event}
+                        tasks={eventTasks}
+                        owner={owner}
+                        expenses={eventExpenses}
+                        completeTasks={completeTasks}
+                        missingCount={missingCount}
+                        isExpanded={isExpanded}
+                        isSelected={event.id === selectedEventId}
+                        onToggleEvent={onToggleEvent}
+                        onOpenEvent={onOpenEvent}
+                        onUpdateTask={onUpdateTask}
+                        users={users}
+                      />
+                    );
+                  })}
+                 </div>
               </div>
             </section>
           );
@@ -553,14 +542,210 @@ function EventsWorkspace({
   );
 }
 
-function EventSubtaskRow({
+function EventRowCard({
+  event,
+  tasks,
+  owner,
+  expenses,
+  completeTasks,
+  missingCount,
+  isExpanded,
+  isSelected,
+  users,
+  onToggleEvent,
+  onOpenEvent,
+  onUpdateTask
+}: {
+  event: MinistryEvent;
+  tasks: ActiveTask[];
+  owner?: User;
+  expenses: EventExpense[];
+  completeTasks: number;
+  missingCount: number;
+  isExpanded: boolean;
+  isSelected: boolean;
+  users: User[];
+  onToggleEvent: (eventId: string) => void;
+  onOpenEvent: (eventId: string) => void;
+  onUpdateTask: (taskId: string, body: Partial<ActiveTask>) => Promise<void>;
+}) {
+  return (
+    <article className={isSelected ? "event-row event-row-card selected" : "event-row event-row-card"} data-start-time={event.startTime}>
+      <div className="event-card-row" role="row">
+        <EventIdentitySection event={event} tasks={tasks} completeTasks={completeTasks} />
+        <EventDateBlock event={event} />
+        <EventScrollableSummary
+          event={event}
+          owner={owner}
+          expenses={expenses}
+          tasks={tasks}
+          completeTasks={completeTasks}
+          missingCount={missingCount}
+          isExpanded={isExpanded}
+          onToggleEvent={onToggleEvent}
+          onOpenEvent={onOpenEvent}
+        />
+      </div>
+
+      {isExpanded ? (
+        <EventTaskTree event={event} tasks={tasks} users={users} onUpdateTask={onUpdateTask} onOpenEvent={onOpenEvent} />
+      ) : null}
+    </article>
+  );
+}
+
+function EventIdentitySection({
+  event,
+  tasks,
+  completeTasks
+}: {
+  event: MinistryEvent;
+  tasks: ActiveTask[];
+  completeTasks: number;
+}) {
+  return (
+    <div className="event-identity-section" role="cell">
+      <div className="event-row-title">
+        <h3>{event.title}</h3>
+        <p className="muted">{event.description || "No event description yet."}</p>
+      </div>
+      <div className="event-identity-meta">
+        <span className="pill">{eventTypeLabels[event.type]}</span>
+        <span className={event.status === "ready" ? "pill done" : "pill"}>{event.status}</span>
+        <span className="progress-chip">{completeTasks}/{tasks.length} tasks</span>
+      </div>
+    </div>
+  );
+}
+
+function EventDateBlock({ event }: { event: MinistryEvent }) {
+  return (
+    <div className="event-date-block" role="cell">
+      <span className="summary-label">Date / Time</span>
+      <strong>{event.startTime ? formatDate(event.startTime) : "Missing date"}</strong>
+      <span className="muted">{event.startTime ? formatTime(event.startTime) : "Missing time"}</span>
+      <span className="muted">Ends {event.endTime ? formatDateTime(event.endTime) : "Missing end time"}</span>
+    </div>
+  );
+}
+
+function EventScrollableSummary({
+  event,
+  owner,
+  expenses,
+  tasks,
+  completeTasks,
+  missingCount,
+  isExpanded,
+  onToggleEvent,
+  onOpenEvent
+}: {
+  event: MinistryEvent;
+  owner?: User;
+  expenses: EventExpense[];
+  tasks: ActiveTask[];
+  completeTasks: number;
+  missingCount: number;
+  isExpanded: boolean;
+  onToggleEvent: (eventId: string) => void;
+  onOpenEvent: (eventId: string) => void;
+}) {
+  const actualBudget = expenses.reduce((sum, expense) => sum + expense.amount, 0);
+  const openTasks = tasks.length - completeTasks;
+  const communicationStatus = missingCount === 0 ? "Preview ready" : `${missingCount} item${missingCount === 1 ? "" : "s"} needed`;
+  const driveStatus = event.googleDriveFolderId ? "Stub folder ready" : "Stub pending";
+  const priority = event.type === "camp" || event.type === "retreat" ? "High" : event.type === "service" ? "Medium" : "Normal";
+
+  return (
+    <div className="event-summary-shell" role="cell">
+      <button
+        className="summary-toggle-button"
+        type="button"
+        onClick={() => onToggleEvent(event.id)}
+        aria-label={isExpanded ? `Collapse task tree for ${event.title}` : `Expand task tree for ${event.title}`}
+      >
+        Tasks {tasks.length} {isExpanded ? "-" : "+"}
+      </button>
+      <div className="event-summary-scroll" aria-label={`${event.title} horizontally scrollable summary`}>
+        <EventSummaryField label="Owner" value={owner ? `${owner.firstName} ${owner.lastName}` : "Missing owner"} tone={owner ? undefined : "warning"} />
+        <EventSummaryField label="Location" value={event.location ?? "Missing location"} tone={event.location ? undefined : "warning"} />
+        <EventSummaryField label="Budget proposed" value={event.budgetTarget ? money(event.budgetTarget) : "Missing target"} tone={event.budgetTarget ? undefined : "warning"} />
+        <EventSummaryField label="Budget actual" value={actualBudget ? money(actualBudget) : "$0 recorded"} />
+        <EventSummaryField label="Volunteers needed" value={estimateVolunteersNeeded(event, tasks)} />
+        <EventSummaryField label="Registration status" value={event.registrationDeadline ? `Due ${formatDate(event.registrationDeadline)}` : "Not configured"} tone="warning" />
+        <EventSummaryField label="Planning Center status" value="Stub Mode ready" tone="stub" />
+        <EventSummaryField label="Drive folder status" value={driveStatus} tone={event.googleDriveFolderId ? "success" : "warning"} />
+        <EventSummaryField label="Parent email status" value={communicationStatus} tone={missingCount ? "warning" : "success"} />
+        <EventSummaryField label="GroupMe status" value="Preview only" tone="stub" />
+        <EventSummaryField label="Text status" value="Preview only" tone="stub" />
+        <EventSummaryField label="Files status" value={event.googleDriveFolderId ? "Folder linked" : "No folder yet"} tone={event.googleDriveFolderId ? "success" : "warning"} />
+        <EventSummaryField label="Checklist progress" value={`${completeTasks}/${tasks.length} complete`} tone={openTasks ? undefined : "success"} />
+        <EventSummaryField label="Missing info count" value={`${missingCount} open`} tone={missingCount ? "warning" : "success"} />
+        <EventSummaryField label="Priority" value={priority} tone={priority === "High" ? "warning" : undefined} />
+        <EventSummaryField label="Last updated" value={formatDate(event.createdAt)} />
+        <div className="summary-field action-field">
+          <span className="summary-label">Command Center</span>
+          <button className="button primary" type="button" onClick={() => onOpenEvent(event.id)}>
+            Open Command Center
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EventSummaryField({
+  label,
+  value,
+  tone
+}: {
+  label: string;
+  value: string;
+  tone?: "success" | "warning" | "stub";
+}) {
+  return (
+    <div className={tone ? `summary-field ${tone}` : "summary-field"}>
+      <span className="summary-label">{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function EventTaskTree({
+  event,
+  tasks,
+  users,
+  onUpdateTask,
+  onOpenEvent
+}: {
+  event: MinistryEvent;
+  tasks: ActiveTask[];
+  users: User[];
+  onUpdateTask: (taskId: string, body: Partial<ActiveTask>) => Promise<void>;
+  onOpenEvent: (eventId: string) => void;
+}) {
+  return (
+    <div className="event-task-tree-wrap">
+      <span className="muted subtask-scroll-label">Compact task tree. Scroll inside this task list when it grows.</span>
+      <div className="event-task-tree" aria-label={`${event.title} subtasks`}>
+        {tasks.map((task) => (
+          <EventTaskTreeItem key={task.id} task={task} users={users} onUpdateTask={onUpdateTask} onOpenEvent={onOpenEvent} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function EventTaskTreeItem({
   task,
   users,
-  onUpdateTask
+  onUpdateTask,
+  onOpenEvent
 }: {
   task: ActiveTask;
   users: User[];
   onUpdateTask: (taskId: string, body: Partial<ActiveTask>) => Promise<void>;
+  onOpenEvent: (eventId: string) => void;
 }) {
   const owner = users.find((user) => user.id === task.assignedUserId);
   const [dueDate, setDueDate] = useState(toDateInputValue(task.dueDate));
@@ -570,18 +755,35 @@ function EventSubtaskRow({
   }, [task.dueDate]);
 
   return (
-    <div className={task.status === "done" ? "subtask-row completed" : "subtask-row"}>
-      <div className="subtask-title">
+    <div className={task.status === "done" ? "event-task-tree-item completed" : "event-task-tree-item"}>
+      <span className="tree-branch" aria-hidden="true" />
+      <div className="task-tree-title">
         <strong>{task.taskTitle}</strong>
-        <span className="muted">Due {formatDate(task.dueDate)}</span>
+        {task.timelineOffsetDays <= -30 || task.status === "blocked" ? <span className="pill blocked">Critical</span> : null}
       </div>
-      <div className="subtask-meta">
-        <span className="muted">{owner ? `${owner.firstName} ${owner.lastName}` : "Unassigned"}</span>
+      <div className="task-tree-owner">
+        <span className="summary-label">Owner</span>
+        <span>{owner ? `${owner.firstName} ${owner.lastName}` : "Unassigned"}</span>
+      </div>
+      <div className="field compact-field task-tree-date">
+        <label htmlFor={`event-due-${task.id}`}>Due date</label>
+        <div className="inline-edit-row">
+          <input className="input" id={`event-due-${task.id}`} type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
+          <button
+            className="button"
+            type="button"
+            onClick={() => void onUpdateTask(task.id, { dueDate: new Date(`${dueDate}T12:00:00`).toISOString() })}
+          >
+            Save due date
+          </button>
+        </div>
+      </div>
+      <div className="task-tree-status">
         <span className={task.status === "done" ? "pill done" : task.status === "blocked" ? "pill blocked" : "pill"}>
           {statusLabels[task.status]}
         </span>
       </div>
-      <div className="field compact-field">
+      <div className="field compact-field task-tree-quick-status">
         <label htmlFor={`event-status-${task.id}`}>Quick status</label>
         <select
           className="input"
@@ -596,28 +798,13 @@ function EventSubtaskRow({
           ))}
         </select>
       </div>
-      <div className="field compact-field">
-        <label htmlFor={`event-due-${task.id}`}>Due date</label>
-        <div className="inline-edit-row">
-          <input className="input" id={`event-due-${task.id}`} type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
-          <button
-            className="button"
-            type="button"
-            onClick={() => void onUpdateTask(task.id, { dueDate: new Date(`${dueDate}T12:00:00`).toISOString() })}
-          >
-            Save
-          </button>
-        </div>
+      <div className="task-tree-files">
+        <span className="summary-label">Files</span>
+        <span>No file attached</span>
       </div>
-    </div>
-  );
-}
-
-function InfoItem({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="info-item">
-      <span>{label}</span>
-      <strong>{value}</strong>
+      <button className="button compact-button" type="button" onClick={() => onOpenEvent(task.eventId)}>
+        Open
+      </button>
     </div>
   );
 }
@@ -630,6 +817,12 @@ function estimateMissingInformationCount(event: MinistryEvent) {
     !event.budgetTarget,
     !event.googleDriveFolderId
   ].filter(Boolean).length;
+}
+
+function estimateVolunteersNeeded(event: MinistryEvent, tasks: ActiveTask[]) {
+  const leaderAssignedOpenTasks = tasks.filter((task) => task.assignedUserId === "usr_leader" && task.status !== "done").length;
+  const baseline = event.type === "retreat" || event.type === "camp" ? 6 : event.type === "service" ? 4 : 2;
+  return `${Math.max(baseline, leaderAssignedOpenTasks)} needed`;
 }
 
 function groupEventsByTimeframe(events: MinistryEvent[]) {
@@ -802,7 +995,7 @@ function EventWorkspacePanel({
         <EventDetailsForm key={workspace.event.id} workspace={workspace} users={users} onUpdateEvent={onUpdateEvent} />
         <MissingInformationPanel items={workspace.missingInformation} />
 
-        <section className="card" id="activity-log">
+        <section className="card" id="timeline-tasks">
           <h3 className="section-title">Timeline Tasks</h3>
           <div className="grid">
             {workspace.tasks.map((task) => (
@@ -817,7 +1010,7 @@ function EventWorkspacePanel({
           </div>
         </section>
 
-        <section className="card">
+        <section className="card" id="communication-previews">
           <div className="toolbar" style={{ justifyContent: "space-between" }}>
             <h3 className="section-title" style={{ margin: 0 }}>
               Communication Previews
@@ -830,7 +1023,7 @@ function EventWorkspacePanel({
           <PreviewList communications={workspace.communications} />
         </section>
 
-        <section className="card">
+        <section className="card" id="activity-log">
           <h3 className="section-title">Budget Shell</h3>
           <p style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>
             {money(spent)} spent {target ? `of ${money(target)}` : "without target"}
@@ -974,7 +1167,7 @@ function EventDetailsForm({
           </div>
         </div>
         <button className="button" type="submit">
-          Save event details
+          Save event information
         </button>
       </form>
     </section>
@@ -1000,7 +1193,7 @@ function MissingInformationPanel({ items }: { items: MissingInformationItem[] })
           ))}
         </div>
       ) : (
-        <p className="muted">Required event details are ready for preview and Stub Mode workflows.</p>
+        <p className="muted">Required event information is ready for preview and Stub Mode workflows.</p>
       )}
     </section>
   );
@@ -1015,10 +1208,10 @@ function PreviewList({ communications }: { communications: CommunicationPackage[
     <div className="grid">
       {communications.map((item) => (
         <article className="card" key={item.id}>
-          <span className="pill">Preview only - not sent</span>
+          <span className="pill">Preview only — not sent</span>
           <p className="eyebrow">{communicationTypeLabel(item.type)}</p>
           <h4>{item.payload.subject}</h4>
-          <p className="muted">{item.payload.body}</p>
+          <p className="muted preview-body">{item.payload.body}</p>
         </article>
       ))}
     </div>
@@ -1028,7 +1221,7 @@ function PreviewList({ communications }: { communications: CommunicationPackage[
 function communicationTypeLabel(type: CommunicationPackage["type"]) {
   if (type === "parent_email") return "Parent Email";
   if (type === "leader_brief") return "Leader Announcement";
-  return "Blast Text";
+  return "Blast Text Summary";
 }
 
 function IntegrationList({ logs }: { logs: IntegrationSyncLog[] }) {
@@ -1070,6 +1263,10 @@ function ActivityList({ items }: { items: ActivityLog[] }) {
 
 function toDateInputValue(value: string) {
   return new Date(value).toISOString().slice(0, 10);
+}
+
+function formatTime(value: string) {
+  return new Date(value).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
 function toDateTimeLocalValue(value: string) {
