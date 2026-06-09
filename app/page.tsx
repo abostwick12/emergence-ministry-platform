@@ -242,6 +242,8 @@ export default function HomePage() {
           </div>
         </div>
 
+        <WorkspaceNavigator />
+
         <div className="card" style={{ marginTop: 18, background: "#111c31", borderColor: "#263244" }}>
           <p className="eyebrow" style={{ color: "#93c5fd" }}>
             Future Roles
@@ -251,7 +253,6 @@ export default function HomePage() {
       </aside>
 
       <main className="main">
-        <WorkspaceNavigator />
         <header className="topbar">
           <div>
             <p className="eyebrow">MVP 1 / Stub Mode</p>
@@ -342,18 +343,22 @@ export default function HomePage() {
                           {visibleTasks.filter((task) => task.status === status).length}
                         </span>
                       </div>
-                      {visibleTasks
-                        .filter((task) => task.status === status)
-                        .map((task) => (
-                          <TaskCard
-                            key={task.id}
-                            task={task}
-                            users={activeUsers}
-                            eventTitle={overview.events.find((event) => event.id === task.eventId)?.title ?? "Event"}
-                            onSelectEvent={() => openCommandCenter(task.eventId)}
-                            onUpdate={updateTask}
-                          />
-                        ))}
+                      {visibleTasks.filter((task) => task.status === status).length ? (
+                        visibleTasks
+                          .filter((task) => task.status === status)
+                          .map((task) => (
+                            <TaskCard
+                              key={task.id}
+                              task={task}
+                              users={activeUsers}
+                              eventTitle={overview.events.find((event) => event.id === task.eventId)?.title ?? "Event"}
+                              onSelectEvent={() => openCommandCenter(task.eventId)}
+                              onUpdate={updateTask}
+                            />
+                          ))
+                      ) : (
+                        <p className="kanban-empty">No tasks in this lane.</p>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -985,7 +990,6 @@ function EventWorkspacePanel({
 
   return (
     <section className="panel command-center-panel" id="event-command-center">
-      <p className="eyebrow">Selected Event</p>
       <h2 className="section-title">Command Center: {workspace.event.title}</h2>
       <p className="muted">
         {eventTypeLabels[workspace.event.type]} / {formatDateTime(workspace.event.startTime)}
@@ -1023,7 +1027,7 @@ function EventWorkspacePanel({
           <PreviewList communications={workspace.communications} />
         </section>
 
-        <section className="card" id="activity-log">
+        <section className="card">
           <h3 className="section-title">Budget Shell</h3>
           <p style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>
             {money(spent)} spent {target ? `of ${money(target)}` : "without target"}
@@ -1054,7 +1058,7 @@ function EventWorkspacePanel({
           <IntegrationList logs={workspace.integrationLogs} />
         </section>
 
-        <section className="card">
+        <section className="card" id="activity-log">
           <h3 className="section-title">Activity Log</h3>
           <ActivityList items={workspace.activity} />
         </section>

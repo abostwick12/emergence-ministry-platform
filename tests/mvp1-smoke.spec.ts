@@ -20,6 +20,11 @@ test.describe("MVP 1 event automation smoke tests", () => {
       await expect(page.locator(`#${target}`)).toHaveCount(1);
     }
 
+    const navigator = page.getByRole("navigation", { name: "Workspace Navigator" });
+    await expect(navigator).toBeVisible();
+    expect(await navigator.evaluate((element) => element.closest("aside") !== null)).toBe(true);
+    expect(await navigator.evaluate((element) => window.getComputedStyle(element).position)).toBe("static");
+
     await expect(page.getByRole("link", { name: "Create Event" })).toHaveAttribute("href", "#create-event");
     await expect(page.getByRole("link", { name: "Events" })).toHaveAttribute("href", "#events-workspace");
     await expect(page.getByRole("link", { name: "Command Center" })).toHaveAttribute("href", "#event-command-center");
@@ -188,6 +193,7 @@ test.describe("MVP 1 event automation smoke tests", () => {
     await expect(winterRow).toHaveClass(/selected/);
     await expect(page.getByRole("heading", { name: "Command Center: Winter Retreat", level: 2 })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Event Detail" })).toHaveCount(0);
+    await expect(page.getByText("Selected Event")).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "Event Information" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Timeline Tasks" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Communication Previews" })).toBeVisible();
@@ -235,12 +241,42 @@ test.describe("MVP 1 event automation smoke tests", () => {
     expect(hasPageHorizontalScroll).toBe(false);
   });
 
+  test("event workspace remains usable at mobile width without page-level horizontal scroll", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.goto("/");
+
+    await expect(page.getByRole("heading", { name: "Event Automation Workspace" })).toBeVisible();
+    await expect(page.locator("#create-event").getByPlaceholder("Fall Kickoff Night")).not.toBeVisible();
+
+    const winterRow = page.locator(".event-row-card", { hasText: "Winter Retreat" });
+    await expect(winterRow.locator(".event-identity-section")).toBeVisible();
+    await expect(winterRow.locator(".event-date-block")).toBeVisible();
+    await expect(winterRow.locator(".event-summary-scroll")).toBeVisible();
+    await expect(winterRow.getByLabel("Winter Retreat subtasks")).toBeVisible();
+
+    const summaryOwnsHorizontalScroll = await winterRow
+      .locator(".event-summary-scroll")
+      .evaluate((element) => element.scrollWidth > element.clientWidth);
+    expect(summaryOwnsHorizontalScroll).toBe(true);
+
+    const hasPageHorizontalScroll = await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth
+    );
+    expect(hasPageHorizontalScroll).toBe(false);
+  });
+
   test("Kanban remains contained at desktop width and cards are collapsed by default", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/");
 
     await expect(page.getByRole("heading", { name: "Kanban Dashboard" })).toBeVisible();
     await expect(page.getByText("Edit task title")).not.toBeVisible();
+    await expect(page.getByText("No tasks in this lane.").first()).toBeVisible();
+
+    const emptyLaneHeight = await page.locator(".kanban-column", { hasText: "No tasks in this lane." }).first().evaluate((element) => {
+      return element.getBoundingClientRect().height;
+    });
+    expect(emptyLaneHeight).toBeLessThan(120);
 
     const hasPageHorizontalScroll = await page.evaluate(
       () => document.documentElement.scrollWidth > document.documentElement.clientWidth
