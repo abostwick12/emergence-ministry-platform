@@ -242,7 +242,7 @@ textarea:focus-visible {
 
 .kanban {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
   max-width: 100%;
   padding-bottom: 4px;
@@ -417,32 +417,23 @@ textarea:focus-visible {
   min-width: 0;
 }
 
+.command-center-panel {
+  scroll-margin-top: 16px;
+  border-color: #bfdbfe;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+}
+
 .visual-strip {
-  position: relative;
   min-height: 132px;
   overflow: hidden;
   border-radius: 8px;
   border: 1px solid #cbd5e1;
   background:
-    linear-gradient(135deg, rgba(29, 78, 216, 0.92), rgba(20, 83, 45, 0.82)),
-    radial-gradient(circle at 18% 28%, #fef3c7 0 12%, transparent 13%),
+    linear-gradient(135deg, rgba(29, 78, 216, 0.94), rgba(20, 83, 45, 0.84)),
     linear-gradient(90deg, #e0f2fe, #ecfdf5);
 }
 
-.visual-strip::after {
-  content: "";
-  position: absolute;
-  inset: auto 18px 18px auto;
-  width: 42%;
-  height: 44px;
-  border: 2px solid rgba(255, 255, 255, 0.72);
-  border-radius: 8px;
-  box-shadow: -36px -28px 0 -18px rgba(255, 255, 255, 0.58), -92px -8px 0 -24px rgba(255, 255, 255, 0.5);
-}
-
 .visual-strip span {
-  position: relative;
-  z-index: 1;
   display: block;
   max-width: 520px;
   padding: 22px;
@@ -470,6 +461,18 @@ textarea:focus-visible {
   .subtask-row {
     grid-template-columns: minmax(0, 1.4fr) minmax(180px, 0.7fr) minmax(180px, 0.6fr);
     align-items: center;
+  }
+}
+
+@media (min-width: 760px) {
+  .kanban {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1320px) {
+  .kanban {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 

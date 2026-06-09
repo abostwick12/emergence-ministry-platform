@@ -175,6 +175,17 @@ export default function HomePage() {
     await refresh();
   }
 
+  function openCommandCenter(eventId: string) {
+    setSelectedEventId(eventId);
+    if (!expandedEventIds.includes(eventId)) {
+      setExpandedEventIds((current) => [...current, eventId]);
+    }
+    void loadWorkspace(eventId);
+    window.requestAnimationFrame(() => {
+      document.getElementById("event-command-center")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
   return (
     <div className="app-shell">
       <aside className="sidebar" aria-label="Primary">
@@ -266,13 +277,7 @@ export default function HomePage() {
                   expandedEventIds={expandedEventIds}
                   selectedWorkspace={workspace}
                   onToggleEvent={toggleEventExpansion}
-                  onOpenEvent={(eventId) => {
-                    setSelectedEventId(eventId);
-                    if (!expandedEventIds.includes(eventId)) {
-                      setExpandedEventIds((current) => [...current, eventId]);
-                    }
-                    void loadWorkspace(eventId);
-                  }}
+                  onOpenEvent={openCommandCenter}
                   onUpdateTask={updateTask}
                 />
               </div>
@@ -311,13 +316,7 @@ export default function HomePage() {
                             task={task}
                             users={activeUsers}
                             eventTitle={overview.events.find((event) => event.id === task.eventId)?.title ?? "Event"}
-                            onSelectEvent={() => {
-                              setSelectedEventId(task.eventId);
-                              if (!expandedEventIds.includes(task.eventId)) {
-                                setExpandedEventIds((current) => [...current, task.eventId]);
-                              }
-                              void loadWorkspace(task.eventId);
-                            }}
+                            onSelectEvent={() => openCommandCenter(task.eventId)}
                             onUpdate={updateTask}
                           />
                         ))}
@@ -670,7 +669,7 @@ function EventWorkspacePanel({
   const target = workspace.event.budgetTarget ?? 0;
 
   return (
-    <section className="panel">
+    <section className="panel command-center-panel" id="event-command-center">
       <p className="eyebrow">Event Detail</p>
       <h2 className="section-title">{workspace.event.title}</h2>
       <p className="muted">

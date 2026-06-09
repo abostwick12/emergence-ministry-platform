@@ -37,6 +37,24 @@ test.describe("MVP 1 event automation smoke tests", () => {
     await expect(page.getByRole("heading", { name: "Missing Information" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Integration Activity" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Activity Log" })).toBeVisible();
+
+    await expect.poll(async () => page.locator("#event-command-center").evaluate((element) => element.getBoundingClientRect().top)).toBeLessThan(140);
+    const commandCenterTop = await page.locator("#event-command-center").evaluate((element) => element.getBoundingClientRect().top);
+    expect(commandCenterTop).toBeLessThan(140);
+  });
+
+  test("hero renders cleanly at tablet width without overflow", async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 900 });
+    await page.goto("/");
+
+    const hero = page.getByLabel("Ministry operations workspace visual");
+    await expect(hero).toBeVisible();
+
+    const heroOverflows = await hero.evaluate((element) => element.scrollWidth > element.clientWidth || element.scrollHeight > element.clientHeight);
+    const pageOverflows = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+
+    expect(heroOverflows).toBe(false);
+    expect(pageOverflows).toBe(false);
   });
 
   test("event workspace remains readable at tablet width without page-level horizontal scroll", async ({ page }) => {
