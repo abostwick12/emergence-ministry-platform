@@ -25,6 +25,22 @@ test.describe("MVP 1 event automation smoke tests", () => {
     await expect(page.getByRole("heading", { name: "Activity Log" })).toBeVisible();
   });
 
+  test("event workspace remains readable at tablet width without page-level horizontal scroll", async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 900 });
+    await page.goto("/");
+
+    await expect(page.getByRole("heading", { name: "Event Automation Workspace" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Event Information" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Timeline Tasks" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Integration Activity" })).toBeVisible();
+
+    const hasPageHorizontalScroll = await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth
+    );
+
+    expect(hasPageHorizontalScroll).toBe(false);
+  });
+
   test("integration controls are clearly Stub Mode and do not require credentials", async ({ page }) => {
     await page.goto("/");
 
