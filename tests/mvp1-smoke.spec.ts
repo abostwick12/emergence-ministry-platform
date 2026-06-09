@@ -6,16 +6,30 @@ test.describe("MVP 1 event automation smoke tests", () => {
 
     await expect(page.getByRole("heading", { name: "Event Automation Workspace" })).toBeVisible();
     await expect(page.getByText("Stub Mode active. No live credentials are required.")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Events" })).toBeVisible();
-    await expect(page.getByRole("button", { name: /Winter Retreat/ })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Events Workspace" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Winter Retreat", level: 3 })).toBeVisible();
+  });
+
+  test("event card can expand and show subtasks underneath", async ({ page }) => {
+    await page.goto("/");
+
+    const subtaskList = page.getByLabel("Winter Retreat subtasks");
+
+    await page.getByRole("button", { name: "Collapse" }).first().click();
+    await expect(subtaskList).not.toBeVisible();
+
+    await page.getByRole("button", { name: "Expand" }).first().click();
+    await expect(subtaskList).toBeVisible();
+    await expect(subtaskList.getByText("Confirm venue contract and deposit")).toBeVisible();
+    await expect(subtaskList.getByText("Draft parent communication preview")).toBeVisible();
   });
 
   test("event detail workspace exposes the MVP 1 panels", async ({ page }) => {
     await page.goto("/");
 
-    await page.getByRole("button", { name: /Winter Retreat/ }).click();
+    await page.getByRole("button", { name: "Open command center" }).first().click();
 
-    await expect(page.getByRole("heading", { name: "Winter Retreat" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Winter Retreat", level: 2 })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Event Information" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Timeline Tasks" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Communication Previews" })).toBeVisible();
@@ -33,6 +47,34 @@ test.describe("MVP 1 event automation smoke tests", () => {
     await expect(page.getByRole("heading", { name: "Event Information" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Timeline Tasks" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Integration Activity" })).toBeVisible();
+    await expect(page.getByLabel("Winter Retreat subtasks")).toBeVisible();
+
+    const hasPageHorizontalScroll = await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth
+    );
+
+    expect(hasPageHorizontalScroll).toBe(false);
+  });
+
+  test("Kanban remains contained at desktop width and cards are collapsed by default", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/");
+
+    await expect(page.getByRole("heading", { name: "Kanban Dashboard" })).toBeVisible();
+    await expect(page.getByText("Edit task title")).not.toBeVisible();
+
+    const hasPageHorizontalScroll = await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth
+    );
+
+    expect(hasPageHorizontalScroll).toBe(false);
+  });
+
+  test("Kanban remains contained at tablet width", async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 900 });
+    await page.goto("/");
+
+    await expect(page.getByRole("heading", { name: "Kanban Dashboard" })).toBeVisible();
 
     const hasPageHorizontalScroll = await page.evaluate(
       () => document.documentElement.scrollWidth > document.documentElement.clientWidth

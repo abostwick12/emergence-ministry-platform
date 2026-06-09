@@ -49,6 +49,7 @@ export default function HomePage() {
   const [activeRole, setActiveRole] = useState<Role>("admin");
   const [isLoading, setIsLoading] = useState(true);
   const [notice, setNotice] = useState("Stub Mode active. No live credentials are required.");
+  const [expandedEventIds, setExpandedEventIds] = useState<string[]>(["evt_winter_retreat"]);
 
   async function loadOverview(nextSelectedId?: string) {
     const response = await fetch("/api/events", { cache: "no-store" });
@@ -94,6 +95,12 @@ export default function HomePage() {
     if (eventId) {
       await loadWorkspace(eventId);
     }
+  }
+
+  function toggleEventExpansion(eventId: string) {
+    setExpandedEventIds((current) =>
+      current.includes(eventId) ? current.filter((id) => id !== eventId) : [...current, eventId]
+    );
   }
 
   async function createEvent(event: FormEvent<HTMLFormElement>) {
@@ -236,7 +243,7 @@ export default function HomePage() {
               <Metric label="Blocked Tasks" value={blockedTasks.toString()} />
             </section>
 
-            <section className="grid grid-2">
+            <section className="grid workflow-stack">
               <div className="grid">
                 {activeRole === "admin" ? (
                   <EventForm users={activeUsers} onSubmit={createEvent} />
@@ -251,79 +258,73 @@ export default function HomePage() {
                   </section>
                 )}
 
-                <section className="panel">
-                  <h2 className="section-title">Kanban Dashboard</h2>
-                  <div className="kanban">
-                    {statuses.map((status) => (
-                      <div className="kanban-column" key={status}>
-                        <div className="toolbar" style={{ justifyContent: "space-between" }}>
-                          <strong>{statusLabels[status]}</strong>
-                          <span className={status === "done" ? "pill done" : status === "blocked" ? "pill blocked" : "pill"}>
-                            {visibleTasks.filter((task) => task.status === status).length}
-                          </span>
-                        </div>
-                        {visibleTasks
-                          .filter((task) => task.status === status)
-                          .map((task) => (
-                            <TaskCard
-                              key={task.id}
-                              task={task}
-                              users={activeUsers}
-                              eventTitle={overview.events.find((event) => event.id === task.eventId)?.title ?? "Event"}
-                              onSelectEvent={() => {
-                                setSelectedEventId(task.eventId);
-                                void loadWorkspace(task.eventId);
-                              }}
-                              onUpdate={updateTask}
-                            />
-                          ))}
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              </div>
-
-              <div className="grid">
-                <section className="panel">
-                  <h2 className="section-title">Events</h2>
-                  <div className="grid">
-                    {overview.events.map((event) => (
-                      <button
-                        className={event.id === selectedEventId ? "card" : "button"}
-                        key={event.id}
-                        type="button"
-                        onClick={() => {
-                          setSelectedEventId(event.id);
-                          void loadWorkspace(event.id);
-                        }}
-                        style={{ textAlign: "left", justifyContent: "flex-start" }}
-                      >
-                        <span>
-                          <strong>{event.title}</strong>
-                          <br />
-                          <span className="muted">
-                            {eventTypeLabels[event.type]} / {formatDateTime(event.startTime)}
-                          </span>
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </section>
-
-                {workspace && selectedEvent ? (
-                  <EventWorkspacePanel
-                    workspace={workspace}
-                    users={activeUsers}
-                    onGeneratePreview={() =>
-                      postEventAction("generate-communications", "Communication preview generated. No external message was sent.")
+                <EventsWorkspace
+                  events={overview.events}
+                  tasks={overview.tasks}
+                  users={activeUsers}
+                  selectedEventId={selectedEventId}
+                  expandedEventIds={expandedEventIds}
+                  selectedWorkspace={workspace}
+                  onToggleEvent={toggleEventExpansion}
+                  onOpenEvent={(eventId) => {
+                    setSelectedEventId(eventId);
+                    if (!expandedEventIds.includes(eventId)) {
+                      setExpandedEventIds((current) => [...current, eventId]);
                     }
-                    onDriveStub={() => postEventAction("generate-drive-folder", "Google Drive Stub Mode action recorded.")}
-                    onProStub={() => postEventAction("generate-propresenter", "ProPresenter Stub Mode action recorded.")}
-                    onCalendarStub={() => postEventAction("sync-calendar", "Google Calendar Stub Mode action recorded.")}
-                    onUpdateEvent={updateEvent}
-                  />
-                ) : null}
+                    void loadWorkspace(eventId);
+                  }}
+                  onUpdateTask={updateTask}
+                />
               </div>
+
+              {workspace && selectedEvent ? (
+                <EventWorkspacePanel
+                  workspace={workspace}
+                  users={activeUsers}
+                  onGeneratePreview={() =>
+                    postEventAction("generate-communications", "Communication preview generated. No external message was sent.")
+                  }
+                  onDriveStub={() => postEventAction("generate-drive-folder", "Google Drive Stub Mode action recorded.")}
+                  onProStub={() => postEventAction("generate-propresenter", "ProPresenter Stub Mode action recorded.")}
+                  onCalendarStub={() => postEventAction("sync-calendar", "Google Calendar Stub Mode action recorded.")}
+                  onUpdateEvent={updateEvent}
+                />
+              ) : null}
+
+              <section className="panel">
+                <h2 className="section-title">Kanban Dashboard</h2>
+                <p className="muted">Status overview for current ministry tasks. Open a card only when edits are needed.</p>
+                <div className="kanban">
+                  {statuses.map((status) => (
+                    <div className="kanban-column" key={status}>
+                      <div className="toolbar" style={{ justifyContent: "space-between" }}>
+                        <strong>{statusLabels[status]}</strong>
+                        <span className={status === "done" ? "pill done" : status === "blocked" ? "pill blocked" : "pill"}>
+                          {visibleTasks.filter((task) => task.status === status).length}
+                        </span>
+                      </div>
+                      {visibleTasks
+                        .filter((task) => task.status === status)
+                        .map((task) => (
+                          <TaskCard
+                            key={task.id}
+                            task={task}
+                            users={activeUsers}
+                            eventTitle={overview.events.find((event) => event.id === task.eventId)?.title ?? "Event"}
+                            onSelectEvent={() => {
+                              setSelectedEventId(task.eventId);
+                              if (!expandedEventIds.includes(task.eventId)) {
+                                setExpandedEventIds((current) => [...current, task.eventId]);
+                              }
+                              void loadWorkspace(task.eventId);
+                            }}
+                            onUpdate={updateTask}
+                          />
+                        ))}
+                    </div>
+                  ))}
+                </div>
+              </section>
             </section>
           </div>
         )}
@@ -405,6 +406,143 @@ function EventForm({ users, onSubmit }: { users: User[]; onSubmit: (event: FormE
   );
 }
 
+function EventsWorkspace({
+  events,
+  tasks,
+  users,
+  selectedEventId,
+  expandedEventIds,
+  selectedWorkspace,
+  onToggleEvent,
+  onOpenEvent,
+  onUpdateTask
+}: {
+  events: MinistryEvent[];
+  tasks: ActiveTask[];
+  users: User[];
+  selectedEventId: string;
+  expandedEventIds: string[];
+  selectedWorkspace: EventWorkspace | null;
+  onToggleEvent: (eventId: string) => void;
+  onOpenEvent: (eventId: string) => void;
+  onUpdateTask: (taskId: string, body: Partial<ActiveTask>) => Promise<void>;
+}) {
+  return (
+    <section className="panel">
+      <p className="eyebrow">Primary Workflow</p>
+      <h2 className="section-title">Events Workspace</h2>
+      <div className="grid">
+        {events.map((event) => {
+          const eventTasks = tasks.filter((task) => task.eventId === event.id);
+          const completeTasks = eventTasks.filter((task) => task.status === "done").length;
+          const owner = users.find((user) => user.id === event.contactOwnerId);
+          const isExpanded = expandedEventIds.includes(event.id);
+          const missingCount =
+            selectedWorkspace?.event.id === event.id ? selectedWorkspace.missingInformation.length : estimateMissingInformationCount(event);
+
+          return (
+            <article className={event.id === selectedEventId ? "event-card selected" : "event-card"} key={event.id}>
+              <div className="event-card-main">
+                <div className="event-card-title">
+                  <span className="pill">{eventTypeLabels[event.type]}</span>
+                  <h3>{event.title}</h3>
+                  <p className="muted">{event.description || "No event description yet."}</p>
+                </div>
+                <div className="event-card-meta">
+                  <InfoItem label="Date" value={formatDateTime(event.startTime)} />
+                  <InfoItem label="Location" value={event.location ?? "Missing location"} />
+                  <InfoItem label="Owner" value={owner ? `${owner.firstName} ${owner.lastName}` : "Missing owner"} />
+                  <InfoItem label="Budget" value={event.budgetTarget ? money(event.budgetTarget) : "Missing target"} />
+                  <InfoItem label="Tasks" value={`${completeTasks}/${eventTasks.length} complete`} />
+                  <InfoItem label="Missing" value={`${missingCount} open`} />
+                  <InfoItem label="Status" value={event.status} />
+                </div>
+                <div className="event-card-actions">
+                  <button className="button" type="button" onClick={() => onToggleEvent(event.id)}>
+                    {isExpanded ? "Collapse" : "Expand"}
+                  </button>
+                  <button className="button primary" type="button" onClick={() => onOpenEvent(event.id)}>
+                    Open command center
+                  </button>
+                </div>
+              </div>
+
+              {isExpanded ? (
+                <div className="subtask-list" aria-label={`${event.title} subtasks`}>
+                  {eventTasks.map((task) => (
+                    <EventSubtaskRow key={task.id} task={task} users={users} onUpdateTask={onUpdateTask} />
+                  ))}
+                </div>
+              ) : null}
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function EventSubtaskRow({
+  task,
+  users,
+  onUpdateTask
+}: {
+  task: ActiveTask;
+  users: User[];
+  onUpdateTask: (taskId: string, body: Partial<ActiveTask>) => Promise<void>;
+}) {
+  const owner = users.find((user) => user.id === task.assignedUserId);
+
+  return (
+    <div className={task.status === "done" ? "subtask-row completed" : "subtask-row"}>
+      <div className="subtask-title">
+        <strong>{task.taskTitle}</strong>
+        <span className="muted">Due {formatDate(task.dueDate)}</span>
+      </div>
+      <div className="subtask-meta">
+        <span className="muted">{owner ? `${owner.firstName} ${owner.lastName}` : "Unassigned"}</span>
+        <span className={task.status === "done" ? "pill done" : task.status === "blocked" ? "pill blocked" : "pill"}>
+          {statusLabels[task.status]}
+        </span>
+      </div>
+      <div className="field compact-field">
+        <label htmlFor={`event-status-${task.id}`}>Quick status</label>
+        <select
+          className="input"
+          id={`event-status-${task.id}`}
+          value={task.status}
+          onChange={(event) => void onUpdateTask(task.id, { status: event.target.value as TaskStatus })}
+        >
+          {statuses.map((status) => (
+            <option key={status} value={status}>
+              {statusLabels[status]}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
+}
+
+function InfoItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="info-item">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function estimateMissingInformationCount(event: MinistryEvent) {
+  return [
+    !event.description.trim(),
+    !event.location,
+    !event.contactOwnerId,
+    !event.budgetTarget,
+    !event.googleDriveFolderId
+  ].filter(Boolean).length;
+}
+
 function TaskCard({
   task,
   users,
@@ -420,6 +558,7 @@ function TaskCard({
 }) {
   const [title, setTitle] = useState(task.taskTitle);
   const [dueDate, setDueDate] = useState(toDateInputValue(task.dueDate));
+  const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
     setTitle(task.taskTitle);
@@ -431,54 +570,77 @@ function TaskCard({
       <div>
         <strong>{task.taskTitle}</strong>
         <div className="muted">{eventTitle}</div>
-        <div className="muted">Due {formatDate(task.dueDate)}</div>
+        <div className="task-summary">
+          <span className="muted">Due {formatDate(task.dueDate)}</span>
+          <span className={task.status === "done" ? "pill done" : task.status === "blocked" ? "pill blocked" : "pill"}>
+            {statusLabels[task.status]}
+          </span>
+          <span className="muted">
+            {users.find((user) => user.id === task.assignedUserId)?.firstName ?? "Unassigned"}
+          </span>
+        </div>
       </div>
-      <div className="field">
-        <label htmlFor={`status-${task.id}`}>Status</label>
-        <select
-          className="input"
-          id={`status-${task.id}`}
-          value={task.status}
-          onChange={(event) => void onUpdate(task.id, { status: event.target.value as TaskStatus })}
-        >
-          {statuses.map((status) => (
-            <option key={status} value={status}>
-              {statusLabels[status]}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div className="field">
-        <label htmlFor={`owner-${task.id}`}>Owner</label>
-        <select
-          className="input"
-          id={`owner-${task.id}`}
-          value={task.assignedUserId}
-          onChange={(event) => void onUpdate(task.id, { assignedUserId: event.target.value })}
-        >
-          {users.map((user) => (
-            <option key={user.id} value={user.id}>
-              {user.firstName} {user.lastName}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div className="field">
-        <label htmlFor={`title-${task.id}`}>Edit task title</label>
-        <input className="input" id={`title-${task.id}`} value={title} onChange={(event) => setTitle(event.target.value)} />
-      </div>
-      <div className="field">
-        <label htmlFor={`due-${task.id}`}>Due date</label>
-        <input className="input" id={`due-${task.id}`} type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
-      </div>
+
+      {isEditing ? (
+        <div className="task-edit-panel">
+          <div className="field">
+            <label htmlFor={`status-${task.id}`}>Status</label>
+            <select
+              className="input"
+              id={`status-${task.id}`}
+              value={task.status}
+              onChange={(event) => void onUpdate(task.id, { status: event.target.value as TaskStatus })}
+            >
+              {statuses.map((status) => (
+                <option key={status} value={status}>
+                  {statusLabels[status]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
+            <label htmlFor={`owner-${task.id}`}>Owner</label>
+            <select
+              className="input"
+              id={`owner-${task.id}`}
+              value={task.assignedUserId}
+              onChange={(event) => void onUpdate(task.id, { assignedUserId: event.target.value })}
+            >
+              {users.map((user) => (
+                <option key={user.id} value={user.id}>
+                  {user.firstName} {user.lastName}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
+            <label htmlFor={`title-${task.id}`}>Edit task title</label>
+            <input className="input" id={`title-${task.id}`} value={title} onChange={(event) => setTitle(event.target.value)} />
+          </div>
+          <div className="field">
+            <label htmlFor={`due-${task.id}`}>Due date</label>
+            <input className="input" id={`due-${task.id}`} type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
+          </div>
+        </div>
+      ) : null}
+
       <div className="toolbar">
-        <button
-          className="button"
-          type="button"
-          onClick={() => void onUpdate(task.id, { taskTitle: title, dueDate: new Date(`${dueDate}T12:00:00`).toISOString() })}
-        >
-          Save
-        </button>
+        {isEditing ? (
+          <button
+            className="button"
+            type="button"
+            onClick={() => {
+              setIsEditing(false);
+              void onUpdate(task.id, { taskTitle: title, dueDate: new Date(`${dueDate}T12:00:00`).toISOString() });
+            }}
+          >
+            Save
+          </button>
+        ) : (
+          <button className="button" type="button" onClick={() => setIsEditing(true)}>
+            Edit
+          </button>
+        )}
         <button className="button" type="button" onClick={onSelectEvent}>
           Open event
         </button>
@@ -515,7 +677,7 @@ function EventWorkspacePanel({
         {eventTypeLabels[workspace.event.type]} / {formatDateTime(workspace.event.startTime)}
       </p>
 
-      <div className="grid">
+      <div className="command-center-grid">
         <EventDetailsForm key={workspace.event.id} workspace={workspace} users={users} onUpdateEvent={onUpdateEvent} />
         <MissingInformationPanel items={workspace.missingInformation} />
 

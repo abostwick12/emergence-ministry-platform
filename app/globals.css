@@ -96,6 +96,10 @@ textarea:focus-visible {
   min-width: 0;
 }
 
+.workflow-stack {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .grid-2 {
   grid-template-columns: minmax(0, 1fr);
 }
@@ -106,11 +110,15 @@ textarea:focus-visible {
 
 .panel {
   min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   padding: 18px;
 }
 
 .card {
   min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   padding: 14px;
 }
 
@@ -162,6 +170,7 @@ textarea:focus-visible {
 .input {
   min-height: 38px;
   width: 100%;
+  max-width: 100%;
   border: 1px solid var(--line);
   border-radius: 6px;
   background: var(--surface);
@@ -233,14 +242,14 @@ textarea:focus-visible {
 
 .kanban {
   display: grid;
-  grid-template-columns: repeat(4, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
   gap: 12px;
   max-width: 100%;
-  overflow-x: auto;
   padding-bottom: 4px;
 }
 
 .kanban-column {
+  min-width: 0;
   min-height: 220px;
   background: #f8fafc;
   border: 1px solid var(--line);
@@ -251,11 +260,161 @@ textarea:focus-visible {
 .task-card {
   display: grid;
   gap: 10px;
+  min-width: 0;
+  max-width: 100%;
   margin-top: 10px;
   background: white;
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 10px;
+}
+
+.task-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+  margin-top: 8px;
+}
+
+.task-edit-panel {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  min-width: 0;
+  max-width: 100%;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+
+.event-card {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 16px;
+}
+
+.event-card.selected {
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 3px rgba(147, 197, 253, 0.28);
+}
+
+.event-card-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  min-width: 0;
+}
+
+.event-card-title {
+  min-width: 0;
+}
+
+.event-card-title h3 {
+  margin: 8px 0 6px;
+  font-size: 22px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.event-card-title p {
+  margin: 0;
+}
+
+.event-card-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+  gap: 10px;
+  min-width: 0;
+}
+
+.info-item {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 10px;
+}
+
+.info-item span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.info-item strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.event-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.subtask-list {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.subtask-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 10px;
+}
+
+.subtask-row.completed {
+  opacity: 0.68;
+  background: #f1f5f9;
+}
+
+.subtask-title,
+.subtask-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.subtask-title {
+  align-items: flex-start;
+  flex-direction: column;
+}
+
+.subtask-title strong {
+  overflow-wrap: anywhere;
+}
+
+.compact-field {
+  min-width: 0;
+}
+
+.command-center-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  min-width: 0;
 }
 
 .visual-strip {
@@ -294,8 +453,23 @@ textarea:focus-visible {
 }
 
 @media (min-width: 1280px) {
-  .grid-2 {
+  .grid-2,
+  .command-center-grid {
     grid-template-columns: minmax(0, 1fr) minmax(340px, 380px);
+  }
+
+  .event-card-main {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 2fr) auto;
+    align-items: start;
+  }
+
+  .event-card-actions {
+    justify-content: flex-end;
+  }
+
+  .subtask-row {
+    grid-template-columns: minmax(0, 1.4fr) minmax(180px, 0.7fr) minmax(180px, 0.6fr);
+    align-items: center;
   }
 }
 
