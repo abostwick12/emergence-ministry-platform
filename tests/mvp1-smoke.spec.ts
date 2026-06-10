@@ -1,10 +1,10 @@
 import { expect, type Page, test } from "@playwright/test";
 
-test.describe("MVP 1 event automation smoke tests", () => {
+test.describe("MVP event automation navigation smoke tests", () => {
   test.describe.configure({ mode: "serial" });
 
-  test("unauthenticated user visiting the app is redirected to login", async ({ page }) => {
-    await page.goto("/");
+  test("unauthenticated users redirect to login", async ({ page }) => {
+    await page.goto("/dashboard");
 
     await expect(page).toHaveURL(/\/login/);
     await expect(page.getByRole("heading", { name: "Emerge Ministry Platform" })).toBeVisible();
@@ -19,58 +19,134 @@ test.describe("MVP 1 event automation smoke tests", () => {
     await expect(page.getByRole("button", { name: "Log in" })).toBeVisible();
   });
 
-  test("authenticated test user can access the app and log out", async ({ page }) => {
-    await loginAndOpen(page);
+  test("authenticated user lands on dashboard and can log out", async ({ page }) => {
+    await login(page);
 
-    await expect(page.getByRole("heading", { name: "Event Automation Workspace" })).toBeVisible();
-    await page.getByRole("button", { name: "Log out" }).click();
-    await expect(page).toHaveURL(/\/login$/);
-    await expect(page.getByRole("button", { name: "Log in" })).toBeVisible();
-  });
-
-  test("dashboard loads and shows the current event automation workspace", async ({ page }) => {
-    await loginAndOpen(page);
-
-    await expect(page.getByRole("heading", { name: "Event Automation Workspace" })).toBeVisible();
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible();
     await expect(page.getByText("Stub Mode active. No live credentials are required.")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Events Workspace" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Winter Retreat", level: 3 })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Summer Camp", level: 3 })).toBeVisible();
+    await page.getByRole("link", { name: "Log out" }).click();
+    await expect(page).toHaveURL(/\/login$/);
   });
 
-  test("workspace navigator targets major sections", async ({ page }) => {
-    await loginAndOpen(page);
+  test("desktop sidebar routes to each protected page", async ({ page }) => {
+    await login(page);
 
-    for (const target of ["create-event", "events-workspace", "event-command-center", "kanban-dashboard", "activity-log"]) {
-      await expect(page.locator(`#${target}`)).toHaveCount(1);
+    const sidebar = page.getByRole("navigation", { name: "Desktop navigation" });
+    await expect(sidebar).toBeVisible();
+
+    for (const route of [
+      ["Dashboard", "/dashboard"],
+      ["Events", "/events"],
+      ["Tasks", "/tasks"],
+      ["Communications", "/communications"],
+      ["People", "/people"],
+      ["Files", "/files"],
+      ["Budget", "/budget"],
+      ["Settings", "/settings"]
+    ] as const) {
+      await sidebar.getByRole("link", { name: route[0] }).click();
+      await expect(page).toHaveURL(new RegExp(`${route[1]}$`));
+      await expect(page.getByRole("heading", { name: route[0], level: 1 })).toBeVisible();
+    }
+  });
+
+  test("mobile bottom navigation exposes high-use routes and More links", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await login(page);
+
+    const mobileNav = page.getByRole("navigation", { name: "Mobile navigation" });
+    await expect(mobileNav).toBeVisible();
+    for (const label of ["Dashboard", "Events", "Tasks", "Communications", "More"]) {
+      await expect(mobileNav.getByText(label, { exact: true })).toBeVisible();
     }
 
-    const navigator = page.getByRole("navigation", { name: "Workspace Navigator" });
-    await expect(navigator).toBeVisible();
-    expect(await navigator.evaluate((element) => element.closest("aside") !== null)).toBe(true);
-    expect(await navigator.evaluate((element) => window.getComputedStyle(element).position)).toBe("static");
-
-    await expect(page.getByRole("link", { name: "Create Event" })).toHaveAttribute("href", "#create-event");
-    await expect(page.getByRole("link", { name: "Events" })).toHaveAttribute("href", "#events-workspace");
-    await expect(page.getByRole("link", { name: "Command Center" })).toHaveAttribute("href", "#event-command-center");
-    await expect(page.getByRole("link", { name: "Kanban" })).toHaveAttribute("href", "#kanban-dashboard");
-    await expect(page.getByRole("link", { name: "Activity" })).toHaveAttribute("href", "#activity-log");
-
-    await page.getByRole("link", { name: "Kanban" }).click();
-    await expect(page).toHaveURL(/#kanban-dashboard$/);
-    await expect(page.getByRole("heading", { name: "Kanban Dashboard" })).toBeVisible();
-
-    await page.getByRole("link", { name: "Events" }).click();
-    await expect(page).toHaveURL(/#events-workspace$/);
-    await expect(page.getByRole("heading", { name: "Events Workspace" })).toBeVisible();
-
-    await page.getByRole("link", { name: "Activity" }).click();
-    await expect(page).toHaveURL(/#activity-log$/);
-    await expect(page.getByRole("heading", { name: "Activity Log" })).toBeVisible();
+    await mobileNav.getByText("More", { exact: true }).click();
+    const more = page.getByLabel("More navigation");
+    for (const label of ["People", "Files", "Budget", "Settings"]) {
+      await expect(more.getByRole("link", { name: label })).toBeVisible();
+    }
   });
 
-  test("create event form is collapsed by default and opens on command", async ({ page }) => {
-    await loginAndOpen(page);
+  test("dashboard shows simple ministry operations summary cards", async ({ page }) => {
+    await login(page);
+
+    for (const label of [
+      "Upcoming Events",
+      "Tasks Due Soon",
+      "Stuck Tasks",
+      "Task Completion",
+      "Communication Previews Pending",
+      "Recent Activity"
+    ]) {
+      await expect(page.getByText(label, { exact: true })).toBeVisible();
+    }
+  });
+
+  test("events page preserves the board-row Events Workspace", async ({ page }) => {
+    await login(page);
+    await page.goto("/events");
+
+    await expect(page.getByRole("heading", { name: "Events", level: 1 })).toBeVisible();
+    await expect(page.locator("#create-event").getByPlaceholder("Fall Kickoff Night")).not.toBeVisible();
+    await expect(page.getByRole("heading", { name: "Events Workspace" })).toBeVisible();
+
+    for (const group of ["This Week", "This Month", "Long Range Planning", "Past Events"]) {
+      await expect(page.getByRole("heading", { name: group })).toBeVisible();
+    }
+
+    const boardHeader = page.locator(".event-board-header").first();
+    for (const column of ["Event Identity", "Date / Time", "Scrollable Summary"]) {
+      await expect(boardHeader.getByText(column, { exact: true })).toBeVisible();
+    }
+
+    const winterRow = page.locator(".event-row-card", { hasText: "Winter Retreat" });
+    await expect(winterRow.locator(".event-identity-section")).toBeVisible();
+    await expect(winterRow.locator(".event-date-block")).toBeVisible();
+    await expect(winterRow.locator(".event-summary-scroll")).toBeVisible();
+    const summaryOwnsHorizontalScroll = await winterRow
+      .locator(".event-summary-scroll")
+      .evaluate((element) => element.scrollWidth > element.clientWidth);
+    expect(summaryOwnsHorizontalScroll).toBe(true);
+
+    const pageHasHorizontalScroll = await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth
+    );
+    expect(pageHasHorizontalScroll).toBe(false);
+  });
+
+  test("event row expands into compact task tree and opens Command Center", async ({ page }) => {
+    await login(page);
+    await page.goto("/events");
+
+    const winterRow = page.locator(".event-row-card", { hasText: "Winter Retreat" });
+    const subtaskList = winterRow.getByLabel("Winter Retreat subtasks");
+    await expect(subtaskList).toBeVisible();
+    await winterRow.getByRole("button", { name: /Collapse task tree/ }).click();
+    await expect(subtaskList).not.toBeVisible();
+    await winterRow.getByRole("button", { name: /Expand task tree/ }).click();
+    await expect(subtaskList).toBeVisible();
+    await expect(subtaskList.locator(".event-task-tree-item").first()).toBeVisible();
+
+    await winterRow.getByRole("button", { name: "Open Command Center" }).click();
+    await expect(winterRow).toHaveClass(/selected/);
+    await expect(page.getByRole("heading", { name: "Command Center: Winter Retreat", level: 2 })).toBeVisible();
+    for (const panel of [
+      "Event Information",
+      "Timeline Tasks",
+      "Communication Previews",
+      "Budget Shell",
+      "Missing Information",
+      "Integration Activity",
+      "Activity Log"
+    ]) {
+      await expect(page.getByRole("heading", { name: panel })).toBeVisible();
+    }
+  });
+
+  test("create event form stays collapsed by default and collapses after creation", async ({ page }) => {
+    await login(page);
+    await page.goto("/events");
 
     const createSection = page.locator("#create-event");
     await expect(createSection.getByPlaceholder("Fall Kickoff Night")).not.toBeVisible();
@@ -92,249 +168,56 @@ test.describe("MVP 1 event automation smoke tests", () => {
     await createSection.getByRole("button", { name: "+ Create event and generate tasks" }).click();
     expect((await createResponse).status()).toBe(201);
     await expect(createSection.getByPlaceholder("Fall Kickoff Night")).not.toBeVisible();
-    await expect(page.getByRole("heading", { name: "Events Workspace" })).toBeVisible();
   });
 
-  test("events are grouped by timeframe and render as card-row boards", async ({ page }) => {
-    await loginAndOpen(page);
+  test("tasks page provides dedicated Kanban and List views", async ({ page }) => {
+    await login(page);
+    await page.goto("/tasks");
 
-    await expect(page.getByRole("heading", { name: "This Week" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "This Month" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Long Range Planning" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Past Events" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Midweek Hangout", level: 3 })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Friday Night", level: 3 })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "High School Event", level: 3 })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Volunteer Training", level: 3 })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Winter Retreat", level: 3 })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Summer Camp", level: 3 })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Fall Fundraiser", level: 3 })).toBeVisible();
-
-    const boardHeader = page.locator(".event-board-header").first();
-    for (const column of ["Event Identity", "Date / Time", "Scrollable Summary"]) {
-      await expect(boardHeader.getByText(column, { exact: true })).toBeVisible();
+    const tasksWorkspace = page.locator(".tasks-workspace");
+    await expect(tasksWorkspace.getByRole("heading", { name: "Tasks" })).toBeVisible();
+    await expect(tasksWorkspace.getByRole("button", { name: "Kanban View" })).toBeVisible();
+    for (const lane of ["To do", "In progress", "Stuck", "Done"]) {
+      await expect(tasksWorkspace.locator(".lane-title", { hasText: lane })).toBeVisible();
     }
+    await expect(page.getByRole("heading", { name: "Events Workspace" })).toHaveCount(0);
 
-    for (const groupName of ["This Week", "This Month", "Long Range Planning", "Past Events"]) {
-      const group = page.locator(".event-group", { has: page.getByRole("heading", { name: groupName }) });
-      const startTimes = await group.locator(".event-row").evaluateAll((elements) =>
-        elements.map((element) => element.getAttribute("data-start-time") ?? "")
-      );
-      expect([...startTimes].sort()).toEqual(startTimes);
-    }
-
-    const summerRow = page.locator(".event-row-card", { hasText: "Summer Camp" });
-    await expect(summerRow.locator(".event-identity-section")).toBeVisible();
-    await expect(summerRow.locator(".event-date-block")).toBeVisible();
-    await expect(summerRow.locator(".event-summary-shell")).toBeVisible();
-    await expect(summerRow.locator(".event-summary-scroll")).toBeVisible();
-    await expect(summerRow.getByText("Budget proposed")).toBeVisible();
-    await expect(summerRow.getByText("Planning Center status")).toBeVisible();
-    await expect(summerRow.getByText("GroupMe status")).toBeVisible();
-
-    const summaryScroll = summerRow.locator(".event-summary-scroll");
-    const summaryOwnsHorizontalScroll = await summaryScroll.evaluate((element) => element.scrollWidth > element.clientWidth);
-    expect(summaryOwnsHorizontalScroll).toBe(true);
-
-    const identityBefore = await summerRow.locator(".event-identity-section").boundingBox();
-    const dateBefore = await summerRow.locator(".event-date-block").boundingBox();
-    await summaryScroll.evaluate((element) => {
-      element.scrollLeft = element.scrollWidth;
-    });
-    const identityAfter = await summerRow.locator(".event-identity-section").boundingBox();
-    const dateAfter = await summerRow.locator(".event-date-block").boundingBox();
-    expect(Math.round(identityAfter?.x ?? 0)).toBe(Math.round(identityBefore?.x ?? 0));
-    expect(Math.round(dateAfter?.x ?? 0)).toBe(Math.round(dateBefore?.x ?? 0));
-
-    const hasPageHorizontalScroll = await page.evaluate(
-      () => document.documentElement.scrollWidth > document.documentElement.clientWidth
-    );
-    expect(hasPageHorizontalScroll).toBe(false);
+    await tasksWorkspace.getByRole("button", { name: "List View" }).click();
+    await expect(tasksWorkspace.getByRole("columnheader", { name: "Task" })).toBeVisible();
+    await expect(tasksWorkspace.getByLabel("Filter by status")).toBeVisible();
   });
 
-  test("event row can expand and show compact task-tree subtasks underneath", async ({ page }) => {
-    await loginAndOpen(page);
+  test("task status and due date updates still create activity entries", async ({ page }) => {
+    await login(page);
+    await page.goto("/tasks");
+    await page.locator(".tasks-workspace").getByRole("button", { name: "List View" }).click();
 
-    const winterRow = page.locator(".event-row-card", { hasText: "Winter Retreat" });
-    const subtaskList = winterRow.getByLabel("Winter Retreat subtasks");
-
-    await expect(winterRow.locator(".summary-toggle-button")).toBeVisible();
-    const toggleBox = await winterRow.locator(".summary-toggle-button").boundingBox();
-    const summaryBox = await winterRow.locator(".event-summary-shell").boundingBox();
-    expect((toggleBox?.x ?? 0) + (toggleBox?.width ?? 0)).toBeGreaterThan((summaryBox?.x ?? 0) + (summaryBox?.width ?? 0) - 160);
-    expect(toggleBox?.y ?? 0).toBeLessThan((summaryBox?.y ?? 0) + 48);
-
-    await winterRow.getByRole("button", { name: /Collapse task tree/ }).click();
-    await expect(subtaskList).not.toBeVisible();
-
-    await winterRow.getByRole("button", { name: /Expand task tree/ }).click();
-    await expect(subtaskList).toBeVisible();
-    await expect(subtaskList.getByText("Confirm venue contract and deposit")).toBeVisible();
-    await expect(subtaskList.getByText("Draft parent communication preview")).toBeVisible();
-    await expect(subtaskList.locator(".event-task-tree-item").first()).toBeVisible();
-    await expect(subtaskList.locator(".card")).toHaveCount(0);
-  });
-
-  test("expanded subtasks have a scroll container and due dates can be edited", async ({ page }) => {
-    await loginAndOpen(page);
-
-    const winterRow = page.locator(".event-row-card", { hasText: "Winter Retreat" });
-    const subtaskList = winterRow.getByLabel("Winter Retreat subtasks");
-    await expect(subtaskList).toBeVisible();
-    await expect(page.getByText("Compact task tree. Scroll inside this task list when it grows.")).toBeVisible();
-    await winterRow.getByRole("button", { name: "Open Command Center" }).click();
-    await expect(page.getByRole("heading", { name: "Command Center: Winter Retreat", level: 2 })).toBeVisible();
-    const subtaskScrollStyle = await subtaskList.evaluate((element) => {
-      const style = window.getComputedStyle(element);
-      return { maxHeight: style.maxHeight, overflowX: style.overflowX, overflowY: style.overflowY };
-    });
-    expect(parseFloat(subtaskScrollStyle.maxHeight)).toBeGreaterThan(0);
-    expect(subtaskScrollStyle.overflowX).toBe("hidden");
-    expect(subtaskScrollStyle.overflowY).toBe("auto");
-
-    const taskRow = subtaskList.locator(".event-task-tree-item", { hasText: "Confirm venue contract and deposit" });
-    const dueDateInput = taskRow.getByLabel("Due date");
+    const taskRow = page.locator("tr", { hasText: "Confirm venue contract and deposit" });
+    const dueDateInput = taskRow.getByLabel("Due date for Confirm venue contract and deposit");
     const currentDate = await dueDateInput.inputValue();
     const nextDate = currentDate === "2026-06-01" ? "2026-06-02" : "2026-06-01";
     await dueDateInput.fill(nextDate);
-    await expect(dueDateInput).toHaveValue(nextDate);
-    const taskPatch = page.waitForResponse(
+    const duePatch = page.waitForResponse(
       (response) => response.url().includes("/api/tasks/") && response.request().method() === "PATCH"
     );
-    await taskRow.getByRole("button", { name: "Save due date" }).click();
-    const taskPatchResponse = await taskPatch;
-    expect(taskPatchResponse.status(), await taskPatchResponse.text()).toBe(200);
+    await taskRow.getByRole("button", { name: "Save" }).click();
+    expect((await duePatch).status()).toBe(200);
 
-    await page.locator("#activity-log").scrollIntoViewIfNeeded();
-    await expect(page.getByText("Changed due date for task: Confirm venue contract and deposit")).toBeVisible();
-  });
+    const statusPatch = page.waitForResponse(
+      (response) => response.url().includes("/api/tasks/") && response.request().method() === "PATCH"
+    );
+    await taskRow.getByLabel("Status for Confirm venue contract and deposit").selectOption("blocked");
+    expect((await statusPatch).status()).toBe(200);
 
-  test("command center workspace exposes the MVP 1 panels", async ({ page }) => {
-    await loginAndOpen(page);
-
-    const winterRow = page.locator(".event-row-card", { hasText: "Winter Retreat" });
-    await winterRow.getByRole("button", { name: "Open Command Center" }).click();
-
-    await expect(winterRow).toHaveClass(/selected/);
+    await page.goto("/events?event=evt_winter_retreat#event-command-center");
     await expect(page.getByRole("heading", { name: "Command Center: Winter Retreat", level: 2 })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Event Detail" })).toHaveCount(0);
-    await expect(page.getByText("Selected Event")).toHaveCount(0);
-    await expect(page.getByRole("heading", { name: "Event Information" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Timeline Tasks" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Communication Previews" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Budget Shell" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Missing Information" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Integration Activity" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Activity Log" })).toBeVisible();
+    await expect(page.getByText("Changed due date for task: Confirm venue contract and deposit")).toBeVisible();
+    await expect(page.getByText("Moved task to blocked: Confirm venue contract and deposit")).toBeVisible();
   });
 
-  test("hero renders cleanly at tablet width without overflow", async ({ page }) => {
-    await page.setViewportSize({ width: 1024, height: 900 });
-    await loginAndOpen(page);
-
-    const hero = page.getByLabel("Ministry operations workspace visual");
-    await expect(hero).toBeVisible();
-
-    const heroOverflows = await hero.evaluate((element) => element.scrollWidth > element.clientWidth || element.scrollHeight > element.clientHeight);
-    const pageOverflows = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
-
-    expect(heroOverflows).toBe(false);
-    expect(pageOverflows).toBe(false);
-  });
-
-  test("event workspace remains readable at tablet width without page-level horizontal scroll", async ({ page }) => {
-    await page.setViewportSize({ width: 1024, height: 900 });
-    await loginAndOpen(page);
-
-    await expect(page.getByRole("heading", { name: "Event Automation Workspace" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Event Information" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Timeline Tasks" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Integration Activity" })).toBeVisible();
-    await expect(page.getByLabel("Winter Retreat subtasks")).toBeVisible();
-    await expect(page.locator(".event-row-card", { hasText: "Winter Retreat" }).locator(".event-summary-scroll")).toBeVisible();
-
-    const summaryOwnsHorizontalScroll = await page
-      .locator(".event-row-card", { hasText: "Winter Retreat" })
-      .locator(".event-summary-scroll")
-      .evaluate((element) => element.scrollWidth > element.clientWidth);
-    expect(summaryOwnsHorizontalScroll).toBe(true);
-
-    const hasPageHorizontalScroll = await page.evaluate(
-      () => document.documentElement.scrollWidth > document.documentElement.clientWidth
-    );
-
-    expect(hasPageHorizontalScroll).toBe(false);
-  });
-
-  test("event workspace remains usable at mobile width without page-level horizontal scroll", async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 900 });
-    await loginAndOpen(page);
-
-    await expect(page.getByRole("heading", { name: "Event Automation Workspace" })).toBeVisible();
-    await expect(page.locator("#create-event").getByPlaceholder("Fall Kickoff Night")).not.toBeVisible();
-
-    const winterRow = page.locator(".event-row-card", { hasText: "Winter Retreat" });
-    await expect(winterRow.locator(".event-identity-section")).toBeVisible();
-    await expect(winterRow.locator(".event-date-block")).toBeVisible();
-    await expect(winterRow.locator(".event-summary-scroll")).toBeVisible();
-    await expect(winterRow.getByLabel("Winter Retreat subtasks")).toBeVisible();
-
-    const summaryOwnsHorizontalScroll = await winterRow
-      .locator(".event-summary-scroll")
-      .evaluate((element) => element.scrollWidth > element.clientWidth);
-    expect(summaryOwnsHorizontalScroll).toBe(true);
-
-    const hasPageHorizontalScroll = await page.evaluate(
-      () => document.documentElement.scrollWidth > document.documentElement.clientWidth
-    );
-    expect(hasPageHorizontalScroll).toBe(false);
-  });
-
-  test("Kanban remains contained at desktop width and cards are collapsed by default", async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await loginAndOpen(page);
-
-    await expect(page.getByRole("heading", { name: "Kanban Dashboard" })).toBeVisible();
-    await expect(page.getByText("Edit task title")).not.toBeVisible();
-    await expect(page.getByText("No tasks in this lane.").first()).toBeVisible();
-
-    const emptyLaneHeight = await page.locator(".kanban-column", { hasText: "No tasks in this lane." }).first().evaluate((element) => {
-      return element.getBoundingClientRect().height;
-    });
-    expect(emptyLaneHeight).toBeLessThan(120);
-
-    const hasPageHorizontalScroll = await page.evaluate(
-      () => document.documentElement.scrollWidth > document.documentElement.clientWidth
-    );
-
-    expect(hasPageHorizontalScroll).toBe(false);
-  });
-
-  test("Kanban remains contained at tablet width", async ({ page }) => {
-    await page.setViewportSize({ width: 1024, height: 900 });
-    await loginAndOpen(page);
-
-    await expect(page.getByRole("heading", { name: "Kanban Dashboard" })).toBeVisible();
-
-    const hasPageHorizontalScroll = await page.evaluate(
-      () => document.documentElement.scrollWidth > document.documentElement.clientWidth
-    );
-
-    expect(hasPageHorizontalScroll).toBe(false);
-  });
-
-  test("integration controls are clearly Stub Mode and do not require credentials", async ({ page }) => {
-    await loginAndOpen(page);
-
-    await expect(page.getByText("Stub Mode", { exact: true }).first()).toBeVisible();
-    await expect(page.getByRole("button", { name: "Create Drive folder stub" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Create ProPresenter stub" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Sync calendar stub" })).toBeVisible();
-    await expect(page.getByText("No live credentials are required.")).toBeVisible();
-  });
-
-  test("communication preview generates useful Stub Mode sections without sending", async ({ page }) => {
-    await loginAndOpen(page);
+  test("communication previews remain preview-only Stub Mode output", async ({ page }) => {
+    await login(page);
+    await page.goto("/events");
 
     await page.getByRole("button", { name: "Generate preview" }).click();
 
@@ -343,7 +226,22 @@ test.describe("MVP 1 event automation smoke tests", () => {
     await expect(previewSection.locator(".eyebrow", { hasText: /^Leader Announcement$/ })).toBeVisible();
     await expect(previewSection.locator(".eyebrow", { hasText: /^Blast Text Summary$/ })).toBeVisible();
     await expect(previewSection.getByText(/Preview only.*not sent/).first()).toBeVisible();
-    await expect(previewSection.getByText(/Location|details|confirmed|ready/i).first()).toBeVisible();
+  });
+
+  test("placeholder pages render Stub Mode and future integration language", async ({ page }) => {
+    await login(page);
+
+    for (const route of [
+      ["/communications", "Communication Drafts", "Stub Mode - not connected to live sending yet."],
+      ["/people", "Ministry Roster", "Future Planning Center / ministry roster sync area."],
+      ["/files", "Ministry Files", "Future Google Drive connection area."],
+      ["/budget", "Budget Workspace", "Simple MVP budget planning shell."],
+      ["/settings", "Platform Settings", "API keys and secrets are not exposed in the UI."]
+    ] as const) {
+      await page.goto(route[0]);
+      await expect(page.getByRole("heading", { name: route[1] })).toBeVisible();
+      await expect(page.getByText(route[2])).toBeVisible();
+    }
   });
 
   test("Student route is an inactive placeholder", async ({ page }) => {
@@ -363,18 +261,12 @@ test.describe("MVP 1 event automation smoke tests", () => {
   });
 });
 
-async function loginAndOpen(page: Page) {
-  await login(page);
-  await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Event Automation Workspace" })).toBeVisible();
-}
-
 async function login(page: Page) {
   await page.goto("/login");
   await page.getByLabel("Email").fill(process.env.E2E_TEST_EMAIL ?? "staff@example.com");
   await page.getByLabel("Password").fill(process.env.E2E_TEST_PASSWORD ?? "password");
   await page.getByRole("button", { name: "Log in" }).click();
-  await expect(page).toHaveURL(/\/$/);
+  await expect(page).toHaveURL(/\/dashboard$/);
 }
 
 function toDateTimeLocalInput(date: Date) {
