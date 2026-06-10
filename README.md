@@ -28,7 +28,7 @@ This build is not the full final platform. It is the first vertical slice that p
 * Stub integration actions create visible sync/activity log entries but do not call external APIs.
 * Student and Parent roles exist in the authorization model only.
 * Student and Parent routes are inactive placeholders in MVP 1.
-* No live credentials are required for MVP 1.
+* Local/mock MVP testing does not require live external integration credentials; real Supabase Auth/database mode requires the public Supabase URL and anon key.
 
 ## MVP 1 Does Not Include
 
@@ -72,6 +72,73 @@ npm run lint
 npm run build
 npm run test:e2e
 ```
+
+## Phase 1 Auth And Database
+
+Iteration 2 Phase 1 protects the app with invite-only Supabase email/password Auth and prepares the core database tables for real ministry data. There is no public sign-up page. Create users manually in the Supabase dashboard.
+
+Required Vercel/local variables for real Supabase mode:
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+```
+
+Do not add service-role keys, database passwords, provider OAuth secrets, OpenAI keys, or other server/admin secrets to client-side code or committed files.
+
+### Database Setup
+
+Run the SQL script in Supabase SQL Editor:
+
+```text
+supabase/schema.sql
+```
+
+The script creates:
+
+* `profiles`
+* `events`
+* `tasks`
+* `activity_logs`
+
+It enables RLS on all four tables and adds authenticated staff-wide CRUD policies. Fine-grained role permissions are intentionally deferred; `profiles.role` is present for later expansion.
+
+The script also includes an optional seed block for MVP test data: Camp/Summer Camp, Midweek, High School Event, Fundraiser, and Volunteer Training. Create the first Auth user before running the seed block so the rows can reference `auth.users`.
+
+### First User
+
+In Supabase:
+
+1. Open Authentication -> Users.
+2. Create a user with email and password.
+3. Run `supabase/schema.sql`.
+4. Confirm a matching `profiles` row exists. The seed block creates/updates a profile for the first Auth user as `admin`.
+
+### Local Login Testing
+
+With real Supabase variables set, start the app and sign in at `/login` using the manually created Supabase Auth user.
+
+Without Supabase variables, local Playwright/dev mode uses mock auth for testing only:
+
+```bash
+npm run dev
+```
+
+Mock test login defaults:
+
+```text
+staff@example.com
+password
+```
+
+For Playwright against a real Supabase project, set:
+
+```bash
+E2E_TEST_EMAIL=
+E2E_TEST_PASSWORD=
+```
+
+Known limitation: communication previews and integration activity remain Stub Mode outputs. Live external integrations are still intentionally disabled.
 
 ## CI
 

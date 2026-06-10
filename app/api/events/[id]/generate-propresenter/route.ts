@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
-import { runIntegrationStub } from "@/lib/store";
+import { getServerSession, unauthorizedResponse } from "@/lib/auth/server";
+import { runMinistryIntegrationStub } from "@/lib/data/ministry-repository";
 
 export async function POST(_: Request, { params }: { params: { id: string } }) {
-  const log = runIntegrationStub(params.id, "propresenter");
+  const session = await getServerSession();
+  if (!session) return unauthorizedResponse();
+
+  const log = await runMinistryIntegrationStub(session, params.id, "propresenter");
 
   if (!log) {
     return NextResponse.json({ error: "Event not found" }, { status: 404 });

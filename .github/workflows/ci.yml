@@ -38,4 +38,6 @@ jobs:
         run: npm run build
 
       - name: E2E smoke tests
+        env:
+          E2E_MOCK_AUTH: "true"
         run: npm run test:e2e

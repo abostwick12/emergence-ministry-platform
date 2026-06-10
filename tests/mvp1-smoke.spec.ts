@@ -1,10 +1,35 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 
 test.describe("MVP 1 event automation smoke tests", () => {
   test.describe.configure({ mode: "serial" });
 
-  test("dashboard loads and shows the current event automation workspace", async ({ page }) => {
+  test("unauthenticated user visiting the app is redirected to login", async ({ page }) => {
     await page.goto("/");
+
+    await expect(page).toHaveURL(/\/login/);
+    await expect(page.getByRole("heading", { name: "Emerge Ministry Platform" })).toBeVisible();
+  });
+
+  test("login page renders for internal access", async ({ page }) => {
+    await page.goto("/login");
+
+    await expect(page.getByRole("heading", { name: "Emerge Ministry Platform" })).toBeVisible();
+    await expect(page.getByLabel("Email")).toBeVisible();
+    await expect(page.getByLabel("Password")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Log in" })).toBeVisible();
+  });
+
+  test("authenticated test user can access the app and log out", async ({ page }) => {
+    await loginAndOpen(page);
+
+    await expect(page.getByRole("heading", { name: "Event Automation Workspace" })).toBeVisible();
+    await page.getByRole("button", { name: "Log out" }).click();
+    await expect(page).toHaveURL(/\/login$/);
+    await expect(page.getByRole("button", { name: "Log in" })).toBeVisible();
+  });
+
+  test("dashboard loads and shows the current event automation workspace", async ({ page }) => {
+    await loginAndOpen(page);
 
     await expect(page.getByRole("heading", { name: "Event Automation Workspace" })).toBeVisible();
     await expect(page.getByText("Stub Mode active. No live credentials are required.")).toBeVisible();
@@ -14,7 +39,7 @@ test.describe("MVP 1 event automation smoke tests", () => {
   });
 
   test("workspace navigator targets major sections", async ({ page }) => {
-    await page.goto("/");
+    await loginAndOpen(page);
 
     for (const target of ["create-event", "events-workspace", "event-command-center", "kanban-dashboard", "activity-log"]) {
       await expect(page.locator(`#${target}`)).toHaveCount(1);
@@ -45,7 +70,7 @@ test.describe("MVP 1 event automation smoke tests", () => {
   });
 
   test("create event form is collapsed by default and opens on command", async ({ page }) => {
-    await page.goto("/");
+    await loginAndOpen(page);
 
     const createSection = page.locator("#create-event");
     await expect(createSection.getByPlaceholder("Fall Kickoff Night")).not.toBeVisible();
@@ -71,7 +96,7 @@ test.describe("MVP 1 event automation smoke tests", () => {
   });
 
   test("events are grouped by timeframe and render as card-row boards", async ({ page }) => {
-    await page.goto("/");
+    await loginAndOpen(page);
 
     await expect(page.getByRole("heading", { name: "This Week" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "This Month" })).toBeVisible();
@@ -128,7 +153,7 @@ test.describe("MVP 1 event automation smoke tests", () => {
   });
 
   test("event row can expand and show compact task-tree subtasks underneath", async ({ page }) => {
-    await page.goto("/");
+    await loginAndOpen(page);
 
     const winterRow = page.locator(".event-row-card", { hasText: "Winter Retreat" });
     const subtaskList = winterRow.getByLabel("Winter Retreat subtasks");
@@ -151,7 +176,7 @@ test.describe("MVP 1 event automation smoke tests", () => {
   });
 
   test("expanded subtasks have a scroll container and due dates can be edited", async ({ page }) => {
-    await page.goto("/");
+    await loginAndOpen(page);
 
     const winterRow = page.locator(".event-row-card", { hasText: "Winter Retreat" });
     const subtaskList = winterRow.getByLabel("Winter Retreat subtasks");
@@ -185,7 +210,7 @@ test.describe("MVP 1 event automation smoke tests", () => {
   });
 
   test("command center workspace exposes the MVP 1 panels", async ({ page }) => {
-    await page.goto("/");
+    await loginAndOpen(page);
 
     const winterRow = page.locator(".event-row-card", { hasText: "Winter Retreat" });
     await winterRow.getByRole("button", { name: "Open Command Center" }).click();
@@ -205,7 +230,7 @@ test.describe("MVP 1 event automation smoke tests", () => {
 
   test("hero renders cleanly at tablet width without overflow", async ({ page }) => {
     await page.setViewportSize({ width: 1024, height: 900 });
-    await page.goto("/");
+    await loginAndOpen(page);
 
     const hero = page.getByLabel("Ministry operations workspace visual");
     await expect(hero).toBeVisible();
@@ -219,7 +244,7 @@ test.describe("MVP 1 event automation smoke tests", () => {
 
   test("event workspace remains readable at tablet width without page-level horizontal scroll", async ({ page }) => {
     await page.setViewportSize({ width: 1024, height: 900 });
-    await page.goto("/");
+    await loginAndOpen(page);
 
     await expect(page.getByRole("heading", { name: "Event Automation Workspace" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Event Information" })).toBeVisible();
@@ -243,7 +268,7 @@ test.describe("MVP 1 event automation smoke tests", () => {
 
   test("event workspace remains usable at mobile width without page-level horizontal scroll", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 900 });
-    await page.goto("/");
+    await loginAndOpen(page);
 
     await expect(page.getByRole("heading", { name: "Event Automation Workspace" })).toBeVisible();
     await expect(page.locator("#create-event").getByPlaceholder("Fall Kickoff Night")).not.toBeVisible();
@@ -267,7 +292,7 @@ test.describe("MVP 1 event automation smoke tests", () => {
 
   test("Kanban remains contained at desktop width and cards are collapsed by default", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto("/");
+    await loginAndOpen(page);
 
     await expect(page.getByRole("heading", { name: "Kanban Dashboard" })).toBeVisible();
     await expect(page.getByText("Edit task title")).not.toBeVisible();
@@ -287,7 +312,7 @@ test.describe("MVP 1 event automation smoke tests", () => {
 
   test("Kanban remains contained at tablet width", async ({ page }) => {
     await page.setViewportSize({ width: 1024, height: 900 });
-    await page.goto("/");
+    await loginAndOpen(page);
 
     await expect(page.getByRole("heading", { name: "Kanban Dashboard" })).toBeVisible();
 
@@ -299,7 +324,7 @@ test.describe("MVP 1 event automation smoke tests", () => {
   });
 
   test("integration controls are clearly Stub Mode and do not require credentials", async ({ page }) => {
-    await page.goto("/");
+    await loginAndOpen(page);
 
     await expect(page.getByText("Stub Mode", { exact: true }).first()).toBeVisible();
     await expect(page.getByRole("button", { name: "Create Drive folder stub" })).toBeVisible();
@@ -309,7 +334,7 @@ test.describe("MVP 1 event automation smoke tests", () => {
   });
 
   test("communication preview generates useful Stub Mode sections without sending", async ({ page }) => {
-    await page.goto("/");
+    await loginAndOpen(page);
 
     await page.getByRole("button", { name: "Generate preview" }).click();
 
@@ -322,6 +347,7 @@ test.describe("MVP 1 event automation smoke tests", () => {
   });
 
   test("Student route is an inactive placeholder", async ({ page }) => {
+    await login(page);
     await page.goto("/student");
 
     await expect(page.getByRole("heading", { name: "Student View" })).toBeVisible();
@@ -329,12 +355,27 @@ test.describe("MVP 1 event automation smoke tests", () => {
   });
 
   test("Parent route is an inactive placeholder", async ({ page }) => {
+    await login(page);
     await page.goto("/parent");
 
     await expect(page.getByRole("heading", { name: "Parent View" })).toBeVisible();
     await expect(page.getByText("no working Parent screens are exposed in MVP 1")).toBeVisible();
   });
 });
+
+async function loginAndOpen(page: Page) {
+  await login(page);
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Event Automation Workspace" })).toBeVisible();
+}
+
+async function login(page: Page) {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill(process.env.E2E_TEST_EMAIL ?? "staff@example.com");
+  await page.getByLabel("Password").fill(process.env.E2E_TEST_PASSWORD ?? "password");
+  await page.getByRole("button", { name: "Log in" }).click();
+  await expect(page).toHaveURL(/\/$/);
+}
 
 function toDateTimeLocalInput(date: Date) {
   const offset = date.getTimezoneOffset() * 60000;

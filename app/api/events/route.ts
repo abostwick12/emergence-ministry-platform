@@ -1,18 +1,19 @@
 import { NextResponse } from "next/server";
-import { createEvent, listActivity, listEvents, listExpenses, listTasks, listUsers } from "@/lib/store";
+import { getServerSession, unauthorizedResponse } from "@/lib/auth/server";
+import { createMinistryEvent, getOverview } from "@/lib/data/ministry-repository";
 import type { EventType } from "@/lib/types";
 
 export async function GET() {
-  return NextResponse.json({
-    events: listEvents(),
-    tasks: listTasks(),
-    users: listUsers(),
-    expenses: listExpenses(),
-    activity: listActivity()
-  });
+  const session = await getServerSession();
+  if (!session) return unauthorizedResponse();
+
+  return NextResponse.json(await getOverview(session));
 }
 
 export async function POST(request: Request) {
+  const session = await getServerSession();
+  if (!session) return unauthorizedResponse();
+
   const body = (await request.json()) as {
     title?: string;
     description?: string;
@@ -28,7 +29,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "title, type, startTime, and endTime are required" }, { status: 400 });
   }
 
-  const workspace = createEvent({
+  const workspace = await createMinistryEvent(session, {
     title: body.title,
     description: body.description ?? "",
     type: body.type,

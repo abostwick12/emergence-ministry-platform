@@ -65,6 +65,10 @@ export default function HomePage() {
 
   async function loadOverview(nextSelectedId?: string) {
     const response = await fetch("/api/events", { cache: "no-store" });
+    if (response.status === 401) {
+      window.location.assign("/login");
+      return;
+    }
     const data = (await response.json()) as Overview;
     setOverview(data);
     const fallbackId = nextSelectedId || selectedEventId || data.events[0]?.id || "";
@@ -77,6 +81,10 @@ export default function HomePage() {
 
   async function loadWorkspace(eventId: string) {
     const response = await fetch(`/api/events/${eventId}`, { cache: "no-store" });
+    if (response.status === 401) {
+      window.location.assign("/login");
+      return;
+    }
     if (!response.ok) return;
     setWorkspace((await response.json()) as EventWorkspace);
   }
@@ -205,6 +213,11 @@ export default function HomePage() {
     });
   }
 
+  async function logout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    window.location.assign("/login");
+  }
+
   return (
     <div className="app-shell">
       <aside className="sidebar" aria-label="Primary">
@@ -250,6 +263,10 @@ export default function HomePage() {
           </p>
           <p style={{ margin: 0, color: "#dbeafe" }}>Student and Parent roles are authorization placeholders only in MVP 1.</p>
         </div>
+
+        <button className="button sidebar-logout" type="button" onClick={() => void logout()}>
+          Log out
+        </button>
       </aside>
 
       <main className="main">
