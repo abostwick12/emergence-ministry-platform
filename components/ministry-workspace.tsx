@@ -60,15 +60,13 @@ type WorkspaceView = "dashboard" | "events" | "tasks";
 
 export default function MinistryWorkspace({ view }: { view: WorkspaceView }) {
   const [overview, setOverview] = useState<Overview | null>(null);
-  const [selectedEventId, setSelectedEventId] = useState<string>("");
-  const [workspace, setWorkspace] = useState<EventWorkspace | null>(null);
   const { activeRole } = useRole();
+  const { openCreate, openEdit } = useEventCard();
   const [isLoading, setIsLoading] = useState(true);
   const [notice, setNotice] = useState("Stub Mode active. No live credentials are required.");
   const [expandedEventIds, setExpandedEventIds] = useState<string[]>(["evt_winter_retreat"]);
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
 
-  async function loadOverview(nextSelectedId?: string) {
+  async function loadOverview() {
     const response = await fetch("/api/events", { cache: "no-store" });
     if (response.status === 401) {
       window.location.assign("/login");
@@ -76,23 +74,7 @@ export default function MinistryWorkspace({ view }: { view: WorkspaceView }) {
     }
     const data = (await response.json()) as Overview;
     setOverview(data);
-    const requestedEventId = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("event") ?? "" : "";
-    const fallbackId = nextSelectedId || requestedEventId || selectedEventId || data.events[0]?.id || "";
-    setSelectedEventId(fallbackId);
-    if (fallbackId) {
-      await loadWorkspace(fallbackId);
-    }
     setIsLoading(false);
-  }
-
-  async function loadWorkspace(eventId: string) {
-    const response = await fetch(`/api/events/${eventId}`, { cache: "no-store" });
-    if (response.status === 401) {
-      window.location.assign("/login");
-      return;
-    }
-    if (!response.ok) return;
-    setWorkspace((await response.json()) as EventWorkspace);
   }
 
   useEffect(() => {
@@ -100,16 +82,8 @@ export default function MinistryWorkspace({ view }: { view: WorkspaceView }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    if (view !== "events" || !workspace || window.location.hash !== "#event-command-center") return;
-    window.requestAnimationFrame(() => {
-      document.getElementById("event-command-center")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-  }, [view, workspace]);
-
   const users = useMemo(() => overview?.users ?? [], [overview?.users]);
   const activeUsers = users.filter((user) => user.role === "admin" || user.role === "leader");
-  const selectedEvent = workspace?.event;
   const totalTasks = overview?.tasks.length ?? 0;
   const doneTasks = overview?.tasks.filter((task) => task.status === "done").length ?? 0;
   const blockedTasks = overview?.tasks.filter((task) => task.status === "blocked").length ?? 0;
@@ -123,64 +97,14 @@ export default function MinistryWorkspace({ view }: { view: WorkspaceView }) {
     return overview.tasks;
   }, [activeRole, overview, users]);
 
-  async function refresh(eventId = selectedEventId) {
-    await loadOverview(eventId);
-    if (eventId) {
-      await loadWorkspace(eventId);
-    }
+  async function refresh() {
+    await loadOverview();
   }
 
   function toggleEventExpansion(eventId: string) {
     setExpandedEventIds((current) =>
       current.includes(eventId) ? current.filter((id) => id !== eventId) : [...current, eventId]
     );
-  }
-
-  async function createEvent(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const formElement = event.currentTarget;
-    const form = new FormData(formElement);
-    const title = String(form.get("title") || "");
-    const type = String(form.get("type") || "retreat") as EventType;
-    const startTime = String(form.get("startTime") || "");
-    const endTime = String(form.get("endTime") || "");
-
-    if (!title || !startTime || !endTime) {
-      setNotice("Title, start time, and end time are required.");
-      return;
-    }
-
-    const response = await fetch("/api/events", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title,
-        type,
-        startTime: new Date(startTime).toISOString(),
-        endTime: new Date(endTime).toISOString(),
-        description: String(form.get("description") || ""),
-        location: String(form.get("location") || ""),
-        budgetTarget: Number(form.get("budgetTarget") || 0) || undefined,
-        contactOwnerId: String(form.get("contactOwnerId") || "")
-      })
-    });
-
-    if (!response.ok) {
-      setNotice("Event creation failed. Check required fields.");
-      return;
-    }
-
-    const created = (await response.json()) as EventWorkspace;
-    formElement.reset();
-    setIsCreateOpen(false);
-    setExpandedEventIds((current) =>
-      current.includes(created.event.id) ? current : [created.event.id].concat(current)
-    );
-    setNotice(`Created ${created.event.title} and generated baseline timeline tasks.`);
-    await refresh(created.event.id);
-    window.requestAnimationFrame(() => {
-      document.getElementById("events-workspace")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
   }
 
   async function updateTask(taskId: string, body: Partial<ActiveTask>) {
@@ -205,30 +129,11 @@ export default function MinistryWorkspace({ view }: { view: WorkspaceView }) {
     }
 
     setNotice("Event information updated.");
-    await refresh(eventId);
-  }
-
-  async function postEventAction(path: string, message: string) {
-    if (!selectedEventId) return;
-    await fetch(`/api/events/${selectedEventId}/${path}`, { method: "POST" });
-    setNotice(message);
     await refresh();
   }
 
   function openCommandCenter(eventId: string) {
-    if (window.location.pathname !== "/events") {
-      window.location.assign(`/events?event=${eventId}#event-command-center`);
-      return;
-    }
-
-    setSelectedEventId(eventId);
-    if (!expandedEventIds.includes(eventId)) {
-      setExpandedEventIds((current) => [...current, eventId]);
-    }
-    void loadWorkspace(eventId);
-    window.requestAnimationFrame(() => {
-      document.getElementById("event-command-center")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
+    openEdit(eventId);
   }
 
   return (
@@ -253,11 +158,10 @@ export default function MinistryWorkspace({ view }: { view: WorkspaceView }) {
                       Create Event
                     </h2>
                   </div>
-                  <button className="button primary" type="button" onClick={() => setIsCreateOpen((current) => !current)}>
-                    {isCreateOpen ? "Close form" : "+ Create New Event"}
+                  <button className="button primary" type="button" onClick={() => openCreate()}>
+                    + Create New Event
                   </button>
                 </div>
-                {isCreateOpen ? <EventForm users={activeUsers} onSubmit={createEvent} /> : null}
               </section>
             ) : (
               <section className="panel" id="create-event">
@@ -275,29 +179,13 @@ export default function MinistryWorkspace({ view }: { view: WorkspaceView }) {
               tasks={overview.tasks}
               users={activeUsers}
               expenses={overview.expenses}
-              selectedEventId={selectedEventId}
               expandedEventIds={expandedEventIds}
-              selectedWorkspace={workspace}
               onToggleEvent={toggleEventExpansion}
               onOpenEvent={openCommandCenter}
               onUpdateTask={updateTask}
               onUpdateEvent={updateEvent}
             />
           </div>
-
-          {workspace && selectedEvent ? (
-            <EventWorkspacePanel
-              workspace={workspace}
-              users={activeUsers}
-              onGeneratePreview={() =>
-                postEventAction("generate-communications", "Communication preview generated. No external message was sent.")
-              }
-              onDriveStub={() => postEventAction("generate-drive-folder", "Google Drive Stub Mode action recorded.")}
-              onProStub={() => postEventAction("generate-propresenter", "ProPresenter Stub Mode action recorded.")}
-              onCalendarStub={() => postEventAction("sync-calendar", "Google Calendar Stub Mode action recorded.")}
-              onUpdateEvent={updateEvent}
-            />
-          ) : null}
         </section>
       ) : (
         <TasksWorkspace tasks={visibleTasks} events={overview.events} users={activeUsers} onUpdate={updateTask} />
@@ -699,9 +587,7 @@ function WorkspaceNavigator() {
   const links = [
     { label: "Create Event", shortLabel: "Create", target: "create-event" },
     { label: "Events", shortLabel: "Events", target: "events-workspace" },
-    { label: "Command Center", shortLabel: "Command", target: "event-command-center" },
-    { label: "Kanban", shortLabel: "Kanban", target: "kanban-dashboard" },
-    { label: "Activity", shortLabel: "Activity", target: "activity-log" }
+    { label: "Kanban", shortLabel: "Kanban", target: "kanban-dashboard" }
   ];
 
   return (
@@ -831,9 +717,7 @@ function EventsWorkspace({
   tasks,
   users,
   expenses,
-  selectedEventId,
   expandedEventIds,
-  selectedWorkspace,
   onToggleEvent,
   onOpenEvent,
   onUpdateTask,
@@ -843,9 +727,7 @@ function EventsWorkspace({
   tasks: ActiveTask[];
   users: User[];
   expenses: EventExpense[];
-  selectedEventId: string;
   expandedEventIds: string[];
-  selectedWorkspace: EventWorkspace | null;
   onToggleEvent: (eventId: string) => void;
   onOpenEvent: (eventId: string) => void;
   onUpdateTask: (taskId: string, body: Partial<ActiveTask>) => Promise<void>;
@@ -881,8 +763,7 @@ function EventsWorkspace({
                     const owner = users.find((user) => user.id === event.contactOwnerId);
                     const eventExpenses = expenses.filter((expense) => expense.eventId === event.id);
                     const isExpanded = expandedEventIds.includes(event.id);
-                    const missingCount =
-                      selectedWorkspace?.event.id === event.id ? selectedWorkspace.missingInformation.length : estimateMissingInformationCount(event);
+                    const missingCount = estimateMissingInformationCount(event);
 
                     return (
                       <EventRowCard
@@ -894,7 +775,6 @@ function EventsWorkspace({
                         completeTasks={completeTasks}
                         missingCount={missingCount}
                         isExpanded={isExpanded}
-                        isSelected={event.id === selectedEventId}
                         onToggleEvent={onToggleEvent}
                         onOpenEvent={onOpenEvent}
                         onUpdateTask={onUpdateTask}
@@ -921,7 +801,6 @@ function EventRowCard({
   completeTasks,
   missingCount,
   isExpanded,
-  isSelected,
   users,
   onToggleEvent,
   onOpenEvent,
@@ -935,7 +814,6 @@ function EventRowCard({
   completeTasks: number;
   missingCount: number;
   isExpanded: boolean;
-  isSelected: boolean;
   users: User[];
   onToggleEvent: (eventId: string) => void;
   onOpenEvent: (eventId: string) => void;
@@ -943,7 +821,7 @@ function EventRowCard({
   onUpdateEvent: (eventId: string, body: Partial<MinistryEvent>) => Promise<void>;
 }) {
   return (
-    <article className={isSelected ? "event-row event-row-card selected" : "event-row event-row-card"} data-start-time={event.startTime}>
+    <article className="event-row event-row-card" data-start-time={event.startTime}>
       <div className="event-card-row" role="row">
         <EventIdentitySection event={event} tasks={tasks} completeTasks={completeTasks} />
         <EventDateBlock event={event} />
@@ -1068,9 +946,9 @@ function EventScrollableSummary({
         <EventSummaryField label="Priority" value={priority} tone={priority === "High" ? "warning" : undefined} />
         <EventSummaryField label="Last updated" value={formatDate(event.createdAt)} />
         <div className="summary-field action-field">
-          <span className="summary-label">Command Center</span>
+          <span className="summary-label">Edit Event</span>
           <button className="button primary" type="button" onClick={() => onOpenEvent(event.id)}>
-            Open Command Center
+            Open event
           </button>
         </div>
         <div className="summary-field action-field notes-summary-field">

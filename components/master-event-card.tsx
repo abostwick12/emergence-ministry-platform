@@ -85,6 +85,7 @@ interface Step1State {
   budgetTarget: string;
   budgetActual: string;
   volunteersNeeded: string;
+  notes: string;
   generateTasks: boolean;
   generateComms: boolean;
   createDrive: boolean;
@@ -108,6 +109,7 @@ function buildInitialStep1(event?: MinistryEvent, firstUserId?: string): Step1St
       budgetTarget: event.budgetTarget?.toString() ?? "",
       budgetActual: event.budgetActual?.toString() ?? "",
       volunteersNeeded: event.volunteersNeeded?.toString() ?? "",
+      notes: event.notes ?? "",
       generateTasks: false,
       generateComms: false,
       createDrive: false,
@@ -129,6 +131,7 @@ function buildInitialStep1(event?: MinistryEvent, firstUserId?: string): Step1St
     budgetTarget: "",
     budgetActual: "",
     volunteersNeeded: "",
+    notes: "",
     generateTasks: true,
     generateComms: false,
     createDrive: false,
@@ -295,7 +298,8 @@ function MasterEventCardInner({
         volunteersNeeded: step1.volunteersNeeded ? Number(step1.volunteersNeeded) : undefined,
         priority: step1.priority,
         contactOwnerId: step1.contactOwnerId || undefined,
-        status: step1.status
+        status: step1.status,
+        notes: step1.notes || undefined
       };
 
       const url = mode === "edit" && eventId ? `/api/events/${eventId}` : null;
@@ -764,6 +768,18 @@ function Step1Form({
         </div>
       </div>
 
+      <div className="field">
+        <label htmlFor="ec-notes">Internal Notes</label>
+        <textarea
+          className="input"
+          id="ec-notes"
+          rows={3}
+          placeholder="Internal notes visible only to admin and leaders."
+          value={state.notes}
+          onChange={(e) => onChange("notes", e.target.value)}
+        />
+      </div>
+
       <fieldset className="event-card-toggles">
         <legend>Build Package</legend>
         <label className="toggle-row">
@@ -942,6 +958,39 @@ function Step2Panel({
           </div>
         )}
       </section>
+
+      {workspace && workspace.communications.length > 0 && (
+        <section className="event-card-section">
+          <div className="toolbar" style={{ justifyContent: "space-between" }}>
+            <h3 className="section-title" style={{ margin: 0 }}>Communication Previews</h3>
+            <span className="pill">Preview only — not sent</span>
+          </div>
+          <div className="grid" style={{ marginTop: 8 }}>
+            {workspace.communications.map((item) => (
+              <article className="card" key={item.id}>
+                <span className="pill">Preview only — not sent</span>
+                <p className="eyebrow">{communicationTypeLabel(item.type)}</p>
+                <h4 style={{ margin: "4px 0" }}>{item.payload.subject}</h4>
+                <p className="muted" style={{ margin: 0, fontSize: 13 }}>{item.payload.body}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {workspace && workspace.activity.length > 0 && (
+        <section className="event-card-section" id="modal-activity-log">
+          <h3 className="section-title">Activity Log</h3>
+          <div className="grid">
+            {workspace.activity.map((item) => (
+              <article className="card" key={item.id}>
+                <strong>{item.message}</strong>
+                <div className="muted" style={{ fontSize: 12 }}>{new Date(item.timestamp).toLocaleString()}</div>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }
@@ -1031,6 +1080,12 @@ function TaskEditRow({
       </div>
     </div>
   );
+}
+
+function communicationTypeLabel(type: string) {
+  if (type === "parent_email") return "Parent Email";
+  if (type === "leader_brief") return "Leader Announcement";
+  return "Blast Text Summary";
 }
 
 function StubControl({
