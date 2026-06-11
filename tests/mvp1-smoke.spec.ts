@@ -123,7 +123,7 @@ test.describe("MVP event automation navigation smoke tests", () => {
     expect(pageHasHorizontalScroll).toBe(false);
   });
 
-  test("event row expands into compact task tree and opens Command Center", async ({ page }) => {
+  test("event row expands into compact task tree and opens modal on Open event", async ({ page }) => {
     await login(page);
     await page.goto("/events");
 
@@ -138,52 +138,43 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await expect(subtaskList.getByRole("button", { name: /Save due date/ })).toHaveCount(0);
     await expect(subtaskList.getByText("Autosaves").first()).toBeVisible();
 
-    await winterRow.getByRole("button", { name: "Open Command Center" }).click();
-    await expect(winterRow).toHaveClass(/selected/);
-    await expect(page.getByRole("heading", { name: "Command Center: Winter Retreat", level: 2 })).toBeVisible();
-    for (const panel of [
-      "Event Information",
-      "Timeline Tasks",
-      "Communication Previews",
-      "Budget Shell",
-      "Missing Information",
-      "Integration Activity",
-      "Activity Log"
-    ]) {
-      await expect(page.getByRole("heading", { name: panel })).toBeVisible();
-    }
+    await winterRow.getByRole("button", { name: "Open event" }).click();
+    const modal = page.getByRole("dialog", { name: /Edit: Winter Retreat/ });
+    await expect(modal).toBeVisible();
+    await expect(modal.getByLabel("Event Name")).toHaveValue("Winter Retreat");
+    await expect(page.getByRole("heading", { name: /Command Center/, level: 2 })).toHaveCount(0);
   });
 
-  test("create event form stays collapsed by default and collapses after creation", async ({ page }) => {
+  test("+ Create New Event opens the Master Event Card modal", async ({ page }) => {
     await login(page);
     await page.goto("/events");
 
-    const createSection = page.locator("#create-event");
-    await expect(createSection.getByPlaceholder("Fall Kickoff Night")).not.toBeVisible();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
     await page.getByRole("button", { name: "+ Create New Event" }).click();
-    await expect(createSection.getByPlaceholder("Fall Kickoff Night")).toBeVisible();
 
-    const initialStart = new Date();
-    initialStart.setDate(initialStart.getDate() + 3);
-    initialStart.setHours(18, 0, 0, 0);
-    const changedStart = new Date(initialStart);
-    changedStart.setDate(initialStart.getDate() + 1);
-    const manualEnd = new Date(initialStart);
-    manualEnd.setDate(initialStart.getDate() + 2);
-    manualEnd.setHours(20, 0, 0, 0);
+    const modal = page.getByRole("dialog", { name: "Create New Event" });
+    await expect(modal).toBeVisible();
+    await expect(modal.getByLabel("Event Name")).toBeVisible();
+    await expect(modal.getByLabel(/Start Date/)).toBeVisible();
+    await expect(modal.getByLabel(/End Date/)).toBeVisible();
 
-    await createSection.getByLabel("Title").fill(`Smoke Test Event ${Date.now()}`);
-    await createSection.getByLabel("Start").fill(toDateTimeLocalInput(initialStart));
-    await expect(createSection.getByLabel("End")).toHaveValue(toDateTimeLocalInput(initialStart));
-    await createSection.getByLabel("End").fill(toDateTimeLocalInput(manualEnd));
-    await createSection.getByLabel("Start").fill(toDateTimeLocalInput(changedStart));
-    await expect(createSection.getByLabel("End")).toHaveValue(toDateTimeLocalInput(manualEnd));
+    const start = new Date();
+    start.setDate(start.getDate() + 5);
+    start.setHours(18, 0, 0, 0);
+    const end = new Date(start);
+    end.setHours(21, 0, 0, 0);
+
+    await modal.getByLabel("Event Name").fill(`Events Page Create Test ${Date.now()}`);
+    await modal.getByLabel(/Start Date/).fill(toDateTimeLocalInput(start));
+    await modal.getByLabel(/End Date/).fill(toDateTimeLocalInput(end));
+    await modal.getByRole("button", { name: /Next: Tasks/ }).click();
+
     const createResponse = page.waitForResponse(
       (response) => response.url().endsWith("/api/events") && response.request().method() === "POST"
     );
-    await createSection.getByRole("button", { name: "+ Create event and generate tasks" }).click();
+    await modal.getByRole("button", { name: /Save & Create Event/ }).click();
     expect((await createResponse).status()).toBe(201);
-    await expect(createSection.getByPlaceholder("Fall Kickoff Night")).not.toBeVisible();
+    await expect(modal.getByRole("status")).toContainText("Created");
   });
 
   test("tasks page provides dedicated Kanban and List views", async ({ page }) => {
@@ -197,7 +188,7 @@ test.describe("MVP event automation navigation smoke tests", () => {
       await expect(tasksWorkspace.locator(".lane-title", { hasText: lane })).toBeVisible();
     }
     await expect(tasksWorkspace.locator(".task-card").first().getByRole("button", { name: /Notes/ })).toBeVisible();
-    await expect(tasksWorkspace.getByRole("button", { name: "Open event (temporary)" }).first()).toBeVisible();
+    await expect(tasksWorkspace.getByRole("button", { name: "Open event" }).first()).toBeVisible();
     await expect(page.getByRole("heading", { name: "Events Workspace" })).toHaveCount(0);
 
     await tasksWorkspace.getByRole("button", { name: "List View" }).click();
@@ -228,26 +219,38 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await taskRow.getByLabel("Status for Confirm venue contract and deposit").selectOption("blocked");
     expect((await statusPatch).status()).toBe(200);
 
-    await page.goto("/events?event=evt_winter_retreat#event-command-center");
-    await expect(page.getByRole("heading", { name: "Command Center: Winter Retreat", level: 2 })).toBeVisible();
-    await expect(page.getByText("Changed due date for task: Confirm venue contract and deposit")).toBeVisible();
-    await expect(page.getByText("Moved task to blocked: Confirm venue contract and deposit")).toBeVisible();
+    // Verify activity appears in modal Step 2
+    await page.goto("/events");
+    const winterRow = page.locator(".event-row-card", { hasText: "Winter Retreat" });
+    await winterRow.getByRole("button", { name: /Edit event: Winter Retreat/ }).click();
+    const modal = page.getByRole("dialog");
+    await expect(modal.getByLabel("Event Name")).toHaveValue("Winter Retreat");
+    await modal.getByRole("button", { name: /Next: Tasks/ }).click();
+    await expect(modal.getByRole("tab", { name: /Tasks & Integrations/ })).toHaveAttribute("aria-selected", "true");
+    await expect(modal.getByText("Changed due date for task: Confirm venue contract and deposit")).toBeVisible();
+    await expect(modal.getByText("Moved task to blocked: Confirm venue contract and deposit")).toBeVisible();
   });
 
   test("event and task notes can be saved and create activity entries", async ({ page }) => {
     await login(page);
-    await page.goto("/events?event=evt_winter_retreat#event-command-center");
+    await page.goto("/events");
 
-    const eventInfo = page.locator("section.card", { has: page.getByRole("heading", { name: "Event Information" }) });
-    await eventInfo.getByRole("button", { name: /Notes/ }).click();
-    await eventInfo.getByLabel(/Internal notes for Winter Retreat event/).fill(`Reviewed event notes ${Date.now()}`);
+    // Save event notes via modal Step 1
+    const winterRow = page.locator(".event-row-card", { hasText: "Winter Retreat" });
+    await winterRow.getByRole("button", { name: /Edit event: Winter Retreat/ }).click();
+    const modal = page.getByRole("dialog");
+    await expect(modal.getByLabel("Event Name")).toHaveValue("Winter Retreat");
+    const notesField = modal.getByLabel("Internal Notes");
+    await notesField.fill(`Reviewed event notes ${Date.now()}`);
     const eventPatch = page.waitForResponse(
       (response) => response.url().includes("/api/events/evt_winter_retreat") && response.request().method() === "PATCH"
     );
-    await eventInfo.getByRole("button", { name: "Save notes" }).click();
+    await modal.getByRole("button", { name: "Save event info" }).click();
     expect((await eventPatch).status()).toBe(200);
-    await expect(page.getByText("Updated event notes: Winter Retreat")).toBeVisible();
+    await expect(modal.getByRole("status")).toContainText("saved");
+    await modal.getByRole("button", { name: "Cancel" }).click();
 
+    // Save task notes via task list view
     await page.goto("/tasks");
     await page.locator(".tasks-workspace").getByRole("button", { name: "List View" }).click();
     const taskRow = page.locator("tr", { hasText: "Confirm venue contract and deposit" });
@@ -259,21 +262,36 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await taskRow.getByRole("button", { name: "Save notes" }).click();
     expect((await taskPatch).status()).toBe(200);
 
-    await page.goto("/events?event=evt_winter_retreat#event-command-center");
-    await expect(page.getByText("Updated task notes: Confirm venue contract and deposit")).toBeVisible();
+    // Verify both activity entries appear in modal Step 2
+    await page.goto("/events");
+    const winterRow2 = page.locator(".event-row-card", { hasText: "Winter Retreat" });
+    await winterRow2.getByRole("button", { name: /Edit event: Winter Retreat/ }).click();
+    const modal2 = page.getByRole("dialog");
+    await expect(modal2.getByLabel("Event Name")).toHaveValue("Winter Retreat");
+    await modal2.getByRole("button", { name: /Next: Tasks/ }).click();
+    await expect(modal2.getByRole("tab", { name: /Tasks & Integrations/ })).toHaveAttribute("aria-selected", "true");
+    await expect(modal2.getByText("Updated event notes: Winter Retreat").first()).toBeVisible();
+    await expect(modal2.getByText("Updated task notes: Confirm venue contract and deposit").first()).toBeVisible();
   });
 
   test("communication previews remain preview-only Stub Mode output", async ({ page }) => {
     await login(page);
     await page.goto("/events");
 
-    await page.getByRole("button", { name: "Generate preview" }).click();
+    // Open modal for Winter Retreat, go to Step 2, run Communication Package stub
+    const winterRow = page.locator(".event-row-card", { hasText: "Winter Retreat" });
+    await winterRow.getByRole("button", { name: /Edit event: Winter Retreat/ }).click();
+    const modal = page.getByRole("dialog");
+    await expect(modal.getByLabel("Event Name")).toHaveValue("Winter Retreat");
+    await modal.getByRole("button", { name: /Next: Tasks/ }).click();
+    await expect(modal.getByRole("tab", { name: /Tasks & Integrations/ })).toHaveAttribute("aria-selected", "true");
 
-    const previewSection = page.locator("section", { has: page.getByRole("heading", { name: "Communication Previews" }) });
-    await expect(previewSection.locator(".eyebrow", { hasText: /^Parent Email$/ })).toBeVisible();
-    await expect(previewSection.locator(".eyebrow", { hasText: /^Leader Announcement$/ })).toBeVisible();
-    await expect(previewSection.locator(".eyebrow", { hasText: /^Blast Text Summary$/ })).toBeVisible();
-    await expect(previewSection.getByText(/Preview only.*not sent/).first()).toBeVisible();
+    await modal.getByRole("button", { name: "Run Communication Package stub action" }).click();
+    // Wait for previews to appear (workspace refreshes after stub POST + GET)
+    await expect(modal.locator(".eyebrow", { hasText: /^Parent Email$/ })).toBeVisible({ timeout: 15000 });
+    await expect(modal.locator(".eyebrow", { hasText: /^Leader Announcement$/ })).toBeVisible();
+    await expect(modal.locator(".eyebrow", { hasText: /^Blast Text Summary$/ })).toBeVisible();
+    await expect(modal.getByText(/Preview only.*not sent/).first()).toBeVisible();
   });
 
   test("placeholder pages render Stub Mode and future integration language", async ({ page }) => {
@@ -308,6 +326,224 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await expect(page.getByRole("heading", { name: "Parent View" })).toBeVisible();
     await expect(page.getByText("no working Parent screens are exposed in MVP 1")).toBeVisible();
   });
+
+  // ── Phase 3: Master Event Card ──────────────────────────────────
+
+  test("desktop sidebar shows + Add Event button", async ({ page }) => {
+    await login(page);
+
+    const sidebar = page.getByRole("complementary", { name: "Primary navigation" });
+    await expect(sidebar.getByRole("button", { name: "Add new event" })).toBeVisible();
+  });
+
+  test("clicking + Add Event opens the Master Event Card in create mode", async ({ page }) => {
+    await login(page);
+
+    const sidebar = page.getByRole("complementary", { name: "Primary navigation" });
+    await sidebar.getByRole("button", { name: "Add new event" }).click();
+
+    const modal = page.getByRole("dialog", { name: "Create New Event" });
+    await expect(modal).toBeVisible();
+    await expect(modal.getByRole("tab", { name: /Event Details/ })).toBeVisible();
+    await expect(modal.getByRole("tab", { name: /Tasks & Integrations/ })).toBeVisible();
+    await expect(modal.getByLabel("Event Name")).toBeVisible();
+    await expect(modal.getByLabel("Ministry Area")).toBeVisible();
+    await expect(modal.getByLabel(/Start Date/)).toBeVisible();
+    await expect(modal.getByLabel(/End Date/)).toBeVisible();
+  });
+
+  test("modal closes on Cancel and escape key without saving", async ({ page }) => {
+    await login(page);
+
+    const sidebar = page.getByRole("complementary", { name: "Primary navigation" });
+    await sidebar.getByRole("button", { name: "Add new event" }).click();
+    const modal = page.getByRole("dialog");
+    await expect(modal).toBeVisible();
+
+    await modal.getByRole("button", { name: "Cancel" }).click();
+    await expect(modal).not.toBeVisible();
+
+    await sidebar.getByRole("button", { name: "Add new event" }).click();
+    await expect(modal).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(modal).not.toBeVisible();
+  });
+
+  test("create event flow: step 1 to step 2 with task preview", async ({ page }) => {
+    await login(page);
+
+    const sidebar = page.getByRole("complementary", { name: "Primary navigation" });
+    await sidebar.getByRole("button", { name: "Add new event" }).click();
+    const modal = page.getByRole("dialog", { name: "Create New Event" });
+
+    const start = new Date();
+    start.setDate(start.getDate() + 14);
+    start.setHours(18, 0, 0, 0);
+    const end = new Date(start);
+    end.setHours(20, 0, 0, 0);
+
+    await modal.getByLabel("Event Name").fill(`Modal Create Test ${Date.now()}`);
+    await modal.getByLabel(/Start Date/).fill(toDateTimeLocalInput(start));
+    await modal.getByLabel(/End Date/).fill(toDateTimeLocalInput(end));
+
+    await modal.getByRole("button", { name: /Next: Tasks/ }).click();
+    await expect(modal.getByRole("tab", { name: /Tasks & Integrations/ })).toHaveAttribute("aria-selected", "true");
+  });
+
+  test("create event: save creates event and shows generated tasks in step 2", async ({ page }) => {
+    await login(page);
+
+    const sidebar = page.getByRole("complementary", { name: "Primary navigation" });
+    await sidebar.getByRole("button", { name: "Add new event" }).click();
+    const modal = page.getByRole("dialog");
+
+    const start = new Date();
+    start.setDate(start.getDate() + 21);
+    start.setHours(18, 0, 0, 0);
+    const end = new Date(start);
+    end.setHours(21, 0, 0, 0);
+
+    await modal.getByLabel("Event Name").fill(`E2E Create Modal ${Date.now()}`);
+    await modal.getByLabel(/Start Date/).fill(toDateTimeLocalInput(start));
+    await modal.getByLabel(/End Date/).fill(toDateTimeLocalInput(end));
+    await modal.getByRole("button", { name: /Next: Tasks/ }).click();
+
+    const createResponse = page.waitForResponse(
+      (response) => response.url().endsWith("/api/events") && response.request().method() === "POST"
+    );
+    await modal.getByRole("button", { name: /Save & Create Event/ }).click();
+    expect((await createResponse).status()).toBe(201);
+
+    await expect(modal.getByRole("status")).toContainText("Created");
+  });
+
+  test("clicking event title on events board opens modal in edit mode", async ({ page }) => {
+    await login(page);
+    await page.goto("/events");
+
+    const winterRow = page.locator(".event-row-card", { hasText: "Winter Retreat" });
+    await winterRow.getByRole("button", { name: /Edit event: Winter Retreat/ }).click();
+
+    const modal = page.getByRole("dialog", { name: /Edit: Winter Retreat/ });
+    await expect(modal).toBeVisible();
+    await expect(modal.getByLabel("Event Name")).toHaveValue("Winter Retreat");
+  });
+
+  test("clicking anywhere on the event identity card opens modal in edit mode", async ({ page }) => {
+    await login(page);
+    await page.goto("/events");
+
+    const winterRow = page.locator(".event-row-card", { hasText: "Winter Retreat" });
+    // Click the status pills row (not the title button) to confirm the whole card is clickable
+    await winterRow.locator(".event-identity-meta").click();
+
+    const modal = page.getByRole("dialog", { name: /Edit: Winter Retreat/ });
+    await expect(modal).toBeVisible();
+    await expect(modal.getByLabel("Event Name")).toHaveValue("Winter Retreat");
+  });
+
+  test("edit event: existing fields populate and can be changed", async ({ page }) => {
+    await login(page);
+    await page.goto("/events");
+
+    const winterRow = page.locator(".event-row-card", { hasText: "Winter Retreat" });
+    await winterRow.getByRole("button", { name: /Edit event: Winter Retreat/ }).click();
+
+    const modal = page.getByRole("dialog");
+    await expect(modal.getByLabel("Event Name")).toHaveValue("Winter Retreat");
+    await expect(modal.getByLabel("Location")).not.toHaveValue("");
+
+    await modal.getByLabel("Target Group").fill("High School");
+    await modal.getByRole("button", { name: "Save event info" }).click();
+    await expect(modal.getByRole("status")).toContainText("saved");
+
+    // Close modal and re-open to confirm value persisted (workspace refresh via savedAt)
+    await modal.getByRole("button", { name: "Close" }).click();
+    await expect(modal).not.toBeVisible();
+    await winterRow.getByRole("button", { name: /Edit event: Winter Retreat/ }).click();
+    await expect(modal.getByLabel("Event Name")).toHaveValue("Winter Retreat");
+    await expect(modal.getByLabel("Target Group")).toHaveValue("High School");
+  });
+
+  test("edit modal step 2 shows existing tasks and allows editing", async ({ page }) => {
+    await login(page);
+    await page.goto("/events");
+
+    const winterRow = page.locator(".event-row-card", { hasText: "Winter Retreat" });
+    await winterRow.getByRole("button", { name: /Edit event: Winter Retreat/ }).click();
+
+    const modal = page.getByRole("dialog");
+    await expect(modal.getByLabel("Event Name")).toHaveValue("Winter Retreat");
+    await modal.getByRole("button", { name: /Next: Tasks/ }).click();
+
+    await expect(modal.getByRole("tab", { name: /Tasks & Integrations/ })).toHaveAttribute("aria-selected", "true");
+    await expect(modal.locator(".task-edit-row").first()).toBeVisible();
+    await expect(modal.getByLabel("New task title")).toBeVisible();
+  });
+
+  test("edit modal step 2 integration stubs stay Stub Mode", async ({ page }) => {
+    await login(page);
+    await page.goto("/events");
+
+    const winterRow = page.locator(".event-row-card", { hasText: "Winter Retreat" });
+    await winterRow.getByRole("button", { name: /Edit event: Winter Retreat/ }).click();
+
+    const modal = page.getByRole("dialog");
+    await expect(modal.getByLabel("Event Name")).toHaveValue("Winter Retreat");
+    await modal.getByRole("button", { name: /Next: Tasks/ }).click();
+
+    for (const label of ["Google Drive Folder", "Google Calendar Sync", "ProPresenter Playlist", "Planning Center Share", "Communication Package"]) {
+      await expect(modal.getByRole("button", { name: `Run ${label} stub action` })).toBeVisible();
+    }
+
+    await modal.getByRole("button", { name: "Run Google Drive Folder stub action" }).click();
+    await expect(
+      modal.locator(".stub-control", { hasText: "Google Drive Folder" }).locator("button", { hasText: "Re-run" })
+    ).toBeVisible({ timeout: 10000 });
+  });
+
+  test("opening event from dashboard upcoming events list uses modal", async ({ page }) => {
+    await login(page);
+    await page.goto("/dashboard");
+
+    const upcomingCard = page.locator(".dashboard-card", { has: page.getByRole("heading", { name: "Upcoming Events" }) });
+    const firstEvent = upcomingCard.locator(".dashboard-list-item-btn").first();
+    await expect(firstEvent).toBeVisible();
+    await firstEvent.click();
+
+    const modal = page.getByRole("dialog");
+    await expect(modal).toBeVisible();
+    await expect(modal.getByLabel("Event Name")).not.toHaveValue("");
+  });
+
+  test("opening event from tasks kanban uses modal", async ({ page }) => {
+    await login(page);
+    await page.goto("/tasks");
+
+    await page.locator(".tasks-workspace").getByRole("button", { name: "Open event" }).first().click();
+
+    const modal = page.getByRole("dialog");
+    await expect(modal).toBeVisible();
+    await expect(modal.getByLabel("Event Name")).not.toHaveValue("");
+  });
+
+  test("mobile + Add Event is available in More menu", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await login(page);
+
+    const mobileNav = page.getByRole("navigation", { name: "Mobile navigation" });
+    await mobileNav.getByText("More", { exact: true }).click();
+    await expect(page.getByRole("button", { name: "+ Add Event" })).toBeVisible();
+  });
+
+  test("all routes still work after Phase 3 changes", async ({ page }) => {
+    await login(page);
+    for (const route of ["/dashboard", "/events", "/tasks", "/communications", "/people", "/files", "/budget", "/settings"]) {
+      await page.goto(route);
+      await expect(page).toHaveURL(new RegExp(`${route}$`));
+      await expect(page.getByRole("complementary", { name: "Primary navigation" })).toBeVisible();
+    }
+  });
 });
 
 async function login(page: Page) {
@@ -316,6 +552,7 @@ async function login(page: Page) {
   await page.getByLabel("Password").fill(process.env.E2E_TEST_PASSWORD ?? "password");
   await page.getByRole("button", { name: "Log in" }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
+  await page.waitForLoadState("networkidle");
 }
 
 function toDateTimeLocalInput(date: Date) {

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useRole } from "@/components/role-context";
+import { useEventCard } from "@/components/event-card-context";
 import type { Role } from "@/lib/types";
 
 const roleLabels: Record<Role, string> = {
@@ -44,6 +45,7 @@ const pageTitles: Record<string, string> = {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { activeRole, setActiveRole } = useRole();
+  const { openCreate } = useEventCard();
   const title = pageTitles[pathname] ?? "Dashboard";
 
   return (
@@ -60,6 +62,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
         </Link>
+
+        <button
+          className="button primary sidebar-add-event"
+          type="button"
+          aria-label="Add new event"
+          onClick={openCreate}
+        >
+          + Add Event
+        </button>
 
         <div className="visual-strip" aria-label="Ministry operations workspace visual">
           <span>Events, tasks, communication previews, budgets, and Stub Mode integrations in one workspace.</span>
@@ -124,6 +135,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <details className="mobile-more-menu">
           <summary className="mobile-nav-link">More</summary>
           <div className="mobile-more-panel" aria-label="More navigation">
+            <button
+              className="button primary mobile-add-event-btn"
+              type="button"
+              onClick={openCreate}
+            >
+              + Add Event
+            </button>
             {primaryLinks.slice(4).map((link) => (
               <Link className="app-nav-link" href={link.href} key={link.href}>
                 {link.label}

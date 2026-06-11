@@ -43,6 +43,7 @@ type SupabaseEventRow = {
   ministry_area: string | null;
   description: string | null;
   vision: string | null;
+  target_group: string | null;
   start_date: string | null;
   end_date: string | null;
   start_time: string | null;
@@ -173,7 +174,11 @@ export async function createMinistryEvent(
     startTime: string;
     endTime: string;
     location?: string;
+    targetGroup?: string;
     budgetTarget?: number;
+    budgetActual?: number;
+    volunteersNeeded?: number;
+    priority?: string;
     contactOwnerId?: string;
   }
 ) {
@@ -185,6 +190,8 @@ export async function createMinistryEvent(
   const start = new Date(input.startTime);
   const end = new Date(input.endTime);
 
+  const defaultVolunteers = input.type === "retreat" || input.type === "camp" ? 6 : input.type === "service" ? 4 : 2;
+
   const insertResult = await supabase
     .from("events")
     .insert({
@@ -192,6 +199,7 @@ export async function createMinistryEvent(
       ministry_area: input.type,
       description: input.description,
       vision: "",
+      target_group: input.targetGroup ?? null,
       start_date: toDateOnly(start),
       end_date: toDateOnly(end),
       start_time: toTimeOnly(start),
@@ -199,10 +207,10 @@ export async function createMinistryEvent(
       location: input.location ?? null,
       owner: input.contactOwnerId ?? session.user.id,
       status: "planning",
-      priority: input.type === "retreat" || input.type === "camp" ? "high" : "normal",
+      priority: input.priority ?? (input.type === "retreat" || input.type === "camp" ? "high" : "normal"),
       budget_target: input.budgetTarget ?? null,
-      budget_actual: 0,
-      volunteers_needed: input.type === "retreat" || input.type === "camp" ? 6 : input.type === "service" ? 4 : 2,
+      budget_actual: input.budgetActual ?? 0,
+      volunteers_needed: input.volunteersNeeded ?? defaultVolunteers,
       communication_owner: input.contactOwnerId ?? session.user.id,
       created_by: session.user.id
     })
@@ -228,7 +236,11 @@ export async function updateMinistryEvent(session: AuthSession, eventId: string,
   if (input.title !== undefined) update.title = input.title;
   if (input.description !== undefined) update.description = input.description;
   if (input.location !== undefined) update.location = input.location ?? null;
+  if (input.targetGroup !== undefined) update.target_group = input.targetGroup ?? null;
   if (input.budgetTarget !== undefined) update.budget_target = input.budgetTarget ?? null;
+  if (input.budgetActual !== undefined) update.budget_actual = input.budgetActual ?? null;
+  if (input.volunteersNeeded !== undefined) update.volunteers_needed = input.volunteersNeeded ?? null;
+  if (input.priority !== undefined) update.priority = input.priority ?? null;
   if (input.notes !== undefined) update.notes = input.notes ?? null;
   if (input.contactOwnerId !== undefined) {
     update.owner = input.contactOwnerId ?? null;
@@ -302,6 +314,45 @@ export async function updateMinistryTask(session: AuthSession, taskId: string, i
     await createActivityLog(session, result.data.event_id, taskId, `Updated task notes: ${result.data.title}`);
   }
 
+  const overview = await getOverview(session);
+  return toActiveTask(result.data, overview.users);
+}
+
+export async function createMinistryTask(
+  session: AuthSession,
+  input: {
+    eventId: string;
+    taskTitle: string;
+    dueDate: string;
+    assignedUserId: string;
+    status?: TaskStatus;
+  }
+) {
+  if (shouldUseMock(session)) {
+    return mockStore.createTask(input);
+  }
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const result = await supabase
+    .from("tasks")
+    .insert({
+      event_id: input.eventId,
+      title: input.taskTitle,
+      owner: input.assignedUserId,
+      due_date: toDateOnly(new Date(input.dueDate)),
+      status: input.status ?? "todo",
+      priority: "normal",
+      critical: false,
+      file_status: "No file attached",
+      created_by: session.user.id
+    })
+    .select("*")
+    .single<SupabaseTaskRow>();
+
+  throwIfSupabaseError(result.error);
+  if (!result.data) return undefined;
+
+  await createActivityLog(session, input.eventId, result.data.id, `Added task: ${input.taskTitle}`);
   const overview = await getOverview(session);
   return toActiveTask(result.data, overview.users);
 }
@@ -470,9 +521,13 @@ function toMinistryEvent(row: SupabaseEventRow, users: User[]): MinistryEvent {
     type: toEventType(row.ministry_area),
     startTime: fromDateAndTime(row.start_date, row.start_time),
     endTime: fromDateAndTime(row.end_date ?? row.start_date, row.end_time ?? row.start_time),
-    status: row.status === "ready" || row.status === "draft" ? row.status : "planning",
+    status: (row.status as import("@/lib/types").EventStatus) ?? "planning",
     location: row.location ?? undefined,
+    targetGroup: row.target_group ?? undefined,
     budgetTarget: row.budget_target ?? undefined,
+    budgetActual: row.budget_actual ?? 0,
+    volunteersNeeded: row.volunteers_needed ?? undefined,
+    priority: row.priority ?? "normal",
     contactOwnerId: toOwnerId(row.communication_owner ?? row.owner, users),
     autoGeneratedTimeline: [],
     googleDriveFolderId: undefined,

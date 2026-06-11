@@ -1,21 +1,16 @@
 "use client";
 
-import { Fragment, FormEvent, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRole } from "@/components/role-context";
+import { useEventCard } from "@/components/event-card-context";
 import { eventTypeLabels } from "@/lib/templates";
 import { formatDate, formatDateTime, money } from "@/lib/utils";
 import type {
   ActiveTask,
   ActivityLog,
-  CommunicationPackage,
   EventExpense,
-  EventType,
-  EventWorkspace,
-  IntegrationSyncLog,
   MinistryEvent,
-  MissingInformationItem,
-  Role,
   TaskStatus,
   User
 } from "@/lib/types";
@@ -37,15 +32,6 @@ const statusLabels: Record<TaskStatus, string> = {
   done: "Done"
 };
 
-const roleLabels: Record<Role, string> = {
-  admin: "Admin",
-  leader: "Leader",
-  student: "Student",
-  parent: "Parent"
-};
-
-const eventTypes: EventType[] = ["retreat", "weekly", "service", "camp"];
-
 type EventGroupKey = "thisWeek" | "thisMonth" | "longRange" | "past";
 
 const eventGroupLabels: Record<EventGroupKey, string> = {
@@ -59,15 +45,13 @@ type WorkspaceView = "dashboard" | "events" | "tasks";
 
 export default function MinistryWorkspace({ view }: { view: WorkspaceView }) {
   const [overview, setOverview] = useState<Overview | null>(null);
-  const [selectedEventId, setSelectedEventId] = useState<string>("");
-  const [workspace, setWorkspace] = useState<EventWorkspace | null>(null);
   const { activeRole } = useRole();
+  const { openCreate, openEdit, state: cardState } = useEventCard();
   const [isLoading, setIsLoading] = useState(true);
   const [notice, setNotice] = useState("Stub Mode active. No live credentials are required.");
   const [expandedEventIds, setExpandedEventIds] = useState<string[]>(["evt_winter_retreat"]);
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
 
-  async function loadOverview(nextSelectedId?: string) {
+  async function loadOverview() {
     const response = await fetch("/api/events", { cache: "no-store" });
     if (response.status === 401) {
       window.location.assign("/login");
@@ -75,23 +59,7 @@ export default function MinistryWorkspace({ view }: { view: WorkspaceView }) {
     }
     const data = (await response.json()) as Overview;
     setOverview(data);
-    const requestedEventId = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("event") ?? "" : "";
-    const fallbackId = nextSelectedId || requestedEventId || selectedEventId || data.events[0]?.id || "";
-    setSelectedEventId(fallbackId);
-    if (fallbackId) {
-      await loadWorkspace(fallbackId);
-    }
     setIsLoading(false);
-  }
-
-  async function loadWorkspace(eventId: string) {
-    const response = await fetch(`/api/events/${eventId}`, { cache: "no-store" });
-    if (response.status === 401) {
-      window.location.assign("/login");
-      return;
-    }
-    if (!response.ok) return;
-    setWorkspace((await response.json()) as EventWorkspace);
   }
 
   useEffect(() => {
@@ -100,15 +68,12 @@ export default function MinistryWorkspace({ view }: { view: WorkspaceView }) {
   }, []);
 
   useEffect(() => {
-    if (view !== "events" || !workspace || window.location.hash !== "#event-command-center") return;
-    window.requestAnimationFrame(() => {
-      document.getElementById("event-command-center")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-  }, [view, workspace]);
+    if (cardState.savedAt > 0) void loadOverview();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cardState.savedAt]);
 
   const users = useMemo(() => overview?.users ?? [], [overview?.users]);
   const activeUsers = users.filter((user) => user.role === "admin" || user.role === "leader");
-  const selectedEvent = workspace?.event;
   const totalTasks = overview?.tasks.length ?? 0;
   const doneTasks = overview?.tasks.filter((task) => task.status === "done").length ?? 0;
   const blockedTasks = overview?.tasks.filter((task) => task.status === "blocked").length ?? 0;
@@ -122,64 +87,14 @@ export default function MinistryWorkspace({ view }: { view: WorkspaceView }) {
     return overview.tasks;
   }, [activeRole, overview, users]);
 
-  async function refresh(eventId = selectedEventId) {
-    await loadOverview(eventId);
-    if (eventId) {
-      await loadWorkspace(eventId);
-    }
+  async function refresh() {
+    await loadOverview();
   }
 
   function toggleEventExpansion(eventId: string) {
     setExpandedEventIds((current) =>
       current.includes(eventId) ? current.filter((id) => id !== eventId) : [...current, eventId]
     );
-  }
-
-  async function createEvent(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const formElement = event.currentTarget;
-    const form = new FormData(formElement);
-    const title = String(form.get("title") || "");
-    const type = String(form.get("type") || "retreat") as EventType;
-    const startTime = String(form.get("startTime") || "");
-    const endTime = String(form.get("endTime") || "");
-
-    if (!title || !startTime || !endTime) {
-      setNotice("Title, start time, and end time are required.");
-      return;
-    }
-
-    const response = await fetch("/api/events", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title,
-        type,
-        startTime: new Date(startTime).toISOString(),
-        endTime: new Date(endTime).toISOString(),
-        description: String(form.get("description") || ""),
-        location: String(form.get("location") || ""),
-        budgetTarget: Number(form.get("budgetTarget") || 0) || undefined,
-        contactOwnerId: String(form.get("contactOwnerId") || "")
-      })
-    });
-
-    if (!response.ok) {
-      setNotice("Event creation failed. Check required fields.");
-      return;
-    }
-
-    const created = (await response.json()) as EventWorkspace;
-    formElement.reset();
-    setIsCreateOpen(false);
-    setExpandedEventIds((current) =>
-      current.includes(created.event.id) ? current : [created.event.id].concat(current)
-    );
-    setNotice(`Created ${created.event.title} and generated baseline timeline tasks.`);
-    await refresh(created.event.id);
-    window.requestAnimationFrame(() => {
-      document.getElementById("events-workspace")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
   }
 
   async function updateTask(taskId: string, body: Partial<ActiveTask>) {
@@ -204,30 +119,11 @@ export default function MinistryWorkspace({ view }: { view: WorkspaceView }) {
     }
 
     setNotice("Event information updated.");
-    await refresh(eventId);
-  }
-
-  async function postEventAction(path: string, message: string) {
-    if (!selectedEventId) return;
-    await fetch(`/api/events/${selectedEventId}/${path}`, { method: "POST" });
-    setNotice(message);
     await refresh();
   }
 
   function openCommandCenter(eventId: string) {
-    if (window.location.pathname !== "/events") {
-      window.location.assign(`/events?event=${eventId}#event-command-center`);
-      return;
-    }
-
-    setSelectedEventId(eventId);
-    if (!expandedEventIds.includes(eventId)) {
-      setExpandedEventIds((current) => [...current, eventId]);
-    }
-    void loadWorkspace(eventId);
-    window.requestAnimationFrame(() => {
-      document.getElementById("event-command-center")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
+    openEdit(eventId);
   }
 
   return (
@@ -252,11 +148,10 @@ export default function MinistryWorkspace({ view }: { view: WorkspaceView }) {
                       Create Event
                     </h2>
                   </div>
-                  <button className="button primary" type="button" onClick={() => setIsCreateOpen((current) => !current)}>
-                    {isCreateOpen ? "Close form" : "+ Create New Event"}
+                  <button className="button primary" type="button" onClick={() => openCreate()}>
+                    + Create New Event
                   </button>
                 </div>
-                {isCreateOpen ? <EventForm users={activeUsers} onSubmit={createEvent} /> : null}
               </section>
             ) : (
               <section className="panel" id="create-event">
@@ -274,32 +169,16 @@ export default function MinistryWorkspace({ view }: { view: WorkspaceView }) {
               tasks={overview.tasks}
               users={activeUsers}
               expenses={overview.expenses}
-              selectedEventId={selectedEventId}
               expandedEventIds={expandedEventIds}
-              selectedWorkspace={workspace}
               onToggleEvent={toggleEventExpansion}
               onOpenEvent={openCommandCenter}
               onUpdateTask={updateTask}
               onUpdateEvent={updateEvent}
             />
           </div>
-
-          {workspace && selectedEvent ? (
-            <EventWorkspacePanel
-              workspace={workspace}
-              users={activeUsers}
-              onGeneratePreview={() =>
-                postEventAction("generate-communications", "Communication preview generated. No external message was sent.")
-              }
-              onDriveStub={() => postEventAction("generate-drive-folder", "Google Drive Stub Mode action recorded.")}
-              onProStub={() => postEventAction("generate-propresenter", "ProPresenter Stub Mode action recorded.")}
-              onCalendarStub={() => postEventAction("sync-calendar", "Google Calendar Stub Mode action recorded.")}
-              onUpdateEvent={updateEvent}
-            />
-          ) : null}
         </section>
       ) : (
-        <TasksWorkspace tasks={visibleTasks} events={overview.events} users={activeUsers} onUpdate={updateTask} onSelectEvent={openCommandCenter} />
+        <TasksWorkspace tasks={visibleTasks} events={overview.events} users={activeUsers} onUpdate={updateTask} />
       )}
     </div>
   );
@@ -325,6 +204,7 @@ function DashboardWorkspace({
   doneTasks: number;
   blockedTasks: number;
 }) {
+  const { openEdit } = useEventCard();
   const now = new Date();
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const endOfWeek = new Date(startOfToday);
@@ -386,11 +266,16 @@ function DashboardWorkspace({
           <div className="dashboard-list">
             {upcomingEvents.length ? (
               upcomingEvents.map((event) => (
-                <Link className="dashboard-list-item" href={`/events?event=${event.id}#event-command-center`} key={event.id}>
+                <button
+                  className="dashboard-list-item dashboard-list-item-btn"
+                  key={event.id}
+                  type="button"
+                  onClick={() => openEdit(event.id)}
+                >
                   <strong>{event.title}</strong>
                   <span>{formatDateTime(event.startTime)}</span>
-                  <span className={event.status === "ready" ? "pill done" : "pill"}>{event.status}</span>
-                </Link>
+                  <span className={event.status === "ready" || event.status === "completed" ? "pill done" : "pill"}>{event.status}</span>
+                </button>
               ))
             ) : (
               <p className="muted">No upcoming events in the current workspace.</p>
@@ -494,14 +379,12 @@ function TasksWorkspace({
   tasks,
   events,
   users,
-  onUpdate,
-  onSelectEvent
+  onUpdate
 }: {
   tasks: ActiveTask[];
   events: MinistryEvent[];
   users: User[];
   onUpdate: (taskId: string, body: Partial<ActiveTask>) => Promise<void>;
-  onSelectEvent: (eventId: string) => void;
 }) {
   const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
   const [statusFilter, setStatusFilter] = useState<TaskStatus | "all">("all");
@@ -555,7 +438,6 @@ function TasksWorkspace({
                         task={task}
                         users={users}
                         eventTitle={events.find((event) => event.id === task.eventId)?.title ?? "Event"}
-                        onSelectEvent={() => onSelectEvent(task.eventId)}
                         onUpdate={onUpdate}
                       />
                     ))
@@ -691,145 +573,12 @@ function TaskTableRow({
   );
 }
 
-function WorkspaceNavigator() {
-  const links = [
-    { label: "Create Event", shortLabel: "Create", target: "create-event" },
-    { label: "Events", shortLabel: "Events", target: "events-workspace" },
-    { label: "Command Center", shortLabel: "Command", target: "event-command-center" },
-    { label: "Kanban", shortLabel: "Kanban", target: "kanban-dashboard" },
-    { label: "Activity", shortLabel: "Activity", target: "activity-log" }
-  ];
-
-  return (
-    <nav className="workspace-nav" aria-label="Workspace Navigator">
-      {links.map((link) => (
-        <a className="workspace-nav-link" href={`#${link.target}`} key={link.target}>
-          <span className="nav-full">{link.label}</span>
-          <span className="nav-short">{link.shortLabel}</span>
-        </a>
-      ))}
-    </nav>
-  );
-}
-
-function DateTimeRangeFields({
-  startId,
-  endId,
-  defaultStart = "",
-  defaultEnd = ""
-}: {
-  startId: string;
-  endId: string;
-  defaultStart?: string;
-  defaultEnd?: string;
-}) {
-  const [startValue, setStartValue] = useState(defaultStart);
-  const [endValue, setEndValue] = useState(defaultEnd);
-  const [endTouched, setEndTouched] = useState(false);
-
-  function handleStartChange(nextStart: string) {
-    setStartValue(nextStart);
-    if (!endTouched) {
-      setEndValue(alignEndToStartDate(nextStart, endValue));
-    }
-  }
-
-  function handleEndChange(nextEnd: string) {
-    setEndTouched(true);
-    setEndValue(nextEnd);
-  }
-
-  return (
-    <div className="grid grid-2">
-      <div className="field">
-        <label htmlFor={startId}>Start</label>
-        <input
-          className="input"
-          id={startId}
-          name="startTime"
-          type="datetime-local"
-          value={startValue}
-          onChange={(event) => handleStartChange(event.target.value)}
-          required
-        />
-      </div>
-      <div className="field">
-        <label htmlFor={endId}>End</label>
-        <input
-          className="input"
-          id={endId}
-          name="endTime"
-          type="datetime-local"
-          value={endValue}
-          onChange={(event) => handleEndChange(event.target.value)}
-          required
-        />
-      </div>
-    </div>
-  );
-}
-
-function EventForm({ users, onSubmit }: { users: User[]; onSubmit: (event: FormEvent<HTMLFormElement>) => void }) {
-  return (
-    <div className="create-form-wrap">
-      <form className="grid" onSubmit={onSubmit}>
-        <div className="grid grid-2">
-          <div className="field">
-            <label htmlFor="title">Title</label>
-            <input className="input" id="title" name="title" placeholder="Fall Kickoff Night" required />
-          </div>
-          <div className="field">
-            <label htmlFor="type">Event type</label>
-            <select className="input" id="type" name="type" defaultValue="weekly">
-              {eventTypes.map((type) => (
-                <option key={type} value={type}>
-                  {eventTypeLabels[type]}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-        <div className="field">
-          <label htmlFor="description">Description</label>
-          <textarea className="input" id="description" name="description" rows={3} placeholder="What families and leaders need to know." />
-        </div>
-        <DateTimeRangeFields startId="startTime" endId="endTime" />
-        <div className="grid grid-2">
-          <div className="field">
-            <label htmlFor="location">Location</label>
-            <input className="input" id="location" name="location" placeholder="Student Center" />
-          </div>
-          <div className="field">
-            <label htmlFor="budgetTarget">Budget target</label>
-            <input className="input" id="budgetTarget" name="budgetTarget" min="0" step="50" type="number" placeholder="2500" />
-          </div>
-        </div>
-        <div className="field">
-          <label htmlFor="contactOwnerId">Communication owner</label>
-          <select className="input" id="contactOwnerId" name="contactOwnerId" defaultValue={users[0]?.id}>
-            {users.map((user) => (
-              <option key={user.id} value={user.id}>
-                {user.firstName} {user.lastName} / {roleLabels[user.role]}
-              </option>
-            ))}
-          </select>
-        </div>
-        <button className="button primary" type="submit">
-          + Create event and generate tasks
-        </button>
-      </form>
-    </div>
-  );
-}
-
 function EventsWorkspace({
   events,
   tasks,
   users,
   expenses,
-  selectedEventId,
   expandedEventIds,
-  selectedWorkspace,
   onToggleEvent,
   onOpenEvent,
   onUpdateTask,
@@ -839,9 +588,7 @@ function EventsWorkspace({
   tasks: ActiveTask[];
   users: User[];
   expenses: EventExpense[];
-  selectedEventId: string;
   expandedEventIds: string[];
-  selectedWorkspace: EventWorkspace | null;
   onToggleEvent: (eventId: string) => void;
   onOpenEvent: (eventId: string) => void;
   onUpdateTask: (taskId: string, body: Partial<ActiveTask>) => Promise<void>;
@@ -877,8 +624,7 @@ function EventsWorkspace({
                     const owner = users.find((user) => user.id === event.contactOwnerId);
                     const eventExpenses = expenses.filter((expense) => expense.eventId === event.id);
                     const isExpanded = expandedEventIds.includes(event.id);
-                    const missingCount =
-                      selectedWorkspace?.event.id === event.id ? selectedWorkspace.missingInformation.length : estimateMissingInformationCount(event);
+                    const missingCount = estimateMissingInformationCount(event);
 
                     return (
                       <EventRowCard
@@ -890,7 +636,6 @@ function EventsWorkspace({
                         completeTasks={completeTasks}
                         missingCount={missingCount}
                         isExpanded={isExpanded}
-                        isSelected={event.id === selectedEventId}
                         onToggleEvent={onToggleEvent}
                         onOpenEvent={onOpenEvent}
                         onUpdateTask={onUpdateTask}
@@ -917,7 +662,6 @@ function EventRowCard({
   completeTasks,
   missingCount,
   isExpanded,
-  isSelected,
   users,
   onToggleEvent,
   onOpenEvent,
@@ -931,7 +675,6 @@ function EventRowCard({
   completeTasks: number;
   missingCount: number;
   isExpanded: boolean;
-  isSelected: boolean;
   users: User[];
   onToggleEvent: (eventId: string) => void;
   onOpenEvent: (eventId: string) => void;
@@ -939,7 +682,7 @@ function EventRowCard({
   onUpdateEvent: (eventId: string, body: Partial<MinistryEvent>) => Promise<void>;
 }) {
   return (
-    <article className={isSelected ? "event-row event-row-card selected" : "event-row event-row-card"} data-start-time={event.startTime}>
+    <article className="event-row event-row-card" data-start-time={event.startTime}>
       <div className="event-card-row" role="row">
         <EventIdentitySection event={event} tasks={tasks} completeTasks={completeTasks} />
         <EventDateBlock event={event} />
@@ -973,15 +716,30 @@ function EventIdentitySection({
   tasks: ActiveTask[];
   completeTasks: number;
 }) {
+  const { openEdit } = useEventCard();
   return (
-    <div className="event-identity-section" role="cell">
+    <div
+      className="event-identity-section event-identity-clickable"
+      role="cell"
+      onClick={() => openEdit(event.id)}
+    >
       <div className="event-row-title">
-        <h3>{event.title}</h3>
+        <button
+          className="event-title-btn"
+          type="button"
+          onClick={(clickEvent) => {
+            clickEvent.stopPropagation();
+            openEdit(event.id);
+          }}
+          aria-label={`Edit event: ${event.title}`}
+        >
+          {event.title}
+        </button>
         <p className="muted">{event.description || "No event description yet."}</p>
       </div>
       <div className="event-identity-meta">
         <span className="pill">{eventTypeLabels[event.type]}</span>
-        <span className={event.status === "ready" ? "pill done" : "pill"}>{event.status}</span>
+        <span className={event.status === "ready" || event.status === "completed" ? "pill done" : "pill"}>{event.status}</span>
         <span className="progress-chip">{completeTasks}/{tasks.length} tasks</span>
       </div>
     </div>
@@ -1056,9 +814,9 @@ function EventScrollableSummary({
         <EventSummaryField label="Priority" value={priority} tone={priority === "High" ? "warning" : undefined} />
         <EventSummaryField label="Last updated" value={formatDate(event.createdAt)} />
         <div className="summary-field action-field">
-          <span className="summary-label">Command Center</span>
+          <span className="summary-label">Edit Event</span>
           <button className="button primary" type="button" onClick={() => onOpenEvent(event.id)}>
-            Open Command Center
+            Open event
           </button>
         </div>
         <div className="summary-field action-field notes-summary-field">
@@ -1333,15 +1091,14 @@ function TaskCard({
   task,
   users,
   eventTitle,
-  onSelectEvent,
   onUpdate
 }: {
   task: ActiveTask;
   users: User[];
   eventTitle: string;
-  onSelectEvent: () => void;
   onUpdate: (taskId: string, body: Partial<ActiveTask>) => Promise<void>;
 }) {
+  const { openEdit } = useEventCard();
   const [title, setTitle] = useState(task.taskTitle);
   const [dueDate, setDueDate] = useState(toDateInputValue(task.dueDate));
   const [isEditing, setIsEditing] = useState(false);
@@ -1435,318 +1192,17 @@ function TaskCard({
             Edit
           </button>
         )}
-        <button className="button" type="button" onClick={onSelectEvent}>
-          Open event (temporary)
+        <button className="button" type="button" onClick={() => openEdit(task.eventId)}>
+          Open event
         </button>
       </div>
     </article>
   );
 }
-
-function EventWorkspacePanel({
-  workspace,
-  users,
-  onGeneratePreview,
-  onDriveStub,
-  onProStub,
-  onCalendarStub,
-  onUpdateEvent
-}: {
-  workspace: EventWorkspace;
-  users: User[];
-  onGeneratePreview: () => void;
-  onDriveStub: () => void;
-  onProStub: () => void;
-  onCalendarStub: () => void;
-  onUpdateEvent: (eventId: string, body: Partial<MinistryEvent>) => Promise<void>;
-}) {
-  const spent = workspace.expenses.reduce((sum, expense) => sum + expense.amount, 0);
-  const target = workspace.event.budgetTarget ?? 0;
-
-  return (
-    <section className="panel command-center-panel" id="event-command-center">
-      <h2 className="section-title">Command Center: {workspace.event.title}</h2>
-      <p className="muted">
-        {eventTypeLabels[workspace.event.type]} / {formatDateTime(workspace.event.startTime)}
-      </p>
-
-      <div className="command-center-grid">
-        <EventDetailsForm key={workspace.event.id} workspace={workspace} users={users} onUpdateEvent={onUpdateEvent} />
-        <MissingInformationPanel items={workspace.missingInformation} />
-
-        <section className="card" id="timeline-tasks">
-          <h3 className="section-title">Timeline Tasks</h3>
-          <div className="grid">
-            {workspace.tasks.map((task) => (
-              <div className="card" key={task.id}>
-                <strong>{task.taskTitle}</strong>
-                <div className="muted">
-                  Due {formatDate(task.dueDate)} / {statusLabels[task.status]} / Owner{" "}
-                  {users.find((user) => user.id === task.assignedUserId)?.firstName ?? "Unassigned"}
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="card" id="communication-previews">
-          <div className="toolbar" style={{ justifyContent: "space-between" }}>
-            <h3 className="section-title" style={{ margin: 0 }}>
-              Communication Previews
-            </h3>
-            <button className="button" type="button" onClick={onGeneratePreview}>
-              Generate preview
-            </button>
-          </div>
-          <p className="muted">No external communication is sent in MVP 1.</p>
-          <PreviewList communications={workspace.communications} />
-        </section>
-
-        <section className="card">
-          <h3 className="section-title">Budget Shell</h3>
-          <p style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>
-            {money(spent)} spent {target ? `of ${money(target)}` : "without target"}
-          </p>
-          <p className="muted" style={{ marginBottom: 0 }}>
-            Expense entry exists as an API boundary; detailed budget editing is beyond the clickable MVP screen.
-          </p>
-        </section>
-
-        <section className="card">
-          <div className="toolbar" style={{ justifyContent: "space-between" }}>
-            <h3 className="section-title" style={{ margin: 0 }}>
-              Integration Activity
-            </h3>
-            <span className="pill stub">Stub Mode</span>
-          </div>
-          <div className="toolbar" style={{ margin: "10px 0" }}>
-            <button className="button" type="button" onClick={onDriveStub}>
-              Create Drive folder stub
-            </button>
-            <button className="button" type="button" onClick={onProStub}>
-              Create ProPresenter stub
-            </button>
-            <button className="button" type="button" onClick={onCalendarStub}>
-              Sync calendar stub
-            </button>
-          </div>
-          <IntegrationList logs={workspace.integrationLogs} />
-        </section>
-
-        <section className="card" id="activity-log">
-          <h3 className="section-title">Activity Log</h3>
-          <ActivityList items={workspace.activity} />
-        </section>
-      </div>
-    </section>
-  );
-}
-
-function EventDetailsForm({
-  workspace,
-  users,
-  onUpdateEvent
-}: {
-  workspace: EventWorkspace;
-  users: User[];
-  onUpdateEvent: (eventId: string, body: Partial<MinistryEvent>) => Promise<void>;
-}) {
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const startTime = String(form.get("startTime") || "");
-    const endTime = String(form.get("endTime") || "");
-
-    void onUpdateEvent(workspace.event.id, {
-      title: String(form.get("title") || ""),
-      description: String(form.get("description") || ""),
-      startTime: new Date(startTime).toISOString(),
-      endTime: new Date(endTime).toISOString(),
-      location: String(form.get("location") || "") || undefined,
-      budgetTarget: Number(form.get("budgetTarget") || 0) || undefined,
-      contactOwnerId: String(form.get("contactOwnerId") || "") || undefined
-    });
-  }
-
-  return (
-    <section className="card">
-      <h3 className="section-title">Event Information</h3>
-      <form className="grid" onSubmit={submit}>
-        <div className="grid grid-2">
-          <div className="field">
-            <label htmlFor={`event-title-${workspace.event.id}`}>Title</label>
-            <input className="input" id={`event-title-${workspace.event.id}`} name="title" defaultValue={workspace.event.title} required />
-          </div>
-          <div className="field">
-            <label htmlFor={`event-owner-${workspace.event.id}`}>Communication owner</label>
-            <select
-              className="input"
-              id={`event-owner-${workspace.event.id}`}
-              name="contactOwnerId"
-              defaultValue={workspace.event.contactOwnerId ?? users[0]?.id}
-            >
-              {users.map((user) => (
-                <option key={user.id} value={user.id}>
-                  {user.firstName} {user.lastName} / {roleLabels[user.role]}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-        <div className="field">
-          <label htmlFor={`event-description-${workspace.event.id}`}>Description</label>
-          <textarea
-            className="input"
-            id={`event-description-${workspace.event.id}`}
-            name="description"
-            rows={3}
-            defaultValue={workspace.event.description}
-          />
-        </div>
-        <DateTimeRangeFields
-          startId={`event-start-${workspace.event.id}`}
-          endId={`event-end-${workspace.event.id}`}
-          defaultStart={toDateTimeLocalValue(workspace.event.startTime)}
-          defaultEnd={toDateTimeLocalValue(workspace.event.endTime)}
-        />
-        <div className="grid grid-2">
-          <div className="field">
-            <label htmlFor={`event-location-${workspace.event.id}`}>Location</label>
-            <input className="input" id={`event-location-${workspace.event.id}`} name="location" defaultValue={workspace.event.location ?? ""} />
-          </div>
-          <div className="field">
-            <label htmlFor={`event-budget-${workspace.event.id}`}>Budget target</label>
-            <input
-              className="input"
-              id={`event-budget-${workspace.event.id}`}
-              name="budgetTarget"
-              min="0"
-              step="50"
-              type="number"
-              defaultValue={workspace.event.budgetTarget ?? ""}
-            />
-          </div>
-        </div>
-        <button className="button" type="submit">
-          Save event information
-        </button>
-      </form>
-      <NotesPanel
-        id={`event-detail-notes-${workspace.event.id}`}
-        label={`${workspace.event.title} event`}
-        value={workspace.event.notes ?? ""}
-        onSave={(notes) => onUpdateEvent(workspace.event.id, { notes })}
-      />
-    </section>
-  );
-}
-
-function MissingInformationPanel({ items }: { items: MissingInformationItem[] }) {
-  return (
-    <section className="card">
-      <div className="toolbar" style={{ justifyContent: "space-between" }}>
-        <h3 className="section-title" style={{ margin: 0 }}>
-          Missing Information
-        </h3>
-        <span className={items.length ? "pill blocked" : "pill done"}>{items.length ? `${items.length} open` : "Complete"}</span>
-      </div>
-      {items.length ? (
-        <div className="grid" style={{ marginTop: 10 }}>
-          {items.map((item) => (
-            <div className="card" key={item.id}>
-              <strong>{item.area}</strong>
-              <div className="muted">{item.label}</div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className="muted">Required event information is ready for preview and Stub Mode workflows.</p>
-      )}
-    </section>
-  );
-}
-
-function PreviewList({ communications }: { communications: CommunicationPackage[] }) {
-  if (!communications.length) {
-    return <p className="muted">No previews generated yet.</p>;
-  }
-
-  return (
-    <div className="grid">
-      {communications.map((item) => (
-        <article className="card" key={item.id}>
-          <span className="pill">Preview only — not sent</span>
-          <p className="eyebrow">{communicationTypeLabel(item.type)}</p>
-          <h4>{item.payload.subject}</h4>
-          <p className="muted preview-body">{item.payload.body}</p>
-        </article>
-      ))}
-    </div>
-  );
-}
-
-function communicationTypeLabel(type: CommunicationPackage["type"]) {
-  if (type === "parent_email") return "Parent Email";
-  if (type === "leader_brief") return "Leader Announcement";
-  return "Blast Text Summary";
-}
-
-function IntegrationList({ logs }: { logs: IntegrationSyncLog[] }) {
-  if (!logs.length) {
-    return <p className="muted">No Stub Mode integration actions recorded yet.</p>;
-  }
-
-  return (
-    <div className="grid">
-      {logs.map((log) => (
-        <article className="card" key={log.id}>
-          <span className="pill stub">Stub Mode</span>
-          <strong style={{ display: "block", marginTop: 8 }}>{log.integrationType.replace("_", " ")}</strong>
-          <p className="muted" style={{ margin: "4px 0 0" }}>
-            {log.details.message}
-          </p>
-        </article>
-      ))}
-    </div>
-  );
-}
-
-function ActivityList({ items }: { items: ActivityLog[] }) {
-  if (!items.length) {
-    return <p className="muted">No activity yet.</p>;
-  }
-
-  return (
-    <div className="grid">
-      {items.map((item) => (
-        <article className="card" key={item.id}>
-          <strong>{item.message}</strong>
-          <div className="muted">{formatDateTime(item.timestamp)}</div>
-        </article>
-      ))}
-    </div>
-  );
-}
-
 function toDateInputValue(value: string) {
   return new Date(value).toISOString().slice(0, 10);
 }
 
 function formatTime(value: string) {
   return new Date(value).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-}
-
-function toDateTimeLocalValue(value: string) {
-  const date = new Date(value);
-  const offset = date.getTimezoneOffset() * 60000;
-  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
-}
-
-function alignEndToStartDate(startValue: string, currentEndValue: string) {
-  if (!startValue) return currentEndValue;
-  if (!currentEndValue) return startValue;
-
-  const startDate = startValue.slice(0, 10);
-  const endTime = currentEndValue.slice(11, 16) || startValue.slice(11, 16);
-  return `${startDate}T${endTime}`;
 }
