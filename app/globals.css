@@ -710,6 +710,15 @@ textarea:focus-visible {
   padding: 14px;
 }
 
+.event-identity-clickable {
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.event-identity-clickable:hover {
+  background: #f8fbff;
+}
+
 .event-row-title {
   min-width: 0;
 }

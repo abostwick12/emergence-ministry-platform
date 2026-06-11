@@ -718,12 +718,19 @@ function EventIdentitySection({
 }) {
   const { openEdit } = useEventCard();
   return (
-    <div className="event-identity-section" role="cell">
+    <div
+      className="event-identity-section event-identity-clickable"
+      role="cell"
+      onClick={() => openEdit(event.id)}
+    >
       <div className="event-row-title">
         <button
           className="event-title-btn"
           type="button"
-          onClick={() => openEdit(event.id)}
+          onClick={(clickEvent) => {
+            clickEvent.stopPropagation();
+            openEdit(event.id);
+          }}
           aria-label={`Edit event: ${event.title}`}
         >
           {event.title}

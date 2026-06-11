@@ -429,6 +429,19 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await expect(modal.getByLabel("Event Name")).toHaveValue("Winter Retreat");
   });
 
+  test("clicking anywhere on the event identity card opens modal in edit mode", async ({ page }) => {
+    await login(page);
+    await page.goto("/events");
+
+    const winterRow = page.locator(".event-row-card", { hasText: "Winter Retreat" });
+    // Click the status pills row (not the title button) to confirm the whole card is clickable
+    await winterRow.locator(".event-identity-meta").click();
+
+    const modal = page.getByRole("dialog", { name: /Edit: Winter Retreat/ });
+    await expect(modal).toBeVisible();
+    await expect(modal.getByLabel("Event Name")).toHaveValue("Winter Retreat");
+  });
+
   test("edit event: existing fields populate and can be changed", async ({ page }) => {
     await login(page);
     await page.goto("/events");
