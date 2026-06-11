@@ -21,7 +21,11 @@ export async function POST(request: Request) {
     startTime?: string;
     endTime?: string;
     location?: string;
+    targetGroup?: string;
     budgetTarget?: number;
+    budgetActual?: number;
+    volunteersNeeded?: number;
+    priority?: string;
     contactOwnerId?: string;
   };
 
@@ -36,7 +40,11 @@ export async function POST(request: Request) {
     startTime: body.startTime,
     endTime: body.endTime,
     location: body.location,
+    targetGroup: body.targetGroup,
     budgetTarget: body.budgetTarget,
+    budgetActual: body.budgetActual,
+    volunteersNeeded: body.volunteersNeeded,
+    priority: body.priority,
     contactOwnerId: body.contactOwnerId
   });
 

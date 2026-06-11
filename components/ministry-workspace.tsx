@@ -3,6 +3,7 @@
 import { Fragment, FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRole } from "@/components/role-context";
+import { useEventCard } from "@/components/event-card-context";
 import { eventTypeLabels } from "@/lib/templates";
 import { formatDate, formatDateTime, money } from "@/lib/utils";
 import type {
@@ -299,7 +300,7 @@ export default function MinistryWorkspace({ view }: { view: WorkspaceView }) {
           ) : null}
         </section>
       ) : (
-        <TasksWorkspace tasks={visibleTasks} events={overview.events} users={activeUsers} onUpdate={updateTask} onSelectEvent={openCommandCenter} />
+        <TasksWorkspace tasks={visibleTasks} events={overview.events} users={activeUsers} onUpdate={updateTask} />
       )}
     </div>
   );
@@ -325,6 +326,7 @@ function DashboardWorkspace({
   doneTasks: number;
   blockedTasks: number;
 }) {
+  const { openEdit } = useEventCard();
   const now = new Date();
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const endOfWeek = new Date(startOfToday);
@@ -386,11 +388,16 @@ function DashboardWorkspace({
           <div className="dashboard-list">
             {upcomingEvents.length ? (
               upcomingEvents.map((event) => (
-                <Link className="dashboard-list-item" href={`/events?event=${event.id}#event-command-center`} key={event.id}>
+                <button
+                  className="dashboard-list-item dashboard-list-item-btn"
+                  key={event.id}
+                  type="button"
+                  onClick={() => openEdit(event.id)}
+                >
                   <strong>{event.title}</strong>
                   <span>{formatDateTime(event.startTime)}</span>
-                  <span className={event.status === "ready" ? "pill done" : "pill"}>{event.status}</span>
-                </Link>
+                  <span className={event.status === "ready" || event.status === "completed" ? "pill done" : "pill"}>{event.status}</span>
+                </button>
               ))
             ) : (
               <p className="muted">No upcoming events in the current workspace.</p>
@@ -494,14 +501,12 @@ function TasksWorkspace({
   tasks,
   events,
   users,
-  onUpdate,
-  onSelectEvent
+  onUpdate
 }: {
   tasks: ActiveTask[];
   events: MinistryEvent[];
   users: User[];
   onUpdate: (taskId: string, body: Partial<ActiveTask>) => Promise<void>;
-  onSelectEvent: (eventId: string) => void;
 }) {
   const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
   const [statusFilter, setStatusFilter] = useState<TaskStatus | "all">("all");
@@ -555,7 +560,6 @@ function TasksWorkspace({
                         task={task}
                         users={users}
                         eventTitle={events.find((event) => event.id === task.eventId)?.title ?? "Event"}
-                        onSelectEvent={() => onSelectEvent(task.eventId)}
                         onUpdate={onUpdate}
                       />
                     ))
@@ -973,15 +977,23 @@ function EventIdentitySection({
   tasks: ActiveTask[];
   completeTasks: number;
 }) {
+  const { openEdit } = useEventCard();
   return (
     <div className="event-identity-section" role="cell">
       <div className="event-row-title">
-        <h3>{event.title}</h3>
+        <button
+          className="event-title-btn"
+          type="button"
+          onClick={() => openEdit(event.id)}
+          aria-label={`Edit event: ${event.title}`}
+        >
+          {event.title}
+        </button>
         <p className="muted">{event.description || "No event description yet."}</p>
       </div>
       <div className="event-identity-meta">
         <span className="pill">{eventTypeLabels[event.type]}</span>
-        <span className={event.status === "ready" ? "pill done" : "pill"}>{event.status}</span>
+        <span className={event.status === "ready" || event.status === "completed" ? "pill done" : "pill"}>{event.status}</span>
         <span className="progress-chip">{completeTasks}/{tasks.length} tasks</span>
       </div>
     </div>
@@ -1333,15 +1345,14 @@ function TaskCard({
   task,
   users,
   eventTitle,
-  onSelectEvent,
   onUpdate
 }: {
   task: ActiveTask;
   users: User[];
   eventTitle: string;
-  onSelectEvent: () => void;
   onUpdate: (taskId: string, body: Partial<ActiveTask>) => Promise<void>;
 }) {
+  const { openEdit } = useEventCard();
   const [title, setTitle] = useState(task.taskTitle);
   const [dueDate, setDueDate] = useState(toDateInputValue(task.dueDate));
   const [isEditing, setIsEditing] = useState(false);
@@ -1435,8 +1446,8 @@ function TaskCard({
             Edit
           </button>
         )}
-        <button className="button" type="button" onClick={onSelectEvent}>
-          Open event (temporary)
+        <button className="button" type="button" onClick={() => openEdit(task.eventId)}>
+          Open event
         </button>
       </div>
     </article>
