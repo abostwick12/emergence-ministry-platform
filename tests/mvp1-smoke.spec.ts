@@ -423,6 +423,34 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await expect(modal.getByRole("status")).toContainText("Created");
   });
 
+  test("create event needs only name + start date (end date optional)", async ({ page }) => {
+    await login(page);
+
+    const sidebar = page.getByRole("complementary", { name: "Primary navigation" });
+    await sidebar.getByRole("button", { name: "Add new event" }).click();
+    const modal = page.getByRole("dialog", { name: "Create New Event" });
+
+    const start = new Date();
+    start.setDate(start.getDate() + 30);
+    start.setHours(18, 0, 0, 0);
+
+    await modal.getByLabel("Event Name").fill(`Min Fields Event ${Date.now()}`);
+    await modal.getByLabel(/Start Date/).fill(toDateTimeLocalInput(start));
+    // Clear the auto-filled end date — it must not be required to create.
+    await modal.getByLabel(/End Date/).fill("");
+    await modal.getByRole("button", { name: /Next: Tasks/ }).click();
+
+    // Should advance (no "End date and time are required" error).
+    await expect(modal.getByRole("tab", { name: /Tasks & Integrations/ })).toHaveAttribute("aria-selected", "true");
+
+    const createResponse = page.waitForResponse(
+      (response) => response.url().endsWith("/api/events") && response.request().method() === "POST"
+    );
+    await modal.getByRole("button", { name: /Save & Create Event/ }).click();
+    expect((await createResponse).status()).toBe(201);
+    await expect(modal.getByRole("status")).toContainText("Created");
+  });
+
   test("clicking event title on events board opens modal in edit mode", async ({ page }) => {
     await login(page);
     await page.goto("/events");

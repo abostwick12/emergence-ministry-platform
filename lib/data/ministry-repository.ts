@@ -192,30 +192,38 @@ export async function createMinistryEvent(
 
   const defaultVolunteers = input.type === "retreat" || input.type === "camp" ? 6 : input.type === "service" ? 4 : 2;
 
-  const insertResult = await supabase
+  const baseRow = {
+    title: input.title,
+    ministry_area: input.type,
+    description: input.description,
+    vision: "",
+    start_date: toDateOnly(start),
+    end_date: toDateOnly(end),
+    start_time: toTimeOnly(start),
+    end_time: toTimeOnly(end),
+    location: input.location ?? null,
+    owner: input.contactOwnerId ?? session.user.id,
+    status: "planning",
+    priority: input.priority ?? (input.type === "retreat" || input.type === "camp" ? "high" : "normal"),
+    budget_target: input.budgetTarget ?? null,
+    budget_actual: input.budgetActual ?? 0,
+    volunteers_needed: input.volunteersNeeded ?? defaultVolunteers,
+    communication_owner: input.contactOwnerId ?? session.user.id,
+    created_by: session.user.id
+  };
+
+  let insertResult = await supabase
     .from("events")
-    .insert({
-      title: input.title,
-      ministry_area: input.type,
-      description: input.description,
-      vision: "",
-      target_group: input.targetGroup ?? null,
-      start_date: toDateOnly(start),
-      end_date: toDateOnly(end),
-      start_time: toTimeOnly(start),
-      end_time: toTimeOnly(end),
-      location: input.location ?? null,
-      owner: input.contactOwnerId ?? session.user.id,
-      status: "planning",
-      priority: input.priority ?? (input.type === "retreat" || input.type === "camp" ? "high" : "normal"),
-      budget_target: input.budgetTarget ?? null,
-      budget_actual: input.budgetActual ?? 0,
-      volunteers_needed: input.volunteersNeeded ?? defaultVolunteers,
-      communication_owner: input.contactOwnerId ?? session.user.id,
-      created_by: session.user.id
-    })
+    .insert({ ...baseRow, target_group: input.targetGroup ?? null })
     .select("*")
     .single<SupabaseEventRow>();
+
+  // Tolerate schema drift: if target_group has not been migrated onto this DB
+  // (supabase/migrations/003_target_group.sql) retry without it so creation
+  // still succeeds. Apply migration 004 to restore target_group persistence.
+  if (isMissingColumnError(insertResult.error)) {
+    insertResult = await supabase.from("events").insert(baseRow).select("*").single<SupabaseEventRow>();
+  }
 
   throwIfSupabaseError(insertResult.error);
   if (!insertResult.data) return undefined;
@@ -260,7 +268,15 @@ export async function updateMinistryEvent(session: AuthSession, eventId: string,
     update.end_time = toTimeOnly(end);
   }
 
-  const result = await supabase.from("events").update(update).eq("id", eventId).select("id,title").single<{ id: string; title: string }>();
+  let result = await supabase.from("events").update(update).eq("id", eventId).select("id,title").single<{ id: string; title: string }>();
+
+  // Tolerate schema drift on target_group (see createMinistryEvent).
+  if (isMissingColumnError(result.error) && "target_group" in update) {
+    const safeUpdate = { ...update };
+    delete safeUpdate.target_group;
+    result = await supabase.from("events").update(safeUpdate).eq("id", eventId).select("id,title").single<{ id: string; title: string }>();
+  }
+
   throwIfSupabaseError(result.error);
   if (!result.data) return undefined;
 
@@ -624,5 +640,14 @@ function throwIfSupabaseError(error: { message: string } | null) {
   if (error) {
     throw new Error(error.message);
   }
+}
+
+// True when a Supabase/PostgREST error means a referenced column does not
+// exist on the table (e.g. the optional target_group migration has not been
+// applied to this database yet). Lets writes retry without the drift column.
+function isMissingColumnError(error: { message?: string; code?: string } | null): boolean {
+  if (!error) return false;
+  if (error.code === "PGRST204" || error.code === "42703") return true;
+  return /could not find the .* column|column .* does not exist|schema cache/i.test(error.message ?? "");
 }
 
