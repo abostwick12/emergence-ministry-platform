@@ -1,9 +1,10 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRole } from "@/components/role-context";
 import { useEventCard } from "@/components/event-card-context";
+import { MinistryCalendar } from "@/components/ministry-calendar";
 import { eventTypeLabels } from "@/lib/templates";
 import { formatDate, formatDateTime, money } from "@/lib/utils";
 import type {
@@ -184,12 +185,259 @@ export default function MinistryWorkspace({ view }: { view: WorkspaceView }) {
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
+function IconCalendar() {
   return (
-    <section className="panel">
-      <p className="eyebrow">{label}</p>
-      <p style={{ margin: 0, fontSize: 24, fontWeight: 800 }}>{value}</p>
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true">
+      <rect x="3" y="4.5" width="18" height="16" rx="2.5" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M3 9h18" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M8 2.5v4M16 2.5v4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconCheck() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M8.5 12.5l2.5 2.5 4.5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function IconAlert() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true">
+      <path d="M12 4l8.5 15H3.5L12 4z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+      <path d="M12 10v4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <circle cx="12" cy="16.6" r="0.9" fill="currentColor" />
+    </svg>
+  );
+}
+
+function IconChat() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true">
+      <path d="M4 5.5h16v11H9l-4 3.5v-3.5H4z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function IconPulse() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true">
+      <path d="M3 12h4l2-5 4 10 2-5h6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function IconPeople() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true">
+      <circle cx="9" cy="8" r="3" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M3.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M16 11a3 3 0 100-6M17.5 19c0-2.5-1.2-4.3-3-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconHeart() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true">
+      <path
+        d="M12 20s-7-4.3-7-9.2A3.8 3.8 0 0112 8a3.8 3.8 0 017 2.8C19 15.7 12 20 12 20z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function WatercolorKpiCard({
+  icon,
+  visual,
+  label,
+  value,
+  hint,
+  tone,
+  wide
+}: {
+  icon?: ReactNode;
+  visual?: ReactNode;
+  label: string;
+  value?: string;
+  hint: string;
+  tone?: "warning";
+  wide?: boolean;
+}) {
+  const className = ["kpi-card", wide ? "kpi-wide" : "", tone ? `kpi-${tone}` : ""].filter(Boolean).join(" ");
+  return (
+    <article className={className}>
+      <div className="kpi-card-inner">
+        <div className="kpi-icon" aria-hidden={visual ? undefined : true}>
+          {visual ?? icon}
+        </div>
+        <div className="kpi-body">
+          <p className="kpi-label">{label}</p>
+          {value !== undefined ? <p className="kpi-value">{value}</p> : null}
+          <p className="kpi-hint">{hint}</p>
+        </div>
+      </div>
+      <span className="kpi-wash" aria-hidden="true" />
+    </article>
+  );
+}
+
+function TaskCompletionRing({ done, total }: { done: number; total: number }) {
+  const ratio = total > 0 ? done / total : 0;
+  const radius = 22;
+  const circumference = 2 * Math.PI * radius;
+  return (
+    <svg className="kpi-ring" viewBox="0 0 56 56" width="58" height="58" role="img" aria-label={`${done} of ${total} tasks complete`}>
+      <circle className="kpi-ring-track" cx="28" cy="28" r={radius} fill="none" strokeWidth="6" />
+      <circle
+        className="kpi-ring-progress"
+        cx="28"
+        cy="28"
+        r={radius}
+        fill="none"
+        strokeWidth="6"
+        strokeLinecap="round"
+        strokeDasharray={circumference}
+        strokeDashoffset={circumference * (1 - ratio)}
+        transform="rotate(-90 28 28)"
+      />
+      <text className="kpi-ring-text" x="28" y="32" textAnchor="middle">
+        {done}/{total}
+      </text>
+    </svg>
+  );
+}
+
+function MinistryPulse({
+  eventsThisWeek,
+  volunteers,
+  teams,
+  connections
+}: {
+  eventsThisWeek: number;
+  volunteers: number;
+  teams: number;
+  connections: number;
+}) {
+  const rows = [
+    { key: "events", icon: <IconCalendar />, value: eventsThisWeek, label: "Events This Week", hint: "Services & Gatherings", tone: "blue" },
+    { key: "volunteers", icon: <IconPeople />, value: volunteers, label: "Volunteers Serving", hint: `Across ${teams} Team${teams === 1 ? "" : "s"}`, tone: "teal" },
+    { key: "connections", icon: <IconHeart />, value: connections, label: "New Connections", hint: "Students & Parents", tone: "amber" }
+  ];
+  return (
+    <section className="panel pulse-panel" aria-label="Ministry Pulse">
+      <div className="pulse-header">
+        <span className="pulse-header-glyph" aria-hidden="true">
+          <IconPulse />
+        </span>
+        <h2 className="section-title" style={{ margin: 0 }}>
+          Ministry Pulse
+        </h2>
+      </div>
+      <div className="pulse-list">
+        {rows.map((row) => (
+          <div className="pulse-row" key={row.key}>
+            <span className={`pulse-icon pulse-${row.tone}`} aria-hidden="true">
+              {row.icon}
+            </span>
+            <div className="pulse-text">
+              <p className="pulse-label">{row.label}</p>
+              <p className="pulse-hint">{row.hint}</p>
+            </div>
+            <span className="pulse-value">{row.value}</span>
+          </div>
+        ))}
+      </div>
+      <Link className="pulse-link" href="/people">
+        View full pulse →
+      </Link>
     </section>
+  );
+}
+
+function formatEventTimeRange(event: MinistryEvent) {
+  const start = new Date(event.startTime);
+  const startStr = start.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  if (event.endTime) {
+    const end = new Date(event.endTime);
+    return `${startStr} – ${end.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
+  }
+  return startStr;
+}
+
+function NextOnCalendar({ events }: { events: MinistryEvent[] }) {
+  const { openEdit } = useEventCard();
+  return (
+    <section className="panel next-cal-panel" aria-label="Next on the Calendar">
+      <div className="next-cal-header">
+        <span className="next-cal-header-glyph" aria-hidden="true">
+          <IconCalendar />
+        </span>
+        <h2 className="section-title" style={{ margin: 0 }}>
+          Next on the Calendar
+        </h2>
+      </div>
+      <div className="next-cal-list">
+        {events.length ? (
+          events.map((event) => {
+            const start = new Date(event.startTime);
+            return (
+              <button className="next-cal-item" type="button" key={event.id} onClick={() => openEdit(event.id)}>
+                <span className="next-cal-date" aria-hidden="true">
+                  <span className="next-cal-month">{start.toLocaleDateString([], { month: "short" }).toUpperCase()}</span>
+                  <span className="next-cal-day">{start.getDate()}</span>
+                </span>
+                <span className="next-cal-body">
+                  <strong className="next-cal-title">{event.title}</strong>
+                  <span className="next-cal-time">{formatEventTimeRange(event)}</span>
+                  {event.location ? <span className="next-cal-loc">{event.location}</span> : null}
+                </span>
+              </button>
+            );
+          })
+        ) : (
+          <p className="muted">No upcoming events scheduled.</p>
+        )}
+      </div>
+      <Link className="next-cal-link" href="/events">
+        View full calendar →
+      </Link>
+    </section>
+  );
+}
+
+function DashboardWaveFooter() {
+  return (
+    <footer className="dashboard-footer">
+      <div className="dashboard-wave" aria-hidden="true">
+        <svg viewBox="0 0 1440 240" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="dashWaveTop" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="#7dd3fc" />
+              <stop offset="55%" stopColor="#38bdf8" />
+              <stop offset="100%" stopColor="#2563eb" />
+            </linearGradient>
+            <linearGradient id="dashWaveMid" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="#bae6fd" />
+              <stop offset="100%" stopColor="#7dd3fc" />
+            </linearGradient>
+          </defs>
+          <path className="wave-layer wave-back" fill="url(#dashWaveMid)" d="M0,150 C240,90 480,200 720,160 C960,120 1200,70 1440,140 L1440,240 L0,240 Z" />
+          <path className="wave-layer wave-front" fill="url(#dashWaveTop)" d="M0,185 C260,140 520,225 760,190 C1010,150 1230,120 1440,180 L1440,240 L0,240 Z" />
+        </svg>
+      </div>
+      <blockquote className="dashboard-quote">
+        <span className="quote-mark" aria-hidden="true">“</span>
+        Making disciples. Building community. Transforming the world.
+        <span className="quote-mark" aria-hidden="true">”</span>
+      </blockquote>
+    </footer>
   );
 }
 
@@ -204,38 +452,40 @@ function DashboardWorkspace({
   doneTasks: number;
   blockedTasks: number;
 }) {
-  const { openEdit } = useEventCard();
   const now = new Date();
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const endOfWeek = new Date(startOfToday);
   endOfWeek.setDate(startOfToday.getDate() + 7);
+
   const upcomingEvents = [...overview.events]
     .filter((event) => new Date(event.startTime) >= startOfToday)
-    .sort((first, second) => new Date(first.startTime).getTime() - new Date(second.startTime).getTime())
-    .slice(0, 5);
-  const overdueTasks = overview.tasks.filter((task) => task.status !== "done" && new Date(task.dueDate) < startOfToday);
+    .sort((first, second) => new Date(first.startTime).getTime() - new Date(second.startTime).getTime());
+
   const dueThisWeek = overview.tasks.filter((task) => {
     const due = new Date(task.dueDate);
     return task.status !== "done" && due >= startOfToday && due <= endOfWeek;
   });
-  const stuckTasks = overview.tasks.filter((task) => task.status === "blocked");
-  const communicationPreviewsPending = overview.events
-    .filter((event) => estimateMissingInformationCount(event) > 0)
-    .sort((first, second) => new Date(first.startTime).getTime() - new Date(second.startTime).getTime())
-    .slice(0, 4);
-  const recentActivity = overview.activity.slice(0, 5);
+  const communicationPreviewsPending = overview.events.filter((event) => estimateMissingInformationCount(event) > 0);
+
+  const eventsThisWeekCount = overview.events.filter((event) => {
+    const start = new Date(event.startTime);
+    return start >= startOfToday && start <= endOfWeek;
+  }).length;
+  const volunteersServing = upcomingEvents.reduce((sum, event) => sum + (event.volunteersNeeded ?? 0), 0);
+  const teamsServing = new Set(
+    upcomingEvents.filter((event) => (event.volunteersNeeded ?? 0) > 0).map((event) => event.contactOwnerId ?? event.id)
+  ).size;
+  const newConnections = overview.users.filter((user) => user.role === "student" || user.role === "parent").length;
+  const nextEvents = upcomingEvents.slice(0, 3);
 
   return (
-    <section className="grid dashboard-snapshot">
-      <section className="panel dashboard-orientation">
-        <div>
-          <p className="eyebrow">Today / This Week</p>
-          <h2 className="section-title" style={{ margin: 0 }}>
-            Ministry snapshot for {now.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" })}
-          </h2>
-          <p className="muted" style={{ marginBottom: 0 }}>
-            {upcomingEvents.length} upcoming event{upcomingEvents.length === 1 ? "" : "s"}, {overdueTasks.length} overdue task
-            {overdueTasks.length === 1 ? "" : "s"}, and {blockedTasks} stuck task{blockedTasks === 1 ? "" : "s"} need the first look.
+    <section className="grid dashboard-snapshot dashboard-watercolor">
+      <header className="panel dashboard-hub-header">
+        <div className="dashboard-hub-heading">
+          <p className="eyebrow hub-eyebrow">Emerge Ministry Hub</p>
+          <h2 className="hub-title">Dashboard</h2>
+          <p className="muted hub-welcome">
+            Here is what is happening across Emerge — {eventsThisWeekCount} event{eventsThisWeekCount === 1 ? "" : "s"} this week.
           </p>
         </div>
         <div className="dashboard-actions" aria-label="Dashboard action links">
@@ -249,129 +499,45 @@ function DashboardWorkspace({
             Review Communications
           </Link>
         </div>
-      </section>
+      </header>
 
-      <section className="grid grid-3" aria-label="Dashboard metrics">
-        <Metric label="Upcoming Events" value={upcomingEvents.length.toString()} />
-        <Metric label="Overdue Tasks" value={overdueTasks.length.toString()} />
-        <Metric label="Stuck Tasks" value={blockedTasks.toString()} />
-        <Metric label="Task Completion" value={`${doneTasks}/${totalTasks}`} />
-        <Metric label="Communication Previews Pending" value={communicationPreviewsPending.length.toString()} />
-      </section>
+      <div className="dashboard-main-grid">
+        <div className="dashboard-left-col">
+          <section className="kpi-grid" aria-label="Dashboard metrics">
+            <WatercolorKpiCard icon={<IconCalendar />} label="Upcoming Events" value={upcomingEvents.length.toString()} hint="This Week" />
+            <WatercolorKpiCard icon={<IconCheck />} label="Tasks Due Soon" value={dueThisWeek.length.toString()} hint="Due in 7 Days" />
+            <WatercolorKpiCard icon={<IconAlert />} label="Stuck Tasks" value={blockedTasks.toString()} hint="Needs Attention" tone="warning" />
+            <WatercolorKpiCard
+              wide
+              visual={<TaskCompletionRing done={doneTasks} total={totalTasks} />}
+              label="Task Completion"
+              hint="Tasks Completed This Week"
+            />
+            <WatercolorKpiCard
+              wide
+              icon={<IconChat />}
+              label="Communication Reviews Pending"
+              value={communicationPreviewsPending.length.toString()}
+              hint="Awaiting Review"
+            />
+          </section>
 
-      <section className="dashboard-work-grid">
-        <article className="panel dashboard-card">
-          <p className="eyebrow">What is coming up?</p>
-          <h2 className="section-title">Upcoming Events</h2>
-          <div className="dashboard-list">
-            {upcomingEvents.length ? (
-              upcomingEvents.map((event) => (
-                <button
-                  className="dashboard-list-item dashboard-list-item-btn"
-                  key={event.id}
-                  type="button"
-                  onClick={() => openEdit(event.id)}
-                >
-                  <strong>{event.title}</strong>
-                  <span>{formatDateTime(event.startTime)}</span>
-                  <span className={event.status === "ready" || event.status === "completed" ? "pill done" : "pill"}>{event.status}</span>
-                </button>
-              ))
-            ) : (
-              <p className="muted">No upcoming events in the current workspace.</p>
-            )}
-          </div>
-        </article>
-
-        <article className="panel dashboard-card attention-card">
-          <p className="eyebrow">What needs attention?</p>
-          <h2 className="section-title">Tasks Needing Attention</h2>
-          <DashboardTaskGroup label="Overdue" tasks={overdueTasks} events={overview.events} tone="danger" />
-          <DashboardTaskGroup label="Due This Week" tasks={dueThisWeek} events={overview.events} tone="warning" />
-          <DashboardTaskGroup label="Stuck" tasks={stuckTasks} events={overview.events} tone="danger" />
-        </article>
-
-        <article className="panel dashboard-card">
-          <p className="eyebrow">What communication needs review?</p>
-          <h2 className="section-title">Communication Previews Pending Review</h2>
-          <div className="dashboard-list">
-            {communicationPreviewsPending.length ? (
-              communicationPreviewsPending.map((event) => (
-                <Link className="dashboard-list-item" href={`/events?event=${event.id}#communication-previews`} key={event.id}>
-                  <strong>{event.title}</strong>
-                  <span>{estimateMissingInformationCount(event)} item(s) needed before final review</span>
-                  <span className="pill stub">Preview only</span>
-                </Link>
-              ))
-            ) : (
-              <p className="muted">No communication previews are waiting on missing information.</p>
-            )}
-          </div>
-        </article>
-
-        <article className="panel dashboard-card recent-activity-card">
-          <div className="toolbar" style={{ justifyContent: "space-between" }}>
-            <div>
-              <p className="eyebrow">Recent changes</p>
-              <h2 className="section-title" style={{ margin: 0 }}>
-                Recent Activity
-              </h2>
-            </div>
-            <span className="pill stub">Stub Mode</span>
-          </div>
-          {recentActivity.length ? (
-            <div className="grid dashboard-activity">
-              {recentActivity.map((item) => (
-                <article className="activity-mini-card" key={item.id}>
-                  <strong>{item.message}</strong>
-                  <div className="muted">{formatDateTime(item.timestamp)}</div>
-                </article>
-              ))}
-            </div>
-          ) : (
-            <p className="muted">No recent activity yet.</p>
-          )}
-        </article>
-      </section>
-    </section>
-  );
-}
-
-function DashboardTaskGroup({
-  label,
-  tasks,
-  events,
-  tone
-}: {
-  label: string;
-  tasks: ActiveTask[];
-  events: MinistryEvent[];
-  tone: "warning" | "danger";
-}) {
-  return (
-    <div className="dashboard-task-group">
-      <div className="toolbar" style={{ justifyContent: "space-between" }}>
-        <strong>{label}</strong>
-        <span className={tone === "danger" ? "pill blocked" : "pill"}>{tasks.length}</span>
-      </div>
-      {tasks.length ? (
-        <div className="dashboard-list compact">
-          {tasks.slice(0, 4).map((task) => {
-            const eventTitle = events.find((event) => event.id === task.eventId)?.title ?? "Event";
-            return (
-              <Link className="dashboard-list-item" href={`/events?event=${task.eventId}#timeline-tasks`} key={task.id}>
-                <strong>{task.taskTitle}</strong>
-                <span>
-                  {eventTitle} / Due {formatDate(task.dueDate)}
-                </span>
-              </Link>
-            );
-          })}
+          <MinistryCalendar events={overview.events} />
         </div>
-      ) : (
-        <p className="muted">Nothing in this group.</p>
-      )}
-    </div>
+
+        <aside className="dashboard-rail" aria-label="Ministry pulse and upcoming events">
+          <MinistryPulse
+            eventsThisWeek={eventsThisWeekCount}
+            volunteers={volunteersServing}
+            teams={teamsServing}
+            connections={newConnections}
+          />
+          <NextOnCalendar events={nextEvents} />
+        </aside>
+      </div>
+
+      <DashboardWaveFooter />
+    </section>
   );
 }
 

@@ -16,6 +16,14 @@ export function isSupabaseConfigured() {
 }
 
 export function isMockAuthEnabled() {
-  return process.env.E2E_MOCK_AUTH === "true" || (!isSupabaseConfigured() && process.env.NODE_ENV !== "production");
+  // Mock auth is allowed for: e2e/local runs (E2E_MOCK_AUTH), Vercel Preview
+  // deployments (so reviewers can sign in without Supabase credentials over
+  // Stub Mode mock data), and local dev when Supabase is not configured.
+  // Production (VERCEL_ENV === "production") always uses real Supabase Auth.
+  return (
+    process.env.E2E_MOCK_AUTH === "true" ||
+    process.env.VERCEL_ENV === "preview" ||
+    (!isSupabaseConfigured() && process.env.NODE_ENV !== "production")
+  );
 }
 

@@ -11,7 +11,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Email and password are required." }, { status: 400 });
   }
 
-  if (process.env.E2E_MOCK_AUTH === "true" || (!isSupabaseConfigured() && isMockAuthEnabled())) {
+  if (isMockAuthEnabled()) {
     const response = NextResponse.json({ user: mockAuthUser });
     setAuthCookies(response, { isMock: true });
     return response;
