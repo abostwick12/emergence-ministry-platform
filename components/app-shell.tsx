@@ -51,6 +51,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="app-shell">
       <aside className="sidebar app-sidebar" aria-label="Primary navigation">
+        <div className="sidebar-wash" aria-hidden="true">
+          <svg className="sidebar-curve" viewBox="0 0 260 240" fill="none" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="sidebarAqua" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stopColor="#22d3ee" stopOpacity="0" />
+                <stop offset="45%" stopColor="#38bdf8" stopOpacity="0.95" />
+                <stop offset="100%" stopColor="#a5f3fc" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            <path d="M-30,72 C50,122 150,22 300,92" stroke="url(#sidebarAqua)" strokeWidth="2.5" strokeLinecap="round" />
+            <path d="M-30,98 C60,150 160,42 300,122" stroke="url(#sidebarAqua)" strokeWidth="1.5" strokeLinecap="round" opacity="0.6" />
+          </svg>
+        </div>
         <Link className="brand-link" href="/dashboard">
           <div className="brand-mark" aria-hidden="true">
             EM
@@ -116,6 +129,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <main className="main app-main">
         <header className="topbar">
+          <span className="topbar-wash" aria-hidden="true" />
           <div>
             <p className="eyebrow">MVP 1 / Stub Mode</p>
             <h1 className="title">{title}</h1>

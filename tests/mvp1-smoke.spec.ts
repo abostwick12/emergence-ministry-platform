@@ -68,21 +68,27 @@ test.describe("MVP event automation navigation smoke tests", () => {
     }
   });
 
-  test("dashboard renders the improved ministry snapshot", async ({ page }) => {
+  test("dashboard renders the watercolor snapshot with calendar and pulse", async ({ page }) => {
     await login(page);
 
-    await expect(page.getByText("Today / This Week", { exact: true })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Upcoming Events" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Tasks Needing Attention" })).toBeVisible();
-    await expect(page.getByText("Overdue", { exact: true })).toBeVisible();
-    await expect(page.getByText("Due This Week", { exact: true })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Communication Previews Pending Review" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Recent Activity" })).toBeVisible();
+    await expect(page.getByText("Emerge Ministry Hub", { exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Dashboard", level: 2 })).toBeVisible();
 
     const metrics = page.getByLabel("Dashboard metrics");
-    for (const label of ["Stuck Tasks", "Task Completion", "Communication Previews Pending"]) {
+    for (const label of ["Upcoming Events", "Tasks Due Soon", "Stuck Tasks", "Task Completion", "Communication Reviews Pending"]) {
       await expect(metrics.getByText(label, { exact: true })).toBeVisible();
     }
+
+    await expect(page.getByRole("heading", { name: "Ministry Calendar" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Ministry Pulse" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Next on the Calendar" })).toBeVisible();
+
+    const pulse = page.getByLabel("Ministry Pulse");
+    for (const label of ["Events This Week", "Volunteers Serving", "New Connections"]) {
+      await expect(pulse.getByText(label, { exact: true })).toBeVisible();
+    }
+
+    await expect(page.getByText(/Making disciples\. Building community\. Transforming the world\./)).toBeVisible();
 
     await expect(page.getByRole("link", { name: "Go to Events" })).toHaveAttribute("href", "/events");
     await expect(page.getByRole("link", { name: "Review Tasks" })).toHaveAttribute("href", "/tasks");
@@ -502,12 +508,12 @@ test.describe("MVP event automation navigation smoke tests", () => {
     ).toBeVisible({ timeout: 10000 });
   });
 
-  test("opening event from dashboard upcoming events list uses modal", async ({ page }) => {
+  test("opening event from dashboard Next on the Calendar uses modal", async ({ page }) => {
     await login(page);
     await page.goto("/dashboard");
 
-    const upcomingCard = page.locator(".dashboard-card", { has: page.getByRole("heading", { name: "Upcoming Events" }) });
-    const firstEvent = upcomingCard.locator(".dashboard-list-item-btn").first();
+    const nextPanel = page.getByLabel("Next on the Calendar");
+    const firstEvent = nextPanel.locator(".next-cal-item").first();
     await expect(firstEvent).toBeVisible();
     await firstEvent.click();
 
