@@ -23,9 +23,12 @@ export function PlaceholderPage({ eyebrow, title, description, sections, stubLab
         {sections.map((section) => (
           <article className="card" key={section}>
             <strong>{section}</strong>
-            <p className="muted" style={{ marginBottom: 0 }}>
+            <p className="muted">
               Placeholder area for a later build.
             </p>
+            <button className="button compact-button" type="button" disabled>
+              Coming soon
+            </button>
           </article>
         ))}
       </div>

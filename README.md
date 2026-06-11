@@ -2,6 +2,8 @@
 
 The Emerge Ministry Platform is a ministry-operations web app for event planning, task automation, communication preparation, budget tracking, and future ministry integrations.
 
+Current functionality map: [docs/current-functionality.md](docs/current-functionality.md)
+
 ## MVP 1 Scope
 
 MVP 1 is a production-oriented **Next.js App Router** scaffold with a thin clickable **Admin/Leader event automation workflow**.

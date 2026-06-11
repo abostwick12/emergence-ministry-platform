@@ -68,19 +68,25 @@ test.describe("MVP event automation navigation smoke tests", () => {
     }
   });
 
-  test("dashboard shows simple ministry operations summary cards", async ({ page }) => {
+  test("dashboard renders the improved ministry snapshot", async ({ page }) => {
     await login(page);
 
-    for (const label of [
-      "Upcoming Events",
-      "Tasks Due Soon",
-      "Stuck Tasks",
-      "Task Completion",
-      "Communication Previews Pending",
-      "Recent Activity"
-    ]) {
-      await expect(page.getByText(label, { exact: true })).toBeVisible();
+    await expect(page.getByText("Today / This Week", { exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Upcoming Events" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Tasks Needing Attention" })).toBeVisible();
+    await expect(page.getByText("Overdue", { exact: true })).toBeVisible();
+    await expect(page.getByText("Due This Week", { exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Communication Previews Pending Review" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Recent Activity" })).toBeVisible();
+
+    const metrics = page.getByLabel("Dashboard metrics");
+    for (const label of ["Stuck Tasks", "Task Completion", "Communication Previews Pending"]) {
+      await expect(metrics.getByText(label, { exact: true })).toBeVisible();
     }
+
+    await expect(page.getByRole("link", { name: "Go to Events" })).toHaveAttribute("href", "/events");
+    await expect(page.getByRole("link", { name: "Review Tasks" })).toHaveAttribute("href", "/tasks");
+    await expect(page.getByRole("link", { name: "Review Communications" })).toHaveAttribute("href", "/communications");
   });
 
   test("events page preserves the board-row Events Workspace", async ({ page }) => {
@@ -104,6 +110,8 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await expect(winterRow.locator(".event-identity-section")).toBeVisible();
     await expect(winterRow.locator(".event-date-block")).toBeVisible();
     await expect(winterRow.locator(".event-summary-scroll")).toBeVisible();
+    await expect(winterRow.getByText("Scroll summary fields sideways")).toBeVisible();
+    await expect(winterRow.locator(".event-summary-scroll").getByRole("button", { name: /Notes/ })).toBeVisible();
     const summaryOwnsHorizontalScroll = await winterRow
       .locator(".event-summary-scroll")
       .evaluate((element) => element.scrollWidth > element.clientWidth);
@@ -127,6 +135,8 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await winterRow.getByRole("button", { name: /Expand task tree/ }).click();
     await expect(subtaskList).toBeVisible();
     await expect(subtaskList.locator(".event-task-tree-item").first()).toBeVisible();
+    await expect(subtaskList.getByRole("button", { name: /Save due date/ })).toHaveCount(0);
+    await expect(subtaskList.getByText("Autosaves").first()).toBeVisible();
 
     await winterRow.getByRole("button", { name: "Open Command Center" }).click();
     await expect(winterRow).toHaveClass(/selected/);
@@ -153,15 +163,21 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await page.getByRole("button", { name: "+ Create New Event" }).click();
     await expect(createSection.getByPlaceholder("Fall Kickoff Night")).toBeVisible();
 
-    const start = new Date();
-    start.setDate(start.getDate() + 3);
-    start.setHours(18, 0, 0, 0);
-    const end = new Date(start);
-    end.setHours(20, 0, 0, 0);
+    const initialStart = new Date();
+    initialStart.setDate(initialStart.getDate() + 3);
+    initialStart.setHours(18, 0, 0, 0);
+    const changedStart = new Date(initialStart);
+    changedStart.setDate(initialStart.getDate() + 1);
+    const manualEnd = new Date(initialStart);
+    manualEnd.setDate(initialStart.getDate() + 2);
+    manualEnd.setHours(20, 0, 0, 0);
 
     await createSection.getByLabel("Title").fill(`Smoke Test Event ${Date.now()}`);
-    await createSection.getByLabel("Start").fill(toDateTimeLocalInput(start));
-    await createSection.getByLabel("End").fill(toDateTimeLocalInput(end));
+    await createSection.getByLabel("Start").fill(toDateTimeLocalInput(initialStart));
+    await expect(createSection.getByLabel("End")).toHaveValue(toDateTimeLocalInput(initialStart));
+    await createSection.getByLabel("End").fill(toDateTimeLocalInput(manualEnd));
+    await createSection.getByLabel("Start").fill(toDateTimeLocalInput(changedStart));
+    await expect(createSection.getByLabel("End")).toHaveValue(toDateTimeLocalInput(manualEnd));
     const createResponse = page.waitForResponse(
       (response) => response.url().endsWith("/api/events") && response.request().method() === "POST"
     );
@@ -180,10 +196,14 @@ test.describe("MVP event automation navigation smoke tests", () => {
     for (const lane of ["To do", "In progress", "Stuck", "Done"]) {
       await expect(tasksWorkspace.locator(".lane-title", { hasText: lane })).toBeVisible();
     }
+    await expect(tasksWorkspace.locator(".task-card").first().getByRole("button", { name: /Notes/ })).toBeVisible();
+    await expect(tasksWorkspace.getByRole("button", { name: "Open event (temporary)" }).first()).toBeVisible();
     await expect(page.getByRole("heading", { name: "Events Workspace" })).toHaveCount(0);
 
     await tasksWorkspace.getByRole("button", { name: "List View" }).click();
     await expect(tasksWorkspace.getByRole("columnheader", { name: "Task" })).toBeVisible();
+    await expect(tasksWorkspace.getByRole("columnheader", { name: "Notes" })).toBeVisible();
+    await expect(tasksWorkspace.locator(".task-event-group-row", { hasText: "Winter Retreat" })).toBeVisible();
     await expect(tasksWorkspace.getByLabel("Filter by status")).toBeVisible();
   });
 
@@ -196,11 +216,10 @@ test.describe("MVP event automation navigation smoke tests", () => {
     const dueDateInput = taskRow.getByLabel("Due date for Confirm venue contract and deposit");
     const currentDate = await dueDateInput.inputValue();
     const nextDate = currentDate === "2026-06-01" ? "2026-06-02" : "2026-06-01";
-    await dueDateInput.fill(nextDate);
     const duePatch = page.waitForResponse(
       (response) => response.url().includes("/api/tasks/") && response.request().method() === "PATCH"
     );
-    await taskRow.getByRole("button", { name: "Save" }).click();
+    await dueDateInput.fill(nextDate);
     expect((await duePatch).status()).toBe(200);
 
     const statusPatch = page.waitForResponse(
@@ -213,6 +232,35 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await expect(page.getByRole("heading", { name: "Command Center: Winter Retreat", level: 2 })).toBeVisible();
     await expect(page.getByText("Changed due date for task: Confirm venue contract and deposit")).toBeVisible();
     await expect(page.getByText("Moved task to blocked: Confirm venue contract and deposit")).toBeVisible();
+  });
+
+  test("event and task notes can be saved and create activity entries", async ({ page }) => {
+    await login(page);
+    await page.goto("/events?event=evt_winter_retreat#event-command-center");
+
+    const eventInfo = page.locator("section.card", { has: page.getByRole("heading", { name: "Event Information" }) });
+    await eventInfo.getByRole("button", { name: /Notes/ }).click();
+    await eventInfo.getByLabel(/Internal notes for Winter Retreat event/).fill(`Reviewed event notes ${Date.now()}`);
+    const eventPatch = page.waitForResponse(
+      (response) => response.url().includes("/api/events/evt_winter_retreat") && response.request().method() === "PATCH"
+    );
+    await eventInfo.getByRole("button", { name: "Save notes" }).click();
+    expect((await eventPatch).status()).toBe(200);
+    await expect(page.getByText("Updated event notes: Winter Retreat")).toBeVisible();
+
+    await page.goto("/tasks");
+    await page.locator(".tasks-workspace").getByRole("button", { name: "List View" }).click();
+    const taskRow = page.locator("tr", { hasText: "Confirm venue contract and deposit" });
+    await taskRow.getByRole("button", { name: /Notes/ }).click();
+    await taskRow.getByLabel(/Internal notes for Confirm venue contract and deposit task/).fill(`Reviewed task notes ${Date.now()}`);
+    const taskPatch = page.waitForResponse(
+      (response) => response.url().includes("/api/tasks/") && response.request().method() === "PATCH"
+    );
+    await taskRow.getByRole("button", { name: "Save notes" }).click();
+    expect((await taskPatch).status()).toBe(200);
+
+    await page.goto("/events?event=evt_winter_retreat#event-command-center");
+    await expect(page.getByText("Updated task notes: Confirm venue contract and deposit")).toBeVisible();
   });
 
   test("communication previews remain preview-only Stub Mode output", async ({ page }) => {
@@ -241,6 +289,7 @@ test.describe("MVP event automation navigation smoke tests", () => {
       await page.goto(route[0]);
       await expect(page.getByRole("heading", { name: route[1] })).toBeVisible();
       await expect(page.getByText(route[2])).toBeVisible();
+      await expect(page.getByRole("button", { name: "Coming soon" }).first()).toBeDisabled();
     }
   });
 

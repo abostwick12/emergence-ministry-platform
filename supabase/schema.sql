@@ -40,6 +40,7 @@ create table if not exists public.events (
   budget_actual numeric(12, 2) not null default 0,
   volunteers_needed integer,
   communication_owner text,
+  notes text,
   created_by uuid references auth.users(id),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -55,6 +56,7 @@ create table if not exists public.tasks (
   priority text,
   critical boolean not null default false,
   file_status text,
+  notes text,
   created_by uuid references auth.users(id),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()

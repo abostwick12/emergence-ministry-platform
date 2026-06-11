@@ -1,0 +1,61 @@
+flowchart TD
+  Visitor["Visitor"] --> Middleware["Auth middleware"]
+  Middleware -->|No valid session| Login["Login page"]
+  Login -->|Supabase Auth or local mock auth| AppShell["Protected app shell"]
+  Middleware -->|Valid session| AppShell
+
+  AppShell --> RoleShell["Role-aware shell"]
+  RoleShell --> AdminLeader["Admin and Leader active views"]
+  RoleShell --> StudentParent["Student and Parent inactive placeholders"]
+
+  AdminLeader --> Dashboard["Dashboard ministry snapshot"]
+  AdminLeader --> Events["Events Workspace board"]
+  AdminLeader --> Tasks["Tasks Workspace"]
+  AdminLeader --> PlaceholderPages["Communications, People, Files, Budget, Settings placeholders"]
+
+  Dashboard --> Upcoming["Upcoming events"]
+  Dashboard --> Attention["Overdue, due-this-week, and stuck tasks"]
+  Dashboard --> PendingComms["Communication previews pending review"]
+  Dashboard --> RecentActivity["Recent activity"]
+  Dashboard --> QuickLinks["Links to Events, Tasks, Communications"]
+
+  Events --> CreateEvent["Create event"]
+  CreateEvent --> DateUx["Start date auto-fills end date"]
+  CreateEvent --> TemplateTasks["Default template generates baseline tasks"]
+  TemplateTasks --> ActivityCreated["Activity log records creation and generated tasks"]
+
+  Events --> Board["Grouped board rows"]
+  Board --> FixedIdentity["Fixed event identity"]
+  Board --> FixedDate["Fixed date/time"]
+  Board --> ScrollSummary["Horizontally scrollable summary"]
+  ScrollSummary --> EventNotes["Internal event notes"]
+  ScrollSummary --> OpenCommand["Open Command Center"]
+
+  Board --> TaskTree["Compact expandable task tree"]
+  TaskTree --> TaskRows["Due date, owner, status, file placeholder, notes"]
+  TaskRows --> TaskPatch["Task updates"]
+  TaskPatch --> TaskActivity["Activity log entries"]
+
+  OpenCommand --> CommandCenter["Command Center: selected event"]
+  CommandCenter --> EventInfo["Event Information"]
+  CommandCenter --> MissingInfo["Missing Information"]
+  CommandCenter --> TimelineTasks["Timeline Tasks"]
+  CommandCenter --> CommPreviews["Communication Previews"]
+  CommandCenter --> BudgetShell["Budget Shell"]
+  CommandCenter --> IntegrationActivity["Integration Activity"]
+  CommandCenter --> ActivityLog["Activity Log"]
+
+  CommPreviews --> PreviewOnly["Parent Email, Leader Announcement, Blast Text Summary"]
+  PreviewOnly --> NoSend["Preview only - not sent"]
+
+  IntegrationActivity --> StubAdapters["Stub Mode adapters"]
+  StubAdapters --> StubLogs["Integration activity records only"]
+
+  Tasks --> Kanban["Compact Kanban"]
+  Tasks --> TaskList["Grouped task list by event"]
+
+  PlaceholderPages --> DisabledFuture["Disabled Coming Soon controls"]
+  StudentParent --> InactiveGuard["Inactive placeholders only"]
+
+  DataLayer["Data layer"] --> SupabaseReady["Supabase-ready repository/schema"]
+  DataLayer --> MockSeed["Seeded mock fallback"]

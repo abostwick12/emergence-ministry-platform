@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { Fragment, FormEvent, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRole } from "@/components/role-context";
 import { eventTypeLabels } from "@/lib/templates";
 import { formatDate, formatDateTime, money } from "@/lib/utils";
@@ -279,6 +280,7 @@ export default function MinistryWorkspace({ view }: { view: WorkspaceView }) {
               onToggleEvent={toggleEventExpansion}
               onOpenEvent={openCommandCenter}
               onUpdateTask={updateTask}
+              onUpdateEvent={updateEvent}
             />
           </div>
 
@@ -324,50 +326,167 @@ function DashboardWorkspace({
   blockedTasks: number;
 }) {
   const now = new Date();
-  const soon = new Date(now);
-  soon.setDate(now.getDate() + 7);
-  const upcomingEvents = overview.events.filter((event) => new Date(event.startTime) >= now);
-  const tasksDueSoon = overview.tasks.filter((task) => {
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const endOfWeek = new Date(startOfToday);
+  endOfWeek.setDate(startOfToday.getDate() + 7);
+  const upcomingEvents = [...overview.events]
+    .filter((event) => new Date(event.startTime) >= startOfToday)
+    .sort((first, second) => new Date(first.startTime).getTime() - new Date(second.startTime).getTime())
+    .slice(0, 5);
+  const overdueTasks = overview.tasks.filter((task) => task.status !== "done" && new Date(task.dueDate) < startOfToday);
+  const dueThisWeek = overview.tasks.filter((task) => {
     const due = new Date(task.dueDate);
-    return task.status !== "done" && due >= now && due <= soon;
+    return task.status !== "done" && due >= startOfToday && due <= endOfWeek;
   });
-  const communicationPreviewsPending = overview.events.filter((event) => estimateMissingInformationCount(event) > 0).length;
+  const stuckTasks = overview.tasks.filter((task) => task.status === "blocked");
+  const communicationPreviewsPending = overview.events
+    .filter((event) => estimateMissingInformationCount(event) > 0)
+    .sort((first, second) => new Date(first.startTime).getTime() - new Date(second.startTime).getTime())
+    .slice(0, 4);
   const recentActivity = overview.activity.slice(0, 5);
 
   return (
-    <section className="grid">
-      <section className="grid grid-3" aria-label="Dashboard metrics">
-        <Metric label="Upcoming Events" value={upcomingEvents.length.toString()} />
-        <Metric label="Tasks Due Soon" value={tasksDueSoon.length.toString()} />
-        <Metric label="Stuck Tasks" value={blockedTasks.toString()} />
-        <Metric label="Task Completion" value={`${doneTasks}/${totalTasks}`} />
-        <Metric label="Communication Previews Pending" value={communicationPreviewsPending.toString()} />
+    <section className="grid dashboard-snapshot">
+      <section className="panel dashboard-orientation">
+        <div>
+          <p className="eyebrow">Today / This Week</p>
+          <h2 className="section-title" style={{ margin: 0 }}>
+            Ministry snapshot for {now.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" })}
+          </h2>
+          <p className="muted" style={{ marginBottom: 0 }}>
+            {upcomingEvents.length} upcoming event{upcomingEvents.length === 1 ? "" : "s"}, {overdueTasks.length} overdue task
+            {overdueTasks.length === 1 ? "" : "s"}, and {blockedTasks} stuck task{blockedTasks === 1 ? "" : "s"} need the first look.
+          </p>
+        </div>
+        <div className="dashboard-actions" aria-label="Dashboard action links">
+          <Link className="button primary" href="/events">
+            Go to Events
+          </Link>
+          <Link className="button" href="/tasks">
+            Review Tasks
+          </Link>
+          <Link className="button" href="/communications">
+            Review Communications
+          </Link>
+        </div>
       </section>
 
-      <section className="panel">
-        <div className="toolbar" style={{ justifyContent: "space-between" }}>
-          <div>
-            <p className="eyebrow">Operations Summary</p>
-            <h2 className="section-title" style={{ margin: 0 }}>
-              Recent Activity
-            </h2>
+      <section className="grid grid-3" aria-label="Dashboard metrics">
+        <Metric label="Upcoming Events" value={upcomingEvents.length.toString()} />
+        <Metric label="Overdue Tasks" value={overdueTasks.length.toString()} />
+        <Metric label="Stuck Tasks" value={blockedTasks.toString()} />
+        <Metric label="Task Completion" value={`${doneTasks}/${totalTasks}`} />
+        <Metric label="Communication Previews Pending" value={communicationPreviewsPending.length.toString()} />
+      </section>
+
+      <section className="dashboard-work-grid">
+        <article className="panel dashboard-card">
+          <p className="eyebrow">What is coming up?</p>
+          <h2 className="section-title">Upcoming Events</h2>
+          <div className="dashboard-list">
+            {upcomingEvents.length ? (
+              upcomingEvents.map((event) => (
+                <Link className="dashboard-list-item" href={`/events?event=${event.id}#event-command-center`} key={event.id}>
+                  <strong>{event.title}</strong>
+                  <span>{formatDateTime(event.startTime)}</span>
+                  <span className={event.status === "ready" ? "pill done" : "pill"}>{event.status}</span>
+                </Link>
+              ))
+            ) : (
+              <p className="muted">No upcoming events in the current workspace.</p>
+            )}
           </div>
-          <span className="pill stub">Stub Mode</span>
-        </div>
-        {recentActivity.length ? (
-          <div className="grid dashboard-activity">
-            {recentActivity.map((item) => (
-              <article className="card" key={item.id}>
-                <strong>{item.message}</strong>
-                <div className="muted">{formatDateTime(item.timestamp)}</div>
-              </article>
-            ))}
+        </article>
+
+        <article className="panel dashboard-card attention-card">
+          <p className="eyebrow">What needs attention?</p>
+          <h2 className="section-title">Tasks Needing Attention</h2>
+          <DashboardTaskGroup label="Overdue" tasks={overdueTasks} events={overview.events} tone="danger" />
+          <DashboardTaskGroup label="Due This Week" tasks={dueThisWeek} events={overview.events} tone="warning" />
+          <DashboardTaskGroup label="Stuck" tasks={stuckTasks} events={overview.events} tone="danger" />
+        </article>
+
+        <article className="panel dashboard-card">
+          <p className="eyebrow">What communication needs review?</p>
+          <h2 className="section-title">Communication Previews Pending Review</h2>
+          <div className="dashboard-list">
+            {communicationPreviewsPending.length ? (
+              communicationPreviewsPending.map((event) => (
+                <Link className="dashboard-list-item" href={`/events?event=${event.id}#communication-previews`} key={event.id}>
+                  <strong>{event.title}</strong>
+                  <span>{estimateMissingInformationCount(event)} item(s) needed before final review</span>
+                  <span className="pill stub">Preview only</span>
+                </Link>
+              ))
+            ) : (
+              <p className="muted">No communication previews are waiting on missing information.</p>
+            )}
           </div>
-        ) : (
-          <p className="muted">No recent activity yet.</p>
-        )}
+        </article>
+
+        <article className="panel dashboard-card recent-activity-card">
+          <div className="toolbar" style={{ justifyContent: "space-between" }}>
+            <div>
+              <p className="eyebrow">Recent changes</p>
+              <h2 className="section-title" style={{ margin: 0 }}>
+                Recent Activity
+              </h2>
+            </div>
+            <span className="pill stub">Stub Mode</span>
+          </div>
+          {recentActivity.length ? (
+            <div className="grid dashboard-activity">
+              {recentActivity.map((item) => (
+                <article className="activity-mini-card" key={item.id}>
+                  <strong>{item.message}</strong>
+                  <div className="muted">{formatDateTime(item.timestamp)}</div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <p className="muted">No recent activity yet.</p>
+          )}
+        </article>
       </section>
     </section>
+  );
+}
+
+function DashboardTaskGroup({
+  label,
+  tasks,
+  events,
+  tone
+}: {
+  label: string;
+  tasks: ActiveTask[];
+  events: MinistryEvent[];
+  tone: "warning" | "danger";
+}) {
+  return (
+    <div className="dashboard-task-group">
+      <div className="toolbar" style={{ justifyContent: "space-between" }}>
+        <strong>{label}</strong>
+        <span className={tone === "danger" ? "pill blocked" : "pill"}>{tasks.length}</span>
+      </div>
+      {tasks.length ? (
+        <div className="dashboard-list compact">
+          {tasks.slice(0, 4).map((task) => {
+            const eventTitle = events.find((event) => event.id === task.eventId)?.title ?? "Event";
+            return (
+              <Link className="dashboard-list-item" href={`/events?event=${task.eventId}#timeline-tasks`} key={task.id}>
+                <strong>{task.taskTitle}</strong>
+                <span>
+                  {eventTitle} / Due {formatDate(task.dueDate)}
+                </span>
+              </Link>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="muted">Nothing in this group.</p>
+      )}
+    </div>
   );
 }
 
@@ -387,6 +506,7 @@ function TasksWorkspace({
   const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
   const [statusFilter, setStatusFilter] = useState<TaskStatus | "all">("all");
   const filteredTasks = statusFilter === "all" ? tasks : tasks.filter((task) => task.status === statusFilter);
+  const groupedFilteredTasks = groupTasksByEvent(filteredTasks, events);
 
   return (
     <section className="panel tasks-workspace" id="kanban-dashboard">
@@ -473,13 +593,24 @@ function TasksWorkspace({
                   <th>Owner</th>
                   <th>Due date</th>
                   <th>Status</th>
+                  <th>Notes</th>
                   <th>Priority</th>
                   <th>Critical</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredTasks.map((task) => (
-                  <TaskTableRow key={task.id} task={task} events={events} users={users} onUpdate={onUpdate} />
+                {groupedFilteredTasks.map((group) => (
+                  <Fragment key={group.eventId}>
+                    <tr className="task-event-group-row">
+                      <td colSpan={8}>
+                        <strong>{group.eventTitle}</strong>
+                        <span className="muted"> / {group.tasks.length} task{group.tasks.length === 1 ? "" : "s"}</span>
+                      </td>
+                    </tr>
+                    {group.tasks.map((task) => (
+                      <TaskTableRow key={task.id} task={task} events={events} users={users} onUpdate={onUpdate} />
+                    ))}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
@@ -502,13 +633,23 @@ function TaskTableRow({
   onUpdate: (taskId: string, body: Partial<ActiveTask>) => Promise<void>;
 }) {
   const [dueDate, setDueDate] = useState(toDateInputValue(task.dueDate));
+  const [dueSaveState, setDueSaveState] = useState<"idle" | "saving" | "saved">("idle");
   const eventTitle = events.find((event) => event.id === task.eventId)?.title ?? "Event";
   const owner = users.find((user) => user.id === task.assignedUserId);
   const isCritical = task.timelineOffsetDays <= -30 || task.status === "blocked";
 
   useEffect(() => {
     setDueDate(toDateInputValue(task.dueDate));
+    setDueSaveState("idle");
   }, [task.dueDate]);
+
+  async function saveDueDate(nextDueDate: string) {
+    setDueDate(nextDueDate);
+    if (!nextDueDate) return;
+    setDueSaveState("saving");
+    await onUpdate(task.id, { dueDate: new Date(`${nextDueDate}T12:00:00`).toISOString() });
+    setDueSaveState("saved");
+  }
 
   return (
     <tr>
@@ -516,11 +657,9 @@ function TaskTableRow({
       <td>{eventTitle}</td>
       <td>{owner ? `${owner.firstName} ${owner.lastName}` : "Unassigned"}</td>
       <td>
-        <div className="inline-edit-row table-inline-edit">
-          <input className="input" aria-label={`Due date for ${task.taskTitle}`} type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
-          <button className="button compact-button" type="button" onClick={() => void onUpdate(task.id, { dueDate: new Date(`${dueDate}T12:00:00`).toISOString() })}>
-            Save
-          </button>
+        <div className="table-inline-edit">
+          <input className="input" aria-label={`Due date for ${task.taskTitle}`} type="date" value={dueDate} onChange={(event) => void saveDueDate(event.target.value)} />
+          <span className="inline-save-state">{dueSaveState === "saving" ? "Saving..." : dueSaveState === "saved" ? "Saved" : "Autosaves"}</span>
         </div>
       </td>
       <td>
@@ -536,6 +675,15 @@ function TaskTableRow({
             </option>
           ))}
         </select>
+      </td>
+      <td>
+        <NotesPanel
+          id={`task-table-notes-${task.id}`}
+          label={`${task.taskTitle} task`}
+          value={task.notes ?? ""}
+          compact
+          onSave={(notes) => onUpdate(task.id, { notes })}
+        />
       </td>
       <td>{isCritical ? "High" : "Normal"}</td>
       <td>{isCritical ? "Yes" : "No"}</td>
@@ -564,6 +712,63 @@ function WorkspaceNavigator() {
   );
 }
 
+function DateTimeRangeFields({
+  startId,
+  endId,
+  defaultStart = "",
+  defaultEnd = ""
+}: {
+  startId: string;
+  endId: string;
+  defaultStart?: string;
+  defaultEnd?: string;
+}) {
+  const [startValue, setStartValue] = useState(defaultStart);
+  const [endValue, setEndValue] = useState(defaultEnd);
+  const [endTouched, setEndTouched] = useState(false);
+
+  function handleStartChange(nextStart: string) {
+    setStartValue(nextStart);
+    if (!endTouched) {
+      setEndValue(alignEndToStartDate(nextStart, endValue));
+    }
+  }
+
+  function handleEndChange(nextEnd: string) {
+    setEndTouched(true);
+    setEndValue(nextEnd);
+  }
+
+  return (
+    <div className="grid grid-2">
+      <div className="field">
+        <label htmlFor={startId}>Start</label>
+        <input
+          className="input"
+          id={startId}
+          name="startTime"
+          type="datetime-local"
+          value={startValue}
+          onChange={(event) => handleStartChange(event.target.value)}
+          required
+        />
+      </div>
+      <div className="field">
+        <label htmlFor={endId}>End</label>
+        <input
+          className="input"
+          id={endId}
+          name="endTime"
+          type="datetime-local"
+          value={endValue}
+          onChange={(event) => handleEndChange(event.target.value)}
+          required
+        />
+      </div>
+    </div>
+  );
+}
+
 function EventForm({ users, onSubmit }: { users: User[]; onSubmit: (event: FormEvent<HTMLFormElement>) => void }) {
   return (
     <div className="create-form-wrap">
@@ -588,16 +793,7 @@ function EventForm({ users, onSubmit }: { users: User[]; onSubmit: (event: FormE
           <label htmlFor="description">Description</label>
           <textarea className="input" id="description" name="description" rows={3} placeholder="What families and leaders need to know." />
         </div>
-        <div className="grid grid-2">
-          <div className="field">
-            <label htmlFor="startTime">Start</label>
-            <input className="input" id="startTime" name="startTime" type="datetime-local" required />
-          </div>
-          <div className="field">
-            <label htmlFor="endTime">End</label>
-            <input className="input" id="endTime" name="endTime" type="datetime-local" required />
-          </div>
-        </div>
+        <DateTimeRangeFields startId="startTime" endId="endTime" />
         <div className="grid grid-2">
           <div className="field">
             <label htmlFor="location">Location</label>
@@ -636,7 +832,8 @@ function EventsWorkspace({
   selectedWorkspace,
   onToggleEvent,
   onOpenEvent,
-  onUpdateTask
+  onUpdateTask,
+  onUpdateEvent
 }: {
   events: MinistryEvent[];
   tasks: ActiveTask[];
@@ -648,6 +845,7 @@ function EventsWorkspace({
   onToggleEvent: (eventId: string) => void;
   onOpenEvent: (eventId: string) => void;
   onUpdateTask: (taskId: string, body: Partial<ActiveTask>) => Promise<void>;
+  onUpdateEvent: (eventId: string, body: Partial<MinistryEvent>) => Promise<void>;
 }) {
   const groupedEvents = groupEventsByTimeframe(events);
 
@@ -696,6 +894,7 @@ function EventsWorkspace({
                         onToggleEvent={onToggleEvent}
                         onOpenEvent={onOpenEvent}
                         onUpdateTask={onUpdateTask}
+                        onUpdateEvent={onUpdateEvent}
                         users={users}
                       />
                     );
@@ -722,7 +921,8 @@ function EventRowCard({
   users,
   onToggleEvent,
   onOpenEvent,
-  onUpdateTask
+  onUpdateTask,
+  onUpdateEvent
 }: {
   event: MinistryEvent;
   tasks: ActiveTask[];
@@ -736,6 +936,7 @@ function EventRowCard({
   onToggleEvent: (eventId: string) => void;
   onOpenEvent: (eventId: string) => void;
   onUpdateTask: (taskId: string, body: Partial<ActiveTask>) => Promise<void>;
+  onUpdateEvent: (eventId: string, body: Partial<MinistryEvent>) => Promise<void>;
 }) {
   return (
     <article className={isSelected ? "event-row event-row-card selected" : "event-row event-row-card"} data-start-time={event.startTime}>
@@ -752,6 +953,7 @@ function EventRowCard({
           isExpanded={isExpanded}
           onToggleEvent={onToggleEvent}
           onOpenEvent={onOpenEvent}
+          onUpdateEvent={onUpdateEvent}
         />
       </div>
 
@@ -806,7 +1008,8 @@ function EventScrollableSummary({
   missingCount,
   isExpanded,
   onToggleEvent,
-  onOpenEvent
+  onOpenEvent,
+  onUpdateEvent
 }: {
   event: MinistryEvent;
   owner?: User;
@@ -817,6 +1020,7 @@ function EventScrollableSummary({
   isExpanded: boolean;
   onToggleEvent: (eventId: string) => void;
   onOpenEvent: (eventId: string) => void;
+  onUpdateEvent: (eventId: string, body: Partial<MinistryEvent>) => Promise<void>;
 }) {
   const actualBudget = expenses.reduce((sum, expense) => sum + expense.amount, 0);
   const openTasks = tasks.length - completeTasks;
@@ -857,7 +1061,18 @@ function EventScrollableSummary({
             Open Command Center
           </button>
         </div>
+        <div className="summary-field action-field notes-summary-field">
+          <span className="summary-label">Internal notes</span>
+          <NotesPanel
+            id={`event-row-notes-${event.id}`}
+            label={`${event.title} event`}
+            value={event.notes ?? ""}
+            compact
+            onSave={(notes) => onUpdateEvent(event.id, { notes })}
+          />
+        </div>
       </div>
+      <span className="summary-scroll-hint">Scroll summary fields sideways for owner, budget, readiness, files, and notes.</span>
     </div>
   );
 }
@@ -875,6 +1090,63 @@ function EventSummaryField({
     <div className={tone ? `summary-field ${tone}` : "summary-field"}>
       <span className="summary-label">{label}</span>
       <strong>{value}</strong>
+    </div>
+  );
+}
+
+function NotesPanel({
+  id,
+  label,
+  value,
+  compact = false,
+  onSave
+}: {
+  id: string;
+  label: string;
+  value: string;
+  compact?: boolean;
+  onSave: (notes: string) => Promise<void>;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
+
+  useEffect(() => {
+    setDraft(value);
+  }, [value]);
+
+  async function saveNotes() {
+    setSaveState("saving");
+    await onSave(draft);
+    setSaveState("saved");
+  }
+
+  return (
+    <div className={compact ? "notes-panel compact-notes" : "notes-panel"}>
+      <button className="button compact-button" type="button" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
+        {value.trim() ? "Notes added" : "Notes"}
+      </button>
+      {isOpen ? (
+        <div className="notes-editor">
+          <label htmlFor={id}>Internal notes for {label}</label>
+          <textarea
+            className="input"
+            id={id}
+            rows={compact ? 3 : 4}
+            value={draft}
+            onChange={(event) => {
+              setDraft(event.target.value);
+              setSaveState("idle");
+            }}
+          />
+          <div className="toolbar notes-actions">
+            <button className="button compact-button" type="button" onClick={() => void saveNotes()} disabled={saveState === "saving"}>
+              {saveState === "saving" ? "Saving..." : "Save notes"}
+            </button>
+            <span className="muted">{saveState === "saved" ? "Saved internally." : "Internal only."}</span>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -917,10 +1189,20 @@ function EventTaskTreeItem({
 }) {
   const owner = users.find((user) => user.id === task.assignedUserId);
   const [dueDate, setDueDate] = useState(toDateInputValue(task.dueDate));
+  const [dueSaveState, setDueSaveState] = useState<"idle" | "saving" | "saved">("idle");
 
   useEffect(() => {
     setDueDate(toDateInputValue(task.dueDate));
+    setDueSaveState("idle");
   }, [task.dueDate]);
+
+  async function saveDueDate(nextDueDate: string) {
+    setDueDate(nextDueDate);
+    if (!nextDueDate) return;
+    setDueSaveState("saving");
+    await onUpdateTask(task.id, { dueDate: new Date(`${nextDueDate}T12:00:00`).toISOString() });
+    setDueSaveState("saved");
+  }
 
   return (
     <div className={task.status === "done" ? "event-task-tree-item completed" : "event-task-tree-item"}>
@@ -935,16 +1217,8 @@ function EventTaskTreeItem({
       </div>
       <div className="field compact-field task-tree-date">
         <label htmlFor={`event-due-${task.id}`}>Due date</label>
-        <div className="inline-edit-row">
-          <input className="input" id={`event-due-${task.id}`} type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
-          <button
-            className="button"
-            type="button"
-            onClick={() => void onUpdateTask(task.id, { dueDate: new Date(`${dueDate}T12:00:00`).toISOString() })}
-          >
-            Save due date
-          </button>
-        </div>
+        <input className="input" id={`event-due-${task.id}`} type="date" value={dueDate} onChange={(event) => void saveDueDate(event.target.value)} />
+        <span className="inline-save-state">{dueSaveState === "saving" ? "Saving..." : dueSaveState === "saved" ? "Saved" : "Autosaves"}</span>
       </div>
       <div className="task-tree-status">
         <span className={task.status === "done" ? "pill done" : task.status === "blocked" ? "pill blocked" : "pill"}>
@@ -969,6 +1243,16 @@ function EventTaskTreeItem({
       <div className="task-tree-files">
         <span className="summary-label">Files</span>
         <span>No file attached</span>
+      </div>
+      <div className="task-tree-notes">
+        <span className="summary-label">Notes</span>
+        <NotesPanel
+          id={`task-tree-notes-${task.id}`}
+          label={`${task.taskTitle} task`}
+          value={task.notes ?? ""}
+          compact
+          onSave={(notes) => onUpdateTask(task.id, { notes })}
+        />
       </div>
       <button className="button compact-button" type="button" onClick={() => onOpenEvent(task.eventId)}>
         Open
@@ -1025,6 +1309,26 @@ function groupEventsByTimeframe(events: MinistryEvent[]) {
   return groups;
 }
 
+function groupTasksByEvent(tasks: ActiveTask[], events: MinistryEvent[]) {
+  const eventOrder = new Map(events.map((event, index) => [event.id, index]));
+  const eventTitles = new Map(events.map((event) => [event.id, event.title]));
+  const groups = new Map<string, ActiveTask[]>();
+
+  tasks.forEach((task) => {
+    const group = groups.get(task.eventId) ?? [];
+    group.push(task);
+    groups.set(task.eventId, group);
+  });
+
+  return Array.from(groups.entries())
+    .sort(([firstEventId], [secondEventId]) => (eventOrder.get(firstEventId) ?? 999) - (eventOrder.get(secondEventId) ?? 999))
+    .map(([eventId, eventTasks]) => ({
+      eventId,
+      eventTitle: eventTitles.get(eventId) ?? "Unassigned Event",
+      tasks: [...eventTasks].sort((first, second) => new Date(first.dueDate).getTime() - new Date(second.dueDate).getTime())
+    }));
+}
+
 function TaskCard({
   task,
   users,
@@ -1048,12 +1352,12 @@ function TaskCard({
   }, [task.dueDate, task.taskTitle]);
 
   return (
-    <article className="task-card">
+    <article className={task.status === "blocked" ? "task-card attention" : "task-card"}>
       <div>
-        <strong>{task.taskTitle}</strong>
-        <div className="muted">{eventTitle}</div>
+        <strong className="task-card-title">{task.taskTitle}</strong>
+        <div className="task-card-event">{eventTitle}</div>
         <div className="task-summary">
-          <span className="muted">Due {formatDate(task.dueDate)}</span>
+          <span className="task-card-date">Due {formatDate(task.dueDate)}</span>
           <span className={task.status === "done" ? "pill done" : task.status === "blocked" ? "pill blocked" : "pill"}>
             {statusLabels[task.status]}
           </span>
@@ -1106,6 +1410,14 @@ function TaskCard({
         </div>
       ) : null}
 
+      <NotesPanel
+        id={`task-card-notes-${task.id}`}
+        label={`${task.taskTitle} task`}
+        value={task.notes ?? ""}
+        compact
+        onSave={(notes) => onUpdate(task.id, { notes })}
+      />
+
       <div className="toolbar">
         {isEditing ? (
           <button
@@ -1124,7 +1436,7 @@ function TaskCard({
           </button>
         )}
         <button className="button" type="button" onClick={onSelectEvent}>
-          Open event
+          Open event (temporary)
         </button>
       </div>
     </article>
@@ -1291,30 +1603,12 @@ function EventDetailsForm({
             defaultValue={workspace.event.description}
           />
         </div>
-        <div className="grid grid-2">
-          <div className="field">
-            <label htmlFor={`event-start-${workspace.event.id}`}>Start</label>
-            <input
-              className="input"
-              id={`event-start-${workspace.event.id}`}
-              name="startTime"
-              type="datetime-local"
-              defaultValue={toDateTimeLocalValue(workspace.event.startTime)}
-              required
-            />
-          </div>
-          <div className="field">
-            <label htmlFor={`event-end-${workspace.event.id}`}>End</label>
-            <input
-              className="input"
-              id={`event-end-${workspace.event.id}`}
-              name="endTime"
-              type="datetime-local"
-              defaultValue={toDateTimeLocalValue(workspace.event.endTime)}
-              required
-            />
-          </div>
-        </div>
+        <DateTimeRangeFields
+          startId={`event-start-${workspace.event.id}`}
+          endId={`event-end-${workspace.event.id}`}
+          defaultStart={toDateTimeLocalValue(workspace.event.startTime)}
+          defaultEnd={toDateTimeLocalValue(workspace.event.endTime)}
+        />
         <div className="grid grid-2">
           <div className="field">
             <label htmlFor={`event-location-${workspace.event.id}`}>Location</label>
@@ -1337,6 +1631,12 @@ function EventDetailsForm({
           Save event information
         </button>
       </form>
+      <NotesPanel
+        id={`event-detail-notes-${workspace.event.id}`}
+        label={`${workspace.event.title} event`}
+        value={workspace.event.notes ?? ""}
+        onSave={(notes) => onUpdateEvent(workspace.event.id, { notes })}
+      />
     </section>
   );
 }
@@ -1440,4 +1740,13 @@ function toDateTimeLocalValue(value: string) {
   const date = new Date(value);
   const offset = date.getTimezoneOffset() * 60000;
   return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+}
+
+function alignEndToStartDate(startValue: string, currentEndValue: string) {
+  if (!startValue) return currentEndValue;
+  if (!currentEndValue) return startValue;
+
+  const startDate = startValue.slice(0, 10);
+  const endTime = currentEndValue.slice(11, 16) || startValue.slice(11, 16);
+  return `${startDate}T${endTime}`;
 }
