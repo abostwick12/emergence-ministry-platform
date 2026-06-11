@@ -144,17 +144,22 @@ interface MasterEventCardProps {
 }
 
 export function MasterEventCard({ onRefresh }: MasterEventCardProps) {
-  const { state, close } = useEventCard();
+  const { state, close, notifySaved } = useEventCard();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
+  const handleRefresh = useCallback(() => {
+    notifySaved();
+    onRefresh?.();
+  }, [notifySaved, onRefresh]);
+
   if (!mounted || !state.isOpen) return null;
 
   const portal = createPortal(
-    <MasterEventCardInner mode={state.mode} eventId={state.eventId} onClose={close} onRefresh={onRefresh} />,
+    <MasterEventCardInner mode={state.mode} eventId={state.eventId} onClose={close} onRefresh={handleRefresh} />,
     document.body
   );
   return portal;

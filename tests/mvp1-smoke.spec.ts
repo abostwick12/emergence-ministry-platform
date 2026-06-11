@@ -443,6 +443,13 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await modal.getByLabel("Target Group").fill("High School");
     await modal.getByRole("button", { name: "Save event info" }).click();
     await expect(modal.getByRole("status")).toContainText("saved");
+
+    // Close modal and re-open to confirm value persisted (workspace refresh via savedAt)
+    await modal.getByRole("button", { name: "Close" }).click();
+    await expect(modal).not.toBeVisible();
+    await winterRow.getByRole("button", { name: /Edit event: Winter Retreat/ }).click();
+    await expect(modal.getByLabel("Event Name")).toHaveValue("Winter Retreat");
+    await expect(modal.getByLabel("Target Group")).toHaveValue("High School");
   });
 
   test("edit modal step 2 shows existing tasks and allows editing", async ({ page }) => {

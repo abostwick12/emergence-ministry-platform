@@ -8,6 +8,7 @@ interface EventCardState {
   isOpen: boolean;
   mode: EventCardMode;
   eventId?: string;
+  savedAt: number;
 }
 
 interface EventCardContextValue {
@@ -15,6 +16,7 @@ interface EventCardContextValue {
   openCreate: () => void;
   openEdit: (eventId: string) => void;
   close: () => void;
+  notifySaved: () => void;
 }
 
 const EventCardContext = createContext<EventCardContextValue | null>(null);
@@ -26,22 +28,26 @@ export function useEventCard() {
 }
 
 export function EventCardProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<EventCardState>({ isOpen: false, mode: "create" });
+  const [state, setState] = useState<EventCardState>({ isOpen: false, mode: "create", savedAt: 0 });
 
   const openCreate = useCallback(() => {
-    setState({ isOpen: true, mode: "create", eventId: undefined });
+    setState((prev) => ({ ...prev, isOpen: true, mode: "create", eventId: undefined }));
   }, []);
 
   const openEdit = useCallback((eventId: string) => {
-    setState({ isOpen: true, mode: "edit", eventId });
+    setState((prev) => ({ ...prev, isOpen: true, mode: "edit", eventId }));
   }, []);
 
   const close = useCallback(() => {
     setState((current) => ({ ...current, isOpen: false }));
   }, []);
 
+  const notifySaved = useCallback(() => {
+    setState((current) => ({ ...current, savedAt: current.savedAt + 1 }));
+  }, []);
+
   return (
-    <EventCardContext.Provider value={{ state, openCreate, openEdit, close }}>
+    <EventCardContext.Provider value={{ state, openCreate, openEdit, close, notifySaved }}>
       {children}
     </EventCardContext.Provider>
   );
