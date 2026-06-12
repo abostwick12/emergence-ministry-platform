@@ -91,6 +91,19 @@ textarea:focus-visible {
   overflow: visible;
 }
 
+/* The single thin arch line rides ABOVE the glass header (z-index 31 > the
+   header's 30) so it reads crisply across the top instead of washing out
+   behind the frost. Non-interactive — it never blocks the UI. */
+.unified-brand-arch {
+  position: absolute;
+  inset: 0 0 auto 0;
+  width: 100%;
+  height: 200px;
+  pointer-events: none;
+  z-index: 31;
+  overflow: visible;
+}
+
 .brand-link {
   display: flex;
   align-items: center;
@@ -2495,10 +2508,10 @@ textarea:focus-visible {
   /* Translucent liquid-glass header: lighter blur + lower opacity so the one
      shared brand painting (navy pigment, cyan blooms, splatter, arch) stays
      clearly visible behind it instead of reading as a flat white bar. */
-  background: rgba(248, 252, 255, 0.58);
-  backdrop-filter: blur(8px) saturate(1.22);
-  -webkit-backdrop-filter: blur(8px) saturate(1.22);
-  box-shadow: 0 12px 30px rgba(17, 51, 86, 0.06);
+  background: rgba(250, 253, 255, 0.52);
+  backdrop-filter: blur(6px) saturate(1.18);
+  -webkit-backdrop-filter: blur(6px) saturate(1.18);
+  box-shadow: 0 12px 30px rgba(17, 51, 86, 0.05);
   overflow: hidden;
 }
 
@@ -2675,7 +2688,8 @@ textarea:focus-visible {
     padding: 16px 16px 96px;
   }
   /* On mobile the shared top artwork would overlap stacked content; hide it. */
-  .unified-brand-art {
+  .unified-brand-art,
+  .unified-brand-arch {
     display: none;
   }
   .app-sidebar {
