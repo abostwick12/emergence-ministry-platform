@@ -1,6 +1,8 @@
-# Emerge Ministry Platform
+# Lead Emergence Automated Platform
 
-The Emerge Ministry Platform is a ministry-operations web app for event planning, task automation, communication preparation, budget tracking, and future ministry integrations.
+The Lead Emergence Automated Platform is a ministry-operations web app for event planning, task automation, communication preparation, budget tracking, and future ministry integrations.
+
+This repository contains the current Next.js MVP 1 web app. The older Google Sheets / Apps Script build is archived and is not part of the active workflow.
 
 Current functionality map: [docs/current-functionality.md](docs/current-functionality.md)
 
