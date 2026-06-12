@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useRole } from "@/components/role-context";
 import { useEventCard } from "@/components/event-card-context";
-import { UnifiedTopArtwork } from "@/components/unified-top-artwork";
+import { UnifiedDashboardBrandArt } from "@/components/unified-dashboard-brand-art";
 import type { Role } from "@/lib/types";
 
 const roleLabels: Record<Role, string> = {
@@ -120,7 +120,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="app-shell">
-      <UnifiedTopArtwork />
+      <UnifiedDashboardBrandArt />
 
       <aside className="sidebar app-sidebar" aria-label="Primary navigation">
         <Link className="brand-lead" href="/dashboard" aria-label="Lead Emergence Automated Platform">

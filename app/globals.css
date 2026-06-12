@@ -81,11 +81,11 @@ textarea:focus-visible {
 /* One shared watercolor painting spanning the whole top of the app. It sits
    behind every surface; the transparent sidebar top and translucent header
    let it read as a single unified composition across the boundary. */
-.unified-top-artwork {
+.unified-brand-art {
   position: absolute;
   inset: 0 0 auto 0;
   width: 100%;
-  height: 150px;
+  height: 200px;
   pointer-events: none;
   z-index: 0;
   overflow: visible;
@@ -538,22 +538,33 @@ textarea:focus-visible {
   width: 100%;
   min-width: 1060px;
   border-collapse: collapse;
-  background: white;
+  background: transparent;
 }
 
 .task-table th,
 .task-table td {
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid rgba(112, 194, 235, 0.16);
   padding: 10px;
   text-align: left;
   vertical-align: top;
 }
 
+/* Softly tinted, translucent sticky header row. */
 .task-table th {
-  background: #eef2f7;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: linear-gradient(180deg, rgba(238, 246, 253, 0.96), rgba(226, 240, 251, 0.9));
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   color: #475569;
   font-size: 12px;
   text-transform: uppercase;
+}
+
+/* Gentle hover state — no heavy zebra striping. */
+.task-table tbody tr:hover td {
+  background: rgba(125, 211, 252, 0.08);
 }
 
 .task-table tr:last-child td {
@@ -561,7 +572,7 @@ textarea:focus-visible {
 }
 
 .task-event-group-row td {
-  background: #f1f5f9;
+  background: rgba(125, 211, 252, 0.12);
   color: #334155;
   padding-top: 12px;
   padding-bottom: 12px;
@@ -1908,12 +1919,12 @@ textarea:focus-visible {
   gap: 12px;
   align-items: center;
   text-align: left;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: #fbfdff;
+  border: 1px solid rgba(112, 194, 235, 0.22);
+  border-radius: 12px;
+  background: linear-gradient(150deg, rgba(255, 255, 255, 0.78), rgba(240, 249, 255, 0.55));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
   padding: 9px 11px;
   cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
 }
 .next-cal-item:hover {
   border-color: #7dd3fc;
@@ -1997,20 +2008,27 @@ textarea:focus-visible {
 }
 .calendar-cell {
   min-height: 84px;
-  border: 1px solid #eef2f7;
+  border: 1px solid rgba(125, 211, 252, 0.22);
   border-radius: 9px;
-  background: #fbfdff;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.72), rgba(240, 249, 255, 0.5));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
   padding: 6px;
   display: grid;
   grid-template-rows: auto 1fr;
   gap: 4px;
   min-width: 0;
 }
-.calendar-cell.outside { background: #f8fafc; opacity: 0.55; }
+.calendar-cell.outside {
+  background: linear-gradient(160deg, rgba(248, 250, 252, 0.55), rgba(240, 249, 255, 0.32));
+  opacity: 0.6;
+}
 .calendar-cell.today {
-  border-color: #38bdf8;
-  background: #f0f9ff;
-  box-shadow: inset 0 0 0 1px #7dd3fc;
+  border-color: rgba(56, 189, 248, 0.65);
+  background: linear-gradient(160deg, rgba(240, 249, 255, 0.92), rgba(224, 242, 254, 0.7));
+  box-shadow:
+    inset 0 0 0 1px rgba(56, 189, 248, 0.5),
+    0 0 0 3px rgba(125, 211, 252, 0.22),
+    0 8px 20px rgba(24, 67, 112, 0.1);
 }
 .calendar-daynum { font-size: 12px; font-weight: 700; color: #475569; }
 .calendar-cell.today .calendar-daynum { color: #0369a1; }
@@ -2023,13 +2041,14 @@ textarea:focus-visible {
   border-left: 3px solid var(--chip, #2563eb);
   border-radius: 5px;
   background: #eef4fb;
-  background: color-mix(in srgb, var(--chip, #2563eb) 13%, white);
+  background: color-mix(in srgb, var(--chip, #2563eb) 16%, rgba(255, 255, 255, 0.92));
+  box-shadow: 0 2px 6px rgba(24, 67, 112, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.7);
   padding: 3px 5px;
   cursor: pointer;
   min-width: 0;
-  transition: filter 0.12s ease;
+  transition: filter 0.12s ease, transform 0.12s ease;
 }
-.calendar-event-chip:hover { filter: brightness(0.96); }
+.calendar-event-chip:hover { filter: brightness(0.97); transform: translateX(1px); }
 .chip-time { font-size: 9.5px; font-weight: 700; color: var(--chip, #2563eb); }
 .chip-title {
   font-size: 11px;
@@ -2050,6 +2069,122 @@ textarea:focus-visible {
 }
 .legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #475569; }
 .legend-dot { width: 9px; height: 9px; border-radius: 50%; }
+
+/* ════════════════════════════════════════════════════════════════
+   Liquid-glass surface system
+   Reusable translucent surface tokens shared across the dashboard.
+   Defined once here; existing dashboard surfaces (KPI cards, Ministry
+   Pulse, Next on the Calendar, the Ministry Calendar panel, calendar
+   cells and tables) opt in through the grouped selectors below so the
+   premium glass look is never duplicated per component. New dashboard
+   panels can simply add `.liquid-surface` / `.liquid-panel`.
+   ════════════════════════════════════════════════════════════════ */
+.liquid-surface,
+.liquid-panel,
+.kpi-card,
+.pulse-panel,
+.next-cal-panel,
+.calendar-panel {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: 18px;
+  background: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.82),
+    rgba(239, 250, 255, 0.66)
+  );
+  border: 1px solid rgba(112, 194, 235, 0.25);
+  box-shadow:
+    0 16px 38px rgba(24, 67, 112, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -1px 0 rgba(87, 205, 225, 0.08);
+  backdrop-filter: blur(16px) saturate(125%);
+  -webkit-backdrop-filter: blur(16px) saturate(125%);
+}
+
+/* Subtle internal reflection: a soft top-left highlight and a faint aqua
+   glow pooling bottom-right. Decorative only — sits above the surface but
+   below real content. */
+.liquid-surface::before,
+.liquid-panel::before,
+.kpi-card::before,
+.pulse-panel::before,
+.next-cal-panel::before,
+.calendar-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 15% 5%, rgba(255, 255, 255, 0.72), transparent 34%),
+    radial-gradient(circle at 90% 100%, rgba(48, 211, 224, 0.13), transparent 42%);
+}
+
+/* Keep real content above the decorative reflection. KPI cards keep their
+   animated watercolor wash (.kpi-wash, z-index -1) beneath the glass. */
+.liquid-surface > *,
+.liquid-panel > *,
+.kpi-card > .kpi-card-inner,
+.pulse-panel > *,
+.next-cal-panel > *,
+.calendar-panel > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Interactive liquid surfaces gain a restrained hover lift + brighter edge. */
+.liquid-interactive,
+.next-cal-item {
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+}
+.liquid-interactive:hover,
+.next-cal-item:hover {
+  transform: translateY(-2px);
+  border-color: rgba(56, 189, 248, 0.5);
+  box-shadow:
+    0 22px 46px rgba(24, 67, 112, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+}
+
+/* Frosted aqua icon tile shared by KPI + pulse glyphs. */
+.liquid-icon,
+.kpi-icon,
+.pulse-icon {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    0 4px 10px rgba(13, 58, 110, 0.08);
+}
+
+/* Liquid table container. */
+.liquid-table,
+.task-table-wrap {
+  position: relative;
+  border-radius: 16px;
+  border: 1px solid rgba(112, 194, 235, 0.22);
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.8), rgba(240, 249, 255, 0.62));
+  box-shadow:
+    0 14px 32px rgba(24, 67, 112, 0.07),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(14px) saturate(120%);
+  -webkit-backdrop-filter: blur(14px) saturate(120%);
+  overflow: auto;
+}
+
+/* Liquid day cell + selected/today edge glow (reusable tokens). */
+.liquid-calendar-cell {
+  border: 1px solid rgba(125, 211, 252, 0.22);
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.72), rgba(240, 249, 255, 0.5));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+.liquid-selected {
+  border-color: rgba(56, 189, 248, 0.65);
+  box-shadow:
+    inset 0 0 0 1px rgba(56, 189, 248, 0.5),
+    0 0 0 3px rgba(125, 211, 252, 0.22),
+    0 8px 20px rgba(24, 67, 112, 0.1);
+}
 
 /* Wave footer */
 .dashboard-footer {
@@ -2357,10 +2492,13 @@ textarea:focus-visible {
   z-index: 30;
   display: block;
   padding: 20px 28px 18px;
-  background: rgba(248, 252, 255, 0.72);
-  backdrop-filter: blur(18px) saturate(1.15);
-  -webkit-backdrop-filter: blur(18px) saturate(1.15);
-  box-shadow: 0 10px 30px rgba(8, 38, 82, 0.06);
+  /* Translucent liquid-glass header: lighter blur + lower opacity so the one
+     shared brand painting (navy pigment, cyan blooms, splatter, arch) stays
+     clearly visible behind it instead of reading as a flat white bar. */
+  background: rgba(248, 252, 255, 0.58);
+  backdrop-filter: blur(8px) saturate(1.22);
+  -webkit-backdrop-filter: blur(8px) saturate(1.22);
+  box-shadow: 0 12px 30px rgba(17, 51, 86, 0.06);
   overflow: hidden;
 }
 
@@ -2537,7 +2675,7 @@ textarea:focus-visible {
     padding: 16px 16px 96px;
   }
   /* On mobile the shared top artwork would overlap stacked content; hide it. */
-  .unified-top-artwork {
+  .unified-brand-art {
     display: none;
   }
   .app-sidebar {
