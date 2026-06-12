@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useRole } from "@/components/role-context";
 import { useEventCard } from "@/components/event-card-context";
+import { UnifiedTopArtwork } from "@/components/unified-top-artwork";
 import type { Role } from "@/lib/types";
 
 const roleLabels: Record<Role, string> = {
@@ -44,6 +45,61 @@ function BellIcon() {
   );
 }
 
+const navIconPaths: Record<string, React.ReactNode> = {
+  "/dashboard": (
+    <>
+      <rect x="3" y="3" width="7" height="9" rx="1.4" />
+      <rect x="14" y="3" width="7" height="5" rx="1.4" />
+      <rect x="14" y="12" width="7" height="9" rx="1.4" />
+      <rect x="3" y="16" width="7" height="5" rx="1.4" />
+    </>
+  ),
+  "/events": (
+    <>
+      <rect x="3" y="4.5" width="18" height="16" rx="2.2" />
+      <path d="M3 9h18M8 3v4M16 3v4" strokeLinecap="round" />
+    </>
+  ),
+  "/tasks": (
+    <>
+      <path d="M4 6.5h12M4 12h12M4 17.5h8" strokeLinecap="round" />
+      <path d="M19 5.5l1.4 1.4L23 4.3" strokeLinecap="round" strokeLinejoin="round" />
+    </>
+  ),
+  "/communications": (
+    <path d="M4 5.5h16a1 1 0 011 1v9a1 1 0 01-1 1H9l-4 3.2V16.5H4a1 1 0 01-1-1v-9a1 1 0 011-1z" strokeLinejoin="round" />
+  ),
+  "/people": (
+    <>
+      <circle cx="9" cy="8" r="3.2" />
+      <path d="M3.5 19c.6-3.2 3-5 5.5-5s4.9 1.8 5.5 5" strokeLinecap="round" />
+      <path d="M16 5.4a3 3 0 010 5.4M17.5 19c-.3-2-1.1-3.6-2.3-4.6" strokeLinecap="round" />
+    </>
+  ),
+  "/budget": (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 7v10M9.5 9.2c0-1.1 1.1-1.8 2.5-1.8s2.5.7 2.5 1.8-1 1.6-2.5 1.9-2.5.8-2.5 1.9 1.1 1.8 2.5 1.8 2.5-.7 2.5-1.8" strokeLinecap="round" />
+    </>
+  ),
+  "/settings": (
+    <>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 2.5l1.4 2.3 2.7-.5.6 2.7 2.5 1.1-1 2.6 1 2.6-2.5 1.1-.6 2.7-2.7-.5L12 21.5l-1.4-2.3-2.7.5-.6-2.7L4.8 16l1-2.6-1-2.6 2.5-1.1.6-2.7 2.7.5z" strokeLinejoin="round" />
+    </>
+  )
+};
+
+function NavIcon({ href }: { href: string }) {
+  const paths = navIconPaths[href];
+  if (!paths) return null;
+  return (
+    <svg className="app-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      {paths}
+    </svg>
+  );
+}
+
 const pageTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
   "/events": "Events",
@@ -64,20 +120,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="app-shell">
+      <UnifiedTopArtwork />
+
       <aside className="sidebar app-sidebar" aria-label="Primary navigation">
-        <div className="sidebar-wash" aria-hidden="true">
-          <svg className="sidebar-curve" viewBox="0 0 260 240" fill="none" preserveAspectRatio="none">
-            <defs>
-              <linearGradient id="sidebarAqua" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%" stopColor="#22d3ee" stopOpacity="0" />
-                <stop offset="45%" stopColor="#38bdf8" stopOpacity="0.95" />
-                <stop offset="100%" stopColor="#a5f3fc" stopOpacity="0" />
-              </linearGradient>
-            </defs>
-            <path d="M-30,72 C50,122 150,22 300,92" stroke="url(#sidebarAqua)" strokeWidth="2.5" strokeLinecap="round" />
-            <path d="M-30,98 C60,150 160,42 300,122" stroke="url(#sidebarAqua)" strokeWidth="1.5" strokeLinecap="round" opacity="0.6" />
-          </svg>
-        </div>
         <Link className="brand-lead" href="/dashboard" aria-label="Lead Emergence Automated Platform">
           <span className="brand-lead-name">
             <span className="brand-lead-light">Lead</span> <span className="brand-lead-bold">Emergence</span>
@@ -97,6 +142,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <nav className="app-nav-list" aria-label="Desktop navigation">
           {primaryLinks.map((link) => (
             <Link className={pathname === link.href ? "app-nav-link active" : "app-nav-link"} href={link.href} key={link.href}>
+              <NavIcon href={link.href} />
               {link.label}
             </Link>
           ))}
@@ -131,22 +177,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <main className="main app-main">
         <header className="app-header">
-          <div className="app-header-decor" aria-hidden="true">
-            <svg className="app-header-arch" viewBox="0 0 960 110" preserveAspectRatio="none" fill="none">
-              <defs>
-                <linearGradient id="appArch" x1="0" y1="0" x2="1" y2="0">
-                  <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.62" />
-                  <stop offset="18%" stopColor="#7dd3fc" stopOpacity="0.38" />
-                  <stop offset="42%" stopColor="#bae6fd" stopOpacity="0.14" />
-                  <stop offset="70%" stopColor="#e0f2fe" stopOpacity="0.04" />
-                  <stop offset="100%" stopColor="#f0f9ff" stopOpacity="0" />
-                </linearGradient>
-              </defs>
-              <path d="M-10,108 C55,22 200,10 420,28 C600,44 780,50 980,42" stroke="url(#appArch)" strokeWidth="2.2" strokeLinecap="round" />
-              <path d="M-10,116 C65,32 220,20 440,38 C625,54 805,60 980,52" stroke="url(#appArch)" strokeWidth="1.4" strokeLinecap="round" opacity="0.48" />
-            </svg>
-          </div>
-
           <div className="app-header-text">
             {isDashboard ? (
               <>
