@@ -132,25 +132,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <main className="main app-main">
         <header className="app-header">
           <div className="app-header-decor" aria-hidden="true">
-            <svg className="app-header-arch" viewBox="0 0 960 130" preserveAspectRatio="none" fill="none">
+            <svg className="app-header-arch" viewBox="0 0 960 110" preserveAspectRatio="none" fill="none">
               <defs>
                 <linearGradient id="appArch" x1="0" y1="0" x2="1" y2="0">
-                  <stop offset="0%" stopColor="#7dd3fc" stopOpacity="0" />
-                  <stop offset="32%" stopColor="#38bdf8" stopOpacity="0.7" />
-                  <stop offset="100%" stopColor="#bae6fd" stopOpacity="0" />
+                  <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.62" />
+                  <stop offset="18%" stopColor="#7dd3fc" stopOpacity="0.38" />
+                  <stop offset="42%" stopColor="#bae6fd" stopOpacity="0.14" />
+                  <stop offset="70%" stopColor="#e0f2fe" stopOpacity="0.04" />
+                  <stop offset="100%" stopColor="#f0f9ff" stopOpacity="0" />
                 </linearGradient>
               </defs>
-              <path d="M-20,104 C200,30 480,18 720,52 C820,66 890,70 980,58" stroke="url(#appArch)" strokeWidth="1.4" />
-              <circle cx="715" cy="52" r="4" fill="#38bdf8" />
-              <circle cx="905" cy="60" r="3.5" fill="#7dd3fc" />
+              <path d="M-10,108 C55,22 200,10 420,28 C600,44 780,50 980,42" stroke="url(#appArch)" strokeWidth="2.2" strokeLinecap="round" />
+              <path d="M-10,116 C65,32 220,20 440,38 C625,54 805,60 980,52" stroke="url(#appArch)" strokeWidth="1.4" strokeLinecap="round" opacity="0.48" />
             </svg>
           </div>
 
           <div className="app-header-text">
             {isDashboard ? (
               <>
-                <p className="app-header-welcome">Welcome back, Alex! Here&apos;s what&apos;s going on across the ministry.</p>
                 <h1 className="app-header-title">Dashboard</h1>
+                <p className="app-header-welcome">Welcome back, Alex! Here&apos;s what&apos;s going on across the ministry.</p>
               </>
             ) : (
               <h1 className="app-header-title app-header-title-compact">{title}</h1>

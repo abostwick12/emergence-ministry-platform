@@ -1648,14 +1648,16 @@ textarea:focus-visible {
   top: 0;
   left: 0;
   right: 0;
-  height: 200px;
+  height: 240px;
   pointer-events: none;
   z-index: 0;
   background:
-    radial-gradient(120px 90px at 18% 8%, rgba(56, 189, 248, 0.45), transparent 70%),
-    radial-gradient(150px 110px at 85% 0%, rgba(34, 211, 238, 0.30), transparent 72%),
-    radial-gradient(180px 120px at 50% -10%, rgba(125, 211, 252, 0.22), transparent 70%);
-  filter: blur(2px);
+    radial-gradient(160px 105px at 12% 6%, rgba(56, 189, 248, 0.58), transparent 70%),
+    radial-gradient(200px 130px at 92% -5%, rgba(34, 211, 238, 0.42), transparent 72%),
+    radial-gradient(240px 155px at 50% -18%, rgba(125, 211, 252, 0.30), transparent 70%),
+    radial-gradient(180px 115px at 28% 38%, rgba(14, 165, 233, 0.24), transparent 68%),
+    radial-gradient(150px 95px at 72% 28%, rgba(103, 232, 249, 0.18), transparent 70%);
+  filter: blur(3px);
 }
 
 .sidebar-curve {
@@ -2359,20 +2361,16 @@ textarea:focus-visible {
   position: sticky;
   top: 0;
   z-index: 30;
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
+  display: block;
   padding: 20px 28px 18px;
   background: rgba(248, 252, 255, 0.92);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   box-shadow: 0 10px 30px rgba(8, 38, 82, 0.06);
-  border-bottom: 1px solid rgba(20, 164, 239, 0.12);
   overflow: hidden;
 }
 
-/* Top-left watercolor wash continuing from the sidebar into the header */
+/* Top-left watercolor wash — painterly navy/cyan/aqua extending from sidebar */
 .app-header::before {
   content: "";
   position: absolute;
@@ -2380,8 +2378,25 @@ textarea:focus-visible {
   pointer-events: none;
   z-index: 0;
   background:
-    radial-gradient(300px 160px at 0% -40%, rgba(56, 189, 248, 0.20), transparent 70%),
-    radial-gradient(420px 220px at 26% -70%, rgba(125, 211, 252, 0.14), transparent 72%);
+    radial-gradient(260px 150px at -6% 25%, rgba(15, 44, 84, 0.20), transparent 68%),
+    radial-gradient(220px 110px at 5% -18%, rgba(34, 211, 238, 0.48), transparent 65%),
+    radial-gradient(370px 190px at 18% 65%, rgba(56, 189, 248, 0.34), transparent 70%),
+    radial-gradient(290px 140px at 30% -25%, rgba(125, 211, 252, 0.26), transparent 72%),
+    radial-gradient(210px 110px at 10% 105%, rgba(14, 165, 233, 0.20), transparent 68%);
+  filter: blur(9px);
+}
+
+/* Soft aqua gradient divider below the header group */
+.app-header::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(to right, rgba(56, 189, 248, 0.38), rgba(125, 211, 252, 0.18) 38%, rgba(186, 230, 253, 0.07) 68%, transparent);
+  pointer-events: none;
+  z-index: 2;
 }
 
 .app-header-decor {
@@ -2397,14 +2412,14 @@ textarea:focus-visible {
   height: 100%;
 }
 
-.app-header-text,
-.app-header-right {
+.app-header-text {
   position: relative;
   z-index: 1;
+  text-align: center;
 }
 
 .app-header-welcome {
-  margin: 0 0 4px;
+  margin: 4px 0 0;
   font-size: 13.5px;
   font-weight: 600;
   color: #0369a1;
@@ -2425,10 +2440,13 @@ textarea:focus-visible {
 }
 
 .app-header-right {
+  position: absolute;
+  top: 20px;
+  right: 28px;
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: 12px;
-  padding-top: 4px;
 }
 
 /* Bottom watercolor wave spans the full content width */
@@ -2523,7 +2541,7 @@ textarea:focus-visible {
     overflow: visible;
   }
   .app-header {
-    position: static;
+    position: relative;
   }
   .app-content {
     padding: 16px 16px 96px;
