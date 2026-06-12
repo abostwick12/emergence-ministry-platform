@@ -20,11 +20,17 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   if (!session) return unauthorizedResponse();
 
   const body = await request.json();
-  const workspace = await updateMinistryEvent(session, params.id, body);
 
-  if (!workspace) {
-    return NextResponse.json({ error: "Event not found" }, { status: 404 });
+  try {
+    const workspace = await updateMinistryEvent(session, params.id, body);
+
+    if (!workspace) {
+      return NextResponse.json({ error: "Event not found" }, { status: 404 });
+    }
+
+    return NextResponse.json(workspace);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to update event.";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-
-  return NextResponse.json(workspace);
 }

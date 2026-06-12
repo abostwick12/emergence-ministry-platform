@@ -92,6 +92,15 @@ interface Step1State {
   createProPresenter: boolean;
 }
 
+async function readErrorMessage(res: Response, fallback: string): Promise<string> {
+  try {
+    const data = (await res.json()) as { error?: string };
+    return data?.error || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 function buildInitialStep1(event?: MinistryEvent, firstUserId?: string): Step1State {
   if (event) {
     return {
@@ -268,7 +277,6 @@ function MasterEventCardInner({
   function validateStep1(): string {
     if (!step1?.title.trim()) return "Event name is required.";
     if (!step1.startTime) return "Start date and time are required.";
-    if (!step1.endTime) return "End date and time are required.";
     return "";
   }
 
@@ -291,11 +299,13 @@ function MasterEventCardInner({
     setSaveError("");
     setIsSaving(true);
     try {
+      const startIso = new Date(step1.startTime).toISOString();
+      const endIso = step1.endTime ? new Date(step1.endTime).toISOString() : startIso;
       const body: Record<string, unknown> = {
         title: step1.title,
         description: step1.description,
-        startTime: new Date(step1.startTime).toISOString(),
-        endTime: new Date(step1.endTime).toISOString(),
+        startTime: startIso,
+        endTime: endIso,
         location: step1.location || undefined,
         targetGroup: step1.targetGroup || undefined,
         budgetTarget: step1.budgetTarget ? Number(step1.budgetTarget) : undefined,
@@ -317,7 +327,7 @@ function MasterEventCardInner({
       });
 
       if (!res.ok) {
-        setSaveError("Failed to save event. Please try again.");
+        setSaveError(await readErrorMessage(res, "Could not save the event. Please try again."));
       } else {
         const ws = (await res.json()) as EventWorkspace;
         setWorkspace(ws);
@@ -339,6 +349,8 @@ function MasterEventCardInner({
     setSaveError("");
     setIsSaving(true);
     try {
+      const startIso = new Date(step1.startTime).toISOString();
+      const endIso = step1.endTime ? new Date(step1.endTime).toISOString() : startIso;
       const res = await fetch("/api/events", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -346,8 +358,8 @@ function MasterEventCardInner({
           title: step1.title,
           type: step1.type,
           description: step1.description,
-          startTime: new Date(step1.startTime).toISOString(),
-          endTime: new Date(step1.endTime).toISOString(),
+          startTime: startIso,
+          endTime: endIso,
           location: step1.location || undefined,
           targetGroup: step1.targetGroup || undefined,
           budgetTarget: step1.budgetTarget ? Number(step1.budgetTarget) : undefined,
@@ -359,7 +371,7 @@ function MasterEventCardInner({
       });
 
       if (!res.ok) {
-        setSaveError("Failed to create event. Check all required fields.");
+        setSaveError(await readErrorMessage(res, "Could not create the event. Please review the fields and try again."));
         return;
       }
 

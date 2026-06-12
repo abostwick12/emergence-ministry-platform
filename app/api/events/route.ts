@@ -29,24 +29,30 @@ export async function POST(request: Request) {
     contactOwnerId?: string;
   };
 
-  if (!body.title || !body.type || !body.startTime || !body.endTime) {
-    return NextResponse.json({ error: "title, type, startTime, and endTime are required" }, { status: 400 });
+  const missing = ["title", "type", "startTime", "endTime"].filter((field) => !body[field as keyof typeof body]);
+  if (missing.length > 0) {
+    return NextResponse.json({ error: `Missing required field(s): ${missing.join(", ")}` }, { status: 400 });
   }
 
-  const workspace = await createMinistryEvent(session, {
-    title: body.title,
-    description: body.description ?? "",
-    type: body.type,
-    startTime: body.startTime,
-    endTime: body.endTime,
-    location: body.location,
-    targetGroup: body.targetGroup,
-    budgetTarget: body.budgetTarget,
-    budgetActual: body.budgetActual,
-    volunteersNeeded: body.volunteersNeeded,
-    priority: body.priority,
-    contactOwnerId: body.contactOwnerId
-  });
+  try {
+    const workspace = await createMinistryEvent(session, {
+      title: body.title!,
+      description: body.description ?? "",
+      type: body.type!,
+      startTime: body.startTime!,
+      endTime: body.endTime!,
+      location: body.location,
+      targetGroup: body.targetGroup,
+      budgetTarget: body.budgetTarget,
+      budgetActual: body.budgetActual,
+      volunteersNeeded: body.volunteersNeeded,
+      priority: body.priority,
+      contactOwnerId: body.contactOwnerId
+    });
 
-  return NextResponse.json(workspace, { status: 201 });
+    return NextResponse.json(workspace, { status: 201 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to create event.";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }

@@ -24,7 +24,7 @@ test.describe("MVP event automation navigation smoke tests", () => {
 
     await expect(page).toHaveURL(/\/dashboard$/);
     await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible();
-    await expect(page.getByText("Stub Mode active. No live credentials are required.")).toBeVisible();
+    await expect(page.getByText("Stub Mode", { exact: true }).first()).toBeVisible();
     await page.getByRole("link", { name: "Log out" }).click();
     await expect(page).toHaveURL(/\/login$/);
   });
@@ -41,7 +41,6 @@ test.describe("MVP event automation navigation smoke tests", () => {
       ["Tasks", "/tasks"],
       ["Communications", "/communications"],
       ["People", "/people"],
-      ["Files", "/files"],
       ["Budget", "/budget"],
       ["Settings", "/settings"]
     ] as const) {
@@ -63,7 +62,7 @@ test.describe("MVP event automation navigation smoke tests", () => {
 
     await mobileNav.getByText("More", { exact: true }).click();
     const more = page.getByLabel("More navigation");
-    for (const label of ["People", "Files", "Budget", "Settings"]) {
+    for (const label of ["People", "Budget", "Settings"]) {
       await expect(more.getByRole("link", { name: label })).toBeVisible();
     }
   });
@@ -71,8 +70,10 @@ test.describe("MVP event automation navigation smoke tests", () => {
   test("dashboard renders the watercolor snapshot with calendar and pulse", async ({ page }) => {
     await login(page);
 
-    await expect(page.getByText("Emerge Ministry Hub", { exact: true })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Dashboard", level: 2 })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible();
+    await expect(page.getByText("Welcome back, Alex!", { exact: false })).toBeVisible();
+    // No visible "Emerge" wording outside the "Lead Emergence" brand mark.
+    await expect(page.getByText("Emerge Ministry Hub")).toHaveCount(0);
 
     const metrics = page.getByLabel("Dashboard metrics");
     for (const label of ["Upcoming Events", "Tasks Due Soon", "Stuck Tasks", "Task Completion", "Communication Reviews Pending"]) {
@@ -88,11 +89,8 @@ test.describe("MVP event automation navigation smoke tests", () => {
       await expect(pulse.getByText(label, { exact: true })).toBeVisible();
     }
 
-    await expect(page.getByText(/Making disciples\. Building community\. Transforming the world\./)).toBeVisible();
-
-    await expect(page.getByRole("link", { name: "Go to Events" })).toHaveAttribute("href", "/events");
-    await expect(page.getByRole("link", { name: "Review Tasks" })).toHaveAttribute("href", "/tasks");
-    await expect(page.getByRole("link", { name: "Review Communications" })).toHaveAttribute("href", "/communications");
+    // Footer quote removed; the bottom watercolor wave remains.
+    await expect(page.getByText(/Making disciples/)).toHaveCount(0);
   });
 
   test("events page preserves the board-row Events Workspace", async ({ page }) => {
@@ -420,6 +418,34 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await modal.getByRole("button", { name: /Save & Create Event/ }).click();
     expect((await createResponse).status()).toBe(201);
 
+    await expect(modal.getByRole("status")).toContainText("Created");
+  });
+
+  test("create event needs only name + start date (end date optional)", async ({ page }) => {
+    await login(page);
+
+    const sidebar = page.getByRole("complementary", { name: "Primary navigation" });
+    await sidebar.getByRole("button", { name: "Add new event" }).click();
+    const modal = page.getByRole("dialog", { name: "Create New Event" });
+
+    const start = new Date();
+    start.setDate(start.getDate() + 30);
+    start.setHours(18, 0, 0, 0);
+
+    await modal.getByLabel("Event Name").fill(`Min Fields Event ${Date.now()}`);
+    await modal.getByLabel(/Start Date/).fill(toDateTimeLocalInput(start));
+    // Clear the auto-filled end date — it must not be required to create.
+    await modal.getByLabel(/End Date/).fill("");
+    await modal.getByRole("button", { name: /Next: Tasks/ }).click();
+
+    // Should advance (no "End date and time are required" error).
+    await expect(modal.getByRole("tab", { name: /Tasks & Integrations/ })).toHaveAttribute("aria-selected", "true");
+
+    const createResponse = page.waitForResponse(
+      (response) => response.url().endsWith("/api/events") && response.request().method() === "POST"
+    );
+    await modal.getByRole("button", { name: /Save & Create Event/ }).click();
+    expect((await createResponse).status()).toBe(201);
     await expect(modal.getByRole("status")).toContainText("Created");
   });
 

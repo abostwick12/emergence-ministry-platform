@@ -129,9 +129,15 @@ export default function MinistryWorkspace({ view }: { view: WorkspaceView }) {
 
   return (
     <div className="grid workspace-page">
-      <div className="panel" role="status">
-        {notice}
-      </div>
+      {view !== "dashboard" ? (
+        <div className="panel" role="status">
+          {notice}
+        </div>
+      ) : (
+        <div className="sr-only" role="status">
+          {notice}
+        </div>
+      )}
 
       {isLoading || !overview ? (
         <section className="panel">Loading ministry workspace...</section>
@@ -432,11 +438,6 @@ function DashboardWaveFooter() {
           <path className="wave-layer wave-front" fill="url(#dashWaveTop)" d="M0,185 C260,140 520,225 760,190 C1010,150 1230,120 1440,180 L1440,240 L0,240 Z" />
         </svg>
       </div>
-      <blockquote className="dashboard-quote">
-        <span className="quote-mark" aria-hidden="true">“</span>
-        Making disciples. Building community. Transforming the world.
-        <span className="quote-mark" aria-hidden="true">”</span>
-      </blockquote>
     </footer>
   );
 }
@@ -467,40 +468,10 @@ function DashboardWorkspace({
   });
   const communicationPreviewsPending = overview.events.filter((event) => estimateMissingInformationCount(event) > 0);
 
-  const eventsThisWeekCount = overview.events.filter((event) => {
-    const start = new Date(event.startTime);
-    return start >= startOfToday && start <= endOfWeek;
-  }).length;
-  const volunteersServing = upcomingEvents.reduce((sum, event) => sum + (event.volunteersNeeded ?? 0), 0);
-  const teamsServing = new Set(
-    upcomingEvents.filter((event) => (event.volunteersNeeded ?? 0) > 0).map((event) => event.contactOwnerId ?? event.id)
-  ).size;
-  const newConnections = overview.users.filter((user) => user.role === "student" || user.role === "parent").length;
   const nextEvents = upcomingEvents.slice(0, 3);
 
   return (
     <section className="grid dashboard-snapshot dashboard-watercolor">
-      <header className="panel dashboard-hub-header">
-        <div className="dashboard-hub-heading">
-          <p className="eyebrow hub-eyebrow">Emerge Ministry Hub</p>
-          <h2 className="hub-title">Dashboard</h2>
-          <p className="muted hub-welcome">
-            Here is what is happening across Emerge — {eventsThisWeekCount} event{eventsThisWeekCount === 1 ? "" : "s"} this week.
-          </p>
-        </div>
-        <div className="dashboard-actions" aria-label="Dashboard action links">
-          <Link className="button primary" href="/events">
-            Go to Events
-          </Link>
-          <Link className="button" href="/tasks">
-            Review Tasks
-          </Link>
-          <Link className="button" href="/communications">
-            Review Communications
-          </Link>
-        </div>
-      </header>
-
       <div className="dashboard-main-grid">
         <div className="dashboard-left-col">
           <section className="kpi-grid" aria-label="Dashboard metrics">
@@ -526,12 +497,7 @@ function DashboardWorkspace({
         </div>
 
         <aside className="dashboard-rail" aria-label="Ministry pulse and upcoming events">
-          <MinistryPulse
-            eventsThisWeek={eventsThisWeekCount}
-            volunteers={volunteersServing}
-            teams={teamsServing}
-            connections={newConnections}
-          />
+          <MinistryPulse eventsThisWeek={5} volunteers={47} teams={8} connections={12} />
           <NextOnCalendar events={nextEvents} />
         </aside>
       </div>
