@@ -2500,8 +2500,9 @@ textarea:focus-visible {
 .brand-lead-sub {
   display: block;
   margin-top: 3px;
+  font-family: "Montserrat", "Inter", ui-sans-serif, sans-serif;
   font-size: 10px;
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: 0.3em;
   text-transform: uppercase;
   color: #e2e8f0;
