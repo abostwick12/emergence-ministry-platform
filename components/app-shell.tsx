@@ -19,7 +19,6 @@ const primaryLinks = [
   { href: "/tasks", label: "Tasks" },
   { href: "/communications", label: "Communications" },
   { href: "/people", label: "People" },
-  { href: "/files", label: "Files" },
   { href: "/budget", label: "Budget" },
   { href: "/settings", label: "Settings" }
 ];
@@ -30,6 +29,20 @@ const mobileLinks = [
   { href: "/tasks", label: "Tasks" },
   { href: "/communications", label: "Communications" }
 ];
+
+function BellIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true">
+      <path
+        d="M6 9a6 6 0 0112 0c0 5 1.5 6.5 2 7H4c.5-.5 2-2 2-7z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+      <path d="M10 20a2 2 0 004 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
 
 const pageTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
@@ -117,18 +130,43 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <main className="main app-main">
-        {!isDashboard ? (
-          <header className="topbar">
-            <span className="topbar-wash" aria-hidden="true" />
-            <div>
-              <p className="eyebrow">MVP 1 / Stub Mode</p>
-              <h1 className="title">{title}</h1>
-            </div>
-            <span className="pill stub">Stub Mode</span>
-          </header>
-        ) : null}
+        <header className="app-header">
+          <div className="app-header-decor" aria-hidden="true">
+            <svg className="app-header-arch" viewBox="0 0 960 130" preserveAspectRatio="none" fill="none">
+              <defs>
+                <linearGradient id="appArch" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" stopColor="#7dd3fc" stopOpacity="0" />
+                  <stop offset="32%" stopColor="#38bdf8" stopOpacity="0.7" />
+                  <stop offset="100%" stopColor="#bae6fd" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+              <path d="M-20,104 C200,30 480,18 720,52 C820,66 890,70 980,58" stroke="url(#appArch)" strokeWidth="1.4" />
+              <circle cx="715" cy="52" r="4" fill="#38bdf8" />
+              <circle cx="905" cy="60" r="3.5" fill="#7dd3fc" />
+            </svg>
+          </div>
 
-        {children}
+          <div className="app-header-text">
+            {isDashboard ? (
+              <>
+                <p className="app-header-welcome">Welcome back, Alex! Here&apos;s what&apos;s going on across the ministry.</p>
+                <h1 className="app-header-title">Dashboard</h1>
+              </>
+            ) : (
+              <h1 className="app-header-title app-header-title-compact">{title}</h1>
+            )}
+          </div>
+
+          <div className="app-header-right">
+            <span className="pill stub">Stub Mode</span>
+            <span className="hub-bell" role="img" aria-label="2 notifications">
+              <BellIcon />
+              <span className="hub-bell-badge">2</span>
+            </span>
+          </div>
+        </header>
+
+        <div className="app-content">{children}</div>
       </main>
 
       <nav className="mobile-bottom-nav" aria-label="Mobile navigation">

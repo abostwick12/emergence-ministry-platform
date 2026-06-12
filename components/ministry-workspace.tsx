@@ -259,20 +259,6 @@ function IconHeart() {
   );
 }
 
-function IconBell() {
-  return (
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true">
-      <path
-        d="M6 9a6 6 0 0112 0c0 5 1.5 6.5 2 7H4c.5-.5 2-2 2-7z"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinejoin="round"
-      />
-      <path d="M10 20a2 2 0 004 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 function WatercolorKpiCard({
   icon,
   visual,
@@ -486,29 +472,6 @@ function DashboardWorkspace({
 
   return (
     <section className="grid dashboard-snapshot dashboard-watercolor">
-      <header className="panel dashboard-hub-header">
-        <div className="hub-connections" aria-hidden="true">
-          <svg viewBox="0 0 620 150" preserveAspectRatio="none" fill="none">
-            <path d="M20,116 C170,44 330,140 470,66 C530,36 575,58 612,48" stroke="#bae6fd" strokeWidth="1.2" />
-            <circle cx="305" cy="92" r="3.5" fill="#7dd3fc" />
-            <circle cx="470" cy="66" r="5" fill="#38bdf8" />
-            <circle cx="612" cy="48" r="3.5" fill="#7dd3fc" />
-          </svg>
-        </div>
-        <div className="dashboard-hub-heading">
-          <p className="eyebrow hub-eyebrow">Emerge Ministry Hub</p>
-          <h1 className="hub-title">Dashboard</h1>
-          <p className="muted hub-welcome">Welcome back, Alex! Here&apos;s what&apos;s happening across Emerge.</p>
-        </div>
-        <div className="hub-header-right">
-          <span className="pill stub">Stub Mode</span>
-          <span className="hub-bell" role="img" aria-label="2 notifications">
-            <IconBell />
-            <span className="hub-bell-badge">2</span>
-          </span>
-        </div>
-      </header>
-
       <div className="dashboard-main-grid">
         <div className="dashboard-left-col">
           <section className="kpi-grid" aria-label="Dashboard metrics">

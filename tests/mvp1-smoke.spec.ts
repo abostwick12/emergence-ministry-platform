@@ -41,7 +41,6 @@ test.describe("MVP event automation navigation smoke tests", () => {
       ["Tasks", "/tasks"],
       ["Communications", "/communications"],
       ["People", "/people"],
-      ["Files", "/files"],
       ["Budget", "/budget"],
       ["Settings", "/settings"]
     ] as const) {
@@ -63,7 +62,7 @@ test.describe("MVP event automation navigation smoke tests", () => {
 
     await mobileNav.getByText("More", { exact: true }).click();
     const more = page.getByLabel("More navigation");
-    for (const label of ["People", "Files", "Budget", "Settings"]) {
+    for (const label of ["People", "Budget", "Settings"]) {
       await expect(more.getByRole("link", { name: label })).toBeVisible();
     }
   });
@@ -71,9 +70,10 @@ test.describe("MVP event automation navigation smoke tests", () => {
   test("dashboard renders the watercolor snapshot with calendar and pulse", async ({ page }) => {
     await login(page);
 
-    await expect(page.getByText("Emerge Ministry Hub", { exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible();
     await expect(page.getByText("Welcome back, Alex!", { exact: false })).toBeVisible();
+    // No visible "Emerge" wording outside the "Lead Emergence" brand mark.
+    await expect(page.getByText("Emerge Ministry Hub")).toHaveCount(0);
 
     const metrics = page.getByLabel("Dashboard metrics");
     for (const label of ["Upcoming Events", "Tasks Due Soon", "Stuck Tasks", "Task Completion", "Communication Reviews Pending"]) {
