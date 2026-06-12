@@ -1,34 +1,38 @@
 /**
  * UnifiedDashboardBrandArt
  *
- * ONE shared watercolor brand painting for the entire top of the app. It is a
- * single inline SVG, mounted once at the `.app-shell` level (never inside the
- * sidebar and never duplicated inside the header), so a single continuous
- * composition crosses the sidebar → header boundary with no seam.
+ * ONE shared watercolor brand painting for the entire top of the app. A single
+ * inline SVG, mounted once at the `.app-shell` level (never inside the sidebar
+ * and never duplicated inside the header) so a single continuous composition
+ * crosses the sidebar → header boundary with no seam.
+ *
+ * Visual target — light + airy, NOT a heavy left-side mass:
+ *   - the dashboard header stays mostly CLEAN WHITE behind the DASHBOARD title;
+ *   - the densest watercolor is a teal / cyan / aqua SPLATTER cluster right at
+ *     the sidebar → header seam, bleeding out of the navy sidebar into the
+ *     header with crisp scattered droplets;
+ *   - a softer secondary blue / cyan bloom sits TOP-RIGHT near the Stub Mode
+ *     pill and notification bell;
+ *   - one thin, elegant steel-blue ARCH line starts at the far-left edge,
+ *     crests high above the DASHBOARD title (never through the text) and slopes
+ *     gently down to the right, carrying two small ring "node" accents, then
+ *     fades out near the right edge.
  *
  * Coordinate system: a full-page reference viewBox (0 0 1440 200) stretched to
- * the real page width with `preserveAspectRatio="none"`. On a typical desktop
- * the navy sidebar is ~264px ≈ x18 of this box, so the painting is laid out so
- * that:
- *   - irregular NAVY pigment concentrates at the far-left edge (x0–300),
- *     pooling around the Lead Emergence wordmark;
- *   - layered CYAN / TEAL / AQUA blooms spread RIGHT through the sidebar
- *     boundary into roughly the left 45–50% of the page (x300–700) — i.e. well
- *     into the dashboard header, not stopping at the sidebar edge;
- *   - splatter droplets scatter from the wordmark out into the header (x up to
- *     ~720) so the header is never flat white;
- *   - one continuous glowing cyan ARCH path starts at the absolute left edge
- *     (x=0), sweeps up over the wordmark, crosses the boundary and arcs across
- *     the header above the DASHBOARD title, then fades to nothing on the right.
+ * the real page width with `preserveAspectRatio="none"`.
  *
- * The painting renders behind every surface (z-index 0). The sidebar is
- * transparent at the very top and the dashboard header is translucent glass, so
- * this one composition reads through both regions as a single unified painting.
- * All real text sits on the surface layers above, so pigment/arch never cross
- * type.
+ * Two layers, ONE composition:
+ *   - `.unified-brand-art` (z-index 0) holds the WATERCOLOR — it sits behind
+ *     every surface; the transparent sidebar top + translucent glass header let
+ *     it read through both regions.
+ *   - `.unified-brand-arch` (above the glass header) holds the single thin ARCH
+ *     line + ring nodes, so the delicate line reads crisply across the top
+ *     instead of being washed out behind the frosted header. It is one
+ *     continuous path and is pointer-events:none, so it never blocks the UI.
  */
 export function UnifiedDashboardBrandArt() {
   return (
+    <>
     <svg
       className="unified-brand-art"
       viewBox="0 0 1440 200"
@@ -37,190 +41,185 @@ export function UnifiedDashboardBrandArt() {
       focusable="false"
     >
       <defs>
-        {/* ── Watercolor pigment gradients ─────────────────────── */}
-        <radialGradient id="baNavy" cx="50%" cy="44%" r="62%">
-          <stop offset="0%" stopColor="#0a2a52" stopOpacity="0.97" />
-          <stop offset="46%" stopColor="#0d3a6e" stopOpacity="0.66" />
-          <stop offset="100%" stopColor="#0a2a52" stopOpacity="0" />
+        {/* ── Watercolor pigment gradients (light, translucent) ─── */}
+        <radialGradient id="baTeal" cx="50%" cy="50%" r="60%">
+          <stop offset="0%" stopColor="#2dd4bf" stopOpacity="0.55" />
+          <stop offset="60%" stopColor="#2dd4bf" stopOpacity="0.18" />
+          <stop offset="100%" stopColor="#2dd4bf" stopOpacity="0" />
         </radialGradient>
         <radialGradient id="baCyan" cx="50%" cy="50%" r="60%">
-          <stop offset="0%" stopColor="#22d3ee" stopOpacity="0.80" />
-          <stop offset="55%" stopColor="#1bb6d6" stopOpacity="0.34" />
+          <stop offset="0%" stopColor="#22d3ee" stopOpacity="0.6" />
+          <stop offset="58%" stopColor="#38bdf8" stopOpacity="0.22" />
           <stop offset="100%" stopColor="#22d3ee" stopOpacity="0" />
         </radialGradient>
         <radialGradient id="baAqua" cx="50%" cy="50%" r="62%">
-          <stop offset="0%" stopColor="#7dd3fc" stopOpacity="0.62" />
-          <stop offset="60%" stopColor="#7dd3fc" stopOpacity="0.22" />
+          <stop offset="0%" stopColor="#7dd3fc" stopOpacity="0.5" />
+          <stop offset="60%" stopColor="#7dd3fc" stopOpacity="0.16" />
           <stop offset="100%" stopColor="#7dd3fc" stopOpacity="0" />
         </radialGradient>
-        <radialGradient id="baTeal" cx="50%" cy="50%" r="60%">
-          <stop offset="0%" stopColor="#2dd4bf" stopOpacity="0.50" />
-          <stop offset="100%" stopColor="#2dd4bf" stopOpacity="0" />
-        </radialGradient>
-        <radialGradient id="baLight" cx="50%" cy="50%" r="62%">
-          <stop offset="0%" stopColor="#bae6fd" stopOpacity="0.52" />
+        <radialGradient id="baSky" cx="50%" cy="50%" r="62%">
+          <stop offset="0%" stopColor="#bae6fd" stopOpacity="0.55" />
           <stop offset="100%" stopColor="#bae6fd" stopOpacity="0" />
         </radialGradient>
-
-        {/* Arch line: saturated cyan at the far-left, fading to nothing right.
-            Deeper hues hold contrast against the pale cyan wash behind. */}
-        <linearGradient id="baArch" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor="#0891b2" stopOpacity="0.98" />
-          <stop offset="14%" stopColor="#0ea5e9" stopOpacity="0.9" />
-          <stop offset="46%" stopColor="#38bdf8" stopOpacity="0.6" />
-          <stop offset="74%" stopColor="#7dd3fc" stopOpacity="0.28" />
-          <stop offset="100%" stopColor="#bae6fd" stopOpacity="0" />
-        </linearGradient>
+        <radialGradient id="baInk" cx="50%" cy="46%" r="62%">
+          <stop offset="0%" stopColor="#1d4ed8" stopOpacity="0.4" />
+          <stop offset="100%" stopColor="#1d4ed8" stopOpacity="0" />
+        </radialGradient>
 
         {/* ── Filters ──────────────────────────────────────────── */}
-        {/* Organic feathered edges: fractal noise pushed through a
-            displacement map breaks every smooth blob into a painted edge. */}
-        <filter id="baEdge" x="-25%" y="-60%" width="150%" height="240%">
-          <feTurbulence
-            type="fractalNoise"
-            baseFrequency="0.010 0.017"
-            numOctaves="3"
-            seed="11"
-            result="noise"
-          />
-          <feDisplacementMap
-            in="SourceGraphic"
-            in2="noise"
-            scale="44"
-            xChannelSelector="R"
-            yChannelSelector="G"
-          />
+        {/* Organic feathered watercolor edges. */}
+        <filter id="baEdge" x="-30%" y="-70%" width="160%" height="260%">
+          <feTurbulence type="fractalNoise" baseFrequency="0.012 0.02" numOctaves="2" seed="9" result="noise" />
+          <feDisplacementMap in="SourceGraphic" in2="noise" scale="40" xChannelSelector="R" yChannelSelector="G" />
         </filter>
         {/* Soft bloom diffusion. */}
         <filter id="baBloom" x="-50%" y="-80%" width="200%" height="260%">
-          <feGaussianBlur stdDeviation="8" />
+          <feGaussianBlur stdDeviation="9" />
         </filter>
         {/* Gentle droplet softening. */}
         <filter id="baDrop" x="-120%" y="-120%" width="340%" height="340%">
-          <feGaussianBlur stdDeviation="1.4" />
-        </filter>
-        {/* Cyan glow for the arch. */}
-        <filter id="baGlow" x="-20%" y="-220%" width="140%" height="540%">
-          <feGaussianBlur stdDeviation="3" />
+          <feGaussianBlur stdDeviation="0.9" />
         </filter>
 
-        {/* Natural fade so the whole painting dissolves toward the right and
-            the bottom instead of ending on a rectangular edge. The X fade
-            stays strong out to ~48% so the wash reaches into the header. */}
-        <linearGradient id="baFadeX" x1="0" y1="0" x2="1" y2="0">
+        {/* Bottom fade so the painting dissolves softly into the white page
+            below the header instead of ending on a hard edge. */}
+        <linearGradient id="baFadeYGrad" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="#fff" stopOpacity="1" />
-          <stop offset="48%" stopColor="#fff" stopOpacity="0.88" />
-          <stop offset="80%" stopColor="#fff" stopOpacity="0.24" />
+          <stop offset="58%" stopColor="#fff" stopOpacity="0.92" />
           <stop offset="100%" stopColor="#fff" stopOpacity="0" />
         </linearGradient>
-        <linearGradient id="baFadeY" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#fff" stopOpacity="1" />
-          <stop offset="64%" stopColor="#fff" stopOpacity="0.9" />
-          <stop offset="100%" stopColor="#fff" stopOpacity="0" />
-        </linearGradient>
-        <mask id="baFade">
-          <rect x="0" y="0" width="1440" height="200" fill="url(#baFadeX)" />
-          <rect
-            x="0"
-            y="0"
-            width="1440"
-            height="200"
-            fill="url(#baFadeY)"
-            style={{ mixBlendMode: "multiply" }}
-          />
+        <mask id="baFadeY">
+          <rect x="0" y="0" width="1440" height="200" fill="url(#baFadeYGrad)" />
         </mask>
       </defs>
 
-      {/* Everything except the arch fades organically left→right, top→bottom. */}
-      <g mask="url(#baFade)">
-        {/* Broad translucent wash spreading from the left deep into the header. */}
+      {/* Watercolor dissolves softly toward the bottom. */}
+      <g mask="url(#baFadeY)">
+        {/* Subtle blue tint behind the Lead Emergence wordmark (sidebar top). */}
+        <g filter="url(#baBloom)" opacity="0.6">
+          <ellipse cx="120" cy="48" rx="190" ry="120" fill="url(#baInk)" />
+        </g>
+
+        {/* ── Splatter cluster at the sidebar → header seam (densest) ── */}
         <g filter="url(#baBloom)" opacity="0.92">
-          <ellipse cx="190" cy="80" rx="430" ry="160" fill="url(#baAqua)" />
-          <ellipse cx="540" cy="58" rx="380" ry="120" fill="url(#baLight)" />
-          <ellipse cx="60" cy="92" rx="260" ry="170" fill="url(#baCyan)" />
-          <ellipse cx="700" cy="70" rx="300" ry="104" fill="url(#baTeal)" opacity="0.7" />
+          <ellipse cx="320" cy="70" rx="190" ry="118" fill="url(#baCyan)" />
+          <ellipse cx="430" cy="92" rx="160" ry="120" fill="url(#baTeal)" opacity="0.85" />
+          <ellipse cx="270" cy="48" rx="130" ry="92" fill="url(#baAqua)" />
+          <ellipse cx="500" cy="60" rx="150" ry="86" fill="url(#baSky)" opacity="0.7" />
         </g>
-
-        {/* Deep navy + cyan pigment pooled near the far-left edge, with
-            irregular painted edges from the turbulence displacement. */}
         <g filter="url(#baEdge)">
-          <ellipse cx="150" cy="70" rx="240" ry="128" fill="url(#baNavy)" />
-          <ellipse cx="64" cy="58" rx="150" ry="108" fill="url(#baNavy)" opacity="0.92" />
-          <ellipse cx="300" cy="86" rx="200" ry="112" fill="url(#baCyan)" opacity="0.88" />
-          <ellipse cx="460" cy="52" rx="220" ry="92" fill="url(#baTeal)" opacity="0.82" />
-          <ellipse cx="650" cy="74" rx="250" ry="86" fill="url(#baAqua)" opacity="0.74" />
-          {/* darker pigment pooling */}
-          <ellipse cx="118" cy="104" rx="118" ry="58" fill="#08233f" opacity="0.52" />
-          <ellipse cx="244" cy="40" rx="92" ry="52" fill="#0a3a66" opacity="0.46" />
+          <ellipse cx="338" cy="78" rx="156" ry="100" fill="url(#baCyan)" opacity="0.7" />
+          <ellipse cx="452" cy="104" rx="126" ry="96" fill="url(#baTeal)" opacity="0.62" />
+          <ellipse cx="248" cy="44" rx="96" ry="66" fill="url(#baSky)" opacity="0.6" />
         </g>
 
-        {/* A couple of crisper paint blooms for depth (lighter blur). */}
-        <g filter="url(#baDrop)">
-          <ellipse cx="392" cy="98" rx="100" ry="52" fill="url(#baCyan)" opacity="0.55" />
-          <ellipse cx="560" cy="48" rx="84" ry="40" fill="url(#baLight)" opacity="0.6" />
+        {/* ── Softer secondary bloom: top-right near Stub Mode + bell ── */}
+        <g filter="url(#baBloom)" opacity="0.82">
+          <ellipse cx="1290" cy="54" rx="240" ry="124" fill="url(#baAqua)" />
+          <ellipse cx="1392" cy="34" rx="170" ry="96" fill="url(#baCyan)" opacity="0.72" />
+          <ellipse cx="1165" cy="78" rx="138" ry="98" fill="url(#baSky)" opacity="0.8" />
+        </g>
+        <g filter="url(#baEdge)">
+          <ellipse cx="1312" cy="58" rx="176" ry="98" fill="url(#baAqua)" opacity="0.62" />
+          <ellipse cx="1190" cy="70" rx="120" ry="72" fill="url(#baCyan)" opacity="0.5" />
         </g>
 
-        {/* ── Splatter: scattered droplets + pigment marks into the header ── */}
-        <g filter="url(#baDrop)" fill="#06b6d4">
-          <circle cx="318" cy="18" r="7" opacity="0.82" />
-          <circle cx="372" cy="30" r="4.2" opacity="0.72" />
-          <circle cx="262" cy="12" r="3.6" opacity="0.66" />
-          <circle cx="440" cy="24" r="5.4" opacity="0.66" />
-          <circle cx="512" cy="14" r="3.4" opacity="0.6" />
-          <circle cx="596" cy="28" r="4.4" opacity="0.56" />
-          <circle cx="668" cy="18" r="3" opacity="0.48" />
-          <circle cx="724" cy="36" r="2.6" opacity="0.4" />
-          <circle cx="190" cy="156" r="5.2" opacity="0.56" />
-          <circle cx="116" cy="170" r="3.4" opacity="0.5" />
-          <ellipse cx="350" cy="162" rx="9" ry="5" opacity="0.46" />
-          <ellipse cx="476" cy="150" rx="6" ry="3.6" opacity="0.4" />
-          <ellipse cx="624" cy="150" rx="5" ry="3" opacity="0.34" />
+        {/* ── Splatter droplets scattering from the seam cluster ── */}
+        <g filter="url(#baDrop)" fill="#22d3ee">
+          <circle cx="520" cy="58" r="4.2" opacity="0.72" />
+          <circle cx="566" cy="86" r="3" opacity="0.62" />
+          <circle cx="610" cy="116" r="2.4" opacity="0.5" />
+          <circle cx="498" cy="150" r="3.6" opacity="0.55" />
+          <circle cx="648" cy="78" r="2" opacity="0.44" />
+          <circle cx="436" cy="172" r="3" opacity="0.5" />
+          <circle cx="392" cy="150" r="2.4" opacity="0.46" />
+          <circle cx="588" cy="44" r="2.2" opacity="0.5" />
+          <circle cx="300" cy="22" r="3" opacity="0.5" />
+          <circle cx="350" cy="14" r="2" opacity="0.44" />
         </g>
-        <g fill="#0d3a6e">
-          <circle cx="228" cy="22" r="3.4" opacity="0.56" />
-          <circle cx="166" cy="13" r="2.4" opacity="0.5" />
-          <ellipse cx="74" cy="160" rx="6" ry="3.4" opacity="0.42" />
+        <g filter="url(#baDrop)" fill="#2dd4bf">
+          <circle cx="540" cy="120" r="3.2" opacity="0.5" />
+          <circle cx="470" cy="60" r="2.4" opacity="0.5" />
+          <ellipse cx="600" cy="150" rx="6" ry="3.4" opacity="0.4" />
+          <ellipse cx="412" cy="120" rx="5" ry="3" opacity="0.42" />
+        </g>
+        {/* a few light droplets around the top-right bloom */}
+        <g filter="url(#baDrop)" fill="#38bdf8">
+          <circle cx="1150" cy="40" r="3" opacity="0.46" />
+          <circle cx="1110" cy="64" r="2.2" opacity="0.4" />
+          <circle cx="1200" cy="26" r="2.4" opacity="0.42" />
+          <circle cx="1248" cy="92" r="2.6" opacity="0.34" />
         </g>
       </g>
 
-      {/* ── Continuous glowing arch: ONE path from x=0, fading right ── */}
+    </svg>
+
+    {/* ── Arch overlay: ONE thin line + ring nodes, rendered ABOVE the glass
+         header so the delicate steel-blue line reads crisply across the top
+         (matches the reference) instead of washing out behind the frost.
+         pointer-events:none keeps it from blocking the UI. ── */}
+    <svg
+      className="unified-brand-arch"
+      viewBox="0 0 1440 200"
+      preserveAspectRatio="none"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <defs>
+        {/* Thin arch line. Transparent across the sidebar (~left 18%) so it
+            never draws over the Lead Emergence wordmark, then steel-blue across
+            the header, fading out before the right edge. */}
+        <linearGradient id="baArch" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#93c5fd" stopOpacity="0" />
+          <stop offset="15%" stopColor="#93c5fd" stopOpacity="0" />
+          <stop offset="22%" stopColor="#7dafe0" stopOpacity="0.72" />
+          <stop offset="50%" stopColor="#5b9bf0" stopOpacity="0.92" />
+          <stop offset="84%" stopColor="#7dafe0" stopOpacity="0.7" />
+          <stop offset="100%" stopColor="#bfdbfe" stopOpacity="0" />
+        </linearGradient>
+        <filter id="baGlow" x="-10%" y="-200%" width="120%" height="500%">
+          <feGaussianBlur stdDeviation="2" />
+        </filter>
+      </defs>
+
+      {/* faint companion arc */}
+      <path
+        d="M0,60 C170,40 390,28 680,26 C920,24 1060,38 1140,50 C1205,62 1330,86 1440,104"
+        fill="none"
+        stroke="url(#baArch)"
+        strokeWidth="1.1"
+        strokeLinecap="round"
+        opacity="0.5"
+      />
+      {/* soft glow underlay. Crests well above the DASHBOARD title and descends
+          only on the far right (right of the welcome line, left of the Stub
+          Mode pill) so the line + nodes never cross any text. */}
+      <path
+        d="M0,46 C170,24 390,12 680,10 C920,8 1060,22 1140,34 C1175,40 1205,46 1260,58 C1330,73 1390,82 1440,92"
+        fill="none"
+        stroke="url(#baArch)"
+        strokeWidth="3.4"
+        strokeLinecap="round"
+        filter="url(#baGlow)"
+        opacity="0.5"
+      />
+      {/* primary thin line */}
+      <path
+        d="M0,46 C170,24 390,12 680,10 C920,8 1060,22 1140,34 C1175,40 1205,46 1260,58 C1330,73 1390,82 1440,92"
+        fill="none"
+        stroke="url(#baArch)"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+      {/* ring node accents in the clear gap between the welcome line and the
+          Stub Mode pill (holds across 1280–1440 desktop widths). */}
       <g>
-        {/* glow underlay */}
-        <path
-          d="M0,128 C90,92 200,40 430,30 C680,18 980,26 1280,38 C1430,43 1560,42 1700,36"
-          fill="none"
-          stroke="url(#baArch)"
-          strokeWidth="10"
-          strokeLinecap="round"
-          filter="url(#baGlow)"
-          opacity="0.85"
-        />
-        {/* primary crisp line */}
-        <path
-          d="M0,128 C90,92 200,40 430,30 C680,18 980,26 1280,38 C1430,43 1560,42 1700,36"
-          fill="none"
-          stroke="url(#baArch)"
-          strokeWidth="3.4"
-          strokeLinecap="round"
-        />
-        {/* faint companion arcs for depth */}
-        <path
-          d="M0,154 C100,116 230,60 470,50 C720,40 1020,48 1320,60 C1450,65 1560,64 1660,60"
-          fill="none"
-          stroke="url(#baArch)"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-          opacity="0.62"
-        />
-        <path
-          d="M0,104 C80,78 190,30 420,20 C620,12 860,18 1100,28"
-          fill="none"
-          stroke="url(#baArch)"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          opacity="0.52"
-        />
+        <circle cx="1140" cy="34" r="7.5" fill="#ffffff" fillOpacity="0.95" stroke="#5b9bf0" strokeWidth="1.8" />
+        <circle cx="1140" cy="34" r="2.2" fill="#5b9bf0" fillOpacity="0.65" />
+        <circle cx="1205" cy="46" r="7.5" fill="#ffffff" fillOpacity="0.95" stroke="#5b9bf0" strokeWidth="1.8" />
+        <circle cx="1205" cy="46" r="2.2" fill="#5b9bf0" fillOpacity="0.65" />
       </g>
     </svg>
+    </>
   );
 }
