@@ -47,6 +47,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { activeRole, setActiveRole } = useRole();
   const { openCreate } = useEventCard();
   const title = pageTitles[pathname] ?? "Dashboard";
+  const isDashboard = pathname === "/dashboard";
 
   return (
     <div className="app-shell">
@@ -64,16 +65,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <path d="M-30,98 C60,150 160,42 300,122" stroke="url(#sidebarAqua)" strokeWidth="1.5" strokeLinecap="round" opacity="0.6" />
           </svg>
         </div>
-        <Link className="brand-link" href="/dashboard">
-          <div className="brand-mark" aria-hidden="true">
-            EM
-          </div>
-          <div>
-            <strong>Emerge</strong>
-            <div className="muted" style={{ color: "#cbd5e1" }}>
-              Ministry Operations Hub
-            </div>
-          </div>
+        <Link className="brand-lead" href="/dashboard" aria-label="Lead Emergence Automated Platform">
+          <span className="brand-lead-name">
+            <span className="brand-lead-light">Lead</span> <span className="brand-lead-bold">Emergence</span>
+          </span>
+          <span className="brand-lead-sub">Automated Platform</span>
         </Link>
 
         <button
@@ -85,10 +81,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           + Add Event
         </button>
 
-        <div className="visual-strip" aria-label="Ministry operations workspace visual">
-          <span>Events, tasks, communication previews, budgets, and Stub Mode integrations in one workspace.</span>
-        </div>
-
         <nav className="app-nav-list" aria-label="Desktop navigation">
           {primaryLinks.map((link) => (
             <Link className={pathname === link.href ? "app-nav-link active" : "app-nav-link"} href={link.href} key={link.href}>
@@ -97,45 +89,44 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
 
-        <div className="role-control">
-          <p className="eyebrow" style={{ color: "#93c5fd" }}>
-            Active MVP Roles
-          </p>
-          <div className="toolbar" role="group" aria-label="Switch active role">
-            {(["admin", "leader"] as Role[]).map((role) => (
-              <button
-                className={activeRole === role ? "button primary" : "button"}
-                key={role}
-                type="button"
-                onClick={() => setActiveRole(role)}
-              >
-                {roleLabels[role]}
-              </button>
-            ))}
-          </div>
+        <div className="role-control" role="group" aria-label="Switch active role">
+          {(["admin", "leader"] as Role[]).map((role) => (
+            <button
+              className={activeRole === role ? "role-pill active" : "role-pill"}
+              key={role}
+              type="button"
+              onClick={() => setActiveRole(role)}
+            >
+              {roleLabels[role]}
+            </button>
+          ))}
         </div>
 
-        <div className="card future-role-card">
-          <p className="eyebrow" style={{ color: "#93c5fd" }}>
-            Future Roles
-          </p>
-          <p style={{ margin: 0, color: "#dbeafe" }}>Student and Parent roles are authorization placeholders only in MVP 1.</p>
+        <div className="sidebar-profile">
+          <span className="sidebar-avatar" aria-hidden="true">AW</span>
+          <span className="sidebar-profile-text">
+            <strong>Alex Walker</strong>
+            <span className="muted">{roleLabels[activeRole]}</span>
+          </span>
+          <a className="sidebar-profile-logout" href="/api/auth/logout">
+            Log out
+          </a>
         </div>
 
-        <a className="button sidebar-logout" href="/api/auth/logout">
-          Log out
-        </a>
+        <div className="sidebar-wash-bottom" aria-hidden="true" />
       </aside>
 
       <main className="main app-main">
-        <header className="topbar">
-          <span className="topbar-wash" aria-hidden="true" />
-          <div>
-            <p className="eyebrow">MVP 1 / Stub Mode</p>
-            <h1 className="title">{title}</h1>
-          </div>
-          <span className="pill stub">Stub Mode</span>
-        </header>
+        {!isDashboard ? (
+          <header className="topbar">
+            <span className="topbar-wash" aria-hidden="true" />
+            <div>
+              <p className="eyebrow">MVP 1 / Stub Mode</p>
+              <h1 className="title">{title}</h1>
+            </div>
+            <span className="pill stub">Stub Mode</span>
+          </header>
+        ) : null}
 
         {children}
       </main>

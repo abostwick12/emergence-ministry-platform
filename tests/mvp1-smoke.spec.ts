@@ -24,7 +24,7 @@ test.describe("MVP event automation navigation smoke tests", () => {
 
     await expect(page).toHaveURL(/\/dashboard$/);
     await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible();
-    await expect(page.getByText("Stub Mode active. No live credentials are required.")).toBeVisible();
+    await expect(page.getByText("Stub Mode", { exact: true }).first()).toBeVisible();
     await page.getByRole("link", { name: "Log out" }).click();
     await expect(page).toHaveURL(/\/login$/);
   });
@@ -72,7 +72,8 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await login(page);
 
     await expect(page.getByText("Emerge Ministry Hub", { exact: true })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Dashboard", level: 2 })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible();
+    await expect(page.getByText("Welcome back, Alex!", { exact: false })).toBeVisible();
 
     const metrics = page.getByLabel("Dashboard metrics");
     for (const label of ["Upcoming Events", "Tasks Due Soon", "Stuck Tasks", "Task Completion", "Communication Reviews Pending"]) {
@@ -88,11 +89,8 @@ test.describe("MVP event automation navigation smoke tests", () => {
       await expect(pulse.getByText(label, { exact: true })).toBeVisible();
     }
 
-    await expect(page.getByText(/Making disciples\. Building community\. Transforming the world\./)).toBeVisible();
-
-    await expect(page.getByRole("link", { name: "Go to Events" })).toHaveAttribute("href", "/events");
-    await expect(page.getByRole("link", { name: "Review Tasks" })).toHaveAttribute("href", "/tasks");
-    await expect(page.getByRole("link", { name: "Review Communications" })).toHaveAttribute("href", "/communications");
+    // Footer quote removed; the bottom watercolor wave remains.
+    await expect(page.getByText(/Making disciples/)).toHaveCount(0);
   });
 
   test("events page preserves the board-row Events Workspace", async ({ page }) => {

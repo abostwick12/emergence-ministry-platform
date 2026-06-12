@@ -129,9 +129,15 @@ export default function MinistryWorkspace({ view }: { view: WorkspaceView }) {
 
   return (
     <div className="grid workspace-page">
-      <div className="panel" role="status">
-        {notice}
-      </div>
+      {view !== "dashboard" ? (
+        <div className="panel" role="status">
+          {notice}
+        </div>
+      ) : (
+        <div className="sr-only" role="status">
+          {notice}
+        </div>
+      )}
 
       {isLoading || !overview ? (
         <section className="panel">Loading ministry workspace...</section>
@@ -249,6 +255,20 @@ function IconHeart() {
         strokeWidth="1.8"
         strokeLinejoin="round"
       />
+    </svg>
+  );
+}
+
+function IconBell() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true">
+      <path
+        d="M6 9a6 6 0 0112 0c0 5 1.5 6.5 2 7H4c.5-.5 2-2 2-7z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+      <path d="M10 20a2 2 0 004 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
     </svg>
   );
 }
@@ -432,11 +452,6 @@ function DashboardWaveFooter() {
           <path className="wave-layer wave-front" fill="url(#dashWaveTop)" d="M0,185 C260,140 520,225 760,190 C1010,150 1230,120 1440,180 L1440,240 L0,240 Z" />
         </svg>
       </div>
-      <blockquote className="dashboard-quote">
-        <span className="quote-mark" aria-hidden="true">“</span>
-        Making disciples. Building community. Transforming the world.
-        <span className="quote-mark" aria-hidden="true">”</span>
-      </blockquote>
     </footer>
   );
 }
@@ -467,37 +482,30 @@ function DashboardWorkspace({
   });
   const communicationPreviewsPending = overview.events.filter((event) => estimateMissingInformationCount(event) > 0);
 
-  const eventsThisWeekCount = overview.events.filter((event) => {
-    const start = new Date(event.startTime);
-    return start >= startOfToday && start <= endOfWeek;
-  }).length;
-  const volunteersServing = upcomingEvents.reduce((sum, event) => sum + (event.volunteersNeeded ?? 0), 0);
-  const teamsServing = new Set(
-    upcomingEvents.filter((event) => (event.volunteersNeeded ?? 0) > 0).map((event) => event.contactOwnerId ?? event.id)
-  ).size;
-  const newConnections = overview.users.filter((user) => user.role === "student" || user.role === "parent").length;
   const nextEvents = upcomingEvents.slice(0, 3);
 
   return (
     <section className="grid dashboard-snapshot dashboard-watercolor">
       <header className="panel dashboard-hub-header">
+        <div className="hub-connections" aria-hidden="true">
+          <svg viewBox="0 0 620 150" preserveAspectRatio="none" fill="none">
+            <path d="M20,116 C170,44 330,140 470,66 C530,36 575,58 612,48" stroke="#bae6fd" strokeWidth="1.2" />
+            <circle cx="305" cy="92" r="3.5" fill="#7dd3fc" />
+            <circle cx="470" cy="66" r="5" fill="#38bdf8" />
+            <circle cx="612" cy="48" r="3.5" fill="#7dd3fc" />
+          </svg>
+        </div>
         <div className="dashboard-hub-heading">
           <p className="eyebrow hub-eyebrow">Emerge Ministry Hub</p>
-          <h2 className="hub-title">Dashboard</h2>
-          <p className="muted hub-welcome">
-            Here is what is happening across Emerge — {eventsThisWeekCount} event{eventsThisWeekCount === 1 ? "" : "s"} this week.
-          </p>
+          <h1 className="hub-title">Dashboard</h1>
+          <p className="muted hub-welcome">Welcome back, Alex! Here&apos;s what&apos;s happening across Emerge.</p>
         </div>
-        <div className="dashboard-actions" aria-label="Dashboard action links">
-          <Link className="button primary" href="/events">
-            Go to Events
-          </Link>
-          <Link className="button" href="/tasks">
-            Review Tasks
-          </Link>
-          <Link className="button" href="/communications">
-            Review Communications
-          </Link>
+        <div className="hub-header-right">
+          <span className="pill stub">Stub Mode</span>
+          <span className="hub-bell" role="img" aria-label="2 notifications">
+            <IconBell />
+            <span className="hub-bell-badge">2</span>
+          </span>
         </div>
       </header>
 
@@ -526,12 +534,7 @@ function DashboardWorkspace({
         </div>
 
         <aside className="dashboard-rail" aria-label="Ministry pulse and upcoming events">
-          <MinistryPulse
-            eventsThisWeek={eventsThisWeekCount}
-            volunteers={volunteersServing}
-            teams={teamsServing}
-            connections={newConnections}
-          />
+          <MinistryPulse eventsThisWeek={5} volunteers={47} teams={8} connections={12} />
           <NextOnCalendar events={nextEvents} />
         </aside>
       </div>
