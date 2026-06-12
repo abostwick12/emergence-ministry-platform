@@ -15,7 +15,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Loaded globally from the App Router root layout (the _document equivalent). */}
         {/* eslint-disable-next-line @next/next/no-page-custom-font */}
         <link
-          href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@1,800;1,900&family=Playfair+Display:ital,wght@1,600;1,700&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,500;1,800;1,900&family=Playfair+Display:ital,wght@1,600;1,700&display=swap"
           rel="stylesheet"
         />
       </head>
