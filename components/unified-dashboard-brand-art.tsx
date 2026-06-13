@@ -6,17 +6,18 @@
  * and never duplicated inside the header) so a single continuous composition
  * crosses the sidebar → header boundary with no seam.
  *
- * Visual target — light + airy, NOT a heavy left-side mass:
- *   - the dashboard header stays mostly CLEAN WHITE behind the DASHBOARD title;
- *   - the densest watercolor is a teal / cyan / aqua SPLATTER cluster right at
- *     the sidebar → header seam, bleeding out of the navy sidebar into the
- *     header with crisp scattered droplets;
- *   - a softer secondary blue / cyan bloom sits TOP-RIGHT near the Stub Mode
- *     pill and notification bell;
- *   - one thin, elegant steel-blue ARCH line starts at the far-left edge,
- *     crests high above the DASHBOARD title (never through the text) and slopes
- *     gently down to the right, carrying two small ring "node" accents, then
- *     fades out near the right edge.
+ * The watercolor is built as deliberate PAINT, not a smooth gradient:
+ *   - Layer 1 — a very light horizontal paper wash, lighter in the center so the
+ *     DASHBOARD title stays readable, tinted only toward the outer edges.
+ *   - Layer 2 — irregular pigment BLOOMS near the far-left (reaching across the
+ *     logo area, horizontally, so there is no hard vertical split) and far-right
+ *     edges. Each bloom uses edge-weighted radial gradients (more pigment at the
+ *     rim, like a real watercolor stain) and is feathered by a turbulence
+ *     displacement filter — NOT a big Gaussian blur — so the edges read as
+ *     hand-painted, with darker "pigment pooling" spots inside.
+ *   - Layer 3 — small, crisp SPLATTER droplets and fine speckles concentrated
+ *     near the left/right edges and lightly around the arc.
+ * The center stays clean.
  *
  * Coordinate system: a full-page reference viewBox (0 0 1440 200) stretched to
  * the real page width with `preserveAspectRatio="none"`.
@@ -41,114 +42,138 @@ export function UnifiedDashboardBrandArt() {
       focusable="false"
     >
       <defs>
-        {/* ── Watercolor pigment gradients (light, translucent) ─── */}
-        <radialGradient id="baTeal" cx="50%" cy="50%" r="60%">
-          <stop offset="0%" stopColor="#2dd4bf" stopOpacity="0.55" />
-          <stop offset="60%" stopColor="#2dd4bf" stopOpacity="0.18" />
-          <stop offset="100%" stopColor="#2dd4bf" stopOpacity="0" />
+        {/* ── Edge-stained pigment gradients ──────────────────────
+            Each bloom is more pigmented at ~74–80% of its radius than at the
+            centre, mimicking how watercolor pigment migrates to the drying
+            edge (the "bloom"/"cauliflower" stain). */}
+        <radialGradient id="wcTeal" cx="50%" cy="48%" r="58%">
+          <stop offset="0%" stopColor="#2dd4bf" stopOpacity="0.30" />
+          <stop offset="44%" stopColor="#14b8a6" stopOpacity="0.18" />
+          <stop offset="76%" stopColor="#0d9488" stopOpacity="0.52" />
+          <stop offset="100%" stopColor="#0d9488" stopOpacity="0" />
         </radialGradient>
-        <radialGradient id="baCyan" cx="50%" cy="50%" r="60%">
-          <stop offset="0%" stopColor="#22d3ee" stopOpacity="0.6" />
-          <stop offset="58%" stopColor="#38bdf8" stopOpacity="0.22" />
-          <stop offset="100%" stopColor="#22d3ee" stopOpacity="0" />
+        <radialGradient id="wcCyan" cx="50%" cy="48%" r="58%">
+          <stop offset="0%" stopColor="#34d3ee" stopOpacity="0.34" />
+          <stop offset="42%" stopColor="#06b6d4" stopOpacity="0.20" />
+          <stop offset="78%" stopColor="#0891b2" stopOpacity="0.56" />
+          <stop offset="100%" stopColor="#0891b2" stopOpacity="0" />
         </radialGradient>
-        <radialGradient id="baAqua" cx="50%" cy="50%" r="62%">
-          <stop offset="0%" stopColor="#7dd3fc" stopOpacity="0.5" />
-          <stop offset="60%" stopColor="#7dd3fc" stopOpacity="0.16" />
-          <stop offset="100%" stopColor="#7dd3fc" stopOpacity="0" />
+        <radialGradient id="wcAqua" cx="50%" cy="50%" r="60%">
+          <stop offset="0%" stopColor="#7dd3fc" stopOpacity="0.30" />
+          <stop offset="48%" stopColor="#38bdf8" stopOpacity="0.16" />
+          <stop offset="80%" stopColor="#0ea5e9" stopOpacity="0.44" />
+          <stop offset="100%" stopColor="#0ea5e9" stopOpacity="0" />
         </radialGradient>
-        <radialGradient id="baSky" cx="50%" cy="50%" r="62%">
-          <stop offset="0%" stopColor="#bae6fd" stopOpacity="0.55" />
-          <stop offset="100%" stopColor="#bae6fd" stopOpacity="0" />
+        <radialGradient id="wcBlue" cx="50%" cy="50%" r="60%">
+          <stop offset="0%" stopColor="#93c5fd" stopOpacity="0.24" />
+          <stop offset="78%" stopColor="#3b82f6" stopOpacity="0.34" />
+          <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
         </radialGradient>
-        <radialGradient id="baInk" cx="50%" cy="46%" r="62%">
-          <stop offset="0%" stopColor="#1d4ed8" stopOpacity="0.4" />
-          <stop offset="100%" stopColor="#1d4ed8" stopOpacity="0" />
+        <radialGradient id="wcLight" cx="50%" cy="50%" r="62%">
+          <stop offset="0%" stopColor="#cffafe" stopOpacity="0.42" />
+          <stop offset="70%" stopColor="#a5f3fc" stopOpacity="0.16" />
+          <stop offset="100%" stopColor="#a5f3fc" stopOpacity="0" />
         </radialGradient>
+
+        {/* Layer 1 — horizontal paper wash: tinted at the edges, clean centre. */}
+        <linearGradient id="wcWashX" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#5eead4" stopOpacity="0.20" />
+          <stop offset="15%" stopColor="#67e8f9" stopOpacity="0.11" />
+          <stop offset="36%" stopColor="#a5f3fc" stopOpacity="0.03" />
+          <stop offset="50%" stopColor="#ffffff" stopOpacity="0" />
+          <stop offset="64%" stopColor="#bae6fd" stopOpacity="0.04" />
+          <stop offset="85%" stopColor="#7dd3fc" stopOpacity="0.12" />
+          <stop offset="100%" stopColor="#60a5fa" stopOpacity="0.20" />
+        </linearGradient>
 
         {/* ── Filters ──────────────────────────────────────────── */}
-        {/* Organic feathered watercolor edges. */}
-        <filter id="baEdge" x="-30%" y="-70%" width="160%" height="260%">
-          <feTurbulence type="fractalNoise" baseFrequency="0.012 0.02" numOctaves="2" seed="9" result="noise" />
-          <feDisplacementMap in="SourceGraphic" in2="noise" scale="40" xChannelSelector="R" yChannelSelector="G" />
+        {/* Hand-painted feathered edges: fractal noise pushed through a
+            displacement map breaks each smooth ellipse into an organic,
+            blotchy watercolor shape. A light blur only softens it — the
+            character comes from the displacement, not the blur. */}
+        <filter id="wcFeather" x="-10%" y="-28%" width="120%" height="158%">
+          <feTurbulence type="fractalNoise" baseFrequency="0.016 0.024" numOctaves="2" seed="4" result="n" />
+          <feDisplacementMap in="SourceGraphic" in2="n" scale="30" xChannelSelector="R" yChannelSelector="G" />
+          <feGaussianBlur stdDeviation="1.3" />
         </filter>
-        {/* Soft bloom diffusion. */}
-        <filter id="baBloom" x="-50%" y="-80%" width="200%" height="260%">
-          <feGaussianBlur stdDeviation="9" />
-        </filter>
-        {/* Gentle droplet softening. */}
-        <filter id="baDrop" x="-120%" y="-120%" width="340%" height="340%">
-          <feGaussianBlur stdDeviation="0.9" />
-        </filter>
-
         {/* Bottom fade so the painting dissolves softly into the white page
             below the header instead of ending on a hard edge. */}
-        <linearGradient id="baFadeYGrad" x1="0" y1="0" x2="0" y2="1">
+        <linearGradient id="wcFadeYGrad" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="#fff" stopOpacity="1" />
-          <stop offset="58%" stopColor="#fff" stopOpacity="0.92" />
+          <stop offset="60%" stopColor="#fff" stopOpacity="0.9" />
           <stop offset="100%" stopColor="#fff" stopOpacity="0" />
         </linearGradient>
-        <mask id="baFadeY">
-          <rect x="0" y="0" width="1440" height="200" fill="url(#baFadeYGrad)" />
+        <mask id="wcFadeY">
+          <rect x="0" y="0" width="1440" height="200" fill="url(#wcFadeYGrad)" />
         </mask>
       </defs>
 
-      {/* Watercolor dissolves softly toward the bottom. */}
-      <g mask="url(#baFadeY)">
-        {/* Subtle blue tint behind the Lead Emergence wordmark (sidebar top). */}
-        <g filter="url(#baBloom)" opacity="0.6">
-          <ellipse cx="120" cy="48" rx="190" ry="120" fill="url(#baInk)" />
+      {/* Everything dissolves softly toward the bottom. */}
+      <g mask="url(#wcFadeY)">
+        {/* Layer 1 — light horizontal paper wash. */}
+        <rect x="0" y="0" width="1440" height="200" fill="url(#wcWashX)" />
+
+        {/* Layer 2 — LEFT pigment bloom. Reaches across the logo area and
+            spreads horizontally into the header (wide, not a vertical column),
+            with feathered edges. Bright aqua/cyan so it reads on the navy. */}
+        <g filter="url(#wcFeather)">
+          <ellipse cx="70" cy="52" rx="150" ry="72" fill="url(#wcAqua)" />
+          <ellipse cx="210" cy="66" rx="205" ry="86" fill="url(#wcCyan)" />
+          <ellipse cx="360" cy="80" rx="178" ry="72" fill="url(#wcTeal)" />
+          <ellipse cx="150" cy="38" rx="120" ry="52" fill="url(#wcLight)" opacity="0.7" />
+          <ellipse cx="478" cy="58" rx="140" ry="54" fill="url(#wcAqua)" opacity="0.7" />
+          {/* darker pigment pooling inside the left bloom */}
+          <ellipse cx="120" cy="86" rx="66" ry="30" fill="#0e7490" opacity="0.34" />
+          <ellipse cx="300" cy="44" rx="58" ry="26" fill="#0891b2" opacity="0.30" />
+          <ellipse cx="236" cy="104" rx="52" ry="24" fill="#0d9488" opacity="0.26" />
         </g>
 
-        {/* ── Splatter cluster at the sidebar → header seam (densest) ── */}
-        <g filter="url(#baBloom)" opacity="0.92">
-          <ellipse cx="320" cy="70" rx="190" ry="118" fill="url(#baCyan)" />
-          <ellipse cx="430" cy="92" rx="160" ry="120" fill="url(#baTeal)" opacity="0.85" />
-          <ellipse cx="270" cy="48" rx="130" ry="92" fill="url(#baAqua)" />
-          <ellipse cx="500" cy="60" rx="150" ry="86" fill="url(#baSky)" opacity="0.7" />
-        </g>
-        <g filter="url(#baEdge)">
-          <ellipse cx="338" cy="78" rx="156" ry="100" fill="url(#baCyan)" opacity="0.7" />
-          <ellipse cx="452" cy="104" rx="126" ry="96" fill="url(#baTeal)" opacity="0.62" />
-          <ellipse cx="248" cy="44" rx="96" ry="66" fill="url(#baSky)" opacity="0.6" />
+        {/* Layer 2 — RIGHT pigment bloom near the notification / right edge. */}
+        <g filter="url(#wcFeather)">
+          <ellipse cx="1305" cy="56" rx="210" ry="84" fill="url(#wcAqua)" />
+          <ellipse cx="1402" cy="44" rx="150" ry="78" fill="url(#wcCyan)" />
+          <ellipse cx="1210" cy="74" rx="150" ry="66" fill="url(#wcBlue)" opacity="0.85" />
+          <ellipse cx="1330" cy="38" rx="118" ry="46" fill="url(#wcLight)" opacity="0.7" />
+          {/* darker pigment pooling inside the right bloom */}
+          <ellipse cx="1362" cy="82" rx="70" ry="30" fill="#0891b2" opacity="0.30" />
+          <ellipse cx="1248" cy="48" rx="56" ry="24" fill="#0ea5e9" opacity="0.26" />
         </g>
 
-        {/* ── Softer secondary bloom: top-right near Stub Mode + bell ── */}
-        <g filter="url(#baBloom)" opacity="0.82">
-          <ellipse cx="1290" cy="54" rx="240" ry="124" fill="url(#baAqua)" />
-          <ellipse cx="1392" cy="34" rx="170" ry="96" fill="url(#baCyan)" opacity="0.72" />
-          <ellipse cx="1165" cy="78" rx="138" ry="98" fill="url(#baSky)" opacity="0.8" />
+        {/* Layer 3 — splatter droplets + fine speckles near the LEFT edge. */}
+        <g fill="#0891b2">
+          <circle cx="86" cy="120" r="5.5" opacity="0.6" />
+          <circle cx="150" cy="150" r="3.4" opacity="0.5" />
+          <circle cx="250" cy="24" r="4.2" opacity="0.5" />
+          <circle cx="330" cy="120" r="3" opacity="0.46" />
+          <circle cx="430" cy="150" r="4.6" opacity="0.42" />
+          <circle cx="500" cy="70" r="3" opacity="0.44" />
+          <circle cx="556" cy="118" r="2.6" opacity="0.4" />
+          <circle cx="120" cy="40" r="2" opacity="0.5" />
+          <circle cx="392" cy="40" r="2.2" opacity="0.42" />
+          <circle cx="600" cy="96" r="2.2" opacity="0.36" />
         </g>
-        <g filter="url(#baEdge)">
-          <ellipse cx="1312" cy="58" rx="176" ry="98" fill="url(#baAqua)" opacity="0.62" />
-          <ellipse cx="1190" cy="70" rx="120" ry="72" fill="url(#baCyan)" opacity="0.5" />
+        <g fill="#0d9488">
+          <circle cx="186" cy="106" r="2" opacity="0.5" />
+          <circle cx="270" cy="150" r="2.4" opacity="0.44" />
+          <circle cx="470" cy="40" r="1.8" opacity="0.44" />
+          <circle cx="64" cy="150" r="2.2" opacity="0.4" />
         </g>
 
-        {/* ── Splatter droplets scattering from the seam cluster ── */}
-        <g filter="url(#baDrop)" fill="#22d3ee">
-          <circle cx="520" cy="58" r="4.2" opacity="0.72" />
-          <circle cx="566" cy="86" r="3" opacity="0.62" />
-          <circle cx="610" cy="116" r="2.4" opacity="0.5" />
-          <circle cx="498" cy="150" r="3.6" opacity="0.55" />
-          <circle cx="648" cy="78" r="2" opacity="0.44" />
-          <circle cx="436" cy="172" r="3" opacity="0.5" />
-          <circle cx="392" cy="150" r="2.4" opacity="0.46" />
-          <circle cx="588" cy="44" r="2.2" opacity="0.5" />
-          <circle cx="300" cy="22" r="3" opacity="0.5" />
-          <circle cx="350" cy="14" r="2" opacity="0.44" />
+        {/* Layer 3 — splatter droplets + fine speckles near the RIGHT edge. */}
+        <g fill="#0ea5e9">
+          <circle cx="1100" cy="58" r="3" opacity="0.46" />
+          <circle cx="1160" cy="30" r="2.4" opacity="0.42" />
+          <circle cx="1250" cy="120" r="4.4" opacity="0.5" />
+          <circle cx="1330" cy="150" r="3.4" opacity="0.46" />
+          <circle cx="1392" cy="92" r="4.8" opacity="0.5" />
+          <circle cx="1430" cy="40" r="3" opacity="0.44" />
+          <circle cx="1300" cy="24" r="2.4" opacity="0.42" />
+          <circle cx="1180" cy="120" r="2.6" opacity="0.4" />
         </g>
-        <g filter="url(#baDrop)" fill="#2dd4bf">
-          <circle cx="540" cy="120" r="3.2" opacity="0.5" />
-          <circle cx="470" cy="60" r="2.4" opacity="0.5" />
-          <ellipse cx="600" cy="150" rx="6" ry="3.4" opacity="0.4" />
-          <ellipse cx="412" cy="120" rx="5" ry="3" opacity="0.42" />
-        </g>
-        {/* a few light droplets around the top-right bloom */}
-        <g filter="url(#baDrop)" fill="#38bdf8">
-          <circle cx="1150" cy="40" r="3" opacity="0.46" />
-          <circle cx="1110" cy="64" r="2.2" opacity="0.4" />
-          <circle cx="1200" cy="26" r="2.4" opacity="0.42" />
-          <circle cx="1248" cy="92" r="2.6" opacity="0.34" />
+        <g fill="#0891b2">
+          <circle cx="1360" cy="64" r="2" opacity="0.46" />
+          <circle cx="1410" cy="150" r="2.4" opacity="0.4" />
+          <circle cx="1140" cy="92" r="1.8" opacity="0.4" />
         </g>
       </g>
 
