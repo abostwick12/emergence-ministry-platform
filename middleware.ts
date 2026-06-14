@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { authCookieNames, isMockAuthEnabled } from "./lib/auth/config";
 
 const publicPaths = ["/login", "/api/auth/login", "/api/auth/logout"];
+const publicPrefixes = ["/play/", "/api/play/"];
 
 function hasSessionCookie(request: NextRequest) {
   return (
@@ -17,7 +18,8 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon") ||
     pathname.includes(".") ||
-    publicPaths.some((path) => pathname === path)
+    publicPaths.some((path) => pathname === path) ||
+    publicPrefixes.some((path) => pathname.startsWith(path))
   ) {
     return NextResponse.next();
   }
