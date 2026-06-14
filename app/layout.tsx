@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "./shell-continuity.css";
 
 export const metadata: Metadata = {
   title: "Lead Emergence — Automated Platform",
