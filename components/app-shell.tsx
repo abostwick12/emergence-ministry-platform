@@ -17,6 +17,7 @@ const roleLabels: Record<Role, string> = {
 const primaryLinks = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/events", label: "Events" },
+  { href: "/worship", label: "Worship" },
   { href: "/tasks", label: "Tasks" },
   { href: "/communications", label: "Communications" },
   { href: "/people", label: "People" },
@@ -30,6 +31,8 @@ const mobileLinks = [
   { href: "/tasks", label: "Tasks" },
   { href: "/communications", label: "Communications" }
 ];
+
+const mobileMoreLinks = primaryLinks.filter((link) => !mobileLinks.some((mobileLink) => mobileLink.href === link.href));
 
 function BellIcon() {
   return (
@@ -58,6 +61,14 @@ const navIconPaths: Record<string, React.ReactNode> = {
     <>
       <rect x="3" y="4.5" width="18" height="16" rx="2.2" />
       <path d="M3 9h18M8 3v4M16 3v4" strokeLinecap="round" />
+    </>
+  ),
+  "/worship": (
+    <>
+      <path d="M9 18V5.5l9-1.8v12.5" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="6.8" cy="18" r="2.8" />
+      <circle cx="15.8" cy="16.2" r="2.8" />
+      <path d="M9 8.5l9-1.8" strokeLinecap="round" />
     </>
   ),
   "/tasks": (
@@ -103,6 +114,7 @@ function NavIcon({ href }: { href: string }) {
 const pageTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
   "/events": "Events",
+  "/worship": "Worship",
   "/tasks": "Tasks",
   "/communications": "Communications",
   "/people": "People",
@@ -216,7 +228,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             >
               + Add Event
             </button>
-            {primaryLinks.slice(4).map((link) => (
+            {mobileMoreLinks.map((link) => (
               <Link className="app-nav-link" href={link.href} key={link.href}>
                 {link.label}
               </Link>
