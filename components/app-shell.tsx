@@ -132,7 +132,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="app-shell">
-      <UnifiedDashboardBrandArt />
+      <div className="app-top-art-clip" aria-hidden="true">
+        <UnifiedDashboardBrandArt />
+      </div>
 
       <aside className="sidebar app-sidebar" aria-label="Primary navigation">
         <Link className="brand-lead" href="/dashboard" aria-label="Lead Emergence Automated Platform">
@@ -187,8 +189,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="sidebar-wash-bottom" aria-hidden="true" />
       </aside>
 
-      <main className="main app-main">
-        <header className="app-header">
+      <main className="main app-main app-main-shell">
+        <header className="app-header app-fixed-header">
           <div className="app-header-text">
             {isDashboard ? (
               <>
@@ -209,7 +211,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <div className="app-content">{children}</div>
+        <div className="app-content app-scroll-region">{children}</div>
       </main>
 
       <nav className="mobile-bottom-nav" aria-label="Mobile navigation">
