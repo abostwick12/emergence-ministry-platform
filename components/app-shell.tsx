@@ -130,15 +130,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <span className="brand-lead-sub">Automated Platform</span>
         </Link>
 
-        <button
-          className="button primary sidebar-add-event"
-          type="button"
-          aria-label="Add new event"
-          onClick={openCreate}
-        >
-          + Add Event
-        </button>
-
         <nav className="app-nav-list" aria-label="Desktop navigation">
           {primaryLinks.map((link) => (
             <Link className={pathname === link.href ? "app-nav-link active" : "app-nav-link"} href={link.href} key={link.href}>
@@ -160,6 +151,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </button>
           ))}
         </div>
+
+        <button
+          className="button primary sidebar-add-event"
+          type="button"
+          aria-label="Add new event"
+          onClick={openCreate}
+        >
+          + Add Event
+        </button>
 
         <div className="sidebar-profile">
           <span className="sidebar-avatar" aria-hidden="true">AW</span>

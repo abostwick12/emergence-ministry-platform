@@ -52,9 +52,13 @@ textarea:focus-visible {
 .app-shell {
   position: relative;
   display: grid;
-  grid-template-columns: 264px minmax(0, 1fr);
+  grid-template-columns: 236px minmax(0, 1fr);
   height: 100vh;
   overflow: hidden;
+  background:
+    radial-gradient(520px 360px at 30% 22%, rgba(254, 226, 226, 0.24), transparent 72%),
+    radial-gradient(520px 420px at 100% 54%, rgba(226, 232, 240, 0.35), transparent 74%),
+    linear-gradient(115deg, #f7fbff 0%, #fffefe 46%, #f8fbff 100%);
 }
 
 .sidebar {
@@ -73,8 +77,9 @@ textarea:focus-visible {
   background: linear-gradient(
     to bottom,
     transparent 0,
-    transparent 78px,
-    #0f172a 156px
+    transparent 96px,
+    rgba(15, 23, 42, 0.96) 176px,
+    #0d1628 100%
   );
 }
 
@@ -85,7 +90,11 @@ textarea:focus-visible {
   position: absolute;
   inset: 0 0 auto 0;
   width: 100%;
-  height: 200px;
+  height: 214px;
+  display: block;
+  background-image: url("/dashboard-watercolor-reference.png");
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
   pointer-events: none;
   z-index: 0;
   overflow: visible;
@@ -98,9 +107,9 @@ textarea:focus-visible {
   position: absolute;
   inset: 0 0 auto 0;
   width: 100%;
-  height: 200px;
+  height: 214px;
   pointer-events: none;
-  z-index: 31;
+  z-index: 2;
   overflow: visible;
 }
 
@@ -1756,14 +1765,14 @@ textarea:focus-visible {
 /* Two-column main grid */
 .dashboard-main-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(300px, 350px);
+  grid-template-columns: minmax(0, 1fr) minmax(286px, 348px);
   gap: 18px;
   align-items: start;
 }
 
 .dashboard-left-col {
   display: grid;
-  gap: 18px;
+  gap: 16px;
   min-width: 0;
 }
 
@@ -1777,7 +1786,7 @@ textarea:focus-visible {
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 14px;
+  gap: 13px;
 }
 
 .kpi-card {
@@ -1785,12 +1794,13 @@ textarea:focus-visible {
   overflow: hidden;
   grid-column: span 2;
   border: 1px solid #d6e6f5;
-  border-radius: 14px;
+  border-radius: 12px;
   background: #ffffff;
-  padding: 16px;
+  min-height: 92px;
+  padding: 15px 16px;
   box-shadow: 0 10px 24px rgba(15, 44, 84, 0.06);
   isolation: isolate;
-  animation: kpiFloat 7s ease-in-out infinite;
+  animation: kpiFloat 8s ease-in-out infinite;
 }
 
 .kpi-card:nth-child(2) { animation-delay: 0.6s; }
@@ -1828,7 +1838,7 @@ textarea:focus-visible {
 
 .kpi-card-inner {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
 }
 
@@ -1961,7 +1971,7 @@ textarea:focus-visible {
 .next-cal-time, .next-cal-loc { font-size: 12px; color: #64748b; }
 
 /* Ministry Calendar */
-.calendar-panel { display: grid; gap: 14px; border-color: #d6e6f5; }
+.calendar-panel { display: grid; gap: 10px; border-color: #d6e6f5; padding: 16px 18px 12px; }
 .calendar-header {
   display: flex;
   align-items: center;
@@ -2004,8 +2014,8 @@ textarea:focus-visible {
 .calendar-weekdays {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 6px;
-  margin-bottom: 6px;
+  gap: 4px;
+  margin-bottom: 4px;
 }
 .calendar-weekday {
   text-align: center;
@@ -2017,18 +2027,18 @@ textarea:focus-visible {
 .calendar-weeks {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 6px;
+  gap: 4px;
 }
 .calendar-cell {
-  min-height: 84px;
+  min-height: 36px;
   border: 1px solid rgba(125, 211, 252, 0.22);
-  border-radius: 9px;
+  border-radius: 7px;
   background: linear-gradient(160deg, rgba(255, 255, 255, 0.72), rgba(240, 249, 255, 0.5));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
-  padding: 6px;
+  padding: 3px 5px;
   display: grid;
   grid-template-rows: auto 1fr;
-  gap: 4px;
+  gap: 2px;
   min-width: 0;
 }
 .calendar-cell.outside {
@@ -2043,29 +2053,37 @@ textarea:focus-visible {
     0 0 0 3px rgba(125, 211, 252, 0.22),
     0 8px 20px rgba(24, 67, 112, 0.1);
 }
-.calendar-daynum { font-size: 12px; font-weight: 700; color: #475569; }
+.calendar-daynum { font-size: 11px; font-weight: 700; color: #475569; }
 .calendar-cell.today .calendar-daynum { color: #0369a1; }
-.calendar-day-events { display: grid; gap: 3px; align-content: start; min-width: 0; }
+.calendar-day-events { display: grid; gap: 2px; align-content: start; min-width: 0; }
 .calendar-event-chip {
-  display: grid;
-  gap: 1px;
+  display: block;
+  max-height: 24px;
   text-align: left;
   border: none;
   border-left: 3px solid var(--chip, #2563eb);
-  border-radius: 5px;
+  border-radius: 4px;
   background: #eef4fb;
   background: color-mix(in srgb, var(--chip, #2563eb) 16%, rgba(255, 255, 255, 0.92));
   box-shadow: 0 2px 6px rgba(24, 67, 112, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.7);
-  padding: 3px 5px;
+  padding: 2px 4px;
   cursor: pointer;
   min-width: 0;
   transition: filter 0.12s ease, transform 0.12s ease;
 }
 .calendar-event-chip:hover { filter: brightness(0.97); transform: translateX(1px); }
-.chip-time { font-size: 9.5px; font-weight: 700; color: var(--chip, #2563eb); }
+.chip-time {
+  display: block;
+  font-size: 7.5px;
+  font-weight: 800;
+  line-height: 1.05;
+  color: var(--chip, #2563eb);
+}
 .chip-title {
-  font-size: 11px;
+  display: block;
+  font-size: 8px;
   font-weight: 600;
+  line-height: 1.05;
   color: #0f2c54;
   white-space: nowrap;
   overflow: hidden;
@@ -2078,7 +2096,7 @@ textarea:focus-visible {
   gap: 14px;
   justify-content: center;
   border-top: 1px solid #eef2f7;
-  padding-top: 12px;
+  padding-top: 8px;
 }
 .legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #475569; }
 .legend-dot { width: 9px; height: 9px; border-radius: 50%; }
@@ -2101,19 +2119,21 @@ textarea:focus-visible {
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  border-radius: 18px;
+  border-radius: 12px;
   background: linear-gradient(
     145deg,
-    rgba(255, 255, 255, 0.82),
-    rgba(239, 250, 255, 0.66)
+    rgba(255, 255, 255, 0.70),
+    rgba(238, 249, 255, 0.48)
   );
-  border: 1px solid rgba(112, 194, 235, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.72);
   box-shadow:
-    0 16px 38px rgba(24, 67, 112, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9),
-    inset 0 -1px 0 rgba(87, 205, 225, 0.08);
-  backdrop-filter: blur(16px) saturate(125%);
-  -webkit-backdrop-filter: blur(16px) saturate(125%);
+    0 22px 48px rgba(20, 54, 94, 0.15),
+    0 6px 16px rgba(14, 165, 233, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    inset 0 -1px 0 rgba(37, 177, 207, 0.14),
+    inset 0 0 0 1px rgba(92, 191, 225, 0.24);
+  backdrop-filter: blur(18px) saturate(132%);
+  -webkit-backdrop-filter: blur(18px) saturate(132%);
 }
 
 /* Subtle internal reflection: a soft top-left highlight and a faint aqua
@@ -2131,8 +2151,27 @@ textarea:focus-visible {
   z-index: 0;
   pointer-events: none;
   background:
-    radial-gradient(circle at 15% 5%, rgba(255, 255, 255, 0.72), transparent 34%),
-    radial-gradient(circle at 90% 100%, rgba(48, 211, 224, 0.13), transparent 42%);
+    linear-gradient(135deg, rgba(255, 255, 255, 0.78), transparent 34%),
+    radial-gradient(circle at 92% 98%, rgba(34, 211, 238, 0.24), transparent 42%),
+    radial-gradient(circle at 70% 120%, rgba(14, 165, 233, 0.14), transparent 48%);
+}
+
+.liquid-surface::after,
+.liquid-panel::after,
+.kpi-card::after,
+.pulse-panel::after,
+.next-cal-panel::after,
+.calendar-panel::after {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.46);
+  box-shadow:
+    inset 12px 14px 22px rgba(255, 255, 255, 0.26),
+    inset -16px -18px 28px rgba(14, 165, 233, 0.08);
 }
 
 /* Keep real content above the decorative reflection. KPI cards keep their
@@ -2478,7 +2517,7 @@ textarea:focus-visible {
 /* ── Fixed chrome layout: sidebar + glassy sticky header ─────── */
 
 .app-sidebar {
-  padding: 20px 14px;
+  padding: 24px 18px;
   gap: 0;
 }
 
@@ -2492,60 +2531,57 @@ textarea:focus-visible {
 }
 
 .app-content {
-  padding: 22px 28px 0;
-  min-height: calc(100vh - 112px);
+  padding: 0 28px 0;
+  min-height: calc(100vh - 142px);
 }
 
-/* Glassy fixed header that spans from the sidebar edge to the right. The
-   translucent glass + blur lets the shared top artwork (behind it) read as a
-   soft frosted watercolor tail, while still hiding scrolling content. */
 .app-header {
   position: sticky;
   top: 0;
   z-index: 30;
   display: block;
-  padding: 20px 28px 18px;
-  /* Translucent liquid-glass header: lighter blur + lower opacity so the one
-     shared brand painting (navy pigment, cyan blooms, splatter, arch) stays
-     clearly visible behind it instead of reading as a flat white bar. */
-  background: rgba(250, 253, 255, 0.52);
-  backdrop-filter: blur(6px) saturate(1.18);
-  -webkit-backdrop-filter: blur(6px) saturate(1.18);
-  box-shadow: 0 12px 30px rgba(17, 51, 86, 0.05);
-  overflow: hidden;
+  height: 140px;
+  min-height: 140px;
+  padding: 0 28px;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+  overflow: visible;
 }
 
-/* Soft aqua gradient divider below the header group */
 .app-header::after {
-  content: "";
+  content: none;
   position: absolute;
   bottom: 0;
   left: 0;
   right: 0;
-  height: 2px;
-  background: linear-gradient(to right, rgba(56, 189, 248, 0.38), rgba(125, 211, 252, 0.18) 38%, rgba(186, 230, 253, 0.07) 68%, transparent);
+  height: 24px;
+  background: linear-gradient(180deg, rgba(250, 253, 255, 0), rgba(250, 253, 255, 0.76));
   pointer-events: none;
-  z-index: 2;
+  z-index: 0;
 }
 
 .app-header-text {
   position: relative;
   z-index: 1;
+  padding-top: 64px;
   text-align: center;
 }
 
 .app-header-welcome {
   margin: 4px 0 0;
-  font-size: 13.5px;
+  font-size: 12.5px;
   font-weight: 600;
+  line-height: 1.05;
   color: #0369a1;
 }
 .app-header-title {
   margin: 0;
-  font-size: 40px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  line-height: 1;
+  font-size: 48px;
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 0.96;
   color: #0f2c54;
   text-transform: uppercase;
 }
@@ -2557,7 +2593,7 @@ textarea:focus-visible {
 
 .app-header-right {
   position: absolute;
-  top: 20px;
+  top: 72px;
   right: 28px;
   z-index: 1;
   display: flex;
@@ -2574,7 +2610,7 @@ textarea:focus-visible {
 /* ── Sidebar polish: clean nav rows, larger text ────────────── */
 
 .app-nav-list {
-  gap: 6px;
+  gap: 7px;
   margin-top: 16px;
 }
 /* Every nav item is a polished rounded button — inactive items keep a quiet
@@ -2583,12 +2619,12 @@ textarea:focus-visible {
   display: flex;
   align-items: center;
   gap: 12px;
-  min-height: 44px;
-  padding: 0 14px;
-  border-radius: 11px;
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 8px;
   color: rgba(241, 245, 249, 0.9);
-  background: rgba(255, 255, 255, 0.045);
-  border: 1px solid rgba(130, 190, 255, 0.1);
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid rgba(130, 190, 255, 0.14);
   font-weight: 600;
   font-size: 15px;
   text-decoration: none;
@@ -2608,9 +2644,9 @@ textarea:focus-visible {
 .app-nav-link.active {
   color: #ffffff;
   font-weight: 700;
-  background: linear-gradient(135deg, #2563eb, #2f70ee);
+  background: linear-gradient(135deg, #0878d8, #0f8af0);
   border-color: rgba(116, 185, 255, 0.5);
-  box-shadow: 0 7px 22px rgba(28, 92, 220, 0.3);
+  box-shadow: 0 9px 22px rgba(14, 165, 233, 0.32);
 }
 /* Nav icons */
 .app-nav-icon {
@@ -2624,15 +2660,19 @@ textarea:focus-visible {
 }
 
 .sidebar-add-event {
-  margin-top: 4px;
-  margin-bottom: 8px;
+  min-height: 40px;
+  margin-top: 18px;
+  margin-bottom: 16px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #0878d8, #1d4ed8);
+  box-shadow: 0 10px 22px rgba(14, 116, 206, 0.28);
 }
 
 /* ── "Lead Emergence" wordmark ──────────────────────────────── */
 
 .brand-lead {
-  margin-bottom: 20px;
-  padding-left: 6px;
+  margin-bottom: 18px;
+  padding-left: 0;
 }
 .brand-lead-name {
   display: inline-block;
@@ -2644,14 +2684,14 @@ textarea:focus-visible {
   font-family: "Playfair Display", Georgia, "Times New Roman", serif;
   font-style: italic;
   font-weight: 600;
-  font-size: 31px;
+  font-size: 28px;
   color: #ffffff;
 }
 .brand-lead-bold {
   font-family: "Montserrat", "Inter", ui-sans-serif, sans-serif;
   font-style: italic;
   font-weight: 800;
-  font-size: 27px;
+  font-size: 24px;
   letter-spacing: -0.01em;
   color: #22d3ee;
   margin-left: -2px;
@@ -2660,7 +2700,7 @@ textarea:focus-visible {
   display: block;
   margin-top: 3px;
   font-family: "Montserrat", "Inter", ui-sans-serif, sans-serif;
-  font-size: 10px;
+  font-size: 9.5px;
   font-weight: 500;
   letter-spacing: 0.3em;
   text-transform: uppercase;
