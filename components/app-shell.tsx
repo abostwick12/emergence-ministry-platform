@@ -132,6 +132,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="app-shell">
+      <div className="app-shell-parchment" aria-hidden="true" />
+      <div className="app-shell-night-sky" aria-hidden="true" />
       <div className="app-top-art-clip" aria-hidden="true">
         <UnifiedDashboardBrandArt />
       </div>
