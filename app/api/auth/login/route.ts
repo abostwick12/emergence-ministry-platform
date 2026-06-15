@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isMockAuthEnabled, isSupabaseConfigured, mockAuthUser } from "@/lib/auth/config";
+import { getMockAuthUser, isMockAuthEnabled, isSupabaseConfigured } from "@/lib/auth/config";
 import { getSupabaseAuthClient, setAuthCookies } from "@/lib/auth/server";
 
 export async function POST(request: Request) {
@@ -12,7 +12,7 @@ export async function POST(request: Request) {
   }
 
   if (isMockAuthEnabled()) {
-    const response = NextResponse.json({ user: mockAuthUser });
+    const response = NextResponse.json({ user: getMockAuthUser() });
     setAuthCookies(response, { isMock: true });
     return response;
   }

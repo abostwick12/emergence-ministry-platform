@@ -418,6 +418,12 @@ textarea:focus-visible {
   color: #9a3412;
 }
 
+.pill.dev-auth {
+  background: #e0e7ff;
+  color: #3730a3;
+  letter-spacing: 0.04em;
+}
+
 .pill.done {
   background: #dcfce7;
   color: #166534;

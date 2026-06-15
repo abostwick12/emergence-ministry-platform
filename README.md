@@ -150,6 +150,26 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 
 Never place service-role keys, database passwords, provider OAuth secrets, AI provider keys, or other server/admin secrets in client-side code or committed files.
 
+### Development Auth (server-only)
+
+On non-production environments (local dev, Vercel Preview), reviewers can sign in
+without Supabase credentials using dev auth over Stub Mode mock data. It is
+controlled by **server-only** variables — never prefix these with `NEXT_PUBLIC_`,
+which would inline their values into the browser bundle:
+
+```bash
+ENABLE_DEV_AUTH=true            # enables dev/mock login; ignored in production
+DEV_AUTH_ROLE=Administrator     # Administrator | Leader | Student | Parent
+```
+
+Dev auth is **never** active when `VERCEL_ENV=production` — production always uses
+real Supabase Auth, regardless of these flags. When dev auth is active, the app
+shell shows a `DEV AUTH` badge (a server component passes a boolean to the client;
+the controlling variable is never exposed). The deprecated public variants
+`NEXT_PUBLIC_ENABLE_DEV_AUTH` / `NEXT_PUBLIC_DEV_AUTH_ROLE` are still honored on the
+server temporarily (with a development-time deprecation warning) and should be
+deleted once the server-only variables are set.
+
 ### Database Setup
 
 Run the base schema in the Supabase SQL Editor:

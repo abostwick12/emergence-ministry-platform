@@ -25,6 +25,8 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await expect(page).toHaveURL(/\/dashboard$/);
     await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible();
     await expect(page.getByText("Stub Mode", { exact: true }).first()).toBeVisible();
+    // Dev auth is active under E2E_MOCK_AUTH; the shell shows a server-driven badge.
+    await expect(page.getByText("DEV AUTH", { exact: true })).toBeVisible();
     await page.getByRole("link", { name: "Log out" }).click();
     await expect(page).toHaveURL(/\/login$/);
   });

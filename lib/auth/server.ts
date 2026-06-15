@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { authCookieNames, isMockAuthEnabled, isSupabaseConfigured, mockAuthUser } from "./config";
+import { authCookieNames, getMockAuthUser, isMockAuthEnabled, isSupabaseConfigured } from "./config";
 
 export type AuthSession = {
   user: {
@@ -70,7 +70,7 @@ export async function getServerSession(): Promise<AuthSession | null> {
   const hasMockSession = cookieStore.get(authCookieNames.mockSession)?.value === "1";
 
   if (hasMockSession && isMockAuthEnabled()) {
-    return { user: mockAuthUser, isMock: true };
+    return { user: getMockAuthUser(), isMock: true };
   }
 
   const accessToken = cookieStore.get(authCookieNames.accessToken)?.value;
