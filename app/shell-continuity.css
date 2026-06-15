@@ -1,54 +1,203 @@
-/* Production shell continuity patch: makes the header artwork dissolve into the page
-   instead of reading as a rectangular banner. */
-.app-shell {
+/* Desktop shell material system.
+   The shell is built as one painted environment: parchment base, night-sky
+   sidebar field, shared watercolor header art, then translucent UI surfaces. */
+
+:root {
+  --app-sidebar-width: 236px;
   --app-header-height: 154px;
-  background:
-    radial-gradient(900px 620px at 42% 58%, rgba(236, 225, 207, 0.20), transparent 72%),
-    radial-gradient(760px 520px at 82% 34%, rgba(240, 249, 255, 0.20), transparent 76%),
-    radial-gradient(860px 520px at 65% 52%, rgba(186, 230, 253, 0.15), transparent 70%),
-    linear-gradient(115deg, #f8fbff 0%, #fffdf8 46%, #f7fbff 100%);
+  --parchment-ivory: #f3eadb;
+  --parchment-warm: #eee3d1;
+  --parchment-light: #f7f0e5;
+  --parchment-aged: #e8dcc7;
+  --liquid-border: rgba(255, 255, 255, 0.72);
+  --liquid-edge: rgba(125, 211, 252, 0.28);
+  --liquid-shadow: rgba(38, 63, 89, 0.18);
+}
+
+body {
+  background: var(--parchment-ivory);
+}
+
+.app-shell {
+  position: relative;
+  isolation: isolate;
+  --app-header-height: 154px;
+  background: var(--parchment-ivory);
 }
 
 .app-shell::before {
   content: "";
   position: absolute;
+  top: 0;
+  left: calc(var(--app-sidebar-width) - 124px);
+  width: 284px;
+  height: 318px;
+  z-index: 6;
+  pointer-events: none;
+  background:
+    radial-gradient(220px 190px at 24% 12%, rgba(2, 18, 43, 0.22), transparent 70%),
+    radial-gradient(260px 210px at 40% 20%, rgba(8, 145, 178, 0.23), transparent 76%),
+    radial-gradient(210px 160px at 58% 42%, rgba(226, 246, 255, 0.20), transparent 78%),
+    radial-gradient(180px 130px at 46% 60%, rgba(243, 234, 219, 0.12), transparent 80%);
+  -webkit-mask-image:
+    linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, 0.66) 22%, #000 46%, rgba(0, 0, 0, 0.34) 78%, transparent 100%),
+    linear-gradient(180deg, #000 0%, #000 58%, rgba(0, 0, 0, 0.38) 82%, transparent 100%);
+  mask-image:
+    linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, 0.66) 22%, #000 46%, rgba(0, 0, 0, 0.34) 78%, transparent 100%),
+    linear-gradient(180deg, #000 0%, #000 58%, rgba(0, 0, 0, 0.38) 82%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+}
+
+.app-shell-parchment,
+.app-shell-night-sky,
+.app-top-art-clip {
+  position: absolute;
+  pointer-events: none;
+}
+
+.app-shell-parchment {
   inset: 0;
   z-index: 0;
+  background:
+    radial-gradient(900px 540px at 39% 20%, rgba(255, 250, 240, 0.78), transparent 70%),
+    radial-gradient(760px 560px at 73% 46%, rgba(232, 220, 199, 0.48), transparent 74%),
+    radial-gradient(620px 420px at 18% 75%, rgba(245, 222, 186, 0.27), transparent 76%),
+    radial-gradient(900px 480px at 102% 86%, rgba(177, 141, 83, 0.13), transparent 76%),
+    radial-gradient(780px 430px at 55% 102%, rgba(56, 189, 248, 0.08), transparent 74%),
+    linear-gradient(113deg, var(--parchment-light) 0%, var(--parchment-ivory) 38%, var(--parchment-warm) 72%, #f6ede0 100%);
+}
+
+.app-shell-parchment::before,
+.app-shell-parchment::after {
+  content: "";
+  position: absolute;
+  inset: 0;
   pointer-events: none;
+}
+
+.app-shell-parchment::before {
   background-image:
-    radial-gradient(940px 560px at 58% 48%, rgba(238, 225, 204, 0.16), transparent 74%),
-    radial-gradient(680px 420px at 20% 76%, rgba(220, 244, 255, 0.12), transparent 72%),
-    radial-gradient(720px 380px at 49% 24%, rgba(255, 255, 255, 0.34), transparent 68%),
-    repeating-linear-gradient(102deg, rgba(94, 64, 35, 0.014) 0 1px, transparent 1px 8px),
-    repeating-linear-gradient(8deg, rgba(15, 44, 84, 0.010) 0 1px, transparent 1px 10px);
-  opacity: 0.82;
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='420' viewBox='0 0 420 420'%3E%3Cfilter id='paperTexture'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.52 0.82' numOctaves='4' seed='11'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='table' tableValues='0 0.025 0.052'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='420' height='420' filter='url(%23paperTexture)'/%3E%3C/svg%3E"),
+    repeating-linear-gradient(89deg, rgba(93, 66, 34, 0.018) 0 1px, transparent 1px 18px),
+    repeating-linear-gradient(7deg, rgba(255, 255, 255, 0.035) 0 1px, transparent 1px 23px);
+  opacity: 0.9;
   mix-blend-mode: multiply;
 }
 
-.app-top-art-clip {
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: calc(var(--app-header-height) + 42px);
-  overflow: hidden;
-  pointer-events: none;
-  z-index: 0;
-  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 66%, rgba(0, 0, 0, 0.72) 82%, transparent 100%);
-  mask-image: linear-gradient(180deg, #000 0%, #000 66%, rgba(0, 0, 0, 0.72) 82%, transparent 100%);
+.app-shell-parchment::after {
+  background:
+    radial-gradient(circle at 6% 96%, rgba(53, 32, 18, 0.10) 0 1px, transparent 2px),
+    radial-gradient(circle at 31% 61%, rgba(80, 53, 26, 0.075) 0 1px, transparent 1.8px),
+    radial-gradient(circle at 67% 18%, rgba(82, 56, 30, 0.055) 0 1px, transparent 2px),
+    linear-gradient(90deg, rgba(110, 75, 37, 0.07), transparent 13%, transparent 84%, rgba(105, 70, 36, 0.08)),
+    linear-gradient(180deg, rgba(84, 54, 29, 0.08), transparent 15%, transparent 88%, rgba(91, 58, 30, 0.06));
+  background-size: 380px 260px, 520px 420px, 430px 320px, 100% 100%, 100% 100%;
+  opacity: 0.55;
+  mix-blend-mode: multiply;
 }
 
+.app-shell-night-sky {
+  inset: 0 auto 0 0;
+  width: calc(var(--app-sidebar-width) + 36px);
+  z-index: 1;
+  background:
+    radial-gradient(180px 150px at 20px 18px, rgba(56, 189, 248, 0.24), transparent 72%),
+    radial-gradient(210px 230px at 82% 18%, rgba(14, 165, 233, 0.15), transparent 78%),
+    radial-gradient(190px 240px at 54% 58%, rgba(8, 47, 73, 0.45), transparent 74%),
+    radial-gradient(260px 360px at 50% 105%, rgba(2, 6, 23, 0.72), transparent 76%),
+    linear-gradient(180deg, rgba(11, 30, 58, 0.96) 0%, rgba(8, 23, 45, 0.98) 58%, #071225 100%);
+  -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 44px), rgba(0, 0, 0, 0.82) calc(100% - 18px), transparent 100%);
+  mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 44px), rgba(0, 0, 0, 0.82) calc(100% - 18px), transparent 100%);
+  overflow: visible;
+}
+
+.app-shell-night-sky::before,
+.app-shell-night-sky::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.app-shell-night-sky::before {
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='360' height='360' viewBox='0 0 360 360'%3E%3Cfilter id='nightTexture'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.62 0.9' numOctaves='3' seed='27'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.1 0 0 0 0 0.32 0 0 0 0 0.55 0 0 0 0.13 0'/%3E%3C/filter%3E%3Crect width='360' height='360' filter='url(%23nightTexture)'/%3E%3C/svg%3E"),
+    radial-gradient(circle at 13% 19%, rgba(226, 246, 255, 0.16) 0 1px, transparent 1.6px),
+    radial-gradient(circle at 58% 32%, rgba(191, 219, 254, 0.10) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 26% 73%, rgba(125, 211, 252, 0.12) 0 1px, transparent 1.4px);
+  background-size: 360px 360px, 137px 173px, 181px 227px, 219px 193px;
+  opacity: 0.58;
+}
+
+.app-shell-night-sky::after {
+  top: 0;
+  left: calc(var(--app-sidebar-width) - 104px);
+  width: 252px;
+  height: 342px;
+  background:
+    radial-gradient(220px 210px at 22% 6%, rgba(3, 37, 79, 0.30), transparent 74%),
+    radial-gradient(210px 190px at 42% 16%, rgba(8, 145, 178, 0.24), transparent 75%),
+    radial-gradient(220px 160px at 60% 34%, rgba(103, 232, 249, 0.15), transparent 76%),
+    linear-gradient(90deg, rgba(5, 22, 48, 0.58), rgba(8, 145, 178, 0.16) 48%, transparent 100%);
+  -webkit-mask-image:
+    linear-gradient(90deg, #000 0%, rgba(0, 0, 0, 0.75) 38%, rgba(0, 0, 0, 0.24) 72%, transparent 100%),
+    linear-gradient(180deg, #000 0%, #000 58%, rgba(0, 0, 0, 0.30) 82%, transparent 100%);
+  mask-image:
+    linear-gradient(90deg, #000 0%, rgba(0, 0, 0, 0.75) 38%, rgba(0, 0, 0, 0.24) 72%, transparent 100%),
+    linear-gradient(180deg, #000 0%, #000 58%, rgba(0, 0, 0, 0.30) 82%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+  mix-blend-mode: multiply;
+  opacity: 0.82;
+}
+
+.app-top-art-clip {
+  inset: 0 0 auto 0;
+  height: calc(var(--app-header-height) + 112px);
+  overflow: hidden;
+  z-index: 2;
+  -webkit-mask-image:
+    linear-gradient(180deg, #000 0%, #000 58%, rgba(0, 0, 0, 0.74) 74%, rgba(0, 0, 0, 0.24) 89%, transparent 100%);
+  mask-image:
+    linear-gradient(180deg, #000 0%, #000 58%, rgba(0, 0, 0, 0.74) 74%, rgba(0, 0, 0, 0.24) 89%, transparent 100%);
+}
+
+.app-top-art-clip::before,
 .app-top-art-clip::after {
   content: "";
   position: absolute;
-  left: 236px;
+  pointer-events: none;
+}
+
+.app-top-art-clip::before {
+  inset: 0 0 auto 0;
+  height: 250px;
+  z-index: 1;
+  background:
+    radial-gradient(210px 210px at 15.5% 24%, rgba(3, 18, 43, 0.46), transparent 70%),
+    radial-gradient(250px 190px at 18% 25%, rgba(7, 89, 133, 0.42), transparent 75%),
+    radial-gradient(220px 170px at 20.5% 34%, rgba(34, 211, 238, 0.28), transparent 78%),
+    radial-gradient(190px 150px at 23% 39%, rgba(230, 247, 252, 0.28), transparent 80%),
+    radial-gradient(250px 170px at 8% 16%, rgba(1, 27, 61, 0.50), transparent 75%),
+    radial-gradient(280px 180px at 18% 18%, rgba(8, 145, 178, 0.24), transparent 74%),
+    radial-gradient(520px 190px at 47% 82%, rgba(244, 232, 213, 0.18), transparent 75%),
+    radial-gradient(380px 160px at 86% 18%, rgba(191, 219, 254, 0.18), transparent 74%);
+  mix-blend-mode: normal;
+  opacity: 0.92;
+}
+
+.app-top-art-clip::after {
+  left: calc(var(--app-sidebar-width) - 120px);
   right: 0;
   bottom: 0;
-  height: 88px;
-  pointer-events: none;
+  height: 122px;
+  z-index: 1;
   background:
-    radial-gradient(760px 130px at 42% 100%, rgba(255, 255, 255, 0.54), transparent 72%),
-    radial-gradient(620px 150px at 18% 82%, rgba(251, 207, 180, 0.12), transparent 76%),
-    radial-gradient(680px 150px at 76% 84%, rgba(186, 230, 253, 0.13), transparent 76%),
-    linear-gradient(180deg, rgba(250, 253, 255, 0), rgba(250, 249, 242, 0.70));
+    radial-gradient(780px 150px at 45% 0%, rgba(245, 238, 224, 0.64), transparent 73%),
+    radial-gradient(560px 130px at 18% 10%, rgba(34, 211, 238, 0.11), transparent 76%),
+    radial-gradient(680px 150px at 78% 8%, rgba(186, 230, 253, 0.16), transparent 77%),
+    linear-gradient(180deg, rgba(243, 234, 219, 0), rgba(243, 234, 219, 0.78) 72%, rgba(243, 234, 219, 0));
 }
 
 .app-top-art-clip .unified-brand-art,
@@ -57,23 +206,45 @@
 }
 
 .unified-brand-art {
-  height: 196px;
-  background-size: 100% 100%;
-  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 64%, rgba(0, 0, 0, 0.62) 82%, transparent 100%);
-  mask-image: linear-gradient(180deg, #000 0%, #000 64%, rgba(0, 0, 0, 0.62) 82%, transparent 100%);
+  height: 250px;
+  background-size: 100% 230px;
+  background-position: top center;
+  opacity: 0.94;
+  mix-blend-mode: multiply;
+  -webkit-mask-image:
+    linear-gradient(180deg, #000 0%, #000 60%, rgba(0, 0, 0, 0.62) 78%, rgba(0, 0, 0, 0.20) 91%, transparent 100%);
+  mask-image:
+    linear-gradient(180deg, #000 0%, #000 60%, rgba(0, 0, 0, 0.62) 78%, rgba(0, 0, 0, 0.20) 91%, transparent 100%);
 }
 
 .unified-brand-arch {
-  height: var(--app-header-height);
-  overflow: hidden;
+  height: 222px;
+  overflow: visible;
+  opacity: 0.72;
+  -webkit-mask-image:
+    linear-gradient(90deg, transparent 0 12%, #000 18% 92%, rgba(0, 0, 0, 0.5) 100%),
+    linear-gradient(180deg, #000 0 62%, rgba(0, 0, 0, 0.56) 78%, transparent 100%);
+  mask-image:
+    linear-gradient(90deg, transparent 0 12%, #000 18% 92%, rgba(0, 0, 0, 0.5) 100%),
+    linear-gradient(180deg, #000 0 62%, rgba(0, 0, 0, 0.56) 78%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
 }
 
 .app-sidebar {
   z-index: 5;
+  background: transparent;
+  border: 0;
   box-shadow:
-    inset -10px 0 16px rgba(255, 255, 255, 0.045),
-    inset -24px 0 34px rgba(0, 0, 0, 0.20),
-    14px 0 30px rgba(7, 20, 40, 0.22);
+    inset -18px 0 24px rgba(255, 255, 255, 0.018),
+    inset -44px 0 52px rgba(1, 8, 24, 0.22);
+}
+
+.app-main,
+.app-main-shell {
+  position: relative;
+  z-index: 3;
+  background: transparent;
 }
 
 .app-main-shell {
@@ -82,44 +253,42 @@
   display: grid;
   grid-template-rows: var(--app-header-height) minmax(0, 1fr);
   overflow: hidden;
-  background:
-    linear-gradient(180deg, rgba(238, 230, 214, 0.22) 0, rgba(240, 249, 255, 0.16) 24%, transparent 52%),
-    radial-gradient(620px 460px at 34% 28%, rgba(248, 232, 214, 0.18), transparent 74%),
-    radial-gradient(700px 520px at 78% 58%, rgba(186, 230, 253, 0.13), transparent 76%),
-    radial-gradient(760px 480px at 88% 82%, rgba(125, 211, 252, 0.09), transparent 76%);
 }
 
 .app-main-shell::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  background-image:
-    radial-gradient(640px 360px at 38% 54%, rgba(255, 255, 255, 0.24), transparent 70%),
-    radial-gradient(520px 300px at 20% 78%, rgba(251, 207, 180, 0.10), transparent 70%),
-    repeating-linear-gradient(101deg, rgba(94, 64, 35, 0.012) 0 1px, transparent 1px 7px),
-    repeating-linear-gradient(6deg, rgba(15, 44, 84, 0.010) 0 1px, transparent 1px 9px);
-  opacity: 0.88;
-  mix-blend-mode: multiply;
+  content: none;
 }
 
 .app-fixed-header {
   position: relative;
   z-index: 30;
   height: var(--app-header-height);
+  min-height: var(--app-header-height);
   overflow: hidden;
 }
 
+.app-fixed-header::before,
+.app-fixed-header::after {
+  content: none;
+}
+
 .app-fixed-header::before {
-  content: "";
-  position: absolute;
-  inset: auto 0 0 0;
-  height: 58px;
-  pointer-events: none;
+  top: 0;
+  height: 100%;
   background:
-    radial-gradient(640px 90px at 50% 100%, rgba(255, 255, 255, 0.52), transparent 72%),
-    linear-gradient(180deg, transparent, rgba(250, 249, 242, 0.64));
+    radial-gradient(430px 118px at 50% 52%, rgba(255, 252, 246, 0.46), transparent 78%),
+    radial-gradient(540px 120px at 74% 48%, rgba(240, 249, 255, 0.20), transparent 72%);
+  opacity: 0.9;
+}
+
+.app-fixed-header::after {
+  bottom: -1px;
+  height: 110px;
+  background:
+    radial-gradient(640px 112px at 50% 100%, rgba(246, 239, 228, 0.78), transparent 74%),
+    radial-gradient(420px 90px at 22% 72%, rgba(236, 214, 185, 0.20), transparent 74%),
+    radial-gradient(520px 100px at 78% 74%, rgba(186, 230, 253, 0.13), transparent 76%);
+  opacity: 0.92;
 }
 
 .app-header {
@@ -128,11 +297,12 @@
   height: var(--app-header-height);
   min-height: var(--app-header-height);
   padding: 0 28px;
+  overflow: hidden;
   background: transparent;
+  border: 0;
   box-shadow: none;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
-  overflow: hidden;
 }
 
 .app-header::after {
@@ -140,11 +310,22 @@
 }
 
 .app-header-text {
-  padding-top: 62px;
+  position: relative;
+  z-index: 2;
+  padding-top: 61px;
+}
+
+.app-header-title {
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.42);
+}
+
+.app-header-welcome {
+  color: #075985;
 }
 
 .app-header-right {
   top: 74px;
+  z-index: 3;
 }
 
 .app-scroll-region {
@@ -155,6 +336,7 @@
   overflow-y: auto;
   overflow-x: clip;
   padding: 0 28px;
+  background: transparent;
 }
 
 .app-scroll-region::before {
@@ -162,18 +344,123 @@
   position: sticky;
   top: 0;
   display: block;
-  height: 132px;
-  margin: 0 -28px -132px;
+  height: 126px;
+  margin: 0 -28px -126px -160px;
+  width: calc(100% + 188px);
   pointer-events: none;
   z-index: 0;
   background:
-    linear-gradient(180deg, rgba(236, 225, 207, 0.30), rgba(248, 253, 255, 0.18) 44%, transparent 100%),
-    radial-gradient(760px 150px at 48% 0%, rgba(255, 255, 255, 0.34), transparent 74%),
-    radial-gradient(620px 180px at 18% 22%, rgba(251, 207, 180, 0.12), transparent 76%),
-    radial-gradient(680px 160px at 76% 18%, rgba(186, 230, 253, 0.13), transparent 76%);
+    radial-gradient(720px 140px at 50% -12px, rgba(246, 239, 228, 0.74), transparent 76%),
+    radial-gradient(560px 170px at 20% 8%, rgba(236, 214, 185, 0.16), transparent 76%),
+    radial-gradient(680px 160px at 82% 0%, rgba(186, 230, 253, 0.10), transparent 76%),
+    linear-gradient(180deg, rgba(243, 234, 219, 0.58), rgba(243, 234, 219, 0.18) 48%, transparent 100%);
 }
 
 .app-scroll-region > * {
   position: relative;
   z-index: 1;
+}
+
+.workspace-page,
+.panel,
+.tasks-workspace,
+.event-group,
+.event-record,
+.task-card,
+.dashboard-card,
+.kpi-card,
+.liquid-page-panel,
+.liquid-workspace,
+.liquid-section,
+.liquid-card,
+.liquid-card-strong,
+.liquid-column,
+.liquid-table,
+.liquid-row,
+.liquid-field,
+.liquid-action {
+  border-color: rgba(255, 255, 255, 0.58);
+}
+
+.panel,
+.tasks-workspace,
+.liquid-page-panel,
+.liquid-workspace,
+.liquid-card-strong {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.74), rgba(248, 252, 255, 0.50)),
+    radial-gradient(520px 260px at 16% 0%, rgba(255, 255, 255, 0.44), transparent 74%),
+    radial-gradient(520px 300px at 92% 100%, rgba(125, 211, 252, 0.12), transparent 78%);
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  box-shadow:
+    0 24px 60px rgba(57, 72, 92, 0.14),
+    0 8px 18px rgba(57, 72, 92, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.86),
+    inset 0 -1px 0 rgba(56, 189, 248, 0.10);
+  backdrop-filter: blur(16px) saturate(1.12);
+  -webkit-backdrop-filter: blur(16px) saturate(1.12);
+}
+
+.kpi-card,
+.dashboard-card,
+.event-record,
+.task-card,
+.liquid-card {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.68), rgba(248, 252, 255, 0.46)),
+    radial-gradient(260px 150px at 18% 0%, rgba(255, 255, 255, 0.50), transparent 75%),
+    radial-gradient(320px 170px at 100% 100%, rgba(45, 212, 191, 0.12), transparent 78%);
+  border: 1px solid rgba(255, 255, 255, 0.66);
+  box-shadow:
+    0 18px 38px rgba(57, 72, 92, 0.12),
+    0 4px 12px rgba(57, 72, 92, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.82),
+    inset 0 -1px 0 rgba(8, 145, 178, 0.08);
+  backdrop-filter: blur(13px) saturate(1.08);
+  -webkit-backdrop-filter: blur(13px) saturate(1.08);
+}
+
+.kanban-column,
+.event-summary-field,
+.liquid-column,
+.liquid-row,
+.liquid-field,
+.liquid-table,
+.liquid-calendar-cell {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.48), rgba(250, 252, 255, 0.32)),
+    radial-gradient(220px 130px at 0% 0%, rgba(255, 255, 255, 0.30), transparent 76%);
+  border-color: rgba(255, 255, 255, 0.52);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.62),
+    0 8px 20px rgba(57, 72, 92, 0.06);
+  backdrop-filter: blur(9px);
+  -webkit-backdrop-filter: blur(9px);
+}
+
+.hub-bell,
+.role-pill,
+.app-nav-link,
+.button,
+.pill {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 8px 18px rgba(7, 20, 40, 0.10);
+}
+
+.sidebar-wash-bottom {
+  opacity: 0.82;
+  background:
+    radial-gradient(160px 120px at 18% 100%, rgba(56, 189, 248, 0.20), transparent 72%),
+    radial-gradient(180px 130px at 84% 100%, rgba(34, 211, 238, 0.13), transparent 74%),
+    linear-gradient(180deg, transparent, rgba(2, 6, 23, 0.34));
+  filter: blur(1.5px);
+}
+
+@media (max-width: 720px) {
+  .app-shell-parchment,
+  .app-shell-night-sky,
+  .app-top-art-clip {
+    display: none;
+  }
 }
