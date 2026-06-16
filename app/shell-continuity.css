@@ -26,7 +26,7 @@ body {
 }
 
 .app-shell::before {
-  content: "";
+  content: none;
   position: absolute;
   top: 0;
   left: calc(var(--app-sidebar-width) - 124px);
@@ -60,12 +60,12 @@ body {
   inset: 0;
   z-index: 0;
   background:
-    radial-gradient(900px 540px at 39% 20%, rgba(255, 250, 240, 0.78), transparent 70%),
-    radial-gradient(760px 560px at 73% 46%, rgba(232, 220, 199, 0.48), transparent 74%),
-    radial-gradient(620px 420px at 18% 75%, rgba(245, 222, 186, 0.27), transparent 76%),
-    radial-gradient(900px 480px at 102% 86%, rgba(177, 141, 83, 0.13), transparent 76%),
-    radial-gradient(780px 430px at 55% 102%, rgba(56, 189, 248, 0.08), transparent 74%),
-    linear-gradient(113deg, var(--parchment-light) 0%, var(--parchment-ivory) 38%, var(--parchment-warm) 72%, #f6ede0 100%);
+    radial-gradient(960px 580px at 40% 12%, rgba(255, 252, 244, 0.76), transparent 70%),
+    radial-gradient(760px 560px at 74% 44%, rgba(219, 196, 158, 0.30), transparent 74%),
+    radial-gradient(720px 460px at 16% 76%, rgba(197, 151, 84, 0.16), transparent 78%),
+    radial-gradient(900px 480px at 100% 88%, rgba(147, 103, 49, 0.12), transparent 76%),
+    radial-gradient(780px 430px at 56% 100%, rgba(56, 189, 248, 0.065), transparent 74%),
+    linear-gradient(113deg, #f7efe1 0%, #f0e2cd 36%, #ead8bb 72%, #f5ead8 100%);
 }
 
 .app-shell-parchment::before,
@@ -93,23 +93,23 @@ body {
     linear-gradient(90deg, rgba(110, 75, 37, 0.07), transparent 13%, transparent 84%, rgba(105, 70, 36, 0.08)),
     linear-gradient(180deg, rgba(84, 54, 29, 0.08), transparent 15%, transparent 88%, rgba(91, 58, 30, 0.06));
   background-size: 380px 260px, 520px 420px, 430px 320px, 100% 100%, 100% 100%;
-  opacity: 0.55;
+  opacity: 0.64;
   mix-blend-mode: multiply;
 }
 
 .app-shell-night-sky {
-  inset: 0 auto 0 0;
-  width: calc(var(--app-sidebar-width) + 36px);
-  z-index: 1;
+  inset: 112px auto 0 0;
+  width: var(--app-sidebar-width);
+  z-index: 3;
   background:
-    radial-gradient(180px 150px at 20px 18px, rgba(56, 189, 248, 0.24), transparent 72%),
-    radial-gradient(210px 230px at 82% 18%, rgba(14, 165, 233, 0.15), transparent 78%),
-    radial-gradient(190px 240px at 54% 58%, rgba(8, 47, 73, 0.45), transparent 74%),
-    radial-gradient(260px 360px at 50% 105%, rgba(2, 6, 23, 0.72), transparent 76%),
-    linear-gradient(180deg, rgba(11, 30, 58, 0.96) 0%, rgba(8, 23, 45, 0.98) 58%, #071225 100%);
-  -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 44px), rgba(0, 0, 0, 0.82) calc(100% - 18px), transparent 100%);
-  mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 44px), rgba(0, 0, 0, 0.82) calc(100% - 18px), transparent 100%);
+    radial-gradient(260px 210px at 14% -4%, rgba(56, 189, 248, 0.20), transparent 72%),
+    radial-gradient(240px 280px at 88% 18%, rgba(8, 145, 178, 0.14), transparent 76%),
+    radial-gradient(300px 360px at 48% 70%, rgba(2, 18, 43, 0.54), transparent 78%),
+    radial-gradient(330px 430px at 38% 108%, rgba(2, 6, 23, 0.76), transparent 79%),
+    linear-gradient(180deg, #071f3f 0%, #06162d 34%, #040b1a 100%);
   overflow: visible;
+  -webkit-mask-image: none;
+  mask-image: none;
 }
 
 .app-shell-night-sky::before,
@@ -122,34 +122,40 @@ body {
 
 .app-shell-night-sky::before {
   background-image:
+    radial-gradient(230px 160px at 8% -20px, rgba(34, 211, 238, 0.16), transparent 76%),
+    radial-gradient(210px 150px at 82% -18px, rgba(125, 211, 252, 0.12), transparent 78%),
+    radial-gradient(170px 190px at 72% 28%, rgba(14, 165, 233, 0.08), transparent 78%),
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='360' height='360' viewBox='0 0 360 360'%3E%3Cfilter id='nightTexture'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.62 0.9' numOctaves='3' seed='27'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.1 0 0 0 0 0.32 0 0 0 0 0.55 0 0 0 0.13 0'/%3E%3C/filter%3E%3Crect width='360' height='360' filter='url(%23nightTexture)'/%3E%3C/svg%3E"),
     radial-gradient(circle at 13% 19%, rgba(226, 246, 255, 0.16) 0 1px, transparent 1.6px),
     radial-gradient(circle at 58% 32%, rgba(191, 219, 254, 0.10) 0 1px, transparent 1.5px),
     radial-gradient(circle at 26% 73%, rgba(125, 211, 252, 0.12) 0 1px, transparent 1.4px);
-  background-size: 360px 360px, 137px 173px, 181px 227px, 219px 193px;
-  opacity: 0.58;
+  background-size: 100% 170px, 100% 170px, 100% 320px, 360px 360px, 137px 173px, 181px 227px, 219px 193px;
+  background-repeat: no-repeat, no-repeat, no-repeat, repeat, repeat, repeat, repeat;
+  background-position: 0 -22px, 0 -18px, 0 32px, 0 0, 11px 24px, 23px 39px, 7px 51px;
+  opacity: 0.48;
+  mix-blend-mode: screen;
 }
 
 .app-shell-night-sky::after {
+  content: none;
   top: 0;
-  left: calc(var(--app-sidebar-width) - 104px);
-  width: 252px;
-  height: 342px;
+  right: 0;
+  bottom: 0;
+  width: 76px;
+  height: auto;
   background:
-    radial-gradient(220px 210px at 22% 6%, rgba(3, 37, 79, 0.30), transparent 74%),
-    radial-gradient(210px 190px at 42% 16%, rgba(8, 145, 178, 0.24), transparent 75%),
-    radial-gradient(220px 160px at 60% 34%, rgba(103, 232, 249, 0.15), transparent 76%),
-    linear-gradient(90deg, rgba(5, 22, 48, 0.58), rgba(8, 145, 178, 0.16) 48%, transparent 100%);
-  -webkit-mask-image:
-    linear-gradient(90deg, #000 0%, rgba(0, 0, 0, 0.75) 38%, rgba(0, 0, 0, 0.24) 72%, transparent 100%),
-    linear-gradient(180deg, #000 0%, #000 58%, rgba(0, 0, 0, 0.30) 82%, transparent 100%);
-  mask-image:
-    linear-gradient(90deg, #000 0%, rgba(0, 0, 0, 0.75) 38%, rgba(0, 0, 0, 0.24) 72%, transparent 100%),
-    linear-gradient(180deg, #000 0%, #000 58%, rgba(0, 0, 0, 0.30) 82%, transparent 100%);
-  -webkit-mask-composite: source-in;
-  mask-composite: intersect;
-  mix-blend-mode: multiply;
-  opacity: 0.82;
+    radial-gradient(68px 160px at 18% 5%, rgba(34, 211, 238, 0.16), transparent 76%),
+    radial-gradient(56px 120px at 12% 31%, rgba(8, 145, 178, 0.12), transparent 74%),
+    radial-gradient(50px 150px at 18% 58%, rgba(14, 165, 233, 0.08), transparent 78%),
+    radial-gradient(54px 120px at 8% 86%, rgba(2, 18, 43, 0.11), transparent 80%),
+    radial-gradient(circle at 18% 18%, rgba(226, 246, 255, 0.18) 0 1px, transparent 1.6px),
+    radial-gradient(circle at 26% 46%, rgba(125, 211, 252, 0.11) 0 1px, transparent 1.4px),
+    radial-gradient(circle at 12% 74%, rgba(191, 219, 254, 0.10) 0 1px, transparent 1.3px);
+  background-size: 100% 220px, 100% 260px, 100% 320px, 100% 280px, 53px 97px, 71px 123px, 89px 149px;
+  background-repeat: no-repeat, no-repeat, no-repeat, no-repeat, repeat, repeat, repeat;
+  background-position: 0 0, 0 220px, 0 470px, 0 720px, 5px 11px, 17px 29px, 3px 47px;
+  filter: blur(0.4px);
+  opacity: 0.76;
 }
 
 .app-top-art-clip {
@@ -185,19 +191,12 @@ body {
     radial-gradient(380px 160px at 86% 18%, rgba(191, 219, 254, 0.18), transparent 74%);
   mix-blend-mode: normal;
   opacity: 0.92;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0 206px, rgba(0, 0, 0, 0.10) 272px, rgba(0, 0, 0, 0.70) 366px, #000 460px);
+  mask-image: linear-gradient(90deg, transparent 0 206px, rgba(0, 0, 0, 0.10) 272px, rgba(0, 0, 0, 0.70) 366px, #000 460px);
 }
 
 .app-top-art-clip::after {
-  left: calc(var(--app-sidebar-width) - 120px);
-  right: 0;
-  bottom: 0;
-  height: 122px;
-  z-index: 1;
-  background:
-    radial-gradient(780px 150px at 45% 0%, rgba(245, 238, 224, 0.64), transparent 73%),
-    radial-gradient(560px 130px at 18% 10%, rgba(34, 211, 238, 0.11), transparent 76%),
-    radial-gradient(680px 150px at 78% 8%, rgba(186, 230, 253, 0.16), transparent 77%),
-    linear-gradient(180deg, rgba(243, 234, 219, 0), rgba(243, 234, 219, 0.78) 72%, rgba(243, 234, 219, 0));
+  content: none;
 }
 
 .app-top-art-clip .unified-brand-art,
@@ -222,10 +221,10 @@ body {
   overflow: visible;
   opacity: 0.72;
   -webkit-mask-image:
-    linear-gradient(90deg, transparent 0 12%, #000 18% 92%, rgba(0, 0, 0, 0.5) 100%),
+    linear-gradient(90deg, transparent 0 250px, rgba(0, 0, 0, 0.22) 310px, #000 390px, #000 92%, rgba(0, 0, 0, 0.5) 100%),
     linear-gradient(180deg, #000 0 62%, rgba(0, 0, 0, 0.56) 78%, transparent 100%);
   mask-image:
-    linear-gradient(90deg, transparent 0 12%, #000 18% 92%, rgba(0, 0, 0, 0.5) 100%),
+    linear-gradient(90deg, transparent 0 250px, rgba(0, 0, 0, 0.22) 310px, #000 390px, #000 92%, rgba(0, 0, 0, 0.5) 100%),
     linear-gradient(180deg, #000 0 62%, rgba(0, 0, 0, 0.56) 78%, transparent 100%);
   -webkit-mask-composite: source-in;
   mask-composite: intersect;
@@ -235,9 +234,7 @@ body {
   z-index: 5;
   background: transparent;
   border: 0;
-  box-shadow:
-    inset -18px 0 24px rgba(255, 255, 255, 0.018),
-    inset -44px 0 52px rgba(1, 8, 24, 0.22);
+  box-shadow: none;
 }
 
 .app-main,
@@ -340,13 +337,13 @@ body {
 }
 
 .app-scroll-region::before {
-  content: "";
+  content: none;
   position: sticky;
   top: 0;
   display: block;
   height: 126px;
-  margin: 0 -28px -126px -160px;
-  width: calc(100% + 188px);
+  margin: 0 -28px -126px;
+  width: auto;
   pointer-events: none;
   z-index: 0;
   background:
@@ -457,10 +454,413 @@ body {
   filter: blur(1.5px);
 }
 
+/* Final desktop material pass: parchment + designed sidebar edge + raised/inset surfaces. */
+:root {
+  --surface-radius-primary: 24px;
+  --surface-radius-secondary: 18px;
+  --surface-radius-inset: 15px;
+  --surface-primary-bg:
+    linear-gradient(142deg, rgba(255, 255, 255, 0.76), rgba(248, 251, 252, 0.48)),
+    radial-gradient(520px 260px at 8% -8%, rgba(255, 255, 255, 0.62), transparent 72%),
+    radial-gradient(520px 320px at 104% 112%, rgba(67, 212, 229, 0.16), transparent 74%);
+  --surface-secondary-bg:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.68), rgba(249, 252, 255, 0.43)),
+    radial-gradient(300px 160px at 8% -8%, rgba(255, 255, 255, 0.56), transparent 72%),
+    radial-gradient(300px 190px at 102% 108%, rgba(45, 212, 191, 0.13), transparent 76%);
+  --surface-inset-bg:
+    linear-gradient(145deg, rgba(238, 231, 216, 0.30), rgba(255, 255, 255, 0.42)),
+    radial-gradient(280px 150px at 8% 0%, rgba(255, 255, 255, 0.30), transparent 74%);
+  --surface-primary-shadow:
+    16px 24px 44px rgba(82, 67, 45, 0.14),
+    -10px -10px 28px rgba(255, 255, 255, 0.42),
+    0 7px 16px rgba(73, 91, 112, 0.09),
+    inset 1px 1px 0 rgba(255, 255, 255, 0.92),
+    inset -1px -1px 0 rgba(57, 190, 220, 0.13),
+    inset 0 0 0 1px rgba(125, 211, 252, 0.16);
+  --surface-secondary-shadow:
+    10px 16px 30px rgba(82, 67, 45, 0.12),
+    -7px -7px 20px rgba(255, 255, 255, 0.36),
+    0 4px 10px rgba(73, 91, 112, 0.07),
+    inset 1px 1px 0 rgba(255, 255, 255, 0.86),
+    inset -1px -1px 0 rgba(57, 190, 220, 0.10);
+  --surface-inset-shadow:
+    inset 0 2px 8px rgba(87, 69, 45, 0.09),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.55),
+    0 1px 0 rgba(255, 255, 255, 0.42);
+}
+
+.app-shell-parchment {
+  background:
+    radial-gradient(1100px 620px at 42% 12%, rgba(255, 250, 239, 0.84), transparent 68%),
+    radial-gradient(880px 680px at 78% 38%, rgba(217, 198, 164, 0.38), transparent 72%),
+    radial-gradient(620px 540px at 28% 70%, rgba(177, 141, 83, 0.16), transparent 70%),
+    radial-gradient(540px 420px at 54% 66%, rgba(253, 239, 214, 0.28), transparent 72%),
+    radial-gradient(860px 500px at 96% 92%, rgba(103, 163, 177, 0.11), transparent 74%),
+    linear-gradient(111deg, #f7efe2 0%, #f2e6d3 34%, #eadcc4 62%, #f5eadb 100%);
+}
+
+.app-shell-parchment::before {
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='720' height='520' viewBox='0 0 720 520'%3E%3Cfilter id='largeParchment'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.010 0.018' numOctaves='5' seed='33'/%3E%3CfeColorMatrix type='matrix' values='0.56 0 0 0 0.36 0 0.48 0 0 0.26 0 0 0.34 0 0.13 0 0 0 0.30 0'/%3E%3C/filter%3E%3Crect width='720' height='520' filter='url(%23largeParchment)'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='360' height='360' viewBox='0 0 360 360'%3E%3Cfilter id='fibers'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.78 1.04' numOctaves='4' seed='19'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='table' tableValues='0 0.022 0.052'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='360' height='360' filter='url(%23fibers)'/%3E%3C/svg%3E"),
+    repeating-linear-gradient(93deg, rgba(92, 64, 33, 0.024) 0 1px, transparent 1px 22px),
+    repeating-linear-gradient(5deg, rgba(255, 255, 255, 0.035) 0 1px, transparent 1px 27px);
+  background-size: 720px 520px, 360px 360px, 100% 100%, 100% 100%;
+  opacity: 0.98;
+  mix-blend-mode: multiply;
+}
+
+.app-shell-parchment::after {
+  background:
+    radial-gradient(ellipse at 10% 10%, rgba(121, 84, 42, 0.10) 0 7%, transparent 24%),
+    radial-gradient(ellipse at 76% 22%, rgba(96, 66, 32, 0.075) 0 6%, transparent 22%),
+    radial-gradient(ellipse at 66% 70%, rgba(145, 111, 62, 0.085) 0 9%, transparent 27%),
+    radial-gradient(circle at 6% 96%, rgba(53, 32, 18, 0.12) 0 1px, transparent 2px),
+    radial-gradient(circle at 31% 61%, rgba(80, 53, 26, 0.095) 0 1px, transparent 1.8px),
+    radial-gradient(circle at 67% 18%, rgba(82, 56, 30, 0.07) 0 1px, transparent 2px),
+    linear-gradient(90deg, rgba(112, 76, 38, 0.09), transparent 12%, transparent 86%, rgba(105, 70, 36, 0.09)),
+    linear-gradient(180deg, rgba(84, 54, 29, 0.08), transparent 16%, transparent 86%, rgba(91, 58, 30, 0.08));
+  background-size: 900px 620px, 720px 520px, 780px 540px, 380px 260px, 520px 420px, 430px 320px, 100% 100%, 100% 100%;
+  opacity: 0.72;
+}
+
+.app-shell-night-sky {
+  width: calc(var(--app-sidebar-width) + 58px);
+  border-radius: 0;
+  box-shadow:
+    inset -10px 0 24px rgba(0, 7, 22, 0.12);
+}
+
+.app-shell-night-sky::before {
+  opacity: 0.46;
+}
+
+.app-shell-night-sky::after {
+  content: "";
+}
+
+.app-shell::before {
+  content: none;
+}
+
+.app-sidebar {
+  overflow: visible;
+  border-radius: 0;
+  box-shadow:
+    inset -12px 0 24px rgba(1, 8, 24, 0.15);
+}
+
+.app-sidebar::before,
+.app-sidebar::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+}
+
+.app-sidebar::before {
+  top: 286px;
+  right: -5px;
+  bottom: 34px;
+  width: 10px;
+  border-radius: 999px;
+  background:
+    linear-gradient(90deg, rgba(0, 6, 20, 0.22), rgba(255, 255, 255, 0.065) 55%, rgba(62, 38, 18, 0.10) 100%);
+  box-shadow:
+    5px 0 14px rgba(60, 42, 24, 0.13);
+  filter: none;
+  opacity: 0.18;
+}
+
+.app-sidebar::after {
+  content: none;
+}
+
+.app-top-art-clip {
+  height: calc(var(--app-header-height) + 136px);
+}
+
+.app-top-art-clip::after {
+  left: calc(var(--app-sidebar-width) + 18px);
+  height: 148px;
+  background:
+    radial-gradient(780px 170px at 45% 0%, rgba(245, 238, 224, 0.58), transparent 73%),
+    radial-gradient(520px 150px at 9% 0%, rgba(34, 211, 238, 0.12), transparent 78%),
+    radial-gradient(690px 170px at 78% 8%, rgba(186, 230, 253, 0.13), transparent 77%),
+    linear-gradient(180deg, rgba(243, 234, 219, 0), rgba(239, 226, 204, 0.58) 74%, rgba(243, 234, 219, 0));
+}
+
+.unified-brand-art {
+  opacity: 0.94;
+  filter: saturate(1.12) contrast(1.02);
+}
+
+.app-scroll-region::before {
+  content: none;
+}
+
+.surface-raised-primary,
+.panel,
+.tasks-workspace,
+.event-board,
+.calendar-panel,
+.pulse-panel,
+.next-cal-panel,
+.liquid-page-panel,
+.liquid-workspace,
+.liquid-card-strong {
+  position: relative;
+  isolation: isolate;
+  border-radius: var(--surface-radius-primary);
+  background: var(--surface-primary-bg);
+  border: 1px solid rgba(255, 255, 255, 0.74);
+  box-shadow: var(--surface-primary-shadow);
+  backdrop-filter: blur(16px) saturate(1.14);
+  -webkit-backdrop-filter: blur(16px) saturate(1.14);
+}
+
+.surface-raised-secondary,
+.card,
+.kpi-card,
+.dashboard-card,
+.event-row-card,
+.task-card,
+.summary-field,
+.next-cal-item,
+.liquid-card {
+  position: relative;
+  isolation: isolate;
+  border-radius: var(--surface-radius-secondary);
+  background: var(--surface-secondary-bg);
+  border: 1px solid rgba(255, 255, 255, 0.66);
+  box-shadow: var(--surface-secondary-shadow);
+  backdrop-filter: blur(12px) saturate(1.08);
+  -webkit-backdrop-filter: blur(12px) saturate(1.08);
+}
+
+.surface-inset,
+.surface-field,
+.surface-row,
+.surface-column,
+.input,
+.notes-editor,
+.event-summary-scroll,
+.event-summary-shell,
+.event-identity-section,
+.event-date-block,
+.event-task-tree,
+.event-task-tree-wrap,
+.task-edit-panel,
+.kanban-column,
+.task-table-wrap,
+.calendar-cell,
+.liquid-column,
+.liquid-row,
+.liquid-field,
+.liquid-table,
+.liquid-calendar-cell {
+  border-radius: var(--surface-radius-inset);
+  background: var(--surface-inset-bg);
+  border-color: rgba(154, 121, 75, 0.16);
+  box-shadow: var(--surface-inset-shadow);
+}
+
+.surface-interactive,
+.button,
+.summary-toggle-button,
+.calendar-nav-btn,
+.calendar-today-btn {
+  border-radius: 12px;
+  box-shadow:
+    0 8px 18px rgba(49, 62, 78, 0.10),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72),
+    inset 0 -1px 0 rgba(57, 190, 220, 0.08);
+}
+
+.surface-interactive:hover,
+.button:hover:not(:disabled),
+.summary-toggle-button:hover,
+.calendar-nav-btn:hover,
+.calendar-today-btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(56, 189, 248, 0.44);
+}
+
+.surface-selected,
+.event-row-card.selected,
+.app-nav-link.active {
+  box-shadow:
+    0 14px 30px rgba(14, 116, 206, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.30),
+    inset 0 -1px 0 rgba(2, 6, 23, 0.10);
+}
+
+.surface-warning,
+.summary-field.warning,
+.task-card.attention {
+  border-color: rgba(245, 158, 11, 0.34);
+  background:
+    linear-gradient(145deg, rgba(255, 251, 235, 0.76), rgba(255, 255, 255, 0.44)),
+    radial-gradient(260px 160px at 100% 100%, rgba(251, 191, 36, 0.14), transparent 76%);
+}
+
+.surface-success,
+.summary-field.success,
+.pill.done {
+  border-color: rgba(34, 197, 94, 0.30);
+}
+
+.event-card-row,
+.event-row-card,
+.event-board-header {
+  background: transparent;
+}
+
+.event-board {
+  overflow: hidden;
+  padding: 8px;
+}
+
+.event-board-header {
+  border: 0;
+  gap: 6px;
+  padding: 0 0 8px;
+}
+
+.event-board-header span {
+  border-right: 0;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.32);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.56);
+}
+
+.event-row-card {
+  border-top: 0;
+  overflow: hidden;
+  margin-top: 8px;
+}
+
+.event-identity-section,
+.event-date-block {
+  border-right-color: rgba(154, 121, 75, 0.14);
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.event-summary-scroll {
+  border-color: rgba(154, 121, 75, 0.14);
+}
+
+.summary-field {
+  border-radius: 13px;
+}
+
+.task-table-wrap {
+  border-radius: 18px;
+}
+
+.task-table th {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.74), rgba(239, 248, 252, 0.56));
+  color: #31506a;
+}
+
+.task-table td {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.task-table tbody tr:hover td {
+  background: rgba(125, 211, 252, 0.12);
+}
+
+.kpi-card {
+  border-radius: 15px;
+  box-shadow:
+    0 18px 34px rgba(49, 62, 78, 0.13),
+    0 5px 12px rgba(73, 91, 112, 0.09),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    inset 0 -1px 0 rgba(57, 190, 220, 0.13);
+}
+
+.pulse-row {
+  border-radius: 13px;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.24);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.48);
+}
+
+.next-cal-item {
+  background: var(--surface-secondary-bg);
+}
+
+.calendar-cell {
+  background:
+    linear-gradient(145deg, rgba(244, 239, 230, 0.38), rgba(255, 255, 255, 0.38)),
+    radial-gradient(140px 100px at 100% 100%, rgba(125, 211, 252, 0.08), transparent 76%);
+}
+
+.app-nav-link {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.075), rgba(8, 32, 62, 0.26));
+  border-color: rgba(130, 190, 255, 0.18);
+  box-shadow:
+    8px 12px 22px rgba(0, 6, 20, 0.24),
+    -5px -5px 15px rgba(88, 181, 224, 0.045),
+    inset 1px 1px 0 rgba(255, 255, 255, 0.14),
+    inset -1px -1px 0 rgba(0, 0, 0, 0.22);
+}
+
+.app-nav-link:hover:not(.active) {
+  background:
+    linear-gradient(145deg, rgba(95, 168, 255, 0.20), rgba(8, 32, 62, 0.30));
+}
+
+.sidebar-add-event {
+  box-shadow:
+    8px 13px 24px rgba(3, 12, 34, 0.30),
+    -5px -5px 16px rgba(125, 211, 252, 0.08),
+    inset 1px 1px 0 rgba(255, 255, 255, 0.24),
+    inset -1px -1px 0 rgba(4, 21, 64, 0.26);
+}
+
+.dashboard-footer {
+  min-height: 178px;
+}
+
+.dashboard-wave {
+  height: 178px;
+  opacity: 0.94;
+  filter: saturate(1.08);
+}
+
+.dashboard-wave::before {
+  content: "";
+  position: absolute;
+  inset: 18px 0 0;
+  pointer-events: none;
+  background:
+    radial-gradient(540px 120px at 72% 8%, rgba(255, 255, 255, 0.26), transparent 70%),
+    radial-gradient(620px 150px at 42% 56%, rgba(34, 211, 238, 0.16), transparent 72%);
+  mix-blend-mode: screen;
+}
+
+.wave-layer {
+  filter: drop-shadow(0 -8px 18px rgba(14, 116, 206, 0.08));
+}
+
+.wave-mist {
+  opacity: 0.62;
+  animation: waveDriftBack 17s ease-in-out infinite;
+}
+
 @media (max-width: 720px) {
   .app-shell-parchment,
   .app-shell-night-sky,
   .app-top-art-clip {
     display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wave-mist {
+    animation: none !important;
   }
 }

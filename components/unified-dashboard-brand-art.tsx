@@ -24,7 +24,7 @@ export function UnifiedDashboardBrandArt() {
         </defs>
 
         <path
-          d="M0 78C205 28 430 8 675 14C842 18 957 33 1046 74C1096 98 1142 128 1185 168"
+          d="M300 52C468 20 624 10 770 18C900 25 990 43 1060 76C1108 99 1150 128 1185 168"
           fill="none"
           stroke="url(#archStrokeLine)"
           strokeWidth="3.2"
@@ -33,7 +33,7 @@ export function UnifiedDashboardBrandArt() {
           opacity="0.25"
         />
         <path
-          d="M0 78C205 28 430 8 675 14C842 18 957 33 1046 74C1096 98 1142 128 1185 168"
+          d="M300 52C468 20 624 10 770 18C900 25 990 43 1060 76C1108 99 1150 128 1185 168"
           fill="none"
           stroke="url(#archStrokeLine)"
           strokeWidth="1.65"
@@ -41,7 +41,7 @@ export function UnifiedDashboardBrandArt() {
           opacity="0.82"
         />
         <path
-          d="M248 86C510 44 714 58 886 95C1040 128 1185 200 1440 172"
+          d="M330 88C560 50 744 60 900 96C1048 130 1190 200 1440 172"
           fill="none"
           stroke="url(#archStrokeLine)"
           strokeWidth="1.05"

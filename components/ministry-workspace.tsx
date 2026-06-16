@@ -129,15 +129,9 @@ export default function MinistryWorkspace({ view }: { view: WorkspaceView }) {
 
   return (
     <div className="grid workspace-page">
-      {view !== "dashboard" ? (
-        <div className="panel" role="status">
-          {notice}
-        </div>
-      ) : (
-        <div className="sr-only" role="status">
-          {notice}
-        </div>
-      )}
+      <div className="sr-only" role="status">
+        {notice}
+      </div>
 
       {isLoading || !overview ? (
         <section className="panel">Loading ministry workspace...</section>
@@ -425,17 +419,23 @@ function DashboardWaveFooter() {
         <svg viewBox="0 0 1440 240" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
           <defs>
             <linearGradient id="dashWaveTop" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="#7dd3fc" />
-              <stop offset="55%" stopColor="#38bdf8" />
-              <stop offset="100%" stopColor="#2563eb" />
+              <stop offset="0%" stopColor="#bae6fd" stopOpacity="0.76" />
+              <stop offset="55%" stopColor="#38bdf8" stopOpacity="0.86" />
+              <stop offset="100%" stopColor="#0ea5e9" stopOpacity="0.94" />
             </linearGradient>
             <linearGradient id="dashWaveMid" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="#bae6fd" />
-              <stop offset="100%" stopColor="#7dd3fc" />
+              <stop offset="0%" stopColor="#e0f7ff" stopOpacity="0.56" />
+              <stop offset="52%" stopColor="#7dd3fc" stopOpacity="0.72" />
+              <stop offset="100%" stopColor="#0891b2" stopOpacity="0.78" />
+            </linearGradient>
+            <linearGradient id="dashWaveDeep" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="#67e8f9" stopOpacity="0.42" />
+              <stop offset="100%" stopColor="#1d4ed8" stopOpacity="0.54" />
             </linearGradient>
           </defs>
-          <path className="wave-layer wave-back" fill="url(#dashWaveMid)" d="M0,150 C240,90 480,200 720,160 C960,120 1200,70 1440,140 L1440,240 L0,240 Z" />
-          <path className="wave-layer wave-front" fill="url(#dashWaveTop)" d="M0,185 C260,140 520,225 760,190 C1010,150 1230,120 1440,180 L1440,240 L0,240 Z" />
+          <path className="wave-layer wave-mist" fill="url(#dashWaveMid)" d="M0,188 C170,162 318,182 492,156 C720,121 938,82 1164,66 C1286,58 1380,64 1440,54 L1440,240 L0,240 Z" />
+          <path className="wave-layer wave-back" fill="url(#dashWaveDeep)" d="M0,206 C204,178 384,210 586,176 C808,139 982,94 1178,86 C1296,80 1370,84 1440,74 L1440,240 L0,240 Z" />
+          <path className="wave-layer wave-front" fill="url(#dashWaveTop)" d="M0,222 C204,194 362,224 556,198 C764,170 930,118 1120,102 C1260,90 1378,92 1440,82 L1440,240 L0,240 Z" />
         </svg>
       </div>
     </footer>
