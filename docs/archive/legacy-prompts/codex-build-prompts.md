@@ -1,3 +1,7 @@
+# LEGACY / ARCHIVED — NOT AUTHORITATIVE FOR CURRENT IMPLEMENTATION
+
+These prompts describe an obsolete Google Sheets and Google Apps Script prototype direction. They are preserved only as historical context. Current implementation decisions should follow `AGENTS.md`, `README.md`, and the active Next.js/Supabase documentation.
+
 # Codex Build Prompts
 
 ## Repository Review Prompt

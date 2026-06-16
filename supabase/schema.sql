@@ -1,5 +1,7 @@
--- EMERGEnce Ministry Platform - Iteration 2 Phase 1 schema
+-- Lead Emergence Automated Platform - current schema snapshot/reference.
 -- Run this in the Supabase SQL editor after creating at least one Auth user.
+-- Future schema changes should be added as idempotent migrations under
+-- supabase/migrations/ rather than by editing archived legacy SQL files.
 
 create extension if not exists pgcrypto;
 
@@ -28,6 +30,7 @@ create table if not exists public.events (
   ministry_area text,
   description text,
   vision text,
+  target_group text,
   start_date date,
   end_date date,
   start_time text,
