@@ -123,7 +123,7 @@ const pageTitles: Record<string, string> = {
   "/settings": "Settings"
 };
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({ children, devAuth = false }: { children: React.ReactNode; devAuth?: boolean }) {
   const pathname = usePathname();
   const { activeRole, setActiveRole } = useRole();
   const { openCreate } = useEventCard();
@@ -206,6 +206,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
           <div className="app-header-right">
             <span className="pill stub">Stub Mode</span>
+            {devAuth ? <span className="pill dev-auth">DEV AUTH</span> : null}
             <span className="hub-bell" role="img" aria-label="2 notifications">
               <BellIcon />
               <span className="hub-bell-badge">2</span>
