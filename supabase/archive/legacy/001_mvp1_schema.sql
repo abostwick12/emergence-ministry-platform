@@ -1,3 +1,14 @@
+-- LEGACY / ARCHIVED — NOT AUTHORITATIVE FOR CURRENT IMPLEMENTATION
+--
+-- This file describes an obsolete MVP schema draft with tables such as users,
+-- active_tasks, workflow_templates, communication_packages, and integration
+-- sync logs. The current application uses the Supabase schema snapshot/reference
+-- in supabase/schema.sql with the active core tables profiles, events, tasks,
+-- and activity_logs.
+--
+-- Future schema changes should follow the documented migration path and should
+-- not be made by editing this archived SQL file.
+
 create extension if not exists pgcrypto;
 
 create type user_role as enum ('admin', 'leader', 'student', 'parent');

@@ -113,10 +113,17 @@ The current release does not yet include:
 - Next.js App Router
 - React
 - TypeScript
+- Tailwind CSS and shared global design tokens
 - Supabase Auth and Postgres
 - Vercel
 - Playwright end-to-end testing
 - GitHub Actions
+
+Active application architecture:
+This repository is the current Lead Emergence Automated Platform web application. The active stack is Next.js App Router, React, TypeScript, Tailwind CSS, Supabase Auth, Supabase Postgres, Vercel, and Playwright.
+
+Legacy prototype note:
+Google Sheets, Google Apps Script, Apps Script HTML/CSS/JS, clasp, Power Apps, Power Automate, SharePoint, and Dataverse materials describe obsolete prototypes or earlier planning artifacts. They are not authoritative for current implementation decisions unless explicitly marked as historical context.
 
 ## Local Development
 
@@ -152,27 +159,37 @@ Never place service-role keys, database passwords, provider OAuth secrets, AI pr
 
 ### Development Auth (server-only)
 
-On non-production environments (local dev, Vercel Preview), reviewers can sign in
-without Supabase credentials using dev auth over Stub Mode mock data. It is
-controlled by **server-only** variables — never prefix these with `NEXT_PUBLIC_`,
-which would inline their values into the browser bundle:
+On non-production environments (local dev and approved Vercel Preview deployments), reviewers can sign in without Supabase credentials using dev auth over Stub Mode mock data. It is controlled by **server-only** variables. Never prefix these with `NEXT_PUBLIC_`, which would inline their values into the browser bundle:
 
 ```bash
 ENABLE_DEV_AUTH=true            # enables dev/mock login; ignored in production
 DEV_AUTH_ROLE=Administrator     # Administrator | Leader | Student | Parent
 ```
 
-Dev auth is **never** active when `VERCEL_ENV=production` — production always uses
-real Supabase Auth, regardless of these flags. When dev auth is active, the app
-shell shows a `DEV AUTH` badge (a server component passes a boolean to the client;
-the controlling variable is never exposed). The deprecated public variants
-`NEXT_PUBLIC_ENABLE_DEV_AUTH` / `NEXT_PUBLIC_DEV_AUTH_ROLE` are still honored on the
-server temporarily (with a development-time deprecation warning) and should be
-deleted once the server-only variables are set.
+Dev auth is **never** active when `VERCEL_ENV=production`; production always uses real Supabase Auth, regardless of these flags. When dev auth is active, the app shell shows a `DEV AUTH` badge. A server component passes only a non-sensitive boolean to the client; the controlling variable is never exposed.
+
+The deprecated public variants `NEXT_PUBLIC_ENABLE_DEV_AUTH` and `NEXT_PUBLIC_DEV_AUTH_ROLE` are still honored on the server temporarily for preview compatibility, with a development-time deprecation warning. They should be removed after Preview is verified with the server-only variables.
+
+### Playwright Auth
+
+`E2E_MOCK_AUTH=true` is the deterministic Playwright/local test harness. It makes `/api/auth/login` accept the test login form and set a mock session cookie backed by Stub Mode data.
+
+```bash
+E2E_MOCK_AUTH=true
+```
+
+Use `E2E_MOCK_AUTH` only for local automated tests and CI. It must never be enabled in Production. The unauthenticated redirect test runs before login and does not need a session cookie; subsequent tests log in through the same `/login` form using the deterministic mock path.
+
+`E2E_MOCK_AUTH` and `ENABLE_DEV_AUTH` use the same server-side mock-auth implementation, but they serve different purposes:
+
+- `E2E_MOCK_AUTH`: Playwright/local test harness for deterministic automated tests.
+- `ENABLE_DEV_AUTH` / `DEV_AUTH_ROLE`: server-only runtime development authentication harness for local development and approved Vercel Preview deployments.
 
 ### Database Setup
 
-Run the base schema in the Supabase SQL Editor:
+`supabase/schema.sql` is the current schema snapshot/reference for creating a new Supabase project. It is executable bootstrap SQL and includes the active core tables, triggers, RLS policies, and optional MVP seed data.
+
+Run the schema snapshot in the Supabase SQL Editor after creating at least one Auth user:
 
 ```text
 supabase/schema.sql
@@ -187,7 +204,15 @@ The schema creates the core tables:
 
 It enables Row Level Security and authenticated staff-wide CRUD policies. Fine-grained role permissions are intentionally deferred; `profiles.role` is retained for later expansion.
 
-Apply repository migrations in order when updating an existing Supabase project. The current migration set includes additive event-field updates such as `target_group`, `notes`, `ministry_area`, `vision`, and `communication_owner`.
+For an existing Supabase project, apply additive migrations in order from:
+
+```text
+supabase/migrations/
+```
+
+Current migrations are historical/update files that preserve already-applied changes. Do not edit old migration files to make future schema changes. Add a new idempotent migration instead, prefer `ADD COLUMN IF NOT EXISTS` where appropriate, preserve RLS and existing data, and verify the target environment before applying.
+
+Archived SQL under `supabase/archive/legacy/` is historical prototype context only and is not part of the active schema path.
 
 ### First User
 
@@ -196,23 +221,27 @@ In Supabase:
 1. Open **Authentication → Users**.
 2. Create a user with an email and password.
 3. Run `supabase/schema.sql` for a new project.
-4. Apply any later migrations in `supabase/migrations/`.
+4. For an existing project, apply any needed migrations from `supabase/migrations/` in filename order.
 5. Confirm a matching `profiles` row exists.
 
 ## Local Login Testing
 
 With real Supabase variables configured, start the app and sign in at `/login` with a manually created Supabase user.
 
-Without Supabase variables, local development and Playwright can use mock authentication for testing only.
+For Playwright/local test runs, set the mock-auth variable:
 
-Default mock login:
+```bash
+E2E_MOCK_AUTH=true
+```
+
+The test suite submits these deterministic form values, but the important control is `E2E_MOCK_AUTH=true`:
 
 ```text
 staff@example.com
 password
 ```
 
-For Playwright against an isolated Supabase test project, set:
+For Playwright against an isolated Supabase test project instead of mock auth, leave `E2E_MOCK_AUTH` unset and set:
 
 ```bash
 E2E_TEST_EMAIL=
