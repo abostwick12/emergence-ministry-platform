@@ -419,23 +419,152 @@ function DashboardWaveFooter() {
         <svg viewBox="0 0 1440 240" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
           <defs>
             <linearGradient id="dashWaveTop" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="#bae6fd" stopOpacity="0.76" />
-              <stop offset="55%" stopColor="#38bdf8" stopOpacity="0.86" />
-              <stop offset="100%" stopColor="#0ea5e9" stopOpacity="0.94" />
+              <stop offset="0%" stopColor="#d9f3fb" stopOpacity="0.80" />
+              <stop offset="46%" stopColor="#7dd3fc" stopOpacity="0.84" />
+              <stop offset="78%" stopColor="#38bdf8" stopOpacity="0.92" />
+              <stop offset="100%" stopColor="#0284c7" stopOpacity="0.96" />
             </linearGradient>
             <linearGradient id="dashWaveMid" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="#e0f7ff" stopOpacity="0.56" />
-              <stop offset="52%" stopColor="#7dd3fc" stopOpacity="0.72" />
-              <stop offset="100%" stopColor="#0891b2" stopOpacity="0.78" />
+              <stop offset="0%" stopColor="#f4fcff" stopOpacity="0.54" />
+              <stop offset="48%" stopColor="#a5f3fc" stopOpacity="0.68" />
+              <stop offset="84%" stopColor="#22d3ee" stopOpacity="0.78" />
+              <stop offset="100%" stopColor="#0f766e" stopOpacity="0.72" />
             </linearGradient>
             <linearGradient id="dashWaveDeep" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="#67e8f9" stopOpacity="0.42" />
-              <stop offset="100%" stopColor="#1d4ed8" stopOpacity="0.54" />
+              <stop offset="0%" stopColor="#99f6e4" stopOpacity="0.28" />
+              <stop offset="62%" stopColor="#38bdf8" stopOpacity="0.46" />
+              <stop offset="100%" stopColor="#1d4ed8" stopOpacity="0.62" />
             </linearGradient>
+            <linearGradient id="dashWaveRidge" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="#f0fbff" stopOpacity="0.10" />
+              <stop offset="70%" stopColor="#f0fbff" stopOpacity="0.12" />
+              <stop offset="100%" stopColor="#ffffff" stopOpacity="0.30" />
+            </linearGradient>
+            <linearGradient id="dashWaveCurl" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="#e0f2fe" stopOpacity="0.12" />
+              <stop offset="54%" stopColor="#f8fdff" stopOpacity="0.48" />
+              <stop offset="100%" stopColor="#ffffff" stopOpacity="0.72" />
+            </linearGradient>
+            <linearGradient id="dashWaveCrest" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#f0fbff" stopOpacity="0.18" />
+              <stop offset="56%" stopColor="#ffffff" stopOpacity="0.74" />
+              <stop offset="100%" stopColor="#dbeafe" stopOpacity="0.88" />
+            </linearGradient>
+            <linearGradient id="dashWavePocketLight" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#f8fdff" stopOpacity="0.14" />
+              <stop offset="50%" stopColor="#f0fbff" stopOpacity="0.54" />
+              <stop offset="100%" stopColor="#bfdbfe" stopOpacity="0.66" />
+            </linearGradient>
+            <linearGradient id="dashWaveCurlShadow" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#0f766e" stopOpacity="0.18" />
+              <stop offset="58%" stopColor="#0369a1" stopOpacity="0.24" />
+              <stop offset="100%" stopColor="#1d4ed8" stopOpacity="0.34" />
+            </linearGradient>
+            <linearGradient id="dashWaveBloom" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="#ecfeff" stopOpacity="0.00" />
+              <stop offset="34%" stopColor="#ecfeff" stopOpacity="0.10" />
+              <stop offset="76%" stopColor="#67e8f9" stopOpacity="0.14" />
+              <stop offset="100%" stopColor="#0ea5e9" stopOpacity="0.10" />
+            </linearGradient>
+            <filter id="dashWaveTexture" x="-8%" y="-16%" width="116%" height="132%">
+              <feTurbulence type="fractalNoise" baseFrequency="0.012 0.06" numOctaves="3" seed="27" result="noise" />
+              <feDisplacementMap in="SourceGraphic" in2="noise" scale="12" xChannelSelector="R" yChannelSelector="G" />
+            </filter>
+            <filter id="dashWaveGrain" x="-5%" y="-10%" width="110%" height="120%">
+              <feTurbulence type="fractalNoise" baseFrequency="0.7 0.9" numOctaves="2" seed="14" result="grain" />
+              <feColorMatrix
+                in="grain"
+                type="matrix"
+                values="1 0 0 0 0
+                        0 1 0 0 0
+                        0 0 1 0 0
+                        0 0 0 0.16 0"
+              />
+            </filter>
+            <clipPath id="dashWaveClip">
+              <path d="M0,236 C184,232 366,232 590,214 C806,194 1016,154 1206,102 C1338,64 1414,24 1440,0 L1440,240 L0,240 Z" />
+            </clipPath>
           </defs>
-          <path className="wave-layer wave-mist" fill="url(#dashWaveMid)" d="M0,188 C170,162 318,182 492,156 C720,121 938,82 1164,66 C1286,58 1380,64 1440,54 L1440,240 L0,240 Z" />
-          <path className="wave-layer wave-back" fill="url(#dashWaveDeep)" d="M0,206 C204,178 384,210 586,176 C808,139 982,94 1178,86 C1296,80 1370,84 1440,74 L1440,240 L0,240 Z" />
-          <path className="wave-layer wave-front" fill="url(#dashWaveTop)" d="M0,222 C204,194 362,224 556,198 C764,170 930,118 1120,102 C1260,90 1378,92 1440,82 L1440,240 L0,240 Z" />
+          <path
+            className="wave-layer wave-mist"
+            fill="url(#dashWaveMid)"
+            filter="url(#dashWaveTexture)"
+            d="M0,216 C178,212 344,220 546,196 C742,170 956,126 1142,80 C1292,40 1392,18 1440,2 L1440,240 L0,240 Z"
+          />
+          <path
+            className="wave-layer wave-back"
+            fill="url(#dashWaveDeep)"
+            filter="url(#dashWaveTexture)"
+            d="M0,228 C202,228 398,228 618,208 C828,186 1034,146 1212,96 C1344,56 1418,18 1440,0 L1440,240 L0,240 Z"
+          />
+          <path
+            className="wave-layer wave-front"
+            fill="url(#dashWaveTop)"
+            filter="url(#dashWaveTexture)"
+            d="M0,236 C184,232 366,232 590,214 C806,194 1016,154 1206,102 C1338,64 1414,24 1440,0 L1440,240 L0,240 Z"
+          />
+          <g clipPath="url(#dashWaveClip)">
+            <rect x="0" y="0" width="1440" height="240" fill="#fff7ed" opacity="0.22" filter="url(#dashWaveGrain)" />
+            <rect x="0" y="0" width="1440" height="240" fill="#cffafe" opacity="0.12" filter="url(#dashWaveGrain)" />
+            <path
+              fill="url(#dashWaveBloom)"
+              d="M0,240 C236,220 432,228 656,206 C876,182 1096,138 1288,72 C1356,48 1404,22 1440,0 L1440,240 Z"
+            />
+            <path
+              fill="url(#dashWaveRidge)"
+              d="M0,236 C184,232 366,232 590,214 C806,194 1016,154 1206,102 C1338,64 1414,24 1440,0 L1440,30 C1426,44 1408,62 1376,82 C1320,118 1260,146 1188,170 C1002,208 802,228 590,236 C370,242 186,240 0,240 Z"
+            />
+          </g>
+          <path
+            className="wave-layer wave-curl-pocket"
+            fill="url(#dashWaveCurlShadow)"
+            filter="url(#dashWaveTexture)"
+            d="M1194,226 C1244,214 1288,190 1324,154 C1358,118 1388,68 1420,8 C1428,2 1434,0 1440,0 L1440,156 C1426,174 1408,190 1382,202 C1350,214 1314,220 1270,220 C1302,208 1328,188 1346,162 C1364,138 1376,108 1384,76 C1356,118 1326,152 1292,176 C1260,200 1226,216 1194,226 Z"
+          />
+          <path
+            className="wave-layer wave-curl-pocket-light"
+            fill="url(#dashWavePocketLight)"
+            filter="url(#dashWaveTexture)"
+            d="M1260,198 C1298,184 1334,158 1362,124 C1388,94 1412,52 1436,8 C1426,44 1410,76 1388,104 C1362,136 1334,158 1300,174 C1326,174 1348,168 1368,154 C1388,140 1406,118 1422,88 C1412,122 1394,148 1368,168 C1338,188 1302,198 1260,198 Z"
+          />
+          <path
+            className="wave-layer wave-curl-shadow"
+            fill="url(#dashWaveDeep)"
+            filter="url(#dashWaveTexture)"
+            d="M1226,218 C1284,196 1334,152 1376,90 C1398,58 1418,26 1440,0 L1440,106 C1428,130 1406,152 1378,174 C1344,198 1304,212 1250,218 Z"
+          />
+          <path
+            className="wave-layer wave-curl-crest"
+            fill="url(#dashWaveCrest)"
+            filter="url(#dashWaveTexture)"
+            d="M1208,206 C1270,176 1328,130 1376,72 C1402,40 1422,12 1440,0 L1440,24 C1428,48 1412,72 1390,100 C1362,134 1328,160 1286,180 C1332,176 1370,154 1398,122 C1418,98 1432,70 1440,42 C1436,88 1418,128 1386,162 C1346,198 1286,214 1208,206 Z"
+          />
+          <path
+            className="wave-layer wave-curl-foam"
+            fill="url(#dashWaveCurl)"
+            filter="url(#dashWaveTexture)"
+            d="M1188,214 C1254,184 1314,136 1366,74 C1398,36 1422,10 1440,0 L1440,28 C1428,52 1412,76 1388,104 C1358,138 1322,164 1276,184 C1324,180 1364,156 1392,122 C1416,94 1432,64 1440,36 C1436,86 1416,126 1380,160 C1336,198 1268,216 1188,214 Z"
+          />
+          <path
+            className="wave-layer wave-curl-line"
+            d="M1434,22 C1414,58 1386,96 1350,128 C1318,156 1280,178 1234,192 C1290,188 1336,166 1370,136 C1398,110 1418,80 1430,50"
+            fill="none"
+            stroke="#f0fbff"
+            strokeOpacity="0.74"
+            strokeWidth="7"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <path
+            className="wave-layer wave-curl-trace"
+            d="M1432,36 C1412,64 1386,94 1354,120 C1326,142 1294,160 1260,172 C1304,166 1340,148 1368,124"
+            fill="none"
+            stroke="#ffffff"
+            strokeOpacity="0.54"
+            strokeWidth="3.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </svg>
       </div>
     </footer>

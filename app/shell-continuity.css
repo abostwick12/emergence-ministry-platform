@@ -61,6 +61,8 @@ body {
   z-index: 0;
   background:
     radial-gradient(960px 580px at 40% 12%, rgba(255, 252, 244, 0.76), transparent 70%),
+    radial-gradient(980px 190px at 42% 19%, rgba(125, 211, 252, 0.115), transparent 76%),
+    radial-gradient(820px 180px at 57% 23%, rgba(248, 205, 181, 0.11), transparent 76%),
     radial-gradient(760px 560px at 74% 44%, rgba(219, 196, 158, 0.30), transparent 74%),
     radial-gradient(720px 460px at 16% 76%, rgba(197, 151, 84, 0.16), transparent 78%),
     radial-gradient(900px 480px at 100% 88%, rgba(147, 103, 49, 0.12), transparent 76%),
@@ -160,13 +162,11 @@ body {
 
 .app-top-art-clip {
   inset: 0 0 auto 0;
-  height: calc(var(--app-header-height) + 112px);
-  overflow: hidden;
+  height: 260px;
+  overflow: visible;
   z-index: 2;
-  -webkit-mask-image:
-    linear-gradient(180deg, #000 0%, #000 58%, rgba(0, 0, 0, 0.74) 74%, rgba(0, 0, 0, 0.24) 89%, transparent 100%);
-  mask-image:
-    linear-gradient(180deg, #000 0%, #000 58%, rgba(0, 0, 0, 0.74) 74%, rgba(0, 0, 0, 0.24) 89%, transparent 100%);
+  -webkit-mask-image: none;
+  mask-image: none;
 }
 
 .app-top-art-clip::before,
@@ -177,22 +177,7 @@ body {
 }
 
 .app-top-art-clip::before {
-  inset: 0 0 auto 0;
-  height: 250px;
-  z-index: 1;
-  background:
-    radial-gradient(210px 210px at 15.5% 24%, rgba(3, 18, 43, 0.46), transparent 70%),
-    radial-gradient(250px 190px at 18% 25%, rgba(7, 89, 133, 0.42), transparent 75%),
-    radial-gradient(220px 170px at 20.5% 34%, rgba(34, 211, 238, 0.28), transparent 78%),
-    radial-gradient(190px 150px at 23% 39%, rgba(230, 247, 252, 0.28), transparent 80%),
-    radial-gradient(250px 170px at 8% 16%, rgba(1, 27, 61, 0.50), transparent 75%),
-    radial-gradient(280px 180px at 18% 18%, rgba(8, 145, 178, 0.24), transparent 74%),
-    radial-gradient(520px 190px at 47% 82%, rgba(244, 232, 213, 0.18), transparent 75%),
-    radial-gradient(380px 160px at 86% 18%, rgba(191, 219, 254, 0.18), transparent 74%);
-  mix-blend-mode: normal;
-  opacity: 0.92;
-  -webkit-mask-image: linear-gradient(90deg, transparent 0 206px, rgba(0, 0, 0, 0.10) 272px, rgba(0, 0, 0, 0.70) 366px, #000 460px);
-  mask-image: linear-gradient(90deg, transparent 0 206px, rgba(0, 0, 0, 0.10) 272px, rgba(0, 0, 0, 0.70) 366px, #000 460px);
+  content: none;
 }
 
 .app-top-art-clip::after {
@@ -205,15 +190,17 @@ body {
 }
 
 .unified-brand-art {
-  height: 250px;
-  background-size: 100% 230px;
+  height: 260px;
+  background-size: 100% 260px;
   background-position: top center;
-  opacity: 0.94;
+  opacity: 0.90;
   mix-blend-mode: multiply;
-  -webkit-mask-image:
-    linear-gradient(180deg, #000 0%, #000 60%, rgba(0, 0, 0, 0.62) 78%, rgba(0, 0, 0, 0.20) 91%, transparent 100%);
-  mask-image:
-    linear-gradient(180deg, #000 0%, #000 60%, rgba(0, 0, 0, 0.62) 78%, rgba(0, 0, 0, 0.20) 91%, transparent 100%);
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 260' preserveAspectRatio='none'%3E%3Cfilter id='b'%3E%3CfeGaussianBlur stdDeviation='14'/%3E%3C/filter%3E%3Crect width='1440' height='154' fill='white'/%3E%3Cg fill='white' filter='url(%23b)'%3E%3Cpath d='M0 144C86 128 188 166 300 150C418 132 526 178 648 154C790 128 904 176 1036 154C1174 132 1298 170 1440 148V260H0Z'/%3E%3Cellipse cx='118' cy='180' rx='138' ry='42'/%3E%3Cellipse cx='346' cy='194' rx='124' ry='38'/%3E%3Cellipse cx='610' cy='182' rx='174' ry='44'/%3E%3Cellipse cx='890' cy='198' rx='140' ry='36'/%3E%3Cellipse cx='1182' cy='184' rx='184' ry='42'/%3E%3Cellipse cx='1360' cy='170' rx='104' ry='28'/%3E%3C/g%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 260' preserveAspectRatio='none'%3E%3Cfilter id='b'%3E%3CfeGaussianBlur stdDeviation='14'/%3E%3C/filter%3E%3Crect width='1440' height='154' fill='white'/%3E%3Cg fill='white' filter='url(%23b)'%3E%3Cpath d='M0 144C86 128 188 166 300 150C418 132 526 178 648 154C790 128 904 176 1036 154C1174 132 1298 170 1440 148V260H0Z'/%3E%3Cellipse cx='118' cy='180' rx='138' ry='42'/%3E%3Cellipse cx='346' cy='194' rx='124' ry='38'/%3E%3Cellipse cx='610' cy='182' rx='174' ry='44'/%3E%3Cellipse cx='890' cy='198' rx='140' ry='36'/%3E%3Cellipse cx='1182' cy='184' rx='184' ry='42'/%3E%3Cellipse cx='1360' cy='170' rx='104' ry='28'/%3E%3C/g%3E%3C/svg%3E");
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
 }
 
 .unified-brand-arch {
@@ -222,10 +209,14 @@ body {
   opacity: 0.72;
   -webkit-mask-image:
     linear-gradient(90deg, transparent 0 250px, rgba(0, 0, 0, 0.22) 310px, #000 390px, #000 92%, rgba(0, 0, 0, 0.5) 100%),
-    linear-gradient(180deg, #000 0 62%, rgba(0, 0, 0, 0.56) 78%, transparent 100%);
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 260' preserveAspectRatio='none'%3E%3Cfilter id='b'%3E%3CfeGaussianBlur stdDeviation='14'/%3E%3C/filter%3E%3Crect width='1440' height='154' fill='white'/%3E%3Cg fill='white' filter='url(%23b)'%3E%3Cpath d='M0 144C86 128 188 166 300 150C418 132 526 178 648 154C790 128 904 176 1036 154C1174 132 1298 170 1440 148V260H0Z'/%3E%3Cellipse cx='118' cy='180' rx='138' ry='42'/%3E%3Cellipse cx='346' cy='194' rx='124' ry='38'/%3E%3Cellipse cx='610' cy='182' rx='174' ry='44'/%3E%3Cellipse cx='890' cy='198' rx='140' ry='36'/%3E%3Cellipse cx='1182' cy='184' rx='184' ry='42'/%3E%3Cellipse cx='1360' cy='170' rx='104' ry='28'/%3E%3C/g%3E%3C/svg%3E");
   mask-image:
     linear-gradient(90deg, transparent 0 250px, rgba(0, 0, 0, 0.22) 310px, #000 390px, #000 92%, rgba(0, 0, 0, 0.5) 100%),
-    linear-gradient(180deg, #000 0 62%, rgba(0, 0, 0, 0.56) 78%, transparent 100%);
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 260' preserveAspectRatio='none'%3E%3Cfilter id='b'%3E%3CfeGaussianBlur stdDeviation='14'/%3E%3C/filter%3E%3Crect width='1440' height='154' fill='white'/%3E%3Cg fill='white' filter='url(%23b)'%3E%3Cpath d='M0 144C86 128 188 166 300 150C418 132 526 178 648 154C790 128 904 176 1036 154C1174 132 1298 170 1440 148V260H0Z'/%3E%3Cellipse cx='118' cy='180' rx='138' ry='42'/%3E%3Cellipse cx='346' cy='194' rx='124' ry='38'/%3E%3Cellipse cx='610' cy='182' rx='174' ry='44'/%3E%3Cellipse cx='890' cy='198' rx='140' ry='36'/%3E%3Cellipse cx='1182' cy='184' rx='184' ry='42'/%3E%3Cellipse cx='1360' cy='170' rx='104' ry='28'/%3E%3C/g%3E%3C/svg%3E");
+  -webkit-mask-size: auto, 100% 100%;
+  mask-size: auto, 100% 100%;
+  -webkit-mask-repeat: no-repeat, no-repeat;
+  mask-repeat: no-repeat, no-repeat;
   -webkit-mask-composite: source-in;
   mask-composite: intersect;
 }
@@ -525,7 +516,7 @@ body {
 }
 
 .app-shell-night-sky {
-  width: calc(var(--app-sidebar-width) + 58px);
+  width: var(--app-sidebar-width);
   border-radius: 0;
   box-shadow:
     inset -10px 0 24px rgba(0, 7, 22, 0.12);
@@ -536,7 +527,7 @@ body {
 }
 
 .app-shell-night-sky::after {
-  content: "";
+  content: none;
 }
 
 .app-shell::before {
@@ -576,17 +567,11 @@ body {
 }
 
 .app-top-art-clip {
-  height: calc(var(--app-header-height) + 136px);
+  height: 260px;
 }
 
 .app-top-art-clip::after {
-  left: calc(var(--app-sidebar-width) + 18px);
-  height: 148px;
-  background:
-    radial-gradient(780px 170px at 45% 0%, rgba(245, 238, 224, 0.58), transparent 73%),
-    radial-gradient(520px 150px at 9% 0%, rgba(34, 211, 238, 0.12), transparent 78%),
-    radial-gradient(690px 170px at 78% 8%, rgba(186, 230, 253, 0.13), transparent 77%),
-    linear-gradient(180deg, rgba(243, 234, 219, 0), rgba(239, 226, 204, 0.58) 74%, rgba(243, 234, 219, 0));
+  content: none;
 }
 
 .unified-brand-art {
@@ -822,33 +807,66 @@ body {
 }
 
 .dashboard-footer {
-  min-height: 178px;
+  min-height: 212px;
 }
 
 .dashboard-wave {
-  height: 178px;
+  height: 212px;
   opacity: 0.94;
-  filter: saturate(1.08);
+  filter: saturate(1.04) contrast(1.01);
 }
 
 .dashboard-wave::before {
   content: "";
   position: absolute;
-  inset: 18px 0 0;
+  inset: 12px 0 0;
   pointer-events: none;
   background:
-    radial-gradient(540px 120px at 72% 8%, rgba(255, 255, 255, 0.26), transparent 70%),
-    radial-gradient(620px 150px at 42% 56%, rgba(34, 211, 238, 0.16), transparent 72%);
+    radial-gradient(460px 110px at 88% 10%, rgba(255, 255, 255, 0.30), transparent 68%),
+    radial-gradient(620px 150px at 74% 42%, rgba(34, 211, 238, 0.14), transparent 72%),
+    radial-gradient(720px 150px at 32% 84%, rgba(255, 255, 255, 0.12), transparent 78%);
   mix-blend-mode: screen;
 }
 
 .wave-layer {
-  filter: drop-shadow(0 -8px 18px rgba(14, 116, 206, 0.08));
+  filter: drop-shadow(0 -10px 18px rgba(14, 116, 206, 0.08));
 }
 
 .wave-mist {
-  opacity: 0.62;
+  opacity: 0.54;
   animation: waveDriftBack 17s ease-in-out infinite;
+}
+
+.wave-back {
+  opacity: 0.74;
+}
+
+.wave-front {
+  opacity: 0.92;
+}
+
+.wave-curl-shadow {
+  opacity: 0.76;
+}
+
+.wave-curl-crest {
+  opacity: 0.94;
+}
+
+.wave-curl-pocket-light {
+  opacity: 0.82;
+}
+
+.wave-curl-foam {
+  opacity: 0.94;
+}
+
+.wave-curl-line {
+  filter: drop-shadow(0 -2px 6px rgba(255, 255, 255, 0.18));
+}
+
+.wave-curl-trace {
+  filter: drop-shadow(0 -2px 8px rgba(255, 255, 255, 0.24));
 }
 
 @media (max-width: 720px) {
