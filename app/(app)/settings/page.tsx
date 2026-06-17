@@ -1,4 +1,5 @@
 import { EmmaAdminTestPanel } from "@/components/emma-admin-test-panel";
+import { EmmaProposalReviewPanel } from "@/components/emma-proposal-review-panel";
 import { PlaceholderPage } from "@/components/placeholder-page";
 import { getServerSession } from "@/lib/auth/server";
 
@@ -22,7 +23,12 @@ export default async function SettingsPage() {
           "Future API connection settings"
         ]}
       />
-      {isAdmin ? <EmmaAdminTestPanel /> : null}
+      {isAdmin ? (
+        <>
+          <EmmaAdminTestPanel />
+          <EmmaProposalReviewPanel />
+        </>
+      ) : null}
     </div>
   );
 }
