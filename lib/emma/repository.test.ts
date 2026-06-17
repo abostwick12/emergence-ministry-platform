@@ -11,6 +11,7 @@ import type { AuthSession } from "@/lib/auth/server";
 import { containsForbiddenKeys } from "@/lib/emma/context";
 import {
   __resetEmmaMockStoreForTests,
+  __setEmmaRepositorySupabaseClientForTests,
   completeAiRun,
   createActionProposal,
   createAiRequest,
@@ -22,16 +23,18 @@ import {
 
 type TestSession = AuthSession & { testMinistryId: string };
 
-function session(role: string, ministry = "ministry-emerge", id = "usr_1"): TestSession {
+function session(role: string, ministry = "ministry-emerge", id = "usr_1", isMock = true): TestSession {
   return {
     user: { id, email: `${id}@example.test`, fullName: "Test User", role },
-    isMock: true,
+    isMock,
     testMinistryId: ministry
   };
 }
 
 beforeEach(() => {
   __resetEmmaMockStoreForTests();
+  delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+  delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 });
 
 describe("EMMA request lifecycle (mock mode)", () => {
@@ -144,6 +147,53 @@ describe("EMMA ministry scoping", () => {
     await expect(updateAiRequestStatus(b, request.id, "completed")).rejects.toMatchObject({ code: "MINISTRY_SCOPE_ERROR" });
     await expect(getEmmaAuditTrail(b, request.id)).rejects.toMatchObject({ code: "MINISTRY_SCOPE_ERROR" });
     await expect(createAiRun(b, { requestId: request.id, skillKey: "x" })).rejects.toMatchObject({ code: "MINISTRY_SCOPE_ERROR" });
+    const run = await createAiRun(a, { requestId: request.id, skillKey: "x" });
+    await expect(
+      createActionProposal(b, {
+        runId: run.id,
+        actionType: "create_tasks",
+        riskLevel: "medium",
+        summary: "nope",
+        requiresApproval: true,
+        payload: {}
+      })
+    ).rejects.toMatchObject({ code: "MINISTRY_SCOPE_ERROR" });
+  });
+
+  it("blocks real-DB run creation when the parent request belongs to another ministry", async () => {
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon";
+    __setEmmaRepositorySupabaseClientForTests(
+      fakeSupabaseClient({
+        ai_requests: { data: { id: "req_1", ministry_id: "ministry-a" }, error: null }
+      })
+    );
+
+    await expect(createAiRun(session("admin", "ministry-b", "usr_b", false), { requestId: "req_1", skillKey: "x" })).rejects.toMatchObject({
+      code: "MINISTRY_SCOPE_ERROR"
+    });
+  });
+
+  it("blocks real-DB action proposal creation when the run request chain belongs to another ministry", async () => {
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon";
+    __setEmmaRepositorySupabaseClientForTests(
+      fakeSupabaseClient({
+        ai_runs: { data: { id: "run_1", ministry_id: "ministry-b", request_id: "req_1" }, error: null },
+        ai_requests: { data: { id: "req_1", ministry_id: "ministry-a" }, error: null }
+      })
+    );
+
+    await expect(
+      createActionProposal(session("admin", "ministry-b", "usr_b", false), {
+        runId: "run_1",
+        actionType: "create_tasks",
+        riskLevel: "medium",
+        summary: "nope",
+        requiresApproval: true,
+        payload: {}
+      })
+    ).rejects.toMatchObject({ code: "MINISTRY_SCOPE_ERROR" });
   });
 });
 
@@ -160,6 +210,27 @@ describe("EMMA workflow validation", () => {
     ).rejects.toMatchObject({ code: "WORKFLOW_DISABLED" });
   });
 });
+
+function fakeSupabaseClient(rows: Record<string, { data: any; error: any }>) {
+  return {
+    from(table: string) {
+      return {
+        select() {
+          return this;
+        },
+        eq() {
+          return this;
+        },
+        single() {
+          return Promise.resolve(rows[table] ?? { data: null, error: { message: "not found" } });
+        },
+        insert() {
+          throw new Error(`unexpected insert into ${table}`);
+        }
+      };
+    }
+  };
+}
 
 describe("EMMA sensitive-context handling", () => {
   it("rejects a run whose manifest references a sensitive category", async () => {
