@@ -157,6 +157,7 @@ function buildCommandResult(
     proposalCreated: proposal?.proposalCreated ?? false,
     proposalId: proposal?.proposal?.id ?? null,
     proposalType: proposal?.proposalType ?? null,
+    output: workflow.output,
     executed: false,
     approvalCreated: false
   };
