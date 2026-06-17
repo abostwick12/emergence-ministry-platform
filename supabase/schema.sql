@@ -15,8 +15,24 @@ begin
 end;
 $$;
 
+-- Ministry scope. The app currently runs as a single-ministry deployment; the
+-- default "Emerge" ministry below anchors that scope. The fixed id matches
+-- DEFAULT_MINISTRY in lib/ministry/constants.ts and migration 005.
+create table if not exists public.ministries (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  slug text not null unique,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+insert into public.ministries (id, name, slug)
+values ('00000000-0000-4000-8000-0000000000e1', 'Emerge', 'emerge')
+on conflict (slug) do nothing;
+
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
+  ministry_id uuid not null references public.ministries(id),
   email text,
   full_name text,
   role text not null default 'staff',
@@ -26,6 +42,7 @@ create table if not exists public.profiles (
 
 create table if not exists public.events (
   id uuid primary key default gen_random_uuid(),
+  ministry_id uuid not null references public.ministries(id),
   title text not null,
   ministry_area text,
   description text,
@@ -51,6 +68,7 @@ create table if not exists public.events (
 
 create table if not exists public.tasks (
   id uuid primary key default gen_random_uuid(),
+  ministry_id uuid not null references public.ministries(id),
   event_id uuid not null references public.events(id) on delete cascade,
   title text not null,
   owner text,
@@ -67,12 +85,47 @@ create table if not exists public.tasks (
 
 create table if not exists public.activity_logs (
   id uuid primary key default gen_random_uuid(),
+  ministry_id uuid not null references public.ministries(id),
   event_id uuid references public.events(id) on delete cascade,
   task_id uuid references public.tasks(id) on delete set null,
   action text not null,
   actor_id uuid references auth.users(id),
   created_at timestamptz not null default now()
 );
+
+-- Ministry scope helpers. current_ministry_id() resolves the authenticated
+-- user's ministry, falling back to the default Emerge ministry. SECURITY
+-- DEFINER so it reads profiles regardless of RLS (no recursive evaluation).
+create or replace function public.current_ministry_id()
+returns uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(
+    (select p.ministry_id from public.profiles p where p.id = auth.uid()),
+    '00000000-0000-4000-8000-0000000000e1'::uuid
+  );
+$$;
+
+-- Fills ministry_id from the authenticated scope when an insert omits it.
+create or replace function public.set_ministry_id_if_null()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.ministry_id is null then
+    new.ministry_id := public.current_ministry_id();
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists set_ministries_updated_at on public.ministries;
+create trigger set_ministries_updated_at
+before update on public.ministries
+for each row execute function public.set_updated_at();
 
 drop trigger if exists set_profiles_updated_at on public.profiles;
 create trigger set_profiles_updated_at
@@ -89,70 +142,102 @@ create trigger set_tasks_updated_at
 before update on public.tasks
 for each row execute function public.set_updated_at();
 
+-- Default-scope triggers (fill ministry_id on insert when omitted).
+drop trigger if exists set_profiles_ministry_id on public.profiles;
+create trigger set_profiles_ministry_id
+before insert on public.profiles
+for each row execute function public.set_ministry_id_if_null();
+
+drop trigger if exists set_events_ministry_id on public.events;
+create trigger set_events_ministry_id
+before insert on public.events
+for each row execute function public.set_ministry_id_if_null();
+
+drop trigger if exists set_tasks_ministry_id on public.tasks;
+create trigger set_tasks_ministry_id
+before insert on public.tasks
+for each row execute function public.set_ministry_id_if_null();
+
+drop trigger if exists set_activity_logs_ministry_id on public.activity_logs;
+create trigger set_activity_logs_ministry_id
+before insert on public.activity_logs
+for each row execute function public.set_ministry_id_if_null();
+
+create index if not exists idx_profiles_ministry_id      on public.profiles(ministry_id);
+create index if not exists idx_events_ministry_id        on public.events(ministry_id);
+create index if not exists idx_tasks_ministry_id         on public.tasks(ministry_id);
+create index if not exists idx_activity_logs_ministry_id on public.activity_logs(ministry_id);
+
+alter table public.ministries enable row level security;
 alter table public.profiles enable row level security;
 alter table public.events enable row level security;
 alter table public.tasks enable row level security;
 alter table public.activity_logs enable row level security;
 
-drop policy if exists "authenticated can select profiles" on public.profiles;
-drop policy if exists "authenticated can insert profiles" on public.profiles;
-drop policy if exists "authenticated can update profiles" on public.profiles;
-drop policy if exists "authenticated can delete profiles" on public.profiles;
+drop policy if exists "authenticated can read own ministry" on public.ministries;
+create policy "authenticated can read own ministry" on public.ministries
+for select to authenticated using (id = public.current_ministry_id());
 
-create policy "authenticated can select profiles" on public.profiles
-for select to authenticated using (true);
-create policy "authenticated can insert profiles" on public.profiles
-for insert to authenticated with check (true);
-create policy "authenticated can update profiles" on public.profiles
-for update to authenticated using (true) with check (true);
-create policy "authenticated can delete profiles" on public.profiles
-for delete to authenticated using (true);
+drop policy if exists "ministry can select profiles" on public.profiles;
+drop policy if exists "ministry can insert profiles" on public.profiles;
+drop policy if exists "ministry can update profiles" on public.profiles;
+drop policy if exists "ministry can delete profiles" on public.profiles;
 
-drop policy if exists "authenticated can select events" on public.events;
-drop policy if exists "authenticated can insert events" on public.events;
-drop policy if exists "authenticated can update events" on public.events;
-drop policy if exists "authenticated can delete events" on public.events;
+create policy "ministry can select profiles" on public.profiles
+for select to authenticated using (ministry_id = public.current_ministry_id());
+create policy "ministry can insert profiles" on public.profiles
+for insert to authenticated with check (ministry_id = public.current_ministry_id());
+create policy "ministry can update profiles" on public.profiles
+for update to authenticated using (ministry_id = public.current_ministry_id()) with check (ministry_id = public.current_ministry_id());
+create policy "ministry can delete profiles" on public.profiles
+for delete to authenticated using (ministry_id = public.current_ministry_id());
 
-create policy "authenticated can select events" on public.events
-for select to authenticated using (true);
-create policy "authenticated can insert events" on public.events
-for insert to authenticated with check (true);
-create policy "authenticated can update events" on public.events
-for update to authenticated using (true) with check (true);
-create policy "authenticated can delete events" on public.events
-for delete to authenticated using (true);
+drop policy if exists "ministry can select events" on public.events;
+drop policy if exists "ministry can insert events" on public.events;
+drop policy if exists "ministry can update events" on public.events;
+drop policy if exists "ministry can delete events" on public.events;
 
-drop policy if exists "authenticated can select tasks" on public.tasks;
-drop policy if exists "authenticated can insert tasks" on public.tasks;
-drop policy if exists "authenticated can update tasks" on public.tasks;
-drop policy if exists "authenticated can delete tasks" on public.tasks;
+create policy "ministry can select events" on public.events
+for select to authenticated using (ministry_id = public.current_ministry_id());
+create policy "ministry can insert events" on public.events
+for insert to authenticated with check (ministry_id = public.current_ministry_id());
+create policy "ministry can update events" on public.events
+for update to authenticated using (ministry_id = public.current_ministry_id()) with check (ministry_id = public.current_ministry_id());
+create policy "ministry can delete events" on public.events
+for delete to authenticated using (ministry_id = public.current_ministry_id());
 
-create policy "authenticated can select tasks" on public.tasks
-for select to authenticated using (true);
-create policy "authenticated can insert tasks" on public.tasks
-for insert to authenticated with check (true);
-create policy "authenticated can update tasks" on public.tasks
-for update to authenticated using (true) with check (true);
-create policy "authenticated can delete tasks" on public.tasks
-for delete to authenticated using (true);
+drop policy if exists "ministry can select tasks" on public.tasks;
+drop policy if exists "ministry can insert tasks" on public.tasks;
+drop policy if exists "ministry can update tasks" on public.tasks;
+drop policy if exists "ministry can delete tasks" on public.tasks;
 
-drop policy if exists "authenticated can select activity logs" on public.activity_logs;
-drop policy if exists "authenticated can insert activity logs" on public.activity_logs;
-drop policy if exists "authenticated can update activity logs" on public.activity_logs;
-drop policy if exists "authenticated can delete activity logs" on public.activity_logs;
+create policy "ministry can select tasks" on public.tasks
+for select to authenticated using (ministry_id = public.current_ministry_id());
+create policy "ministry can insert tasks" on public.tasks
+for insert to authenticated with check (ministry_id = public.current_ministry_id());
+create policy "ministry can update tasks" on public.tasks
+for update to authenticated using (ministry_id = public.current_ministry_id()) with check (ministry_id = public.current_ministry_id());
+create policy "ministry can delete tasks" on public.tasks
+for delete to authenticated using (ministry_id = public.current_ministry_id());
 
-create policy "authenticated can select activity logs" on public.activity_logs
-for select to authenticated using (true);
-create policy "authenticated can insert activity logs" on public.activity_logs
-for insert to authenticated with check (true);
-create policy "authenticated can update activity logs" on public.activity_logs
-for update to authenticated using (true) with check (true);
-create policy "authenticated can delete activity logs" on public.activity_logs
-for delete to authenticated using (true);
+drop policy if exists "ministry can select activity logs" on public.activity_logs;
+drop policy if exists "ministry can insert activity logs" on public.activity_logs;
+drop policy if exists "ministry can update activity logs" on public.activity_logs;
+drop policy if exists "ministry can delete activity logs" on public.activity_logs;
+
+create policy "ministry can select activity logs" on public.activity_logs
+for select to authenticated using (ministry_id = public.current_ministry_id());
+create policy "ministry can insert activity logs" on public.activity_logs
+for insert to authenticated with check (ministry_id = public.current_ministry_id());
+create policy "ministry can update activity logs" on public.activity_logs
+for update to authenticated using (ministry_id = public.current_ministry_id()) with check (ministry_id = public.current_ministry_id());
+create policy "ministry can delete activity logs" on public.activity_logs
+for delete to authenticated using (ministry_id = public.current_ministry_id());
 
 -- Optional MVP seed data.
 -- This block uses the first Auth user in the project as the owner/creator.
 -- Create that user manually in Supabase Auth before running the seed.
+-- New rows inherit the default Emerge ministry via the set_*_ministry_id triggers.
 do $$
 declare
   seed_user_id uuid;
@@ -215,4 +300,3 @@ begin
   where title in ('Camp', 'Midweek Hangout', 'High School Event', 'Fall Fundraiser', 'Volunteer Training', 'Summer Camp')
   on conflict do nothing;
 end $$;
-

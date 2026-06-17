@@ -28,10 +28,12 @@ export interface User {
   phone?: string;
   role: Role;
   grade?: string;
+  ministryId?: string;
 }
 
 export interface MinistryEvent {
   id: string;
+  ministryId?: string;
   title: string;
   description: string;
   type: EventType;
@@ -62,6 +64,7 @@ export interface TemplateTask {
 
 export interface ActiveTask {
   id: string;
+  ministryId?: string;
   eventId: string;
   taskTitle: string;
   dueDate: string;
@@ -114,6 +117,7 @@ export interface EventExpense {
 
 export interface ActivityLog {
   id: string;
+  ministryId?: string;
   type: ActivityType;
   eventId?: string;
   taskId?: string;

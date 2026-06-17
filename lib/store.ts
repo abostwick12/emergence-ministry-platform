@@ -14,6 +14,7 @@ import type {
   User
 } from "./types";
 import { addDays, uid } from "./utils";
+import { DEFAULT_MINISTRY_ID } from "./ministry/constants";
 
 type MockStoreState = {
   version: number;
@@ -62,7 +63,7 @@ function createInitialStore(): MockStoreState {
   pastStart.setHours(10, 0, 0, 0);
 
   return {
-    version: 4,
+    version: 5,
     initialized: false,
     users: [
       {
@@ -254,21 +255,32 @@ const globalStore = globalThis as typeof globalThis & {
   __emergeMvpStore?: MockStoreState;
 };
 
-const store = globalStore.__emergeMvpStore?.version === 4 ? globalStore.__emergeMvpStore : createInitialStore();
+const store = globalStore.__emergeMvpStore?.version === 5 ? globalStore.__emergeMvpStore : createInitialStore();
 globalStore.__emergeMvpStore = store;
 
 const { users, events, tasks, communications, integrationLogs, expenses, activity } = store;
+
+// Single-ministry deployment: stamp every seeded profile/event with the default
+// ministry scope. Generated tasks and activity inherit scope at creation time.
+users.forEach((user) => {
+  user.ministryId = user.ministryId ?? DEFAULT_MINISTRY_ID;
+});
+events.forEach((event) => {
+  event.ministryId = event.ministryId ?? DEFAULT_MINISTRY_ID;
+});
 
 function actorId() {
   return "usr_admin";
 }
 
 function recordActivity(input: Omit<ActivityLog, "id" | "actorId" | "timestamp">) {
+  const inheritedMinistryId = input.eventId ? getEvent(input.eventId)?.ministryId : undefined;
   const item: ActivityLog = {
     id: uid("act"),
     actorId: actorId(),
     timestamp: new Date().toISOString(),
-    ...input
+    ...input,
+    ministryId: input.ministryId ?? inheritedMinistryId ?? DEFAULT_MINISTRY_ID
   };
   activity.unshift(item);
   return item;
@@ -280,6 +292,7 @@ function generateTasksForEvent(event: MinistryEvent) {
     const assignee = users.find((user) => user.role === template.roleAssigned) ?? users[0];
     const task: ActiveTask = {
       id: `task_${event.id}_${template.id}`,
+      ministryId: event.ministryId ?? DEFAULT_MINISTRY_ID,
       eventId: event.id,
       taskTitle: template.taskTitle,
       dueDate: addDays(event.startTime, template.timelineOffsetDays),
@@ -359,6 +372,7 @@ export function createEvent(input: {
 }) {
   const event: MinistryEvent = {
     id: uid("evt"),
+    ministryId: DEFAULT_MINISTRY_ID,
     title: input.title,
     description: input.description,
     type: input.type,
@@ -396,6 +410,7 @@ export function createTask(input: {
 }) {
   const task: ActiveTask = {
     id: uid("task"),
+    ministryId: getEvent(input.eventId)?.ministryId ?? DEFAULT_MINISTRY_ID,
     eventId: input.eventId,
     taskTitle: input.taskTitle,
     dueDate: input.dueDate,
