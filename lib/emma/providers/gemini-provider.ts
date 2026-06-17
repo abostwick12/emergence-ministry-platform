@@ -90,4 +90,3 @@ export function createGeminiProvider(options?: { apiKey?: string; fetchImpl?: ty
     }
   };
 }
-

@@ -75,4 +75,3 @@ function normalizeProviderId(value: string | null | undefined): EmmaProviderId |
   if (value === "mock" || value === "gemini") return value;
   return undefined;
 }
-
