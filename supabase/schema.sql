@@ -300,3 +300,9 @@ begin
   where title in ('Camp', 'Midweek Hangout', 'High School Event', 'Fall Fundraiser', 'Volunteer Training', 'Summer Camp')
   on conflict do nothing;
 end $$;
+
+-- EMMA AI foundation tables (ai_feature_configs, ai_requests, ai_runs,
+-- ai_provider_attempts, ai_action_proposals, ai_approvals) and the
+-- public.current_user_role() helper are added by the additive migration
+-- supabase/migrations/006_emma_foundation.sql. Run migrations after this
+-- snapshot when bootstrapping a new project.

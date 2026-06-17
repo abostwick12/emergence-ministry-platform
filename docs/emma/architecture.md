@@ -534,3 +534,35 @@ on this foundation by seeding additional `ministries` rows and assigning each
 profile its `ministry_id`. **All future EMMA tables (`ai_requests`, `ai_runs`,
 `ai_action_proposals`, `ai_approvals`, etc.) must include `ministry_id` and the
 same RLS scoping.**
+
+## Implementation Status: Iteration 1 (Audited Foundation)
+
+Iteration 1 is implemented as infrastructure only — **no AI provider is called**.
+
+- **Contracts** live in `lib/emma/` (`types.ts`, `schemas.ts`, `errors.ts`,
+  `risk.ts`, `context.ts`, `repository.ts`). Zod validates every API-boundary
+  input; errors serialize to `{ code, message }` only (no secrets/stack/cause).
+- **Tables** are added by `supabase/migrations/006_emma_foundation.sql`:
+  `ai_feature_configs`, `ai_requests`, `ai_runs`, `ai_provider_attempts`,
+  `ai_action_proposals`, `ai_approvals`. Each carries a non-null `ministry_id`
+  and is RLS-scoped to `public.current_ministry_id()` (reused from migration
+  005). A new `public.current_user_role()` helper enforces that only Admin/Leader
+  create requests and decide proposals; `ai_feature_configs` is Admin-managed.
+  No DELETE policies are granted on the audit tables.
+- **Risk levels** are `low | medium | high | restricted` (see `risk.ts`),
+  mapping the architecture risk matrix as: read-only analysis → `low`; internal
+  write proposals → `medium`; external-facing communication drafts → `high`;
+  sensitive/deferred contexts → `restricted`. `restricted` work is blocked in
+  this iteration. Sensitive context categories (medical, pastoral care, student
+  safety, parent contact, confidential notes) escalate any workflow to
+  `restricted` and are excluded from `context_manifest`.
+- **Deferred workflows** `DRAFT_STUDENT_FOLLOW_UP` and `QUERY_MINISTRY_LIBRARY`
+  are present but disabled and rejected at the request boundary.
+- **Stub-safe:** the repository uses a deterministic in-memory store in
+  mock/Stub Mode so the full request → run → proposal → approval → audit
+  lifecycle is testable without a live database or provider. `context_manifest`
+  stores only record references (id, type, category, source table) — never
+  message bodies, medical, pastoral-care, parent-contact, or student notes.
+
+The EMMA migration `006` is authored as an additive migration; like `005` it is
+applied to the live project as a separate, approved rollout step.
