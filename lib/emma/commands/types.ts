@@ -35,6 +35,7 @@ export interface RunEmmaCommandResult {
   proposalCreated: boolean;
   proposalId: string | null;
   proposalType: EmmaProposalType | null;
+  output: unknown;
   executed: false;
   approvalCreated: false;
 }
