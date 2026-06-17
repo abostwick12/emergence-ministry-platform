@@ -34,6 +34,7 @@ export const emmaErrors = {
   conflict: (message = "Record is not in a valid state for this action.") => new EmmaError("CONFLICT", message),
   restrictedContext: (message = "Restricted or sensitive context cannot be processed.") =>
     new EmmaError("RESTRICTED_CONTEXT", message),
+  provider: (message = "AI provider request failed safely.") => new EmmaError("PROVIDER_ERROR", message),
   internal: (message = "Unexpected EMMA error.") => new EmmaError("INTERNAL", message)
 };
 

@@ -301,6 +301,7 @@ export const EMMA_ERROR_CODES = [
   "NOT_FOUND",
   "CONFLICT",
   "RESTRICTED_CONTEXT",
+  "PROVIDER_ERROR",
   "INTERNAL"
 ] as const;
 export type EmmaErrorCode = (typeof EMMA_ERROR_CODES)[number];

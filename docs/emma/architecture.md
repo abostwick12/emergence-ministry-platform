@@ -566,3 +566,28 @@ Iteration 1 is implemented as infrastructure only — **no AI provider is called
 
 The EMMA migration `006` is authored as an additive migration; like `005` it is
 applied to the live project as a separate, approved rollout step.
+
+## Implementation Status: Iteration 2 (Provider Abstraction)
+
+Iteration 2 adds a server-side provider abstraction without enabling autonomous
+ministry actions. Provider execution is attached to an existing `ai_requests`
+record, creates an `ai_runs` row, records exactly one `ai_provider_attempt` per
+attempt, validates the structured response with Zod, and completes or fails the
+run with sanitized errors.
+
+- **Mock provider:** deterministic, no-network provider used by automated tests,
+  local mock/stub mode, and normal builds without provider credentials.
+- **Gemini provider:** first real provider, implemented server-side with direct
+  `fetch` to Gemini's `generateContent` endpoint. It uses `GEMINI_API_KEY` only;
+  no `NEXT_PUBLIC_*` provider secret is allowed or required for build/test.
+- **Safe first workflow:** `internal_event_summary` returns read-only internal
+  summary fields (`summary`, `keyPoints`, `suggestedNextQuestions`,
+  `confidence`, `warnings`). It does not create tasks, drafts, texts, emails,
+  Planning Center records, or other external actions.
+- **Audit hardening:** real database paths validate parent request/run ministry
+  ownership before creating child runs, provider attempts, or proposals. Raw
+  provider errors and secrets are never serialized across the EMMA boundary.
+
+Provider/API testing against Gemini requires `EMMA_PROVIDER_MODE=gemini` and a
+server-only `GEMINI_API_KEY`. Mock mode remains the default for CI and local
+tests.

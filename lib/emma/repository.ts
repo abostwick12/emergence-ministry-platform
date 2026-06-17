@@ -10,6 +10,7 @@ import { assertWorkflowAllowed } from "./risk";
 import { buildContextManifest } from "./context";
 import {
   completeAiRunInputSchema,
+  createProviderAttemptInputSchema,
   createAiRequestInputSchema,
   createAiRunInputSchema,
   genericActionProposalInputSchema,
@@ -19,6 +20,8 @@ import type {
   ContextManifest,
   EmmaActionProposalRecord,
   EmmaApprovalRecord,
+  EmmaFeatureConfig,
+  EmmaProviderAttemptRecord,
   EmmaRequestRecord,
   EmmaRequestStatus,
   EmmaRunRecord
@@ -40,7 +43,15 @@ function shouldUseMock(session: AuthSession): boolean {
 // Lazy import keeps next/headers (pulled in transitively by lib/auth/server) out
 // of this module's load graph, so it stays importable in a plain Node/vitest
 // environment. Only ever called on the real Supabase path.
+let testSupabaseClient: any | null = null;
+
+/** Test-only: injects a fake Supabase client so real-DB guards can be unit-tested. */
+export function __setEmmaRepositorySupabaseClientForTests(client: any | null): void {
+  testSupabaseClient = client;
+}
+
 async function serverClient(session: AuthSession) {
+  if (testSupabaseClient) return testSupabaseClient;
   const { getSupabaseAuthClient } = await import("@/lib/auth/server");
   return getSupabaseAuthClient(session.accessToken);
 }
@@ -85,11 +96,70 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
+function requireMockRequestInScope(requestId: string, ministryId: string): EmmaRequestRecord {
+  const request = mockStore.requests.find((r) => r.id === requestId);
+  if (!request) throw emmaErrors.notFound("EMMA request not found.");
+  assertSameMinistry(request.ministryId, ministryId);
+  return request;
+}
+
+function requireMockRunChainInScope(runId: string, ministryId: string): EmmaRunRecord {
+  const run = mockStore.runs.find((r) => r.id === runId);
+  if (!run) throw emmaErrors.notFound("EMMA run not found.");
+  assertSameMinistry(run.ministryId, ministryId);
+  requireMockRequestInScope(run.requestId, ministryId);
+  return run;
+}
+
+function requireMockProposalInScope(proposalId: string, ministryId: string): EmmaActionProposalRecord {
+  const proposal = mockStore.proposals.find((p) => p.id === proposalId);
+  if (!proposal) throw emmaErrors.notFound("EMMA proposal not found.");
+  assertSameMinistry(proposal.ministryId, ministryId);
+  requireMockRunChainInScope(proposal.runId, ministryId);
+  return proposal;
+}
+
+async function requireRequestInScope(
+  supabase: Awaited<ReturnType<typeof serverClient>>,
+  requestId: string,
+  ministryId: string
+): Promise<{ id: string; ministry_id: string }> {
+  const { data: row, error } = await supabase.from("ai_requests").select("id,ministry_id").eq("id", requestId).single();
+  if (error || !row) throw emmaErrors.notFound("EMMA request not found in scope.");
+  assertSameMinistry(row.ministry_id, ministryId);
+  return row;
+}
+
+async function requireRunChainInScope(
+  supabase: Awaited<ReturnType<typeof serverClient>>,
+  runId: string,
+  ministryId: string
+): Promise<{ id: string; ministry_id: string; request_id: string }> {
+  const { data: row, error } = await supabase.from("ai_runs").select("id,ministry_id,request_id").eq("id", runId).single();
+  if (error || !row) throw emmaErrors.notFound("EMMA run not found in scope.");
+  assertSameMinistry(row.ministry_id, ministryId);
+  await requireRequestInScope(supabase, row.request_id, ministryId);
+  return row;
+}
+
+async function requireProposalInScope(
+  supabase: Awaited<ReturnType<typeof serverClient>>,
+  proposalId: string,
+  ministryId: string
+): Promise<any> {
+  const { data: row, error } = await supabase.from("ai_action_proposals").select("*").eq("id", proposalId).single();
+  if (error || !row) throw emmaErrors.notFound("EMMA proposal not found in scope.");
+  assertSameMinistry(row.ministry_id, ministryId);
+  await requireRunChainInScope(supabase, row.run_id, ministryId);
+  return row;
+}
+
 // --- In-memory mock store --------------------------------------------------
 
 interface EmmaMockState {
   requests: EmmaRequestRecord[];
   runs: EmmaRunRecord[];
+  providerAttempts: EmmaProviderAttemptRecord[];
   proposals: EmmaActionProposalRecord[];
   approvals: EmmaApprovalRecord[];
 }
@@ -98,6 +168,7 @@ const globalEmma = globalThis as typeof globalThis & { __emmaMockStore?: EmmaMoc
 const mockStore: EmmaMockState = globalEmma.__emmaMockStore ?? {
   requests: [],
   runs: [],
+  providerAttempts: [],
   proposals: [],
   approvals: []
 };
@@ -107,11 +178,31 @@ globalEmma.__emmaMockStore = mockStore;
 export function __resetEmmaMockStoreForTests(): void {
   mockStore.requests = [];
   mockStore.runs = [];
+  mockStore.providerAttempts = [];
   mockStore.proposals = [];
   mockStore.approvals = [];
+  testSupabaseClient = null;
 }
 
 // --- createAiRequest -------------------------------------------------------
+
+export async function getAiFeatureConfig(session: AuthSession, featureKey: string): Promise<EmmaFeatureConfig | null> {
+  const ministryId = await requireMinistryScope(session);
+
+  if (shouldUseMock(session)) {
+    return null;
+  }
+
+  const supabase = await serverClient(session);
+  const { data: row, error } = await supabase
+    .from("ai_feature_configs")
+    .select("*")
+    .eq("feature_key", featureKey)
+    .eq("ministry_id", ministryId)
+    .maybeSingle();
+  if (error) throw emmaErrors.notFound("EMMA feature config not found in scope.");
+  return row ? mapFeatureConfigRow(row) : null;
+}
 
 export async function createAiRequest(session: AuthSession, input: unknown): Promise<EmmaRequestRecord> {
   const data = parseOrThrow(createAiRequestInputSchema, input);
@@ -186,6 +277,20 @@ export async function updateAiRequestStatus(
   return mapRequestRow(row);
 }
 
+export async function getAiRequest(session: AuthSession, requestId: string): Promise<EmmaRequestRecord> {
+  const ministryId = await requireMinistryScope(session);
+
+  if (shouldUseMock(session)) {
+    return requireMockRequestInScope(requestId, ministryId);
+  }
+
+  const supabase = await serverClient(session);
+  await requireRequestInScope(supabase, requestId, ministryId);
+  const { data: row, error } = await supabase.from("ai_requests").select("*").eq("id", requestId).single();
+  if (error || !row) throw emmaErrors.notFound("EMMA request not found in scope.");
+  return mapRequestRow(row);
+}
+
 // --- createAiRun -----------------------------------------------------------
 
 export async function createAiRun(session: AuthSession, input: unknown): Promise<EmmaRunRecord> {
@@ -196,9 +301,7 @@ export async function createAiRun(session: AuthSession, input: unknown): Promise
     : { entries: [] };
 
   if (shouldUseMock(session)) {
-    const request = mockStore.requests.find((r) => r.id === data.requestId);
-    if (!request) throw emmaErrors.notFound("EMMA request not found.");
-    assertSameMinistry(request.ministryId, ministryId);
+    const request = requireMockRequestInScope(data.requestId, ministryId);
 
     const run: EmmaRunRecord = {
       id: uid("airun"),
@@ -222,6 +325,7 @@ export async function createAiRun(session: AuthSession, input: unknown): Promise
   }
 
   const supabase = await serverClient(session);
+  await requireRequestInScope(supabase, data.requestId, ministryId);
   const { data: row, error } = await supabase
     .from("ai_runs")
     .insert({
@@ -237,6 +341,20 @@ export async function createAiRun(session: AuthSession, input: unknown): Promise
     .select("*")
     .single();
   if (error || !row) throw emmaErrors.notFound("Parent EMMA request not found in scope.");
+  return mapRunRow(row);
+}
+
+export async function getAiRun(session: AuthSession, runId: string): Promise<EmmaRunRecord> {
+  const ministryId = await requireMinistryScope(session);
+
+  if (shouldUseMock(session)) {
+    return requireMockRunChainInScope(runId, ministryId);
+  }
+
+  const supabase = await serverClient(session);
+  await requireRunChainInScope(supabase, runId, ministryId);
+  const { data: row, error } = await supabase.from("ai_runs").select("*").eq("id", runId).single();
+  if (error || !row) throw emmaErrors.notFound("EMMA run not found in scope.");
   return mapRunRow(row);
 }
 
@@ -276,6 +394,105 @@ export async function completeAiRun(session: AuthSession, input: unknown): Promi
   return mapRunRow(row);
 }
 
+// --- createAiProviderAttempt ----------------------------------------------
+
+export async function createAiProviderAttempt(session: AuthSession, input: unknown): Promise<EmmaProviderAttemptRecord> {
+  const data = parseOrThrow(createProviderAttemptInputSchema, input);
+  const ministryId = await requireMinistryScope(session);
+
+  if (shouldUseMock(session)) {
+    const run = requireMockRunChainInScope(data.runId, ministryId);
+    const attempt: EmmaProviderAttemptRecord = {
+      id: uid("aiatt"),
+      runId: run.id,
+      ministryId,
+      provider: data.provider,
+      model: data.model,
+      attemptNumber: data.attemptNumber ?? nextMockAttemptNumber(run.id),
+      status: data.status,
+      errorCode: data.errorCode ?? null,
+      httpStatus: data.httpStatus ?? null,
+      durationMs: data.durationMs ?? null,
+      totalTokens: data.totalTokens ?? null,
+      estimatedCost: data.estimatedCost ?? null,
+      createdAt: nowIso()
+    };
+    mockStore.providerAttempts.unshift(attempt);
+    return attempt;
+  }
+
+  const supabase = await serverClient(session);
+  await requireRunChainInScope(supabase, data.runId, ministryId);
+  const { data: row, error } = await supabase
+    .from("ai_provider_attempts")
+    .insert({
+      run_id: data.runId,
+      ministry_id: ministryId,
+      provider: data.provider,
+      model: data.model,
+      attempt_number: data.attemptNumber ?? 1,
+      status: data.status,
+      error_code: data.errorCode ?? null,
+      http_status: data.httpStatus ?? null,
+      duration_ms: data.durationMs ?? null,
+      total_tokens: data.totalTokens ?? null,
+      estimated_cost: data.estimatedCost ?? null
+    })
+    .select("*")
+    .single();
+  if (error || !row) throw emmaErrors.internal("Failed to record EMMA provider attempt.");
+  return mapProviderAttemptRow(row);
+}
+
+export async function listAiProviderAttemptsForRun(
+  session: AuthSession,
+  runId: string
+): Promise<EmmaProviderAttemptRecord[]> {
+  const ministryId = await requireMinistryScope(session);
+
+  if (shouldUseMock(session)) {
+    requireMockRunChainInScope(runId, ministryId);
+    return mockStore.providerAttempts.filter((attempt) => attempt.runId === runId);
+  }
+
+  const supabase = await serverClient(session);
+  await requireRunChainInScope(supabase, runId, ministryId);
+  const { data: rows, error } = await supabase
+    .from("ai_provider_attempts")
+    .select("*")
+    .eq("run_id", runId)
+    .order("created_at", { ascending: true });
+  if (error) throw emmaErrors.notFound("EMMA provider attempts not found in scope.");
+  return (rows ?? []).map(mapProviderAttemptRow);
+}
+
+export async function listAiProviderAttemptsForRequest(
+  session: AuthSession,
+  requestId: string
+): Promise<EmmaProviderAttemptRecord[]> {
+  const ministryId = await requireMinistryScope(session);
+
+  if (shouldUseMock(session)) {
+    requireMockRequestInScope(requestId, ministryId);
+    const runIds = new Set(mockStore.runs.filter((run) => run.requestId === requestId).map((run) => run.id));
+    return mockStore.providerAttempts.filter((attempt) => runIds.has(attempt.runId));
+  }
+
+  const supabase = await serverClient(session);
+  await requireRequestInScope(supabase, requestId, ministryId);
+  const { data: runRows, error: runError } = await supabase.from("ai_runs").select("id").eq("request_id", requestId);
+  if (runError) throw emmaErrors.notFound("EMMA runs not found in scope.");
+  const runIds = (runRows ?? []).map((run: { id: string }) => run.id);
+  if (!runIds.length) return [];
+  const { data: rows, error } = await supabase
+    .from("ai_provider_attempts")
+    .select("*")
+    .in("run_id", runIds)
+    .order("created_at", { ascending: true });
+  if (error) throw emmaErrors.notFound("EMMA provider attempts not found in scope.");
+  return (rows ?? []).map(mapProviderAttemptRow);
+}
+
 // --- createActionProposal --------------------------------------------------
 
 export async function createActionProposal(
@@ -286,9 +503,7 @@ export async function createActionProposal(
   const ministryId = await requireMinistryScope(session);
 
   if (shouldUseMock(session)) {
-    const run = mockStore.runs.find((r) => r.id === data.runId);
-    if (!run) throw emmaErrors.notFound("EMMA run not found.");
-    assertSameMinistry(run.ministryId, ministryId);
+    const run = requireMockRunChainInScope(data.runId, ministryId);
 
     const proposal: EmmaActionProposalRecord = {
       id: uid("aiprop"),
@@ -311,6 +526,7 @@ export async function createActionProposal(
   }
 
   const supabase = await serverClient(session);
+  await requireRunChainInScope(supabase, data.runId, ministryId);
   const { data: row, error } = await supabase
     .from("ai_action_proposals")
     .insert({
@@ -341,9 +557,7 @@ export async function recordAiApproval(session: AuthSession, input: unknown): Pr
   const proposalStatus = data.decision === "approved" ? "approved" : data.decision === "rejected" ? "rejected" : "pending";
 
   if (shouldUseMock(session)) {
-    const proposal = mockStore.proposals.find((p) => p.id === data.proposalId);
-    if (!proposal) throw emmaErrors.notFound("EMMA proposal not found.");
-    assertSameMinistry(proposal.ministryId, ministryId);
+    const proposal = requireMockProposalInScope(data.proposalId, ministryId);
     if (proposal.status !== "pending") {
       throw emmaErrors.conflict("EMMA proposal has already been decided.");
     }
@@ -367,12 +581,7 @@ export async function recordAiApproval(session: AuthSession, input: unknown): Pr
   }
 
   const supabase = await serverClient(session);
-  const { data: proposalRow, error: proposalError } = await supabase
-    .from("ai_action_proposals")
-    .select("*")
-    .eq("id", data.proposalId)
-    .single();
-  if (proposalError || !proposalRow) throw emmaErrors.notFound("EMMA proposal not found in scope.");
+  const proposalRow = await requireProposalInScope(supabase, data.proposalId, ministryId);
   if (proposalRow.status !== "pending") throw emmaErrors.conflict("EMMA proposal has already been decided.");
 
   const { data: row, error } = await supabase
@@ -400,6 +609,7 @@ export async function recordAiApproval(session: AuthSession, input: unknown): Pr
 export interface EmmaAuditTrail {
   request: EmmaRequestRecord;
   runs: EmmaRunRecord[];
+  providerAttempts: EmmaProviderAttemptRecord[];
   proposals: EmmaActionProposalRecord[];
   approvals: EmmaApprovalRecord[];
 }
@@ -414,31 +624,55 @@ export async function getEmmaAuditTrail(session: AuthSession, requestId: string)
     assertSameMinistry(request.ministryId, ministryId);
     const runs = mockStore.runs.filter((r) => r.requestId === request.id);
     const runIds = new Set(runs.map((r) => r.id));
+    const providerAttempts = mockStore.providerAttempts.filter((attempt) => runIds.has(attempt.runId));
     const proposals = mockStore.proposals.filter((p) => runIds.has(p.runId));
     const proposalIds = new Set(proposals.map((p) => p.id));
     const approvals = mockStore.approvals.filter((a) => proposalIds.has(a.proposalId));
-    return { request, runs, proposals, approvals };
+    return { request, runs, providerAttempts, proposals, approvals };
   }
 
   const supabase = await serverClient(session);
   const { data: requestRow, error } = await supabase.from("ai_requests").select("*").eq("id", requestId).single();
   if (error || !requestRow) throw emmaErrors.notFound("EMMA request not found in scope.");
   const { data: runRows } = await supabase.from("ai_runs").select("*").eq("request_id", requestId);
-  const runs = (runRows ?? []).map(mapRunRow);
+  const runs: EmmaRunRecord[] = (runRows ?? []).map(mapRunRow);
   const runIds = runs.map((r) => r.id);
+  const { data: attemptRows } = runIds.length
+    ? await supabase.from("ai_provider_attempts").select("*").in("run_id", runIds)
+    : { data: [] };
   const { data: proposalRows } = runIds.length
     ? await supabase.from("ai_action_proposals").select("*").in("run_id", runIds)
     : { data: [] };
-  const proposals = (proposalRows ?? []).map(mapProposalRow);
+  const providerAttempts: EmmaProviderAttemptRecord[] = (attemptRows ?? []).map(mapProviderAttemptRow);
+  const proposals: EmmaActionProposalRecord[] = (proposalRows ?? []).map(mapProposalRow);
   const proposalIds = proposals.map((p) => p.id);
   const { data: approvalRows } = proposalIds.length
     ? await supabase.from("ai_approvals").select("*").in("proposal_id", proposalIds)
     : { data: [] };
   const approvals = (approvalRows ?? []).map(mapApprovalRow);
-  return { request: mapRequestRow(requestRow), runs, proposals, approvals };
+  return { request: mapRequestRow(requestRow), runs, providerAttempts, proposals, approvals };
 }
 
 // --- row mappers (real Supabase rows -> domain records) --------------------
+
+function mapFeatureConfigRow(row: any): EmmaFeatureConfig {
+  return {
+    id: row.id,
+    ministryId: row.ministry_id,
+    featureKey: row.feature_key,
+    enabled: row.enabled,
+    primaryProvider: row.primary_provider ?? null,
+    primaryModel: row.primary_model ?? null,
+    fallbackProvider: row.fallback_provider ?? null,
+    fallbackModel: row.fallback_model ?? null,
+    temperature: row.temperature ?? null,
+    maxOutputTokens: row.max_output_tokens ?? null,
+    timeoutMs: row.timeout_ms ?? null,
+    requiresApproval: row.requires_approval,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
 
 function mapRequestRow(row: any): EmmaRequestRecord {
   return {
@@ -473,6 +707,24 @@ function mapRunRow(row: any): EmmaRunRecord {
     completedAt: row.completed_at ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at
+  };
+}
+
+function mapProviderAttemptRow(row: any): EmmaProviderAttemptRecord {
+  return {
+    id: row.id,
+    runId: row.run_id,
+    ministryId: row.ministry_id,
+    provider: row.provider,
+    model: row.model,
+    attemptNumber: row.attempt_number,
+    status: row.status,
+    errorCode: row.error_code ?? null,
+    httpStatus: row.http_status ?? null,
+    durationMs: row.duration_ms ?? null,
+    totalTokens: row.total_tokens ?? null,
+    estimatedCost: row.estimated_cost ?? null,
+    createdAt: row.created_at
   };
 }
 
@@ -514,4 +766,8 @@ function cryptoRandomId(): string {
   // Prefer a real UUID for correlation ids; fall back to uid() if unavailable.
   const c = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto;
   return c?.randomUUID ? c.randomUUID() : uid("corr");
+}
+
+function nextMockAttemptNumber(runId: string): number {
+  return mockStore.providerAttempts.filter((attempt) => attempt.runId === runId).length + 1;
 }

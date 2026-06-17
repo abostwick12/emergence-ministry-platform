@@ -68,6 +68,14 @@ Introduce a provider-neutral execution layer that can use a configured primary a
 - bad requests and authentication errors do not trigger inappropriate fallback
 - no live provider is required for CI
 
+### Implementation Note
+
+Iteration 2 introduces the provider abstraction with Gemini as the first real
+server-side provider and a deterministic mock provider as the default for tests.
+All provider calls are audited through existing EMMA request/run/provider-attempt
+records. No external ministry actions are executed in this iteration, and normal
+build/test does not require `GEMINI_API_KEY`.
+
 ## Iteration 3 — Skill Registry and Router
 
 ### Goal

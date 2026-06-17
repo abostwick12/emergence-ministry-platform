@@ -110,6 +110,24 @@ export const completeAiRunInputSchema = z
   .strict();
 export type CompleteAiRunInput = z.infer<typeof completeAiRunInputSchema>;
 
+// --- provider attempt input -----------------------------------------------
+
+export const createProviderAttemptInputSchema = z
+  .object({
+    runId: id,
+    provider: z.string().min(1),
+    model: z.string().min(1),
+    attemptNumber: z.number().int().positive().optional(),
+    status: emmaProviderAttemptStatusSchema,
+    errorCode: z.string().min(1).nullish(),
+    httpStatus: z.number().int().positive().nullish(),
+    durationMs: z.number().int().nonnegative().nullish(),
+    totalTokens: z.number().int().nonnegative().nullish(),
+    estimatedCost: z.number().nonnegative().nullish()
+  })
+  .strict();
+export type CreateProviderAttemptInput = z.infer<typeof createProviderAttemptInputSchema>;
+
 // --- action proposal input -------------------------------------------------
 
 /** Factory for a validated action-proposal schema with a typed payload. */
