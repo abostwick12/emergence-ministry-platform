@@ -7,10 +7,12 @@ import { DEFAULT_MINISTRY_ID } from "./constants";
 // Rules:
 // - Never trust a client-supplied ministry id. Scope is derived purely from the
 //   server-side session and, in real mode, the user's own profile row.
-// - Mock/Stub Mode and unconfigured local dev resolve to the default ministry.
-// - On any read failure (including pre-migration databases that do not yet have
-//   profiles.ministry_id) we return undefined: app code then omits ministry_id
-//   and lets the database default/trigger + RLS enforce scope server-side.
+// - The default Emerge ministry is used as a fallback ONLY in mock/stub mode and
+//   unconfigured local dev. Real mode never substitutes the default in app code.
+// - In real mode we return the profile's ministry_id, or undefined when it is
+//   absent or a read fails (including pre-migration databases without the
+//   column). Returning undefined makes app code omit ministry_id so the database
+//   trigger (public.current_ministry_id()) + RLS resolve scope server-side.
 //
 // Results are memoized per session object so a single request that performs
 // several writes only resolves scope once.
@@ -47,7 +49,9 @@ async function computeMinistryScope(session: AuthSession): Promise<string | unde
       return undefined;
     }
 
-    return data?.ministry_id ?? DEFAULT_MINISTRY_ID;
+    // Real mode: scope comes solely from the user's profile. No default-ministry
+    // fallback here — that is mock/stub behavior only.
+    return data?.ministry_id ?? undefined;
   } catch {
     return undefined;
   }
