@@ -1,5 +1,19 @@
-import { providerError, providerErrorFromHttpStatus } from "./errors";
+import { providerError, providerErrorFromHttpStatus, type EmmaProviderDiagnostic } from "./errors";
 import type { EmmaProvider, EmmaProviderRequest, EmmaProviderResult } from "./types";
+
+type GeminiErrorResponse = {
+  error?: {
+    code?: number;
+    message?: string;
+    status?: string;
+    details?: Array<{
+      fieldViolations?: Array<{
+        field?: string;
+        description?: string;
+      }>;
+    }>;
+  };
+};
 
 type GeminiResponse = {
   candidates?: Array<{
@@ -57,7 +71,7 @@ export function createGeminiProvider(options?: { apiKey?: string; fetchImpl?: ty
         });
 
         if (!response.ok) {
-          throw providerErrorFromHttpStatus(response.status);
+          throw providerErrorFromHttpStatus(response.status, await readGeminiErrorDiagnostic(response, apiKey));
         }
 
         const json = (await response.json()) as GeminiResponse;
@@ -88,4 +102,53 @@ export function createGeminiProvider(options?: { apiKey?: string; fetchImpl?: ty
       }
     }
   };
+}
+
+async function readGeminiErrorDiagnostic(response: Response, apiKey: string): Promise<EmmaProviderDiagnostic | null> {
+  let body: string;
+  try {
+    body = await response.text();
+  } catch {
+    return null;
+  }
+
+  if (!body) {
+    return { googleErrorCode: response.status };
+  }
+
+  try {
+    const parsed = JSON.parse(body) as GeminiErrorResponse;
+    const error = parsed.error;
+    if (!error) {
+      return { googleErrorCode: response.status, googleErrorMessage: sanitizeDiagnosticText(body, apiKey) };
+    }
+
+    const invalidFieldPaths = (error.details ?? [])
+      .flatMap((detail) => detail.fieldViolations ?? [])
+      .map((violation) => sanitizeDiagnosticText(violation.field, apiKey))
+      .filter((field): field is string => Boolean(field))
+      .slice(0, 8);
+
+    return {
+      googleErrorCode: typeof error.code === "number" ? error.code : response.status,
+      googleErrorStatus: sanitizeDiagnosticText(error.status, apiKey),
+      googleErrorMessage: sanitizeDiagnosticText(error.message, apiKey),
+      invalidFieldPaths: invalidFieldPaths.length ? invalidFieldPaths : undefined
+    };
+  } catch {
+    return { googleErrorCode: response.status, googleErrorMessage: sanitizeDiagnosticText(body, apiKey) };
+  }
+}
+
+function sanitizeDiagnosticText(value: unknown, apiKey: string): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const sanitized = value
+    .split(apiKey)
+    .join("[redacted-google-api-key]")
+    .replace(/key=([^&\s"]+)/gi, "key=[redacted]")
+    .replace(/AIza[0-9A-Za-z_-]{20,}/g, "[redacted-google-api-key]")
+    .replace(/sk-[0-9A-Za-z_-]{20,}/g, "[redacted-secret]")
+    .replace(/[\r\n\t]+/g, " ")
+    .trim();
+  return sanitized ? sanitized.slice(0, 500) : undefined;
 }

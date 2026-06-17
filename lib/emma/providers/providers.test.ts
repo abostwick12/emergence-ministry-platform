@@ -65,6 +65,12 @@ describe("EMMA mock provider", () => {
 });
 
 describe("EMMA Gemini provider", () => {
+  it("documents the exact internal summary JSON contract in the prompt", () => {
+    expect(internalEventSummarySystemPrompt).toContain("summary (string)");
+    expect(internalEventSummarySystemPrompt).toContain("keyPoints (array of strings)");
+    expect(internalEventSummarySystemPrompt).toContain("Do not include event detail fields");
+  });
+
   it("refuses to run without GEMINI_API_KEY", async () => {
     const provider = createGeminiProvider({ apiKey: "" });
     await expect(provider.generate({ systemPrompt: "system", userPrompt: "user", model: "gemini-2.0-flash" })).rejects.toMatchObject({
@@ -76,7 +82,16 @@ describe("EMMA Gemini provider", () => {
     const provider = createGeminiProvider({
       apiKey: "super-secret-gemini-key",
       fetchImpl: async () =>
-        new Response(JSON.stringify({ error: { message: "super-secret-gemini-key raw upstream detail" } }), { status: 401 })
+        new Response(
+          JSON.stringify({
+            error: {
+              code: 401,
+              status: "UNAUTHENTICATED",
+              message: "super-secret-gemini-key raw upstream detail"
+            }
+          }),
+          { status: 401 }
+        )
     });
 
     await expect(provider.generate({ systemPrompt: "system", userPrompt: "user", model: "gemini-2.0-flash" })).rejects.toMatchObject({
@@ -85,6 +100,44 @@ describe("EMMA Gemini provider", () => {
     });
     await provider.generate({ systemPrompt: "system", userPrompt: "user", model: "gemini-2.0-flash" }).catch((error) => {
       expect(JSON.stringify(error)).not.toContain("super-secret-gemini-key");
+    });
+  });
+
+  it("captures sanitized Gemini error diagnostics on non-2xx responses", async () => {
+    const provider = createGeminiProvider({
+      apiKey: "test-key",
+      fetchImpl: async () =>
+        new Response(
+          JSON.stringify({
+            error: {
+              code: 400,
+              status: "INVALID_ARGUMENT",
+              message: "Invalid JSON payload received. Unknown name \"response_mime_type\" at 'generation_config'.",
+              details: [
+                {
+                  fieldViolations: [
+                    {
+                      field: "generation_config.response_mime_type",
+                      description: "Unknown field."
+                    }
+                  ]
+                }
+              ]
+            }
+          }),
+          { status: 400 }
+        )
+    });
+
+    await expect(provider.generate({ systemPrompt: "system", userPrompt: "user", model: "gemini-2.5-flash" })).rejects.toMatchObject({
+      code: "bad_request",
+      httpStatus: 400,
+      diagnostic: {
+        googleErrorCode: 400,
+        googleErrorStatus: "INVALID_ARGUMENT",
+        googleErrorMessage: "Invalid JSON payload received. Unknown name \"response_mime_type\" at 'generation_config'.",
+        invalidFieldPaths: ["generation_config.response_mime_type"]
+      }
     });
   });
 
@@ -176,6 +229,7 @@ describe("audited provider execution", () => {
     expect(trail.runs[0].status).toBe("failed");
     expect(trail.providerAttempts[0].status).toBe("failure");
     expect(trail.providerAttempts[0].errorCode).toBe("provider_unavailable");
+    expect(trail.runs[0].warnings).toContain("Provider error category: provider_unavailable");
   });
 
   it("logs invalid provider response as a failed attempt and failed run", async () => {
@@ -198,6 +252,10 @@ describe("audited provider execution", () => {
     expect(trail.runs[0].status).toBe("failed");
     expect(trail.providerAttempts[0].status).toBe("failure");
     expect(trail.providerAttempts[0].errorCode).toBe("invalid_output");
+    expect(trail.runs[0].warnings).toContain("Provider output failed schema validation.");
+    expect(trail.runs[0].warnings).toContain("Zod issue: path=summary code=invalid_type expected=string received=undefined");
+    expect(trail.runs[0].warnings).toContain("Zod issue: path=keyPoints code=invalid_type expected=array received=undefined");
+    expect(trail.runs[0].warnings).toContain("Zod issue: path=(root) code=unrecognized_keys keys=invalid");
   });
 
   it("mock mode does not require provider keys", async () => {
