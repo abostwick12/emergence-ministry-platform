@@ -18,7 +18,16 @@ import { addDays, uid } from "@/lib/utils";
 import type { AuthSession } from "@/lib/auth/server";
 import { getSupabaseAuthClient } from "@/lib/auth/server";
 import { isSupabaseConfigured } from "@/lib/auth/config";
+import { resolveMinistryScope } from "@/lib/ministry/scope";
 import * as mockStore from "@/lib/store";
+
+// Builds an optional `{ ministry_id }` fragment for inserts. Returns an empty
+// object when scope cannot be resolved (e.g. a pre-migration database), so the
+// insert still succeeds and the DB default/trigger + RLS enforce scope. The
+// explicit single return type keeps spread payloads from widening to a union.
+function ministryScopeColumns(ministryId: string | undefined): { ministry_id?: string } {
+  return ministryId ? { ministry_id: ministryId } : {};
+}
 
 type Overview = {
   events: MinistryEvent[];
@@ -30,6 +39,7 @@ type Overview = {
 
 type SupabaseProfileRow = {
   id: string;
+  ministry_id: string | null;
   email: string | null;
   full_name: string | null;
   role: string | null;
@@ -39,6 +49,7 @@ type SupabaseProfileRow = {
 
 type SupabaseEventRow = {
   id: string;
+  ministry_id: string | null;
   title: string;
   ministry_area: string | null;
   description: string | null;
@@ -64,6 +75,7 @@ type SupabaseEventRow = {
 
 type SupabaseTaskRow = {
   id: string;
+  ministry_id: string | null;
   event_id: string;
   title: string;
   owner: string | null;
@@ -80,6 +92,7 @@ type SupabaseTaskRow = {
 
 type SupabaseActivityRow = {
   id: string;
+  ministry_id: string | null;
   event_id: string | null;
   task_id: string | null;
   action: string;
@@ -187,12 +200,14 @@ export async function createMinistryEvent(
   }
 
   const supabase = getSupabaseAuthClient(session.accessToken);
+  const ministryId = await resolveMinistryScope(session);
   const start = new Date(input.startTime);
   const end = new Date(input.endTime);
 
   const defaultVolunteers = input.type === "retreat" || input.type === "camp" ? 6 : input.type === "service" ? 4 : 2;
 
   const baseRow = {
+    ...ministryScopeColumns(ministryId),
     title: input.title,
     ministry_area: input.type,
     description: input.description,
@@ -349,9 +364,11 @@ export async function createMinistryTask(
   }
 
   const supabase = getSupabaseAuthClient(session.accessToken);
+  const ministryId = await resolveMinistryScope(session);
   const result = await supabase
     .from("tasks")
     .insert({
+      ...ministryScopeColumns(ministryId),
       event_id: input.eventId,
       title: input.taskTitle,
       owner: input.assignedUserId,
@@ -473,6 +490,8 @@ async function generateTemplateTasks(session: AuthSession, event: SupabaseEventR
   const rows = defaultTemplateTasks[eventType].map((template) => {
     const dueDate = event.start_date ? addDays(`${event.start_date}T12:00:00`, template.timelineOffsetDays).slice(0, 10) : null;
     return {
+      // Tasks inherit ministry scope from their parent event.
+      ...ministryScopeColumns(event.ministry_id ?? undefined),
       event_id: event.id,
       title: template.taskTitle,
       owner: session.user.id,
@@ -495,7 +514,9 @@ async function generateTemplateTasks(session: AuthSession, event: SupabaseEventR
 
 async function createActivityLog(session: AuthSession, eventId: string, taskId: string | null, action: string) {
   const supabase = getSupabaseAuthClient(session.accessToken);
+  const ministryId = await resolveMinistryScope(session);
   const result = await supabase.from("activity_logs").insert({
+    ...ministryScopeColumns(ministryId),
     event_id: eventId,
     task_id: taskId,
     action,
@@ -521,6 +542,7 @@ function toUsers(rows: SupabaseProfileRow[], session: AuthSession): User[] {
     const [firstName, ...lastName] = (row.full_name || row.email || "Staff User").split(" ");
     return {
       id: row.id,
+      ministryId: row.ministry_id ?? undefined,
       firstName,
       lastName: lastName.join(" ") || "User",
       email: row.email ?? "",
@@ -532,6 +554,7 @@ function toUsers(rows: SupabaseProfileRow[], session: AuthSession): User[] {
 function toMinistryEvent(row: SupabaseEventRow, users: User[]): MinistryEvent {
   return {
     id: row.id,
+    ministryId: row.ministry_id ?? undefined,
     title: row.title,
     description: row.description ?? row.vision ?? "",
     type: toEventType(row.ministry_area),
@@ -556,6 +579,7 @@ function toMinistryEvent(row: SupabaseEventRow, users: User[]): MinistryEvent {
 function toActiveTask(row: SupabaseTaskRow, users: User[]): ActiveTask {
   return {
     id: row.id,
+    ministryId: row.ministry_id ?? undefined,
     eventId: row.event_id,
     taskTitle: row.title,
     dueDate: row.due_date ? `${row.due_date}T12:00:00.000Z` : new Date().toISOString(),
@@ -570,6 +594,7 @@ function toActiveTask(row: SupabaseTaskRow, users: User[]): ActiveTask {
 function toActivityLog(row: SupabaseActivityRow): ActivityLog {
   return {
     id: row.id,
+    ministryId: row.ministry_id ?? undefined,
     type: "task_edited",
     eventId: row.event_id ?? undefined,
     taskId: row.task_id ?? undefined,

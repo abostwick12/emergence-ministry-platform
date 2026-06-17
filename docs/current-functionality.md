@@ -91,3 +91,4 @@ flowchart TD
 - Communications are previews only and are not sent.
 - Student and Parent routes remain inactive placeholders.
 - Notes are internal staff notes stored on events and tasks.
+- Core records (profiles, events, tasks, activity logs) are scoped to a ministry via `ministry_id`. The app runs as a single default **Emerge** ministry today; Row Level Security restricts access to the authenticated user's ministry. See `docs/emma/architecture.md` (Implementation Note: Ministry Scope).

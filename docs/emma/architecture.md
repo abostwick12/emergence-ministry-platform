@@ -510,3 +510,27 @@ EMMA Phase 1 is operational only when:
 5. The request, run, provider attempts, proposal, approval, created tasks, draft revisions, and activity log are traceable.
 6. A simulated provider failure falls back or fails safely without corrupting records.
 7. The primary coordinator uses the workflow for one full week without developer assistance.
+
+## Implementation Note: Ministry Scope
+
+The application currently operates as a **single-ministry deployment**. A real
+ministry scope now exists in the database: a `ministries` table with a seeded
+default **Emerge** ministry (fixed id `00000000-0000-4000-8000-0000000000e1`),
+and a non-null `ministry_id` foreign key on the core tables `profiles`,
+`events`, `tasks`, and `activity_logs` (migration
+`supabase/migrations/005_ministry_scope.sql`).
+
+Scope is enforced server-side: Row Level Security policies restrict every core
+table to `ministry_id = public.current_ministry_id()`, where
+`current_ministry_id()` derives the authenticated user's ministry from their
+profile (falling back to the default ministry). Browser-supplied ministry ids
+are never trusted; the server resolves scope via
+`resolveMinistryScope(session)` in `lib/ministry/scope.ts` and attaches it to
+writes. Mock/Stub Mode uses the default Emerge ministry.
+
+Because there is one ministry today, every user resolves to the same scope and
+visible behavior is unchanged. Future multi-ministry / churchwide scaling builds
+on this foundation by seeding additional `ministries` rows and assigning each
+profile its `ministry_id`. **All future EMMA tables (`ai_requests`, `ai_runs`,
+`ai_action_proposals`, `ai_approvals`, etc.) must include `ministry_id` and the
+same RLS scoping.**
