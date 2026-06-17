@@ -69,7 +69,7 @@ export async function runEmmaProviderForRequest<TSchema extends z.ZodTypeAny>(
           runId: run.id,
           status: "failed",
           summary: "Provider returned invalid structured output.",
-          warnings: ["Provider output failed schema validation."]
+          warnings: zodValidationWarnings(parsed.error)
         });
         await updateAiRequestStatus(session, options.requestId, "failed");
         return emmaFail(emmaErrors.provider("AI provider response failed validation safely."));
@@ -115,7 +115,7 @@ export async function runEmmaProviderForRequest<TSchema extends z.ZodTypeAny>(
         runId: run.id,
         status: "failed",
         summary: "Provider request failed safely.",
-        warnings: [`Provider error category: ${normalized.code}`]
+        warnings: providerFailureWarnings(normalized)
       });
       await updateAiRequestStatus(session, options.requestId, "failed");
       return emmaFail(normalized.toEmmaError());
@@ -130,4 +130,36 @@ export async function runEmmaProviderForRequest<TSchema extends z.ZodTypeAny>(
     }
     return emmaFail(error instanceof Error ? error : emmaErrors.internal());
   }
+}
+
+function providerFailureWarnings(error: ReturnType<typeof normalizeProviderError>): string[] {
+  const warnings = [`Provider error category: ${error.code}`];
+  if (error.diagnostic?.googleErrorCode) {
+    warnings.push(`Google error code: ${error.diagnostic.googleErrorCode}`);
+  }
+  if (error.diagnostic?.googleErrorStatus) {
+    warnings.push(`Google error status: ${error.diagnostic.googleErrorStatus}`);
+  }
+  if (error.diagnostic?.googleErrorMessage) {
+    warnings.push(`Google error message: ${error.diagnostic.googleErrorMessage}`);
+  }
+  if (error.diagnostic?.invalidFieldPaths?.length) {
+    warnings.push(`Google invalid field path: ${error.diagnostic.invalidFieldPaths.join(", ")}`);
+  }
+  return warnings;
+}
+
+function zodValidationWarnings(error: z.ZodError): string[] {
+  const warnings = ["Provider output failed schema validation."];
+  for (const issue of error.issues.slice(0, 8)) {
+    const path = issue.path.length ? issue.path.join(".") : "(root)";
+    const expected = "expected" in issue ? ` expected=${String(issue.expected)}` : "";
+    const received = "received" in issue ? ` received=${String(issue.received)}` : "";
+    const keys = "keys" in issue && Array.isArray(issue.keys) ? ` keys=${issue.keys.map(String).join(",")}` : "";
+    warnings.push(`Zod issue: path=${path} code=${issue.code}${expected}${received}${keys}`);
+  }
+  if (error.issues.length > 8) {
+    warnings.push(`Zod issue count truncated: ${error.issues.length}`);
+  }
+  return warnings;
 }
