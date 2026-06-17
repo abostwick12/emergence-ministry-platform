@@ -49,7 +49,17 @@ insert into public.ministries (id, name, slug)
 values ('00000000-0000-4000-8000-0000000000e1', 'Emerge', 'emerge')
 on conflict (slug) do nothing;
 
--- 3. Ministry scope helpers -------------------------------------------------
+-- 3. Add ministry_id to core tables (nullable first) ------------------------
+-- Must precede the scope helpers: current_ministry_id() is a SQL function whose
+-- body references public.profiles.ministry_id and is validated at creation time,
+-- so the column has to exist before the function is created.
+
+alter table public.profiles      add column if not exists ministry_id uuid references public.ministries(id);
+alter table public.events        add column if not exists ministry_id uuid references public.ministries(id);
+alter table public.tasks         add column if not exists ministry_id uuid references public.ministries(id);
+alter table public.activity_logs add column if not exists ministry_id uuid references public.ministries(id);
+
+-- 4. Ministry scope helpers -------------------------------------------------
 -- current_ministry_id() returns the authenticated user's ministry, falling back
 -- to the default Emerge ministry. SECURITY DEFINER so it can read profiles
 -- regardless of RLS (avoids recursive policy evaluation), with a locked-down
@@ -80,13 +90,6 @@ begin
   return new;
 end;
 $$;
-
--- 4. Add ministry_id to core tables (nullable first) ------------------------
-
-alter table public.profiles      add column if not exists ministry_id uuid references public.ministries(id);
-alter table public.events        add column if not exists ministry_id uuid references public.ministries(id);
-alter table public.tasks         add column if not exists ministry_id uuid references public.ministries(id);
-alter table public.activity_logs add column if not exists ministry_id uuid references public.ministries(id);
 
 -- 5. Backfill existing rows to the default Emerge ministry ------------------
 
