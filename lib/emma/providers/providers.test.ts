@@ -87,6 +87,48 @@ describe("EMMA Gemini provider", () => {
       expect(JSON.stringify(error)).not.toContain("super-secret-gemini-key");
     });
   });
+
+  it("sends a REST-compatible generateContent payload", async () => {
+    let requestBody: Record<string, unknown> | null = null;
+    const provider = createGeminiProvider({
+      apiKey: "test-key",
+      fetchImpl: async (_url, init) => {
+        requestBody = JSON.parse(String(init?.body));
+        return new Response(
+          JSON.stringify({
+            candidates: [{ content: { parts: [{ text: JSON.stringify({
+              summary: "ok",
+              keyPoints: ["safe"],
+              suggestedNextQuestions: ["next?"],
+              confidence: 0.9,
+              warnings: []
+            }) }] } }],
+            usageMetadata: { totalTokenCount: 10 }
+          }),
+          { status: 200 }
+        );
+      }
+    });
+
+    await provider.generate({
+      systemPrompt: internalEventSummarySystemPrompt,
+      userPrompt: "Summarize safe context.",
+      model: "gemini-2.5-flash",
+      temperature: 0,
+      maxOutputTokens: 400
+    });
+
+    expect(requestBody).toMatchObject({
+      systemInstruction: { parts: [{ text: internalEventSummarySystemPrompt }] },
+      contents: [{ role: "user", parts: [{ text: "Summarize safe context." }] }],
+      generationConfig: {
+        responseMimeType: "application/json",
+        temperature: 0,
+        maxOutputTokens: 400
+      }
+    });
+    expect(requestBody).not.toHaveProperty("store");
+  });
 });
 
 describe("audited provider execution", () => {

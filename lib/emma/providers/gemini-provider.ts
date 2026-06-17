@@ -52,8 +52,7 @@ export function createGeminiProvider(options?: { apiKey?: string; fetchImpl?: ty
               responseMimeType: "application/json",
               temperature: request.temperature ?? 0.2,
               maxOutputTokens: request.maxOutputTokens
-            },
-            store: false
+            }
           })
         });
 
