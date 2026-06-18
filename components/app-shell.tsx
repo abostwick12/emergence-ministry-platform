@@ -16,6 +16,7 @@ const roleLabels: Record<Role, string> = {
 
 const primaryLinks = [
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/camp", label: "Camp" },
   { href: "/events", label: "Events" },
   { href: "/worship", label: "Worship" },
   { href: "/tasks", label: "Tasks" },
@@ -55,6 +56,12 @@ const navIconPaths: Record<string, React.ReactNode> = {
       <rect x="14" y="3" width="7" height="5" rx="1.4" />
       <rect x="14" y="12" width="7" height="9" rx="1.4" />
       <rect x="3" y="16" width="7" height="5" rx="1.4" />
+    </>
+  ),
+  "/camp": (
+    <>
+      <path d="M4 19V8.5l8-4 8 4V19" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M8 19v-5h8v5M8.5 9.5h7M10 12h4" strokeLinecap="round" />
     </>
   ),
   "/events": (
@@ -113,6 +120,7 @@ function NavIcon({ href }: { href: string }) {
 
 const pageTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
+  "/camp": "Camp Command Center",
   "/events": "Events",
   "/worship": "Worship",
   "/tasks": "Tasks",

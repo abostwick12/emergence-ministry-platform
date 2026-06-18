@@ -18,6 +18,7 @@ const proposalDecisionSchema = z
 interface ProposalReviewRecord {
   proposal: EmmaActionProposalRecord;
   requestId: string;
+  eventTitle: string | null;
 }
 
 interface EmmaMockState {
@@ -34,14 +35,15 @@ export async function listPendingEmmaProposalsForReview(
     return emmaOk(
       records
         .filter(({ proposal }) => isReviewableInertProposal(proposal))
-        .map(({ proposal, requestId }) => ({
+        .map(({ proposal, requestId, eventTitle }) => ({
           proposalId: proposal.id,
           requestId,
           runId: proposal.runId,
           proposalType: proposalTypeFromPayload(proposal.payload),
           status: proposal.status,
           createdAt: proposal.createdAt,
-          summary: proposal.summary
+          summary: proposal.summary,
+          eventTitle
         }))
     );
   } catch (error) {
@@ -102,7 +104,10 @@ async function listActionProposalsForReview(
     const store = mockStore();
     return store.proposals
       .filter((proposal) => proposal.ministryId === ministryId && proposal.status === status)
-      .map((proposal) => ({ proposal, requestId: requireMockRun(store, proposal.runId, ministryId).requestId }));
+      .map((proposal) => {
+        const run = requireMockRun(store, proposal.runId, ministryId);
+        return { proposal, requestId: run.requestId, eventTitle: eventTitleFromRun(run) };
+      });
   }
 
   const supabase = await serverClient(session);
@@ -118,7 +123,7 @@ async function listActionProposalsForReview(
   for (const row of rows ?? []) {
     const proposal = mapProposalRow(row);
     const run = await requireRunInScope(session, proposal.runId, ministryId);
-    records.push({ proposal, requestId: run.requestId });
+    records.push({ proposal, requestId: run.requestId, eventTitle: eventTitleFromRun(run) });
   }
   return records;
 }
@@ -132,7 +137,7 @@ async function getActionProposalForReview(session: AuthSession, proposalId: stri
     if (!proposal) throw emmaErrors.notFound("EMMA proposal not found.");
     assertSameMinistry(proposal.ministryId, ministryId);
     const run = requireMockRun(store, proposal.runId, ministryId);
-    return { proposal, requestId: run.requestId };
+    return { proposal, requestId: run.requestId, eventTitle: eventTitleFromRun(run) };
   }
 
   const supabase = await serverClient(session);
@@ -141,7 +146,7 @@ async function getActionProposalForReview(session: AuthSession, proposalId: stri
   const proposal = mapProposalRow(row);
   assertSameMinistry(proposal.ministryId, ministryId);
   const run = await requireRunInScope(session, proposal.runId, ministryId);
-  return { proposal, requestId: run.requestId };
+  return { proposal, requestId: run.requestId, eventTitle: eventTitleFromRun(run) };
 }
 
 function shouldUseMock(session: AuthSession): boolean {
@@ -248,4 +253,9 @@ function proposalTypeFromPayload(payload: unknown): string | null {
   }
   const proposalType = (payload as { proposalType?: unknown }).proposalType;
   return typeof proposalType === "string" ? proposalType : null;
+}
+
+function eventTitleFromRun(run: EmmaRunRecord): string | null {
+  const safeEventContext = run.contextManifest.safeEventContext;
+  return safeEventContext?.title ?? null;
 }

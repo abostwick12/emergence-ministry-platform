@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
+import { EmmaEventIntelligencePanel } from "@/components/emma-event-intelligence-panel";
 import { useEventCard } from "@/components/event-card-context";
+import { useRole } from "@/components/role-context";
 import { eventTypeLabels, defaultTemplateTasks } from "@/lib/templates";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import type {
@@ -195,6 +197,7 @@ function MasterEventCardInner({
   const [saveSuccess, setSaveSuccess] = useState("");
   const [isDirty, setIsDirty] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState("");
+  const { activeRole } = useRole();
   const router = useRouter();
   const [stubStatus, setStubStatus] = useState<Record<string, "idle" | "running" | "done">>({
     drive: "idle",
@@ -543,6 +546,7 @@ function MasterEventCardInner({
               onAddTask={handleAddTask}
               onNewTaskTitleChange={setNewTaskTitle}
               onRunStub={runStub}
+              showEmmaEventIntelligence={activeRole === "admin"}
             />
           ) : null}
         </div>
@@ -848,7 +852,8 @@ function Step2Panel({
   onUpdateTask,
   onAddTask,
   onNewTaskTitleChange,
-  onRunStub
+  onRunStub,
+  showEmmaEventIntelligence
 }: {
   mode: "create" | "edit";
   workspace: EventWorkspace | null;
@@ -861,6 +866,7 @@ function Step2Panel({
   onAddTask: () => Promise<void>;
   onNewTaskTitleChange: (value: string) => void;
   onRunStub: (type: "drive" | "calendar" | "propresenter" | "planning_center" | "comms") => Promise<void>;
+  showEmmaEventIntelligence: boolean;
 }) {
   const tasks = workspace?.tasks ?? [];
 
@@ -975,6 +981,8 @@ function Step2Panel({
           </div>
         )}
       </section>
+
+      {workspace && showEmmaEventIntelligence ? <EmmaEventIntelligencePanel eventId={workspace.event.id} /> : null}
 
       {workspace && workspace.communications.length > 0 && (
         <section className="event-card-section">

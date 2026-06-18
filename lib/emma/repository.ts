@@ -297,7 +297,10 @@ export async function createAiRun(session: AuthSession, input: unknown): Promise
   const data = parseOrThrow(createAiRunInputSchema, input);
   const ministryId = await requireMinistryScope(session);
   const manifest: ContextManifest = data.contextManifest
-    ? buildContextManifest(data.contextManifest.entries)
+    ? {
+        ...buildContextManifest(data.contextManifest.entries),
+        ...(data.contextManifest.safeEventContext ? { safeEventContext: data.contextManifest.safeEventContext } : {})
+      }
     : { entries: [] };
 
   if (shouldUseMock(session)) {

@@ -9,6 +9,8 @@
 // Application code validates and executes. Humans approve sensitive or external
 // actions.
 
+import type { EventStatus, EventType } from "@/lib/types";
+
 // --- Domains ---------------------------------------------------------------
 
 export const EMMA_DOMAINS = [
@@ -165,8 +167,25 @@ export interface ContextManifestEntry {
   sourceTable?: string;
 }
 
+export interface SafeEventPlanningContext {
+  eventId: string;
+  title: string;
+  eventType: EventType;
+  startTime: string;
+  endTime: string;
+  location: string | null;
+  targetGroup: string | null;
+  ownerId: string | null;
+  status: EventStatus;
+  priority: string | null;
+  volunteersNeeded: number | null;
+  description: string | null;
+  missingInformation: string[];
+}
+
 export interface ContextManifest {
   entries: ContextManifestEntry[];
+  safeEventContext?: SafeEventPlanningContext;
 }
 
 // --- Records ---------------------------------------------------------------

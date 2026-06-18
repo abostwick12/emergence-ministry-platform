@@ -8,6 +8,7 @@ export interface EmmaProposalReviewItem {
   status: EmmaProposalStatus;
   createdAt: string;
   summary: string;
+  eventTitle: string | null;
 }
 
 export interface EmmaProposalDecisionResult {
