@@ -4,6 +4,8 @@ export type CampAccessScope = {
   vehicleId?: string;
 };
 
+export type CampMutationActor = "Andrew" | "Jaci" | "Joel" | "General Leader" | "Driver";
+
 export type CampTeam = {
   id: string;
   name: string;
@@ -48,6 +50,16 @@ export type CampStudentPublic = {
   hasRestrictedMedicalInfo: boolean;
   hasMedicationPlan: boolean;
   needsParentClarification: boolean;
+};
+
+export type CampStudentInput = {
+  id?: string;
+  name: string;
+  grade: string;
+  teamId: string;
+  vehicleId: string;
+  cabin: string;
+  limitedSafetyFlags?: string[];
 };
 
 export type CampVisibleStudent = {
@@ -97,6 +109,21 @@ export type CampMedicationScheduleItem = {
   timeWindow: string;
   parentProvidedInstructions: string;
   status: "Pending" | "Logged" | "Needs Parent Clarification";
+  lastLoggedAt?: string;
+  lastLoggedBy?: string;
+};
+
+export type CampMedicationAdministrationLog = {
+  id: string;
+  medicationRecordId: string;
+  scheduleItemId?: string;
+  studentId: string;
+  studentName: string;
+  timeWindow: string;
+  loggedAt: string;
+  loggedBy: string;
+  status: "Logged" | "Skipped" | "Needs Parent Clarification";
+  notes: string;
 };
 
 export type CampMedicationReturnItem = {
@@ -105,4 +132,15 @@ export type CampMedicationReturnItem = {
   studentId: string;
   studentName: string;
   returnStatus: "Pending Return" | "Returned to Parent" | "Needs Parent Clarification";
+  returnedAt?: string;
+  returnedBy?: string;
+};
+
+export type CampOverviewPayload = {
+  campStartsOn: string;
+  teams: CampTeam[];
+  vehicles: CampVehicle[];
+  schedule: CampScheduleBlock[];
+  documents: CampDocument[];
+  students: CampVisibleStudent[];
 };
