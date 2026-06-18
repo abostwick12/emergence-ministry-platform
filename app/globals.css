@@ -2833,6 +2833,10 @@ textarea:focus-visible {
   color: #075985;
 }
 
+.camp-driver-filter {
+  min-width: min(100%, 280px);
+}
+
 .camp-search {
   width: min(100%, 280px);
 }
@@ -2853,6 +2857,29 @@ textarea:focus-visible {
   border-radius: 8px;
   background: #f8fafc;
   padding: 12px;
+}
+
+.camp-student-button,
+.camp-secure-button,
+.camp-edit-row {
+  width: 100%;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.camp-student-button:hover,
+.camp-secure-button:hover,
+.camp-edit-row:hover {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+
+.camp-student-card > span:last-child {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
 }
 
 .camp-secure-card {
@@ -2914,6 +2941,44 @@ textarea:focus-visible {
 
 .camp-list-row.align-start {
   align-items: flex-start;
+}
+
+.camp-edit-row {
+  border: 0;
+  border-bottom: 1px solid #e2e8f0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0 0 10px;
+}
+
+.camp-inline-select {
+  width: min(100%, 190px);
+  flex: none;
+}
+
+.camp-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.camp-form-spaced {
+  margin-top: 14px;
+}
+
+.camp-wide-field {
+  grid-column: 1 / -1;
+}
+
+.camp-save-message {
+  margin: 0;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1e3a8a;
+  padding: 10px 12px;
+  font-weight: 800;
 }
 
 .camp-swatch {
@@ -3011,9 +3076,15 @@ textarea:focus-visible {
 
   .camp-list-row {
     align-items: flex-start;
+    display: grid;
   }
 
   .camp-medicine-photo {
     width: 72px;
+  }
+
+  .camp-inline-select,
+  .camp-driver-filter {
+    width: 100%;
   }
 }

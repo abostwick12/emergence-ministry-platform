@@ -1,5 +1,5 @@
 import { campStudents, campTeams, campVehicles } from "@/lib/camp/public-data";
-import type { CampAccessRole, CampAccessScope, CampVisibleStudent } from "@/lib/camp/types";
+import type { CampAccessRole, CampAccessScope, CampStudentPublic, CampTeam, CampVehicle, CampVisibleStudent } from "@/lib/camp/types";
 
 export const campAccessLabels: Record<CampAccessRole, string> = {
   andrew: "Andrew",
@@ -25,11 +25,23 @@ export function getDefaultCampAccessScope(role: CampAccessRole): CampAccessScope
 }
 
 export function getCampVisibleStudents(role: CampAccessRole, scope: CampAccessScope = {}): CampVisibleStudent[] {
-  const teamById = new Map(campTeams.map((team) => [team.id, team]));
-  const vehicleById = new Map(campVehicles.map((vehicle) => [vehicle.id, vehicle]));
+  return getCampVisibleStudentsForData(role, scope, {
+    students: campStudents,
+    teams: campTeams,
+    vehicles: campVehicles
+  });
+}
+
+export function getCampVisibleStudentsForData(
+  role: CampAccessRole,
+  scope: CampAccessScope = {},
+  data: { students: CampStudentPublic[]; teams: CampTeam[]; vehicles: CampVehicle[] }
+): CampVisibleStudent[] {
+  const teamById = new Map(data.teams.map((team) => [team.id, team]));
+  const vehicleById = new Map(data.vehicles.map((vehicle) => [vehicle.id, vehicle]));
   const scopedStudents = role === "driver" && scope.vehicleId
-    ? campStudents.filter((student) => student.vehicleId === scope.vehicleId)
-    : campStudents;
+    ? data.students.filter((student) => student.vehicleId === scope.vehicleId)
+    : data.students;
 
   return scopedStudents.map((student) => {
     const vehicle = vehicleById.get(student.vehicleId);
