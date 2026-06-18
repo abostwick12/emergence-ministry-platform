@@ -10,6 +10,7 @@ type ProposalReviewItem = {
   status: string;
   createdAt: string;
   summary: string;
+  eventTitle: string | null;
 };
 
 type ReviewState =
@@ -115,6 +116,11 @@ export function EmmaProposalReviewPanel() {
                   <p className="muted" style={{ margin: "4px 0 0" }}>
                     {proposal.proposalType ?? "event_summary_recommendation"} / {proposal.status}
                   </p>
+                  {proposal.eventTitle ? (
+                    <p className="muted" style={{ margin: "4px 0 0" }}>
+                      Event: {proposal.eventTitle}
+                    </p>
+                  ) : null}
                 </div>
                 <span className="pill">Audit only</span>
               </div>

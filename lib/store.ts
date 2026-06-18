@@ -348,6 +348,10 @@ export function listTasks() {
   return tasks;
 }
 
+export function listCommunications() {
+  return communications;
+}
+
 export function listActivity() {
   return activity;
 }

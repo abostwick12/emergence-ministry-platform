@@ -2742,3 +2742,278 @@ textarea:focus-visible {
     background: #0f172a;
   }
 }
+
+.camp-command-center {
+  display: grid;
+  gap: 16px;
+  padding-bottom: 32px;
+}
+
+.camp-hero {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid rgba(13, 71, 109, 0.16);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(239, 249, 255, 0.92)),
+    #ffffff;
+  padding: 18px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+}
+
+.camp-title {
+  margin: 0;
+  color: #14325c;
+  font-size: 28px;
+  line-height: 1.08;
+}
+
+.camp-lede {
+  max-width: 680px;
+  margin: 8px 0 0;
+  color: #475569;
+  font-weight: 600;
+}
+
+.camp-countdown {
+  display: grid;
+  place-items: center;
+  min-width: 116px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1e3a8a;
+  padding: 12px;
+  text-align: center;
+}
+
+.camp-countdown strong {
+  font-size: 34px;
+  line-height: 1;
+}
+
+.camp-countdown span {
+  color: #475569;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.camp-controls,
+.camp-section-header,
+.camp-list-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.camp-role-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.camp-role-tab {
+  min-height: 36px;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #334155;
+  padding: 7px 12px;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.camp-role-tab.active {
+  border-color: #0f8af0;
+  background: #e0f2fe;
+  color: #075985;
+}
+
+.camp-search {
+  width: min(100%, 280px);
+}
+
+.camp-student-grid,
+.camp-medical-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: 12px;
+}
+
+.camp-student-card,
+.camp-secure-card {
+  display: flex;
+  gap: 12px;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 12px;
+}
+
+.camp-secure-card {
+  display: grid;
+  background: #fff7ed;
+  border-color: #fed7aa;
+}
+
+.camp-avatar {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #dbeafe;
+  color: #1e3a8a;
+  font-weight: 900;
+}
+
+.camp-flag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.camp-grid,
+.camp-medication-sections {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  gap: 16px;
+}
+
+.camp-medication-sections {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 400px), 1fr));
+}
+
+.camp-list {
+  display: grid;
+  gap: 10px;
+}
+
+.camp-list-row {
+  min-width: 0;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 10px;
+}
+
+.camp-list-row > div:not(.camp-medicine-photo) {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.camp-list-row:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.camp-list-row.align-start {
+  align-items: flex-start;
+}
+
+.camp-swatch {
+  flex: none;
+  width: 14px;
+  height: 44px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #0ea5e9, #22c55e);
+}
+
+.camp-time {
+  flex: none;
+  width: 92px;
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.camp-mini-list {
+  margin: 6px 0 0;
+  color: #334155;
+  font-size: 13px;
+}
+
+.camp-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  min-width: 78px;
+  max-width: 136px;
+  min-height: 24px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #334155;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 900;
+  text-align: center;
+  white-space: normal;
+}
+
+.camp-status.ready {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.camp-status.warn {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.camp-status.locked {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.camp-error {
+  margin: 0;
+  color: #991b1b;
+  font-weight: 800;
+}
+
+.camp-medicine-photo {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 84px;
+  min-height: 72px;
+  border: 1px dashed #94a3b8;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #334155;
+  padding: 8px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.camp-search-placeholder {
+  background: #f8fafc;
+}
+
+@media (max-width: 720px) {
+  .camp-hero,
+  .camp-controls,
+  .camp-section-header {
+    display: grid;
+  }
+
+  .camp-countdown,
+  .camp-search {
+    width: 100%;
+  }
+
+  .camp-list-row {
+    align-items: flex-start;
+  }
+
+  .camp-medicine-photo {
+    width: 72px;
+  }
+}

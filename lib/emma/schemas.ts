@@ -65,9 +65,28 @@ export const contextManifestEntrySchema = z
   })
   .strict();
 
+export const safeEventPlanningContextSchema = z
+  .object({
+    eventId: id,
+    title: z.string().min(1),
+    eventType: z.enum(["retreat", "weekly", "service", "camp"]),
+    startTime: z.string().min(1),
+    endTime: z.string().min(1),
+    location: z.string().nullable(),
+    targetGroup: z.string().nullable(),
+    ownerId: z.string().nullable(),
+    status: z.enum(["draft", "planning", "ready", "not_started", "in_progress", "working_on_it", "stuck", "completed"]),
+    priority: z.string().nullable(),
+    volunteersNeeded: z.number().nullable(),
+    description: z.string().nullable(),
+    missingInformation: z.array(z.string())
+  })
+  .strict();
+
 export const contextManifestSchema = z
   .object({
-    entries: z.array(contextManifestEntrySchema)
+    entries: z.array(contextManifestEntrySchema),
+    safeEventContext: safeEventPlanningContextSchema.optional()
   })
   .strict();
 

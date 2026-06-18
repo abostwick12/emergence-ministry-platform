@@ -8,7 +8,14 @@ import { getAiRequest } from "@/lib/emma/repository";
 import { classifyRisk, isRestricted, isSensitiveCategory, requiresApprovalForRisk } from "@/lib/emma/risk";
 import { resolveEmmaSkill } from "@/lib/emma/skills/registry";
 import type { RegisteredEmmaSkill } from "@/lib/emma/skills/types";
-import type { ContextManifest, ContextManifestEntry, EmmaContextCategory, EmmaResponse, EmmaRiskLevel } from "@/lib/emma/types";
+import type {
+  ContextManifest,
+  ContextManifestEntry,
+  EmmaContextCategory,
+  EmmaResponse,
+  EmmaRiskLevel,
+  SafeEventPlanningContext
+} from "@/lib/emma/types";
 import { EMMA_CONTEXT_CATEGORIES } from "@/lib/emma/types";
 import { z } from "zod";
 
@@ -24,13 +31,32 @@ const workflowContextEntrySchema = z
   })
   .passthrough();
 
+const safeEventContextSchema = z
+  .object({
+    eventId: id,
+    title: z.string().min(1),
+    eventType: z.enum(["retreat", "weekly", "service", "camp"]),
+    startTime: z.string().min(1),
+    endTime: z.string().min(1),
+    location: z.string().nullable(),
+    targetGroup: z.string().nullable(),
+    ownerId: z.string().nullable(),
+    status: z.enum(["draft", "planning", "ready", "not_started", "in_progress", "working_on_it", "stuck", "completed"]),
+    priority: z.string().nullable(),
+    volunteersNeeded: z.number().nullable(),
+    description: z.string().nullable(),
+    missingInformation: z.array(z.string())
+  })
+  .strict();
+
 const executeWorkflowInputSchema = z
   .object({
     requestId: id,
     workflowKey: z.string().min(1),
     contextManifest: z
       .object({
-        entries: z.array(workflowContextEntrySchema)
+        entries: z.array(workflowContextEntrySchema),
+        safeEventContext: safeEventContextSchema.optional()
       })
       .passthrough()
       .optional(),
@@ -171,5 +197,9 @@ function buildValidatedContextManifest(
     };
   });
 
-  return { entries };
+  const manifest: ContextManifest = { entries };
+  if (rawManifest.safeEventContext) {
+    manifest.safeEventContext = rawManifest.safeEventContext as SafeEventPlanningContext;
+  }
+  return manifest;
 }
