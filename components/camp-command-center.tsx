@@ -14,6 +14,7 @@ import type {
   CampMedicationReturnItem,
   CampMedicationScheduleItem,
   CampOverviewPayload,
+  CampRegistrationImportPreview,
   CampRestrictedMedicalRecord,
   CampStudentInput,
   CampVisibleStudent
@@ -92,6 +93,9 @@ export function CampCommandCenter() {
   const [restrictedState, setRestrictedState] = useState<RestrictedState | null>(null);
   const [restrictedError, setRestrictedError] = useState<string | null>(null);
   const [restrictedLoading, setRestrictedLoading] = useState(false);
+  const [importCsv, setImportCsv] = useState("");
+  const [importPreview, setImportPreview] = useState<CampRegistrationImportPreview | null>(null);
+  const [importMessage, setImportMessage] = useState("");
   const [studentForm, setStudentForm] = useState<StudentForm>({
     name: "",
     grade: "",
@@ -336,6 +340,39 @@ export function CampCommandCenter() {
     if (response.ok) await loadRestrictedData();
   }
 
+  async function previewImport() {
+    const response = await fetch(`/api/camp/import?role=${accessRole}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "preview", csv: importCsv })
+    });
+    if (!response.ok) {
+      setImportMessage("Import preview could not be created.");
+      return;
+    }
+    const payload = (await response.json()) as { preview: CampRegistrationImportPreview };
+    setImportPreview(payload.preview);
+    setImportMessage("Import preview ready. Review before saving.");
+  }
+
+  async function commitImport() {
+    if (!importPreview) return;
+    const response = await fetch(`/api/camp/import?role=${accessRole}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "commit", preview: importPreview })
+    });
+    if (!response.ok) {
+      setImportMessage("Import could not be saved.");
+      return;
+    }
+    setImportMessage("Import saved.");
+    setImportCsv("");
+    setImportPreview(null);
+    await loadOverview();
+    await loadRestrictedData();
+  }
+
   const campDays = daysUntilCamp(overview.campStartsOn);
 
   return (
@@ -465,6 +502,12 @@ export function CampCommandCenter() {
           onSaveSchedule={saveScheduleItem}
           onSaveAdministrationLog={saveAdministrationLog}
           onSaveReturnStatus={saveReturnStatus}
+          importCsv={importCsv}
+          setImportCsv={setImportCsv}
+          importPreview={importPreview}
+          importMessage={importMessage}
+          onPreviewImport={previewImport}
+          onCommitImport={commitImport}
         />
       )}
 
@@ -576,6 +619,12 @@ function RestrictedCampTools(props: {
   onSaveSchedule: () => Promise<void>;
   onSaveAdministrationLog: () => Promise<void>;
   onSaveReturnStatus: (id: string, status: CampMedicationReturnItem["returnStatus"]) => Promise<void>;
+  importCsv: string;
+  setImportCsv: React.Dispatch<React.SetStateAction<string>>;
+  importPreview: CampRegistrationImportPreview | null;
+  importMessage: string;
+  onPreviewImport: () => Promise<void>;
+  onCommitImport: () => Promise<void>;
 }) {
   const medication = props.restrictedState?.medication;
 
@@ -605,6 +654,27 @@ function RestrictedCampTools(props: {
       </section>
 
       <div className="camp-grid camp-medication-sections">
+        <section className="panel" aria-labelledby="camp-import">
+          <p className="eyebrow">Registration Import</p><h3 id="camp-import" className="section-title">Preview spreadsheet rows</h3>
+          <label className="field camp-wide-field"><span>CSV rows</span><textarea className="input" rows={5} value={props.importCsv} onChange={(event) => props.setImportCsv(event.target.value)} placeholder="Student Name,Grade,Team,Vehicle,Cabin,Medication Name,Medication Instructions" /></label>
+          <div className="toolbar">
+            <button className="button" type="button" onClick={() => void props.onPreviewImport()}>Preview import</button>
+            <button className="button primary" type="button" disabled={!props.importPreview || props.importPreview.summary.blockedRows > 0} onClick={() => void props.onCommitImport()}>Save reviewed import</button>
+          </div>
+          {props.importMessage ? <p className="camp-save-message" role="status">{props.importMessage}</p> : null}
+          {props.importPreview ? (
+            <div className="camp-list camp-form-spaced">
+              <div className="camp-list-row"><strong>{props.importPreview.summary.totalRows} rows</strong><span className="camp-status">{props.importPreview.summary.readyRows} ready</span><span className="camp-status warn">{props.importPreview.summary.clarificationRows} needs clarification</span></div>
+              {props.importPreview.rows.slice(0, 6).map((row) => (
+                <div className="camp-list-row align-start" key={`${row.rowNumber}-${row.camper.name}`}>
+                  <div><strong>Row {row.rowNumber}: {row.camper.name}</strong><p className="muted">{row.warnings.join(" ") || "Ready to save after review."}</p></div>
+                  <span className={statusClass(row.status)}>{row.status}</span>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </section>
+
         <section className="panel" aria-labelledby="med-check-in">
           <p className="eyebrow">Medication Check-In</p><h3 id="med-check-in" className="section-title">Check-in workflow</h3>
           <MedicationRows records={medication?.checkIn ?? []} onEdit={(record) => props.setMedicationForm({ id: record.id, studentId: record.studentId, medicationName: record.medicationName, medicinePhotoStatus: record.medicinePhotoStatus, parentProvidedInstructions: record.parentProvidedInstructions, checkInStatus: record.checkInStatus, clarificationStatus: record.clarificationStatus })} />

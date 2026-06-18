@@ -1,23 +1,23 @@
 import { NextResponse } from "next/server";
-import { parseCampAccessRole } from "@/lib/camp/access";
+import { getServerSession, unauthorizedResponse } from "@/lib/auth/server";
+import { resolveCampAccessContext } from "@/lib/camp/permissions";
 import {
   getRestrictedCampMedicationPayload,
   logMedicationAdministration,
   updateMedicationReturnItem,
   upsertMedicationRecord,
   upsertMedicationScheduleItem
-} from "@/lib/camp/store";
+} from "@/lib/camp/repository";
 import type { CampMedicationAdministrationLog, CampMedicationRecord, CampMedicationReturnItem, CampMedicationScheduleItem } from "@/lib/camp/types";
 
 export async function GET(request: Request) {
+  const session = await getServerSession();
+  if (!session) return unauthorizedResponse();
+
   const { searchParams } = new URL(request.url);
-  const role = parseCampAccessRole(searchParams.get("role"));
+  const context = resolveCampAccessContext(session, searchParams.get("role"));
 
-  if (!role) {
-    return NextResponse.json({ error: "A valid camp access role is required." }, { status: 400 });
-  }
-
-  const payload = getRestrictedCampMedicationPayload(role);
+  const payload = await getRestrictedCampMedicationPayload(session, context);
   if (!payload.allowed) {
     return NextResponse.json({ error: payload.error }, { status: payload.status });
   }
@@ -31,15 +31,17 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const session = await getServerSession();
+  if (!session) return unauthorizedResponse();
+
   const { searchParams } = new URL(request.url);
-  const role = parseCampAccessRole(searchParams.get("role"));
-  if (!role) return NextResponse.json({ error: "A valid camp access role is required." }, { status: 400 });
+  const context = resolveCampAccessContext(session, searchParams.get("role"));
 
   const body = (await request.json()) as { target?: string } & Partial<CampMedicationRecord> & Partial<CampMedicationScheduleItem> & Partial<CampMedicationAdministrationLog>;
 
   try {
     if (body.target === "schedule") {
-      const payload = upsertMedicationScheduleItem(role, {
+      const payload = await upsertMedicationScheduleItem(session, context, {
         medicationRecordId: body.medicationRecordId ?? "",
         timeWindow: body.timeWindow ?? "",
         parentProvidedInstructions: body.parentProvidedInstructions,
@@ -50,7 +52,7 @@ export async function POST(request: Request) {
     }
 
     if (body.target === "administrationLog") {
-      const payload = logMedicationAdministration(role, {
+      const payload = await logMedicationAdministration(session, context, {
         scheduleItemId: body.scheduleItemId ?? "",
         loggedBy: body.loggedBy ?? "",
         status: (body.status as CampMedicationAdministrationLog["status"] | undefined) ?? "Logged",
@@ -61,7 +63,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ log: payload.log }, { status: payload.status });
     }
 
-    const payload = upsertMedicationRecord(role, {
+    const payload = await upsertMedicationRecord(session, context, {
       studentId: body.studentId ?? "",
       medicationName: body.medicationName,
       medicinePhotoStatus: body.medicinePhotoStatus,
@@ -78,15 +80,17 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
+  const session = await getServerSession();
+  if (!session) return unauthorizedResponse();
+
   const { searchParams } = new URL(request.url);
-  const role = parseCampAccessRole(searchParams.get("role"));
-  if (!role) return NextResponse.json({ error: "A valid camp access role is required." }, { status: 400 });
+  const context = resolveCampAccessContext(session, searchParams.get("role"));
 
   const body = (await request.json()) as { target?: string; id?: string } & Partial<CampMedicationRecord> & Partial<CampMedicationReturnItem> & Partial<CampMedicationScheduleItem>;
 
   try {
     if (body.target === "return") {
-      const payload = updateMedicationReturnItem(role, {
+      const payload = await updateMedicationReturnItem(session, context, {
         id: body.id ?? "",
         returnStatus: (body.returnStatus as CampMedicationReturnItem["returnStatus"] | undefined) ?? "Pending Return",
         returnedBy: body.returnedBy
@@ -97,7 +101,7 @@ export async function PATCH(request: Request) {
     }
 
     if (body.target === "schedule") {
-      const payload = upsertMedicationScheduleItem(role, {
+      const payload = await upsertMedicationScheduleItem(session, context, {
         id: body.id,
         medicationRecordId: body.medicationRecordId ?? "",
         timeWindow: body.timeWindow ?? "",
@@ -108,7 +112,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ item: payload.item }, { status: payload.status });
     }
 
-    const payload = upsertMedicationRecord(role, {
+    const payload = await upsertMedicationRecord(session, context, {
       id: body.id,
       studentId: body.studentId ?? "",
       medicationName: body.medicationName,

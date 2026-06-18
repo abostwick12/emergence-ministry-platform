@@ -1,11 +1,16 @@
 import { NextResponse } from "next/server";
-import { getDefaultCampAccessScope, parseCampAccessRole } from "@/lib/camp/access";
-import { getCampOverview } from "@/lib/camp/store";
+import { getServerSession, unauthorizedResponse } from "@/lib/auth/server";
+import { getDefaultCampAccessScope } from "@/lib/camp/access";
+import { resolveCampAccessContext } from "@/lib/camp/permissions";
+import { getCampOverview } from "@/lib/camp/repository";
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const role = parseCampAccessRole(searchParams.get("role")) ?? "general_leader";
-  const vehicleId = searchParams.get("vehicleId") ?? getDefaultCampAccessScope(role).vehicleId;
+  const session = await getServerSession();
+  if (!session) return unauthorizedResponse();
 
-  return NextResponse.json(getCampOverview(role, vehicleId ? { vehicleId } : {}));
+  const { searchParams } = new URL(request.url);
+  const context = resolveCampAccessContext(session, searchParams.get("role"));
+  const vehicleId = searchParams.get("vehicleId") ?? getDefaultCampAccessScope(context.effectiveRole).vehicleId;
+
+  return NextResponse.json(await getCampOverview(session, context, vehicleId ? { vehicleId } : {}));
 }

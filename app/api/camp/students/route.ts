@@ -1,16 +1,16 @@
 import { NextResponse } from "next/server";
-import { parseCampAccessRole } from "@/lib/camp/access";
-import { assignCampStudent, upsertCampStudent } from "@/lib/camp/store";
+import { getServerSession, unauthorizedResponse } from "@/lib/auth/server";
+import { resolveCampAccessContext } from "@/lib/camp/permissions";
+import { assignCampStudent, upsertCampStudent } from "@/lib/camp/repository";
 import type { CampStudentInput } from "@/lib/camp/types";
 
-function canEditCampRoster(role: string | null) {
-  const parsed = parseCampAccessRole(role);
-  return parsed !== null && parsed !== "driver";
-}
-
 export async function POST(request: Request) {
+  const session = await getServerSession();
+  if (!session) return unauthorizedResponse();
+
   const { searchParams } = new URL(request.url);
-  if (!canEditCampRoster(searchParams.get("role"))) {
+  const context = resolveCampAccessContext(session, searchParams.get("role"));
+  if (context.effectiveRole === "driver") {
     return NextResponse.json({ error: "Camp roster editing is not available for this role." }, { status: 403 });
   }
 
@@ -20,15 +20,21 @@ export async function POST(request: Request) {
   }
 
   try {
-    return NextResponse.json({ student: upsertCampStudent(body) }, { status: 201 });
+    const payload = await upsertCampStudent(session, context, body);
+    if (!payload.allowed) return NextResponse.json({ error: payload.error }, { status: payload.status });
+    return NextResponse.json({ student: payload.student }, { status: payload.status });
   } catch {
     return NextResponse.json({ error: "Unable to save camper safely." }, { status: 400 });
   }
 }
 
 export async function PATCH(request: Request) {
+  const session = await getServerSession();
+  if (!session) return unauthorizedResponse();
+
   const { searchParams } = new URL(request.url);
-  if (!canEditCampRoster(searchParams.get("role"))) {
+  const context = resolveCampAccessContext(session, searchParams.get("role"));
+  if (context.effectiveRole === "driver") {
     return NextResponse.json({ error: "Camp roster editing is not available for this role." }, { status: 403 });
   }
 
@@ -41,27 +47,27 @@ export async function PATCH(request: Request) {
 
   try {
     if (body.assignmentOnly) {
-      return NextResponse.json({
-        student: assignCampStudent({
-          studentId: id,
-          teamId: body.teamId,
-          vehicleId: body.vehicleId,
-          cabin: body.cabin
-        })
+      const payload = await assignCampStudent(session, context, {
+        studentId: id,
+        teamId: body.teamId,
+        vehicleId: body.vehicleId,
+        cabin: body.cabin
       });
+      if (!payload.allowed) return NextResponse.json({ error: payload.error }, { status: payload.status });
+      return NextResponse.json({ student: payload.student }, { status: payload.status });
     }
 
-    return NextResponse.json({
-      student: upsertCampStudent({
-        id,
-        name: body.name ?? "",
-        grade: body.grade ?? "",
-        teamId: body.teamId ?? "",
-        vehicleId: body.vehicleId ?? "",
-        cabin: body.cabin ?? "",
-        limitedSafetyFlags: body.limitedSafetyFlags
-      })
+    const payload = await upsertCampStudent(session, context, {
+      id,
+      name: body.name ?? "",
+      grade: body.grade ?? "",
+      teamId: body.teamId ?? "",
+      vehicleId: body.vehicleId ?? "",
+      cabin: body.cabin ?? "",
+      limitedSafetyFlags: body.limitedSafetyFlags
     });
+    if (!payload.allowed) return NextResponse.json({ error: payload.error }, { status: payload.status });
+    return NextResponse.json({ student: payload.student }, { status: payload.status });
   } catch {
     return NextResponse.json({ error: "Unable to update camper safely." }, { status: 400 });
   }

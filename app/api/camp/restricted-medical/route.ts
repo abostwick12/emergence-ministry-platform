@@ -1,17 +1,17 @@
 import { NextResponse } from "next/server";
-import { parseCampAccessRole } from "@/lib/camp/access";
-import { getRestrictedCampMedicalPayload, upsertRestrictedMedicalRecord } from "@/lib/camp/store";
+import { getServerSession, unauthorizedResponse } from "@/lib/auth/server";
+import { resolveCampAccessContext } from "@/lib/camp/permissions";
+import { getRestrictedCampMedicalPayload, upsertRestrictedMedicalRecord } from "@/lib/camp/repository";
 import type { CampRestrictedMedicalRecord } from "@/lib/camp/types";
 
 export async function GET(request: Request) {
+  const session = await getServerSession();
+  if (!session) return unauthorizedResponse();
+
   const { searchParams } = new URL(request.url);
-  const role = parseCampAccessRole(searchParams.get("role"));
+  const context = resolveCampAccessContext(session, searchParams.get("role"));
 
-  if (!role) {
-    return NextResponse.json({ error: "A valid camp access role is required." }, { status: 400 });
-  }
-
-  const payload = getRestrictedCampMedicalPayload(role);
+  const payload = await getRestrictedCampMedicalPayload(session, context);
   if (!payload.allowed) {
     return NextResponse.json({ error: payload.error }, { status: payload.status });
   }
@@ -20,12 +20,11 @@ export async function GET(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const role = parseCampAccessRole(searchParams.get("role"));
+  const session = await getServerSession();
+  if (!session) return unauthorizedResponse();
 
-  if (!role) {
-    return NextResponse.json({ error: "A valid camp access role is required." }, { status: 400 });
-  }
+  const { searchParams } = new URL(request.url);
+  const context = resolveCampAccessContext(session, searchParams.get("role"));
 
   const body = (await request.json()) as CampRestrictedMedicalRecord;
   if (!body.studentId) {
@@ -33,7 +32,7 @@ export async function PATCH(request: Request) {
   }
 
   try {
-    const payload = upsertRestrictedMedicalRecord(role, body);
+    const payload = await upsertRestrictedMedicalRecord(session, context, body);
     if (!payload.allowed) {
       return NextResponse.json({ error: payload.error }, { status: payload.status });
     }
