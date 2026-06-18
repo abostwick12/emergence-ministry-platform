@@ -144,3 +144,24 @@ export type CampOverviewPayload = {
   documents: CampDocument[];
   students: CampVisibleStudent[];
 };
+
+export type CampRegistrationImportPreviewRow = {
+  rowNumber: number;
+  status: "Ready" | "Needs Parent Clarification" | "Blocked";
+  warnings: string[];
+  camper: CampStudentInput;
+  restrictedMedical?: CampRestrictedMedicalRecord;
+  medication?: Omit<CampMedicationRecord, "id" | "studentId" | "studentName" | "receivedAt" | "receivedBy"> & {
+    scheduleTimeWindow?: string;
+  };
+};
+
+export type CampRegistrationImportPreview = {
+  rows: CampRegistrationImportPreviewRow[];
+  summary: {
+    totalRows: number;
+    readyRows: number;
+    clarificationRows: number;
+    blockedRows: number;
+  };
+};

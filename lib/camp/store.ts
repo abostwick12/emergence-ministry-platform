@@ -388,7 +388,8 @@ function normalizeFlags(flags: string[]): string[] {
 }
 
 function needsClarification(value?: string): boolean {
-  return /needs parent clarification|unclear|clarify|conflict/i.test(value ?? "");
+  if (!value?.trim()) return true;
+  return /needs parent clarification|unclear|clarify|conflict/i.test(value);
 }
 
 function restrictedMedicationDenied() {
