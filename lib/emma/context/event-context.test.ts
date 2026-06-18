@@ -74,6 +74,13 @@ describe("buildSafeEventEmmaContext", () => {
     expect(containsForbiddenKeys(result.contextManifest)).toBe(false);
   });
 
+  it("normalizes display-style event statuses before building the safe context", () => {
+    const result = buildSafeEventEmmaContext(workspace(event({ status: "In Progress" as MinistryEvent["status"] })));
+
+    expect(result.safeEventContext.status).toBe("in_progress");
+    expect(result.contextManifest.safeEventContext?.status).toBe("in_progress");
+  });
+
   it("excludes sensitive, private, and note-like fields by default", () => {
     const unsafeEvent = event({
       ...( {
