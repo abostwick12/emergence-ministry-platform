@@ -4,7 +4,7 @@ import type { AuthSession } from "@/lib/auth/server";
 import { decideEmmaProposal, listPendingEmmaProposalsForReview } from "@/lib/emma/approvals/review-proposal";
 import { __resetEmmaMockStoreForTests, getEmmaAuditTrail } from "@/lib/emma/repository";
 import { DEFAULT_MINISTRY_ID } from "@/lib/ministry/constants";
-import { listCommunications, listTasks } from "@/lib/store";
+import { listCommunications, listEvents, listTasks } from "@/lib/store";
 
 const { getServerSessionMock, resolveMinistryScopeMock } = vi.hoisted(() => ({
   getServerSessionMock: vi.fn<() => Promise<AuthSession | null>>(),
@@ -87,6 +87,32 @@ describe("event EMMA summary API", () => {
     expect(JSON.stringify(trail.runs[0].contextManifest)).not.toContain("Parent communication still needs final packing details");
     expect(trail.proposals).toHaveLength(0);
     expect(trail.approvals).toHaveLength(0);
+  });
+
+  it("normalizes display-style event statuses so real event rows do not fail safe context validation", async () => {
+    const admin = session();
+    getServerSessionMock.mockResolvedValue(admin);
+    const event = listEvents().find((item) => item.id === "evt_winter_retreat");
+    const previousStatus = event?.status;
+    if (!event) throw new Error("expected seeded event");
+
+    event.status = "In Progress" as typeof event.status;
+
+    try {
+      const response = await post();
+      const payload = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(payload.ok).toBe(true);
+
+      const trail = await getEmmaAuditTrail(admin, payload.requestId);
+      expect(trail.runs[0].contextManifest.safeEventContext).toMatchObject({
+        eventId: "evt_winter_retreat",
+        status: "in_progress"
+      });
+    } finally {
+      event.status = previousStatus ?? "planning";
+    }
   });
 
   it("blocks non-admin roles server-side", async () => {

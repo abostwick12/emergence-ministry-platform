@@ -1,7 +1,7 @@
 import { buildContextManifest, containsForbiddenKeys } from "@/lib/emma/context";
 import { emmaErrors } from "@/lib/emma/errors";
 import type { ContextManifest, SafeEventPlanningContext } from "@/lib/emma/types";
-import type { EventWorkspace, MinistryEvent } from "@/lib/types";
+import type { EventStatus, EventWorkspace, MinistryEvent } from "@/lib/types";
 
 export interface EmmaEventSafeContext {
   contextManifest: ContextManifest;
@@ -57,10 +57,39 @@ function toSafeEventPlanningContext(event: MinistryEvent, missingInformation: st
     location: event.location ?? null,
     targetGroup: event.targetGroup ?? null,
     ownerId: event.contactOwnerId ?? null,
-    status: event.status,
+    status: toSafeEventStatus(event.status),
     priority: event.priority ?? null,
     volunteersNeeded: event.volunteersNeeded ?? null,
     description: event.description || null,
     missingInformation
   };
+}
+
+function toSafeEventStatus(status: string): EventStatus {
+  const normalized = status.trim().toLowerCase().replace(/[\s-]+/g, "_");
+
+  switch (normalized) {
+    case "draft":
+    case "planning":
+    case "ready":
+    case "not_started":
+    case "in_progress":
+    case "working_on_it":
+    case "stuck":
+    case "completed":
+      return normalized;
+    case "notstart":
+    case "notstarted":
+      return "not_started";
+    case "inprogress":
+      return "in_progress";
+    case "working":
+    case "working_on":
+      return "working_on_it";
+    case "complete":
+    case "done":
+      return "completed";
+    default:
+      return "planning";
+  }
 }
