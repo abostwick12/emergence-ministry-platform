@@ -24,21 +24,28 @@ describe("camp server-side permissions", () => {
   });
 
   it("allows Andrew, Jaci, and Joel based on authenticated identity", () => {
-    expect(resolveCampAccessContext(session({ fullName: "Andrew Walker", email: "andrew@example.com" }), "andrew")).toMatchObject({
+    expect(resolveCampAccessContext(session({ fullName: "General Leader", email: "andrew@example.com" }), "andrew")).toMatchObject({
       canAccessRestricted: true,
       restrictedActor: "Andrew",
       effectiveRole: "andrew"
     });
-    expect(resolveCampAccessContext(session({ fullName: "Jaci Bostwick", email: "jaci@example.com" }), "jaci")).toMatchObject({
+    expect(resolveCampAccessContext(session({ fullName: "General Leader", email: "jaci.ops@example.com" }), "jaci")).toMatchObject({
       canAccessRestricted: true,
       restrictedActor: "Jaci",
       effectiveRole: "jaci"
     });
-    expect(resolveCampAccessContext(session({ fullName: "Joel Smith", email: "joel@example.com" }), "joel")).toMatchObject({
+    expect(resolveCampAccessContext(session({ fullName: "General Leader", email: "joel-camp@example.com" }), "joel")).toMatchObject({
       canAccessRestricted: true,
       restrictedActor: "Joel",
       effectiveRole: "joel"
     });
+  });
+
+  it("does not grant restricted access from display-name spoofing", () => {
+    const context = resolveCampAccessContext(session({ fullName: "Andrew Walker", email: "leader@example.com" }), "andrew");
+
+    expect(context.canAccessRestricted).toBe(false);
+    expect(context.effectiveRole).toBe("general_leader");
   });
 
   it("keeps mock role switching available for local Camp review", () => {

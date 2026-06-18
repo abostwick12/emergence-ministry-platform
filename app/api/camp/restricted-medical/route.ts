@@ -41,3 +41,5 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Unable to update restricted medical record safely." }, { status: 400 });
   }
 }
+
+export const POST = PATCH;
