@@ -36,6 +36,27 @@ describe("camp repository mock fallback", () => {
     expect(JSON.stringify(overview)).not.toContain("Insurance card copy received");
   });
 
+  it("scrubs public safety flags to prevent medical detail text from reaching public roster payloads", async () => {
+    const mockSession = session();
+    const context = resolveCampAccessContext(mockSession, "general_leader");
+    const student = await upsertCampStudent(mockSession, context, {
+      name: "Safety Flag Camper",
+      grade: "9",
+      teamId: "team-cypress",
+      vehicleId: "van-1",
+      cabin: "Cabin S",
+      limitedSafetyFlags: ["Benadryl at bedtime", "Hydration reminder"]
+    });
+    expect(student.allowed).toBe(true);
+
+    const overview = await getCampOverview(mockSession, context);
+    const serialized = JSON.stringify(overview);
+
+    expect(serialized).not.toContain("Benadryl");
+    expect(serialized).toContain("Hydration reminder");
+    expect(serialized).toContain("Restricted info on file");
+  });
+
   it("blocks restricted medication payloads unless the server context allows them", async () => {
     const mockSession = session();
     const general = resolveCampAccessContext(mockSession, "general_leader");

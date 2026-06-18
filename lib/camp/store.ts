@@ -1,5 +1,6 @@
 import { getCampVisibleStudentsForData, isRestrictedCampMedicalRole } from "@/lib/camp/access";
 import { campDocuments, campSchedule, campStartsOn, campStudents, campTeams, campVehicles } from "@/lib/camp/public-data";
+import { sanitizePublicSafetyFlags } from "@/lib/camp/public-safety";
 import {
   medicationRecords,
   medicationReturnChecklist,
@@ -384,7 +385,7 @@ function initialsForName(name: string): string {
 }
 
 function normalizeFlags(flags: string[]): string[] {
-  return Array.from(new Set(flags.map((flag) => flag.trim()).filter(Boolean)));
+  return sanitizePublicSafetyFlags(flags);
 }
 
 function needsClarification(value?: string): boolean {

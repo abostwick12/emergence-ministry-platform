@@ -59,10 +59,17 @@ export function assertCampRestrictedAccess(context: CampAccessContext) {
 }
 
 function restrictedActorForSession(session: AuthSession): CampRestrictedActor | undefined {
-  const haystack = `${session.user.fullName} ${session.user.email}`.toLowerCase();
-  const match = restrictedCampNames.find((name) => new RegExp(`(^|[^a-z])${name}([^a-z]|$)`).test(haystack));
+  const emailLocalPart = session.user.email.split("@")[0]?.toLowerCase() ?? "";
+  const match = restrictedCampNames.find((name) => isRestrictedEmailLocalPart(emailLocalPart, name));
   if (match === "andrew") return "Andrew";
   if (match === "jaci") return "Jaci";
   if (match === "joel") return "Joel";
   return undefined;
+}
+
+function isRestrictedEmailLocalPart(localPart: string, actor: typeof restrictedCampNames[number]): boolean {
+  return localPart === actor
+    || localPart.startsWith(`${actor}.`)
+    || localPart.startsWith(`${actor}-`)
+    || localPart.startsWith(`${actor}_`);
 }

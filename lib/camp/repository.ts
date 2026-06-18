@@ -1,6 +1,7 @@
 import { isSupabaseConfigured } from "@/lib/auth/config";
 import { getSupabaseAuthClient, type AuthSession } from "@/lib/auth/server";
 import { campDocuments, campSchedule, campStartsOn, campTeams, campVehicles } from "@/lib/camp/public-data";
+import { sanitizePublicSafetyFlags } from "@/lib/camp/public-safety";
 import {
   assertCampRestrictedAccess,
   type CampAccessContext
@@ -704,7 +705,7 @@ function initialsForName(name: string): string {
 }
 
 function normalizeFlags(flags: string[]): string[] {
-  return Array.from(new Set(flags.map((flag) => flag.trim()).filter(Boolean)));
+  return sanitizePublicSafetyFlags(flags);
 }
 
 function throwIfSupabaseError(error: { message: string } | null) {
