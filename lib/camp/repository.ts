@@ -416,12 +416,13 @@ export async function getRestrictedCampMedicationPayload(session: AuthSession, c
   const basics = await ensureCampBasics(session);
   const campers = await getCampersById(session, basics.camp.id);
   const activeCamperIds = new Set(campers.keys());
-  const [checkIn, schedule, logs, returns, intake] = await Promise.all([
+  const [checkIn, schedule, logs, returns, intake, photos] = await Promise.all([
     supabase.from("camp_medication_records").select("*").eq("camp_id", basics.camp.id).order("updated_at", { ascending: false }).returns<CampMedicationRow[]>(),
     supabase.from("camp_medication_schedule_items").select("*").eq("camp_id", basics.camp.id).order("created_at", { ascending: false }).returns<CampMedicationScheduleRow[]>(),
     supabase.from("camp_medication_administration_logs").select("*").eq("camp_id", basics.camp.id).order("logged_at", { ascending: false }).returns<CampMedicationLogRow[]>(),
     supabase.from("camp_medication_return_items").select("*").eq("camp_id", basics.camp.id).order("updated_at", { ascending: false }).returns<CampMedicationReturnRow[]>(),
-    supabase.from("camp_medication_intake_records").select("*").eq("camp_id", basics.camp.id).order("received_at", { ascending: false }).returns<CampMedicationIntakeRow[]>()
+    supabase.from("camp_medication_intake_records").select("*").eq("camp_id", basics.camp.id).order("received_at", { ascending: false }).returns<CampMedicationIntakeRow[]>(),
+    supabase.from("camp_medication_photo_records").select("medication_record_id").eq("camp_id", basics.camp.id).returns<Array<{ medication_record_id: string }>>()
   ]);
 
   throwIfSupabaseError(checkIn.error);
@@ -429,16 +430,18 @@ export async function getRestrictedCampMedicationPayload(session: AuthSession, c
   throwIfSupabaseError(logs.error);
   throwIfSupabaseError(returns.error);
   throwIfSupabaseError(intake.error);
+  throwIfSupabaseError(photos.error);
 
   const intakeRows = (intake.data ?? []).filter((row) => activeCamperIds.has(row.camper_id));
   const activeIntakeRows = activeAuditRows(intakeRows, "supersedes_intake_id");
   const intakeHistory = intakeRows.map((row) => toMedicationIntakeRecord(row, campers, auditStatusFor(row, intakeRows, "supersedes_intake_id")));
+  const medicationIdsWithPhotoRecords = new Set((photos.data ?? []).map((row) => row.medication_record_id));
 
   return {
     allowed: true as const,
     status: 200,
     checkIn: activeAuditRows((checkIn.data ?? []).filter((row) => activeCamperIds.has(row.camper_id)), "supersedes_medication_record_id")
-      .map((row) => toMedicationRecord(row, campers, activeIntakeRows.map((item) => toMedicationIntakeRecord(item, campers)), auditStatusFor(row, checkIn.data ?? [], "supersedes_medication_record_id"))),
+      .map((row) => toMedicationRecord(row, campers, activeIntakeRows.map((item) => toMedicationIntakeRecord(item, campers)), auditStatusFor(row, checkIn.data ?? [], "supersedes_medication_record_id"), medicationIdsWithPhotoRecords.has(row.id))),
     schedule: activeAuditRows((schedule.data ?? []).filter((row) => activeCamperIds.has(row.camper_id)), "supersedes_schedule_item_id")
       .map((row) => toScheduleItem(row, campers, auditStatusFor(row, schedule.data ?? [], "supersedes_schedule_item_id"))),
     administrationLog: (logs.data ?? []).filter((row) => activeCamperIds.has(row.camper_id)).map((row) => toAdministrationLog(row, campers, auditStatusFor(row, logs.data ?? [], "supersedes_administration_log_id"))),
@@ -611,10 +614,12 @@ export async function saveMedicationPhoto(
   assertMedicationPhotoFile(contentType, fileSize);
 
   if (shouldUseMock(session)) {
+    const buffer = Buffer.from(await input.file.arrayBuffer());
     return mockStore.saveMedicationPhoto(context.effectiveRole, {
       medicationRecordId: input.medicationRecordId,
       contentType,
-      fileSize
+      fileSize,
+      mockSignedUrl: `data:${contentType};base64,${buffer.toString("base64")}`
     });
   }
 
@@ -1033,7 +1038,7 @@ function toRestrictedMedicalRecord(row: CampRestrictedMedicalRow, campers: Map<s
   };
 }
 
-function toMedicationRecord(row: CampMedicationRow, campers: Map<string, CampStudentPublic>, intakeHistory: CampMedicationIntakeRecord[] = [], auditStatus?: CampAuditStatus): CampMedicationRecord {
+function toMedicationRecord(row: CampMedicationRow, campers: Map<string, CampStudentPublic>, intakeHistory: CampMedicationIntakeRecord[] = [], auditStatus?: CampAuditStatus, hasMedicationPhoto = row.medicine_photo_status === "Photo On File"): CampMedicationRecord {
   const latestIntake = intakeHistory.find((item) => item.medicationRecordId === row.id);
   return {
     id: row.id,
@@ -1046,7 +1051,7 @@ function toMedicationRecord(row: CampMedicationRow, campers: Map<string, CampStu
     receivedBy: row.received_by ?? undefined,
     receivedAt: row.received_at ?? undefined,
     clarificationStatus: row.clarification_status,
-    hasMedicationPhoto: row.medicine_photo_status === "Photo On File",
+    hasMedicationPhoto,
     latestQuantityReceived: latestIntake?.quantityReceived,
     latestIntakeAt: latestIntake?.receivedAt,
     supersedesMedicationRecordId: row.supersedes_medication_record_id ?? undefined,

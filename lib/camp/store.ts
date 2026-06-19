@@ -44,7 +44,7 @@ type CampStoreState = {
   medicationReturnChecklist: CampMedicationReturnItem[];
   medicationAdministrationLog: CampMedicationAdministrationLog[];
   medicationIntakeRecords: CampMedicationIntakeRecord[];
-  medicationPhotoRecords: CampMedicationPhotoRecord[];
+  medicationPhotoRecords: Array<CampMedicationPhotoRecord & { mockSignedUrl?: string }>;
 };
 
 type CampGlobal = typeof globalThis & { __leadEmergenceCampStore?: CampStoreState };
@@ -332,7 +332,7 @@ export function upsertMedicationScheduleItem(
 
 export function saveMedicationPhoto(
   role: CampAccessRole,
-  input: { medicationRecordId: string; contentType: string; fileSize: number }
+  input: { medicationRecordId: string; contentType: string; fileSize: number; mockSignedUrl?: string }
 ) {
   if (!isRestrictedCampMedicalRole(role)) return restrictedMedicationDenied();
   const medication = requireMedication(input.medicationRecordId);
@@ -342,14 +342,15 @@ export function saveMedicationPhoto(
   }
 
   medication.medicinePhotoStatus = "Photo On File";
-  const record: CampMedicationPhotoRecord = {
+  const record: CampMedicationPhotoRecord & { mockSignedUrl?: string } = {
     id: uid("campphoto"),
     studentId: medication.studentId,
     studentName: medication.studentName,
     medicationRecordId: medication.id,
     contentType: input.contentType,
     fileSize: input.fileSize,
-    uploadedAt: new Date().toISOString()
+    uploadedAt: new Date().toISOString(),
+    mockSignedUrl: input.mockSignedUrl
   };
   store.medicationPhotoRecords.unshift(record);
   return { allowed: true as const, status: 201, photo: record, record: withLatestIntakeSummary(medication) };
@@ -361,7 +362,7 @@ export function getMedicationPhotoAccess(role: CampAccessRole, medicationRecordI
   requireActiveStudent(medication.studentId);
   const photo = store.medicationPhotoRecords.find((item) => item.medicationRecordId === medicationRecordId);
   if (!photo) return { allowed: true as const, status: 404, error: "Medication photo not found." };
-  const signedUrl = `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><rect width="96" height="96" rx="10" fill="#dbeafe"/><text x="48" y="42" text-anchor="middle" font-family="Arial" font-size="11" font-weight="700" fill="#1e3a8a">Photo</text><text x="48" y="58" text-anchor="middle" font-family="Arial" font-size="9" fill="#1e40af">on file</text><!-- mock-restricted-medication-photo:${photo.id} --></svg>`)}`;
+  const signedUrl = photo.mockSignedUrl ?? `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><rect width="96" height="96" rx="10" fill="#dbeafe"/><text x="48" y="42" text-anchor="middle" font-family="Arial" font-size="11" font-weight="700" fill="#1e3a8a">Photo</text><text x="48" y="58" text-anchor="middle" font-family="Arial" font-size="9" fill="#1e40af">on file</text><!-- mock-restricted-medication-photo:${photo.id} --></svg>`)}`;
   return { allowed: true as const, status: 200, photo, signedUrl };
 }
 

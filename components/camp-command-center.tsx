@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   campAccessLabels,
   campAccessRoles,
@@ -78,6 +79,10 @@ type IntakeForm = Omit<CampMedicationIntakeInput, "guardianSignatureData" | "con
   guardianSignatureData: CampMedicationIntakeInput["guardianSignatureData"];
   confirmationAcknowledged: boolean;
 };
+type MedicationPhotoThumbnailState = {
+  status: "loading" | "ready" | "unavailable";
+  url?: string;
+};
 
 function emptySignatureData(): CampMedicationIntakeInput["guardianSignatureData"] {
   return { width: 640, height: 220, strokes: [] };
@@ -131,7 +136,7 @@ export function CampCommandCenter() {
   const [archiveReason, setArchiveReason] = useState("");
   const [showArchived, setShowArchived] = useState(false);
   const [photoMessage, setPhotoMessage] = useState("");
-  const [medicationPhotoUrls, setMedicationPhotoUrls] = useState<Record<string, string>>({});
+  const [medicationPhotoThumbnails, setMedicationPhotoThumbnails] = useState<Record<string, MedicationPhotoThumbnailState>>({});
   const [photoModal, setPhotoModal] = useState<{ url: string; title: string } | null>(null);
   const [intakePhotoFile, setIntakePhotoFile] = useState<File | null>(null);
   const [intakePhotoPreviewUrl, setIntakePhotoPreviewUrl] = useState("");
@@ -320,29 +325,54 @@ export function CampCommandCenter() {
     return () => URL.revokeObjectURL(previewUrl);
   }, [intakePhotoFile]);
 
+  const fetchMedicationPhotoThumbnail = useCallback(async (record: CampMedicationRecord): Promise<MedicationPhotoThumbnailState> => {
+    try {
+      const response = await fetch(`/api/camp/medication/photos?role=${accessRole}&medicationRecordId=${encodeURIComponent(record.id)}`, { cache: "no-store" });
+      if (!response.ok) {
+        console.info("Medication photo thumbnail unavailable.", { medicationRecordId: record.id, status: response.status });
+        return { status: "unavailable" };
+      }
+      const payload = (await response.json()) as { signedUrl?: string };
+      if (!payload.signedUrl) {
+        console.info("Medication photo thumbnail unavailable.", { medicationRecordId: record.id, status: "missing-signed-url" });
+        return { status: "unavailable" };
+      }
+      return { status: "ready", url: payload.signedUrl };
+    } catch {
+      console.info("Medication photo thumbnail unavailable.", { medicationRecordId: record.id, status: "request-failed" });
+      return { status: "unavailable" };
+    }
+  }, [accessRole]);
+
   useEffect(() => {
     if (!canSeeRestrictedMedical || !restrictedState?.medication.checkIn.length) {
-      setMedicationPhotoUrls({});
+      setMedicationPhotoThumbnails({});
       return;
     }
 
     let cancelled = false;
-    async function loadMedicationPhotoUrls() {
-      const records = restrictedState?.medication.checkIn.filter((record) => record.hasMedicationPhoto || record.medicinePhotoStatus === "Photo On File") ?? [];
-      const entries = await Promise.all(records.map(async (record) => {
-        const response = await fetch(`/api/camp/medication/photos?role=${accessRole}&medicationRecordId=${encodeURIComponent(record.id)}`, { cache: "no-store" });
-        if (!response.ok) return null;
-        const payload = (await response.json()) as { signedUrl?: string };
-        return payload.signedUrl ? [record.id, payload.signedUrl] as const : null;
-      }));
-      if (!cancelled) setMedicationPhotoUrls(Object.fromEntries(entries.filter(Boolean) as Array<readonly [string, string]>));
+    const records = restrictedState.medication.checkIn.filter((record) => record.hasMedicationPhoto || record.medicinePhotoStatus === "Photo On File");
+    const expectedIds = new Set(records.map((record) => record.id));
+    setMedicationPhotoThumbnails((current) => {
+      const next: Record<string, MedicationPhotoThumbnailState> = {};
+      for (const record of records) {
+        next[record.id] = current[record.id]?.status === "ready" ? current[record.id] : { status: "loading" };
+      }
+      return next;
+    });
+
+    async function loadMedicationPhotoThumbnails() {
+      const entries = await Promise.all(records.map(async (record) => [record.id, await fetchMedicationPhotoThumbnail(record)] as const));
+      if (!cancelled) {
+        setMedicationPhotoThumbnails(Object.fromEntries(entries.filter(([id]) => expectedIds.has(id))));
+      }
     }
 
-    void loadMedicationPhotoUrls();
+    void loadMedicationPhotoThumbnails();
     return () => {
       cancelled = true;
     };
-  }, [accessRole, canSeeRestrictedMedical, restrictedState?.medication.checkIn]);
+  }, [canSeeRestrictedMedical, fetchMedicationPhotoThumbnail, restrictedState?.medication.checkIn]);
 
   function editStudent(student: CampVisibleStudent) {
     setStudentForm({
@@ -723,13 +753,22 @@ export function CampCommandCenter() {
   }
 
   async function viewMedicationPhoto(record: CampMedicationRecord) {
-    const response = await fetch(`/api/camp/medication/photos?role=${accessRole}&medicationRecordId=${encodeURIComponent(record.id)}`, { cache: "no-store" });
-    if (!response.ok) {
+    const thumbnail = medicationPhotoThumbnails[record.id];
+    const result = thumbnail?.status === "ready" && thumbnail.url ? thumbnail : await fetchMedicationPhotoThumbnail(record);
+    if (result.status !== "ready" || !result.url) {
+      setMedicationPhotoThumbnails((current) => ({ ...current, [record.id]: { status: "unavailable" } }));
       setPhotoMessage("Medication photo could not be opened.");
       return;
     }
-    const payload = (await response.json()) as { signedUrl: string };
-    setPhotoModal({ url: payload.signedUrl, title: `${record.studentName} - ${record.medicationName}` });
+    setMedicationPhotoThumbnails((current) => ({ ...current, [record.id]: result }));
+    setPhotoModal({ url: result.url, title: `${record.studentName} - ${record.medicationName}` });
+  }
+
+  async function retryMedicationPhoto(record: CampMedicationRecord) {
+    setMedicationPhotoThumbnails((current) => ({ ...current, [record.id]: { status: "loading" } }));
+    const result = await fetchMedicationPhotoThumbnail(record);
+    setMedicationPhotoThumbnails((current) => ({ ...current, [record.id]: result }));
+    if (result.status !== "ready") setPhotoMessage("Medication photo is unavailable. Try again from a restricted account.");
   }
 
   async function previewImport() {
@@ -927,11 +966,12 @@ export function CampCommandCenter() {
           onArchiveStudent={archiveStudent}
           onRestoreStudent={restoreStudent}
           onViewMedicationPhoto={viewMedicationPhoto}
-          medicationPhotoUrls={medicationPhotoUrls}
+          medicationPhotoThumbnails={medicationPhotoThumbnails}
           intakePhotoFile={intakePhotoFile}
           intakePhotoPreviewUrl={intakePhotoPreviewUrl}
           onSelectIntakePhoto={selectIntakePhoto}
           onRemoveIntakePhoto={removeIntakePhoto}
+          onRetryMedicationPhoto={retryMedicationPhoto}
           photoMessage={photoMessage}
           importCsv={importCsv}
           setImportCsv={setImportCsv}
@@ -942,7 +982,7 @@ export function CampCommandCenter() {
         />
       )}
 
-      {photoModal ? (
+      {photoModal && typeof document !== "undefined" ? createPortal(
         <div className="camp-photo-modal" role="dialog" aria-modal="true" aria-label="Medication photo preview">
           <div className="camp-photo-modal-panel">
             <div className="camp-section-header">
@@ -955,7 +995,8 @@ export function CampCommandCenter() {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={photoModal.url} alt={`Restricted medication photo for ${photoModal.title}`} />
           </div>
-        </div>
+        </div>,
+        document.body
       ) : null}
 
       <section className="panel camp-search-placeholder" aria-label="Future camp quick search">
@@ -1089,11 +1130,12 @@ function RestrictedCampTools(props: {
   onArchiveStudent: () => Promise<void>;
   onRestoreStudent: (studentId: string) => Promise<void>;
   onViewMedicationPhoto: (record: CampMedicationRecord) => Promise<void>;
-  medicationPhotoUrls: Record<string, string>;
+  medicationPhotoThumbnails: Record<string, MedicationPhotoThumbnailState>;
   intakePhotoFile: File | null;
   intakePhotoPreviewUrl: string;
   onSelectIntakePhoto: (file: File | null) => void;
   onRemoveIntakePhoto: () => void;
+  onRetryMedicationPhoto: (record: CampMedicationRecord) => Promise<void>;
   photoMessage: string;
   importCsv: string;
   setImportCsv: React.Dispatch<React.SetStateAction<string>>;
@@ -1296,10 +1338,11 @@ function RestrictedCampTools(props: {
           <p className="eyebrow">Medication Check-In</p><h3 id="med-check-in" className="section-title">Check-in workflow</h3>
           <MedicationRows
             records={medication?.checkIn ?? []}
-            photoUrls={props.medicationPhotoUrls}
+            photoThumbnails={props.medicationPhotoThumbnails}
             onEdit={props.onCorrectMedication}
             onVoid={(record) => props.onVoidWorkflowItem("medication", record.id)}
             onViewPhoto={props.onViewMedicationPhoto}
+            onRetryPhoto={props.onRetryMedicationPhoto}
           />
           <div className="camp-form-grid camp-form-spaced">
             <label className="field"><span>Student</span><select className="input" value={props.medicationForm.studentId} onChange={(event) => props.setMedicationForm((current) => ({ ...current, studentId: event.target.value }))}>{props.overview.students.map((student) => <option key={student.id} value={student.id}>{student.name}</option>)}</select></label>
@@ -1415,35 +1458,32 @@ function RestrictedCampTools(props: {
 
 function MedicationRows({
   records,
-  photoUrls,
+  photoThumbnails,
   onEdit,
   onVoid,
-  onViewPhoto
+  onViewPhoto,
+  onRetryPhoto
 }: {
   records: CampMedicationRecord[];
-  photoUrls: Record<string, string>;
+  photoThumbnails: Record<string, MedicationPhotoThumbnailState>;
   onEdit: (record: CampMedicationRecord) => void;
   onVoid: (record: CampMedicationRecord) => Promise<void>;
   onViewPhoto: (record: CampMedicationRecord) => Promise<void>;
+  onRetryPhoto: (record: CampMedicationRecord) => Promise<void>;
 }) {
   return (
     <div className="camp-list">
-      {records.map((record) => (
+      {records.map((record) => {
+        const photoExpected = record.hasMedicationPhoto || record.medicinePhotoStatus === "Photo On File";
+        const thumbnail = photoThumbnails[record.id];
+        return (
         <div className="camp-list-row align-start" key={record.id}>
-          <button
-            className={`camp-medicine-photo ${photoUrls[record.id] ? "has-photo" : ""}`}
-            type="button"
-            disabled={!photoUrls[record.id]}
-            onClick={() => photoUrls[record.id] ? void onViewPhoto(record) : undefined}
-            aria-label={photoUrls[record.id] ? `View medication photo for ${record.studentName}` : `No medication photo for ${record.studentName}`}
-          >
-            {photoUrls[record.id] ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={photoUrls[record.id]} alt="" />
-            ) : (
-              <span>{record.medicinePhotoStatus}</span>
-            )}
-          </button>
+          <MedicationPhotoSquare
+            record={record}
+            photoExpected={photoExpected}
+            thumbnail={thumbnail}
+            onViewPhoto={onViewPhoto}
+          />
           <div>
             <strong>{record.studentName}</strong>
             <p className="muted">{record.medicationName} - {record.parentProvidedInstructions}</p>
@@ -1451,11 +1491,14 @@ function MedicationRows({
             {record.correctionNote ? <p className="muted">Correction note: {record.correctionNote}</p> : null}
             {record.voidReason ? <p className="muted">Void reason: {record.voidReason}</p> : null}
             <div className="camp-photo-actions">
-              {record.hasMedicationPhoto || record.medicinePhotoStatus === "Photo On File" ? (
+              {photoExpected ? (
                 <button className="button compact-button" type="button" onClick={() => void onViewPhoto(record)}>View Photo</button>
               ) : (
                 <span className="muted">Photo capture happens during Medication Intake / Parent Handoff.</span>
               )}
+              {photoExpected && thumbnail?.status === "unavailable" ? (
+                <button className="button compact-button" type="button" onClick={() => void onRetryPhoto(record)}>Retry Photo</button>
+              ) : null}
             </div>
           </div>
           <div className="camp-row-actions">
@@ -1465,9 +1508,46 @@ function MedicationRows({
             {record.auditStatus !== "Voided" ? <button className="button compact-button" type="button" onClick={() => void onVoid(record)}>Void Medication</button> : null}
           </div>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
+}
+
+function MedicationPhotoSquare({
+  record,
+  photoExpected,
+  thumbnail,
+  onViewPhoto
+}: {
+  record: CampMedicationRecord;
+  photoExpected: boolean;
+  thumbnail?: MedicationPhotoThumbnailState;
+  onViewPhoto: (record: CampMedicationRecord) => Promise<void>;
+}) {
+  if (thumbnail?.status === "ready" && thumbnail.url) {
+    return (
+      <button
+        className="camp-medicine-photo has-photo"
+        type="button"
+        onClick={() => void onViewPhoto(record)}
+        aria-label={`View medication photo for ${record.studentName}`}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={thumbnail.url} alt={`Medication photo for ${record.studentName}`} />
+      </button>
+    );
+  }
+
+  if (photoExpected) {
+    return (
+      <div className={`camp-medicine-photo ${thumbnail?.status === "unavailable" ? "photo-unavailable" : "photo-loading"}`} aria-label={`Medication photo ${thumbnail?.status === "unavailable" ? "unavailable" : "loading"} for ${record.studentName}`}>
+        <span>{thumbnail?.status === "unavailable" ? "Photo unavailable" : "Loading photo"}</span>
+      </div>
+    );
+  }
+
+  return <div className="camp-medicine-photo"><span>{record.medicinePhotoStatus}</span></div>;
 }
 
 function MedicationScheduleRows({ items, onCorrect, onVoid }: { items: CampMedicationScheduleItem[]; onCorrect: (item: CampMedicationScheduleItem) => void; onVoid: (item: CampMedicationScheduleItem) => Promise<void> }) {

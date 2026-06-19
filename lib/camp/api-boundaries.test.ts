@@ -238,7 +238,7 @@ describe("camp API restricted data boundaries", () => {
     expect(upload.status).toBe(201);
     expect(uploadPayload.record).toMatchObject({ medicinePhotoStatus: "Photo On File" });
     expect(access.status).toBe(200);
-    expect(accessPayload.signedUrl).toContain("mock-restricted-medication-photo");
+    expect(accessPayload.signedUrl).toMatch(/^data:image\/jpeg;base64,/);
     expect(archive.status).toBe(200);
     expect(archivedList.status).toBe(200);
     expect(JSON.stringify(await archivedList.json())).toContain("Duplicate");
