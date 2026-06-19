@@ -99,6 +99,64 @@ export type CampMedicationRecord = {
   receivedBy?: string;
   receivedAt?: string;
   clarificationStatus: "Clear" | "Needs Parent Clarification";
+  latestQuantityReceived?: string;
+  latestIntakeAt?: string;
+};
+
+export type CampSignaturePoint = {
+  x: number;
+  y: number;
+};
+
+export type CampSignatureData = {
+  width: number;
+  height: number;
+  strokes: CampSignaturePoint[][];
+};
+
+export type CampMedicationIntakeRecord = {
+  id: string;
+  medicationRecordId?: string;
+  studentId: string;
+  studentName: string;
+  medicationName: string;
+  dose: string;
+  scheduleText: string;
+  parentInstructions: string;
+  staffNotes: string;
+  quantityReceived: string;
+  containerStatus: string;
+  receivedByName: string;
+  receivedAt: string;
+  guardianName: string;
+  guardianRelationship: string;
+  guardianSignatureData: CampSignatureData;
+  clarificationStatus: "Clear" | "Needs Parent Clarification";
+  confirmationAcknowledged: boolean;
+  supersedesIntakeId?: string;
+  correctionNote?: string;
+  createdAt: string;
+};
+
+export type CampMedicationIntakeInput = {
+  medicationRecordId?: string;
+  studentId: string;
+  medicationName: string;
+  dose: string;
+  scheduleText: string;
+  parentInstructions: string;
+  staffNotes: string;
+  quantityReceived: string;
+  containerStatus: string;
+  receivedByName: string;
+  receivedAt?: string;
+  guardianName: string;
+  guardianRelationship: string;
+  guardianSignatureData: CampSignatureData;
+  clarificationStatus?: "Clear" | "Needs Parent Clarification";
+  confirmationAcknowledged: boolean;
+  supersedesIntakeId?: string;
+  correctionNote?: string;
 };
 
 export type CampMedicationScheduleItem = {

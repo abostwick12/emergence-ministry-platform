@@ -12,6 +12,8 @@ import type {
   CampAccessScope,
   CampDocument,
   CampMedicationAdministrationLog,
+  CampMedicationIntakeInput,
+  CampMedicationIntakeRecord,
   CampMedicationRecord,
   CampMedicationReturnItem,
   CampMedicationScheduleItem,
@@ -37,6 +39,7 @@ type CampStoreState = {
   medicationSchedule: CampMedicationScheduleItem[];
   medicationReturnChecklist: CampMedicationReturnItem[];
   medicationAdministrationLog: CampMedicationAdministrationLog[];
+  medicationIntakeRecords: CampMedicationIntakeRecord[];
 };
 
 type CampGlobal = typeof globalThis & { __leadEmergenceCampStore?: CampStoreState };
@@ -57,7 +60,8 @@ function createInitialState(): CampStoreState {
     medicationRecords: cloneArray(medicationRecords),
     medicationSchedule: cloneArray(medicationSchedule),
     medicationReturnChecklist: cloneArray(medicationReturnChecklist),
-    medicationAdministrationLog: []
+    medicationAdministrationLog: [],
+    medicationIntakeRecords: []
   };
 }
 
@@ -174,11 +178,60 @@ export function getRestrictedCampMedicationPayload(role: CampAccessRole) {
   return {
     allowed: true as const,
     status: 200,
-    checkIn: cloneArray(store.medicationRecords),
+    checkIn: store.medicationRecords.map(withLatestIntakeSummary),
     schedule: cloneArray(store.medicationSchedule),
     administrationLog: cloneArray(store.medicationAdministrationLog),
-    returnChecklist: cloneArray(store.medicationReturnChecklist)
+    returnChecklist: cloneArray(store.medicationReturnChecklist),
+    intakeHistory: cloneArray(store.medicationIntakeRecords)
   };
+}
+
+export function saveMedicationIntake(role: CampAccessRole, input: CampMedicationIntakeInput) {
+  if (!isRestrictedCampMedicalRole(role)) return restrictedMedicationDenied();
+  assertSignature(input.guardianSignatureData);
+  if (!input.confirmationAcknowledged) throw new Error("Medication intake confirmation is required.");
+
+  const student = requireStudent(input.studentId);
+  const clarificationStatus = normalizeClarification(input.clarificationStatus, input.parentInstructions);
+  const medication = upsertMedicationRecord(role, {
+    id: input.medicationRecordId,
+    studentId: student.id,
+    medicationName: input.medicationName,
+    parentProvidedInstructions: input.parentInstructions,
+    checkInStatus: clarificationStatus === "Needs Parent Clarification" ? "Needs Parent Clarification" : "Checked In",
+    receivedBy: input.receivedByName,
+    receivedAt: input.receivedAt,
+    clarificationStatus
+  });
+  if (!medication.allowed) return medication;
+
+  const receivedAt = input.receivedAt || new Date().toISOString();
+  const record: CampMedicationIntakeRecord = {
+    id: uid("campintake"),
+    medicationRecordId: medication.record.id,
+    studentId: student.id,
+    studentName: student.name,
+    medicationName: medication.record.medicationName,
+    dose: input.dose.trim(),
+    scheduleText: input.scheduleText.trim(),
+    parentInstructions: input.parentInstructions.trim() || "Needs Parent Clarification.",
+    staffNotes: input.staffNotes.trim(),
+    quantityReceived: input.quantityReceived.trim(),
+    containerStatus: input.containerStatus.trim(),
+    receivedByName: input.receivedByName.trim() || roleLabel(role),
+    receivedAt,
+    guardianName: input.guardianName.trim(),
+    guardianRelationship: input.guardianRelationship.trim(),
+    guardianSignatureData: input.guardianSignatureData,
+    clarificationStatus,
+    confirmationAcknowledged: true,
+    supersedesIntakeId: input.supersedesIntakeId,
+    correctionNote: input.correctionNote?.trim(),
+    createdAt: new Date().toISOString()
+  };
+
+  store.medicationIntakeRecords.unshift(record);
+  return { allowed: true as const, status: 201, intake: record, record: withLatestIntakeSummary(medication.record) };
 }
 
 export function upsertMedicationRecord(role: CampAccessRole, input: Partial<CampMedicationRecord> & { studentId: string }) {
@@ -361,6 +414,15 @@ function ensureReturnChecklist(record: CampMedicationRecord) {
   });
 }
 
+function withLatestIntakeSummary(record: CampMedicationRecord): CampMedicationRecord {
+  const latest = store.medicationIntakeRecords.find((item) => item.medicationRecordId === record.id);
+  return {
+    ...record,
+    latestQuantityReceived: latest?.quantityReceived,
+    latestIntakeAt: latest?.receivedAt
+  };
+}
+
 function syncStudentName(studentId: string, studentName: string) {
   for (const record of store.medicalRecords) {
     if (record.studentId === studentId) record.studentName = studentName;
@@ -375,6 +437,9 @@ function syncStudentName(studentId: string, studentName: string) {
     if (item.studentId === studentId) item.studentName = studentName;
   }
   for (const item of store.medicationAdministrationLog) {
+    if (item.studentId === studentId) item.studentName = studentName;
+  }
+  for (const item of store.medicationIntakeRecords) {
     if (item.studentId === studentId) item.studentName = studentName;
   }
 }
@@ -399,4 +464,19 @@ function restrictedMedicationDenied() {
     status: 403,
     error: "Medication access is limited to Andrew, Jaci, and Joel."
   };
+}
+
+function assertSignature(signature: CampMedicationIntakeInput["guardianSignatureData"]) {
+  if (!signature || !Array.isArray(signature.strokes) || !signature.strokes.some((stroke) => stroke.length > 0)) {
+    throw new Error("Parent/guardian signature is required.");
+  }
+  const serialized = JSON.stringify(signature);
+  if (serialized.length > 64_000) throw new Error("Parent/guardian signature is too large.");
+}
+
+function roleLabel(role: CampAccessRole): string {
+  if (role === "andrew") return "Andrew";
+  if (role === "jaci") return "Jaci";
+  if (role === "joel") return "Joel";
+  return "Restricted Staff";
 }

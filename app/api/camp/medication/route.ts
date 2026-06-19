@@ -4,11 +4,12 @@ import { resolveCampAccessContext } from "@/lib/camp/permissions";
 import {
   getRestrictedCampMedicationPayload,
   logMedicationAdministration,
+  saveMedicationIntake,
   updateMedicationReturnItem,
   upsertMedicationRecord,
   upsertMedicationScheduleItem
 } from "@/lib/camp/repository";
-import type { CampMedicationAdministrationLog, CampMedicationRecord, CampMedicationReturnItem, CampMedicationScheduleItem } from "@/lib/camp/types";
+import type { CampMedicationAdministrationLog, CampMedicationIntakeInput, CampMedicationRecord, CampMedicationReturnItem, CampMedicationScheduleItem } from "@/lib/camp/types";
 
 export async function GET(request: Request) {
   const session = await getServerSession();
@@ -26,7 +27,8 @@ export async function GET(request: Request) {
     checkIn: payload.checkIn,
     schedule: payload.schedule,
     administrationLog: payload.administrationLog,
-    returnChecklist: payload.returnChecklist
+    returnChecklist: payload.returnChecklist,
+    intakeHistory: payload.intakeHistory
   });
 }
 
@@ -37,9 +39,34 @@ export async function POST(request: Request) {
   const { searchParams } = new URL(request.url);
   const context = resolveCampAccessContext(session, searchParams.get("role"));
 
-  const body = (await request.json()) as { target?: string } & Partial<CampMedicationRecord> & Partial<CampMedicationScheduleItem> & Partial<CampMedicationAdministrationLog>;
+  const body = (await request.json()) as { target?: string } & Partial<CampMedicationRecord> & Partial<CampMedicationScheduleItem> & Partial<CampMedicationAdministrationLog> & Partial<CampMedicationIntakeInput>;
 
   try {
+    if (body.target === "intake") {
+      const payload = await saveMedicationIntake(session, context, {
+        medicationRecordId: body.medicationRecordId,
+        studentId: body.studentId ?? "",
+        medicationName: body.medicationName ?? "",
+        dose: body.dose ?? "",
+        scheduleText: body.scheduleText ?? "",
+        parentInstructions: body.parentInstructions ?? body.parentProvidedInstructions ?? "",
+        staffNotes: body.staffNotes ?? "",
+        quantityReceived: body.quantityReceived ?? "",
+        containerStatus: body.containerStatus ?? "",
+        receivedByName: body.receivedByName ?? body.receivedBy ?? "",
+        receivedAt: body.receivedAt,
+        guardianName: body.guardianName ?? "",
+        guardianRelationship: body.guardianRelationship ?? "",
+        guardianSignatureData: body.guardianSignatureData ?? { width: 0, height: 0, strokes: [] },
+        clarificationStatus: body.clarificationStatus as CampMedicationIntakeInput["clarificationStatus"] | undefined,
+        confirmationAcknowledged: Boolean(body.confirmationAcknowledged),
+        supersedesIntakeId: body.supersedesIntakeId,
+        correctionNote: body.correctionNote
+      });
+      if (!payload.allowed) return NextResponse.json({ error: payload.error }, { status: payload.status });
+      return NextResponse.json({ intake: payload.intake, record: payload.record }, { status: payload.status });
+    }
+
     if (body.target === "schedule") {
       const payload = await upsertMedicationScheduleItem(session, context, {
         medicationRecordId: body.medicationRecordId ?? "",

@@ -4,6 +4,7 @@ import { resolveCampAccessContext } from "@/lib/camp/permissions";
 import {
   getCampOverview,
   getRestrictedCampMedicationPayload,
+  saveMedicationIntake,
   upsertCampStudent,
   upsertMedicationRecord
 } from "@/lib/camp/repository";
@@ -95,5 +96,40 @@ describe("camp repository mock fallback", () => {
     expect(medication.allowed).toBe(true);
     if (!medication.allowed) throw new Error("expected medication create success");
     expect(medication.record.clarificationStatus).toBe("Needs Parent Clarification");
+  });
+
+  it("saves restricted intake through the repository boundary and keeps it out of public overview", async () => {
+    const mockSession = session();
+    const general = resolveCampAccessContext(mockSession, "general_leader");
+    const restricted = resolveCampAccessContext(mockSession, "andrew");
+
+    const intake = await saveMedicationIntake(mockSession, restricted, {
+      studentId: "stu-1",
+      medicationName: "Repository intake medication",
+      dose: "Parent-labeled dose",
+      scheduleText: "Breakfast",
+      parentInstructions: "Follow signed parent instructions.",
+      staffNotes: "Original container received.",
+      quantityReceived: "8 tablets",
+      containerStatus: "Original bottle",
+      receivedByName: "Andrew",
+      guardianName: "Pat Parent",
+      guardianRelationship: "Parent",
+      guardianSignatureData: { width: 640, height: 220, strokes: [[{ x: 10, y: 20 }, { x: 30, y: 40 }]] },
+      confirmationAcknowledged: true
+    });
+
+    expect(intake.allowed).toBe(true);
+    if (!intake.allowed) throw new Error("expected intake save success");
+    expect(intake.record).toMatchObject({ checkInStatus: "Checked In", latestQuantityReceived: "8 tablets" });
+
+    const restrictedPayload = await getRestrictedCampMedicationPayload(mockSession, restricted);
+    expect(restrictedPayload.allowed).toBe(true);
+    if (!restrictedPayload.allowed) throw new Error("expected restricted payload");
+    expect(restrictedPayload.intakeHistory[0]).toMatchObject({ guardianName: "Pat Parent", quantityReceived: "8 tablets" });
+
+    const publicOverview = await getCampOverview(mockSession, general);
+    expect(JSON.stringify(publicOverview)).not.toContain("Repository intake medication");
+    expect(JSON.stringify(publicOverview)).not.toContain("Pat Parent");
   });
 });

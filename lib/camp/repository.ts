@@ -11,6 +11,8 @@ import type {
   CampAccessScope,
   CampDocument,
   CampMedicationAdministrationLog,
+  CampMedicationIntakeInput,
+  CampMedicationIntakeRecord,
   CampMedicationRecord,
   CampMedicationReturnItem,
   CampMedicationScheduleItem,
@@ -116,6 +118,29 @@ type CampMedicationReturnRow = {
   return_status: CampMedicationReturnItem["returnStatus"];
   returned_at: string | null;
   returned_by: string | null;
+};
+
+type CampMedicationIntakeRow = {
+  id: string;
+  medication_record_id: string | null;
+  camper_id: string;
+  medication_name: string;
+  dose: string;
+  schedule_text: string;
+  parent_instructions: string;
+  staff_notes: string;
+  quantity_received: string;
+  container_status: string;
+  received_by_name: string;
+  received_at: string;
+  guardian_name: string;
+  guardian_relationship: string;
+  guardian_signature_data: CampMedicationIntakeRecord["guardianSignatureData"];
+  clarification_status: CampMedicationIntakeRecord["clarificationStatus"];
+  confirmation_acknowledged: boolean;
+  supersedes_intake_id: string | null;
+  correction_note: string;
+  created_at: string;
 };
 
 type CampBasics = {
@@ -280,25 +305,96 @@ export async function getRestrictedCampMedicationPayload(session: AuthSession, c
   const supabase = getSupabaseAuthClient(session.accessToken);
   const basics = await ensureCampBasics(session);
   const campers = await getCampersById(session, basics.camp.id);
-  const [checkIn, schedule, logs, returns] = await Promise.all([
+  const [checkIn, schedule, logs, returns, intake] = await Promise.all([
     supabase.from("camp_medication_records").select("*").eq("camp_id", basics.camp.id).order("updated_at", { ascending: false }).returns<CampMedicationRow[]>(),
     supabase.from("camp_medication_schedule_items").select("*").eq("camp_id", basics.camp.id).order("created_at", { ascending: false }).returns<CampMedicationScheduleRow[]>(),
     supabase.from("camp_medication_administration_logs").select("*").eq("camp_id", basics.camp.id).order("logged_at", { ascending: false }).returns<CampMedicationLogRow[]>(),
-    supabase.from("camp_medication_return_items").select("*").eq("camp_id", basics.camp.id).order("updated_at", { ascending: false }).returns<CampMedicationReturnRow[]>()
+    supabase.from("camp_medication_return_items").select("*").eq("camp_id", basics.camp.id).order("updated_at", { ascending: false }).returns<CampMedicationReturnRow[]>(),
+    supabase.from("camp_medication_intake_records").select("*").eq("camp_id", basics.camp.id).order("received_at", { ascending: false }).returns<CampMedicationIntakeRow[]>()
   ]);
 
   throwIfSupabaseError(checkIn.error);
   throwIfSupabaseError(schedule.error);
   throwIfSupabaseError(logs.error);
   throwIfSupabaseError(returns.error);
+  throwIfSupabaseError(intake.error);
+
+  const intakeHistory = (intake.data ?? []).map((row) => toMedicationIntakeRecord(row, campers));
 
   return {
     allowed: true as const,
     status: 200,
-    checkIn: (checkIn.data ?? []).map((row) => toMedicationRecord(row, campers)),
+    checkIn: (checkIn.data ?? []).map((row) => toMedicationRecord(row, campers, intakeHistory)),
     schedule: (schedule.data ?? []).map((row) => toScheduleItem(row, campers)),
     administrationLog: (logs.data ?? []).map((row) => toAdministrationLog(row, campers)),
-    returnChecklist: (returns.data ?? []).map((row) => toReturnItem(row, campers))
+    returnChecklist: (returns.data ?? []).map((row) => toReturnItem(row, campers)),
+    intakeHistory
+  };
+}
+
+export async function saveMedicationIntake(session: AuthSession, context: CampAccessContext, input: CampMedicationIntakeInput) {
+  const access = assertCampRestrictedAccess(context);
+  if (!access.allowed) return access;
+  assertSignature(input.guardianSignatureData);
+  if (!input.confirmationAcknowledged) throw new Error("Medication intake confirmation is required.");
+  if (shouldUseMock(session)) return mockStore.saveMedicationIntake(context.effectiveRole, { ...input, receivedByName: input.receivedByName || access.actor });
+
+  const clarificationStatus = mockStore.normalizeClarification(input.clarificationStatus, input.parentInstructions);
+  const medicationPayload = await upsertMedicationRecord(session, context, {
+    id: input.medicationRecordId,
+    studentId: input.studentId,
+    medicationName: input.medicationName,
+    parentProvidedInstructions: input.parentInstructions,
+    checkInStatus: clarificationStatus === "Needs Parent Clarification" ? "Needs Parent Clarification" : "Checked In",
+    receivedBy: input.receivedByName || access.actor,
+    receivedAt: input.receivedAt,
+    clarificationStatus
+  });
+  if (!medicationPayload.allowed) return medicationPayload;
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const basics = await ensureCampBasics(session);
+  const row = {
+    ...ministryScopeColumns(await resolveMinistryScope(session)),
+    camp_id: basics.camp.id,
+    camper_id: input.studentId,
+    medication_record_id: medicationPayload.record.id,
+    medication_name: medicationPayload.record.medicationName,
+    dose: input.dose.trim(),
+    schedule_text: input.scheduleText.trim(),
+    parent_instructions: input.parentInstructions.trim() || "Needs Parent Clarification.",
+    staff_notes: input.staffNotes.trim(),
+    quantity_received: input.quantityReceived.trim(),
+    container_status: input.containerStatus.trim(),
+    received_by_user_id: session.user.id,
+    received_by_name: input.receivedByName.trim() || access.actor,
+    received_at: input.receivedAt || new Date().toISOString(),
+    guardian_name: input.guardianName.trim(),
+    guardian_relationship: input.guardianRelationship.trim(),
+    guardian_signature_data: input.guardianSignatureData,
+    signature_format: "json_strokes_v1",
+    clarification_status: clarificationStatus,
+    confirmation_acknowledged: true,
+    supersedes_intake_id: input.supersedesIntakeId || null,
+    correction_note: input.correctionNote?.trim() || ""
+  };
+
+  const { data, error } = await supabase
+    .from("camp_medication_intake_records")
+    .insert(row)
+    .select("*")
+    .single<CampMedicationIntakeRow>();
+
+  throwIfSupabaseError(error);
+  if (!data) throw new Error("Medication intake write returned no row.");
+  await refreshCamperRestrictedFlags(session, input.studentId);
+  const campers = await getCampersById(session, basics.camp.id);
+  const intake = toMedicationIntakeRecord(data, campers);
+  return {
+    allowed: true as const,
+    status: 201,
+    intake,
+    record: { ...medicationPayload.record, latestQuantityReceived: intake.quantityReceived, latestIntakeAt: intake.receivedAt }
   };
 }
 
@@ -636,7 +732,8 @@ function toRestrictedMedicalRecord(row: CampRestrictedMedicalRow, campers: Map<s
   };
 }
 
-function toMedicationRecord(row: CampMedicationRow, campers: Map<string, CampStudentPublic>): CampMedicationRecord {
+function toMedicationRecord(row: CampMedicationRow, campers: Map<string, CampStudentPublic>, intakeHistory: CampMedicationIntakeRecord[] = []): CampMedicationRecord {
+  const latestIntake = intakeHistory.find((item) => item.medicationRecordId === row.id);
   return {
     id: row.id,
     studentId: row.camper_id,
@@ -647,7 +744,35 @@ function toMedicationRecord(row: CampMedicationRow, campers: Map<string, CampStu
     checkInStatus: row.check_in_status,
     receivedBy: row.received_by ?? undefined,
     receivedAt: row.received_at ?? undefined,
-    clarificationStatus: row.clarification_status
+    clarificationStatus: row.clarification_status,
+    latestQuantityReceived: latestIntake?.quantityReceived,
+    latestIntakeAt: latestIntake?.receivedAt
+  };
+}
+
+function toMedicationIntakeRecord(row: CampMedicationIntakeRow, campers: Map<string, CampStudentPublic>): CampMedicationIntakeRecord {
+  return {
+    id: row.id,
+    medicationRecordId: row.medication_record_id ?? undefined,
+    studentId: row.camper_id,
+    studentName: campers.get(row.camper_id)?.name ?? "Camper",
+    medicationName: row.medication_name,
+    dose: row.dose,
+    scheduleText: row.schedule_text,
+    parentInstructions: row.parent_instructions,
+    staffNotes: row.staff_notes,
+    quantityReceived: row.quantity_received,
+    containerStatus: row.container_status,
+    receivedByName: row.received_by_name,
+    receivedAt: row.received_at,
+    guardianName: row.guardian_name,
+    guardianRelationship: row.guardian_relationship,
+    guardianSignatureData: row.guardian_signature_data,
+    clarificationStatus: row.clarification_status,
+    confirmationAcknowledged: row.confirmation_acknowledged,
+    supersedesIntakeId: row.supersedes_intake_id ?? undefined,
+    correctionNote: row.correction_note || undefined,
+    createdAt: row.created_at
   };
 }
 
@@ -710,4 +835,13 @@ function normalizeFlags(flags: string[]): string[] {
 
 function throwIfSupabaseError(error: { message: string } | null) {
   if (error) throw new Error(error.message);
+}
+
+function assertSignature(signature: CampMedicationIntakeInput["guardianSignatureData"]) {
+  if (!signature || !Array.isArray(signature.strokes) || !signature.strokes.some((stroke) => stroke.length > 0)) {
+    throw new Error("Parent/guardian signature is required.");
+  }
+  if (JSON.stringify(signature).length > 64_000) {
+    throw new Error("Parent/guardian signature is too large.");
+  }
 }
