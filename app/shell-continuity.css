@@ -463,4 +463,32 @@ body {
   .app-top-art-clip {
     display: none;
   }
+  /* The desktop header reserves a fixed 154px band (with the title pushed down
+     61px) to clear the arch artwork. That artwork is hidden on mobile, so the
+     band becomes a large blank gap that crowds the iPhone browser chrome. The
+     154px comes from two places: the .app-main-shell grid row track and the
+     header's own fixed height. Neutralize both so the header shrinks to its
+     content, and pad below the notch via the safe-area inset (viewport-fit=cover). */
+  .app-main-shell {
+    display: block;
+    height: auto;
+    overflow: visible;
+  }
+  .app-header,
+  .app-fixed-header {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+    padding: env(safe-area-inset-top, 0px) 16px 0;
+  }
+  .app-header-text {
+    padding-top: 12px;
+  }
+  .app-header-right {
+    position: static;
+    top: auto;
+    right: auto;
+    margin-top: 10px;
+    justify-content: center;
+  }
 }
