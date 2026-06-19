@@ -735,7 +735,6 @@ function EventsWorkspace({
       <div className="grid">
         {(Object.keys(eventGroupLabels) as EventGroupKey[]).map((groupKey) => {
           const groupEvents = groupedEvents[groupKey];
-          if (groupEvents.length === 0) return null;
 
           return (
             <section className={groupKey === "thisWeek" || groupKey === "thisMonth" ? "event-group priority" : "event-group"} key={groupKey}>
@@ -750,7 +749,10 @@ function EventsWorkspace({
                   <span role="columnheader">Scrollable Summary</span>
                 </div>
                 <div className="event-board-rows">
-                  {groupEvents.map((event) => {
+                  {groupEvents.length === 0 ? (
+                    <p className="muted">No events in this group yet.</p>
+                  ) : (
+                    groupEvents.map((event) => {
                     const eventTasks = tasks.filter((task) => task.eventId === event.id);
                     const completeTasks = eventTasks.filter((task) => task.status === "done").length;
                     const owner = users.find((user) => user.id === event.contactOwnerId);
@@ -775,7 +777,8 @@ function EventsWorkspace({
                         users={users}
                       />
                     );
-                  })}
+                    })
+                  )}
                  </div>
               </div>
             </section>
