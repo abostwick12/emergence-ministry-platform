@@ -17,8 +17,8 @@ export async function GET(request: Request) {
     if (!payload.allowed) return NextResponse.json({ error: payload.error }, { status: payload.status });
     if ("error" in payload) return NextResponse.json({ error: payload.error }, { status: payload.status });
     return NextResponse.json({ signedUrl: payload.signedUrl, photo: payload.photo });
-  } catch {
-    return NextResponse.json({ error: "Unable to load medication photo safely." }, { status: 400 });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to load medication photo safely." }, { status: 400 });
   }
 }
 
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
     const payload = await saveMedicationPhoto(session, context, { medicationRecordId, file });
     if (!payload.allowed) return NextResponse.json({ error: payload.error }, { status: payload.status });
     return NextResponse.json({ photo: payload.photo, record: payload.record }, { status: payload.status });
-  } catch {
-    return NextResponse.json({ error: "Unable to upload medication photo safely." }, { status: 400 });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to upload medication photo safely." }, { status: 400 });
   }
 }

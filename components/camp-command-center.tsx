@@ -83,6 +83,26 @@ type MedicationPhotoThumbnailState = {
   status: "loading" | "ready" | "unavailable";
   url?: string;
 };
+type CampSaveAction =
+  | "student"
+  | "archive"
+  | "restore"
+  | "assignment"
+  | "medical"
+  | "medication"
+  | "intake"
+  | "photo"
+  | "schedule"
+  | "administration"
+  | "return"
+  | "void"
+  | "importPreview"
+  | "importCommit";
+type CampActionStatus = {
+  action: CampSaveAction;
+  tone: "saving" | "success" | "error";
+  message: string;
+};
 
 function emptySignatureData(): CampMedicationIntakeInput["guardianSignatureData"] {
   return { width: 640, height: 220, strokes: [] };
@@ -122,6 +142,12 @@ function hasSignature(signature: CampMedicationIntakeInput["guardianSignatureDat
   return signature.strokes.some((stroke) => stroke.length > 0);
 }
 
+async function errorMessageFromResponse(response: Response, fallback: string) {
+  const body = (await response.json().catch(() => null)) as { error?: string } | null;
+  const cleanFallback = fallback.replace(/[.\s]+$/, "");
+  return body?.error ? `${cleanFallback}: ${body.error}` : fallback;
+}
+
 export function CampCommandCenter() {
   const [accessRole, setAccessRole] = useState<CampAccessRole>("general_leader");
   const [driverVehicleId, setDriverVehicleId] = useState(getDefaultCampAccessScope("driver").vehicleId ?? "van-2");
@@ -132,6 +158,8 @@ export function CampCommandCenter() {
   const [restrictedState, setRestrictedState] = useState<RestrictedState | null>(null);
   const [restrictedError, setRestrictedError] = useState<string | null>(null);
   const [restrictedLoading, setRestrictedLoading] = useState(false);
+  const [actionStatus, setActionStatus] = useState<CampActionStatus | null>(null);
+  const [activeAction, setActiveAction] = useState<CampSaveAction | null>(null);
   const [archivedStudents, setArchivedStudents] = useState<CampStudentPublic[]>([]);
   const [archiveReason, setArchiveReason] = useState("");
   const [showArchived, setShowArchived] = useState(false);
@@ -310,9 +338,33 @@ export function CampCommandCenter() {
 
   useEffect(() => {
     setSaveMessage("");
+    setActionStatus(null);
+    setActiveAction(null);
     setPhotoMessage("");
     setIntakePhotoFile(null);
   }, [accessRole]);
+
+  const setActionMessage = useCallback((action: CampSaveAction, tone: CampActionStatus["tone"], message: string) => {
+    setActionStatus({ action, tone, message });
+    setSaveMessage(message);
+  }, []);
+
+  const beginAction = useCallback((action: CampSaveAction, message: string) => {
+    setActiveAction(action);
+    setActionMessage(action, "saving", message);
+  }, [setActionMessage]);
+
+  const completeAction = useCallback((action: CampSaveAction, message = "Saved") => {
+    setActionMessage(action, "success", message);
+    setActiveAction(null);
+  }, [setActionMessage]);
+
+  const failAction = useCallback((action: CampSaveAction, message = "Save failed - try again") => {
+    setActionMessage(action, "error", message);
+    setActiveAction(null);
+  }, [setActionMessage]);
+
+  const isActionActive = useCallback((action: CampSaveAction) => activeAction === action, [activeAction]);
 
   useEffect(() => {
     if (!intakePhotoFile) {
@@ -351,12 +403,12 @@ export function CampCommandCenter() {
     }
 
     let cancelled = false;
-    const records = restrictedState.medication.checkIn.filter((record) => record.hasMedicationPhoto || record.medicinePhotoStatus === "Photo On File");
+    const records = restrictedState.medication.checkIn.filter((record) => record.hasMedicationPhoto);
     const expectedIds = new Set(records.map((record) => record.id));
     setMedicationPhotoThumbnails((current) => {
       const next: Record<string, MedicationPhotoThumbnailState> = {};
       for (const record of records) {
-        next[record.id] = current[record.id]?.status === "ready" ? current[record.id] : { status: "loading" };
+        next[record.id] = current[record.id]?.status === "unavailable" ? current[record.id] : { status: "loading" };
       }
       return next;
     });
@@ -388,7 +440,12 @@ export function CampCommandCenter() {
   }
 
   async function saveStudent() {
-    if (!studentForm.name.trim()) return;
+    if (activeAction) return;
+    if (!studentForm.name.trim()) {
+      failAction("student", "Save failed - camper name is required.");
+      return;
+    }
+    beginAction("student", studentForm.id ? "Saving camper updates..." : "Adding camper...");
     const method = studentForm.id ? "PATCH" : "POST";
     const response = await fetch(`/api/camp/students?role=${accessRole}`, {
       method,
@@ -403,7 +460,11 @@ export function CampCommandCenter() {
         limitedSafetyFlags: flagsFromText(studentForm.limitedSafetyFlagsText)
       })
     });
-    setSaveMessage(response.ok ? "Camper saved." : "Camper could not be saved.");
+    if (!response.ok) {
+      failAction("student", await errorMessageFromResponse(response, "Camper could not be saved."));
+      return;
+    }
+    beginAction("student", "Updating active camper list...");
     if (response.ok) {
       setStudentForm({
         name: "",
@@ -417,19 +478,25 @@ export function CampCommandCenter() {
       await loadOverview();
       await loadRestrictedData();
     }
+    completeAction("student", "Camper saved.");
   }
 
   async function archiveStudent() {
-    if (!studentForm.id) return;
+    if (activeAction || !studentForm.id) return;
     const confirmed = window.confirm("Archived campers are removed from active Camp views but retained for recordkeeping.");
     if (!confirmed) return;
 
+    beginAction("archive", "Archiving camper...");
     const response = await fetch(`/api/camp/students?role=${accessRole}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "archive", studentId: studentForm.id, archiveReason })
     });
-    setSaveMessage(response.ok ? "Camper archived." : "Camper could not be archived.");
+    if (!response.ok) {
+      failAction("archive", await errorMessageFromResponse(response, "Camper could not be archived."));
+      return;
+    }
+    beginAction("archive", "Refreshing active and archived camper lists...");
     if (response.ok) {
       setStudentForm({ name: "", grade: "", teamId: overview.teams[0]?.id ?? "", vehicleId: overview.vehicles[0]?.id ?? "", cabin: "", limitedSafetyFlags: [], limitedSafetyFlagsText: "" });
       setArchiveReason("");
@@ -437,63 +504,106 @@ export function CampCommandCenter() {
       await loadRestrictedData();
       await loadArchivedStudents();
     }
+    completeAction("archive", "Camper archived.");
   }
 
   async function restoreStudent(studentId: string) {
+    if (activeAction) return;
+    beginAction("restore", "Restoring camper...");
     const response = await fetch(`/api/camp/students?role=${accessRole}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "restore", studentId })
     });
-    setSaveMessage(response.ok ? "Camper restored." : "Camper could not be restored.");
+    if (!response.ok) {
+      failAction("restore", await errorMessageFromResponse(response, "Camper could not be restored."));
+      return;
+    }
+    beginAction("restore", "Refreshing camper lists...");
     if (response.ok) {
       await loadOverview();
       await loadRestrictedData();
       await loadArchivedStudents();
     }
+    completeAction("restore", "Camper restored.");
   }
 
   async function saveAssignment(studentId: string, teamId: string, vehicleId: string) {
+    if (activeAction) return;
+    beginAction("assignment", "Saving assignment...");
     const response = await fetch(`/api/camp/students?role=${accessRole}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ assignmentOnly: true, studentId, teamId, vehicleId })
     });
-    setSaveMessage(response.ok ? "Assignment updated." : "Assignment could not be updated.");
-    if (response.ok) await loadOverview();
+    if (!response.ok) {
+      failAction("assignment", await errorMessageFromResponse(response, "Assignment could not be updated."));
+      return;
+    }
+    beginAction("assignment", "Refreshing assignment list...");
+    await loadOverview();
+    completeAction("assignment", "Assignment updated.");
   }
 
   async function saveMedicalRecord() {
-    if (!medicalForm.studentId) return;
+    if (activeAction) return;
+    if (!medicalForm.studentId) {
+      failAction("medical", "Save failed - choose a student first.");
+      return;
+    }
+    beginAction("medical", "Saving restricted medical record...");
     const response = await fetch(`/api/camp/restricted-medical?role=${accessRole}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(medicalForm)
     });
-    setSaveMessage(response.ok ? "Restricted medical record saved." : "Restricted medical record could not be saved.");
+    if (!response.ok) {
+      failAction("medical", await errorMessageFromResponse(response, "Restricted medical record could not be saved."));
+      return;
+    }
+    beginAction("medical", "Updating restricted medical view...");
     if (response.ok) {
       await loadOverview();
       await loadRestrictedData();
     }
+    completeAction("medical", "Restricted medical record saved.");
   }
 
   async function saveMedicationRecord() {
-    if (!medicationForm.studentId) return;
+    if (activeAction) return;
+    if (!medicationForm.studentId) {
+      failAction("medication", "Save failed - choose a student first.");
+      return;
+    }
+    beginAction("medication", "Saving medication check-in...");
     const response = await fetch(`/api/camp/medication?role=${accessRole}`, {
       method: medicationForm.id ? "PATCH" : "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(medicationForm)
     });
-    setSaveMessage(response.ok ? "Medication check-in saved." : "Medication check-in could not be saved.");
-    if (response.ok) {
-      await loadOverview();
-      await loadRestrictedData();
-      clearMedicationForm();
+    if (!response.ok) {
+      failAction("medication", await errorMessageFromResponse(response, "Medication check-in could not be saved."));
+      return;
     }
+    beginAction("medication", "Updating active medication list...");
+    await loadOverview();
+    await loadRestrictedData();
+    clearMedicationForm();
+    completeAction("medication", "Medication check-in saved.");
   }
 
   async function saveMedicationIntake() {
-    if (!intakeForm.studentId || !intakeForm.medicationName.trim() || !intakeForm.guardianName.trim()) return;
+    if (activeAction) return;
+    beginAction("intake", "Validating details...");
+    if (!intakeForm.studentId || !intakeForm.medicationName.trim() || !intakeForm.guardianName.trim()) {
+      failAction("intake", "Save failed - student, medication name, and guardian name are required.");
+      return;
+    }
+    if (!hasSignature(intakeForm.guardianSignatureData) || !intakeForm.confirmationAcknowledged) {
+      failAction("intake", "Save failed - guardian signature and confirmation are required.");
+      return;
+    }
+    beginAction("intake", "Saving medication intake...");
     const response = await fetch(`/api/camp/medication?role=${accessRole}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -503,47 +613,52 @@ export function CampCommandCenter() {
         receivedAt: intakeForm.receivedAt ? new Date(intakeForm.receivedAt).toISOString() : undefined
       })
     });
-    setSaveMessage(response.ok ? "Medication intake saved." : "Medication intake could not be saved.");
-    if (response.ok) {
-      const payload = (await response.json()) as { record?: CampMedicationRecord };
-      if (intakePhotoFile && payload.record?.id) {
-        const formData = new FormData();
-        formData.set("medicationRecordId", payload.record.id);
-        formData.set("photo", intakePhotoFile);
-        const photoResponse = await fetch(`/api/camp/medication/photos?role=${accessRole}`, {
-          method: "POST",
-          body: formData
-        });
-        if (photoResponse.ok) {
-          setPhotoMessage("Photo on file.");
-          setSaveMessage("Medication intake saved. Photo on file.");
-        } else {
-          setPhotoMessage("Medication intake saved. Photo upload failed, so intake remains saved without a photo.");
-          setSaveMessage("Medication intake saved. Photo upload failed, so intake remains saved without a photo.");
-        }
-      } else {
-        setPhotoMessage("Medication intake saved without a medication photo.");
-      }
-      await loadOverview();
-      await loadRestrictedData();
-      setIntakePhotoFile(null);
-      setIntakeForm((current) => ({
-        ...current,
-        medicationName: "",
-        dose: "",
-        scheduleText: "",
-        parentInstructions: "",
-        staffNotes: "",
-        quantityReceived: "",
-        containerStatus: "",
-        guardianName: "",
-        guardianRelationship: "",
-        guardianSignatureData: emptySignatureData(),
-        confirmationAcknowledged: false,
-        supersedesIntakeId: "",
-        correctionNote: ""
-      }));
+    if (!response.ok) {
+      failAction("intake", await errorMessageFromResponse(response, "Medication intake could not be saved."));
+      return;
     }
+
+    const payload = (await response.json()) as { record?: CampMedicationRecord };
+    if (intakePhotoFile && payload.record?.id) {
+      beginAction("photo", "Uploading container photo...");
+      const formData = new FormData();
+      formData.set("medicationRecordId", payload.record.id);
+      formData.set("photo", intakePhotoFile);
+      const photoResponse = await fetch(`/api/camp/medication/photos?role=${accessRole}`, {
+        method: "POST",
+        body: formData
+      });
+      if (!photoResponse.ok) {
+        const message = await errorMessageFromResponse(photoResponse, "Medication intake saved, but photo upload failed. Nothing was sent again.");
+        setPhotoMessage(message);
+        failAction("photo", message);
+        return;
+      }
+      setPhotoMessage("Photo on file.");
+    } else {
+      setPhotoMessage("Medication intake saved without a medication photo.");
+    }
+    beginAction("intake", "Updating active medication list...");
+    await loadOverview();
+    await loadRestrictedData();
+    setIntakePhotoFile(null);
+    setIntakeForm((current) => ({
+      ...current,
+      medicationName: "",
+      dose: "",
+      scheduleText: "",
+      parentInstructions: "",
+      staffNotes: "",
+      quantityReceived: "",
+      containerStatus: "",
+      guardianName: "",
+      guardianRelationship: "",
+      guardianSignatureData: emptySignatureData(),
+      confirmationAcknowledged: false,
+      supersedesIntakeId: "",
+      correctionNote: ""
+    }));
+    completeAction("intake", intakePhotoFile ? "Medication intake saved. Photo on file." : "Medication intake saved.");
   }
 
   function selectIntakePhoto(file: File | null) {
@@ -642,7 +757,7 @@ export function CampCommandCenter() {
       correctionNote: `Correction for ${record.medicationName}`,
       studentId: record.studentId,
       medicationName: record.medicationName,
-      medicinePhotoStatus: record.medicinePhotoStatus,
+      medicinePhotoStatus: "Photo Needed",
       parentProvidedInstructions: record.parentProvidedInstructions,
       checkInStatus: record.checkInStatus,
       clarificationStatus: record.clarificationStatus
@@ -690,52 +805,74 @@ export function CampCommandCenter() {
   }
 
   async function voidWorkflowItem(target: "intake" | "medication" | "schedule" | "administrationLog" | "return", id: string) {
+    if (activeAction) return;
     const voidReason = window.prompt("Void reason is required. This keeps the record in restricted audit history.");
     if (!voidReason?.trim()) return;
     const confirmed = window.confirm("Void this record? It will be hidden from active operational views but retained for restricted audit history.");
     if (!confirmed) return;
+    beginAction("void", "Voiding record...");
     const response = await fetch(`/api/camp/medication?role=${accessRole}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ target: "void", voidTarget: target, id, voidReason, voidedByName: campAccessLabels[accessRole] })
     });
-    setSaveMessage(response.ok ? "Record voided and retained in restricted audit history." : "Record could not be voided.");
-    if (response.ok) {
-      await loadOverview();
-      await loadRestrictedData();
+    if (!response.ok) {
+      failAction("void", await errorMessageFromResponse(response, "Record could not be voided."));
+      return;
     }
+    beginAction("void", "Updating active medication list...");
+    await loadOverview();
+    await loadRestrictedData();
+    completeAction("void", "Record voided and retained in restricted audit history.");
   }
 
   async function saveScheduleItem() {
-    if (!scheduleForm.medicationRecordId || !scheduleForm.timeWindow.trim()) return;
+    if (activeAction) return;
+    if (!scheduleForm.medicationRecordId || !scheduleForm.timeWindow.trim()) {
+      failAction("schedule", "Save failed - medication and time window are required.");
+      return;
+    }
+    beginAction("schedule", "Saving medication schedule...");
     const response = await fetch(`/api/camp/medication?role=${accessRole}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ target: "schedule", ...scheduleForm })
     });
-    setSaveMessage(response.ok ? "Medication schedule saved." : "Medication schedule could not be saved.");
-    if (response.ok) {
-      await loadRestrictedData();
-      clearScheduleForm();
+    if (!response.ok) {
+      failAction("schedule", await errorMessageFromResponse(response, "Medication schedule could not be saved."));
+      return;
     }
+    beginAction("schedule", "Updating medication schedule...");
+    await loadRestrictedData();
+    clearScheduleForm();
+    completeAction("schedule", "Medication schedule saved.");
   }
 
   async function saveAdministrationLog() {
-    if (!administrationForm.scheduleItemId) return;
+    if (activeAction) return;
+    if (!administrationForm.scheduleItemId) {
+      failAction("administration", "Save failed - choose a schedule item first.");
+      return;
+    }
+    beginAction("administration", "Recording medication administration...");
     const response = await fetch(`/api/camp/medication?role=${accessRole}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ target: "administrationLog", ...administrationForm })
     });
-    setSaveMessage(response.ok ? "Administration log saved." : "Administration log could not be saved.");
-    if (response.ok) {
-      await loadRestrictedData();
-      clearAdministrationForm();
+    if (!response.ok) {
+      failAction("administration", await errorMessageFromResponse(response, "Administration log could not be saved."));
+      return;
     }
+    beginAction("administration", "Updating administration log...");
+    await loadRestrictedData();
+    clearAdministrationForm();
+    completeAction("administration", "Administration log saved.");
   }
 
   async function saveReturnForm() {
-    if (!returnForm) return;
+    if (activeAction || !returnForm) return;
+    beginAction("return", "Recording parent handoff...");
     const response = await fetch(`/api/camp/medication?role=${accessRole}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -745,11 +882,14 @@ export function CampCommandCenter() {
         returnedAt: returnForm.returnedAt ? new Date(returnForm.returnedAt).toISOString() : undefined
       })
     });
-    setSaveMessage(response.ok ? "Return checklist updated." : "Return checklist could not be updated.");
-    if (response.ok) {
-      setReturnForm(null);
-      await loadRestrictedData();
+    if (!response.ok) {
+      failAction("return", await errorMessageFromResponse(response, "Return checklist could not be updated."));
+      return;
     }
+    beginAction("return", "Updating return checklist...");
+    setReturnForm(null);
+    await loadRestrictedData();
+    completeAction("return", "Return checklist updated.");
   }
 
   async function viewMedicationPhoto(record: CampMedicationRecord) {
@@ -765,43 +905,62 @@ export function CampCommandCenter() {
   }
 
   async function retryMedicationPhoto(record: CampMedicationRecord) {
+    if (activeAction) return;
+    beginAction("photo", "Loading medication photo...");
     setMedicationPhotoThumbnails((current) => ({ ...current, [record.id]: { status: "loading" } }));
     const result = await fetchMedicationPhotoThumbnail(record);
     setMedicationPhotoThumbnails((current) => ({ ...current, [record.id]: result }));
-    if (result.status !== "ready") setPhotoMessage("Medication photo is unavailable. Try again from a restricted account.");
+    if (result.status !== "ready") {
+      const message = "Medication photo is unavailable. Try again from a restricted account.";
+      setPhotoMessage(message);
+      failAction("photo", message);
+      return;
+    }
+    completeAction("photo", "Medication photo ready.");
   }
 
   async function previewImport() {
+    if (activeAction) return;
+    beginAction("importPreview", "Validating import rows...");
     const response = await fetch(`/api/camp/import?role=${accessRole}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "preview", csv: importCsv })
     });
     if (!response.ok) {
-      setImportMessage("Import preview could not be created.");
+      const message = await errorMessageFromResponse(response, "Import preview could not be created.");
+      setImportMessage(message);
+      failAction("importPreview", message);
       return;
     }
     const payload = (await response.json()) as { preview: CampRegistrationImportPreview };
     setImportPreview(payload.preview);
-    setImportMessage("Import preview ready. Review before saving.");
+    const message = "Import preview ready. Review before saving.";
+    setImportMessage(message);
+    completeAction("importPreview", message);
   }
 
   async function commitImport() {
-    if (!importPreview) return;
+    if (activeAction || !importPreview) return;
+    beginAction("importCommit", "Saving reviewed import...");
     const response = await fetch(`/api/camp/import?role=${accessRole}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "commit", preview: importPreview })
     });
     if (!response.ok) {
-      setImportMessage("Import could not be saved.");
+      const message = await errorMessageFromResponse(response, "Import could not be saved.");
+      setImportMessage(message);
+      failAction("importCommit", message);
       return;
     }
-    setImportMessage("Import saved.");
+    beginAction("importCommit", "Updating roster and restricted records...");
     setImportCsv("");
     setImportPreview(null);
     await loadOverview();
     await loadRestrictedData();
+    setImportMessage("Import saved.");
+    completeAction("importCommit", "Import saved.");
   }
 
   const campDays = daysUntilCamp(overview.campStartsOn);
@@ -845,7 +1004,7 @@ export function CampCommandCenter() {
         ) : null}
       </section>
 
-      {saveMessage ? <p className="camp-save-message" role="status">{saveMessage}</p> : null}
+      {saveMessage ? <p className={`camp-save-message ${actionStatus?.tone === "error" ? "error" : actionStatus?.tone === "success" ? "success" : ""}`} role="status">{saveMessage}</p> : null}
 
       <section className="panel" aria-labelledby="student-lookup">
         <div className="camp-section-header">
@@ -892,7 +1051,7 @@ export function CampCommandCenter() {
             <label className="field"><span>Limited safety flags</span><input className="input" value={studentForm.limitedSafetyFlagsText} onChange={(event) => setStudentForm((current) => ({ ...current, limitedSafetyFlagsText: event.target.value }))} placeholder="Comma separated public flags only" /></label>
           </div>
           <div className="toolbar">
-            <button className="button primary" type="button" onClick={() => void saveStudent()}>{studentForm.id ? "Save camper" : "Add camper"}</button>
+            <button className="button primary" type="button" disabled={isActionActive("student")} onClick={() => void saveStudent()}>{isActionActive("student") ? "Saving camper..." : studentForm.id ? "Save camper" : "Add camper"}</button>
             {studentForm.id ? <button className="button" type="button" onClick={() => setStudentForm({ name: "", grade: "", teamId: overview.teams[0]?.id ?? "", vehicleId: overview.vehicles[0]?.id ?? "", cabin: "", limitedSafetyFlags: [], limitedSafetyFlagsText: "" })}>Clear form</button> : null}
           </div>
           {canSeeRestrictedMedical && studentForm.id ? (
@@ -901,15 +1060,15 @@ export function CampCommandCenter() {
                 <span>Archive reason</span>
                 <input className="input" value={archiveReason} onChange={(event) => setArchiveReason(event.target.value)} placeholder="Optional recordkeeping note" />
               </label>
-              <button className="button danger" type="button" onClick={() => void archiveStudent()}>Archive Camper</button>
+              <button className="button danger" type="button" disabled={isActionActive("archive")} onClick={() => void archiveStudent()}>{isActionActive("archive") ? "Archiving..." : "Archive Camper"}</button>
             </div>
           ) : null}
         </section>
       ) : null}
 
       <div className="camp-grid">
-        <TeamAssignments students={overview.students} teams={overview.teams} canEdit={canEditRoster} onSave={saveAssignment} />
-        <VehicleAssignments students={overview.students} vehicles={overview.vehicles} canEdit={canEditRoster} onSave={saveAssignment} />
+        <TeamAssignments students={overview.students} teams={overview.teams} canEdit={canEditRoster} isSaving={isActionActive("assignment")} onSave={saveAssignment} />
+        <VehicleAssignments students={overview.students} vehicles={overview.vehicles} canEdit={canEditRoster} isSaving={isActionActive("assignment")} onSave={saveAssignment} />
       </div>
 
       <div className="camp-grid">
@@ -977,6 +1136,8 @@ export function CampCommandCenter() {
           setImportCsv={setImportCsv}
           importPreview={importPreview}
           importMessage={importMessage}
+          activeAction={activeAction}
+          actionStatus={actionStatus}
           onPreviewImport={previewImport}
           onCommitImport={commitImport}
         />
@@ -1008,7 +1169,7 @@ export function CampCommandCenter() {
   );
 }
 
-function TeamAssignments({ students, teams, canEdit, onSave }: { students: CampVisibleStudent[]; teams: CampOverviewPayload["teams"]; canEdit: boolean; onSave: (studentId: string, teamId: string, vehicleId: string) => Promise<void> }) {
+function TeamAssignments({ students, teams, canEdit, isSaving, onSave }: { students: CampVisibleStudent[]; teams: CampOverviewPayload["teams"]; canEdit: boolean; isSaving: boolean; onSave: (studentId: string, teamId: string, vehicleId: string) => Promise<void> }) {
   return (
     <section className="panel" aria-labelledby="camp-teams">
       <p className="eyebrow">Teams</p>
@@ -1017,7 +1178,7 @@ function TeamAssignments({ students, teams, canEdit, onSave }: { students: CampV
         {students.map((student) => (
           <div className="camp-list-row" key={student.id}>
             <div><strong>{student.name}</strong><p className="muted">{student.teamName ?? "No team"}</p></div>
-            {canEdit ? <select className="input camp-inline-select" value={student.teamId} onChange={(event) => void onSave(student.id, event.target.value, student.vehicleId)}>{teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}</select> : null}
+            {canEdit ? <select className="input camp-inline-select" value={student.teamId} disabled={isSaving} onChange={(event) => void onSave(student.id, event.target.value, student.vehicleId)}>{teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}</select> : null}
           </div>
         ))}
       </div>
@@ -1025,7 +1186,7 @@ function TeamAssignments({ students, teams, canEdit, onSave }: { students: CampV
   );
 }
 
-function VehicleAssignments({ students, vehicles, canEdit, onSave }: { students: CampVisibleStudent[]; vehicles: CampOverviewPayload["vehicles"]; canEdit: boolean; onSave: (studentId: string, teamId: string, vehicleId: string) => Promise<void> }) {
+function VehicleAssignments({ students, vehicles, canEdit, isSaving, onSave }: { students: CampVisibleStudent[]; vehicles: CampOverviewPayload["vehicles"]; canEdit: boolean; isSaving: boolean; onSave: (studentId: string, teamId: string, vehicleId: string) => Promise<void> }) {
   return (
     <section className="panel" aria-labelledby="camp-transportation">
       <p className="eyebrow">Car Roster / Transportation</p>
@@ -1046,7 +1207,7 @@ function VehicleAssignments({ students, vehicles, canEdit, onSave }: { students:
         {canEdit ? students.map((student) => (
           <div className="camp-list-row" key={`vehicle-${student.id}`}>
             <div><strong>{student.name}</strong><p className="muted">{student.vehicleName}</p></div>
-            <select className="input camp-inline-select" value={student.vehicleId} onChange={(event) => void onSave(student.id, student.teamId ?? "", event.target.value)}>{vehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.name}</option>)}</select>
+            <select className="input camp-inline-select" value={student.vehicleId} disabled={isSaving} onChange={(event) => void onSave(student.id, student.teamId ?? "", event.target.value)}>{vehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.name}</option>)}</select>
           </div>
         )) : null}
       </div>
@@ -1141,10 +1302,13 @@ function RestrictedCampTools(props: {
   setImportCsv: React.Dispatch<React.SetStateAction<string>>;
   importPreview: CampRegistrationImportPreview | null;
   importMessage: string;
+  activeAction: CampSaveAction | null;
+  actionStatus: CampActionStatus | null;
   onPreviewImport: () => Promise<void>;
   onCommitImport: () => Promise<void>;
 }) {
   const medication = props.restrictedState?.medication;
+  const isSaving = (action: CampSaveAction) => props.activeAction === action;
 
   if (props.restrictedLoading) return <section className="panel"><p className="muted">Loading restricted tools...</p></section>;
   if (props.restrictedError) return <section className="panel"><p className="camp-error">{props.restrictedError}</p></section>;
@@ -1168,7 +1332,8 @@ function RestrictedCampTools(props: {
           <label className="field"><span>Insurance Status</span><input className="input" value={props.medicalForm.insuranceStatus} onChange={(event) => props.setMedicalForm((current) => ({ ...current, insuranceStatus: event.target.value }))} /></label>
           <label className="field camp-wide-field"><span>Parent Medical Notes</span><textarea className="input" rows={2} value={props.medicalForm.parentMedicalNotes} onChange={(event) => props.setMedicalForm((current) => ({ ...current, parentMedicalNotes: event.target.value }))} /></label>
         </div>
-        <button className="button primary" type="button" onClick={() => void props.onSaveMedical()}>Save restricted medical record</button>
+        <ActionStatusMessage status={props.actionStatus} action="medical" />
+        <button className="button primary" type="button" disabled={isSaving("medical")} onClick={() => void props.onSaveMedical()}>{isSaving("medical") ? "Saving restricted record..." : "Save restricted medical record"}</button>
       </section>
 
       <section className="panel" aria-labelledby="camp-archived">
@@ -1189,7 +1354,7 @@ function RestrictedCampTools(props: {
                   <strong>{student.name}</strong>
                   <p className="muted">Archived {student.archivedAt ? new Date(student.archivedAt).toLocaleString() : "for recordkeeping"}. {student.archiveReason || "No archive reason recorded."}</p>
                 </div>
-                <button className="button" type="button" onClick={() => void props.onRestoreStudent(student.id)}>Restore Camper</button>
+                <button className="button" type="button" disabled={isSaving("restore")} onClick={() => void props.onRestoreStudent(student.id)}>{isSaving("restore") ? "Restoring..." : "Restore Camper"}</button>
               </div>
             )) : <p className="muted">No archived campers.</p>}
           </div>
@@ -1203,9 +1368,10 @@ function RestrictedCampTools(props: {
           <p className="eyebrow">Registration Import</p><h3 id="camp-import" className="section-title">Preview spreadsheet rows</h3>
           <label className="field camp-wide-field"><span>CSV rows</span><textarea className="input" rows={5} value={props.importCsv} onChange={(event) => props.setImportCsv(event.target.value)} placeholder="Student Name,Grade,Team,Vehicle,Cabin,Medication Name,Medication Instructions" /></label>
           <div className="toolbar">
-            <button className="button" type="button" onClick={() => void props.onPreviewImport()}>Preview import</button>
-            <button className="button primary" type="button" disabled={!props.importPreview || props.importPreview.summary.blockedRows > 0} onClick={() => void props.onCommitImport()}>Save reviewed import</button>
+            <button className="button" type="button" disabled={isSaving("importPreview") || isSaving("importCommit")} onClick={() => void props.onPreviewImport()}>{isSaving("importPreview") ? "Validating..." : "Preview import"}</button>
+            <button className="button primary" type="button" disabled={!props.importPreview || props.importPreview.summary.blockedRows > 0 || isSaving("importCommit")} onClick={() => void props.onCommitImport()}>{isSaving("importCommit") ? "Saving import..." : "Save reviewed import"}</button>
           </div>
+          <ActionStatusMessage status={props.actionStatus} action={props.actionStatus?.action === "importCommit" ? "importCommit" : "importPreview"} />
           {props.importMessage ? <p className="camp-save-message" role="status">{props.importMessage}</p> : null}
           {props.importPreview ? (
             <div className="camp-list camp-form-spaced">
@@ -1302,9 +1468,10 @@ function RestrictedCampTools(props: {
           <SignaturePad value={props.intakeForm.guardianSignatureData} onChange={(signature) => props.setIntakeForm((current) => ({ ...current, guardianSignatureData: signature }))} />
           <label className="camp-confirm-row"><input type="checkbox" checked={props.intakeForm.confirmationAcknowledged} onChange={(event) => props.setIntakeForm((current) => ({ ...current, confirmationAcknowledged: event.target.checked }))} /><span>I confirm this reflects the medication and instructions provided by the parent/guardian at drop-off.</span></label>
           {props.intakeForm.supersedesIntakeId ? <p className="camp-save-message" role="status">Saving will create a correction record and preserve the prior intake in restricted audit history.</p> : null}
+          <ActionStatusMessage status={props.actionStatus} action={props.actionStatus?.action === "photo" ? "photo" : "intake"} />
           <div className="camp-form-actions">
-            <button className="button primary" type="button" disabled={!props.intakeForm.confirmationAcknowledged || !hasSignature(props.intakeForm.guardianSignatureData)} onClick={() => void props.onSaveMedicationIntake()}>Save medication intake</button>
-            <button className="button" type="button" onClick={props.onClearIntakeForm}>Clear intake form</button>
+            <button className="button primary" type="button" disabled={!props.intakeForm.confirmationAcknowledged || !hasSignature(props.intakeForm.guardianSignatureData) || isSaving("intake") || isSaving("photo")} onClick={() => void props.onSaveMedicationIntake()}>{isSaving("intake") || isSaving("photo") ? "Saving intake..." : "Save medication intake"}</button>
+            <button className="button" type="button" disabled={isSaving("intake") || isSaving("photo")} onClick={props.onClearIntakeForm}>Clear intake form</button>
           </div>
           <div className="camp-list camp-form-spaced">
             {(medication?.intakeHistory ?? []).map((item) => {
@@ -1319,9 +1486,8 @@ function RestrictedCampTools(props: {
                     {item.correctionNote ? <p className="muted">Correction note: {item.correctionNote}</p> : null}
                     {item.voidReason ? <p className="muted">Void reason: {item.voidReason}</p> : null}
                     <div className="camp-row-actions">
-                      <button className="button compact-button" type="button" onClick={() => props.onCorrectIntake(item)}>Correct Intake</button>
-                      {item.auditStatus !== "Voided" ? <button className="button compact-button" type="button" onClick={() => void props.onVoidWorkflowItem("intake", item.id)}>Void Intake</button> : null}
-                      {photoRecord?.hasMedicationPhoto || photoRecord?.medicinePhotoStatus === "Photo On File" ? <button className="button compact-button" type="button" onClick={() => photoRecord && void props.onViewMedicationPhoto(photoRecord)}>View Photo</button> : null}
+                      <button className="button compact-button" type="button" disabled={Boolean(props.activeAction)} onClick={() => props.onCorrectIntake(item)}>Correct Intake</button>
+                      {item.auditStatus !== "Voided" ? <button className="button compact-button" type="button" disabled={Boolean(props.activeAction)} onClick={() => void props.onVoidWorkflowItem("intake", item.id)}>Void Intake</button> : null}
                     </div>
                   </div>
                   <div className="camp-row-actions">
@@ -1343,6 +1509,7 @@ function RestrictedCampTools(props: {
             onVoid={(record) => props.onVoidWorkflowItem("medication", record.id)}
             onViewPhoto={props.onViewMedicationPhoto}
             onRetryPhoto={props.onRetryMedicationPhoto}
+            isBusy={Boolean(props.activeAction)}
           />
           <div className="camp-form-grid camp-form-spaced">
             <label className="field"><span>Student</span><select className="input" value={props.medicationForm.studentId} onChange={(event) => props.setMedicationForm((current) => ({ ...current, studentId: event.target.value }))}>{props.overview.students.map((student) => <option key={student.id} value={student.id}>{student.name}</option>)}</select></label>
@@ -1354,15 +1521,16 @@ function RestrictedCampTools(props: {
             <label className="field camp-wide-field"><span>Correction Note</span><input className="input" value={props.medicationForm.correctionNote ?? ""} onChange={(event) => props.setMedicationForm((current) => ({ ...current, correctionNote: event.target.value }))} placeholder="Use when this medication check-in corrects a prior row." /></label>
           </div>
           {props.medicationForm.supersedesMedicationRecordId ? <p className="camp-save-message" role="status">Saving will create a corrected medication record and retain the prior row in restricted audit history.</p> : null}
+          <ActionStatusMessage status={props.actionStatus} action="medication" />
           <div className="camp-form-actions">
-            <button className="button primary" type="button" onClick={() => void props.onSaveMedication()}>{props.medicationForm.supersedesMedicationRecordId ? "Save corrected medication" : "Save medication check-in"}</button>
-            <button className="button" type="button" onClick={props.onClearMedicationForm}>Clear medication form</button>
+            <button className="button primary" type="button" disabled={isSaving("medication")} onClick={() => void props.onSaveMedication()}>{isSaving("medication") ? "Saving medication..." : props.medicationForm.supersedesMedicationRecordId ? "Save corrected medication" : "Save medication check-in"}</button>
+            <button className="button" type="button" disabled={isSaving("medication")} onClick={props.onClearMedicationForm}>Clear medication form</button>
           </div>
         </section>
 
         <section className="panel" aria-labelledby="med-schedule">
           <p className="eyebrow">Medication Schedule</p><h3 id="med-schedule" className="section-title">Schedule workflow</h3>
-          <MedicationScheduleRows items={medication?.schedule ?? []} onCorrect={props.onCorrectSchedule} onVoid={(item) => props.onVoidWorkflowItem("schedule", item.id)} />
+          <MedicationScheduleRows items={medication?.schedule ?? []} isBusy={Boolean(props.activeAction)} onCorrect={props.onCorrectSchedule} onVoid={(item) => props.onVoidWorkflowItem("schedule", item.id)} />
           <div className="camp-form-grid camp-form-spaced">
             <label className="field"><span>Medication</span><select className="input" value={props.scheduleForm.medicationRecordId} onChange={(event) => props.setScheduleForm((current) => ({ ...current, medicationRecordId: event.target.value }))}>{(medication?.checkIn ?? []).map((record) => <option key={record.id} value={record.id}>{record.studentName} - {record.medicationName}</option>)}</select></label>
             <label className="field"><span>Time Window</span><input className="input" value={props.scheduleForm.timeWindow} onChange={(event) => props.setScheduleForm((current) => ({ ...current, timeWindow: event.target.value }))} /></label>
@@ -1371,9 +1539,10 @@ function RestrictedCampTools(props: {
             <label className="field camp-wide-field"><span>Correction Note</span><input className="input" value={props.scheduleForm.correctionNote ?? ""} onChange={(event) => props.setScheduleForm((current) => ({ ...current, correctionNote: event.target.value }))} placeholder="Use when this schedule row corrects a prior row." /></label>
           </div>
           {props.scheduleForm.supersedesScheduleItemId ? <p className="camp-save-message" role="status">Saving will create a corrected schedule row and retain the prior row in restricted audit history.</p> : null}
+          <ActionStatusMessage status={props.actionStatus} action="schedule" />
           <div className="camp-form-actions">
-            <button className="button primary" type="button" onClick={() => void props.onSaveSchedule()}>{props.scheduleForm.supersedesScheduleItemId ? "Save corrected schedule" : "Add schedule item"}</button>
-            <button className="button" type="button" onClick={props.onClearScheduleForm}>Clear schedule form</button>
+            <button className="button primary" type="button" disabled={isSaving("schedule")} onClick={() => void props.onSaveSchedule()}>{isSaving("schedule") ? "Saving schedule..." : props.scheduleForm.supersedesScheduleItemId ? "Save corrected schedule" : "Add schedule item"}</button>
+            <button className="button" type="button" disabled={isSaving("schedule")} onClick={props.onClearScheduleForm}>Clear schedule form</button>
           </div>
         </section>
 
@@ -1387,9 +1556,10 @@ function RestrictedCampTools(props: {
             <label className="field camp-wide-field"><span>Correction Note</span><input className="input" value={props.administrationForm.correctionNote ?? ""} onChange={(event) => props.setAdministrationForm((current) => ({ ...current, correctionNote: event.target.value }))} placeholder="Use when this log corrects a prior entry." /></label>
           </div>
           {props.administrationForm.supersedesAdministrationLogId ? <p className="camp-save-message" role="status">Saving will create a correction log and preserve the prior entry in restricted audit history.</p> : null}
+          <ActionStatusMessage status={props.actionStatus} action="administration" />
           <div className="camp-form-actions">
-            <button className="button primary" type="button" onClick={() => void props.onSaveAdministrationLog()}>{props.administrationForm.supersedesAdministrationLogId ? "Save corrected log" : "Save log entry"}</button>
-            <button className="button" type="button" onClick={props.onClearAdministrationForm}>Clear log form</button>
+            <button className="button primary" type="button" disabled={isSaving("administration")} onClick={() => void props.onSaveAdministrationLog()}>{isSaving("administration") ? "Saving log..." : props.administrationForm.supersedesAdministrationLogId ? "Save corrected log" : "Save log entry"}</button>
+            <button className="button" type="button" disabled={isSaving("administration")} onClick={props.onClearAdministrationForm}>Clear log form</button>
           </div>
           <div className="camp-list camp-form-spaced">
             {(medication?.administrationLog ?? []).map((log) => (
@@ -1400,8 +1570,8 @@ function RestrictedCampTools(props: {
                   {log.correctionNote ? <p className="muted">Correction note: {log.correctionNote}</p> : null}
                   {log.voidReason ? <p className="muted">Void reason: {log.voidReason}</p> : null}
                   <div className="camp-row-actions">
-                    <button className="button compact-button" type="button" onClick={() => props.onCorrectAdministrationLog(log)}>Correct Log</button>
-                    {log.auditStatus !== "Voided" ? <button className="button compact-button" type="button" onClick={() => void props.onVoidWorkflowItem("administrationLog", log.id)}>Void Log</button> : null}
+                    <button className="button compact-button" type="button" disabled={Boolean(props.activeAction)} onClick={() => props.onCorrectAdministrationLog(log)}>Correct Log</button>
+                    {log.auditStatus !== "Voided" ? <button className="button compact-button" type="button" disabled={Boolean(props.activeAction)} onClick={() => void props.onVoidWorkflowItem("administrationLog", log.id)}>Void Log</button> : null}
                   </div>
                 </div>
                 <div className="camp-row-actions">
@@ -1429,8 +1599,8 @@ function RestrictedCampTools(props: {
                 <div className="camp-row-actions">
                   <span className={statusClass(item.returnStatus)}>{item.returnStatus}</span>
                   <AuditBadge status={item.auditStatus} />
-                  <button className="button compact-button" type="button" onClick={() => props.onCorrectReturn(item)}>Update Return</button>
-                  {item.auditStatus !== "Voided" ? <button className="button compact-button" type="button" onClick={() => void props.onVoidWorkflowItem("return", item.id)}>Void Return</button> : null}
+                  <button className="button compact-button" type="button" disabled={Boolean(props.activeAction)} onClick={() => props.onCorrectReturn(item)}>Update Return</button>
+                  {item.auditStatus !== "Voided" ? <button className="button compact-button" type="button" disabled={Boolean(props.activeAction)} onClick={() => void props.onVoidWorkflowItem("return", item.id)}>Void Return</button> : null}
                 </div>
               </div>
             ))}
@@ -1444,9 +1614,10 @@ function RestrictedCampTools(props: {
               <label className="field"><span>Recipient Relationship</span><input className="input" value={props.returnForm.recipientRelationship} onChange={(event) => props.setReturnForm((current) => current ? ({ ...current, recipientRelationship: event.target.value }) : current)} /></label>
               <label className="field camp-wide-field"><span>Return Notes</span><textarea className="input" rows={2} value={props.returnForm.returnNotes} onChange={(event) => props.setReturnForm((current) => current ? ({ ...current, returnNotes: event.target.value }) : current)} /></label>
               <label className="field camp-wide-field"><span>Correction Note</span><input className="input" value={props.returnForm.correctionNote ?? ""} onChange={(event) => props.setReturnForm((current) => current ? ({ ...current, correctionNote: event.target.value }) : current)} placeholder="Use when this return record corrects a prior row." /></label>
+              <ActionStatusMessage status={props.actionStatus} action="return" />
               <div className="camp-form-actions camp-wide-field">
-                <button className="button primary" type="button" onClick={() => void props.onSaveReturn()}>Save return update</button>
-                <button className="button" type="button" onClick={() => props.setReturnForm(null)}>Cancel return update</button>
+                <button className="button primary" type="button" disabled={isSaving("return")} onClick={() => void props.onSaveReturn()}>{isSaving("return") ? "Saving return..." : "Save return update"}</button>
+                <button className="button" type="button" disabled={isSaving("return")} onClick={() => props.setReturnForm(null)}>Cancel return update</button>
               </div>
             </div>
           ) : null}
@@ -1459,6 +1630,7 @@ function RestrictedCampTools(props: {
 function MedicationRows({
   records,
   photoThumbnails,
+  isBusy,
   onEdit,
   onVoid,
   onViewPhoto,
@@ -1466,6 +1638,7 @@ function MedicationRows({
 }: {
   records: CampMedicationRecord[];
   photoThumbnails: Record<string, MedicationPhotoThumbnailState>;
+  isBusy: boolean;
   onEdit: (record: CampMedicationRecord) => void;
   onVoid: (record: CampMedicationRecord) => Promise<void>;
   onViewPhoto: (record: CampMedicationRecord) => Promise<void>;
@@ -1474,7 +1647,7 @@ function MedicationRows({
   return (
     <div className="camp-list">
       {records.map((record) => {
-        const photoExpected = record.hasMedicationPhoto || record.medicinePhotoStatus === "Photo On File";
+        const photoExpected = Boolean(record.hasMedicationPhoto);
         const thumbnail = photoThumbnails[record.id];
         return (
         <div className="camp-list-row align-start" key={record.id}>
@@ -1491,21 +1664,17 @@ function MedicationRows({
             {record.correctionNote ? <p className="muted">Correction note: {record.correctionNote}</p> : null}
             {record.voidReason ? <p className="muted">Void reason: {record.voidReason}</p> : null}
             <div className="camp-photo-actions">
-              {photoExpected ? (
-                <button className="button compact-button" type="button" onClick={() => void onViewPhoto(record)}>View Photo</button>
-              ) : (
-                <span className="muted">Photo capture happens during Medication Intake / Parent Handoff.</span>
-              )}
+              <span className="muted">{photoExpected ? "Tap the thumbnail to view the restricted medication photo." : "Photo capture happens during Medication Intake / Parent Handoff."}</span>
               {photoExpected && thumbnail?.status === "unavailable" ? (
-                <button className="button compact-button" type="button" onClick={() => void onRetryPhoto(record)}>Retry Photo</button>
+                <button className="button compact-button" type="button" disabled={isBusy} onClick={() => void onRetryPhoto(record)}>Retry Photo</button>
               ) : null}
             </div>
           </div>
           <div className="camp-row-actions">
             <span className={statusClass(record.checkInStatus)}>{record.checkInStatus}</span>
             <AuditBadge status={record.auditStatus} />
-            <button className="button compact-button" type="button" onClick={() => onEdit(record)}>Correct Medication</button>
-            {record.auditStatus !== "Voided" ? <button className="button compact-button" type="button" onClick={() => void onVoid(record)}>Void Medication</button> : null}
+            <button className="button compact-button" type="button" disabled={isBusy} onClick={() => onEdit(record)}>Correct Medication</button>
+            {record.auditStatus !== "Voided" ? <button className="button compact-button" type="button" disabled={isBusy} onClick={() => void onVoid(record)}>Void Medication</button> : null}
           </div>
         </div>
         );
@@ -1530,6 +1699,7 @@ function MedicationPhotoSquare({
       <button
         className="camp-medicine-photo has-photo"
         type="button"
+        disabled={false}
         onClick={() => void onViewPhoto(record)}
         aria-label={`View medication photo for ${record.studentName}`}
       >
@@ -1550,7 +1720,7 @@ function MedicationPhotoSquare({
   return <div className="camp-medicine-photo"><span>{record.medicinePhotoStatus}</span></div>;
 }
 
-function MedicationScheduleRows({ items, onCorrect, onVoid }: { items: CampMedicationScheduleItem[]; onCorrect: (item: CampMedicationScheduleItem) => void; onVoid: (item: CampMedicationScheduleItem) => Promise<void> }) {
+function MedicationScheduleRows({ items, isBusy, onCorrect, onVoid }: { items: CampMedicationScheduleItem[]; isBusy: boolean; onCorrect: (item: CampMedicationScheduleItem) => void; onVoid: (item: CampMedicationScheduleItem) => Promise<void> }) {
   return (
     <div className="camp-list">
       {items.map((item) => (
@@ -1564,8 +1734,8 @@ function MedicationScheduleRows({ items, onCorrect, onVoid }: { items: CampMedic
           <div className="camp-row-actions">
             <span className={statusClass(item.status)}>{item.status}</span>
             <AuditBadge status={item.auditStatus} />
-            <button className="button compact-button" type="button" onClick={() => onCorrect(item)}>Correct Schedule</button>
-            {item.auditStatus !== "Voided" ? <button className="button compact-button" type="button" onClick={() => void onVoid(item)}>Void Schedule</button> : null}
+            <button className="button compact-button" type="button" disabled={isBusy} onClick={() => onCorrect(item)}>Correct Schedule</button>
+            {item.auditStatus !== "Voided" ? <button className="button compact-button" type="button" disabled={isBusy} onClick={() => void onVoid(item)}>Void Schedule</button> : null}
           </div>
         </div>
       ))}
@@ -1576,6 +1746,11 @@ function MedicationScheduleRows({ items, onCorrect, onVoid }: { items: CampMedic
 function AuditBadge({ status }: { status?: string }) {
   if (!status || status === "Active") return null;
   return <span className={status === "Voided" ? "camp-status locked" : "camp-status warn"}>{status}</span>;
+}
+
+function ActionStatusMessage({ status, action }: { status: CampActionStatus | null; action: CampSaveAction }) {
+  if (!status || status.action !== action) return null;
+  return <p className={`camp-save-message ${status.tone === "error" ? "error" : status.tone === "success" ? "success" : ""}`} role={status.tone === "error" ? "alert" : "status"}>{status.message}</p>;
 }
 
 function SignaturePad({ value, onChange }: { value: CampMedicationIntakeInput["guardianSignatureData"]; onChange: (signature: CampMedicationIntakeInput["guardianSignatureData"]) => void }) {

@@ -3,7 +3,18 @@ import { expect, type Page, test } from "@playwright/test";
 test.describe("Camp restricted medication photo thumbnails", () => {
   test.describe.configure({ mode: "serial" });
 
-  test("restricted user sees a real thumbnail and opens the same modal from thumbnail and View Photo", async ({ page }) => {
+  test("fresh mock state does not show stale seed photos before a real upload", async ({ page }) => {
+    await login(page);
+
+    await page.goto("/camp");
+    await page.getByRole("button", { name: "Andrew" }).click();
+
+    const checkIn = page.getByRole("region", { name: "Check-in workflow" });
+    await expect(checkIn.getByRole("button", { name: "View medication photo for Avery Johnson" })).toHaveCount(0);
+    await expect(checkIn.getByText("Photo capture happens during Medication Intake / Parent Handoff.").first()).toBeVisible();
+  });
+
+  test("restricted user sees a real thumbnail and opens the modal from the thumbnail only", async ({ page }) => {
     await login(page);
     await uploadMedicationPhoto(page, "med-1");
 
@@ -13,13 +24,10 @@ test.describe("Camp restricted medication photo thumbnails", () => {
     const checkIn = page.getByRole("region", { name: "Check-in workflow" });
     const thumbnail = checkIn.getByRole("button", { name: "View medication photo for Avery Johnson" });
     await expect(thumbnail.locator("img")).toBeVisible();
+    await expect(checkIn.getByRole("button", { name: "View Photo" })).toHaveCount(0);
     await thumbnail.click();
     await expect(page.getByRole("dialog", { name: "Medication photo preview" })).toBeVisible();
     await expect(page.getByRole("dialog", { name: "Medication photo preview" }).locator("img")).toBeVisible();
-    await page.getByRole("button", { name: "Close" }).click();
-
-    await checkIn.getByRole("button", { name: "View Photo" }).first().click();
-    await expect(page.getByRole("dialog", { name: "Medication photo preview" })).toBeVisible();
   });
 
   test("failed restricted thumbnail retrieval shows Photo unavailable with retry", async ({ page }) => {
@@ -40,6 +48,7 @@ test.describe("Camp restricted medication photo thumbnails", () => {
     const checkIn = page.getByRole("region", { name: "Check-in workflow" });
     await expect(checkIn.getByText("Photo unavailable")).toBeVisible();
     await expect(checkIn.getByRole("button", { name: "Retry Photo" })).toBeVisible();
+    await expect(checkIn.getByRole("button", { name: "View Photo" })).toHaveCount(0);
     await expect(checkIn.getByRole("button", { name: "View medication photo for Avery Johnson" })).toHaveCount(0);
   });
 

@@ -37,8 +37,8 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: payload.error }, { status: payload.status });
     }
     return NextResponse.json({ record: payload.record }, { status: payload.status });
-  } catch {
-    return NextResponse.json({ error: "Unable to update restricted medical record safely." }, { status: 400 });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to update restricted medical record safely." }, { status: 400 });
   }
 }
 

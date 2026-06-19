@@ -35,8 +35,8 @@ export async function POST(request: Request) {
     const payload = await upsertCampStudent(session, context, body);
     if (!payload.allowed) return NextResponse.json({ error: payload.error }, { status: payload.status });
     return NextResponse.json({ student: payload.student }, { status: payload.status });
-  } catch {
-    return NextResponse.json({ error: "Unable to save camper safely." }, { status: 400 });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to save camper safely." }, { status: 400 });
   }
 }
 
@@ -96,7 +96,7 @@ export async function PATCH(request: Request) {
     });
     if (!payload.allowed) return NextResponse.json({ error: payload.error }, { status: payload.status });
     return NextResponse.json({ student: payload.student }, { status: payload.status });
-  } catch {
-    return NextResponse.json({ error: "Unable to update camper safely." }, { status: 400 });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to update camper safely." }, { status: 400 });
   }
 }

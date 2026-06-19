@@ -281,12 +281,13 @@ export function upsertMedicationRecord(role: CampAccessRole, input: Partial<Camp
   const existing = input.id && !input.supersedesMedicationRecordId ? store.medicationRecords.find((record) => record.id === input.id) : undefined;
   const clarificationStatus = normalizeClarification(input.clarificationStatus, input.parentProvidedInstructions);
   const checkInStatus = normalizeCheckInStatus(input.checkInStatus, clarificationStatus);
+  const medicinePhotoStatus = input.supersedesMedicationRecordId ? "Photo Needed" : input.medicinePhotoStatus ?? existing?.medicinePhotoStatus ?? "Photo Needed";
   const record: CampMedicationRecord = {
     id: existing?.id ?? uid("campmed"),
     studentId: student.id,
     studentName: student.name,
     medicationName: input.medicationName?.trim() || existing?.medicationName || "Parent-labeled medication",
-    medicinePhotoStatus: input.medicinePhotoStatus ?? existing?.medicinePhotoStatus ?? "Photo Needed",
+    medicinePhotoStatus,
     parentProvidedInstructions: input.parentProvidedInstructions?.trim() || existing?.parentProvidedInstructions || "Needs Parent Clarification.",
     checkInStatus,
     receivedBy: checkInStatus === "Checked In" ? input.receivedBy || existing?.receivedBy || "Andrew" : input.receivedBy,
@@ -564,7 +565,7 @@ function withLatestIntakeSummary(record: CampMedicationRecord, intakeRecords = a
   const hasMedicationPhoto = store.medicationPhotoRecords.some((item) => item.medicationRecordId === record.id);
   return {
     ...record,
-    medicinePhotoStatus: hasMedicationPhoto ? "Photo On File" : record.medicinePhotoStatus,
+    medicinePhotoStatus: hasMedicationPhoto ? "Photo On File" : record.medicinePhotoStatus === "Photo On File" ? "Photo Needed" : record.medicinePhotoStatus,
     hasMedicationPhoto,
     latestQuantityReceived: latest?.quantityReceived,
     latestIntakeAt: latest?.receivedAt
