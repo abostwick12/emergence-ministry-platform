@@ -50,7 +50,7 @@ export const medicationRecords: CampMedicationRecord[] = [
     studentId: "stu-1",
     studentName: "Avery Johnson",
     medicationName: "Parent-labeled medication A",
-    medicinePhotoStatus: "Photo On File",
+    medicinePhotoStatus: "Photo Needed",
     parentProvidedInstructions: "Follow the parent label and signed instruction sheet.",
     checkInStatus: "Checked In",
     receivedBy: "Andrew",

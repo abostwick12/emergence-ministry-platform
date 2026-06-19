@@ -231,7 +231,7 @@ describe("camp repository mock fallback", () => {
     expect(payload.checkIn.some((record) => record.id === "med-1")).toBe(false);
     expect(payload.checkIn).toContainEqual(expect.objectContaining({
       id: correction.record.id,
-      medicinePhotoStatus: "Photo On File",
+      medicinePhotoStatus: "Photo Needed",
       hasMedicationPhoto: false,
       auditStatus: "Corrected"
     }));

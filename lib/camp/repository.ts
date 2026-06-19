@@ -536,9 +536,10 @@ export async function upsertMedicationRecord(
   if (!input.id || input.supersedesMedicationRecordId) await requireActiveCamper(session, input.studentId);
   const clarificationStatus = mockStore.normalizeClarification(input.clarificationStatus, input.parentProvidedInstructions);
   const checkInStatus = mockStore.normalizeCheckInStatus(input.checkInStatus, clarificationStatus);
+  const medicinePhotoStatus = input.supersedesMedicationRecordId ? "Photo Needed" : input.medicinePhotoStatus ?? "Photo Needed";
   const row = {
     medication_name: input.medicationName?.trim() || "Parent-labeled medication",
-    medicine_photo_status: input.medicinePhotoStatus ?? "Photo Needed",
+    medicine_photo_status: medicinePhotoStatus,
     parent_provided_instructions: input.parentProvidedInstructions?.trim() || "Needs Parent Clarification.",
     check_in_status: checkInStatus,
     received_by: checkInStatus === "Checked In" ? input.receivedBy ?? access.actor : input.receivedBy ?? null,
@@ -667,7 +668,7 @@ export async function saveMedicationPhoto(
     allowed: true as const,
     status: 201,
     photo: toMedicationPhotoRecord(data, new Map([[camper.id, toCampStudentPublic(camper)]])),
-    record: toMedicationRecord({ ...medication, medicine_photo_status: "Photo On File" }, new Map([[camper.id, toCampStudentPublic(camper)]]))
+    record: toMedicationRecord({ ...medication, medicine_photo_status: "Photo On File" }, new Map([[camper.id, toCampStudentPublic(camper)]]), [], undefined, true)
   };
 }
 
@@ -1038,7 +1039,7 @@ function toRestrictedMedicalRecord(row: CampRestrictedMedicalRow, campers: Map<s
   };
 }
 
-function toMedicationRecord(row: CampMedicationRow, campers: Map<string, CampStudentPublic>, intakeHistory: CampMedicationIntakeRecord[] = [], auditStatus?: CampAuditStatus, hasMedicationPhoto = row.medicine_photo_status === "Photo On File"): CampMedicationRecord {
+function toMedicationRecord(row: CampMedicationRow, campers: Map<string, CampStudentPublic>, intakeHistory: CampMedicationIntakeRecord[] = [], auditStatus?: CampAuditStatus, hasMedicationPhoto = false): CampMedicationRecord {
   const latestIntake = intakeHistory.find((item) => item.medicationRecordId === row.id);
   return {
     id: row.id,

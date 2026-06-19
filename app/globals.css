@@ -2986,6 +2986,18 @@ textarea:focus-visible {
   font-weight: 800;
 }
 
+.camp-save-message.success {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.camp-save-message.error {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
+}
+
 .camp-swatch {
   flex: none;
   width: 14px;
