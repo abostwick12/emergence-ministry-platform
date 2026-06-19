@@ -197,6 +197,43 @@ describe("camp repository mock fallback", () => {
     const access = await getMedicationPhotoAccess(mockSession, restricted, "med-1");
     expect(access.allowed).toBe(true);
     if (!access.allowed || "error" in access) throw new Error("expected restricted photo access");
-    expect(access.signedUrl).toContain("mock-restricted-medication-photo");
+    expect(access.signedUrl).toMatch(/^data:image\/jpeg;base64,/);
+  });
+
+  it("does not point corrected active medication rows at superseded photo records", async () => {
+    const mockSession = session();
+    const restricted = resolveCampAccessContext(mockSession, "andrew");
+
+    const upload = await saveMedicationPhoto(mockSession, restricted, {
+      medicationRecordId: "med-1",
+      file: new File(["fake image"], "medicine.jpg", { type: "image/jpeg" })
+    });
+    expect(upload.allowed).toBe(true);
+    if (!upload.allowed) throw new Error("expected upload success");
+
+    const correction = await upsertMedicationRecord(mockSession, restricted, {
+      studentId: "stu-1",
+      medicationName: "Corrected active medication row",
+      medicinePhotoStatus: "Photo On File",
+      parentProvidedInstructions: "Corrected parent instructions.",
+      checkInStatus: "Checked In",
+      clarificationStatus: "Clear",
+      supersedesMedicationRecordId: "med-1",
+      correctionNote: "Corrected medication label."
+    });
+    expect(correction.allowed).toBe(true);
+    if (!correction.allowed) throw new Error("expected correction success");
+
+    const payload = await getRestrictedCampMedicationPayload(mockSession, restricted);
+    expect(payload.allowed).toBe(true);
+    if (!payload.allowed) throw new Error("expected restricted medication payload");
+
+    expect(payload.checkIn.some((record) => record.id === "med-1")).toBe(false);
+    expect(payload.checkIn).toContainEqual(expect.objectContaining({
+      id: correction.record.id,
+      medicinePhotoStatus: "Photo On File",
+      hasMedicationPhoto: false,
+      auditStatus: "Corrected"
+    }));
   });
 });

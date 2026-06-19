@@ -165,10 +165,17 @@ describe("camp API restricted data boundaries", () => {
       guardianSignatureData: { width: 640, height: 220, strokes: [[{ x: 1, y: 1 }, { x: 2, y: 2 }]] },
       confirmationAcknowledged: true
     }));
+    const voidResponse = await medicationPOST(jsonRequest("http://localhost/api/camp/medication?role=general_leader", {
+      target: "void",
+      voidTarget: "medication",
+      id: "med-1",
+      voidReason: "Should not void"
+    }));
 
     expect(getResponse.status).toBe(403);
     expect(postResponse.status).toBe(403);
     expect(intakeResponse.status).toBe(403);
+    expect(voidResponse.status).toBe(403);
   });
 
   it("blocks General Leaders and Drivers from archive, restore, archived list, and medication photo routes", async () => {
@@ -231,7 +238,7 @@ describe("camp API restricted data boundaries", () => {
     expect(upload.status).toBe(201);
     expect(uploadPayload.record).toMatchObject({ medicinePhotoStatus: "Photo On File" });
     expect(access.status).toBe(200);
-    expect(accessPayload.signedUrl).toContain("mock-restricted-medication-photo");
+    expect(accessPayload.signedUrl).toMatch(/^data:image\/jpeg;base64,/);
     expect(archive.status).toBe(200);
     expect(archivedList.status).toBe(200);
     expect(JSON.stringify(await archivedList.json())).toContain("Duplicate");
