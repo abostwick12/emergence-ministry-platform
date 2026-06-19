@@ -952,6 +952,11 @@ textarea:focus-visible {
   padding: 6px 9px;
 }
 
+.button.danger {
+  border-color: rgba(185, 28, 28, 0.35);
+  color: var(--danger);
+}
+
 .event-group {
   display: grid;
   gap: 12px;
@@ -3058,6 +3063,64 @@ textarea:focus-visible {
   font-weight: 900;
 }
 
+.camp-card-action,
+.camp-photo-actions,
+.camp-row-actions,
+.camp-archive-box {
+  margin-top: 10px;
+}
+
+.camp-photo-actions,
+.camp-row-actions,
+.camp-archive-box {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.camp-row-actions {
+  justify-content: flex-end;
+}
+
+.camp-intake-photo-section {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0;
+  padding: 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.camp-intake-photo-section h4 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.camp-photo-preview {
+  display: grid;
+  gap: 10px;
+  max-width: 340px;
+}
+
+.camp-photo-preview img {
+  display: block;
+  width: 100%;
+  max-height: 240px;
+  object-fit: contain;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.camp-photo-preview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
 .camp-signature-block {
   display: grid;
   gap: 10px;
@@ -3081,8 +3144,16 @@ textarea:focus-visible {
   gap: 10px;
   margin: 10px 0 14px;
   color: #334155;
+  cursor: pointer;
   font-size: 13px;
   font-weight: 700;
+}
+
+.camp-confirm-row input {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
 }
 
 .camp-search-placeholder {
@@ -3090,6 +3161,18 @@ textarea:focus-visible {
 }
 
 @media (max-width: 720px) {
+  .camp-command-center {
+    padding-bottom: 128px;
+  }
+
+  .camp-command-center input,
+  .camp-command-center select,
+  .camp-command-center textarea,
+  .camp-command-center button,
+  .camp-command-center canvas {
+    scroll-margin-block: 110px;
+  }
+
   .camp-hero,
   .camp-controls,
   .camp-section-header {

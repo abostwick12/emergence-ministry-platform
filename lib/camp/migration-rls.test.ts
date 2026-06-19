@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 const persistenceMigration = readFileSync(join(process.cwd(), "supabase/migrations/007_camp_persistence.sql"), "utf8");
 const auditMigration = readFileSync(join(process.cwd(), "supabase/migrations/008_camp_restricted_data_audit.sql"), "utf8");
 const intakeMigration = readFileSync(join(process.cwd(), "supabase/migrations/009_camp_medication_intake_signature.sql"), "utf8");
+const archivePhotoMigration = readFileSync(join(process.cwd(), "supabase/migrations/010_camp_archive_camper.sql"), "utf8");
 
 describe("camp persistence RLS migration shape", () => {
   it("keeps restricted medical and medication tables behind the restricted access helper", () => {
@@ -69,5 +70,20 @@ describe("camp persistence RLS migration shape", () => {
     expect(intakeMigration).toContain("public.current_user_can_access_camp_restricted()");
     expect(intakeMigration).not.toContain("for update");
     expect(intakeMigration).not.toContain("for delete");
+  });
+
+  it("adds camper archive columns and private restricted medication photo storage", () => {
+    expect(archivePhotoMigration).toContain("alter table public.camp_campers add column if not exists archived_at");
+    expect(archivePhotoMigration).toContain("archive_reason");
+    expect(archivePhotoMigration).toContain("insert into storage.buckets");
+    expect(archivePhotoMigration).toContain("'camp-medication-photos'");
+    expect(archivePhotoMigration).toContain("false");
+    expect(archivePhotoMigration).toContain("create table if not exists public.camp_medication_photo_records");
+    expect(archivePhotoMigration).toContain("alter table public.camp_medication_photo_records enable row level security;");
+    expect(archivePhotoMigration).toContain("create policy \"restricted can select camp_medication_photo_records\"");
+    expect(archivePhotoMigration).toContain("create policy \"restricted can insert camp_medication_photo_records\"");
+    expect(archivePhotoMigration).toContain("create policy \"restricted can select camp medication photo objects\"");
+    expect(archivePhotoMigration).toContain("create policy \"restricted can insert camp medication photo objects\"");
+    expect(archivePhotoMigration).not.toContain("public = true");
   });
 });

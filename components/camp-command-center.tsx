@@ -113,6 +113,8 @@ export function CampCommandCenter() {
   const [archiveReason, setArchiveReason] = useState("");
   const [showArchived, setShowArchived] = useState(false);
   const [photoMessage, setPhotoMessage] = useState("");
+  const [intakePhotoFile, setIntakePhotoFile] = useState<File | null>(null);
+  const [intakePhotoPreviewUrl, setIntakePhotoPreviewUrl] = useState("");
   const [importCsv, setImportCsv] = useState("");
   const [importPreview, setImportPreview] = useState<CampRegistrationImportPreview | null>(null);
   const [importMessage, setImportMessage] = useState("");
@@ -280,6 +282,23 @@ export function CampCommandCenter() {
     void loadArchivedStudents();
   }, [loadArchivedStudents]);
 
+  useEffect(() => {
+    setSaveMessage("");
+    setPhotoMessage("");
+    setIntakePhotoFile(null);
+  }, [accessRole]);
+
+  useEffect(() => {
+    if (!intakePhotoFile) {
+      setIntakePhotoPreviewUrl("");
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(intakePhotoFile);
+    setIntakePhotoPreviewUrl(previewUrl);
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [intakePhotoFile]);
+
   function editStudent(student: CampVisibleStudent) {
     setStudentForm({
       id: student.id,
@@ -411,8 +430,28 @@ export function CampCommandCenter() {
     });
     setSaveMessage(response.ok ? "Medication intake saved." : "Medication intake could not be saved.");
     if (response.ok) {
+      const payload = (await response.json()) as { record?: CampMedicationRecord };
+      if (intakePhotoFile && payload.record?.id) {
+        const formData = new FormData();
+        formData.set("medicationRecordId", payload.record.id);
+        formData.set("photo", intakePhotoFile);
+        const photoResponse = await fetch(`/api/camp/medication/photos?role=${accessRole}`, {
+          method: "POST",
+          body: formData
+        });
+        if (photoResponse.ok) {
+          setPhotoMessage("Photo on file.");
+          setSaveMessage("Medication intake saved. Photo on file.");
+        } else {
+          setPhotoMessage("Medication intake saved. Photo upload failed, so intake remains saved without a photo.");
+          setSaveMessage("Medication intake saved. Photo upload failed, so intake remains saved without a photo.");
+        }
+      } else {
+        setPhotoMessage("Medication intake saved without a medication photo.");
+      }
       await loadOverview();
       await loadRestrictedData();
+      setIntakePhotoFile(null);
       setIntakeForm((current) => ({
         ...current,
         medicationName: "",
@@ -430,6 +469,20 @@ export function CampCommandCenter() {
         correctionNote: ""
       }));
     }
+  }
+
+  function selectIntakePhoto(file: File | null) {
+    if (!file) {
+      setPhotoMessage("Medication photo capture cancelled. Intake can still be saved without a photo.");
+      return;
+    }
+    setIntakePhotoFile(file);
+    setPhotoMessage("Medication photo selected. It will save with this parent handoff.");
+  }
+
+  function removeIntakePhoto() {
+    setIntakePhotoFile(null);
+    setPhotoMessage("Medication photo removed. Intake can still be saved without a photo.");
   }
 
   async function saveScheduleItem() {
@@ -467,24 +520,6 @@ export function CampCommandCenter() {
       body: JSON.stringify({ target: "return", id, returnStatus, returnedBy: campAccessLabels[accessRole] })
     });
     setSaveMessage(response.ok ? "Return checklist updated." : "Return checklist could not be updated.");
-    if (response.ok) await loadRestrictedData();
-  }
-
-  async function uploadMedicationPhoto(record: CampMedicationRecord, file: File | null) {
-    if (!file) {
-      setPhotoMessage("Medication photo capture cancelled.");
-      return;
-    }
-
-    setPhotoMessage("Uploading medication photo...");
-    const formData = new FormData();
-    formData.set("medicationRecordId", record.id);
-    formData.set("photo", file);
-    const response = await fetch(`/api/camp/medication/photos?role=${accessRole}`, {
-      method: "POST",
-      body: formData
-    });
-    setPhotoMessage(response.ok ? "Medication photo uploaded." : "Medication photo could not be uploaded.");
     if (response.ok) await loadRestrictedData();
   }
 
@@ -680,8 +715,11 @@ export function CampCommandCenter() {
           setShowArchived={setShowArchived}
           onArchiveStudent={archiveStudent}
           onRestoreStudent={restoreStudent}
-          onUploadMedicationPhoto={uploadMedicationPhoto}
           onViewMedicationPhoto={viewMedicationPhoto}
+          intakePhotoFile={intakePhotoFile}
+          intakePhotoPreviewUrl={intakePhotoPreviewUrl}
+          onSelectIntakePhoto={selectIntakePhoto}
+          onRemoveIntakePhoto={removeIntakePhoto}
           photoMessage={photoMessage}
           importCsv={importCsv}
           setImportCsv={setImportCsv}
@@ -810,8 +848,11 @@ function RestrictedCampTools(props: {
   setShowArchived: React.Dispatch<React.SetStateAction<boolean>>;
   onArchiveStudent: () => Promise<void>;
   onRestoreStudent: (studentId: string) => Promise<void>;
-  onUploadMedicationPhoto: (record: CampMedicationRecord, file: File | null) => Promise<void>;
   onViewMedicationPhoto: (record: CampMedicationRecord) => Promise<void>;
+  intakePhotoFile: File | null;
+  intakePhotoPreviewUrl: string;
+  onSelectIntakePhoto: (file: File | null) => void;
+  onRemoveIntakePhoto: () => void;
   photoMessage: string;
   importCsv: string;
   setImportCsv: React.Dispatch<React.SetStateAction<string>>;
@@ -926,11 +967,73 @@ function RestrictedCampTools(props: {
             <label className="field camp-wide-field"><span>Staff Notes</span><textarea className="input" rows={2} value={props.intakeForm.staffNotes} onChange={(event) => props.setIntakeForm((current) => ({ ...current, staffNotes: event.target.value }))} placeholder="Logging only. No dosage interpretation." /></label>
             <label className="field camp-wide-field"><span>Correction Note</span><input className="input" value={props.intakeForm.correctionNote ?? ""} onChange={(event) => props.setIntakeForm((current) => ({ ...current, correctionNote: event.target.value }))} placeholder="Use when this intake corrects a prior handoff record." /></label>
           </div>
+          <section className="camp-intake-photo-section" aria-labelledby="intake-medication-photo">
+            <div>
+              <p className="eyebrow">Medication / Container Photo</p>
+              <h4 id="intake-medication-photo">Medication / Container Photo</h4>
+              <p className="muted">Optional but recommended for medication labels, containers, inhalers, EpiPens, liquids, and pill organizers.</p>
+            </div>
+            <div className="camp-photo-actions">
+              <label className="button primary compact-button">
+                <span>Take Medication Photo</span>
+                <input
+                  className="sr-only"
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={(event) => props.onSelectIntakePhoto(event.target.files?.[0] ?? null)}
+                />
+              </label>
+              <label className="button compact-button">
+                <span>Choose From Photo Library</span>
+                <input
+                  className="sr-only"
+                  type="file"
+                  accept="image/*"
+                  onChange={(event) => props.onSelectIntakePhoto(event.target.files?.[0] ?? null)}
+                />
+              </label>
+            </div>
+            {props.intakePhotoPreviewUrl ? (
+              <div className="camp-photo-preview">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={props.intakePhotoPreviewUrl} alt="Selected medication or container preview" />
+                <div className="camp-photo-preview-actions">
+                  <span className="camp-status ready">{props.intakePhotoFile?.name ? `Photo selected: ${props.intakePhotoFile.name}` : "Photo selected"}</span>
+                  <button className="button compact-button" type="button" onClick={props.onRemoveIntakePhoto}>Remove</button>
+                  <label className="button compact-button">
+                    <span>Retake</span>
+                    <input
+                      className="sr-only"
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      onChange={(event) => props.onSelectIntakePhoto(event.target.files?.[0] ?? null)}
+                    />
+                  </label>
+                </div>
+              </div>
+            ) : null}
+            {props.photoMessage ? <p className="camp-save-message" role="status">{props.photoMessage}</p> : null}
+          </section>
           <SignaturePad value={props.intakeForm.guardianSignatureData} onChange={(signature) => props.setIntakeForm((current) => ({ ...current, guardianSignatureData: signature }))} />
           <label className="camp-confirm-row"><input type="checkbox" checked={props.intakeForm.confirmationAcknowledged} onChange={(event) => props.setIntakeForm((current) => ({ ...current, confirmationAcknowledged: event.target.checked }))} /><span>I confirm this reflects the medication and instructions provided by the parent/guardian at drop-off.</span></label>
           <button className="button primary" type="button" disabled={!props.intakeForm.confirmationAcknowledged || !hasSignature(props.intakeForm.guardianSignatureData)} onClick={() => void props.onSaveMedicationIntake()}>Save medication intake</button>
           <div className="camp-list camp-form-spaced">
-            {(medication?.intakeHistory ?? []).map((item) => <div className="camp-list-row align-start" key={item.id}><div><strong>{item.studentName} - {item.medicationName}</strong><p className="muted">{item.quantityReceived || "Quantity not recorded"} received {new Date(item.receivedAt).toLocaleString()} by {item.receivedByName}. Guardian: {item.guardianName} ({item.guardianRelationship || "relationship not recorded"}).</p><p className="muted">{item.dose ? `Dose: ${item.dose}. ` : ""}{item.scheduleText ? `When: ${item.scheduleText}. ` : ""}{item.staffNotes}</p></div><span className={statusClass(item.clarificationStatus)}>{item.clarificationStatus}</span></div>)}
+            {(medication?.intakeHistory ?? []).map((item) => {
+              const photoRecord = medication?.checkIn.find((record) => record.id === item.medicationRecordId);
+              return (
+                <div className="camp-list-row align-start" key={item.id}>
+                  <div>
+                    <strong>{item.studentName} - {item.medicationName}</strong>
+                    <p className="muted">{item.quantityReceived || "Quantity not recorded"} received {new Date(item.receivedAt).toLocaleString()} by {item.receivedByName}. Guardian: {item.guardianName} ({item.guardianRelationship || "relationship not recorded"}).</p>
+                    <p className="muted">{item.dose ? `Dose: ${item.dose}. ` : ""}{item.scheduleText ? `When: ${item.scheduleText}. ` : ""}{item.staffNotes}</p>
+                    {photoRecord?.hasMedicationPhoto || photoRecord?.medicinePhotoStatus === "Photo On File" ? <span className="camp-status ready">Photo on file</span> : null}
+                  </div>
+                  <span className={statusClass(item.clarificationStatus)}>{item.clarificationStatus}</span>
+                </div>
+              );
+            })}
           </div>
         </section>
 
@@ -939,10 +1042,8 @@ function RestrictedCampTools(props: {
           <MedicationRows
             records={medication?.checkIn ?? []}
             onEdit={(record) => props.setMedicationForm({ id: record.id, studentId: record.studentId, medicationName: record.medicationName, medicinePhotoStatus: record.medicinePhotoStatus, parentProvidedInstructions: record.parentProvidedInstructions, checkInStatus: record.checkInStatus, clarificationStatus: record.clarificationStatus })}
-            onUploadPhoto={props.onUploadMedicationPhoto}
             onViewPhoto={props.onViewMedicationPhoto}
           />
-          {props.photoMessage ? <p className="camp-save-message" role="status">{props.photoMessage}</p> : null}
           <div className="camp-form-grid camp-form-spaced">
             <label className="field"><span>Student</span><select className="input" value={props.medicationForm.studentId} onChange={(event) => props.setMedicationForm((current) => ({ ...current, studentId: event.target.value }))}>{props.overview.students.map((student) => <option key={student.id} value={student.id}>{student.name}</option>)}</select></label>
             <label className="field"><span>Medication Label</span><input className="input" value={props.medicationForm.medicationName} onChange={(event) => props.setMedicationForm((current) => ({ ...current, medicationName: event.target.value }))} /></label>
@@ -999,12 +1100,10 @@ function RestrictedCampTools(props: {
 function MedicationRows({
   records,
   onEdit,
-  onUploadPhoto,
   onViewPhoto
 }: {
   records: CampMedicationRecord[];
   onEdit: (record: CampMedicationRecord) => void;
-  onUploadPhoto: (record: CampMedicationRecord, file: File | null) => Promise<void>;
   onViewPhoto: (record: CampMedicationRecord) => Promise<void>;
 }) {
   return (
@@ -1017,28 +1116,11 @@ function MedicationRows({
             <p className="muted">{record.medicationName} - {record.parentProvidedInstructions}</p>
             {record.latestQuantityReceived ? <p className="muted">Quantity received: {record.latestQuantityReceived}</p> : null}
             <div className="camp-photo-actions">
-              <label className="button compact-button">
-                <span>Take Medication Photo</span>
-                <input
-                  className="sr-only"
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  onChange={(event) => void onUploadPhoto(record, event.target.files?.[0] ?? null)}
-                />
-              </label>
-              <label className="button compact-button">
-                <span>Choose From Photo Library</span>
-                <input
-                  className="sr-only"
-                  type="file"
-                  accept="image/*"
-                  onChange={(event) => void onUploadPhoto(record, event.target.files?.[0] ?? null)}
-                />
-              </label>
               {record.hasMedicationPhoto || record.medicinePhotoStatus === "Photo On File" ? (
                 <button className="button compact-button" type="button" onClick={() => void onViewPhoto(record)}>View Photo</button>
-              ) : null}
+              ) : (
+                <span className="muted">Photo capture happens during Medication Intake / Parent Handoff.</span>
+              )}
             </div>
           </div>
           <div className="camp-row-actions">

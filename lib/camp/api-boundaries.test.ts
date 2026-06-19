@@ -18,8 +18,10 @@ vi.mock("@/lib/auth/server", async () => {
 
 import { POST as importPOST } from "@/app/api/camp/import/route";
 import { GET as campGET } from "@/app/api/camp/route";
+import { GET as photoGET, POST as photoPOST } from "@/app/api/camp/medication/photos/route";
 import { GET as medicationGET, POST as medicationPOST } from "@/app/api/camp/medication/route";
 import { GET as medicalGET, POST as medicalPOST } from "@/app/api/camp/restricted-medical/route";
+import { GET as studentsGET, PATCH as studentsPATCH } from "@/app/api/camp/students/route";
 
 const restrictedNeedles = [
   "Parent-labeled medication A",
@@ -41,7 +43,12 @@ const restrictedNeedles = [
   "quantityReceived",
   "intakeHistory",
   "administrationLog",
-  "returnChecklist"
+  "returnChecklist",
+  "signedUrl",
+  "storageObjectPath",
+  "storageBucket",
+  "photoRecords",
+  "camp-medication-photos"
 ];
 
 function session(role = "admin"): AuthSession {
@@ -62,6 +69,13 @@ function jsonRequest(url: string, body: unknown, method = "POST") {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body)
   });
+}
+
+function photoRequest(url: string, medicationRecordId = "med-1") {
+  const formData = new FormData();
+  formData.set("medicationRecordId", medicationRecordId);
+  formData.set("photo", new File(["fake image"], "medicine.jpg", { type: "image/jpeg" }));
+  return new Request(url, { method: "POST", body: formData });
 }
 
 async function json(response: Response) {
@@ -157,6 +171,31 @@ describe("camp API restricted data boundaries", () => {
     expect(intakeResponse.status).toBe(403);
   });
 
+  it("blocks General Leaders and Drivers from archive, restore, archived list, and medication photo routes", async () => {
+    getServerSessionMock.mockResolvedValue(session());
+
+    for (const role of ["general_leader", "driver"]) {
+      const archivedList = await studentsGET(new Request(`http://localhost/api/camp/students?role=${role}`));
+      const archive = await studentsPATCH(jsonRequest(`http://localhost/api/camp/students?role=${role}`, {
+        action: "archive",
+        studentId: "stu-1",
+        archiveReason: "Should not archive"
+      }, "PATCH"));
+      const restore = await studentsPATCH(jsonRequest(`http://localhost/api/camp/students?role=${role}`, {
+        action: "restore",
+        studentId: "stu-1"
+      }, "PATCH"));
+      const upload = await photoPOST(photoRequest(`http://localhost/api/camp/medication/photos?role=${role}`));
+      const getPhoto = await photoGET(new Request(`http://localhost/api/camp/medication/photos?role=${role}&medicationRecordId=med-1`));
+
+      expect(archivedList.status).toBe(403);
+      expect(archive.status).toBe(403);
+      expect(restore.status).toBe(403);
+      expect(upload.status).toBe(403);
+      expect(getPhoto.status).toBe(403);
+    }
+  });
+
   it("allows Andrew, Jaci, and Joel to reach restricted medical and medication routes", async () => {
     getServerSessionMock.mockResolvedValue(session());
 
@@ -169,6 +208,34 @@ describe("camp API restricted data boundaries", () => {
       expect(JSON.stringify(await medicalResponse.json())).toContain("Insurance card copy received");
       expect(JSON.stringify(await medicationResponse.json())).toContain("Parent-labeled medication");
     }
+  });
+
+  it("allows restricted users to archive, restore, upload, and retrieve medication photos", async () => {
+    getServerSessionMock.mockResolvedValue(session());
+
+    const upload = await photoPOST(photoRequest("http://localhost/api/camp/medication/photos?role=andrew"));
+    const uploadPayload = await upload.json() as { record: Record<string, unknown> };
+    const access = await photoGET(new Request("http://localhost/api/camp/medication/photos?role=andrew&medicationRecordId=med-1"));
+    const accessPayload = await access.json() as { signedUrl: string };
+    const archive = await studentsPATCH(jsonRequest("http://localhost/api/camp/students?role=andrew", {
+      action: "archive",
+      studentId: "stu-1",
+      archiveReason: "Duplicate"
+    }, "PATCH"));
+    const archivedList = await studentsGET(new Request("http://localhost/api/camp/students?role=andrew"));
+    const restore = await studentsPATCH(jsonRequest("http://localhost/api/camp/students?role=andrew", {
+      action: "restore",
+      studentId: "stu-1"
+    }, "PATCH"));
+
+    expect(upload.status).toBe(201);
+    expect(uploadPayload.record).toMatchObject({ medicinePhotoStatus: "Photo On File" });
+    expect(access.status).toBe(200);
+    expect(accessPayload.signedUrl).toContain("mock-restricted-medication-photo");
+    expect(archive.status).toBe(200);
+    expect(archivedList.status).toBe(200);
+    expect(JSON.stringify(await archivedList.json())).toContain("Duplicate");
+    expect(restore.status).toBe(200);
   });
 
   it("allows restricted users to save medication intake with signature history", async () => {
