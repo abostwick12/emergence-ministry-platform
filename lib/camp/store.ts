@@ -12,8 +12,10 @@ import type {
   CampAccessScope,
   CampDocument,
   CampMedicationAdministrationLog,
+  CampArchiveInput,
   CampMedicationIntakeInput,
   CampMedicationIntakeRecord,
+  CampMedicationPhotoRecord,
   CampMedicationRecord,
   CampMedicationReturnItem,
   CampMedicationScheduleItem,
@@ -40,6 +42,7 @@ type CampStoreState = {
   medicationReturnChecklist: CampMedicationReturnItem[];
   medicationAdministrationLog: CampMedicationAdministrationLog[];
   medicationIntakeRecords: CampMedicationIntakeRecord[];
+  medicationPhotoRecords: CampMedicationPhotoRecord[];
 };
 
 type CampGlobal = typeof globalThis & { __leadEmergenceCampStore?: CampStoreState };
@@ -61,7 +64,8 @@ function createInitialState(): CampStoreState {
     medicationSchedule: cloneArray(medicationSchedule),
     medicationReturnChecklist: cloneArray(medicationReturnChecklist),
     medicationAdministrationLog: [],
-    medicationIntakeRecords: []
+    medicationIntakeRecords: [],
+    medicationPhotoRecords: []
   };
 }
 
@@ -78,6 +82,11 @@ export function __resetCampStoreForTests(): void {
 
 export function listCampStudents(): CampStudentPublic[] {
   return store.students.map(withDerivedStudentFlags);
+}
+
+export function listArchivedCampStudents(role: CampAccessRole): CampStudentPublic[] {
+  if (!isRestrictedCampMedicalRole(role)) return [];
+  return store.students.filter((student) => student.archivedAt).map(withDerivedStudentFlags);
 }
 
 export function getCampOverview(role: CampAccessRole, scope: CampAccessScope = {}): CampOverviewPayload {
@@ -97,6 +106,7 @@ export function getCampOverview(role: CampAccessRole, scope: CampAccessScope = {
 
 export function upsertCampStudent(input: CampStudentInput): CampStudentPublic {
   const existing = input.id ? store.students.find((student) => student.id === input.id) : undefined;
+  if (existing?.archivedAt) throw new Error("Camp student is archived.");
   const normalized: CampStudentPublic = {
     id: existing?.id ?? uid("campstu"),
     name: input.name.trim(),
@@ -122,11 +132,27 @@ export function upsertCampStudent(input: CampStudentInput): CampStudentPublic {
 }
 
 export function assignCampStudent(input: { studentId: string; teamId?: string; vehicleId?: string; cabin?: string }): CampStudentPublic {
-  const student = requireStudent(input.studentId);
+  const student = requireActiveStudent(input.studentId);
   if (input.teamId) student.teamId = input.teamId;
   if (input.vehicleId) student.vehicleId = input.vehicleId;
   if (input.cabin !== undefined) student.cabin = input.cabin;
   return withDerivedStudentFlags(student);
+}
+
+export function archiveCampStudent(role: CampAccessRole, input: CampArchiveInput) {
+  if (!isRestrictedCampMedicalRole(role)) return restrictedMedicationDenied();
+  const student = requireActiveStudent(input.studentId);
+  student.archivedAt = new Date().toISOString();
+  student.archiveReason = input.archiveReason?.trim() || "";
+  return { allowed: true as const, status: 200, student: withDerivedStudentFlags(student) };
+}
+
+export function restoreCampStudent(role: CampAccessRole, input: { studentId: string }) {
+  if (!isRestrictedCampMedicalRole(role)) return restrictedMedicationDenied();
+  const student = requireStudent(input.studentId, true);
+  student.archivedAt = undefined;
+  student.archiveReason = undefined;
+  return { allowed: true as const, status: 200, student: withDerivedStudentFlags(student) };
 }
 
 export function getRestrictedCampMedicalPayload(role: CampAccessRole) {
@@ -175,14 +201,15 @@ export function getRestrictedCampMedicationPayload(role: CampAccessRole) {
     };
   }
 
+  const activeStudentIds = new Set(store.students.filter((student) => !student.archivedAt).map((student) => student.id));
   return {
     allowed: true as const,
     status: 200,
-    checkIn: store.medicationRecords.map(withLatestIntakeSummary),
-    schedule: cloneArray(store.medicationSchedule),
-    administrationLog: cloneArray(store.medicationAdministrationLog),
-    returnChecklist: cloneArray(store.medicationReturnChecklist),
-    intakeHistory: cloneArray(store.medicationIntakeRecords)
+    checkIn: store.medicationRecords.filter((record) => activeStudentIds.has(record.studentId)).map(withLatestIntakeSummary),
+    schedule: store.medicationSchedule.filter((item) => activeStudentIds.has(item.studentId)).map((item) => ({ ...item })),
+    administrationLog: store.medicationAdministrationLog.filter((log) => activeStudentIds.has(log.studentId)).map((log) => ({ ...log })),
+    returnChecklist: store.medicationReturnChecklist.filter((item) => activeStudentIds.has(item.studentId)).map((item) => ({ ...item })),
+    intakeHistory: store.medicationIntakeRecords.filter((item) => activeStudentIds.has(item.studentId)).map((item) => ({ ...item }))
   };
 }
 
@@ -191,7 +218,7 @@ export function saveMedicationIntake(role: CampAccessRole, input: CampMedication
   assertSignature(input.guardianSignatureData);
   if (!input.confirmationAcknowledged) throw new Error("Medication intake confirmation is required.");
 
-  const student = requireStudent(input.studentId);
+  const student = requireActiveStudent(input.studentId);
   const clarificationStatus = normalizeClarification(input.clarificationStatus, input.parentInstructions);
   const medication = upsertMedicationRecord(role, {
     id: input.medicationRecordId,
@@ -236,7 +263,7 @@ export function saveMedicationIntake(role: CampAccessRole, input: CampMedication
 
 export function upsertMedicationRecord(role: CampAccessRole, input: Partial<CampMedicationRecord> & { studentId: string }) {
   if (!isRestrictedCampMedicalRole(role)) return restrictedMedicationDenied();
-  const student = requireStudent(input.studentId);
+  const student = requireActiveStudent(input.studentId);
   const existing = input.id ? store.medicationRecords.find((record) => record.id === input.id) : undefined;
   const clarificationStatus = normalizeClarification(input.clarificationStatus, input.parentProvidedInstructions);
   const checkInStatus = normalizeCheckInStatus(input.checkInStatus, clarificationStatus);
@@ -283,6 +310,40 @@ export function upsertMedicationScheduleItem(
   if (existing) Object.assign(existing, item);
   else store.medicationSchedule.unshift(item);
   return { allowed: true as const, status: 200, item };
+}
+
+export function saveMedicationPhoto(
+  role: CampAccessRole,
+  input: { medicationRecordId: string; contentType: string; fileSize: number }
+) {
+  if (!isRestrictedCampMedicalRole(role)) return restrictedMedicationDenied();
+  const medication = requireMedication(input.medicationRecordId);
+  requireActiveStudent(medication.studentId);
+  if (!isAllowedPhotoType(input.contentType) || input.fileSize <= 0 || input.fileSize > 10 * 1024 * 1024) {
+    throw new Error("Medication photo must be an image under 10 MB.");
+  }
+
+  medication.medicinePhotoStatus = "Photo On File";
+  const record: CampMedicationPhotoRecord = {
+    id: uid("campphoto"),
+    studentId: medication.studentId,
+    studentName: medication.studentName,
+    medicationRecordId: medication.id,
+    contentType: input.contentType,
+    fileSize: input.fileSize,
+    uploadedAt: new Date().toISOString()
+  };
+  store.medicationPhotoRecords.unshift(record);
+  return { allowed: true as const, status: 201, photo: record, record: withLatestIntakeSummary(medication) };
+}
+
+export function getMedicationPhotoAccess(role: CampAccessRole, medicationRecordId: string) {
+  if (!isRestrictedCampMedicalRole(role)) return restrictedMedicationDenied();
+  const medication = requireMedication(medicationRecordId);
+  requireActiveStudent(medication.studentId);
+  const photo = store.medicationPhotoRecords.find((item) => item.medicationRecordId === medicationRecordId);
+  if (!photo) return { allowed: true as const, status: 404, error: "Medication photo not found." };
+  return { allowed: true as const, status: 200, photo, signedUrl: `mock-restricted-medication-photo://${photo.id}` };
 }
 
 export function logMedicationAdministration(
@@ -391,10 +452,15 @@ function withDerivedStudentFlags(student: CampStudentPublic): CampStudentPublic 
   };
 }
 
-function requireStudent(studentId: string): CampStudentPublic {
+function requireStudent(studentId: string, includeArchived = false): CampStudentPublic {
   const student = store.students.find((item) => item.id === studentId);
   if (!student) throw new Error("Camp student not found.");
+  if (student.archivedAt && !includeArchived) throw new Error("Camp student is archived.");
   return student;
+}
+
+function requireActiveStudent(studentId: string): CampStudentPublic {
+  return requireStudent(studentId);
 }
 
 function requireMedication(medicationRecordId: string): CampMedicationRecord {
@@ -416,8 +482,11 @@ function ensureReturnChecklist(record: CampMedicationRecord) {
 
 function withLatestIntakeSummary(record: CampMedicationRecord): CampMedicationRecord {
   const latest = store.medicationIntakeRecords.find((item) => item.medicationRecordId === record.id);
+  const hasMedicationPhoto = store.medicationPhotoRecords.some((item) => item.medicationRecordId === record.id);
   return {
     ...record,
+    medicinePhotoStatus: hasMedicationPhoto ? "Photo On File" : record.medicinePhotoStatus,
+    hasMedicationPhoto,
     latestQuantityReceived: latest?.quantityReceived,
     latestIntakeAt: latest?.receivedAt
   };
@@ -464,6 +533,10 @@ function restrictedMedicationDenied() {
     status: 403,
     error: "Medication access is limited to Andrew, Jaci, and Joel."
   };
+}
+
+function isAllowedPhotoType(contentType: string) {
+  return ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"].includes(contentType.toLowerCase());
 }
 
 function assertSignature(signature: CampMedicationIntakeInput["guardianSignatureData"]) {

@@ -1,5 +1,6 @@
 import { isSupabaseConfigured } from "@/lib/auth/config";
 import { getSupabaseAuthClient, type AuthSession } from "@/lib/auth/server";
+import { randomUUID } from "crypto";
 import { campDocuments, campSchedule, campStartsOn, campTeams, campVehicles } from "@/lib/camp/public-data";
 import { sanitizePublicSafetyFlags } from "@/lib/camp/public-safety";
 import {
@@ -9,10 +10,12 @@ import {
 import * as mockStore from "@/lib/camp/store";
 import type {
   CampAccessScope,
+  CampArchiveInput,
   CampDocument,
   CampMedicationAdministrationLog,
   CampMedicationIntakeInput,
   CampMedicationIntakeRecord,
+  CampMedicationPhotoRecord,
   CampMedicationRecord,
   CampMedicationReturnItem,
   CampMedicationScheduleItem,
@@ -54,6 +57,7 @@ type CampVehicleRow = {
 
 type CampCamperRow = {
   id: string;
+  ministry_id: string;
   name: string;
   photo_initials: string | null;
   grade: string | null;
@@ -64,6 +68,9 @@ type CampCamperRow = {
   has_restricted_medical_info: boolean | null;
   has_medication_plan: boolean | null;
   needs_parent_clarification: boolean | null;
+  archived_at: string | null;
+  archived_by_user_id: string | null;
+  archive_reason: string | null;
 };
 
 type CampRestrictedMedicalRow = {
@@ -143,6 +150,15 @@ type CampMedicationIntakeRow = {
   created_at: string;
 };
 
+type CampMedicationPhotoRow = {
+  id: string;
+  camper_id: string;
+  medication_record_id: string;
+  content_type: string;
+  file_size: number;
+  uploaded_at: string;
+};
+
 type CampBasics = {
   camp: CampSessionRow;
   teams: CampTeam[];
@@ -172,6 +188,7 @@ export async function getCampOverview(
     .from("camp_campers")
     .select("*")
     .eq("camp_id", basics.camp.id)
+    .is("archived_at", null)
     .order("name", { ascending: true })
     .returns<CampCamperRow[]>();
 
@@ -192,6 +209,27 @@ export async function getCampOverview(
   };
 }
 
+export async function getArchivedCampStudents(session: AuthSession, context: CampAccessContext) {
+  const access = assertCampRestrictedAccess(context);
+  if (!access.allowed) return access;
+  if (shouldUseMock(session)) {
+    return { allowed: true as const, status: 200, students: mockStore.listArchivedCampStudents(context.effectiveRole) };
+  }
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const basics = await ensureCampBasics(session);
+  const { data, error } = await supabase
+    .from("camp_campers")
+    .select("*")
+    .eq("camp_id", basics.camp.id)
+    .not("archived_at", "is", null)
+    .order("archived_at", { ascending: false })
+    .returns<CampCamperRow[]>();
+
+  throwIfSupabaseError(error);
+  return { allowed: true as const, status: 200, students: (data ?? []).map(toCampStudentPublic) };
+}
+
 export async function upsertCampStudent(session: AuthSession, context: CampAccessContext, input: CampStudentInput) {
   if (context.isDriver) return { allowed: false as const, status: 403, error: "Camp roster editing is not available for this role." };
   if (shouldUseMock(session)) return { allowed: true as const, status: input.id ? 200 : 201, student: mockStore.upsertCampStudent(input) };
@@ -209,7 +247,7 @@ export async function upsertCampStudent(session: AuthSession, context: CampAcces
   };
 
   const result = input.id
-    ? await supabase.from("camp_campers").update(row).eq("id", input.id).select("*").single<CampCamperRow>()
+    ? await supabase.from("camp_campers").update(row).eq("id", input.id).is("archived_at", null).select("*").single<CampCamperRow>()
     : await supabase.from("camp_campers").insert({
         ...ministryScopeColumns(await resolveMinistryScope(session)),
         camp_id: basics.camp.id,
@@ -235,9 +273,51 @@ export async function assignCampStudent(
   if (input.cabin !== undefined) update.cabin = input.cabin;
 
   const supabase = getSupabaseAuthClient(session.accessToken);
-  const { data, error } = await supabase.from("camp_campers").update(update).eq("id", input.studentId).select("*").single<CampCamperRow>();
+  const { data, error } = await supabase.from("camp_campers").update(update).eq("id", input.studentId).is("archived_at", null).select("*").single<CampCamperRow>();
   throwIfSupabaseError(error);
   if (!data) throw new Error("Camp assignment update returned no row.");
+  return { allowed: true as const, status: 200, student: toCampStudentPublic(data) };
+}
+
+export async function archiveCampStudent(session: AuthSession, context: CampAccessContext, input: CampArchiveInput) {
+  const access = assertCampRestrictedAccess(context);
+  if (!access.allowed) return access;
+  if (shouldUseMock(session)) return mockStore.archiveCampStudent(context.effectiveRole, input);
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const { data, error } = await supabase
+    .from("camp_campers")
+    .update({
+      archived_at: new Date().toISOString(),
+      archived_by_user_id: session.user.id,
+      archive_reason: input.archiveReason?.trim() || ""
+    })
+    .eq("id", input.studentId)
+    .is("archived_at", null)
+    .select("*")
+    .single<CampCamperRow>();
+
+  throwIfSupabaseError(error);
+  if (!data) return { allowed: true as const, status: 404, error: "Active camper not found." };
+  return { allowed: true as const, status: 200, student: toCampStudentPublic(data) };
+}
+
+export async function restoreCampStudent(session: AuthSession, context: CampAccessContext, input: { studentId: string }) {
+  const access = assertCampRestrictedAccess(context);
+  if (!access.allowed) return access;
+  if (shouldUseMock(session)) return mockStore.restoreCampStudent(context.effectiveRole, input);
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const { data, error } = await supabase
+    .from("camp_campers")
+    .update({ archived_at: null, archived_by_user_id: null, archive_reason: "" })
+    .eq("id", input.studentId)
+    .not("archived_at", "is", null)
+    .select("*")
+    .single<CampCamperRow>();
+
+  throwIfSupabaseError(error);
+  if (!data) return { allowed: true as const, status: 404, error: "Archived camper not found." };
   return { allowed: true as const, status: 200, student: toCampStudentPublic(data) };
 }
 
@@ -257,10 +337,11 @@ export async function getRestrictedCampMedicalPayload(session: AuthSession, cont
     .returns<CampRestrictedMedicalRow[]>();
 
   throwIfSupabaseError(error);
+  const activeCamperIds = new Set(campers.keys());
   return {
     allowed: true as const,
     status: 200,
-    records: (data ?? []).map((row) => toRestrictedMedicalRecord(row, campers))
+    records: (data ?? []).filter((row) => activeCamperIds.has(row.camper_id)).map((row) => toRestrictedMedicalRecord(row, campers))
   };
 }
 
@@ -273,6 +354,7 @@ export async function upsertRestrictedMedicalRecord(
   if (!access.allowed) return access;
   if (shouldUseMock(session)) return mockStore.upsertRestrictedMedicalRecord(context.effectiveRole, input);
 
+  await requireActiveCamper(session, input.studentId);
   const supabase = getSupabaseAuthClient(session.accessToken);
   const basics = await ensureCampBasics(session);
   const row = {
@@ -305,6 +387,7 @@ export async function getRestrictedCampMedicationPayload(session: AuthSession, c
   const supabase = getSupabaseAuthClient(session.accessToken);
   const basics = await ensureCampBasics(session);
   const campers = await getCampersById(session, basics.camp.id);
+  const activeCamperIds = new Set(campers.keys());
   const [checkIn, schedule, logs, returns, intake] = await Promise.all([
     supabase.from("camp_medication_records").select("*").eq("camp_id", basics.camp.id).order("updated_at", { ascending: false }).returns<CampMedicationRow[]>(),
     supabase.from("camp_medication_schedule_items").select("*").eq("camp_id", basics.camp.id).order("created_at", { ascending: false }).returns<CampMedicationScheduleRow[]>(),
@@ -319,15 +402,15 @@ export async function getRestrictedCampMedicationPayload(session: AuthSession, c
   throwIfSupabaseError(returns.error);
   throwIfSupabaseError(intake.error);
 
-  const intakeHistory = (intake.data ?? []).map((row) => toMedicationIntakeRecord(row, campers));
+  const intakeHistory = (intake.data ?? []).filter((row) => activeCamperIds.has(row.camper_id)).map((row) => toMedicationIntakeRecord(row, campers));
 
   return {
     allowed: true as const,
     status: 200,
-    checkIn: (checkIn.data ?? []).map((row) => toMedicationRecord(row, campers, intakeHistory)),
-    schedule: (schedule.data ?? []).map((row) => toScheduleItem(row, campers)),
-    administrationLog: (logs.data ?? []).map((row) => toAdministrationLog(row, campers)),
-    returnChecklist: (returns.data ?? []).map((row) => toReturnItem(row, campers)),
+    checkIn: (checkIn.data ?? []).filter((row) => activeCamperIds.has(row.camper_id)).map((row) => toMedicationRecord(row, campers, intakeHistory)),
+    schedule: (schedule.data ?? []).filter((row) => activeCamperIds.has(row.camper_id)).map((row) => toScheduleItem(row, campers)),
+    administrationLog: (logs.data ?? []).filter((row) => activeCamperIds.has(row.camper_id)).map((row) => toAdministrationLog(row, campers)),
+    returnChecklist: (returns.data ?? []).filter((row) => activeCamperIds.has(row.camper_id)).map((row) => toReturnItem(row, campers)),
     intakeHistory
   };
 }
@@ -339,6 +422,7 @@ export async function saveMedicationIntake(session: AuthSession, context: CampAc
   if (!input.confirmationAcknowledged) throw new Error("Medication intake confirmation is required.");
   if (shouldUseMock(session)) return mockStore.saveMedicationIntake(context.effectiveRole, { ...input, receivedByName: input.receivedByName || access.actor });
 
+  await requireActiveCamper(session, input.studentId);
   const clarificationStatus = mockStore.normalizeClarification(input.clarificationStatus, input.parentInstructions);
   const medicationPayload = await upsertMedicationRecord(session, context, {
     id: input.medicationRecordId,
@@ -409,6 +493,11 @@ export async function upsertMedicationRecord(
 
   const supabase = getSupabaseAuthClient(session.accessToken);
   const basics = await ensureCampBasics(session);
+  if (input.id) {
+    const existing = await requireMedication(session, input.id);
+    await requireActiveCamper(session, existing.camper_id);
+  }
+  if (!input.id) await requireActiveCamper(session, input.studentId);
   const clarificationStatus = mockStore.normalizeClarification(input.clarificationStatus, input.parentProvidedInstructions);
   const checkInStatus = mockStore.normalizeCheckInStatus(input.checkInStatus, clarificationStatus);
   const row = {
@@ -448,6 +537,7 @@ export async function upsertMedicationScheduleItem(
   const supabase = getSupabaseAuthClient(session.accessToken);
   const basics = await ensureCampBasics(session);
   const medication = await requireMedication(session, input.medicationRecordId);
+  await requireActiveCamper(session, medication.camper_id);
   const parentInstructions = input.parentProvidedInstructions?.trim() || medication.parent_provided_instructions || "Needs Parent Clarification.";
   const status = mockStore.normalizeScheduleStatus(input.status, parentInstructions);
   const row = {
@@ -471,6 +561,103 @@ export async function upsertMedicationScheduleItem(
   return { allowed: true as const, status: 200, item: toScheduleItem(result.data, await getCampersById(session, basics.camp.id)) };
 }
 
+export async function saveMedicationPhoto(
+  session: AuthSession,
+  context: CampAccessContext,
+  input: { medicationRecordId: string; file: File }
+) {
+  const access = assertCampRestrictedAccess(context);
+  if (!access.allowed) return access;
+
+  const contentType = input.file.type || "application/octet-stream";
+  const fileSize = input.file.size;
+  assertMedicationPhotoFile(contentType, fileSize);
+
+  if (shouldUseMock(session)) {
+    return mockStore.saveMedicationPhoto(context.effectiveRole, {
+      medicationRecordId: input.medicationRecordId,
+      contentType,
+      fileSize
+    });
+  }
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const basics = await ensureCampBasics(session);
+  const medication = await requireMedication(session, input.medicationRecordId);
+  const camper = await requireActiveCamper(session, medication.camper_id);
+  if (medication.camper_id !== camper.id) throw new Error("Medication record does not match camper.");
+
+  const photoId = randomUUID();
+  const extension = extensionForContentType(contentType);
+  const objectPath = `ministry/${camper.ministry_id}/camp/${basics.camp.id}/medication/${medication.id}/${photoId}.${extension}`;
+  const upload = await supabase.storage.from("camp-medication-photos").upload(objectPath, input.file, {
+    contentType,
+    upsert: false
+  });
+  if (upload.error) throw upload.error;
+
+  const { data, error } = await supabase
+    .from("camp_medication_photo_records")
+    .insert({
+      id: photoId,
+      ...ministryScopeColumns(await resolveMinistryScope(session)),
+      camp_id: basics.camp.id,
+      camper_id: camper.id,
+      medication_record_id: medication.id,
+      storage_bucket: "camp-medication-photos",
+      storage_object_path: objectPath,
+      content_type: contentType,
+      file_size: fileSize,
+      uploaded_by_user_id: session.user.id
+    })
+    .select("*")
+    .single<CampMedicationPhotoRow>();
+
+  if (error) {
+    await supabase.storage.from("camp-medication-photos").remove([objectPath]);
+    throwIfSupabaseError(error);
+  }
+  if (!data) throw new Error("Medication photo write returned no row.");
+
+  const update = await supabase.from("camp_medication_records").update({ medicine_photo_status: "Photo On File" }).eq("id", medication.id);
+  throwIfSupabaseError(update.error);
+  return {
+    allowed: true as const,
+    status: 201,
+    photo: toMedicationPhotoRecord(data, new Map([[camper.id, toCampStudentPublic(camper)]])),
+    record: toMedicationRecord({ ...medication, medicine_photo_status: "Photo On File" }, new Map([[camper.id, toCampStudentPublic(camper)]]))
+  };
+}
+
+export async function getMedicationPhotoAccess(session: AuthSession, context: CampAccessContext, medicationRecordId: string) {
+  const access = assertCampRestrictedAccess(context);
+  if (!access.allowed) return access;
+  if (shouldUseMock(session)) return mockStore.getMedicationPhotoAccess(context.effectiveRole, medicationRecordId);
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const medication = await requireMedication(session, medicationRecordId);
+  const camper = await requireActiveCamper(session, medication.camper_id);
+  const { data, error } = await supabase
+    .from("camp_medication_photo_records")
+    .select("*")
+    .eq("medication_record_id", medication.id)
+    .order("uploaded_at", { ascending: false })
+    .limit(1)
+    .maybeSingle<CampMedicationPhotoRow & { storage_bucket: string; storage_object_path: string }>();
+
+  throwIfSupabaseError(error);
+  if (!data) return { allowed: true as const, status: 404, error: "Medication photo not found." };
+
+  const signed = await supabase.storage.from(data.storage_bucket).createSignedUrl(data.storage_object_path, 60);
+  if (signed.error) throw signed.error;
+  return {
+    allowed: true as const,
+    status: 200,
+    signedUrl: signed.data.signedUrl,
+    photo: toMedicationPhotoRecord(data, new Map([[camper.id, toCampStudentPublic(camper)]]))
+  };
+}
+
 export async function logMedicationAdministration(
   session: AuthSession,
   context: CampAccessContext,
@@ -489,6 +676,7 @@ export async function logMedicationAdministration(
     .single<CampMedicationScheduleRow>();
   throwIfSupabaseError(scheduleError);
   if (!scheduleItem) return { allowed: true as const, status: 404, error: "Medication schedule item not found." };
+  await requireActiveCamper(session, scheduleItem.camper_id);
 
   const status = mockStore.normalizeAdministrationStatus(input.status, input.notes);
   const loggedAt = new Date().toISOString();
@@ -535,6 +723,11 @@ export async function updateMedicationReturnItem(
     returned_at: input.returnStatus === "Returned to Parent" ? new Date().toISOString() : null,
     returned_by: input.returnStatus === "Returned to Parent" ? input.returnedBy?.trim() || access.actor : null
   };
+  const current = await supabase.from("camp_medication_return_items").select("camper_id").eq("id", input.id).single<{ camper_id: string }>();
+  throwIfSupabaseError(current.error);
+  if (!current.data) return { allowed: true as const, status: 404, error: "Medication return item not found." };
+  await requireActiveCamper(session, current.data.camper_id);
+
   const { data, error } = await supabase.from("camp_medication_return_items").update(update).eq("id", input.id).select("*").single<CampMedicationReturnRow>();
   throwIfSupabaseError(error);
   if (!data) return { allowed: true as const, status: 404, error: "Medication return item not found." };
@@ -617,9 +810,17 @@ async function loadVehicles(session: AuthSession, campId: string): Promise<CampV
 
 async function getCampersById(session: AuthSession, campId: string): Promise<Map<string, CampStudentPublic>> {
   const supabase = getSupabaseAuthClient(session.accessToken);
-  const { data, error } = await supabase.from("camp_campers").select("*").eq("camp_id", campId).returns<CampCamperRow[]>();
+  const { data, error } = await supabase.from("camp_campers").select("*").eq("camp_id", campId).is("archived_at", null).returns<CampCamperRow[]>();
   throwIfSupabaseError(error);
   return new Map((data ?? []).map((row) => [row.id, toCampStudentPublic(row)]));
+}
+
+async function requireActiveCamper(session: AuthSession, camperId: string): Promise<CampCamperRow> {
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const { data, error } = await supabase.from("camp_campers").select("*").eq("id", camperId).is("archived_at", null).single<CampCamperRow>();
+  throwIfSupabaseError(error);
+  if (!data) throw new Error("Active camper not found.");
+  return data;
 }
 
 async function requireMedication(session: AuthSession, medicationRecordId: string): Promise<CampMedicationRow> {
@@ -716,7 +917,9 @@ function toCampStudentPublic(row: CampCamperRow): CampStudentPublic {
     limitedSafetyFlags: normalizeFlags(row.limited_safety_flags ?? []),
     hasRestrictedMedicalInfo: Boolean(row.has_restricted_medical_info),
     hasMedicationPlan: Boolean(row.has_medication_plan),
-    needsParentClarification: Boolean(row.needs_parent_clarification)
+    needsParentClarification: Boolean(row.needs_parent_clarification),
+    archivedAt: row.archived_at ?? undefined,
+    archiveReason: row.archive_reason ?? undefined
   };
 }
 
@@ -745,8 +948,21 @@ function toMedicationRecord(row: CampMedicationRow, campers: Map<string, CampStu
     receivedBy: row.received_by ?? undefined,
     receivedAt: row.received_at ?? undefined,
     clarificationStatus: row.clarification_status,
+    hasMedicationPhoto: row.medicine_photo_status === "Photo On File",
     latestQuantityReceived: latestIntake?.quantityReceived,
     latestIntakeAt: latestIntake?.receivedAt
+  };
+}
+
+function toMedicationPhotoRecord(row: CampMedicationPhotoRow, campers: Map<string, CampStudentPublic>): CampMedicationPhotoRecord {
+  return {
+    id: row.id,
+    studentId: row.camper_id,
+    studentName: campers.get(row.camper_id)?.name ?? "Camper",
+    medicationRecordId: row.medication_record_id,
+    contentType: row.content_type,
+    fileSize: row.file_size,
+    uploadedAt: row.uploaded_at
   };
 }
 
@@ -843,5 +1059,29 @@ function assertSignature(signature: CampMedicationIntakeInput["guardianSignature
   }
   if (JSON.stringify(signature).length > 64_000) {
     throw new Error("Parent/guardian signature is too large.");
+  }
+}
+
+function assertMedicationPhotoFile(contentType: string, fileSize: number) {
+  if (!["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"].includes(contentType.toLowerCase())) {
+    throw new Error("Medication photo must be a supported image file.");
+  }
+  if (fileSize <= 0 || fileSize > 10 * 1024 * 1024) {
+    throw new Error("Medication photo must be under 10 MB.");
+  }
+}
+
+function extensionForContentType(contentType: string) {
+  switch (contentType.toLowerCase()) {
+    case "image/png":
+      return "png";
+    case "image/webp":
+      return "webp";
+    case "image/heic":
+      return "heic";
+    case "image/heif":
+      return "heif";
+    default:
+      return "jpg";
   }
 }

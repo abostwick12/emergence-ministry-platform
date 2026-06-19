@@ -1,8 +1,20 @@
 import { NextResponse } from "next/server";
 import { getServerSession, unauthorizedResponse } from "@/lib/auth/server";
 import { resolveCampAccessContext } from "@/lib/camp/permissions";
-import { assignCampStudent, upsertCampStudent } from "@/lib/camp/repository";
+import { archiveCampStudent, assignCampStudent, getArchivedCampStudents, restoreCampStudent, upsertCampStudent } from "@/lib/camp/repository";
 import type { CampStudentInput } from "@/lib/camp/types";
+
+export async function GET(request: Request) {
+  const session = await getServerSession();
+  if (!session) return unauthorizedResponse();
+
+  const { searchParams } = new URL(request.url);
+  const context = resolveCampAccessContext(session, searchParams.get("role"));
+
+  const payload = await getArchivedCampStudents(session, context);
+  if (!payload.allowed) return NextResponse.json({ error: payload.error }, { status: payload.status });
+  return NextResponse.json({ students: payload.students });
+}
 
 export async function POST(request: Request) {
   const session = await getServerSession();
@@ -39,6 +51,8 @@ export async function PATCH(request: Request) {
   }
 
   const body = (await request.json()) as Partial<CampStudentInput> & {
+    action?: "archive" | "restore";
+    archiveReason?: string;
     assignmentOnly?: boolean;
     studentId?: string;
   };
@@ -46,6 +60,20 @@ export async function PATCH(request: Request) {
   if (!id) return NextResponse.json({ error: "Student id is required." }, { status: 400 });
 
   try {
+    if (body.action === "archive") {
+      const payload = await archiveCampStudent(session, context, { studentId: id, archiveReason: body.archiveReason });
+      if (!payload.allowed) return NextResponse.json({ error: payload.error }, { status: payload.status });
+      if ("error" in payload) return NextResponse.json({ error: payload.error }, { status: payload.status });
+      return NextResponse.json({ student: payload.student }, { status: payload.status });
+    }
+
+    if (body.action === "restore") {
+      const payload = await restoreCampStudent(session, context, { studentId: id });
+      if (!payload.allowed) return NextResponse.json({ error: payload.error }, { status: payload.status });
+      if ("error" in payload) return NextResponse.json({ error: payload.error }, { status: payload.status });
+      return NextResponse.json({ student: payload.student }, { status: payload.status });
+    }
+
     if (body.assignmentOnly) {
       const payload = await assignCampStudent(session, context, {
         studentId: id,

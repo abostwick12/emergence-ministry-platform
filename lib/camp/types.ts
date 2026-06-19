@@ -2,6 +2,7 @@ export type CampAccessRole = "andrew" | "jaci" | "joel" | "general_leader" | "dr
 
 export type CampAccessScope = {
   vehicleId?: string;
+  includeArchived?: boolean;
 };
 
 export type CampMutationActor = "Andrew" | "Jaci" | "Joel" | "General Leader" | "Driver";
@@ -50,6 +51,8 @@ export type CampStudentPublic = {
   hasRestrictedMedicalInfo: boolean;
   hasMedicationPlan: boolean;
   needsParentClarification: boolean;
+  archivedAt?: string;
+  archiveReason?: string;
 };
 
 export type CampStudentInput = {
@@ -60,6 +63,11 @@ export type CampStudentInput = {
   vehicleId: string;
   cabin: string;
   limitedSafetyFlags?: string[];
+};
+
+export type CampArchiveInput = {
+  studentId: string;
+  archiveReason?: string;
 };
 
 export type CampVisibleStudent = {
@@ -76,6 +84,8 @@ export type CampVisibleStudent = {
   hasRestrictedMedicalInfo?: boolean;
   hasMedicationPlan?: boolean;
   needsParentClarification?: boolean;
+  archivedAt?: string;
+  archiveReason?: string;
 };
 
 export type CampRestrictedMedicalRecord = {
@@ -101,6 +111,17 @@ export type CampMedicationRecord = {
   clarificationStatus: "Clear" | "Needs Parent Clarification";
   latestQuantityReceived?: string;
   latestIntakeAt?: string;
+  hasMedicationPhoto?: boolean;
+};
+
+export type CampMedicationPhotoRecord = {
+  id: string;
+  studentId: string;
+  studentName: string;
+  medicationRecordId: string;
+  contentType: string;
+  fileSize: number;
+  uploadedAt: string;
 };
 
 export type CampSignaturePoint = {

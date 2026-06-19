@@ -19,6 +19,7 @@ import type {
   CampRegistrationImportPreview,
   CampRestrictedMedicalRecord,
   CampStudentInput,
+  CampStudentPublic,
   CampVisibleStudent
 } from "@/lib/camp/types";
 
@@ -108,6 +109,10 @@ export function CampCommandCenter() {
   const [restrictedState, setRestrictedState] = useState<RestrictedState | null>(null);
   const [restrictedError, setRestrictedError] = useState<string | null>(null);
   const [restrictedLoading, setRestrictedLoading] = useState(false);
+  const [archivedStudents, setArchivedStudents] = useState<CampStudentPublic[]>([]);
+  const [archiveReason, setArchiveReason] = useState("");
+  const [showArchived, setShowArchived] = useState(false);
+  const [photoMessage, setPhotoMessage] = useState("");
   const [importCsv, setImportCsv] = useState("");
   const [importPreview, setImportPreview] = useState<CampRegistrationImportPreview | null>(null);
   const [importMessage, setImportMessage] = useState("");
@@ -250,6 +255,19 @@ export function CampCommandCenter() {
     }
   }, [accessRole, canSeeRestrictedMedical]);
 
+  const loadArchivedStudents = useCallback(async () => {
+    if (!canSeeRestrictedMedical) {
+      setArchivedStudents([]);
+      return;
+    }
+
+    const response = await fetch(`/api/camp/students?role=${accessRole}`, { cache: "no-store" });
+    if (response.ok) {
+      const payload = (await response.json()) as { students: CampStudentPublic[] };
+      setArchivedStudents(payload.students);
+    }
+  }, [accessRole, canSeeRestrictedMedical]);
+
   useEffect(() => {
     void loadOverview();
   }, [loadOverview]);
@@ -257,6 +275,10 @@ export function CampCommandCenter() {
   useEffect(() => {
     void loadRestrictedData();
   }, [loadRestrictedData]);
+
+  useEffect(() => {
+    void loadArchivedStudents();
+  }, [loadArchivedStudents]);
 
   function editStudent(student: CampVisibleStudent) {
     setStudentForm({
@@ -300,6 +322,40 @@ export function CampCommandCenter() {
       });
       await loadOverview();
       await loadRestrictedData();
+    }
+  }
+
+  async function archiveStudent() {
+    if (!studentForm.id) return;
+    const confirmed = window.confirm("Archived campers are removed from active Camp views but retained for recordkeeping.");
+    if (!confirmed) return;
+
+    const response = await fetch(`/api/camp/students?role=${accessRole}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "archive", studentId: studentForm.id, archiveReason })
+    });
+    setSaveMessage(response.ok ? "Camper archived." : "Camper could not be archived.");
+    if (response.ok) {
+      setStudentForm({ name: "", grade: "", teamId: overview.teams[0]?.id ?? "", vehicleId: overview.vehicles[0]?.id ?? "", cabin: "", limitedSafetyFlags: [], limitedSafetyFlagsText: "" });
+      setArchiveReason("");
+      await loadOverview();
+      await loadRestrictedData();
+      await loadArchivedStudents();
+    }
+  }
+
+  async function restoreStudent(studentId: string) {
+    const response = await fetch(`/api/camp/students?role=${accessRole}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "restore", studentId })
+    });
+    setSaveMessage(response.ok ? "Camper restored." : "Camper could not be restored.");
+    if (response.ok) {
+      await loadOverview();
+      await loadRestrictedData();
+      await loadArchivedStudents();
     }
   }
 
@@ -414,6 +470,34 @@ export function CampCommandCenter() {
     if (response.ok) await loadRestrictedData();
   }
 
+  async function uploadMedicationPhoto(record: CampMedicationRecord, file: File | null) {
+    if (!file) {
+      setPhotoMessage("Medication photo capture cancelled.");
+      return;
+    }
+
+    setPhotoMessage("Uploading medication photo...");
+    const formData = new FormData();
+    formData.set("medicationRecordId", record.id);
+    formData.set("photo", file);
+    const response = await fetch(`/api/camp/medication/photos?role=${accessRole}`, {
+      method: "POST",
+      body: formData
+    });
+    setPhotoMessage(response.ok ? "Medication photo uploaded." : "Medication photo could not be uploaded.");
+    if (response.ok) await loadRestrictedData();
+  }
+
+  async function viewMedicationPhoto(record: CampMedicationRecord) {
+    const response = await fetch(`/api/camp/medication/photos?role=${accessRole}&medicationRecordId=${encodeURIComponent(record.id)}`, { cache: "no-store" });
+    if (!response.ok) {
+      setPhotoMessage("Medication photo could not be opened.");
+      return;
+    }
+    const payload = (await response.json()) as { signedUrl: string };
+    window.open(payload.signedUrl, "_blank", "noopener,noreferrer");
+  }
+
   async function previewImport() {
     const response = await fetch(`/api/camp/import?role=${accessRole}`, {
       method: "POST",
@@ -515,6 +599,7 @@ export function CampCommandCenter() {
                     {student.limitedSafetyFlags.map((flag) => <span className="camp-status warn" key={flag}>{flag}</span>)}
                   </span>
                 ) : null}
+                {canEditRoster ? <span className="button compact-button camp-card-action">Edit Camper</span> : null}
               </span>
             </button>
           ))}
@@ -537,6 +622,15 @@ export function CampCommandCenter() {
             <button className="button primary" type="button" onClick={() => void saveStudent()}>{studentForm.id ? "Save camper" : "Add camper"}</button>
             {studentForm.id ? <button className="button" type="button" onClick={() => setStudentForm({ name: "", grade: "", teamId: overview.teams[0]?.id ?? "", vehicleId: overview.vehicles[0]?.id ?? "", cabin: "", limitedSafetyFlags: [], limitedSafetyFlagsText: "" })}>Clear form</button> : null}
           </div>
+          {canSeeRestrictedMedical && studentForm.id ? (
+            <div className="camp-archive-box">
+              <label className="field camp-wide-field">
+                <span>Archive reason</span>
+                <input className="input" value={archiveReason} onChange={(event) => setArchiveReason(event.target.value)} placeholder="Optional recordkeeping note" />
+              </label>
+              <button className="button danger" type="button" onClick={() => void archiveStudent()}>Archive Camper</button>
+            </div>
+          ) : null}
         </section>
       ) : null}
 
@@ -579,6 +673,16 @@ export function CampCommandCenter() {
           onSaveSchedule={saveScheduleItem}
           onSaveAdministrationLog={saveAdministrationLog}
           onSaveReturnStatus={saveReturnStatus}
+          archivedStudents={archivedStudents}
+          archiveReason={archiveReason}
+          setArchiveReason={setArchiveReason}
+          showArchived={showArchived}
+          setShowArchived={setShowArchived}
+          onArchiveStudent={archiveStudent}
+          onRestoreStudent={restoreStudent}
+          onUploadMedicationPhoto={uploadMedicationPhoto}
+          onViewMedicationPhoto={viewMedicationPhoto}
+          photoMessage={photoMessage}
           importCsv={importCsv}
           setImportCsv={setImportCsv}
           importPreview={importPreview}
@@ -699,6 +803,16 @@ function RestrictedCampTools(props: {
   onSaveSchedule: () => Promise<void>;
   onSaveAdministrationLog: () => Promise<void>;
   onSaveReturnStatus: (id: string, status: CampMedicationReturnItem["returnStatus"]) => Promise<void>;
+  archivedStudents: CampStudentPublic[];
+  archiveReason: string;
+  setArchiveReason: React.Dispatch<React.SetStateAction<string>>;
+  showArchived: boolean;
+  setShowArchived: React.Dispatch<React.SetStateAction<boolean>>;
+  onArchiveStudent: () => Promise<void>;
+  onRestoreStudent: (studentId: string) => Promise<void>;
+  onUploadMedicationPhoto: (record: CampMedicationRecord, file: File | null) => Promise<void>;
+  onViewMedicationPhoto: (record: CampMedicationRecord) => Promise<void>;
+  photoMessage: string;
   importCsv: string;
   setImportCsv: React.Dispatch<React.SetStateAction<string>>;
   importPreview: CampRegistrationImportPreview | null;
@@ -731,6 +845,33 @@ function RestrictedCampTools(props: {
           <label className="field camp-wide-field"><span>Parent Medical Notes</span><textarea className="input" rows={2} value={props.medicalForm.parentMedicalNotes} onChange={(event) => props.setMedicalForm((current) => ({ ...current, parentMedicalNotes: event.target.value }))} /></label>
         </div>
         <button className="button primary" type="button" onClick={() => void props.onSaveMedical()}>Save restricted medical record</button>
+      </section>
+
+      <section className="panel" aria-labelledby="camp-archived">
+        <div className="camp-section-header">
+          <div>
+            <p className="eyebrow">Archived Campers</p>
+            <h3 id="camp-archived" className="section-title">Recordkeeping view</h3>
+          </div>
+          <button className="button compact-button" type="button" onClick={() => props.setShowArchived((current) => !current)}>
+            {props.showArchived ? "Hide archived" : "Include archived"}
+          </button>
+        </div>
+        {props.showArchived ? (
+          <div className="camp-list">
+            {props.archivedStudents.length ? props.archivedStudents.map((student) => (
+              <div className="camp-list-row align-start" key={student.id}>
+                <div>
+                  <strong>{student.name}</strong>
+                  <p className="muted">Archived {student.archivedAt ? new Date(student.archivedAt).toLocaleString() : "for recordkeeping"}. {student.archiveReason || "No archive reason recorded."}</p>
+                </div>
+                <button className="button" type="button" onClick={() => void props.onRestoreStudent(student.id)}>Restore Camper</button>
+              </div>
+            )) : <p className="muted">No archived campers.</p>}
+          </div>
+        ) : (
+          <p className="muted">Archived campers are hidden from active roster, assignment, and medication workflows by default.</p>
+        )}
       </section>
 
       <div className="camp-grid camp-medication-sections">
@@ -795,7 +936,13 @@ function RestrictedCampTools(props: {
 
         <section className="panel" aria-labelledby="med-check-in">
           <p className="eyebrow">Medication Check-In</p><h3 id="med-check-in" className="section-title">Check-in workflow</h3>
-          <MedicationRows records={medication?.checkIn ?? []} onEdit={(record) => props.setMedicationForm({ id: record.id, studentId: record.studentId, medicationName: record.medicationName, medicinePhotoStatus: record.medicinePhotoStatus, parentProvidedInstructions: record.parentProvidedInstructions, checkInStatus: record.checkInStatus, clarificationStatus: record.clarificationStatus })} />
+          <MedicationRows
+            records={medication?.checkIn ?? []}
+            onEdit={(record) => props.setMedicationForm({ id: record.id, studentId: record.studentId, medicationName: record.medicationName, medicinePhotoStatus: record.medicinePhotoStatus, parentProvidedInstructions: record.parentProvidedInstructions, checkInStatus: record.checkInStatus, clarificationStatus: record.clarificationStatus })}
+            onUploadPhoto={props.onUploadMedicationPhoto}
+            onViewPhoto={props.onViewMedicationPhoto}
+          />
+          {props.photoMessage ? <p className="camp-save-message" role="status">{props.photoMessage}</p> : null}
           <div className="camp-form-grid camp-form-spaced">
             <label className="field"><span>Student</span><select className="input" value={props.medicationForm.studentId} onChange={(event) => props.setMedicationForm((current) => ({ ...current, studentId: event.target.value }))}>{props.overview.students.map((student) => <option key={student.id} value={student.id}>{student.name}</option>)}</select></label>
             <label className="field"><span>Medication Label</span><input className="input" value={props.medicationForm.medicationName} onChange={(event) => props.setMedicationForm((current) => ({ ...current, medicationName: event.target.value }))} /></label>
@@ -849,8 +996,59 @@ function RestrictedCampTools(props: {
   );
 }
 
-function MedicationRows({ records, onEdit }: { records: CampMedicationRecord[]; onEdit: (record: CampMedicationRecord) => void }) {
-  return <div className="camp-list">{records.map((record) => <button className="camp-list-row camp-edit-row" key={record.id} type="button" onClick={() => onEdit(record)}><div className="camp-medicine-photo"><span>{record.medicinePhotoStatus}</span></div><div><strong>{record.studentName}</strong><p className="muted">{record.medicationName} - {record.parentProvidedInstructions}</p>{record.latestQuantityReceived ? <p className="muted">Quantity received: {record.latestQuantityReceived}</p> : null}</div><span className={statusClass(record.checkInStatus)}>{record.checkInStatus}</span></button>)}</div>;
+function MedicationRows({
+  records,
+  onEdit,
+  onUploadPhoto,
+  onViewPhoto
+}: {
+  records: CampMedicationRecord[];
+  onEdit: (record: CampMedicationRecord) => void;
+  onUploadPhoto: (record: CampMedicationRecord, file: File | null) => Promise<void>;
+  onViewPhoto: (record: CampMedicationRecord) => Promise<void>;
+}) {
+  return (
+    <div className="camp-list">
+      {records.map((record) => (
+        <div className="camp-list-row align-start" key={record.id}>
+          <div className="camp-medicine-photo"><span>{record.medicinePhotoStatus}</span></div>
+          <div>
+            <strong>{record.studentName}</strong>
+            <p className="muted">{record.medicationName} - {record.parentProvidedInstructions}</p>
+            {record.latestQuantityReceived ? <p className="muted">Quantity received: {record.latestQuantityReceived}</p> : null}
+            <div className="camp-photo-actions">
+              <label className="button compact-button">
+                <span>Take Medication Photo</span>
+                <input
+                  className="sr-only"
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={(event) => void onUploadPhoto(record, event.target.files?.[0] ?? null)}
+                />
+              </label>
+              <label className="button compact-button">
+                <span>Choose From Photo Library</span>
+                <input
+                  className="sr-only"
+                  type="file"
+                  accept="image/*"
+                  onChange={(event) => void onUploadPhoto(record, event.target.files?.[0] ?? null)}
+                />
+              </label>
+              {record.hasMedicationPhoto || record.medicinePhotoStatus === "Photo On File" ? (
+                <button className="button compact-button" type="button" onClick={() => void onViewPhoto(record)}>View Photo</button>
+              ) : null}
+            </div>
+          </div>
+          <div className="camp-row-actions">
+            <span className={statusClass(record.checkInStatus)}>{record.checkInStatus}</span>
+            <button className="button compact-button" type="button" onClick={() => onEdit(record)}>Edit Medication</button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function MedicationScheduleRows({ items }: { items: CampMedicationScheduleItem[] }) {
