@@ -2,8 +2,13 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { AuthSession } from "@/lib/auth/server";
 import { resolveCampAccessContext } from "@/lib/camp/permissions";
 import {
+  archiveCampStudent,
   getCampOverview,
+  getArchivedCampStudents,
+  getMedicationPhotoAccess,
   getRestrictedCampMedicationPayload,
+  restoreCampStudent,
+  saveMedicationPhoto,
   saveMedicationIntake,
   upsertCampStudent,
   upsertMedicationRecord
@@ -131,5 +136,67 @@ describe("camp repository mock fallback", () => {
     const publicOverview = await getCampOverview(mockSession, general);
     expect(JSON.stringify(publicOverview)).not.toContain("Repository intake medication");
     expect(JSON.stringify(publicOverview)).not.toContain("Pat Parent");
+  });
+
+  it("archives and restores campers while preserving restricted medication history", async () => {
+    const mockSession = session();
+    const general = resolveCampAccessContext(mockSession, "general_leader");
+    const restricted = resolveCampAccessContext(mockSession, "andrew");
+
+    const medicationBefore = await getRestrictedCampMedicationPayload(mockSession, restricted);
+    expect(medicationBefore.allowed).toBe(true);
+    if (!medicationBefore.allowed) throw new Error("expected restricted payload");
+    expect(medicationBefore.checkIn.some((record) => record.studentId === "stu-1")).toBe(true);
+
+    const archive = await archiveCampStudent(mockSession, restricted, { studentId: "stu-1", archiveReason: "Duplicate registration" });
+    expect(archive.allowed).toBe(true);
+
+    const publicOverview = await getCampOverview(mockSession, general);
+    expect(publicOverview.students.some((student) => student.id === "stu-1")).toBe(false);
+
+    const medicationAfterArchive = await getRestrictedCampMedicationPayload(mockSession, restricted);
+    expect(medicationAfterArchive.allowed).toBe(true);
+    if (!medicationAfterArchive.allowed) throw new Error("expected restricted payload");
+    expect(medicationAfterArchive.checkIn.some((record) => record.studentId === "stu-1")).toBe(false);
+    expect(medicationAfterArchive.administrationLog.some((log) => log.studentId === "stu-1")).toBe(false);
+
+    const archived = await getArchivedCampStudents(mockSession, restricted);
+    expect(archived.allowed).toBe(true);
+    if (!archived.allowed) throw new Error("expected archived payload");
+    expect(archived.students[0]).toMatchObject({ id: "stu-1", archiveReason: "Duplicate registration" });
+
+    const restore = await restoreCampStudent(mockSession, restricted, { studentId: "stu-1" });
+    expect(restore.allowed).toBe(true);
+
+    const restoredOverview = await getCampOverview(mockSession, general);
+    expect(restoredOverview.students.some((student) => student.id === "stu-1")).toBe(true);
+  });
+
+  it("keeps medication photos behind restricted repository access", async () => {
+    const mockSession = session();
+    const general = resolveCampAccessContext(mockSession, "general_leader");
+    const restricted = resolveCampAccessContext(mockSession, "andrew");
+
+    const upload = await saveMedicationPhoto(mockSession, restricted, {
+      medicationRecordId: "med-1",
+      file: new File(["fake image"], "medicine.jpg", { type: "image/jpeg" })
+    });
+    expect(upload.allowed).toBe(true);
+    if (!upload.allowed) throw new Error("expected upload success");
+    expect(upload.record).toMatchObject({ medicinePhotoStatus: "Photo On File", hasMedicationPhoto: true });
+
+    const publicOverview = await getCampOverview(mockSession, general);
+    const serialized = JSON.stringify(publicOverview);
+    expect(serialized).not.toContain("campphoto");
+    expect(serialized).not.toContain("signedUrl");
+    expect(serialized).not.toContain("medicine.jpg");
+
+    const denied = await getMedicationPhotoAccess(mockSession, general, "med-1");
+    expect(denied.allowed).toBe(false);
+
+    const access = await getMedicationPhotoAccess(mockSession, restricted, "med-1");
+    expect(access.allowed).toBe(true);
+    if (!access.allowed || "error" in access) throw new Error("expected restricted photo access");
+    expect(access.signedUrl).toContain("mock-restricted-medication-photo");
   });
 });
