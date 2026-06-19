@@ -3058,6 +3058,33 @@ textarea:focus-visible {
   font-weight: 900;
 }
 
+.camp-signature-block {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.camp-signature-pad {
+  width: 100%;
+  max-width: 640px;
+  aspect-ratio: 32 / 11;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.camp-confirm-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 10px 0 14px;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .camp-search-placeholder {
   background: #f8fafc;
 }

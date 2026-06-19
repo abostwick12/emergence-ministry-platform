@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   campAccessLabels,
   campAccessRoles,
@@ -10,6 +10,8 @@ import {
 import type {
   CampAccessRole,
   CampMedicationAdministrationLog,
+  CampMedicationIntakeInput,
+  CampMedicationIntakeRecord,
   CampMedicationRecord,
   CampMedicationReturnItem,
   CampMedicationScheduleItem,
@@ -27,6 +29,7 @@ type RestrictedState = {
     schedule: CampMedicationScheduleItem[];
     administrationLog: CampMedicationAdministrationLog[];
     returnChecklist: CampMedicationReturnItem[];
+    intakeHistory: CampMedicationIntakeRecord[];
   };
 };
 
@@ -52,6 +55,14 @@ type AdministrationForm = {
   status: CampMedicationAdministrationLog["status"];
   notes: string;
 };
+type IntakeForm = Omit<CampMedicationIntakeInput, "guardianSignatureData" | "confirmationAcknowledged"> & {
+  guardianSignatureData: CampMedicationIntakeInput["guardianSignatureData"];
+  confirmationAcknowledged: boolean;
+};
+
+function emptySignatureData(): CampMedicationIntakeInput["guardianSignatureData"] {
+  return { width: 640, height: 220, strokes: [] };
+}
 
 const emptyOverview: CampOverviewPayload = {
   campStartsOn: "2026-06-29",
@@ -81,6 +92,10 @@ function flagsFromText(value: string) {
 
 function textFromFlags(flags?: string[]) {
   return (flags ?? []).join(", ");
+}
+
+function hasSignature(signature: CampMedicationIntakeInput["guardianSignatureData"]) {
+  return signature.strokes.some((stroke) => stroke.length > 0);
 }
 
 export function CampCommandCenter() {
@@ -134,6 +149,26 @@ export function CampCommandCenter() {
     status: "Logged",
     notes: ""
   });
+  const [intakeForm, setIntakeForm] = useState<IntakeForm>({
+    studentId: "",
+    medicationRecordId: "",
+    medicationName: "",
+    dose: "",
+    scheduleText: "",
+    parentInstructions: "",
+    staffNotes: "",
+    quantityReceived: "",
+    containerStatus: "",
+    receivedByName: "Andrew",
+    receivedAt: new Date().toISOString().slice(0, 16),
+    guardianName: "",
+    guardianRelationship: "",
+    guardianSignatureData: emptySignatureData(),
+    clarificationStatus: "Clear",
+    confirmationAcknowledged: false,
+    supersedesIntakeId: "",
+    correctionNote: ""
+  });
 
   const canSeeRestrictedMedical = isRestrictedCampMedicalRole(accessRole);
   const canEditRoster = accessRole !== "driver";
@@ -166,6 +201,7 @@ export function CampCommandCenter() {
       }));
       setMedicalForm((current) => ({ ...current, studentId: current.studentId || payload.students[0]?.id || "" }));
       setMedicationForm((current) => ({ ...current, studentId: current.studentId || payload.students[0]?.id || "" }));
+      setIntakeForm((current) => ({ ...current, studentId: current.studentId || payload.students[0]?.id || "" }));
     }
     setIsLoadingOverview(false);
   }, [accessRole, driverVehicleId]);
@@ -201,6 +237,10 @@ export function CampCommandCenter() {
       setAdministrationForm((current) => ({
         ...current,
         scheduleItemId: current.scheduleItemId || medication.schedule[0]?.id || ""
+      }));
+      setIntakeForm((current) => ({
+        ...current,
+        medicationRecordId: current.medicationRecordId || medication.checkIn[0]?.id || ""
       }));
     } catch (error) {
       setRestrictedState(null);
@@ -299,6 +339,40 @@ export function CampCommandCenter() {
       await loadOverview();
       await loadRestrictedData();
       setMedicationForm((current) => ({ ...current, id: undefined, medicationName: "", parentProvidedInstructions: "" }));
+    }
+  }
+
+  async function saveMedicationIntake() {
+    if (!intakeForm.studentId || !intakeForm.medicationName.trim() || !intakeForm.guardianName.trim()) return;
+    const response = await fetch(`/api/camp/medication?role=${accessRole}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        target: "intake",
+        ...intakeForm,
+        receivedAt: intakeForm.receivedAt ? new Date(intakeForm.receivedAt).toISOString() : undefined
+      })
+    });
+    setSaveMessage(response.ok ? "Medication intake saved." : "Medication intake could not be saved.");
+    if (response.ok) {
+      await loadOverview();
+      await loadRestrictedData();
+      setIntakeForm((current) => ({
+        ...current,
+        medicationName: "",
+        dose: "",
+        scheduleText: "",
+        parentInstructions: "",
+        staffNotes: "",
+        quantityReceived: "",
+        containerStatus: "",
+        guardianName: "",
+        guardianRelationship: "",
+        guardianSignatureData: emptySignatureData(),
+        confirmationAcknowledged: false,
+        supersedesIntakeId: "",
+        correctionNote: ""
+      }));
     }
   }
 
@@ -493,12 +567,15 @@ export function CampCommandCenter() {
           setMedicalForm={setMedicalForm}
           medicationForm={medicationForm}
           setMedicationForm={setMedicationForm}
+          intakeForm={intakeForm}
+          setIntakeForm={setIntakeForm}
           scheduleForm={scheduleForm}
           setScheduleForm={setScheduleForm}
           administrationForm={administrationForm}
           setAdministrationForm={setAdministrationForm}
           onSaveMedical={saveMedicalRecord}
           onSaveMedication={saveMedicationRecord}
+          onSaveMedicationIntake={saveMedicationIntake}
           onSaveSchedule={saveScheduleItem}
           onSaveAdministrationLog={saveAdministrationLog}
           onSaveReturnStatus={saveReturnStatus}
@@ -610,12 +687,15 @@ function RestrictedCampTools(props: {
   setMedicalForm: React.Dispatch<React.SetStateAction<CampRestrictedMedicalRecord>>;
   medicationForm: MedicationForm;
   setMedicationForm: React.Dispatch<React.SetStateAction<MedicationForm>>;
+  intakeForm: IntakeForm;
+  setIntakeForm: React.Dispatch<React.SetStateAction<IntakeForm>>;
   scheduleForm: ScheduleForm;
   setScheduleForm: React.Dispatch<React.SetStateAction<ScheduleForm>>;
   administrationForm: AdministrationForm;
   setAdministrationForm: React.Dispatch<React.SetStateAction<AdministrationForm>>;
   onSaveMedical: () => Promise<void>;
   onSaveMedication: () => Promise<void>;
+  onSaveMedicationIntake: () => Promise<void>;
   onSaveSchedule: () => Promise<void>;
   onSaveAdministrationLog: () => Promise<void>;
   onSaveReturnStatus: (id: string, status: CampMedicationReturnItem["returnStatus"]) => Promise<void>;
@@ -675,6 +755,44 @@ function RestrictedCampTools(props: {
           ) : null}
         </section>
 
+        <section className="panel" aria-labelledby="med-intake">
+          <p className="eyebrow">Medication Intake / Parent Handoff</p>
+          <h3 id="med-intake" className="section-title">Drop-off intake</h3>
+          <div className="camp-form-grid camp-form-spaced">
+            <label className="field"><span>Student</span><select className="input" value={props.intakeForm.studentId} onChange={(event) => props.setIntakeForm((current) => ({ ...current, studentId: event.target.value }))}>{props.overview.students.map((student) => <option key={student.id} value={student.id}>{student.name}</option>)}</select></label>
+            <label className="field"><span>Existing Medication</span><select className="input" value={props.intakeForm.medicationRecordId ?? ""} onChange={(event) => {
+              const record = (medication?.checkIn ?? []).find((item) => item.id === event.target.value);
+              props.setIntakeForm((current) => ({
+                ...current,
+                medicationRecordId: event.target.value,
+                studentId: record?.studentId ?? current.studentId,
+                medicationName: record?.medicationName ?? current.medicationName,
+                parentInstructions: record?.parentProvidedInstructions ?? current.parentInstructions,
+                clarificationStatus: record?.clarificationStatus ?? current.clarificationStatus
+              }));
+            }}><option value="">New intake record</option>{(medication?.checkIn ?? []).map((record) => <option key={record.id} value={record.id}>{record.studentName} - {record.medicationName}</option>)}</select></label>
+            <label className="field"><span>Medication Name / Type</span><input className="input" value={props.intakeForm.medicationName} onChange={(event) => props.setIntakeForm((current) => ({ ...current, medicationName: event.target.value }))} /></label>
+            <label className="field"><span>Dose</span><input className="input" value={props.intakeForm.dose} onChange={(event) => props.setIntakeForm((current) => ({ ...current, dose: event.target.value }))} placeholder="Parent-provided label text" /></label>
+            <label className="field"><span>Schedule / When Given</span><input className="input" value={props.intakeForm.scheduleText} onChange={(event) => props.setIntakeForm((current) => ({ ...current, scheduleText: event.target.value }))} /></label>
+            <label className="field"><span>Quantity Received</span><input className="input" value={props.intakeForm.quantityReceived} onChange={(event) => props.setIntakeForm((current) => ({ ...current, quantityReceived: event.target.value }))} /></label>
+            <label className="field"><span>Container Status</span><input className="input" value={props.intakeForm.containerStatus} onChange={(event) => props.setIntakeForm((current) => ({ ...current, containerStatus: event.target.value }))} placeholder="Original bottle, bagged, label readable..." /></label>
+            <label className="field"><span>Received By</span><input className="input" value={props.intakeForm.receivedByName} onChange={(event) => props.setIntakeForm((current) => ({ ...current, receivedByName: event.target.value }))} /></label>
+            <label className="field"><span>Received At</span><input className="input" type="datetime-local" value={props.intakeForm.receivedAt ?? ""} onChange={(event) => props.setIntakeForm((current) => ({ ...current, receivedAt: event.target.value }))} /></label>
+            <label className="field"><span>Clarification</span><select className="input" value={props.intakeForm.clarificationStatus ?? "Clear"} onChange={(event) => props.setIntakeForm((current) => ({ ...current, clarificationStatus: event.target.value as CampMedicationIntakeInput["clarificationStatus"] }))}><option>Clear</option><option>Needs Parent Clarification</option></select></label>
+            <label className="field"><span>Guardian Printed Name</span><input className="input" value={props.intakeForm.guardianName} onChange={(event) => props.setIntakeForm((current) => ({ ...current, guardianName: event.target.value }))} /></label>
+            <label className="field"><span>Guardian Relationship</span><input className="input" value={props.intakeForm.guardianRelationship} onChange={(event) => props.setIntakeForm((current) => ({ ...current, guardianRelationship: event.target.value }))} /></label>
+            <label className="field camp-wide-field"><span>Parent-Provided Instructions</span><textarea className="input" rows={2} value={props.intakeForm.parentInstructions} onChange={(event) => props.setIntakeForm((current) => ({ ...current, parentInstructions: event.target.value }))} /></label>
+            <label className="field camp-wide-field"><span>Staff Notes</span><textarea className="input" rows={2} value={props.intakeForm.staffNotes} onChange={(event) => props.setIntakeForm((current) => ({ ...current, staffNotes: event.target.value }))} placeholder="Logging only. No dosage interpretation." /></label>
+            <label className="field camp-wide-field"><span>Correction Note</span><input className="input" value={props.intakeForm.correctionNote ?? ""} onChange={(event) => props.setIntakeForm((current) => ({ ...current, correctionNote: event.target.value }))} placeholder="Use when this intake corrects a prior handoff record." /></label>
+          </div>
+          <SignaturePad value={props.intakeForm.guardianSignatureData} onChange={(signature) => props.setIntakeForm((current) => ({ ...current, guardianSignatureData: signature }))} />
+          <label className="camp-confirm-row"><input type="checkbox" checked={props.intakeForm.confirmationAcknowledged} onChange={(event) => props.setIntakeForm((current) => ({ ...current, confirmationAcknowledged: event.target.checked }))} /><span>I confirm this reflects the medication and instructions provided by the parent/guardian at drop-off.</span></label>
+          <button className="button primary" type="button" disabled={!props.intakeForm.confirmationAcknowledged || !hasSignature(props.intakeForm.guardianSignatureData)} onClick={() => void props.onSaveMedicationIntake()}>Save medication intake</button>
+          <div className="camp-list camp-form-spaced">
+            {(medication?.intakeHistory ?? []).map((item) => <div className="camp-list-row align-start" key={item.id}><div><strong>{item.studentName} - {item.medicationName}</strong><p className="muted">{item.quantityReceived || "Quantity not recorded"} received {new Date(item.receivedAt).toLocaleString()} by {item.receivedByName}. Guardian: {item.guardianName} ({item.guardianRelationship || "relationship not recorded"}).</p><p className="muted">{item.dose ? `Dose: ${item.dose}. ` : ""}{item.scheduleText ? `When: ${item.scheduleText}. ` : ""}{item.staffNotes}</p></div><span className={statusClass(item.clarificationStatus)}>{item.clarificationStatus}</span></div>)}
+          </div>
+        </section>
+
         <section className="panel" aria-labelledby="med-check-in">
           <p className="eyebrow">Medication Check-In</p><h3 id="med-check-in" className="section-title">Check-in workflow</h3>
           <MedicationRows records={medication?.checkIn ?? []} onEdit={(record) => props.setMedicationForm({ id: record.id, studentId: record.studentId, medicationName: record.medicationName, medicinePhotoStatus: record.medicinePhotoStatus, parentProvidedInstructions: record.parentProvidedInstructions, checkInStatus: record.checkInStatus, clarificationStatus: record.clarificationStatus })} />
@@ -732,9 +850,127 @@ function RestrictedCampTools(props: {
 }
 
 function MedicationRows({ records, onEdit }: { records: CampMedicationRecord[]; onEdit: (record: CampMedicationRecord) => void }) {
-  return <div className="camp-list">{records.map((record) => <button className="camp-list-row camp-edit-row" key={record.id} type="button" onClick={() => onEdit(record)}><div className="camp-medicine-photo"><span>{record.medicinePhotoStatus}</span></div><div><strong>{record.studentName}</strong><p className="muted">{record.medicationName} - {record.parentProvidedInstructions}</p></div><span className={statusClass(record.checkInStatus)}>{record.checkInStatus}</span></button>)}</div>;
+  return <div className="camp-list">{records.map((record) => <button className="camp-list-row camp-edit-row" key={record.id} type="button" onClick={() => onEdit(record)}><div className="camp-medicine-photo"><span>{record.medicinePhotoStatus}</span></div><div><strong>{record.studentName}</strong><p className="muted">{record.medicationName} - {record.parentProvidedInstructions}</p>{record.latestQuantityReceived ? <p className="muted">Quantity received: {record.latestQuantityReceived}</p> : null}</div><span className={statusClass(record.checkInStatus)}>{record.checkInStatus}</span></button>)}</div>;
 }
 
 function MedicationScheduleRows({ items }: { items: CampMedicationScheduleItem[] }) {
   return <div className="camp-list">{items.map((item) => <div className="camp-list-row align-start" key={item.id}><div><strong>{item.studentName} - {item.timeWindow}</strong><p className="muted">{item.parentProvidedInstructions}{item.lastLoggedAt ? ` Last logged ${new Date(item.lastLoggedAt).toLocaleString()} by ${item.lastLoggedBy}.` : ""}</p></div><span className={statusClass(item.status)}>{item.status}</span></div>)}</div>;
+}
+
+function SignaturePad({ value, onChange }: { value: CampMedicationIntakeInput["guardianSignatureData"]; onChange: (signature: CampMedicationIntakeInput["guardianSignatureData"]) => void }) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const drawingRef = useRef(false);
+  const signatureRef = useRef(value);
+  const lastPointerEventAtRef = useRef(0);
+
+  const drawSignature = useCallback(() => {
+    const canvas = canvasRef.current;
+    const context = canvas?.getContext("2d");
+    if (!canvas || !context) return;
+
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.lineWidth = 3;
+    context.lineCap = "round";
+    context.lineJoin = "round";
+    context.strokeStyle = "#0f172a";
+
+    for (const stroke of value.strokes) {
+      if (stroke.length < 2) continue;
+      context.beginPath();
+      context.moveTo(stroke[0].x, stroke[0].y);
+      for (const point of stroke.slice(1)) {
+        context.lineTo(point.x, point.y);
+      }
+      context.stroke();
+    }
+  }, [value]);
+
+  useEffect(() => {
+    signatureRef.current = value;
+    drawSignature();
+  }, [drawSignature, value]);
+
+  function pointForClient(canvas: HTMLCanvasElement, clientX: number, clientY: number) {
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: Math.round(((clientX - rect.left) / rect.width) * value.width * 10) / 10,
+      y: Math.round(((clientY - rect.top) / rect.height) * value.height * 10) / 10
+    };
+  }
+
+  function addSignaturePoint(canvas: HTMLCanvasElement, clientX: number, clientY: number, startsStroke: boolean) {
+    const point = pointForClient(canvas, clientX, clientY);
+    if (startsStroke) {
+      const nextSignature = { ...signatureRef.current, strokes: [...signatureRef.current.strokes, [point]] };
+      signatureRef.current = nextSignature;
+      onChange(nextSignature);
+      return;
+    }
+
+    const currentSignature = signatureRef.current;
+    const strokes = currentSignature.strokes.map((stroke, index) => index === currentSignature.strokes.length - 1 ? [...stroke, point] : stroke);
+    const nextSignature = { ...currentSignature, strokes };
+    signatureRef.current = nextSignature;
+    onChange(nextSignature);
+  }
+
+  function beginSignature(event: React.PointerEvent<HTMLCanvasElement>) {
+    lastPointerEventAtRef.current = Date.now();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    drawingRef.current = true;
+    addSignaturePoint(event.currentTarget, event.clientX, event.clientY, true);
+  }
+
+  function extendSignature(event: React.PointerEvent<HTMLCanvasElement>) {
+    lastPointerEventAtRef.current = Date.now();
+    if (!drawingRef.current) return;
+    addSignaturePoint(event.currentTarget, event.clientX, event.clientY, false);
+  }
+
+  function endSignature(event: React.PointerEvent<HTMLCanvasElement>) {
+    lastPointerEventAtRef.current = Date.now();
+    drawingRef.current = false;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }
+
+  function beginMouseSignature(event: React.MouseEvent<HTMLCanvasElement>) {
+    drawingRef.current = true;
+    addSignaturePoint(event.currentTarget, event.clientX, event.clientY, true);
+  }
+
+  function extendMouseSignature(event: React.MouseEvent<HTMLCanvasElement>) {
+    if (!drawingRef.current) return;
+    addSignaturePoint(event.currentTarget, event.clientX, event.clientY, false);
+  }
+
+  function endMouseSignature() {
+    drawingRef.current = false;
+  }
+
+  return (
+    <div className="camp-signature-block">
+      <div className="camp-section-header">
+        <div><p className="eyebrow">Guardian Signature</p><p className="muted">Finger, stylus, or mouse signature captured as restricted handoff data.</p></div>
+        <button className="button" type="button" onClick={() => onChange(emptySignatureData())}>Clear signature</button>
+      </div>
+      <canvas
+        aria-label="Parent or guardian signature"
+        className="camp-signature-pad"
+        height={value.height}
+        onMouseDown={beginMouseSignature}
+        onMouseLeave={endMouseSignature}
+        onMouseMove={extendMouseSignature}
+        onMouseUp={endMouseSignature}
+        onPointerCancel={endSignature}
+        onPointerDown={beginSignature}
+        onPointerLeave={endSignature}
+        onPointerMove={extendSignature}
+        onPointerUp={endSignature}
+        ref={canvasRef}
+        width={value.width}
+      />
+    </div>
+  );
 }

@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const persistenceMigration = readFileSync(join(process.cwd(), "supabase/migrations/007_camp_persistence.sql"), "utf8");
 const auditMigration = readFileSync(join(process.cwd(), "supabase/migrations/008_camp_restricted_data_audit.sql"), "utf8");
+const intakeMigration = readFileSync(join(process.cwd(), "supabase/migrations/009_camp_medication_intake_signature.sql"), "utf8");
 
 describe("camp persistence RLS migration shape", () => {
   it("keeps restricted medical and medication tables behind the restricted access helper", () => {
@@ -56,5 +57,17 @@ describe("camp persistence RLS migration shape", () => {
     expect(auditMigration).toContain("drop policy if exists \"staff can select camp_import_batches\"");
     expect(auditMigration).toContain("create policy \"restricted can select camp_import_batches\"");
     expect(auditMigration).toContain("public.current_user_can_access_camp_restricted()");
+  });
+
+  it("adds medication intake signatures as restricted append-only records", () => {
+    expect(intakeMigration).toContain("create table if not exists public.camp_medication_intake_records");
+    expect(intakeMigration).toContain("guardian_signature_data jsonb not null");
+    expect(intakeMigration).toContain("confirmation_acknowledged boolean not null check (confirmation_acknowledged = true)");
+    expect(intakeMigration).toContain("alter table public.camp_medication_intake_records enable row level security;");
+    expect(intakeMigration).toContain("create policy \"restricted can select camp_medication_intake_records\"");
+    expect(intakeMigration).toContain("create policy \"restricted can insert camp_medication_intake_records\"");
+    expect(intakeMigration).toContain("public.current_user_can_access_camp_restricted()");
+    expect(intakeMigration).not.toContain("for update");
+    expect(intakeMigration).not.toContain("for delete");
   });
 });

@@ -35,6 +35,11 @@ const restrictedNeedles = [
   "parentMedicalNotes",
   "medicationName",
   "parentProvidedInstructions",
+  "guardianSignatureData",
+  "guardianName",
+  "dose",
+  "quantityReceived",
+  "intakeHistory",
   "administrationLog",
   "returnChecklist"
 ];
@@ -137,9 +142,19 @@ describe("camp API restricted data boundaries", () => {
       medicationName: "Should not write",
       parentProvidedInstructions: "Should not write"
     }));
+    const intakeResponse = await medicationPOST(jsonRequest("http://localhost/api/camp/medication?role=general_leader", {
+      target: "intake",
+      studentId: "stu-1",
+      medicationName: "Should not write",
+      parentInstructions: "Should not write",
+      guardianName: "Should not write",
+      guardianSignatureData: { width: 640, height: 220, strokes: [[{ x: 1, y: 1 }, { x: 2, y: 2 }]] },
+      confirmationAcknowledged: true
+    }));
 
     expect(getResponse.status).toBe(403);
     expect(postResponse.status).toBe(403);
+    expect(intakeResponse.status).toBe(403);
   });
 
   it("allows Andrew, Jaci, and Joel to reach restricted medical and medication routes", async () => {
@@ -154,6 +169,44 @@ describe("camp API restricted data boundaries", () => {
       expect(JSON.stringify(await medicalResponse.json())).toContain("Insurance card copy received");
       expect(JSON.stringify(await medicationResponse.json())).toContain("Parent-labeled medication");
     }
+  });
+
+  it("allows restricted users to save medication intake with signature history", async () => {
+    getServerSessionMock.mockResolvedValue(session());
+
+    const response = await medicationPOST(jsonRequest("http://localhost/api/camp/medication?role=andrew", {
+      target: "intake",
+      studentId: "stu-1",
+      medicationName: "Parent handoff medication",
+      dose: "Parent-labeled dose",
+      scheduleText: "Breakfast",
+      parentInstructions: "Follow signed parent instructions.",
+      staffNotes: "Original bottle received.",
+      quantityReceived: "10 tablets",
+      containerStatus: "Original bottle, label readable",
+      receivedByName: "Andrew",
+      guardianName: "Pat Parent",
+      guardianRelationship: "Parent",
+      guardianSignatureData: { width: 640, height: 220, strokes: [[{ x: 4, y: 4 }, { x: 18, y: 18 }]] },
+      clarificationStatus: "Clear",
+      confirmationAcknowledged: true
+    }));
+    const payload = await response.json() as { intake: Record<string, unknown>; record: Record<string, unknown> };
+
+    expect(response.status).toBe(201);
+    expect(payload.intake).toMatchObject({
+      medicationName: "Parent handoff medication",
+      quantityReceived: "10 tablets",
+      guardianName: "Pat Parent"
+    });
+    expect(payload.record).toMatchObject({
+      checkInStatus: "Checked In",
+      latestQuantityReceived: "10 tablets"
+    });
+
+    const medicationResponse = await medicationGET(new Request("http://localhost/api/camp/medication?role=andrew"));
+    const medicationPayload = await medicationResponse.json() as { intakeHistory: Array<Record<string, unknown>> };
+    expect(medicationPayload.intakeHistory[0]).toMatchObject({ quantityReceived: "10 tablets" });
   });
 
   it("forbids import preview and commit for General Leaders and Drivers", async () => {
