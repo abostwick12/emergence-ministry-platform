@@ -6,6 +6,7 @@ const persistenceMigration = readFileSync(join(process.cwd(), "supabase/migratio
 const auditMigration = readFileSync(join(process.cwd(), "supabase/migrations/008_camp_restricted_data_audit.sql"), "utf8");
 const intakeMigration = readFileSync(join(process.cwd(), "supabase/migrations/009_camp_medication_intake_signature.sql"), "utf8");
 const archivePhotoMigration = readFileSync(join(process.cwd(), "supabase/migrations/010_camp_archive_camper.sql"), "utf8");
+const correctionAuditMigration = readFileSync(join(process.cwd(), "supabase/migrations/011_camp_medication_correction_audit.sql"), "utf8");
 
 describe("camp persistence RLS migration shape", () => {
   it("keeps restricted medical and medication tables behind the restricted access helper", () => {
@@ -85,5 +86,30 @@ describe("camp persistence RLS migration shape", () => {
     expect(archivePhotoMigration).toContain("create policy \"restricted can select camp medication photo objects\"");
     expect(archivePhotoMigration).toContain("create policy \"restricted can insert camp medication photo objects\"");
     expect(archivePhotoMigration).not.toContain("public = true");
+  });
+
+  it("adds restricted medication correction and void audit fields without hard-delete policies", () => {
+    const correctionTables = [
+      "camp_medication_intake_records",
+      "camp_medication_records",
+      "camp_medication_schedule_items",
+      "camp_medication_administration_logs",
+      "camp_medication_return_items"
+    ];
+
+    for (const table of correctionTables) {
+      expect(correctionAuditMigration).toContain(`alter table public.${table} add column if not exists voided_at`);
+      expect(correctionAuditMigration).toContain(`alter table public.${table} add column if not exists void_reason`);
+      expect(correctionAuditMigration).toContain(`public.current_user_can_access_camp_restricted()`);
+    }
+
+    expect(correctionAuditMigration).toContain("supersedes_medication_record_id");
+    expect(correctionAuditMigration).toContain("supersedes_schedule_item_id");
+    expect(correctionAuditMigration).toContain("supersedes_administration_log_id");
+    expect(correctionAuditMigration).toContain("supersedes_return_item_id");
+    expect(correctionAuditMigration).toContain("return_status in");
+    expect(correctionAuditMigration).not.toContain("for delete");
+    expect(correctionAuditMigration).toContain("create policy \"restricted can update camp_medication_intake_records\"");
+    expect(correctionAuditMigration).toContain("create policy \"restricted can update camp_medication_administration_logs\"");
   });
 });

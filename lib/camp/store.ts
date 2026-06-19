@@ -10,6 +10,7 @@ import {
 import type {
   CampAccessRole,
   CampAccessScope,
+  CampAuditStatus,
   CampDocument,
   CampMedicationAdministrationLog,
   CampArchiveInput,
@@ -19,6 +20,7 @@ import type {
   CampMedicationRecord,
   CampMedicationReturnItem,
   CampMedicationScheduleItem,
+  CampMedicationVoidInput,
   CampOverviewPayload,
   CampRestrictedMedicalRecord,
   CampScheduleBlock,
@@ -81,7 +83,7 @@ export function __resetCampStoreForTests(): void {
 }
 
 export function listCampStudents(): CampStudentPublic[] {
-  return store.students.map(withDerivedStudentFlags);
+  return store.students.filter((student) => !student.archivedAt).map(withDerivedStudentFlags);
 }
 
 export function listArchivedCampStudents(role: CampAccessRole): CampStudentPublic[] {
@@ -202,14 +204,26 @@ export function getRestrictedCampMedicationPayload(role: CampAccessRole) {
   }
 
   const activeStudentIds = new Set(store.students.filter((student) => !student.archivedAt).map((student) => student.id));
+  const activeIntakes = activeAuditItems(store.medicationIntakeRecords, "supersedesIntakeId");
+  const intakeHistory = store.medicationIntakeRecords
+    .filter((item) => activeStudentIds.has(item.studentId))
+    .map((item) => withAuditStatus(item, store.medicationIntakeRecords, "supersedesIntakeId"));
   return {
     allowed: true as const,
     status: 200,
-    checkIn: store.medicationRecords.filter((record) => activeStudentIds.has(record.studentId)).map(withLatestIntakeSummary),
-    schedule: store.medicationSchedule.filter((item) => activeStudentIds.has(item.studentId)).map((item) => ({ ...item })),
-    administrationLog: store.medicationAdministrationLog.filter((log) => activeStudentIds.has(log.studentId)).map((log) => ({ ...log })),
-    returnChecklist: store.medicationReturnChecklist.filter((item) => activeStudentIds.has(item.studentId)).map((item) => ({ ...item })),
-    intakeHistory: store.medicationIntakeRecords.filter((item) => activeStudentIds.has(item.studentId)).map((item) => ({ ...item }))
+    checkIn: activeAuditItems(store.medicationRecords, "supersedesMedicationRecordId")
+      .filter((record) => activeStudentIds.has(record.studentId))
+      .map((record) => withLatestIntakeSummary(withAuditStatus(record, store.medicationRecords, "supersedesMedicationRecordId"), activeIntakes)),
+    schedule: activeAuditItems(store.medicationSchedule, "supersedesScheduleItemId")
+      .filter((item) => activeStudentIds.has(item.studentId))
+      .map((item) => withAuditStatus(item, store.medicationSchedule, "supersedesScheduleItemId")),
+    administrationLog: store.medicationAdministrationLog
+      .filter((log) => activeStudentIds.has(log.studentId))
+      .map((log) => withAuditStatus(log, store.medicationAdministrationLog, "supersedesAdministrationLogId")),
+    returnChecklist: activeAuditItems(store.medicationReturnChecklist, "supersedesReturnItemId")
+      .filter((item) => activeStudentIds.has(item.studentId))
+      .map((item) => withAuditStatus(item, store.medicationReturnChecklist, "supersedesReturnItemId")),
+    intakeHistory
   };
 }
 
@@ -264,7 +278,7 @@ export function saveMedicationIntake(role: CampAccessRole, input: CampMedication
 export function upsertMedicationRecord(role: CampAccessRole, input: Partial<CampMedicationRecord> & { studentId: string }) {
   if (!isRestrictedCampMedicalRole(role)) return restrictedMedicationDenied();
   const student = requireActiveStudent(input.studentId);
-  const existing = input.id ? store.medicationRecords.find((record) => record.id === input.id) : undefined;
+  const existing = input.id && !input.supersedesMedicationRecordId ? store.medicationRecords.find((record) => record.id === input.id) : undefined;
   const clarificationStatus = normalizeClarification(input.clarificationStatus, input.parentProvidedInstructions);
   const checkInStatus = normalizeCheckInStatus(input.checkInStatus, clarificationStatus);
   const record: CampMedicationRecord = {
@@ -277,7 +291,9 @@ export function upsertMedicationRecord(role: CampAccessRole, input: Partial<Camp
     checkInStatus,
     receivedBy: checkInStatus === "Checked In" ? input.receivedBy || existing?.receivedBy || "Andrew" : input.receivedBy,
     receivedAt: checkInStatus === "Checked In" ? input.receivedAt || existing?.receivedAt || new Date().toISOString() : input.receivedAt,
-    clarificationStatus
+    clarificationStatus,
+    supersedesMedicationRecordId: input.supersedesMedicationRecordId,
+    correctionNote: input.correctionNote?.trim()
   };
 
   if (existing) Object.assign(existing, record);
@@ -294,7 +310,7 @@ export function upsertMedicationScheduleItem(
 ) {
   if (!isRestrictedCampMedicalRole(role)) return restrictedMedicationDenied();
   const medication = requireMedication(input.medicationRecordId);
-  const existing = input.id ? store.medicationSchedule.find((item) => item.id === input.id) : undefined;
+  const existing = input.id && !input.supersedesScheduleItemId ? store.medicationSchedule.find((item) => item.id === input.id) : undefined;
   const status = normalizeScheduleStatus(input.status, input.parentProvidedInstructions ?? medication.parentProvidedInstructions);
   const item: CampMedicationScheduleItem = {
     id: existing?.id ?? uid("campsched"),
@@ -305,7 +321,9 @@ export function upsertMedicationScheduleItem(
     parentProvidedInstructions: input.parentProvidedInstructions?.trim() || medication.parentProvidedInstructions,
     status,
     lastLoggedAt: existing?.lastLoggedAt,
-    lastLoggedBy: existing?.lastLoggedBy
+    lastLoggedBy: existing?.lastLoggedBy,
+    supersedesScheduleItemId: input.supersedesScheduleItemId,
+    correctionNote: input.correctionNote?.trim()
   };
   if (existing) Object.assign(existing, item);
   else store.medicationSchedule.unshift(item);
@@ -343,12 +361,13 @@ export function getMedicationPhotoAccess(role: CampAccessRole, medicationRecordI
   requireActiveStudent(medication.studentId);
   const photo = store.medicationPhotoRecords.find((item) => item.medicationRecordId === medicationRecordId);
   if (!photo) return { allowed: true as const, status: 404, error: "Medication photo not found." };
-  return { allowed: true as const, status: 200, photo, signedUrl: `mock-restricted-medication-photo://${photo.id}` };
+  const signedUrl = `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><rect width="96" height="96" rx="10" fill="#dbeafe"/><text x="48" y="42" text-anchor="middle" font-family="Arial" font-size="11" font-weight="700" fill="#1e3a8a">Photo</text><text x="48" y="58" text-anchor="middle" font-family="Arial" font-size="9" fill="#1e40af">on file</text><!-- mock-restricted-medication-photo:${photo.id} --></svg>`)}`;
+  return { allowed: true as const, status: 200, photo, signedUrl };
 }
 
 export function logMedicationAdministration(
   role: CampAccessRole,
-  input: { scheduleItemId: string; loggedBy: string; status: CampMedicationAdministrationLog["status"]; notes?: string }
+  input: { scheduleItemId: string; loggedBy: string; status: CampMedicationAdministrationLog["status"]; notes?: string; supersedesAdministrationLogId?: string; correctionNote?: string }
 ) {
   if (!isRestrictedCampMedicalRole(role)) return restrictedMedicationDenied();
   const scheduleItem = store.medicationSchedule.find((item) => item.id === input.scheduleItemId);
@@ -365,7 +384,9 @@ export function logMedicationAdministration(
     loggedAt,
     loggedBy: input.loggedBy.trim() || "Andrew",
     status,
-    notes: input.notes?.trim() || "Logged per parent-provided instructions."
+    notes: input.notes?.trim() || "Logged per parent-provided instructions.",
+    supersedesAdministrationLogId: input.supersedesAdministrationLogId,
+    correctionNote: input.correctionNote?.trim()
   };
   store.medicationAdministrationLog.unshift(log);
   scheduleItem.status = status === "Logged" ? "Logged" : status === "Needs Parent Clarification" ? "Needs Parent Clarification" : "Pending";
@@ -376,17 +397,47 @@ export function logMedicationAdministration(
 
 export function updateMedicationReturnItem(
   role: CampAccessRole,
-  input: { id: string; returnStatus: CampMedicationReturnItem["returnStatus"]; returnedBy?: string }
+  input: { id: string; returnStatus: CampMedicationReturnItem["returnStatus"]; returnedBy?: string; returnedAt?: string; recipientName?: string; recipientRelationship?: string; returnNotes?: string; supersedesReturnItemId?: string; correctionNote?: string }
 ) {
   if (!isRestrictedCampMedicalRole(role)) return restrictedMedicationDenied();
   const item = store.medicationReturnChecklist.find((record) => record.id === input.id);
   if (!item) return { allowed: true as const, status: 404, error: "Medication return item not found." };
-  item.returnStatus = input.returnStatus;
-  if (input.returnStatus === "Returned to Parent") {
-    item.returnedAt = new Date().toISOString();
-    item.returnedBy = input.returnedBy?.trim() || "Andrew";
+  if (input.supersedesReturnItemId) {
+    const corrected: CampMedicationReturnItem = {
+      ...item,
+      id: uid("campreturn"),
+      returnStatus: input.returnStatus,
+      returnedAt: input.returnStatus === "Returned to Parent/Guardian" ? input.returnedAt || new Date().toISOString() : input.returnedAt,
+      returnedBy: input.returnedBy?.trim() || "",
+      recipientName: input.recipientName?.trim() || "",
+      recipientRelationship: input.recipientRelationship?.trim() || "",
+      returnNotes: input.returnNotes?.trim() || "",
+      supersedesReturnItemId: input.supersedesReturnItemId,
+      correctionNote: input.correctionNote?.trim()
+    };
+    store.medicationReturnChecklist.unshift(corrected);
+    return { allowed: true as const, status: 200, item: corrected };
   }
+  item.returnStatus = input.returnStatus;
+  item.returnedAt = input.returnStatus === "Returned to Parent/Guardian" ? input.returnedAt || new Date().toISOString() : input.returnedAt;
+  item.returnedBy = input.returnedBy?.trim() || "";
+  item.recipientName = input.recipientName?.trim() || item.recipientName;
+  item.recipientRelationship = input.recipientRelationship?.trim() || item.recipientRelationship;
+  item.returnNotes = input.returnNotes?.trim() || item.returnNotes;
   return { allowed: true as const, status: 200, item };
+}
+
+export function voidMedicationWorkflowItem(role: CampAccessRole, input: CampMedicationVoidInput) {
+  if (!isRestrictedCampMedicalRole(role)) return restrictedMedicationDenied();
+  if (!input.voidReason.trim()) throw new Error("Void reason is required.");
+  const collection = collectionForVoidTarget(input.target);
+  const item = collection.find((record) => record.id === input.id);
+  if (!item) return { allowed: true as const, status: 404, error: "Medication workflow item not found." };
+
+  item.voidedAt = new Date().toISOString();
+  item.voidedByName = input.voidedByName?.trim() || roleLabel(role);
+  item.voidReason = input.voidReason.trim();
+  return { allowed: true as const, status: 200, item: { ...item, auditStatus: "Voided" as CampAuditStatus } };
 }
 
 export function normalizeClarification(
@@ -480,8 +531,35 @@ function ensureReturnChecklist(record: CampMedicationRecord) {
   });
 }
 
-function withLatestIntakeSummary(record: CampMedicationRecord): CampMedicationRecord {
-  const latest = store.medicationIntakeRecords.find((item) => item.medicationRecordId === record.id);
+function collectionForVoidTarget(target: CampMedicationVoidInput["target"]) {
+  if (target === "intake") return store.medicationIntakeRecords;
+  if (target === "medication") return store.medicationRecords;
+  if (target === "schedule") return store.medicationSchedule;
+  if (target === "administrationLog") return store.medicationAdministrationLog;
+  return store.medicationReturnChecklist;
+}
+
+function activeAuditItems<T extends { id: string; voidedAt?: string }>(items: T[], supersedesKey: keyof T): T[] {
+  const supersededIds = new Set<string>();
+  for (const item of items) {
+    const value = item[supersedesKey];
+    if (typeof value === "string" && value) supersededIds.add(value);
+  }
+  return items.filter((item) => !item.voidedAt && !supersededIds.has(item.id));
+}
+
+function auditStatusFor<T extends { id: string; voidedAt?: string }>(item: T, allItems: T[], supersedesKey: keyof T): CampAuditStatus {
+  if (item.voidedAt) return "Voided";
+  if (item[supersedesKey]) return "Corrected";
+  return allItems.some((candidate) => candidate[supersedesKey] === item.id) ? "Superseded" : "Active";
+}
+
+function withAuditStatus<T extends { id: string; voidedAt?: string }>(item: T, allItems: T[], supersedesKey: keyof T): T & { auditStatus: CampAuditStatus } {
+  return { ...item, auditStatus: auditStatusFor(item, allItems, supersedesKey) };
+}
+
+function withLatestIntakeSummary(record: CampMedicationRecord, intakeRecords = activeAuditItems(store.medicationIntakeRecords, "supersedesIntakeId")): CampMedicationRecord {
+  const latest = intakeRecords.find((item) => item.medicationRecordId === record.id);
   const hasMedicationPhoto = store.medicationPhotoRecords.some((item) => item.medicationRecordId === record.id);
   return {
     ...record,

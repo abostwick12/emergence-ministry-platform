@@ -6,6 +6,13 @@ export type CampAccessScope = {
 };
 
 export type CampMutationActor = "Andrew" | "Jaci" | "Joel" | "General Leader" | "Driver";
+export type CampAuditStatus = "Active" | "Corrected" | "Superseded" | "Voided";
+
+export type CampVoidAudit = {
+  voidedAt?: string;
+  voidedByName?: string;
+  voidReason?: string;
+};
 
 export type CampTeam = {
   id: string;
@@ -112,6 +119,12 @@ export type CampMedicationRecord = {
   latestQuantityReceived?: string;
   latestIntakeAt?: string;
   hasMedicationPhoto?: boolean;
+  supersedesMedicationRecordId?: string;
+  correctionNote?: string;
+  auditStatus?: CampAuditStatus;
+  voidedAt?: string;
+  voidedByName?: string;
+  voidReason?: string;
 };
 
 export type CampMedicationPhotoRecord = {
@@ -156,6 +169,10 @@ export type CampMedicationIntakeRecord = {
   confirmationAcknowledged: boolean;
   supersedesIntakeId?: string;
   correctionNote?: string;
+  auditStatus?: CampAuditStatus;
+  voidedAt?: string;
+  voidedByName?: string;
+  voidReason?: string;
   createdAt: string;
 };
 
@@ -190,6 +207,12 @@ export type CampMedicationScheduleItem = {
   status: "Pending" | "Logged" | "Needs Parent Clarification";
   lastLoggedAt?: string;
   lastLoggedBy?: string;
+  supersedesScheduleItemId?: string;
+  correctionNote?: string;
+  auditStatus?: CampAuditStatus;
+  voidedAt?: string;
+  voidedByName?: string;
+  voidReason?: string;
 };
 
 export type CampMedicationAdministrationLog = {
@@ -203,6 +226,12 @@ export type CampMedicationAdministrationLog = {
   loggedBy: string;
   status: "Logged" | "Skipped" | "Needs Parent Clarification";
   notes: string;
+  supersedesAdministrationLogId?: string;
+  correctionNote?: string;
+  auditStatus?: CampAuditStatus;
+  voidedAt?: string;
+  voidedByName?: string;
+  voidReason?: string;
 };
 
 export type CampMedicationReturnItem = {
@@ -210,9 +239,25 @@ export type CampMedicationReturnItem = {
   medicationRecordId: string;
   studentId: string;
   studentName: string;
-  returnStatus: "Pending Return" | "Returned to Parent" | "Needs Parent Clarification";
+  returnStatus: "Pending Return" | "Returned to Parent/Guardian" | "Needs Parent Clarification" | "Not Returned / Follow-Up Needed";
   returnedAt?: string;
   returnedBy?: string;
+  recipientName?: string;
+  recipientRelationship?: string;
+  returnNotes?: string;
+  supersedesReturnItemId?: string;
+  correctionNote?: string;
+  auditStatus?: CampAuditStatus;
+  voidedAt?: string;
+  voidedByName?: string;
+  voidReason?: string;
+};
+
+export type CampMedicationVoidInput = {
+  target: "intake" | "medication" | "schedule" | "administrationLog" | "return";
+  id: string;
+  voidReason: string;
+  voidedByName?: string;
 };
 
 export type CampOverviewPayload = {

@@ -165,10 +165,17 @@ describe("camp API restricted data boundaries", () => {
       guardianSignatureData: { width: 640, height: 220, strokes: [[{ x: 1, y: 1 }, { x: 2, y: 2 }]] },
       confirmationAcknowledged: true
     }));
+    const voidResponse = await medicationPOST(jsonRequest("http://localhost/api/camp/medication?role=general_leader", {
+      target: "void",
+      voidTarget: "medication",
+      id: "med-1",
+      voidReason: "Should not void"
+    }));
 
     expect(getResponse.status).toBe(403);
     expect(postResponse.status).toBe(403);
     expect(intakeResponse.status).toBe(403);
+    expect(voidResponse.status).toBe(403);
   });
 
   it("blocks General Leaders and Drivers from archive, restore, archived list, and medication photo routes", async () => {

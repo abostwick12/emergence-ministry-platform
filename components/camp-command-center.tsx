@@ -37,6 +37,8 @@ type RestrictedState = {
 type StudentForm = CampStudentInput & { id?: string; limitedSafetyFlagsText: string };
 type MedicationForm = {
   id?: string;
+  supersedesMedicationRecordId?: string;
+  correctionNote?: string;
   studentId: string;
   medicationName: string;
   medicinePhotoStatus: CampMedicationRecord["medicinePhotoStatus"];
@@ -45,16 +47,32 @@ type MedicationForm = {
   clarificationStatus: CampMedicationRecord["clarificationStatus"];
 };
 type ScheduleForm = {
+  id?: string;
+  supersedesScheduleItemId?: string;
+  correctionNote?: string;
   medicationRecordId: string;
   timeWindow: string;
   parentProvidedInstructions: string;
   status: CampMedicationScheduleItem["status"];
 };
 type AdministrationForm = {
+  supersedesAdministrationLogId?: string;
+  correctionNote?: string;
   scheduleItemId: string;
   loggedBy: string;
   status: CampMedicationAdministrationLog["status"];
   notes: string;
+};
+type ReturnForm = {
+  id: string;
+  returnStatus: CampMedicationReturnItem["returnStatus"];
+  returnedBy: string;
+  returnedAt: string;
+  recipientName: string;
+  recipientRelationship: string;
+  returnNotes: string;
+  supersedesReturnItemId?: string;
+  correctionNote?: string;
 };
 type IntakeForm = Omit<CampMedicationIntakeInput, "guardianSignatureData" | "confirmationAcknowledged"> & {
   guardianSignatureData: CampMedicationIntakeInput["guardianSignatureData"];
@@ -113,6 +131,8 @@ export function CampCommandCenter() {
   const [archiveReason, setArchiveReason] = useState("");
   const [showArchived, setShowArchived] = useState(false);
   const [photoMessage, setPhotoMessage] = useState("");
+  const [medicationPhotoUrls, setMedicationPhotoUrls] = useState<Record<string, string>>({});
+  const [photoModal, setPhotoModal] = useState<{ url: string; title: string } | null>(null);
   const [intakePhotoFile, setIntakePhotoFile] = useState<File | null>(null);
   const [intakePhotoPreviewUrl, setIntakePhotoPreviewUrl] = useState("");
   const [importCsv, setImportCsv] = useState("");
@@ -176,6 +196,7 @@ export function CampCommandCenter() {
     supersedesIntakeId: "",
     correctionNote: ""
   });
+  const [returnForm, setReturnForm] = useState<ReturnForm | null>(null);
 
   const canSeeRestrictedMedical = isRestrictedCampMedicalRole(accessRole);
   const canEditRoster = accessRole !== "driver";
@@ -299,6 +320,30 @@ export function CampCommandCenter() {
     return () => URL.revokeObjectURL(previewUrl);
   }, [intakePhotoFile]);
 
+  useEffect(() => {
+    if (!canSeeRestrictedMedical || !restrictedState?.medication.checkIn.length) {
+      setMedicationPhotoUrls({});
+      return;
+    }
+
+    let cancelled = false;
+    async function loadMedicationPhotoUrls() {
+      const records = restrictedState?.medication.checkIn.filter((record) => record.hasMedicationPhoto || record.medicinePhotoStatus === "Photo On File") ?? [];
+      const entries = await Promise.all(records.map(async (record) => {
+        const response = await fetch(`/api/camp/medication/photos?role=${accessRole}&medicationRecordId=${encodeURIComponent(record.id)}`, { cache: "no-store" });
+        if (!response.ok) return null;
+        const payload = (await response.json()) as { signedUrl?: string };
+        return payload.signedUrl ? [record.id, payload.signedUrl] as const : null;
+      }));
+      if (!cancelled) setMedicationPhotoUrls(Object.fromEntries(entries.filter(Boolean) as Array<readonly [string, string]>));
+    }
+
+    void loadMedicationPhotoUrls();
+    return () => {
+      cancelled = true;
+    };
+  }, [accessRole, canSeeRestrictedMedical, restrictedState?.medication.checkIn]);
+
   function editStudent(student: CampVisibleStudent) {
     setStudentForm({
       id: student.id,
@@ -413,7 +458,7 @@ export function CampCommandCenter() {
     if (response.ok) {
       await loadOverview();
       await loadRestrictedData();
-      setMedicationForm((current) => ({ ...current, id: undefined, medicationName: "", parentProvidedInstructions: "" }));
+      clearMedicationForm();
     }
   }
 
@@ -485,6 +530,152 @@ export function CampCommandCenter() {
     setPhotoMessage("Medication photo removed. Intake can still be saved without a photo.");
   }
 
+  function clearMedicationForm() {
+    setMedicationForm({
+      studentId: overview.students[0]?.id ?? "",
+      medicationName: "",
+      medicinePhotoStatus: "Photo Needed",
+      parentProvidedInstructions: "",
+      checkInStatus: "Not Checked In",
+      clarificationStatus: "Clear"
+    });
+  }
+
+  function clearScheduleForm() {
+    setScheduleForm({
+      medicationRecordId: restrictedState?.medication.checkIn[0]?.id ?? "",
+      timeWindow: "",
+      parentProvidedInstructions: "",
+      status: "Pending"
+    });
+  }
+
+  function clearAdministrationForm() {
+    setAdministrationForm({
+      scheduleItemId: restrictedState?.medication.schedule[0]?.id ?? "",
+      loggedBy: campAccessLabels[accessRole],
+      status: "Logged",
+      notes: ""
+    });
+  }
+
+  function clearIntakeForm() {
+    setIntakePhotoFile(null);
+    setIntakeForm((current) => ({
+      ...current,
+      medicationRecordId: restrictedState?.medication.checkIn[0]?.id ?? "",
+      medicationName: "",
+      dose: "",
+      scheduleText: "",
+      parentInstructions: "",
+      staffNotes: "",
+      quantityReceived: "",
+      containerStatus: "",
+      guardianName: "",
+      guardianRelationship: "",
+      guardianSignatureData: emptySignatureData(),
+      confirmationAcknowledged: false,
+      supersedesIntakeId: "",
+      correctionNote: ""
+    }));
+  }
+
+  function correctIntake(item: CampMedicationIntakeRecord) {
+    setIntakePhotoFile(null);
+    setIntakeForm({
+      studentId: item.studentId,
+      medicationRecordId: item.medicationRecordId ?? "",
+      medicationName: item.medicationName,
+      dose: item.dose,
+      scheduleText: item.scheduleText,
+      parentInstructions: item.parentInstructions,
+      staffNotes: item.staffNotes,
+      quantityReceived: item.quantityReceived,
+      containerStatus: item.containerStatus,
+      receivedByName: campAccessLabels[accessRole],
+      receivedAt: new Date().toISOString().slice(0, 16),
+      guardianName: item.guardianName,
+      guardianRelationship: item.guardianRelationship,
+      guardianSignatureData: item.guardianSignatureData,
+      clarificationStatus: item.clarificationStatus,
+      confirmationAcknowledged: false,
+      supersedesIntakeId: item.id,
+      correctionNote: `Correction for intake ${new Date(item.receivedAt).toLocaleString()}`
+    });
+    setSaveMessage(`Editing medication intake for ${item.studentName} - saving creates a correction record.`);
+  }
+
+  function correctMedication(record: CampMedicationRecord) {
+    setMedicationForm({
+      id: undefined,
+      supersedesMedicationRecordId: record.id,
+      correctionNote: `Correction for ${record.medicationName}`,
+      studentId: record.studentId,
+      medicationName: record.medicationName,
+      medicinePhotoStatus: record.medicinePhotoStatus,
+      parentProvidedInstructions: record.parentProvidedInstructions,
+      checkInStatus: record.checkInStatus,
+      clarificationStatus: record.clarificationStatus
+    });
+    setSaveMessage(`Editing medication for ${record.studentName} - saving creates a correction record.`);
+  }
+
+  function correctSchedule(item: CampMedicationScheduleItem) {
+    setScheduleForm({
+      id: undefined,
+      supersedesScheduleItemId: item.id,
+      correctionNote: `Correction for ${item.studentName} ${item.timeWindow}`,
+      medicationRecordId: item.medicationRecordId,
+      timeWindow: item.timeWindow,
+      parentProvidedInstructions: item.parentProvidedInstructions,
+      status: item.status
+    });
+    setSaveMessage(`Editing schedule item for ${item.studentName} - saving creates a correction record.`);
+  }
+
+  function correctAdministrationLog(log: CampMedicationAdministrationLog) {
+    setAdministrationForm({
+      supersedesAdministrationLogId: log.id,
+      correctionNote: `Correction for log ${new Date(log.loggedAt).toLocaleString()}`,
+      scheduleItemId: log.scheduleItemId ?? restrictedState?.medication.schedule[0]?.id ?? "",
+      loggedBy: campAccessLabels[accessRole],
+      status: log.status,
+      notes: log.notes
+    });
+    setSaveMessage(`Correcting administration log for ${log.studentName} - saving creates a correction record.`);
+  }
+
+  function correctReturnItem(item: CampMedicationReturnItem) {
+    setReturnForm({
+      id: item.id,
+      returnStatus: item.returnStatus,
+      returnedBy: item.returnedBy ?? campAccessLabels[accessRole],
+      returnedAt: item.returnedAt ? item.returnedAt.slice(0, 16) : new Date().toISOString().slice(0, 16),
+      recipientName: item.recipientName ?? "",
+      recipientRelationship: item.recipientRelationship ?? "",
+      returnNotes: item.returnNotes ?? "",
+      supersedesReturnItemId: item.id,
+      correctionNote: `Correction for return item ${item.studentName}`
+    });
+  }
+
+  async function voidWorkflowItem(target: "intake" | "medication" | "schedule" | "administrationLog" | "return", id: string) {
+    const voidReason = window.prompt("Void reason is required. This keeps the record in restricted audit history.");
+    if (!voidReason?.trim()) return;
+    const confirmed = window.confirm("Void this record? It will be hidden from active operational views but retained for restricted audit history.");
+    if (!confirmed) return;
+    const response = await fetch(`/api/camp/medication?role=${accessRole}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ target: "void", voidTarget: target, id, voidReason, voidedByName: campAccessLabels[accessRole] })
+    });
+    setSaveMessage(response.ok ? "Record voided and retained in restricted audit history." : "Record could not be voided.");
+    if (response.ok) {
+      await loadOverview();
+      await loadRestrictedData();
+    }
+  }
+
   async function saveScheduleItem() {
     if (!scheduleForm.medicationRecordId || !scheduleForm.timeWindow.trim()) return;
     const response = await fetch(`/api/camp/medication?role=${accessRole}`, {
@@ -495,7 +686,7 @@ export function CampCommandCenter() {
     setSaveMessage(response.ok ? "Medication schedule saved." : "Medication schedule could not be saved.");
     if (response.ok) {
       await loadRestrictedData();
-      setScheduleForm((current) => ({ ...current, timeWindow: "", parentProvidedInstructions: "" }));
+      clearScheduleForm();
     }
   }
 
@@ -509,18 +700,26 @@ export function CampCommandCenter() {
     setSaveMessage(response.ok ? "Administration log saved." : "Administration log could not be saved.");
     if (response.ok) {
       await loadRestrictedData();
-      setAdministrationForm((current) => ({ ...current, notes: "" }));
+      clearAdministrationForm();
     }
   }
 
-  async function saveReturnStatus(id: string, returnStatus: CampMedicationReturnItem["returnStatus"]) {
+  async function saveReturnForm() {
+    if (!returnForm) return;
     const response = await fetch(`/api/camp/medication?role=${accessRole}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ target: "return", id, returnStatus, returnedBy: campAccessLabels[accessRole] })
+      body: JSON.stringify({
+        target: "return",
+        ...returnForm,
+        returnedAt: returnForm.returnedAt ? new Date(returnForm.returnedAt).toISOString() : undefined
+      })
     });
     setSaveMessage(response.ok ? "Return checklist updated." : "Return checklist could not be updated.");
-    if (response.ok) await loadRestrictedData();
+    if (response.ok) {
+      setReturnForm(null);
+      await loadRestrictedData();
+    }
   }
 
   async function viewMedicationPhoto(record: CampMedicationRecord) {
@@ -530,7 +729,7 @@ export function CampCommandCenter() {
       return;
     }
     const payload = (await response.json()) as { signedUrl: string };
-    window.open(payload.signedUrl, "_blank", "noopener,noreferrer");
+    setPhotoModal({ url: payload.signedUrl, title: `${record.studentName} - ${record.medicationName}` });
   }
 
   async function previewImport() {
@@ -584,9 +783,9 @@ export function CampCommandCenter() {
 
       <section className="panel camp-controls" aria-label="Camp access controls">
         <div>
-          <p className="eyebrow">Access View</p>
-          <h3 className="section-title">Operational role</h3>
-          <p className="muted">Public roster data is server-filtered. Restricted medical and medication tools only load for Andrew, Jaci, and Joel.</p>
+          <p className="eyebrow">Access Preview</p>
+          <h3 className="section-title">Dev/admin access preview</h3>
+          <p className="muted">This switcher previews server-filtered access. Restricted medical and medication tools only load for Andrew, Jaci, and Joel.</p>
         </div>
         <div className="camp-role-tabs" role="group" aria-label="Camp access role">
           {campAccessRoles.map((role) => (
@@ -707,7 +906,19 @@ export function CampCommandCenter() {
           onSaveMedicationIntake={saveMedicationIntake}
           onSaveSchedule={saveScheduleItem}
           onSaveAdministrationLog={saveAdministrationLog}
-          onSaveReturnStatus={saveReturnStatus}
+          returnForm={returnForm}
+          setReturnForm={setReturnForm}
+          onSaveReturn={saveReturnForm}
+          onCorrectIntake={correctIntake}
+          onCorrectMedication={correctMedication}
+          onCorrectSchedule={correctSchedule}
+          onCorrectAdministrationLog={correctAdministrationLog}
+          onCorrectReturn={correctReturnItem}
+          onVoidWorkflowItem={voidWorkflowItem}
+          onClearMedicationForm={clearMedicationForm}
+          onClearScheduleForm={clearScheduleForm}
+          onClearAdministrationForm={clearAdministrationForm}
+          onClearIntakeForm={clearIntakeForm}
           archivedStudents={archivedStudents}
           archiveReason={archiveReason}
           setArchiveReason={setArchiveReason}
@@ -716,6 +927,7 @@ export function CampCommandCenter() {
           onArchiveStudent={archiveStudent}
           onRestoreStudent={restoreStudent}
           onViewMedicationPhoto={viewMedicationPhoto}
+          medicationPhotoUrls={medicationPhotoUrls}
           intakePhotoFile={intakePhotoFile}
           intakePhotoPreviewUrl={intakePhotoPreviewUrl}
           onSelectIntakePhoto={selectIntakePhoto}
@@ -729,6 +941,22 @@ export function CampCommandCenter() {
           onCommitImport={commitImport}
         />
       )}
+
+      {photoModal ? (
+        <div className="camp-photo-modal" role="dialog" aria-modal="true" aria-label="Medication photo preview">
+          <div className="camp-photo-modal-panel">
+            <div className="camp-section-header">
+              <div>
+                <p className="eyebrow">Restricted Photo</p>
+                <h3 className="section-title">{photoModal.title}</h3>
+              </div>
+              <button className="button compact-button" type="button" onClick={() => setPhotoModal(null)}>Close</button>
+            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={photoModal.url} alt={`Restricted medication photo for ${photoModal.title}`} />
+          </div>
+        </div>
+      ) : null}
 
       <section className="panel camp-search-placeholder" aria-label="Future camp quick search">
         <p className="eyebrow">Future Camp Quick Search</p>
@@ -840,7 +1068,19 @@ function RestrictedCampTools(props: {
   onSaveMedicationIntake: () => Promise<void>;
   onSaveSchedule: () => Promise<void>;
   onSaveAdministrationLog: () => Promise<void>;
-  onSaveReturnStatus: (id: string, status: CampMedicationReturnItem["returnStatus"]) => Promise<void>;
+  returnForm: ReturnForm | null;
+  setReturnForm: React.Dispatch<React.SetStateAction<ReturnForm | null>>;
+  onSaveReturn: () => Promise<void>;
+  onCorrectIntake: (item: CampMedicationIntakeRecord) => void;
+  onCorrectMedication: (record: CampMedicationRecord) => void;
+  onCorrectSchedule: (item: CampMedicationScheduleItem) => void;
+  onCorrectAdministrationLog: (log: CampMedicationAdministrationLog) => void;
+  onCorrectReturn: (item: CampMedicationReturnItem) => void;
+  onVoidWorkflowItem: (target: "intake" | "medication" | "schedule" | "administrationLog" | "return", id: string) => Promise<void>;
+  onClearMedicationForm: () => void;
+  onClearScheduleForm: () => void;
+  onClearAdministrationForm: () => void;
+  onClearIntakeForm: () => void;
   archivedStudents: CampStudentPublic[];
   archiveReason: string;
   setArchiveReason: React.Dispatch<React.SetStateAction<string>>;
@@ -849,6 +1089,7 @@ function RestrictedCampTools(props: {
   onArchiveStudent: () => Promise<void>;
   onRestoreStudent: (studentId: string) => Promise<void>;
   onViewMedicationPhoto: (record: CampMedicationRecord) => Promise<void>;
+  medicationPhotoUrls: Record<string, string>;
   intakePhotoFile: File | null;
   intakePhotoPreviewUrl: string;
   onSelectIntakePhoto: (file: File | null) => void;
@@ -1018,7 +1259,11 @@ function RestrictedCampTools(props: {
           </section>
           <SignaturePad value={props.intakeForm.guardianSignatureData} onChange={(signature) => props.setIntakeForm((current) => ({ ...current, guardianSignatureData: signature }))} />
           <label className="camp-confirm-row"><input type="checkbox" checked={props.intakeForm.confirmationAcknowledged} onChange={(event) => props.setIntakeForm((current) => ({ ...current, confirmationAcknowledged: event.target.checked }))} /><span>I confirm this reflects the medication and instructions provided by the parent/guardian at drop-off.</span></label>
-          <button className="button primary" type="button" disabled={!props.intakeForm.confirmationAcknowledged || !hasSignature(props.intakeForm.guardianSignatureData)} onClick={() => void props.onSaveMedicationIntake()}>Save medication intake</button>
+          {props.intakeForm.supersedesIntakeId ? <p className="camp-save-message" role="status">Saving will create a correction record and preserve the prior intake in restricted audit history.</p> : null}
+          <div className="camp-form-actions">
+            <button className="button primary" type="button" disabled={!props.intakeForm.confirmationAcknowledged || !hasSignature(props.intakeForm.guardianSignatureData)} onClick={() => void props.onSaveMedicationIntake()}>Save medication intake</button>
+            <button className="button" type="button" onClick={props.onClearIntakeForm}>Clear intake form</button>
+          </div>
           <div className="camp-list camp-form-spaced">
             {(medication?.intakeHistory ?? []).map((item) => {
               const photoRecord = medication?.checkIn.find((record) => record.id === item.medicationRecordId);
@@ -1029,8 +1274,18 @@ function RestrictedCampTools(props: {
                     <p className="muted">{item.quantityReceived || "Quantity not recorded"} received {new Date(item.receivedAt).toLocaleString()} by {item.receivedByName}. Guardian: {item.guardianName} ({item.guardianRelationship || "relationship not recorded"}).</p>
                     <p className="muted">{item.dose ? `Dose: ${item.dose}. ` : ""}{item.scheduleText ? `When: ${item.scheduleText}. ` : ""}{item.staffNotes}</p>
                     {photoRecord?.hasMedicationPhoto || photoRecord?.medicinePhotoStatus === "Photo On File" ? <span className="camp-status ready">Photo on file</span> : null}
+                    {item.correctionNote ? <p className="muted">Correction note: {item.correctionNote}</p> : null}
+                    {item.voidReason ? <p className="muted">Void reason: {item.voidReason}</p> : null}
+                    <div className="camp-row-actions">
+                      <button className="button compact-button" type="button" onClick={() => props.onCorrectIntake(item)}>Correct Intake</button>
+                      {item.auditStatus !== "Voided" ? <button className="button compact-button" type="button" onClick={() => void props.onVoidWorkflowItem("intake", item.id)}>Void Intake</button> : null}
+                      {photoRecord?.hasMedicationPhoto || photoRecord?.medicinePhotoStatus === "Photo On File" ? <button className="button compact-button" type="button" onClick={() => photoRecord && void props.onViewMedicationPhoto(photoRecord)}>View Photo</button> : null}
+                    </div>
                   </div>
-                  <span className={statusClass(item.clarificationStatus)}>{item.clarificationStatus}</span>
+                  <div className="camp-row-actions">
+                    <span className={statusClass(item.clarificationStatus)}>{item.clarificationStatus}</span>
+                    <AuditBadge status={item.auditStatus} />
+                  </div>
                 </div>
               );
             })}
@@ -1041,7 +1296,9 @@ function RestrictedCampTools(props: {
           <p className="eyebrow">Medication Check-In</p><h3 id="med-check-in" className="section-title">Check-in workflow</h3>
           <MedicationRows
             records={medication?.checkIn ?? []}
-            onEdit={(record) => props.setMedicationForm({ id: record.id, studentId: record.studentId, medicationName: record.medicationName, medicinePhotoStatus: record.medicinePhotoStatus, parentProvidedInstructions: record.parentProvidedInstructions, checkInStatus: record.checkInStatus, clarificationStatus: record.clarificationStatus })}
+            photoUrls={props.medicationPhotoUrls}
+            onEdit={props.onCorrectMedication}
+            onVoid={(record) => props.onVoidWorkflowItem("medication", record.id)}
             onViewPhoto={props.onViewMedicationPhoto}
           />
           <div className="camp-form-grid camp-form-spaced">
@@ -1051,20 +1308,30 @@ function RestrictedCampTools(props: {
             <label className="field"><span>Check-In Status</span><select className="input" value={props.medicationForm.checkInStatus} onChange={(event) => props.setMedicationForm((current) => ({ ...current, checkInStatus: event.target.value as CampMedicationRecord["checkInStatus"] }))}><option>Not Checked In</option><option>Checked In</option><option>Needs Parent Clarification</option></select></label>
             <label className="field"><span>Clarification</span><select className="input" value={props.medicationForm.clarificationStatus} onChange={(event) => props.setMedicationForm((current) => ({ ...current, clarificationStatus: event.target.value as CampMedicationRecord["clarificationStatus"] }))}><option>Clear</option><option>Needs Parent Clarification</option></select></label>
             <label className="field camp-wide-field"><span>Parent-Provided Instructions</span><textarea className="input" rows={2} value={props.medicationForm.parentProvidedInstructions} onChange={(event) => props.setMedicationForm((current) => ({ ...current, parentProvidedInstructions: event.target.value }))} /></label>
+            <label className="field camp-wide-field"><span>Correction Note</span><input className="input" value={props.medicationForm.correctionNote ?? ""} onChange={(event) => props.setMedicationForm((current) => ({ ...current, correctionNote: event.target.value }))} placeholder="Use when this medication check-in corrects a prior row." /></label>
           </div>
-          <button className="button primary" type="button" onClick={() => void props.onSaveMedication()}>Save medication check-in</button>
+          {props.medicationForm.supersedesMedicationRecordId ? <p className="camp-save-message" role="status">Saving will create a corrected medication record and retain the prior row in restricted audit history.</p> : null}
+          <div className="camp-form-actions">
+            <button className="button primary" type="button" onClick={() => void props.onSaveMedication()}>{props.medicationForm.supersedesMedicationRecordId ? "Save corrected medication" : "Save medication check-in"}</button>
+            <button className="button" type="button" onClick={props.onClearMedicationForm}>Clear medication form</button>
+          </div>
         </section>
 
         <section className="panel" aria-labelledby="med-schedule">
           <p className="eyebrow">Medication Schedule</p><h3 id="med-schedule" className="section-title">Schedule workflow</h3>
-          <MedicationScheduleRows items={medication?.schedule ?? []} />
+          <MedicationScheduleRows items={medication?.schedule ?? []} onCorrect={props.onCorrectSchedule} onVoid={(item) => props.onVoidWorkflowItem("schedule", item.id)} />
           <div className="camp-form-grid camp-form-spaced">
             <label className="field"><span>Medication</span><select className="input" value={props.scheduleForm.medicationRecordId} onChange={(event) => props.setScheduleForm((current) => ({ ...current, medicationRecordId: event.target.value }))}>{(medication?.checkIn ?? []).map((record) => <option key={record.id} value={record.id}>{record.studentName} - {record.medicationName}</option>)}</select></label>
             <label className="field"><span>Time Window</span><input className="input" value={props.scheduleForm.timeWindow} onChange={(event) => props.setScheduleForm((current) => ({ ...current, timeWindow: event.target.value }))} /></label>
             <label className="field"><span>Status</span><select className="input" value={props.scheduleForm.status} onChange={(event) => props.setScheduleForm((current) => ({ ...current, status: event.target.value as CampMedicationScheduleItem["status"] }))}><option>Pending</option><option>Logged</option><option>Needs Parent Clarification</option></select></label>
             <label className="field camp-wide-field"><span>Parent Instructions</span><textarea className="input" rows={2} value={props.scheduleForm.parentProvidedInstructions} onChange={(event) => props.setScheduleForm((current) => ({ ...current, parentProvidedInstructions: event.target.value }))} /></label>
+            <label className="field camp-wide-field"><span>Correction Note</span><input className="input" value={props.scheduleForm.correctionNote ?? ""} onChange={(event) => props.setScheduleForm((current) => ({ ...current, correctionNote: event.target.value }))} placeholder="Use when this schedule row corrects a prior row." /></label>
           </div>
-          <button className="button primary" type="button" onClick={() => void props.onSaveSchedule()}>Add schedule item</button>
+          {props.scheduleForm.supersedesScheduleItemId ? <p className="camp-save-message" role="status">Saving will create a corrected schedule row and retain the prior row in restricted audit history.</p> : null}
+          <div className="camp-form-actions">
+            <button className="button primary" type="button" onClick={() => void props.onSaveSchedule()}>{props.scheduleForm.supersedesScheduleItemId ? "Save corrected schedule" : "Add schedule item"}</button>
+            <button className="button" type="button" onClick={props.onClearScheduleForm}>Clear schedule form</button>
+          </div>
         </section>
 
         <section className="panel" aria-labelledby="med-log">
@@ -1074,10 +1341,32 @@ function RestrictedCampTools(props: {
             <label className="field"><span>Logged By</span><input className="input" value={props.administrationForm.loggedBy} onChange={(event) => props.setAdministrationForm((current) => ({ ...current, loggedBy: event.target.value }))} /></label>
             <label className="field"><span>Status</span><select className="input" value={props.administrationForm.status} onChange={(event) => props.setAdministrationForm((current) => ({ ...current, status: event.target.value as CampMedicationAdministrationLog["status"] }))}><option>Logged</option><option>Skipped</option><option>Needs Parent Clarification</option></select></label>
             <label className="field camp-wide-field"><span>Notes</span><textarea className="input" rows={2} value={props.administrationForm.notes} onChange={(event) => props.setAdministrationForm((current) => ({ ...current, notes: event.target.value }))} placeholder="Logging only. No dosage interpretation." /></label>
+            <label className="field camp-wide-field"><span>Correction Note</span><input className="input" value={props.administrationForm.correctionNote ?? ""} onChange={(event) => props.setAdministrationForm((current) => ({ ...current, correctionNote: event.target.value }))} placeholder="Use when this log corrects a prior entry." /></label>
           </div>
-          <button className="button primary" type="button" onClick={() => void props.onSaveAdministrationLog()}>Save log entry</button>
+          {props.administrationForm.supersedesAdministrationLogId ? <p className="camp-save-message" role="status">Saving will create a correction log and preserve the prior entry in restricted audit history.</p> : null}
+          <div className="camp-form-actions">
+            <button className="button primary" type="button" onClick={() => void props.onSaveAdministrationLog()}>{props.administrationForm.supersedesAdministrationLogId ? "Save corrected log" : "Save log entry"}</button>
+            <button className="button" type="button" onClick={props.onClearAdministrationForm}>Clear log form</button>
+          </div>
           <div className="camp-list camp-form-spaced">
-            {(medication?.administrationLog ?? []).map((log) => <div className="camp-list-row align-start" key={log.id}><div><strong>{log.studentName} - {log.timeWindow}</strong><p className="muted">{new Date(log.loggedAt).toLocaleString()} by {log.loggedBy}. {log.notes}</p></div><span className={statusClass(log.status)}>{log.status}</span></div>)}
+            {(medication?.administrationLog ?? []).map((log) => (
+              <div className="camp-list-row align-start" key={log.id}>
+                <div>
+                  <strong>{log.studentName} - {log.timeWindow}</strong>
+                  <p className="muted">{new Date(log.loggedAt).toLocaleString()} by {log.loggedBy}. {log.notes}</p>
+                  {log.correctionNote ? <p className="muted">Correction note: {log.correctionNote}</p> : null}
+                  {log.voidReason ? <p className="muted">Void reason: {log.voidReason}</p> : null}
+                  <div className="camp-row-actions">
+                    <button className="button compact-button" type="button" onClick={() => props.onCorrectAdministrationLog(log)}>Correct Log</button>
+                    {log.auditStatus !== "Voided" ? <button className="button compact-button" type="button" onClick={() => void props.onVoidWorkflowItem("administrationLog", log.id)}>Void Log</button> : null}
+                  </div>
+                </div>
+                <div className="camp-row-actions">
+                  <span className={statusClass(log.status)}>{log.status}</span>
+                  <AuditBadge status={log.auditStatus} />
+                </div>
+              </div>
+            ))}
           </div>
         </section>
 
@@ -1085,12 +1374,39 @@ function RestrictedCampTools(props: {
           <p className="eyebrow">Medication Return Checklist</p><h3 id="med-return" className="section-title">Return tracking</h3>
           <div className="camp-list">
             {(medication?.returnChecklist ?? []).map((item) => (
-              <div className="camp-list-row" key={item.id}>
-                <div><strong>{item.studentName}</strong><p className="muted">{item.returnedAt ? `Returned ${new Date(item.returnedAt).toLocaleString()} by ${item.returnedBy}` : "Return parent-provided medication to parent or authorized guardian."}</p></div>
-                <select className="input camp-inline-select" value={item.returnStatus} onChange={(event) => void props.onSaveReturnStatus(item.id, event.target.value as CampMedicationReturnItem["returnStatus"])}><option>Pending Return</option><option>Returned to Parent</option><option>Needs Parent Clarification</option></select>
+              <div className="camp-list-row align-start" key={item.id}>
+                <div>
+                  <strong>{item.studentName}</strong>
+                  <p className="muted">{item.returnedAt ? `Returned ${new Date(item.returnedAt).toLocaleString()} by ${item.returnedBy || "staff"}` : "Return parent-provided medication to parent or authorized guardian."}</p>
+                  {item.recipientName ? <p className="muted">Recipient: {item.recipientName} ({item.recipientRelationship || "relationship not recorded"})</p> : null}
+                  {item.returnNotes ? <p className="muted">{item.returnNotes}</p> : null}
+                  {item.correctionNote ? <p className="muted">Correction note: {item.correctionNote}</p> : null}
+                  {item.voidReason ? <p className="muted">Void reason: {item.voidReason}</p> : null}
+                </div>
+                <div className="camp-row-actions">
+                  <span className={statusClass(item.returnStatus)}>{item.returnStatus}</span>
+                  <AuditBadge status={item.auditStatus} />
+                  <button className="button compact-button" type="button" onClick={() => props.onCorrectReturn(item)}>Update Return</button>
+                  {item.auditStatus !== "Voided" ? <button className="button compact-button" type="button" onClick={() => void props.onVoidWorkflowItem("return", item.id)}>Void Return</button> : null}
+                </div>
               </div>
             ))}
           </div>
+          {props.returnForm ? (
+            <div className="camp-form-grid camp-form-spaced">
+              <label className="field"><span>Return Status</span><select className="input" value={props.returnForm.returnStatus} onChange={(event) => props.setReturnForm((current) => current ? ({ ...current, returnStatus: event.target.value as CampMedicationReturnItem["returnStatus"] }) : current)}><option>Pending Return</option><option>Returned to Parent/Guardian</option><option>Needs Parent Clarification</option><option>Not Returned / Follow-Up Needed</option></select></label>
+              <label className="field"><span>Returned By</span><input className="input" value={props.returnForm.returnedBy} onChange={(event) => props.setReturnForm((current) => current ? ({ ...current, returnedBy: event.target.value }) : current)} /></label>
+              <label className="field"><span>Returned At</span><input className="input" type="datetime-local" value={props.returnForm.returnedAt} onChange={(event) => props.setReturnForm((current) => current ? ({ ...current, returnedAt: event.target.value }) : current)} /></label>
+              <label className="field"><span>Recipient Name</span><input className="input" value={props.returnForm.recipientName} onChange={(event) => props.setReturnForm((current) => current ? ({ ...current, recipientName: event.target.value }) : current)} /></label>
+              <label className="field"><span>Recipient Relationship</span><input className="input" value={props.returnForm.recipientRelationship} onChange={(event) => props.setReturnForm((current) => current ? ({ ...current, recipientRelationship: event.target.value }) : current)} /></label>
+              <label className="field camp-wide-field"><span>Return Notes</span><textarea className="input" rows={2} value={props.returnForm.returnNotes} onChange={(event) => props.setReturnForm((current) => current ? ({ ...current, returnNotes: event.target.value }) : current)} /></label>
+              <label className="field camp-wide-field"><span>Correction Note</span><input className="input" value={props.returnForm.correctionNote ?? ""} onChange={(event) => props.setReturnForm((current) => current ? ({ ...current, correctionNote: event.target.value }) : current)} placeholder="Use when this return record corrects a prior row." /></label>
+              <div className="camp-form-actions camp-wide-field">
+                <button className="button primary" type="button" onClick={() => void props.onSaveReturn()}>Save return update</button>
+                <button className="button" type="button" onClick={() => props.setReturnForm(null)}>Cancel return update</button>
+              </div>
+            </div>
+          ) : null}
         </section>
       </div>
     </>
@@ -1099,22 +1415,41 @@ function RestrictedCampTools(props: {
 
 function MedicationRows({
   records,
+  photoUrls,
   onEdit,
+  onVoid,
   onViewPhoto
 }: {
   records: CampMedicationRecord[];
+  photoUrls: Record<string, string>;
   onEdit: (record: CampMedicationRecord) => void;
+  onVoid: (record: CampMedicationRecord) => Promise<void>;
   onViewPhoto: (record: CampMedicationRecord) => Promise<void>;
 }) {
   return (
     <div className="camp-list">
       {records.map((record) => (
         <div className="camp-list-row align-start" key={record.id}>
-          <div className="camp-medicine-photo"><span>{record.medicinePhotoStatus}</span></div>
+          <button
+            className={`camp-medicine-photo ${photoUrls[record.id] ? "has-photo" : ""}`}
+            type="button"
+            disabled={!photoUrls[record.id]}
+            onClick={() => photoUrls[record.id] ? void onViewPhoto(record) : undefined}
+            aria-label={photoUrls[record.id] ? `View medication photo for ${record.studentName}` : `No medication photo for ${record.studentName}`}
+          >
+            {photoUrls[record.id] ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={photoUrls[record.id]} alt="" />
+            ) : (
+              <span>{record.medicinePhotoStatus}</span>
+            )}
+          </button>
           <div>
             <strong>{record.studentName}</strong>
             <p className="muted">{record.medicationName} - {record.parentProvidedInstructions}</p>
             {record.latestQuantityReceived ? <p className="muted">Quantity received: {record.latestQuantityReceived}</p> : null}
+            {record.correctionNote ? <p className="muted">Correction note: {record.correctionNote}</p> : null}
+            {record.voidReason ? <p className="muted">Void reason: {record.voidReason}</p> : null}
             <div className="camp-photo-actions">
               {record.hasMedicationPhoto || record.medicinePhotoStatus === "Photo On File" ? (
                 <button className="button compact-button" type="button" onClick={() => void onViewPhoto(record)}>View Photo</button>
@@ -1125,7 +1460,9 @@ function MedicationRows({
           </div>
           <div className="camp-row-actions">
             <span className={statusClass(record.checkInStatus)}>{record.checkInStatus}</span>
-            <button className="button compact-button" type="button" onClick={() => onEdit(record)}>Edit Medication</button>
+            <AuditBadge status={record.auditStatus} />
+            <button className="button compact-button" type="button" onClick={() => onEdit(record)}>Correct Medication</button>
+            {record.auditStatus !== "Voided" ? <button className="button compact-button" type="button" onClick={() => void onVoid(record)}>Void Medication</button> : null}
           </div>
         </div>
       ))}
@@ -1133,8 +1470,32 @@ function MedicationRows({
   );
 }
 
-function MedicationScheduleRows({ items }: { items: CampMedicationScheduleItem[] }) {
-  return <div className="camp-list">{items.map((item) => <div className="camp-list-row align-start" key={item.id}><div><strong>{item.studentName} - {item.timeWindow}</strong><p className="muted">{item.parentProvidedInstructions}{item.lastLoggedAt ? ` Last logged ${new Date(item.lastLoggedAt).toLocaleString()} by ${item.lastLoggedBy}.` : ""}</p></div><span className={statusClass(item.status)}>{item.status}</span></div>)}</div>;
+function MedicationScheduleRows({ items, onCorrect, onVoid }: { items: CampMedicationScheduleItem[]; onCorrect: (item: CampMedicationScheduleItem) => void; onVoid: (item: CampMedicationScheduleItem) => Promise<void> }) {
+  return (
+    <div className="camp-list">
+      {items.map((item) => (
+        <div className="camp-list-row align-start" key={item.id}>
+          <div>
+            <strong>{item.studentName} - {item.timeWindow}</strong>
+            <p className="muted">{item.parentProvidedInstructions}{item.lastLoggedAt ? ` Last logged ${new Date(item.lastLoggedAt).toLocaleString()} by ${item.lastLoggedBy}.` : ""}</p>
+            {item.correctionNote ? <p className="muted">Correction note: {item.correctionNote}</p> : null}
+            {item.voidReason ? <p className="muted">Void reason: {item.voidReason}</p> : null}
+          </div>
+          <div className="camp-row-actions">
+            <span className={statusClass(item.status)}>{item.status}</span>
+            <AuditBadge status={item.auditStatus} />
+            <button className="button compact-button" type="button" onClick={() => onCorrect(item)}>Correct Schedule</button>
+            {item.auditStatus !== "Voided" ? <button className="button compact-button" type="button" onClick={() => void onVoid(item)}>Void Schedule</button> : null}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function AuditBadge({ status }: { status?: string }) {
+  if (!status || status === "Active") return null;
+  return <span className={status === "Voided" ? "camp-status locked" : "camp-status warn"}>{status}</span>;
 }
 
 function SignaturePad({ value, onChange }: { value: CampMedicationIntakeInput["guardianSignatureData"]; onChange: (signature: CampMedicationIntakeInput["guardianSignatureData"]) => void }) {

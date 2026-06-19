@@ -7,9 +7,10 @@ import {
   saveMedicationIntake,
   updateMedicationReturnItem,
   upsertMedicationRecord,
-  upsertMedicationScheduleItem
+  upsertMedicationScheduleItem,
+  voidMedicationWorkflowItem
 } from "@/lib/camp/repository";
-import type { CampMedicationAdministrationLog, CampMedicationIntakeInput, CampMedicationRecord, CampMedicationReturnItem, CampMedicationScheduleItem } from "@/lib/camp/types";
+import type { CampMedicationAdministrationLog, CampMedicationIntakeInput, CampMedicationRecord, CampMedicationReturnItem, CampMedicationScheduleItem, CampMedicationVoidInput } from "@/lib/camp/types";
 
 export async function GET(request: Request) {
   const session = await getServerSession();
@@ -39,9 +40,21 @@ export async function POST(request: Request) {
   const { searchParams } = new URL(request.url);
   const context = resolveCampAccessContext(session, searchParams.get("role"));
 
-  const body = (await request.json()) as { target?: string } & Partial<CampMedicationRecord> & Partial<CampMedicationScheduleItem> & Partial<CampMedicationAdministrationLog> & Partial<CampMedicationIntakeInput>;
+  const body = (await request.json()) as { target?: string; voidTarget?: CampMedicationVoidInput["target"]; voidReason?: string; voidedByName?: string; id?: string } & Partial<CampMedicationRecord> & Partial<CampMedicationScheduleItem> & Partial<CampMedicationAdministrationLog> & Partial<CampMedicationIntakeInput> & Partial<CampMedicationReturnItem>;
 
   try {
+    if (body.target === "void") {
+      const payload = await voidMedicationWorkflowItem(session, context, {
+        target: body.voidTarget ?? "medication",
+        id: body.id ?? "",
+        voidReason: body.voidReason ?? "",
+        voidedByName: body.voidedByName
+      });
+      if (!payload.allowed) return NextResponse.json({ error: payload.error }, { status: payload.status });
+      if ("error" in payload) return NextResponse.json({ error: payload.error }, { status: payload.status });
+      return NextResponse.json({ item: payload.item }, { status: payload.status });
+    }
+
     if (body.target === "intake") {
       const payload = await saveMedicationIntake(session, context, {
         medicationRecordId: body.medicationRecordId,
@@ -72,7 +85,9 @@ export async function POST(request: Request) {
         medicationRecordId: body.medicationRecordId ?? "",
         timeWindow: body.timeWindow ?? "",
         parentProvidedInstructions: body.parentProvidedInstructions,
-        status: body.status as CampMedicationScheduleItem["status"] | undefined
+        status: body.status as CampMedicationScheduleItem["status"] | undefined,
+        supersedesScheduleItemId: body.supersedesScheduleItemId,
+        correctionNote: body.correctionNote
       });
       if (!payload.allowed) return NextResponse.json({ error: payload.error }, { status: payload.status });
       return NextResponse.json({ item: payload.item }, { status: payload.status });
@@ -83,7 +98,9 @@ export async function POST(request: Request) {
         scheduleItemId: body.scheduleItemId ?? "",
         loggedBy: body.loggedBy ?? "",
         status: (body.status as CampMedicationAdministrationLog["status"] | undefined) ?? "Logged",
-        notes: body.notes
+        notes: body.notes,
+        supersedesAdministrationLogId: body.supersedesAdministrationLogId,
+        correctionNote: body.correctionNote
       });
       if (!payload.allowed) return NextResponse.json({ error: payload.error }, { status: payload.status });
       if ("error" in payload) return NextResponse.json({ error: payload.error }, { status: payload.status });
@@ -97,7 +114,9 @@ export async function POST(request: Request) {
       parentProvidedInstructions: body.parentProvidedInstructions,
       checkInStatus: body.checkInStatus,
       receivedBy: body.receivedBy,
-      clarificationStatus: body.clarificationStatus
+      clarificationStatus: body.clarificationStatus,
+      supersedesMedicationRecordId: body.supersedesMedicationRecordId,
+      correctionNote: body.correctionNote
     });
     if (!payload.allowed) return NextResponse.json({ error: payload.error }, { status: payload.status });
     return NextResponse.json({ record: payload.record }, { status: payload.status });
@@ -120,7 +139,13 @@ export async function PATCH(request: Request) {
       const payload = await updateMedicationReturnItem(session, context, {
         id: body.id ?? "",
         returnStatus: (body.returnStatus as CampMedicationReturnItem["returnStatus"] | undefined) ?? "Pending Return",
-        returnedBy: body.returnedBy
+        returnedBy: body.returnedBy,
+        returnedAt: body.returnedAt,
+        recipientName: body.recipientName,
+        recipientRelationship: body.recipientRelationship,
+        returnNotes: body.returnNotes,
+        supersedesReturnItemId: body.supersedesReturnItemId,
+        correctionNote: body.correctionNote
       });
       if (!payload.allowed) return NextResponse.json({ error: payload.error }, { status: payload.status });
       if ("error" in payload) return NextResponse.json({ error: payload.error }, { status: payload.status });
@@ -133,7 +158,9 @@ export async function PATCH(request: Request) {
         medicationRecordId: body.medicationRecordId ?? "",
         timeWindow: body.timeWindow ?? "",
         parentProvidedInstructions: body.parentProvidedInstructions,
-        status: body.status as CampMedicationScheduleItem["status"] | undefined
+        status: body.status as CampMedicationScheduleItem["status"] | undefined,
+        supersedesScheduleItemId: body.supersedesScheduleItemId,
+        correctionNote: body.correctionNote
       });
       if (!payload.allowed) return NextResponse.json({ error: payload.error }, { status: payload.status });
       return NextResponse.json({ item: payload.item }, { status: payload.status });
@@ -147,7 +174,9 @@ export async function PATCH(request: Request) {
       parentProvidedInstructions: body.parentProvidedInstructions,
       checkInStatus: body.checkInStatus,
       receivedBy: body.receivedBy,
-      clarificationStatus: body.clarificationStatus
+      clarificationStatus: body.clarificationStatus,
+      supersedesMedicationRecordId: body.supersedesMedicationRecordId,
+      correctionNote: body.correctionNote
     });
     if (!payload.allowed) return NextResponse.json({ error: payload.error }, { status: payload.status });
     return NextResponse.json({ record: payload.record }, { status: payload.status });
