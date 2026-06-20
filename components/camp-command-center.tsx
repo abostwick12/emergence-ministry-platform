@@ -8,6 +8,13 @@ import {
   getDefaultCampAccessScope,
   isRestrictedCampMedicalRole
 } from "@/lib/camp/access";
+import {
+  oakwoodExpectedCsvHeaders,
+  oakwoodOptionalCsvHeaders,
+  oakwoodRecommendedCsvHeaders,
+  oakwoodRequiredCsvHeaders,
+  oakwoodSampleHeaderRow
+} from "@/lib/camp/oakwood-source-format";
 import type {
   CampAccessRole,
   CampMedicationAdministrationLog,
@@ -1095,7 +1102,7 @@ export function CampCommandCenter() {
           </span>
           <span className="camp-cc-entry-body">
             <strong>Oakwood import preview</strong>
-            <span className="camp-cc-muted">Restricted admin workflow. Uses pasted Quick View CSV rows; this Preview deployment starts from demo/mock Camp data.</span>
+            <span className="camp-cc-muted">Restricted admin workflow. Uses pasted Quick View CSV rows; demo/mock preview is clearly labeled before any write.</span>
           </span>
           <span className="camp-cc-entry-arrow" aria-hidden="true">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1497,10 +1504,44 @@ function RestrictedCampTools(props: {
         <section className="panel" aria-labelledby="oakwood-import">
           <p className="eyebrow">Camp Oakwood Import</p>
           <h3 id="oakwood-import" className="section-title">Preview Oakwood roster import</h3>
-          <p className="muted">
-            This restricted preview uses only the Quick View CSV rows pasted below. The source-file field is a label, not a Drive connection or upload.
-            In this Preview deployment, matching starts from the demo/mock Camp roster unless Supabase is configured.
-          </p>
+          <div className="camp-list camp-form-spaced" aria-label="Oakwood import mode readiness">
+            <div className="camp-list-row align-start">
+              <div>
+                <strong>Demo/mock preview mode</strong>
+                <p className="muted">When this Preview deployment is running without live Supabase Camp data, matching starts from the seeded demo/mock Camp roster. Avery/Jordan-style seeded records are not real workbook rows.</p>
+              </div>
+              <span className="camp-status warn">Mock safe</span>
+            </div>
+            <div className="camp-list-row align-start">
+              <div>
+                <strong>Real workbook CSV preview mode</strong>
+                <p className="muted">Paste exported Google Sheet Quick View CSV rows below. The data is previewed first; ignored columns are skipped; no Drive sync, file upload, or workbook ingestion is wired here.</p>
+              </div>
+              <span className="camp-status">Preview first</span>
+            </div>
+            <div className="camp-list-row align-start">
+              <div>
+                <strong>Production commit unavailable until ready</strong>
+                <p className="muted">Do not save real Oakwood data until migration 013 has been applied to the live Supabase database and the Preview confirms the selected real CSV source.</p>
+              </div>
+              <span className="camp-status locked">Hold</span>
+            </div>
+          </div>
+          <div className="camp-list camp-form-spaced" aria-label="Oakwood CSV source instructions">
+            <div className="camp-list-row align-start">
+              <div>
+                <strong>Expected CSV headers</strong>
+                <p className="muted">Required to import a person row: {oakwoodRequiredCsvHeaders.join(", ")}. Recommended for correct classification and matching: {oakwoodRecommendedCsvHeaders.join(", ")}. Optional supported columns: {oakwoodOptionalCsvHeaders.join(", ")}.</p>
+                <p className="muted">Headers are matched case-insensitively with normalized spacing and known aliases, but the sample below is the exact preferred source format. Extra Google Sheet columns can remain in the paste; unsupported columns are ignored.</p>
+              </div>
+            </div>
+            <label className="field camp-wide-field">
+              <span>Sample header row</span>
+              <textarea className="input" rows={3} readOnly value={oakwoodSampleHeaderRow} aria-label="Copyable Oakwood sample header row" />
+            </label>
+            <p className="muted">From Google Sheets: open the Quick View tab, keep the header row selected with the person rows, copy or export as CSV, then paste the header plus rows into the box below. Always run Preview Oakwood import before any save.</p>
+            <p className="muted">Accepted headers: {oakwoodExpectedCsvHeaders.join(", ")}.</p>
+          </div>
           <div className="camp-form-grid">
             <label className="field">
               <span>Source file</span>
@@ -1508,7 +1549,7 @@ function RestrictedCampTools(props: {
             </label>
             <label className="field camp-wide-field">
               <span>Quick View CSV rows</span>
-              <textarea className="input" rows={6} value={props.oakwoodCsv} onChange={(event) => props.setOakwoodCsv(event.target.value)} placeholder="Registration ID,Name,Selection,Grade,Room Number,T-Shirt Size,Quick Filter,Emergency Contact,Medical Notes,Dietary Requirements" />
+              <textarea className="input" rows={6} value={props.oakwoodCsv} onChange={(event) => props.setOakwoodCsv(event.target.value)} placeholder={oakwoodSampleHeaderRow} />
             </label>
           </div>
           <div className="toolbar">

@@ -86,6 +86,9 @@ test.describe("Camp Oakwood restricted import workflow", () => {
     await page.getByRole("link", { name: /Oakwood import preview/ }).click();
     await expect(page.getByRole("heading", { name: "Preview Oakwood roster import" })).toBeVisible();
     await expect(page.getByText("demo/mock Camp roster", { exact: false })).toBeVisible();
+    await expect(page.getByText("Real workbook CSV preview mode")).toBeVisible();
+    await expect(page.getByText("Production commit unavailable until ready")).toBeVisible();
+    await expect(page.getByLabel("Copyable Oakwood sample header row")).toContainText("Registration ID,Name,Selection,Grade,Room Number,T-Shirt Size,Quick Filter,Emergency Contact");
 
     const csv = [
       "Registration ID,Name,Selection,Grade,Room Number,T-Shirt Size,Quick Filter,Emergency Contact,Medical Notes,Dietary Requirements",

@@ -5,6 +5,7 @@ import type {
   CampOakwoodRestrictedPayload,
   CampOakwoodSafeIndicators
 } from "@/lib/camp/types";
+export { oakwoodExpectedCsvHeaders, oakwoodOptionalCsvHeaders, oakwoodRecommendedCsvHeaders, oakwoodRequiredCsvHeaders, oakwoodSampleHeaderRow } from "@/lib/camp/oakwood-source-format";
 
 // Camp Oakwood "Quick View" workbook import engine.
 //

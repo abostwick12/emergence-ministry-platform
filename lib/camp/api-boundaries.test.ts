@@ -57,14 +57,15 @@ const restrictedNeedles = [
   "camp-medication-photos"
 ];
 
-function session(role = "admin"): AuthSession {
+function session(role = "admin", overrides: Partial<AuthSession> = {}): AuthSession {
   return {
     isMock: true,
+    ...overrides,
     user: {
-      id: "usr_mock",
-      email: "staff@example.test",
-      fullName: "Mock Staff",
-      role
+      id: overrides.user?.id ?? "usr_mock",
+      email: overrides.user?.email ?? "staff@example.test",
+      fullName: overrides.user?.fullName ?? "Mock Staff",
+      role: overrides.user?.role ?? role
     }
   };
 }
@@ -485,6 +486,70 @@ describe("camp API restricted data boundaries", () => {
     expect(JSON.stringify(publicPayload)).not.toContain("Private medical note");
     expect(JSON.stringify(publicPayload)).not.toContain("555");
     expectNoRestrictedPayloadDetails(publicPayload);
+  });
+
+  it("does not let live General Leaders or Drivers spoof Oakwood import access with role=andrew", async () => {
+    const csv = [
+      "Registration ID,Name,Selection,Grade,Room Number,T-Shirt Size,Quick Filter,Emergency Contact",
+      "70000120,Spoofed Oakwood Camper,Student,9th,Room 1,Adult Small,No Concern,Pat Parent - (555) 111-2222"
+    ].join("\n");
+
+    for (const liveSession of [
+      session("leader", { isMock: false, user: { id: "live_leader", email: "leader@example.test", fullName: "Live Leader", role: "leader" } }),
+      session("driver", { isMock: false, user: { id: "live_driver", email: "driver@example.test", fullName: "Live Driver", role: "driver" } })
+    ]) {
+      getServerSessionMock.mockResolvedValue(liveSession);
+
+      const previewResponse = await importPOST(jsonRequest("http://localhost/api/camp/import?role=andrew", {
+        action: "oakwoodPreview",
+        csv
+      }));
+      const commitResponse = await importPOST(jsonRequest("http://localhost/api/camp/import?role=andrew", {
+        action: "oakwoodCommit",
+        oakwoodPreview: {
+          sourceFile: "Spoof.csv",
+          rows: [],
+          summary: {
+            totalSourceRows: 0,
+            personRows: 0,
+            students: 0,
+            adults: 0,
+            newCount: 0,
+            matchedCount: 0,
+            ambiguousCount: 0,
+            skippedCount: 0,
+            invalidCount: 0,
+            safeFieldRows: 0,
+            restrictedRecordRows: 0,
+            staffRows: 0
+          }
+        },
+        confirmed: true
+      }));
+
+      expect(previewResponse.status).toBe(403);
+      expect(commitResponse.status).toBe(403);
+      expectNoRestrictedPayloadDetails(await json(previewResponse));
+      expectNoRestrictedPayloadDetails(await json(commitResponse));
+    }
+  });
+
+  it("uses live session identity, not the role query, for restricted Oakwood authorization", async () => {
+    getServerSessionMock.mockResolvedValue(session("leader", {
+      isMock: false,
+      user: { id: "live_andrew", email: "andrew@example.test", fullName: "Andrew", role: "leader" }
+    }));
+
+    const response = await importPOST(jsonRequest("http://localhost/api/camp/import?role=driver", {
+      action: "oakwoodPreview",
+      csv: [
+        "Registration ID,Name,Selection,Grade,Room Number,T-Shirt Size,Quick Filter,Emergency Contact",
+        "70000121,Live Andrew Preview Camper,Student,9th,Room 1,Adult Small,No Concern,Pat Parent - (555) 111-2222"
+      ].join("\n")
+    }));
+
+    expect(response.status).toBe(200);
+    expect(JSON.stringify(await response.json())).toContain("Live Andrew Preview Camper");
   });
 
   it("rejects ambiguous Oakwood commits instead of overwriting automatically", async () => {

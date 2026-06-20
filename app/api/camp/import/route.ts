@@ -18,7 +18,10 @@ export async function POST(request: Request) {
   if (!session) return unauthorizedResponse();
 
   const { searchParams } = new URL(request.url);
-  const context = resolveCampAccessContext(session, searchParams.get("role"));
+  const requestedRole = searchParams.get("role");
+  // The role query parameter is only a mock/dev Access Preview affordance. Live
+  // sessions must be authorized from the authenticated server session identity.
+  const context = resolveCampAccessContext(session, session.isMock ? requestedRole : null);
   const restrictedAccess = assertCampRestrictedAccess(context);
   if (!restrictedAccess.allowed) {
     return NextResponse.json({ error: restrictedAccess.error }, { status: restrictedAccess.status });
