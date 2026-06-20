@@ -1082,6 +1082,29 @@ export function CampCommandCenter() {
         ) : null}
       </section>
 
+      {canSeeRestrictedMedical ? (
+        <a className="camp-cc-entry camp-restricted-entry" href="#oakwood-import" aria-label="Open restricted Oakwood import preview">
+          <span className="camp-cc-entry-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 7h16" />
+              <path d="M6 7v12h12V7" />
+              <path d="M9 11h6" />
+              <path d="M9 15h4" />
+              <path d="M8 3h8l2 4H6l2-4Z" />
+            </svg>
+          </span>
+          <span className="camp-cc-entry-body">
+            <strong>Oakwood import preview</strong>
+            <span className="camp-cc-muted">Restricted admin workflow. Uses pasted Quick View CSV rows; this Preview deployment starts from demo/mock Camp data.</span>
+          </span>
+          <span className="camp-cc-entry-arrow" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 6l6 6-6 6" />
+            </svg>
+          </span>
+        </a>
+      ) : null}
+
       {saveMessage ? <p className={`camp-save-message ${actionStatus?.tone === "error" ? "error" : actionStatus?.tone === "success" ? "success" : ""}`} role="status">{saveMessage}</p> : null}
 
       <section className="panel" aria-labelledby="student-lookup">
@@ -1473,7 +1496,11 @@ function RestrictedCampTools(props: {
       <div className="camp-grid camp-medication-sections">
         <section className="panel" aria-labelledby="oakwood-import">
           <p className="eyebrow">Camp Oakwood Import</p>
-          <h3 id="oakwood-import" className="section-title">Preview real roster data</h3>
+          <h3 id="oakwood-import" className="section-title">Preview Oakwood roster import</h3>
+          <p className="muted">
+            This restricted preview uses only the Quick View CSV rows pasted below. The source-file field is a label, not a Drive connection or upload.
+            In this Preview deployment, matching starts from the demo/mock Camp roster unless Supabase is configured.
+          </p>
           <div className="camp-form-grid">
             <label className="field">
               <span>Source file</span>

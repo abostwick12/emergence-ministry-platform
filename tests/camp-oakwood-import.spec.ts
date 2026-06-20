@@ -3,6 +3,15 @@ import { expect, type Page, test } from "@playwright/test";
 test.use({ viewport: { width: 1280, height: 900 } });
 
 test.describe("Camp Oakwood restricted import workflow", () => {
+  test("keeps the Oakwood import entry hidden outside restricted access", async ({ page }) => {
+    await login(page);
+    await page.goto("/camp/more");
+
+    await expect(page.getByRole("link", { name: /Oakwood import preview/ })).toHaveCount(0);
+    await page.getByRole("button", { name: "Driver", exact: true }).click();
+    await expect(page.getByRole("link", { name: /Oakwood import preview/ })).toHaveCount(0);
+  });
+
   test("removes synthetic john test from active Camp views through the restricted archive workflow", async ({ page }) => {
     await login(page);
 
@@ -73,7 +82,10 @@ test.describe("Camp Oakwood restricted import workflow", () => {
     await page.goto("/camp/more");
 
     await page.getByRole("button", { name: "Andrew", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "Preview real roster data" })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Oakwood import preview/ })).toBeVisible();
+    await page.getByRole("link", { name: /Oakwood import preview/ }).click();
+    await expect(page.getByRole("heading", { name: "Preview Oakwood roster import" })).toBeVisible();
+    await expect(page.getByText("demo/mock Camp roster", { exact: false })).toBeVisible();
 
     const csv = [
       "Registration ID,Name,Selection,Grade,Room Number,T-Shirt Size,Quick Filter,Emergency Contact,Medical Notes,Dietary Requirements",
