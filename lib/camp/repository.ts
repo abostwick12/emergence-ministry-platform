@@ -45,6 +45,8 @@ type CampTeamRow = {
   name: string;
   color: string | null;
   leader: string | null;
+  co_leader: string | null;
+  room: string | null;
   display_order: number | null;
 };
 
@@ -224,6 +226,7 @@ export async function getCampOverview(
 
   const students = (data ?? []).map(toCampStudentPublic);
   return {
+    campName: basics.camp.name,
     campStartsOn: basics.camp.starts_on,
     teams: basics.teams,
     vehicles: basics.vehicles,
@@ -877,7 +880,7 @@ async function ensureCampBasics(session: AuthSession): Promise<CampBasics> {
 
 async function loadTeams(session: AuthSession, campId: string): Promise<CampTeam[]> {
   const supabase = getSupabaseAuthClient(session.accessToken);
-  const { data, error } = await supabase.from("camp_teams").select("*").eq("camp_id", campId).order("display_order", { ascending: true }).returns<CampTeamRow[]>();
+  const { data, error } = await supabase.from("camp_teams").select("*").eq("camp_id", campId).is("archived_at", null).order("display_order", { ascending: true }).returns<CampTeamRow[]>();
   throwIfSupabaseError(error);
   return (data ?? []).map(toCampTeam);
 }
@@ -995,7 +998,9 @@ function toCampTeam(row: CampTeamRow): CampTeam {
     id: row.id,
     name: row.name,
     color: row.color ?? "",
-    leader: row.leader ?? ""
+    leader: row.leader ?? "",
+    coLeader: row.co_leader ?? "",
+    room: row.room ?? ""
   };
 }
 

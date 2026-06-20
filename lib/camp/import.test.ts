@@ -7,7 +7,7 @@ describe("camp registration import parsing", () => {
     const preview = parseCampRegistrationImport(
       [
         "Student Name,Grade,Team,Vehicle,Cabin,Limited Safety Flags",
-        "Avery Test,8th,Cypress,Van 1,Cabin A,Hydration reminder"
+        "Avery Test,8th,Blue,Van 1,Cabin A,Hydration reminder"
       ].join("\n"),
       { teams: campTeams, vehicles: campVehicles }
     );
@@ -15,7 +15,7 @@ describe("camp registration import parsing", () => {
     expect(preview.summary).toMatchObject({ totalRows: 1, readyRows: 1, blockedRows: 0 });
     expect(preview.rows[0]?.camper).toMatchObject({
       name: "Avery Test",
-      teamId: "team-cypress",
+      teamId: "team-blue",
       vehicleId: "van-1",
       limitedSafetyFlags: ["Hydration reminder"]
     });
@@ -27,7 +27,7 @@ describe("camp registration import parsing", () => {
     const preview = parseCampRegistrationImport(
       [
         "Student Name,Team,Vehicle,Medication Name,Medication Instructions,Medication Time",
-        "Jordan Test,Summit,Van 2,,Unclear instruction from parent,Breakfast"
+        "Jordan Test,Red,Van 2,,Unclear instruction from parent,Breakfast"
       ].join("\n"),
       { teams: campTeams, vehicles: campVehicles }
     );
@@ -46,8 +46,8 @@ describe("camp registration import parsing", () => {
     const preview = parseCampRegistrationImport(
       [
         "Student Name,Team,Vehicle,Parent Medical Notes",
-        "\"Taylor, Test\",Harbor,Van 3,\"Parent note, no interpretation needed\"",
-        ",Harbor,Van 3,Missing name"
+        "\"Taylor, Test\",Yellow,Van 3,\"Parent note, no interpretation needed\"",
+        ",Yellow,Van 3,Missing name"
       ].join("\n"),
       { teams: campTeams, vehicles: campVehicles }
     );

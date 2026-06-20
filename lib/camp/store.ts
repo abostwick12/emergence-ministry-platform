@@ -1,5 +1,5 @@
 import { getCampVisibleStudentsForData, isRestrictedCampMedicalRole } from "@/lib/camp/access";
-import { campDocuments, campSchedule, campStartsOn, campStudents, campTeams, campVehicles } from "@/lib/camp/public-data";
+import { campDocuments, campName, campSchedule, campStartsOn, campStudents, campTeams, campVehicles } from "@/lib/camp/public-data";
 import { sanitizePublicSafetyFlags } from "@/lib/camp/public-safety";
 import {
   medicationRecords,
@@ -93,6 +93,7 @@ export function listArchivedCampStudents(role: CampAccessRole): CampStudentPubli
 
 export function getCampOverview(role: CampAccessRole, scope: CampAccessScope = {}): CampOverviewPayload {
   return {
+    campName,
     campStartsOn,
     teams: cloneArray(store.teams),
     vehicles: cloneArray(store.vehicles),
