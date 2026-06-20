@@ -16,6 +16,8 @@ import type {
   CampMedicationRecord,
   CampMedicationReturnItem,
   CampMedicationScheduleItem,
+  CampOakwoodImportPreview,
+  CampOakwoodImportRow,
   CampOverviewPayload,
   CampRegistrationImportPreview,
   CampRestrictedMedicalRecord,
@@ -97,7 +99,9 @@ type CampSaveAction =
   | "return"
   | "void"
   | "importPreview"
-  | "importCommit";
+  | "importCommit"
+  | "oakwoodImportPreview"
+  | "oakwoodImportCommit";
 type CampActionStatus = {
   action: CampSaveAction;
   tone: "saving" | "success" | "error";
@@ -172,6 +176,11 @@ export function CampCommandCenter() {
   const [importCsv, setImportCsv] = useState("");
   const [importPreview, setImportPreview] = useState<CampRegistrationImportPreview | null>(null);
   const [importMessage, setImportMessage] = useState("");
+  const [oakwoodSourceFile, setOakwoodSourceFile] = useState("Camp_Quick_View.csv");
+  const [oakwoodCsv, setOakwoodCsv] = useState("");
+  const [oakwoodPreview, setOakwoodPreview] = useState<CampOakwoodImportPreview | null>(null);
+  const [oakwoodConfirmed, setOakwoodConfirmed] = useState(false);
+  const [oakwoodMessage, setOakwoodMessage] = useState("");
   const [studentForm, setStudentForm] = useState<StudentForm>({
     name: "",
     grade: "",
@@ -188,7 +197,13 @@ export function CampCommandCenter() {
     restrictedNotes: "",
     allergyNotes: "",
     insuranceStatus: "",
-    parentMedicalNotes: ""
+    parentMedicalNotes: "",
+    emergencyContactName: "",
+    emergencyContactPhone: "",
+    emergencyContactRelationship: "",
+    guardianName: "",
+    guardianPhone: "",
+    dietaryRequirements: ""
   });
   const [medicationForm, setMedicationForm] = useState<MedicationForm>({
     studentId: "",
@@ -964,6 +979,68 @@ export function CampCommandCenter() {
     completeAction("importCommit", "Import saved.");
   }
 
+  async function previewOakwoodImport() {
+    if (activeAction) return;
+    setOakwoodConfirmed(false);
+    beginAction("oakwoodImportPreview", "Building Oakwood preview...");
+    const response = await fetch(`/api/camp/import?role=${accessRole}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "oakwoodPreview",
+        csv: oakwoodCsv,
+        sourceFile: oakwoodSourceFile
+      })
+    });
+    if (!response.ok) {
+      const message = await errorMessageFromResponse(response, "Oakwood preview could not be created.");
+      setOakwoodMessage(message);
+      failAction("oakwoodImportPreview", message);
+      return;
+    }
+    const payload = (await response.json()) as { preview: CampOakwoodImportPreview };
+    setOakwoodPreview(payload.preview);
+    const message = "Oakwood preview ready. Review every section before confirming.";
+    setOakwoodMessage(message);
+    completeAction("oakwoodImportPreview", message);
+  }
+
+  async function commitOakwoodImport() {
+    if (activeAction || !oakwoodPreview) return;
+    if (!oakwoodConfirmed) {
+      const message = "Confirm the reviewed Oakwood preview before saving.";
+      setOakwoodMessage(message);
+      failAction("oakwoodImportCommit", message);
+      return;
+    }
+    beginAction("oakwoodImportCommit", "Saving Oakwood import...");
+    const response = await fetch(`/api/camp/import?role=${accessRole}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "oakwoodCommit",
+        oakwoodPreview,
+        confirmed: oakwoodConfirmed
+      })
+    });
+    if (!response.ok) {
+      const message = await errorMessageFromResponse(response, "Oakwood import could not be saved.");
+      setOakwoodMessage(message);
+      failAction("oakwoodImportCommit", message);
+      return;
+    }
+    const payload = (await response.json()) as { result: { committed: Array<unknown>; auditBatch: { id: string } } };
+    beginAction("oakwoodImportCommit", "Refreshing Camp views...");
+    await loadOverview();
+    await loadRestrictedData();
+    setOakwoodCsv("");
+    setOakwoodPreview(null);
+    setOakwoodConfirmed(false);
+    const message = `Oakwood import saved: ${payload.result.committed.length} rows committed.`;
+    setOakwoodMessage(message);
+    completeAction("oakwoodImportCommit", message);
+  }
+
   const campDays = daysUntilCamp(overview.campStartsOn);
 
   return (
@@ -1137,10 +1214,20 @@ export function CampCommandCenter() {
           setImportCsv={setImportCsv}
           importPreview={importPreview}
           importMessage={importMessage}
+          oakwoodSourceFile={oakwoodSourceFile}
+          setOakwoodSourceFile={setOakwoodSourceFile}
+          oakwoodCsv={oakwoodCsv}
+          setOakwoodCsv={setOakwoodCsv}
+          oakwoodPreview={oakwoodPreview}
+          oakwoodConfirmed={oakwoodConfirmed}
+          setOakwoodConfirmed={setOakwoodConfirmed}
+          oakwoodMessage={oakwoodMessage}
           activeAction={activeAction}
           actionStatus={actionStatus}
           onPreviewImport={previewImport}
           onCommitImport={commitImport}
+          onPreviewOakwoodImport={previewOakwoodImport}
+          onCommitOakwoodImport={commitOakwoodImport}
         />
       )}
 
@@ -1303,10 +1390,20 @@ function RestrictedCampTools(props: {
   setImportCsv: React.Dispatch<React.SetStateAction<string>>;
   importPreview: CampRegistrationImportPreview | null;
   importMessage: string;
+  oakwoodSourceFile: string;
+  setOakwoodSourceFile: React.Dispatch<React.SetStateAction<string>>;
+  oakwoodCsv: string;
+  setOakwoodCsv: React.Dispatch<React.SetStateAction<string>>;
+  oakwoodPreview: CampOakwoodImportPreview | null;
+  oakwoodConfirmed: boolean;
+  setOakwoodConfirmed: React.Dispatch<React.SetStateAction<boolean>>;
+  oakwoodMessage: string;
   activeAction: CampSaveAction | null;
   actionStatus: CampActionStatus | null;
   onPreviewImport: () => Promise<void>;
   onCommitImport: () => Promise<void>;
+  onPreviewOakwoodImport: () => Promise<void>;
+  onCommitOakwoodImport: () => Promise<void>;
 }) {
   const medication = props.restrictedState?.medication;
   const isSaving = (action: CampSaveAction) => props.activeAction === action;
@@ -1322,6 +1419,9 @@ function RestrictedCampTools(props: {
           {props.restrictedState?.medical.map((record) => (
             <button className="camp-secure-card camp-secure-button" key={record.studentId} type="button" onClick={() => props.setMedicalForm(record)}>
               <strong>{record.studentName}</strong><span className={statusClass(record.medicalFormStatus)}>{record.medicalFormStatus}</span><p>{record.restrictedNotes}</p><p className="muted">{record.allergyNotes}</p><p className="muted">{record.insuranceStatus}</p><p className="muted">{record.parentMedicalNotes}</p>
+              {record.dietaryRequirements ? <p className="muted">Dietary: {record.dietaryRequirements}</p> : null}
+              {record.emergencyContactName || record.emergencyContactPhone ? <p className="muted">Emergency: {[record.emergencyContactName, record.emergencyContactPhone].filter(Boolean).join(" - ")}</p> : null}
+              {record.guardianName || record.guardianPhone ? <p className="muted">Guardian: {[record.guardianName, record.guardianPhone].filter(Boolean).join(" - ")}</p> : null}
             </button>
           ))}
         </div>
@@ -1331,6 +1431,12 @@ function RestrictedCampTools(props: {
           <label className="field camp-wide-field"><span>Restricted Notes</span><textarea className="input" rows={2} value={props.medicalForm.restrictedNotes} onChange={(event) => props.setMedicalForm((current) => ({ ...current, restrictedNotes: event.target.value }))} /></label>
           <label className="field"><span>Allergy Notes</span><textarea className="input" rows={2} value={props.medicalForm.allergyNotes} onChange={(event) => props.setMedicalForm((current) => ({ ...current, allergyNotes: event.target.value }))} /></label>
           <label className="field"><span>Insurance Status</span><input className="input" value={props.medicalForm.insuranceStatus} onChange={(event) => props.setMedicalForm((current) => ({ ...current, insuranceStatus: event.target.value }))} /></label>
+          <label className="field"><span>Emergency Contact Name</span><input className="input" value={props.medicalForm.emergencyContactName ?? ""} onChange={(event) => props.setMedicalForm((current) => ({ ...current, emergencyContactName: event.target.value }))} /></label>
+          <label className="field"><span>Emergency Contact Phone</span><input className="input" value={props.medicalForm.emergencyContactPhone ?? ""} onChange={(event) => props.setMedicalForm((current) => ({ ...current, emergencyContactPhone: event.target.value }))} /></label>
+          <label className="field"><span>Emergency Relationship</span><input className="input" value={props.medicalForm.emergencyContactRelationship ?? ""} onChange={(event) => props.setMedicalForm((current) => ({ ...current, emergencyContactRelationship: event.target.value }))} /></label>
+          <label className="field"><span>Guardian Name</span><input className="input" value={props.medicalForm.guardianName ?? ""} onChange={(event) => props.setMedicalForm((current) => ({ ...current, guardianName: event.target.value }))} /></label>
+          <label className="field"><span>Guardian Phone</span><input className="input" value={props.medicalForm.guardianPhone ?? ""} onChange={(event) => props.setMedicalForm((current) => ({ ...current, guardianPhone: event.target.value }))} /></label>
+          <label className="field camp-wide-field"><span>Dietary Requirements</span><textarea className="input" rows={2} value={props.medicalForm.dietaryRequirements ?? ""} onChange={(event) => props.setMedicalForm((current) => ({ ...current, dietaryRequirements: event.target.value }))} /></label>
           <label className="field camp-wide-field"><span>Parent Medical Notes</span><textarea className="input" rows={2} value={props.medicalForm.parentMedicalNotes} onChange={(event) => props.setMedicalForm((current) => ({ ...current, parentMedicalNotes: event.target.value }))} /></label>
         </div>
         <ActionStatusMessage status={props.actionStatus} action="medical" />
@@ -1365,6 +1471,45 @@ function RestrictedCampTools(props: {
       </section>
 
       <div className="camp-grid camp-medication-sections">
+        <section className="panel" aria-labelledby="oakwood-import">
+          <p className="eyebrow">Camp Oakwood Import</p>
+          <h3 id="oakwood-import" className="section-title">Preview real roster data</h3>
+          <div className="camp-form-grid">
+            <label className="field">
+              <span>Source file</span>
+              <input className="input" value={props.oakwoodSourceFile} onChange={(event) => props.setOakwoodSourceFile(event.target.value)} />
+            </label>
+            <label className="field camp-wide-field">
+              <span>Quick View CSV rows</span>
+              <textarea className="input" rows={6} value={props.oakwoodCsv} onChange={(event) => props.setOakwoodCsv(event.target.value)} placeholder="Registration ID,Name,Selection,Grade,Room Number,T-Shirt Size,Quick Filter,Emergency Contact,Medical Notes,Dietary Requirements" />
+            </label>
+          </div>
+          <div className="toolbar">
+            <button className="button" type="button" disabled={isSaving("oakwoodImportPreview") || isSaving("oakwoodImportCommit")} onClick={() => void props.onPreviewOakwoodImport()}>
+              {isSaving("oakwoodImportPreview") ? "Building preview..." : "Preview Oakwood import"}
+            </button>
+            <button
+              className="button primary"
+              type="button"
+              disabled={
+                !props.oakwoodPreview ||
+                !props.oakwoodConfirmed ||
+                props.oakwoodPreview.summary.ambiguousCount > 0 ||
+                props.oakwoodPreview.summary.invalidCount > 0 ||
+                isSaving("oakwoodImportCommit")
+              }
+              onClick={() => void props.onCommitOakwoodImport()}
+            >
+              {isSaving("oakwoodImportCommit") ? "Saving Oakwood import..." : "Save confirmed Oakwood import"}
+            </button>
+          </div>
+          <ActionStatusMessage status={props.actionStatus} action={props.actionStatus?.action === "oakwoodImportCommit" ? "oakwoodImportCommit" : "oakwoodImportPreview"} />
+          {props.oakwoodMessage ? <p className="camp-save-message" role="status">{props.oakwoodMessage}</p> : null}
+          {props.oakwoodPreview ? (
+            <OakwoodPreview preview={props.oakwoodPreview} confirmed={props.oakwoodConfirmed} setConfirmed={props.setOakwoodConfirmed} />
+          ) : null}
+        </section>
+
         <section className="panel" aria-labelledby="camp-import">
           <p className="eyebrow">Registration Import</p><h3 id="camp-import" className="section-title">Preview spreadsheet rows</h3>
           <label className="field camp-wide-field"><span>CSV rows</span><textarea className="input" rows={5} value={props.importCsv} onChange={(event) => props.setImportCsv(event.target.value)} placeholder="Student Name,Grade,Team,Vehicle,Cabin,Medication Name,Medication Instructions" /></label>
@@ -1682,6 +1827,130 @@ function MedicationRows({
       })}
     </div>
   );
+}
+
+function OakwoodPreview({
+  preview,
+  confirmed,
+  setConfirmed
+}: {
+  preview: CampOakwoodImportPreview;
+  confirmed: boolean;
+  setConfirmed: React.Dispatch<React.SetStateAction<boolean>>;
+}) {
+  const newCampers = preview.rows.filter((row) => row.personType === "student" && row.matchStatus === "new");
+  const matchedCampers = preview.rows.filter((row) => row.personType === "student" && row.matchStatus === "matched");
+  const newStaff = preview.rows.filter((row) => row.personType === "adult" && row.matchStatus === "new");
+  const matchedStaff = preview.rows.filter((row) => row.personType === "adult" && row.matchStatus === "matched");
+  const ambiguous = preview.rows.filter((row) => row.matchStatus === "ambiguous");
+  const skippedInvalid = preview.rows.filter((row) => row.matchStatus === "skipped" || row.matchStatus === "invalid");
+  const safeChanges = preview.rows.filter((row) => row.matchStatus === "new" || row.matchStatus === "matched");
+  const restrictedChanges = safeChanges.filter((row) => row.restricted);
+  const canCommit = preview.summary.ambiguousCount === 0 && preview.summary.invalidCount === 0;
+
+  return (
+    <div className="camp-list camp-form-spaced">
+      <div className="camp-list-row align-start">
+        <div>
+          <strong>{preview.sourceFile}</strong>
+          <p className="muted">{preview.summary.totalSourceRows} source rows. {preview.summary.students} students. {preview.summary.adults} adults.</p>
+        </div>
+        <div className="camp-row-actions">
+          <span className="camp-status">{preview.summary.newCount} new</span>
+          <span className="camp-status">{preview.summary.matchedCount} matched</span>
+          {preview.summary.ambiguousCount ? <span className="camp-status warn">{preview.summary.ambiguousCount} ambiguous</span> : null}
+        </div>
+      </div>
+      <OakwoodPreviewSection title="New campers" rows={newCampers} empty="No new campers in this preview." />
+      <OakwoodPreviewSection title="Matched camper updates" rows={matchedCampers} empty="No matched camper updates." />
+      <OakwoodPreviewSection title="New staff" rows={newStaff} empty="No new staff in this preview." />
+      <OakwoodPreviewSection title="Matched staff updates" rows={matchedStaff} empty="No matched staff updates." />
+      <OakwoodPreviewSection title="Ambiguous rows" rows={ambiguous} empty="No ambiguous rows." warn />
+      <OakwoodPreviewSection title="Skipped and invalid rows" rows={skippedInvalid} empty="No skipped or invalid rows." warn />
+      <OakwoodPreviewSection title="Safe-data changes" rows={safeChanges} empty="No safe-data changes." mode="safe" />
+      <OakwoodPreviewSection title="Restricted-data changes" rows={restrictedChanges} empty="No restricted-data changes." mode="restricted" />
+      <label className="camp-confirm-row">
+        <input
+          type="checkbox"
+          checked={confirmed}
+          disabled={!canCommit}
+          onChange={(event) => setConfirmed(event.target.checked)}
+        />
+        <span>{canCommit ? "I reviewed this Oakwood preview and approve saving the non-ambiguous rows." : "Resolve ambiguous or invalid rows before saving."}</span>
+      </label>
+    </div>
+  );
+}
+
+function OakwoodPreviewSection({
+  title,
+  rows,
+  empty,
+  warn = false,
+  mode
+}: {
+  title: string;
+  rows: CampOakwoodImportRow[];
+  empty: string;
+  warn?: boolean;
+  mode?: "safe" | "restricted";
+}) {
+  return (
+    <section className="camp-preview-section" aria-label={title}>
+      <div className="camp-section-header">
+        <div>
+          <p className="eyebrow">{title}</p>
+          <p className="muted">{rows.length ? `${rows.length} rows` : empty}</p>
+        </div>
+        {rows.length ? <span className={warn ? "camp-status warn" : "camp-status ready"}>{rows.length}</span> : null}
+      </div>
+      {rows.slice(0, 8).map((row) => (
+        <div className="camp-list-row align-start" key={`${title}-${row.rowNumber}-${row.person.name || row.matchStatus}`}>
+          <div>
+            <strong>Row {row.rowNumber}: {row.person.name || "Unnamed row"}</strong>
+            <p className="muted">{oakwoodRowDescription(row, mode)}</p>
+            {row.warnings.length ? <p className="muted">{row.warnings.join(" ")}</p> : null}
+          </div>
+          <span className={row.matchStatus === "ambiguous" || row.matchStatus === "invalid" ? "camp-status warn" : "camp-status"}>{row.matchStatus}</span>
+        </div>
+      ))}
+      {rows.length > 8 ? <p className="muted">Showing first 8 rows in this section.</p> : null}
+    </section>
+  );
+}
+
+function oakwoodRowDescription(row: CampOakwoodImportRow, mode?: "safe" | "restricted") {
+  if (mode === "safe") {
+    const indicators = [
+      row.safeIndicators.hasMedicalAlert ? "medical alert" : "",
+      row.safeIndicators.hasDietaryAlert ? "dietary note" : "",
+      row.safeIndicators.emergencyContactOnFile ? "emergency contact" : ""
+    ].filter(Boolean);
+    return [
+      row.person.grade ? `Grade ${row.person.grade}` : "",
+      row.person.teamName ? `${row.person.teamName} team` : "team blank",
+      row.person.vehicleName ? row.person.vehicleName : "vehicle blank",
+      row.person.cabin ? `room ${row.person.cabin}` : "room blank",
+      indicators.length ? `safe indicators: ${indicators.join(", ")}` : "no safe indicators"
+    ].filter(Boolean).join(" - ");
+  }
+  if (mode === "restricted") {
+    const restricted = row.restricted;
+    if (!restricted) return "No restricted payload.";
+    const fields = [
+      restricted.restrictedNotes ? "medical note stored" : "",
+      restricted.dietaryRequirements ? "dietary note stored" : "",
+      restricted.emergencyContactName || restricted.emergencyContactPhone ? "emergency contact stored" : "",
+      restricted.guardianName || restricted.guardianPhone ? "guardian contact stored" : "",
+      restricted.insuranceStatus ? "insurance status stored" : ""
+    ].filter(Boolean);
+    return fields.length ? fields.join(" - ") : "restricted record prepared with no detail fields.";
+  }
+  return [
+    row.personType === "adult" ? "staff" : "camper",
+    row.person.registrationExternalId ? `registration ${row.person.registrationExternalId}` : "no registration id",
+    row.person.shirtSize || "shirt size blank"
+  ].join(" - ");
 }
 
 function MedicationPhotoSquare({

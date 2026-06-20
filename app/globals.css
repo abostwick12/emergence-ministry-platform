@@ -3615,6 +3615,13 @@ textarea:focus-visible {
   font-weight: 700;
 }
 
+.camp-preview-section {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 12px;
+}
+
 .camp-photo-modal {
   position: fixed;
   inset: 0;

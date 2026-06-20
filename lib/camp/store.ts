@@ -26,6 +26,10 @@ import type {
   CampScheduleBlock,
   CampStudentInput,
   CampStudentPublic,
+  CampStaffMember,
+  CampImportAuditBatch,
+  CampOakwoodImportPreview,
+  CampOakwoodImportCommitResult,
   CampTeam,
   CampVehicle
 } from "@/lib/camp/types";
@@ -45,6 +49,8 @@ type CampStoreState = {
   medicationAdministrationLog: CampMedicationAdministrationLog[];
   medicationIntakeRecords: CampMedicationIntakeRecord[];
   medicationPhotoRecords: Array<CampMedicationPhotoRecord & { mockSignedUrl?: string }>;
+  staff: CampStaffMember[];
+  importBatches: CampImportAuditBatch[];
 };
 
 type CampGlobal = typeof globalThis & { __leadEmergenceCampStore?: CampStoreState };
@@ -67,7 +73,9 @@ function createInitialState(): CampStoreState {
     medicationReturnChecklist: cloneArray(medicationReturnChecklist),
     medicationAdministrationLog: [],
     medicationIntakeRecords: [],
-    medicationPhotoRecords: []
+    medicationPhotoRecords: [],
+    staff: [],
+    importBatches: []
   };
 }
 
@@ -84,6 +92,23 @@ export function __resetCampStoreForTests(): void {
 
 export function listCampStudents(): CampStudentPublic[] {
   return store.students.filter((student) => !student.archivedAt).map(withDerivedStudentFlags);
+}
+
+export function listOakwoodExistingCampers() {
+  return store.students
+    .filter((student) => !student.archivedAt)
+    .map((student) => ({ id: student.id, name: student.name, registrationExternalId: student.registrationExternalId }));
+}
+
+export function listOakwoodExistingStaff() {
+  return store.staff
+    .filter((staff) => !staff.archivedAt)
+    .map((staff) => ({ id: staff.id, name: staff.name, registrationExternalId: staff.registrationExternalId }));
+}
+
+export function listCampImportBatches(role: CampAccessRole) {
+  if (!isRestrictedCampMedicalRole(role)) return restrictedMedicationDenied();
+  return { allowed: true as const, status: 200, batches: cloneArray(store.importBatches) };
 }
 
 export function listArchivedCampStudents(role: CampAccessRole): CampStudentPublic[] {
@@ -118,10 +143,15 @@ export function upsertCampStudent(input: CampStudentInput): CampStudentPublic {
     teamId: input.teamId,
     vehicleId: input.vehicleId,
     cabin: input.cabin.trim(),
+    shirtSize: input.shirtSize?.trim() || existing?.shirtSize,
+    registrationExternalId: input.registrationExternalId?.trim() || existing?.registrationExternalId,
     limitedSafetyFlags: normalizeFlags(input.limitedSafetyFlags ?? existing?.limitedSafetyFlags ?? []),
     hasRestrictedMedicalInfo: existing?.hasRestrictedMedicalInfo ?? false,
     hasMedicationPlan: existing?.hasMedicationPlan ?? false,
-    needsParentClarification: existing?.needsParentClarification ?? false
+    needsParentClarification: existing?.needsParentClarification ?? false,
+    emergencyContactOnFile: input.emergencyContactOnFile ?? existing?.emergencyContactOnFile ?? false,
+    hasMedicalAlert: input.hasMedicalAlert ?? existing?.hasMedicalAlert ?? false,
+    hasDietaryAlert: input.hasDietaryAlert ?? existing?.hasDietaryAlert ?? false
   };
 
   if (existing) {
@@ -132,6 +162,94 @@ export function upsertCampStudent(input: CampStudentInput): CampStudentPublic {
 
   syncStudentName(normalized.id, normalized.name);
   return withDerivedStudentFlags(normalized);
+}
+
+export function commitOakwoodImportPreview(role: CampAccessRole, preview: CampOakwoodImportPreview, importedByName: string) {
+  if (!isRestrictedCampMedicalRole(role)) return restrictedMedicationDenied();
+  if (preview.summary.ambiguousCount > 0 || preview.summary.invalidCount > 0) {
+    throw new Error("Resolve ambiguous or invalid Oakwood rows before committing.");
+  }
+
+  const committed: CampOakwoodImportCommitResult["committed"] = [];
+
+  for (const row of preview.rows) {
+    if (row.matchStatus !== "new" && row.matchStatus !== "matched") continue;
+
+    if (row.personType === "adult") {
+      const existing = row.matchedExistingId ? store.staff.find((item) => item.id === row.matchedExistingId) : undefined;
+      const teamId = teamIdForName(row.person.teamName);
+      const staff: CampStaffMember = {
+        id: existing?.id ?? uid("campstaff"),
+        name: row.person.name.trim(),
+        role: "adult_volunteer",
+        shirtSize: row.person.shirtSize,
+        registrationExternalId: row.person.registrationExternalId,
+        teamId,
+        teamName: teamNameForId(teamId)
+      };
+      if (existing) Object.assign(existing, staff);
+      else store.staff.unshift(staff);
+      committed.push({ rowNumber: row.rowNumber, personType: "adult", action: existing ? "updated" : "created", id: staff.id, name: staff.name });
+      continue;
+    }
+
+    const existing = row.matchedExistingId ? store.students.find((item) => item.id === row.matchedExistingId) : undefined;
+    const teamId = teamIdForName(row.person.teamName);
+    const vehicleId = vehicleIdForName(row.person.vehicleName);
+    const student = upsertCampStudent({
+      id: existing?.id,
+      name: row.person.name,
+      grade: row.person.grade,
+      teamId,
+      vehicleId,
+      cabin: row.person.cabin,
+      shirtSize: row.person.shirtSize,
+      registrationExternalId: row.person.registrationExternalId,
+      emergencyContactOnFile: row.safeIndicators.emergencyContactOnFile,
+      hasMedicalAlert: row.safeIndicators.hasMedicalAlert,
+      hasDietaryAlert: row.safeIndicators.hasDietaryAlert,
+      limitedSafetyFlags: existing?.limitedSafetyFlags ?? []
+    });
+
+    if (row.restricted) {
+      const medical = upsertRestrictedMedicalRecord(role, {
+        studentId: student.id,
+        studentName: student.name,
+        medicalFormStatus: row.restricted.medicalFormStatus,
+        restrictedNotes: row.restricted.restrictedNotes,
+        allergyNotes: row.restricted.dietaryRequirements,
+        insuranceStatus: row.restricted.insuranceStatus,
+        parentMedicalNotes: row.restricted.parentMedicalNotes,
+        emergencyContactName: row.restricted.emergencyContactName,
+        emergencyContactPhone: row.restricted.emergencyContactPhone,
+        emergencyContactRelationship: row.restricted.emergencyContactRelationship,
+        guardianName: row.restricted.guardianName,
+        guardianPhone: row.restricted.guardianPhone,
+        dietaryRequirements: row.restricted.dietaryRequirements
+      });
+      if (!medical.allowed) throw new Error(medical.error);
+    }
+
+    committed.push({ rowNumber: row.rowNumber, personType: "student", action: existing ? "updated" : "created", id: student.id, name: student.name });
+  }
+
+  const auditBatch: CampImportAuditBatch = {
+    id: uid("campimport"),
+    sourceFile: preview.sourceFile,
+    importedByName,
+    importedAt: new Date().toISOString(),
+    createdCount: committed.filter((item) => item.action === "created").length,
+    updatedCount: committed.filter((item) => item.action === "updated").length,
+    skippedCount: preview.summary.skippedCount,
+    ambiguousCount: preview.summary.ambiguousCount,
+    invalidCount: preview.summary.invalidCount,
+    restrictedCount: preview.summary.restrictedRecordRows,
+    safeCount: preview.summary.safeFieldRows,
+    staffCount: preview.summary.staffRows
+  };
+  store.importBatches.unshift(auditBatch);
+
+  return { allowed: true as const, status: 200, result: { auditBatch, committed } };
 }
 
 export function assignCampStudent(input: { studentId: string; teamId?: string; vehicleId?: string; cabin?: string }): CampStudentPublic {
@@ -167,10 +285,11 @@ export function getRestrictedCampMedicalPayload(role: CampAccessRole) {
     };
   }
 
+  const activeStudentIds = new Set(store.students.filter((student) => !student.archivedAt).map((student) => student.id));
   return {
     allowed: true as const,
     status: 200,
-    records: cloneArray(store.medicalRecords)
+    records: store.medicalRecords.filter((record) => activeStudentIds.has(record.studentId)).map((record) => ({ ...record }))
   };
 }
 
@@ -532,6 +651,23 @@ function ensureReturnChecklist(record: CampMedicationRecord) {
     studentName: record.studentName,
     returnStatus: record.clarificationStatus === "Needs Parent Clarification" ? "Needs Parent Clarification" : "Pending Return"
   });
+}
+
+function teamIdForName(name: string): string {
+  if (!name.trim()) return "";
+  const normalized = name.trim().toLowerCase();
+  return store.teams.find((team) => team.name.toLowerCase() === normalized)?.id ?? "";
+}
+
+function teamNameForId(id: string): string | undefined {
+  if (!id) return undefined;
+  return store.teams.find((team) => team.id === id)?.name;
+}
+
+function vehicleIdForName(name: string): string {
+  if (!name.trim()) return "";
+  const normalized = name.trim().toLowerCase();
+  return store.vehicles.find((vehicle) => vehicle.name.toLowerCase() === normalized || vehicle.driver.toLowerCase() === normalized)?.id ?? "";
 }
 
 function collectionForVoidTarget(target: CampMedicationVoidInput["target"]) {

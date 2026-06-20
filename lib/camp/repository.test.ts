@@ -3,14 +3,18 @@ import type { AuthSession } from "@/lib/auth/server";
 import { resolveCampAccessContext } from "@/lib/camp/permissions";
 import {
   archiveCampStudent,
+  commitOakwoodImport,
   getCampOverview,
   getArchivedCampStudents,
+  getOakwoodImportPreview,
   getMedicationPhotoAccess,
+  getRestrictedCampMedicalPayload,
   getRestrictedCampMedicationPayload,
   restoreCampStudent,
   saveMedicationPhoto,
   saveMedicationIntake,
   upsertCampStudent,
+  upsertRestrictedMedicalRecord,
   upsertMedicationRecord
 } from "@/lib/camp/repository";
 import { __resetCampStoreForTests } from "@/lib/camp/store";
@@ -172,6 +176,71 @@ describe("camp repository mock fallback", () => {
     expect(restoredOverview.students.some((student) => student.id === "stu-1")).toBe(true);
   });
 
+  it("removes a synthetic john test camper from every active camp payload after archive", async () => {
+    const mockSession = session();
+    const general = resolveCampAccessContext(mockSession, "general_leader");
+    const driver = resolveCampAccessContext(mockSession, "driver");
+    const restricted = resolveCampAccessContext(mockSession, "andrew");
+
+    const john = await upsertCampStudent(mockSession, general, {
+      name: "john test",
+      grade: "9th",
+      teamId: "team-blue",
+      vehicleId: "van-1",
+      cabin: "Test Cabin",
+      limitedSafetyFlags: ["Hydration reminder"]
+    });
+    expect(john.allowed).toBe(true);
+    if (!john.allowed) throw new Error("expected john test create success");
+
+    const medical = await upsertRestrictedMedicalRecord(mockSession, restricted, {
+      studentId: john.student.id,
+      studentName: "john test",
+      medicalFormStatus: "Received",
+      restrictedNotes: "synthetic john test restricted note",
+      allergyNotes: "",
+      insuranceStatus: "",
+      emergencyContactName: "Synthetic Parent",
+      emergencyContactPhone: "555-0000",
+      emergencyContactRelationship: "Parent",
+      parentMedicalNotes: ""
+    });
+    expect(medical.allowed).toBe(true);
+
+    const medication = await upsertMedicationRecord(mockSession, restricted, {
+      studentId: john.student.id,
+      medicationName: "synthetic john test medication",
+      parentProvidedInstructions: "",
+      checkInStatus: "Not Checked In",
+      clarificationStatus: "Clear"
+    });
+    expect(medication.allowed).toBe(true);
+
+    const archive = await archiveCampStudent(mockSession, restricted, {
+      studentId: john.student.id,
+      archiveReason: "Synthetic production cleanup"
+    });
+    expect(archive.allowed).toBe(true);
+
+    const publicPayloads = [
+      await getCampOverview(mockSession, general),
+      await getCampOverview(mockSession, driver, { vehicleId: "van-1" })
+    ];
+    for (const payload of publicPayloads) {
+      expect(JSON.stringify(payload).toLowerCase()).not.toContain("john test");
+    }
+
+    const medicalPayload = await getRestrictedCampMedicalPayload(mockSession, restricted);
+    expect(medicalPayload.allowed).toBe(true);
+    if (!medicalPayload.allowed) throw new Error("expected restricted medical payload");
+    expect(JSON.stringify(medicalPayload).toLowerCase()).not.toContain("john test");
+
+    const medicationPayload = await getRestrictedCampMedicationPayload(mockSession, restricted);
+    expect(medicationPayload.allowed).toBe(true);
+    if (!medicationPayload.allowed) throw new Error("expected restricted medication payload");
+    expect(JSON.stringify(medicationPayload).toLowerCase()).not.toContain("john test");
+  });
+
   it("keeps medication photos behind restricted repository access", async () => {
     const mockSession = session();
     const general = resolveCampAccessContext(mockSession, "general_leader");
@@ -235,5 +304,120 @@ describe("camp repository mock fallback", () => {
       hasMedicationPhoto: false,
       auditStatus: "Corrected"
     }));
+  });
+
+  it("previews and commits Oakwood rows in mock mode without fabricating blank assignments", async () => {
+    const mockSession = session();
+    const general = resolveCampAccessContext(mockSession, "general_leader");
+    const restricted = resolveCampAccessContext(mockSession, "andrew");
+    const csv = [
+      "Registration ID,Name,Selection,Grade,Room Number,T-Shirt Size,Quick Filter,Emergency Contact,Medical Notes,Dietary Requirements",
+      "70000010,Oakwood Camper,Student,9th,,Adult Small,Medical + Food/Diet,Pat Parent - (555) 222-3333,Parent medical note,Gluten-free",
+      "70000011,Oakwood Adult,Adult Volunteer,,Suite 1,Adult Large,No Concern,,,,"
+    ].join("\n");
+
+    const preview = await getOakwoodImportPreview(mockSession, restricted, { csv, sourceFile: "Camp_Quick_View.csv" });
+    expect(preview.allowed).toBe(true);
+    if (!preview.allowed) throw new Error("expected preview success");
+    expect(preview.preview.summary).toMatchObject({ students: 1, adults: 1, newCount: 2, ambiguousCount: 0 });
+    expect(preview.preview.rows[0].person).toMatchObject({ cabin: "", teamName: "", vehicleName: "" });
+
+    const unconfirmed = await commitOakwoodImport(mockSession, restricted, { preview: preview.preview, confirmed: false });
+    expect(unconfirmed.status).toBe(400);
+    expect("error" in unconfirmed ? unconfirmed.error : "").toMatch(/confirmation/i);
+
+    const commit = await commitOakwoodImport(mockSession, restricted, { preview: preview.preview, confirmed: true });
+    expect(commit.allowed).toBe(true);
+    if (!commit.allowed || "error" in commit) throw new Error("expected commit success");
+    expect(commit.result.committed).toHaveLength(2);
+    expect(commit.result.auditBatch).toMatchObject({ sourceFile: "Camp_Quick_View.csv", staffCount: 1, restrictedCount: 1 });
+
+    const overview = await getCampOverview(mockSession, general);
+    const camper = overview.students.find((student) => student.name === "Oakwood Camper");
+    expect(camper).toMatchObject({
+      cabin: "",
+      teamId: "",
+      vehicleId: "",
+      hasMedicalAlert: true,
+      hasDietaryAlert: true,
+      emergencyContactOnFile: true
+    });
+    expect(JSON.stringify(overview)).not.toContain("Parent medical note");
+    expect(JSON.stringify(overview)).not.toContain("555");
+  });
+
+  it("blocks Oakwood ambiguous rows and never matches household id alone", async () => {
+    const mockSession = session();
+    const restricted = resolveCampAccessContext(mockSession, "andrew");
+
+    const existingPreview = await getOakwoodImportPreview(mockSession, restricted, {
+      csv: [
+        "Registration ID,Name,Selection,Grade,Room Number,T-Shirt Size,Quick Filter,Emergency Contact",
+        "70000020,Household One,Student,9th,Room 1,Adult Small,No Concern,Pat Parent - (555) 111-2222"
+      ].join("\n")
+    });
+    expect(existingPreview.allowed).toBe(true);
+    if (!existingPreview.allowed) throw new Error("expected existing preview success");
+
+    const existing = await commitOakwoodImport(mockSession, restricted, {
+      preview: existingPreview.preview,
+      confirmed: true
+    });
+    expect(existing.allowed).toBe(true);
+
+    const siblingPreview = await getOakwoodImportPreview(mockSession, restricted, {
+      csv: [
+        "Registration ID,Name,Selection,Grade,Room Number,T-Shirt Size,Quick Filter,Emergency Contact",
+        "70000020,Household Two,Student,10th,Room 2,Adult Medium,No Concern,Pat Parent - (555) 111-2222"
+      ].join("\n")
+    });
+    expect(siblingPreview.allowed).toBe(true);
+    if (!siblingPreview.allowed) throw new Error("expected sibling preview success");
+    expect(siblingPreview.preview.rows[0].matchStatus).toBe("new");
+
+    const ambiguousPreview = await getOakwoodImportPreview(mockSession, restricted, {
+      csv: [
+        "Registration ID,Name,Selection,Grade,Room Number,T-Shirt Size,Quick Filter,Emergency Contact",
+        "99999999,Household One,Student,9th,Room X,Adult Small,No Concern,Pat Parent - (555) 111-2222"
+      ].join("\n")
+    });
+    expect(ambiguousPreview.allowed).toBe(true);
+    if (!ambiguousPreview.allowed) throw new Error("expected ambiguous preview success");
+    expect(ambiguousPreview.preview.rows[0].matchStatus).toBe("ambiguous");
+
+    const blocked = await commitOakwoodImport(mockSession, restricted, { preview: ambiguousPreview.preview, confirmed: true });
+    expect(blocked.status).toBe(409);
+  });
+
+  it("blocks Oakwood import preview and commit outside restricted boundaries", async () => {
+    const mockSession = session();
+    const general = resolveCampAccessContext(mockSession, "general_leader");
+    const csv = "Registration ID,Name,Selection,Grade\n70000030,Blocked Camper,Student,9th";
+
+    const preview = await getOakwoodImportPreview(mockSession, general, { csv });
+    expect(preview.allowed).toBe(false);
+
+    const commit = await commitOakwoodImport(mockSession, general, {
+      preview: {
+        sourceFile: "Camp_Quick_View.csv",
+        rows: [],
+        summary: {
+          totalSourceRows: 0,
+          personRows: 0,
+          students: 0,
+          adults: 0,
+          newCount: 0,
+          matchedCount: 0,
+          ambiguousCount: 0,
+          skippedCount: 0,
+          invalidCount: 0,
+          safeFieldRows: 0,
+          restrictedRecordRows: 0,
+          staffRows: 0
+        }
+      },
+      confirmed: true
+    });
+    expect(commit.allowed).toBe(false);
   });
 });

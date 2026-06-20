@@ -3,13 +3,15 @@ import { getServerSession, unauthorizedResponse } from "@/lib/auth/server";
 import { assertCampRestrictedAccess, resolveCampAccessContext } from "@/lib/camp/permissions";
 import { parseCampRegistrationImport } from "@/lib/camp/import";
 import {
+  commitOakwoodImport,
   getCampOverview,
+  getOakwoodImportPreview,
   upsertCampStudent,
   upsertMedicationRecord,
   upsertMedicationScheduleItem,
   upsertRestrictedMedicalRecord
 } from "@/lib/camp/repository";
-import type { CampRegistrationImportPreview } from "@/lib/camp/types";
+import type { CampOakwoodImportPreview, CampRegistrationImportPreview } from "@/lib/camp/types";
 
 export async function POST(request: Request) {
   const session = await getServerSession();
@@ -23,10 +25,33 @@ export async function POST(request: Request) {
   }
 
   const body = (await request.json()) as {
-    action?: "preview" | "commit";
+    action?: "preview" | "commit" | "oakwoodPreview" | "oakwoodCommit";
     csv?: string;
+    sourceFile?: string;
     preview?: CampRegistrationImportPreview;
+    oakwoodPreview?: CampOakwoodImportPreview;
+    confirmed?: boolean;
   };
+
+  if (body.action === "oakwoodPreview") {
+    const payload = await getOakwoodImportPreview(session, context, {
+      csv: body.csv ?? "",
+      sourceFile: body.sourceFile
+    });
+    if (!payload.allowed) return NextResponse.json({ error: payload.error }, { status: payload.status });
+    return NextResponse.json({ preview: payload.preview });
+  }
+
+  if (body.action === "oakwoodCommit") {
+    if (!body.oakwoodPreview) return NextResponse.json({ error: "Oakwood import preview is required before commit." }, { status: 400 });
+    const payload = await commitOakwoodImport(session, context, {
+      preview: body.oakwoodPreview,
+      confirmed: body.confirmed
+    });
+    if (!payload.allowed || "error" in payload) return NextResponse.json({ error: payload.error }, { status: payload.status });
+    return NextResponse.json({ result: payload.result });
+  }
+
   const overview = await getCampOverview(session, context);
 
   if (body.action === "commit") {

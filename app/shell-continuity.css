@@ -255,6 +255,10 @@ body {
   overflow: hidden;
 }
 
+.app-main-shell-camp {
+  grid-template-rows: minmax(0, 1fr);
+}
+
 .app-main-shell::before {
   content: none;
 }

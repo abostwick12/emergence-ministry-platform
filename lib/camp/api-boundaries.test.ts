@@ -36,6 +36,11 @@ const restrictedNeedles = [
   "allergyNotes",
   "insuranceStatus",
   "parentMedicalNotes",
+  "emergencyContactName",
+  "emergencyContactPhone",
+  "emergencyContactRelationship",
+  "guardianPhone",
+  "dietaryRequirements",
   "medicationName",
   "parentProvidedInstructions",
   "guardianSignatureData",
@@ -428,5 +433,93 @@ describe("camp API restricted data boundaries", () => {
     expect(previewResponse.status).toBe(200);
     expect(commitResponse.status).toBe(200);
     expect(commitPayload.committed).toHaveLength(1);
+  });
+
+  it("requires restricted access and confirmation for Oakwood preview and commit", async () => {
+    getServerSessionMock.mockResolvedValue(session());
+
+    const csv = [
+      "Registration ID,Name,Selection,Grade,Room Number,T-Shirt Size,Quick Filter,Emergency Contact,Medical Notes,Dietary Requirements",
+      "70000100,Oakwood API Camper,Student,9th,,Adult Small,Medical + Food/Diet,Pat Parent - (555) 333-4444,Private medical note,Peanut-free",
+      "70000101,Oakwood API Adult,Adult Volunteer,,Suite 1,Adult Large,No Concern,,,,"
+    ].join("\n");
+
+    for (const role of ["general_leader", "driver"]) {
+      const denied = await importPOST(jsonRequest(`http://localhost/api/camp/import?role=${role}`, {
+        action: "oakwoodPreview",
+        csv
+      }));
+      expect(denied.status).toBe(403);
+      expectNoRestrictedPayloadDetails(await json(denied));
+    }
+
+    const previewResponse = await importPOST(jsonRequest("http://localhost/api/camp/import?role=andrew", {
+      action: "oakwoodPreview",
+      csv,
+      sourceFile: "Camp_Quick_View.csv"
+    }));
+    const previewPayload = await previewResponse.json() as { preview: Record<string, unknown> };
+    expect(previewResponse.status).toBe(200);
+    expect(JSON.stringify(previewPayload.preview)).toContain("Oakwood API Camper");
+
+    const unconfirmed = await importPOST(jsonRequest("http://localhost/api/camp/import?role=andrew", {
+      action: "oakwoodCommit",
+      oakwoodPreview: previewPayload.preview,
+      confirmed: false
+    }));
+    expect(unconfirmed.status).toBe(400);
+
+    const commitResponse = await importPOST(jsonRequest("http://localhost/api/camp/import?role=andrew", {
+      action: "oakwoodCommit",
+      oakwoodPreview: previewPayload.preview,
+      confirmed: true
+    }));
+    const commitPayload = await commitResponse.json() as { result: { committed: Array<unknown>; auditBatch: Record<string, unknown> } };
+    expect(commitResponse.status).toBe(200);
+    expect(commitPayload.result.committed).toHaveLength(2);
+    expect(commitPayload.result.auditBatch).toMatchObject({ sourceFile: "Camp_Quick_View.csv", staffCount: 1, restrictedCount: 1 });
+
+    const publicOverview = await campGET(new Request("http://localhost/api/camp?role=general_leader"));
+    const publicPayload = await publicOverview.json();
+    expect(JSON.stringify(publicPayload)).toContain("Oakwood API Camper");
+    expect(JSON.stringify(publicPayload)).not.toContain("Private medical note");
+    expect(JSON.stringify(publicPayload)).not.toContain("555");
+    expectNoRestrictedPayloadDetails(publicPayload);
+  });
+
+  it("rejects ambiguous Oakwood commits instead of overwriting automatically", async () => {
+    getServerSessionMock.mockResolvedValue(session());
+
+    const firstPreview = await importPOST(jsonRequest("http://localhost/api/camp/import?role=andrew", {
+      action: "oakwoodPreview",
+      csv: [
+        "Registration ID,Name,Selection,Grade,Room Number,T-Shirt Size,Quick Filter,Emergency Contact",
+        "70000110,Ambiguous Camper,Student,9th,Room 1,Adult Small,No Concern,Pat Parent - (555) 111-2222"
+      ].join("\n")
+    }));
+    const firstPayload = await firstPreview.json() as { preview: unknown };
+    const firstCommit = await importPOST(jsonRequest("http://localhost/api/camp/import?role=andrew", {
+      action: "oakwoodCommit",
+      oakwoodPreview: firstPayload.preview,
+      confirmed: true
+    }));
+    expect(firstCommit.status).toBe(200);
+
+    const ambiguousPreview = await importPOST(jsonRequest("http://localhost/api/camp/import?role=andrew", {
+      action: "oakwoodPreview",
+      csv: [
+        "Registration ID,Name,Selection,Grade,Room Number,T-Shirt Size,Quick Filter,Emergency Contact",
+        "99999999,Ambiguous Camper,Student,9th,Room 2,Adult Medium,No Concern,Pat Parent - (555) 111-2222"
+      ].join("\n")
+    }));
+    const ambiguousPayload = await ambiguousPreview.json() as { preview: { rows: Array<{ matchStatus: string }> } };
+    expect(ambiguousPayload.preview.rows[0].matchStatus).toBe("ambiguous");
+
+    const blockedCommit = await importPOST(jsonRequest("http://localhost/api/camp/import?role=andrew", {
+      action: "oakwoodCommit",
+      oakwoodPreview: ambiguousPayload.preview,
+      confirmed: true
+    }));
+    expect(blockedCommit.status).toBe(409);
   });
 });

@@ -68,10 +68,15 @@ export function getCampVisibleStudentsForData(
       vehicleId: student.vehicleId,
       vehicleName: vehicle?.name ?? "Unassigned",
       cabin: student.cabin,
+      shirtSize: student.shirtSize,
       limitedSafetyFlags: student.limitedSafetyFlags,
       hasRestrictedMedicalInfo: student.hasRestrictedMedicalInfo,
       hasMedicationPlan: student.hasMedicationPlan,
-      needsParentClarification: student.needsParentClarification
+      needsParentClarification: student.needsParentClarification,
+      // SAFE booleans only — derived at import from Quick Filter + note presence.
+      emergencyContactOnFile: student.emergencyContactOnFile,
+      hasMedicalAlert: student.hasMedicalAlert,
+      hasDietaryAlert: student.hasDietaryAlert
     };
   });
 }
