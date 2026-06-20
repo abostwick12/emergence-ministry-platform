@@ -115,6 +115,39 @@ describe("camp API restricted data boundaries", () => {
     expectNoRestrictedPayloadDetails(payload);
   });
 
+  it("exposes only safe Leader Safety indicators (booleans) to General Leaders, never restricted fields", async () => {
+    getServerSessionMock.mockResolvedValue(session());
+
+    const response = await campGET(new Request("http://localhost/api/camp?role=general_leader"));
+    const payload = (await response.json()) as { students: Array<Record<string, unknown>> };
+
+    expect(response.status).toBe(200);
+    expect(payload.students.length).toBeGreaterThan(0);
+
+    // The boolean indicators the Leader Safety View renders are present...
+    const indicatorStudent = payload.students.find((student) => student.hasMedicationPlan === true);
+    expect(indicatorStudent).toBeDefined();
+    expect(typeof indicatorStudent?.hasRestrictedMedicalInfo).toBe("boolean");
+    expect(typeof indicatorStudent?.needsParentClarification).toBe("boolean");
+
+    // ...while no restricted field (key or value) ever crosses the boundary.
+    for (const student of payload.students) {
+      for (const restrictedKey of [
+        "medicationName",
+        "parentProvidedInstructions",
+        "dose",
+        "allergyNotes",
+        "insuranceStatus",
+        "parentMedicalNotes",
+        "guardianName",
+        "guardianSignatureData"
+      ]) {
+        expect(student).not.toHaveProperty(restrictedKey);
+      }
+    }
+    expectNoRestrictedPayloadDetails(payload);
+  });
+
   it("returns driver vehicle roster identity only and no restricted fields", async () => {
     getServerSessionMock.mockResolvedValue(session("driver"));
 
