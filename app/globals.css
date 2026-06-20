@@ -3078,6 +3078,10 @@ textarea:focus-visible {
 .camp-cc-entry-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .camp-cc-entry-body strong { color: var(--camp-ink); font-size: 15px; }
 .camp-cc-entry-arrow { margin-left: auto; color: var(--camp-accent); }
+.camp-restricted-entry {
+  border-color: rgba(3, 105, 161, 0.28);
+  background: linear-gradient(150deg, rgba(224, 242, 254, 0.9), rgba(255, 255, 255, 0.86));
+}
 
 /* Schedule */
 .camp-schedule-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
@@ -3613,6 +3617,13 @@ textarea:focus-visible {
   cursor: pointer;
   font-size: 13px;
   font-weight: 700;
+}
+
+.camp-preview-section {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 12px;
 }
 
 .camp-photo-modal {

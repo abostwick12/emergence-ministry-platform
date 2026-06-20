@@ -200,7 +200,7 @@ export function AppShell({ children, devAuth = false }: { children: React.ReactN
         <div className="sidebar-wash-bottom" aria-hidden="true" />
       </aside>
 
-      <main className="main app-main app-main-shell">
+      <main className={`main app-main app-main-shell${isCampRoute ? " app-main-shell-camp" : ""}`}>
         {!isCampRoute ? (
           <header className="app-header app-fixed-header">
             <div className="app-header-text">

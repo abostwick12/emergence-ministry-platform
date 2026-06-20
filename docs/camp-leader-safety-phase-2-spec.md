@@ -20,8 +20,8 @@ Phase 1 can truthfully show, for each camper, only:
 It **cannot** show a food-allergy alert, an EpiPen/inhaler indicator, or an
 emergency-contact action, because no discrete, leader-safe field for those
 exists. `has_restricted_medical_info` is a single generic flag, and the
-specifics live only in restricted free-text (`allergy_notes`) or in the Drive
-workbook. Inventing those indicators from generic data would violate the
+specifics live only in restricted free-text (`allergy_notes`) or in the
+restricted registration export. Inventing those indicators from generic data would violate the
 "do not invent or infer safety statuses" rule.
 
 Phase 2 makes them honest by introducing **discrete boolean flags that
@@ -36,8 +36,8 @@ restricted staff set explicitly**, exposed to leaders as booleans only.
   set by a General Leader.
 - Raw medical/dietary text continues to live **only** in
   `camp_restricted_medical_records` (Andrew/Jaci/Joel via RLS).
-- The Drive workbook remains the source document; Supabase stores only the
-  approved normalized fields.
+- The uploaded registration export is transient; Supabase stores only the
+  approved normalized fields plus audit metadata.
 
 ## 3. Proposed migration `013_camp_leader_safety_flags.sql` (additive, idempotent)
 
@@ -86,7 +86,7 @@ Notes:
 No change to Medical Command (stays Andrew-only). No change to the medication,
 intake, signature, photo, or audit flows.
 
-## 5. Drive workbook mapping (`Camp_Quick_View_2`)
+## 5. Registration export mapping (`Camp_Quick_View_2`)
 
 | Workbook column | Classification | Phase 2 target |
 |---|---|---|
@@ -99,9 +99,9 @@ intake, signature, photo, or audit flows.
 | "Any other important information…" | restricted free-text | restricted notes |
 | Emergency Contact (name + phone) | restricted PII | drives `emergency_contact_on_file` boolean; number stays restricted |
 | Registration Contact (name/phone/email/address) | restricted PII | not imported to leader-facing fields |
-| All phone / email / address columns | restricted PII | not imported (Drive-only) |
+| All phone / email / address columns | restricted PII | not imported to leader-facing fields |
 | Birthdate, Age, Gender, Registration ID | restricted PII | not imported to leader-facing fields |
-| All payment columns (Cost, Paid, Balance, Paid by…) | **Drive-only** | **never imported** |
+| All payment columns (Cost, Paid, Balance, Paid by…) | **source-only** | **never imported** |
 | T-Shirt Size | operational, non-safety | optional, out of scope |
 
 **Leak guarantee:** the general-leader payload after Phase 2 still contains
@@ -111,14 +111,17 @@ and the safety booleans.
 
 ## 6. Import workflow (requires explicit approval per step)
 
-1. Restricted staff review `Camp_Quick_View_2` in Drive (source stays in Drive).
-2. A restricted-only, preview-first importer (reuse the existing
-   `/api/camp/import` restricted gate) maps **safe** columns to `camp_campers`
-   and **restricted** columns to `camp_restricted_medical_records`.
-3. Restricted staff set the four boolean safety flags during review.
+1. Restricted staff upload an approved `.xlsx` or `.csv` export through the
+   restricted Oakwood import preview.
+2. A restricted-only, preview-first importer maps **safe** columns to
+   `camp_campers` / `camp_staff` and **restricted** camper columns to
+   `camp_restricted_medical_records`.
+3. The preview shows real names and source metadata while keeping raw
+   medical/contact text out of leader-facing views.
 4. Payments, addresses, phones, emails, guardian PII are **dropped at preview**
    and never written.
-5. No workbook file is uploaded to Supabase Storage.
+5. No workbook file is uploaded to Supabase Storage. Only filename, SHA-256,
+   worksheet, reviewer, timestamp, and counts are retained for audit.
 
 ## 7. Approval gates (all blocked pending Andrew)
 
@@ -126,6 +129,6 @@ and the safety booleans.
 - [ ] Approve the four indicators + labels (and whether to include a controlled
       emergency-contact action).
 - [ ] Approve the restricted-only import mapping before any data is written.
-- [ ] Confirm Drive folder stays restricted to Andrew/Jaci/Joel (no public share).
+- [ ] Confirm the approved source export is handled only by Andrew/Jaci/Joel.
 
 Until these are approved, Phase 2 remains a written proposal only.

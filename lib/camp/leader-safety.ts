@@ -31,7 +31,10 @@ export type LeaderSafetyStudent = {
 // contact, never the underlying medical content.
 export const LEADER_SAFETY_LABELS = {
   medicationOnFile: "Medication on file — contact medical lead",
+  medicalAlert: "Medical alert on file — contact medical lead",
   medicalSupportOnFile: "Medical support on file — contact medical lead",
+  dietaryNote: "Dietary note on file",
+  emergencyContact: "Emergency contact available",
   formFollowUp: "Form follow-up needed"
 } as const;
 
@@ -46,13 +49,23 @@ const REDUNDANT_FLAGS = new Set(["restricted info on file", "medication plan on 
 export function toLeaderSafetyStudent(student: CampVisibleStudent): LeaderSafetyStudent {
   const indicators: LeaderSafetyIndicator[] = [];
 
-  // A single medical-support line. "Medication on file" already implies a
-  // medical record exists, so the generic line is only used when there is
-  // restricted medical info WITHOUT a medication plan — never both.
+  // A single medical line, in priority order, so the same camper never shows two
+  // overlapping medical chips. "Medication on file" implies a medical record;
+  // "Medical alert" comes from the Quick Filter category / a restricted note;
+  // the generic line is the fallback when only has_restricted_medical_info is set.
   if (student.hasMedicationPlan) {
     indicators.push({ label: LEADER_SAFETY_LABELS.medicationOnFile, tone: "medical" });
+  } else if (student.hasMedicalAlert) {
+    indicators.push({ label: LEADER_SAFETY_LABELS.medicalAlert, tone: "medical" });
   } else if (student.hasRestrictedMedicalInfo) {
     indicators.push({ label: LEADER_SAFETY_LABELS.medicalSupportOnFile, tone: "medical" });
+  }
+
+  if (student.hasDietaryAlert) {
+    indicators.push({ label: LEADER_SAFETY_LABELS.dietaryNote, tone: "info" });
+  }
+  if (student.emergencyContactOnFile) {
+    indicators.push({ label: LEADER_SAFETY_LABELS.emergencyContact, tone: "info" });
   }
 
   if (student.needsParentClarification) {

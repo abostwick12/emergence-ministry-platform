@@ -21,14 +21,18 @@ import type {
   CampMedicationReturnItem,
   CampMedicationScheduleItem,
   CampMedicationVoidInput,
+  CampOakwoodImportCommitResult,
+  CampOakwoodImportPreview,
   CampOverviewPayload,
   CampRestrictedMedicalRecord,
+  CampStaffMember,
   CampStudentInput,
   CampStudentPublic,
   CampTeam,
   CampVehicle
 } from "@/lib/camp/types";
 import { getCampVisibleStudentsForData } from "@/lib/camp/access";
+import { buildOakwoodImportPreviewFromCsv, mergeOakwoodImportPreviews, type OakwoodExistingPerson } from "@/lib/camp/oakwood-import";
 import { resolveMinistryScope } from "@/lib/ministry/scope";
 
 type CampSessionRow = {
@@ -69,6 +73,11 @@ type CampCamperRow = {
   vehicle_id: string | null;
   cabin: string | null;
   limited_safety_flags: string[] | null;
+  shirt_size: string | null;
+  registration_external_id: string | null;
+  emergency_contact_on_file: boolean | null;
+  has_medical_alert: boolean | null;
+  has_dietary_alert: boolean | null;
   has_restricted_medical_info: boolean | null;
   has_medication_plan: boolean | null;
   needs_parent_clarification: boolean | null;
@@ -85,6 +94,23 @@ type CampRestrictedMedicalRow = {
   allergy_notes: string | null;
   insurance_status: string | null;
   parent_medical_notes: string | null;
+  emergency_contact_name: string | null;
+  emergency_contact_phone: string | null;
+  emergency_contact_relationship: string | null;
+  guardian_name: string | null;
+  guardian_phone: string | null;
+  dietary_requirements: string | null;
+};
+
+type CampStaffRow = {
+  id: string;
+  name: string;
+  role: CampStaffMember["role"];
+  shirt_size: string | null;
+  registration_external_id: string | null;
+  team_id: string | null;
+  archived_at: string | null;
+  archive_reason: string | null;
 };
 
 type CampMedicationRow = {
@@ -240,6 +266,275 @@ export async function getCampOverview(
   };
 }
 
+export async function getOakwoodImportPreview(
+  session: AuthSession,
+  context: CampAccessContext,
+  input: { csv: string; sourceFile?: string }
+) {
+  const access = assertCampRestrictedAccess(context);
+  if (!access.allowed) return access;
+
+  if (shouldUseMock(session)) {
+    return {
+      allowed: true as const,
+      status: 200,
+      preview: buildOakwoodImportPreviewFromCsv(input.csv, {
+        sourceFile: input.sourceFile,
+        existingCampers: mockStore.listOakwoodExistingCampers(),
+        existingStaff: mockStore.listOakwoodExistingStaff()
+      })
+    };
+  }
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const basics = await ensureCampBasics(session);
+  const [campers, staff] = await Promise.all([
+    supabase
+      .from("camp_campers")
+      .select("id,name,registration_external_id")
+      .eq("camp_id", basics.camp.id)
+      .is("archived_at", null)
+      .returns<Array<{ id: string; name: string; registration_external_id: string | null }>>(),
+    supabase
+      .from("camp_staff")
+      .select("id,name,registration_external_id")
+      .eq("camp_id", basics.camp.id)
+      .is("archived_at", null)
+      .returns<Array<{ id: string; name: string; registration_external_id: string | null }>>()
+  ]);
+
+  throwIfSupabaseError(campers.error);
+  throwIfSupabaseError(staff.error);
+
+  return {
+    allowed: true as const,
+    status: 200,
+    preview: buildOakwoodImportPreviewFromCsv(input.csv, {
+      sourceFile: input.sourceFile,
+      existingCampers: (campers.data ?? []).map((row) => ({ id: row.id, name: row.name, registrationExternalId: row.registration_external_id ?? undefined })),
+      existingStaff: (staff.data ?? []).map((row) => ({ id: row.id, name: row.name, registrationExternalId: row.registration_external_id ?? undefined }))
+    })
+  };
+}
+
+export async function getOakwoodUploadImportPreview(
+  session: AuthSession,
+  context: CampAccessContext,
+  input: {
+    sourceName?: string;
+    sources: Array<{ scope: "full_roster" | "camper_only" | "staff_only"; csv: string; fileName: string; checksumSha256: string; sheetName?: string }>;
+  }
+) {
+  const access = assertCampRestrictedAccess(context);
+  if (!access.allowed) return access;
+  if (!input.sources.length) {
+    return { allowed: false as const, status: 400, error: "Upload at least one camper or staff registration file before previewing." };
+  }
+
+  // Existing camper + staff records for matching. Campers match against existing
+  // campers and adults against existing staff — never across the two.
+  const existing = await loadOakwoodExistingPeople(session);
+  const parts: CampOakwoodImportPreview[] = [];
+  const uploadSources: NonNullable<CampOakwoodImportPreview["uploadSources"]> = [];
+
+  for (const source of input.sources) {
+    const part = buildOakwoodImportPreviewFromCsv(source.csv, {
+      sourceFile: source.sheetName ? `${source.fileName} / ${source.sheetName}` : source.fileName,
+      sourceKind: "upload",
+      importScope: source.scope,
+      existingCampers: existing.campers,
+      existingStaff: existing.staff
+    });
+    parts.push(part);
+    uploadSources.push({
+      fileName: source.fileName,
+      checksumSha256: source.checksumSha256,
+      sheetName: source.sheetName,
+      scope: source.scope,
+      rowCount: part.summary.totalSourceRows
+    });
+  }
+
+  const scopes = new Set(input.sources.map((source) => source.scope));
+  const importScope =
+    scopes.has("full_roster") || (scopes.has("camper_only") && scopes.has("staff_only"))
+      ? "full_roster"
+      : input.sources[0].scope;
+
+  const preview = mergeOakwoodImportPreviews(parts, {
+    sourceFile: input.sourceName?.trim() || input.sources.map((source) => source.fileName).join(" + "),
+    sourceKind: "upload",
+    uploadSources,
+    importScope
+  });
+
+  return { allowed: true as const, status: 200, preview };
+}
+
+async function loadOakwoodExistingPeople(session: AuthSession): Promise<{ campers: OakwoodExistingPerson[]; staff: OakwoodExistingPerson[] }> {
+  if (shouldUseMock(session)) {
+    return { campers: mockStore.listOakwoodExistingCampers(), staff: mockStore.listOakwoodExistingStaff() };
+  }
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const basics = await ensureCampBasics(session);
+  const [campers, staff] = await Promise.all([
+    supabase.from("camp_campers").select("id,name,registration_external_id").eq("camp_id", basics.camp.id).is("archived_at", null).returns<Array<{ id: string; name: string; registration_external_id: string | null }>>(),
+    supabase.from("camp_staff").select("id,name,registration_external_id").eq("camp_id", basics.camp.id).is("archived_at", null).returns<Array<{ id: string; name: string; registration_external_id: string | null }>>()
+  ]);
+  throwIfSupabaseError(campers.error);
+  throwIfSupabaseError(staff.error);
+  return {
+    campers: (campers.data ?? []).map((row) => ({ id: row.id, name: row.name, registrationExternalId: row.registration_external_id ?? undefined })),
+    staff: (staff.data ?? []).map((row) => ({ id: row.id, name: row.name, registrationExternalId: row.registration_external_id ?? undefined }))
+  };
+}
+
+export async function commitOakwoodImport(
+  session: AuthSession,
+  context: CampAccessContext,
+  input: { preview: CampOakwoodImportPreview; confirmed?: boolean }
+) {
+  const access = assertCampRestrictedAccess(context);
+  if (!access.allowed) return access;
+  if (!input.confirmed) {
+    return { allowed: true as const, status: 400, error: "Oakwood import confirmation is required before commit." };
+  }
+  if (input.preview.summary.ambiguousCount > 0 || input.preview.summary.invalidCount > 0) {
+    return { allowed: true as const, status: 409, error: "Resolve ambiguous or invalid Oakwood rows before committing." };
+  }
+  if (!session.isMock) {
+    return { allowed: true as const, status: 403, error: "Production Oakwood import commit is disabled until migration 013 is applied and live import approval is complete." };
+  }
+
+  if (shouldUseMock(session)) {
+    const result = mockStore.commitOakwoodImportPreview(context.effectiveRole, input.preview, access.actor);
+    if (!result.allowed) return result;
+    return { allowed: true as const, status: 200, result: result.result };
+  }
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const basics = await ensureCampBasics(session);
+  const committed: CampOakwoodImportCommitResult["committed"] = [];
+  const ministryId = await resolveMinistryScope(session);
+
+  for (const row of input.preview.rows) {
+    if (row.matchStatus !== "new" && row.matchStatus !== "matched") continue;
+
+    if (row.personType === "adult") {
+      const teamId = resolveTeamId(row.person.teamName, basics.teams);
+      const staffRow = {
+        name: row.person.name.trim(),
+        role: "adult_volunteer" as const,
+        shirt_size: row.person.shirtSize,
+        registration_external_id: row.person.registrationExternalId || null,
+        team_id: teamId || null
+      };
+      const write = row.matchedExistingId
+        ? await supabase.from("camp_staff").update(staffRow).eq("id", row.matchedExistingId).is("archived_at", null).select("*").single<CampStaffRow>()
+        : await supabase.from("camp_staff").insert({
+            ...ministryScopeColumns(ministryId),
+            camp_id: basics.camp.id,
+            ...staffRow
+          }).select("*").single<CampStaffRow>();
+      throwIfSupabaseError(write.error);
+      if (!write.data) throw new Error("Camp staff write returned no row.");
+      committed.push({ rowNumber: row.rowNumber, personType: "adult", action: row.matchedExistingId ? "updated" : "created", id: write.data.id, name: write.data.name });
+      continue;
+    }
+
+    const studentPayload = await upsertCampStudent(session, context, {
+      id: row.matchedExistingId,
+      name: row.person.name,
+      grade: row.person.grade,
+      teamId: resolveTeamId(row.person.teamName, basics.teams),
+      vehicleId: resolveVehicleId(row.person.vehicleName, basics.vehicles),
+      cabin: row.person.cabin,
+      shirtSize: row.person.shirtSize,
+      registrationExternalId: row.person.registrationExternalId,
+      emergencyContactOnFile: row.safeIndicators.emergencyContactOnFile,
+      hasMedicalAlert: row.safeIndicators.hasMedicalAlert,
+      hasDietaryAlert: row.safeIndicators.hasDietaryAlert,
+      limitedSafetyFlags: []
+    });
+    if (!studentPayload.allowed) return studentPayload;
+
+    if (row.restricted) {
+      const restrictedPayload = await upsertRestrictedMedicalRecord(session, context, {
+        studentId: studentPayload.student.id,
+        studentName: studentPayload.student.name,
+        medicalFormStatus: row.restricted.medicalFormStatus,
+        restrictedNotes: row.restricted.restrictedNotes,
+        allergyNotes: row.restricted.dietaryRequirements,
+        insuranceStatus: row.restricted.insuranceStatus,
+        parentMedicalNotes: row.restricted.parentMedicalNotes,
+        emergencyContactName: row.restricted.emergencyContactName,
+        emergencyContactPhone: row.restricted.emergencyContactPhone,
+        emergencyContactRelationship: row.restricted.emergencyContactRelationship,
+        guardianName: row.restricted.guardianName,
+        guardianPhone: row.restricted.guardianPhone,
+        dietaryRequirements: row.restricted.dietaryRequirements
+      });
+      if (!restrictedPayload.allowed) return restrictedPayload;
+    }
+
+    committed.push({
+      rowNumber: row.rowNumber,
+      personType: "student",
+      action: row.matchedExistingId ? "updated" : "created",
+      id: studentPayload.student.id,
+      name: studentPayload.student.name
+    });
+  }
+
+  const auditRow = {
+    ...ministryScopeColumns(ministryId),
+    camp_id: basics.camp.id,
+    imported_by: session.user.id,
+    source_name: input.preview.sourceFile,
+    source_file: input.preview.sourceFile,
+    source_checksum: input.preview.uploadSources?.map((source) => source.checksumSha256).join(", ") ?? null,
+    row_count: input.preview.summary.totalSourceRows,
+    status: "committed",
+    warnings: input.preview.rows
+      .filter((row) => row.warnings.length > 0)
+      .map((row) => ({ rowNumber: row.rowNumber, warnings: row.warnings })),
+    created_count: committed.filter((item) => item.action === "created").length,
+    updated_count: committed.filter((item) => item.action === "updated").length,
+    skipped_count: input.preview.summary.skippedCount,
+    ambiguous_count: input.preview.summary.ambiguousCount,
+    invalid_count: input.preview.summary.invalidCount,
+    restricted_count: input.preview.summary.restrictedRecordRows,
+    safe_count: input.preview.summary.safeFieldRows,
+    staff_count: input.preview.summary.staffRows
+  };
+  const audit = await supabase.from("camp_import_batches").insert(auditRow).select("id,created_at").single<{ id: string; created_at: string }>();
+  throwIfSupabaseError(audit.error);
+  if (!audit.data) throw new Error("Camp import audit write returned no row.");
+
+  return {
+    allowed: true as const,
+    status: 200,
+    result: {
+      auditBatch: {
+        id: audit.data.id,
+        sourceFile: input.preview.sourceFile,
+        sourceChecksum: input.preview.uploadSources?.map((source) => source.checksumSha256).join(", "),
+        importedByName: access.actor,
+        importedAt: audit.data.created_at,
+        createdCount: auditRow.created_count,
+        updatedCount: auditRow.updated_count,
+        skippedCount: auditRow.skipped_count,
+        ambiguousCount: auditRow.ambiguous_count,
+        invalidCount: auditRow.invalid_count,
+        restrictedCount: auditRow.restricted_count,
+        safeCount: auditRow.safe_count,
+        staffCount: auditRow.staff_count
+      },
+      committed
+    } satisfies CampOakwoodImportCommitResult
+  };
+}
+
 export async function getArchivedCampStudents(session: AuthSession, context: CampAccessContext) {
   const access = assertCampRestrictedAccess(context);
   if (!access.allowed) return access;
@@ -274,7 +569,12 @@ export async function upsertCampStudent(session: AuthSession, context: CampAcces
     team_id: input.teamId || null,
     vehicle_id: input.vehicleId || null,
     cabin: input.cabin.trim(),
-    limited_safety_flags: normalizeFlags(input.limitedSafetyFlags ?? [])
+    limited_safety_flags: normalizeFlags(input.limitedSafetyFlags ?? []),
+    ...(input.shirtSize !== undefined ? { shirt_size: input.shirtSize.trim() } : {}),
+    ...(input.registrationExternalId !== undefined ? { registration_external_id: input.registrationExternalId.trim() || null } : {}),
+    ...(input.emergencyContactOnFile !== undefined ? { emergency_contact_on_file: input.emergencyContactOnFile } : {}),
+    ...(input.hasMedicalAlert !== undefined ? { has_medical_alert: input.hasMedicalAlert } : {}),
+    ...(input.hasDietaryAlert !== undefined ? { has_dietary_alert: input.hasDietaryAlert } : {})
   };
 
   const result = input.id
@@ -396,7 +696,13 @@ export async function upsertRestrictedMedicalRecord(
     restricted_notes: input.restrictedNotes,
     allergy_notes: input.allergyNotes,
     insurance_status: input.insuranceStatus,
-    parent_medical_notes: input.parentMedicalNotes
+    parent_medical_notes: input.parentMedicalNotes,
+    emergency_contact_name: input.emergencyContactName ?? "",
+    emergency_contact_phone: input.emergencyContactPhone ?? "",
+    emergency_contact_relationship: input.emergencyContactRelationship ?? "",
+    guardian_name: input.guardianName ?? "",
+    guardian_phone: input.guardianPhone ?? "",
+    dietary_requirements: input.dietaryRequirements ?? ""
   };
   const { data, error } = await supabase
     .from("camp_restricted_medical_records")
@@ -1014,6 +1320,18 @@ function toCampVehicle(row: CampVehicleRow): CampVehicle {
   };
 }
 
+function resolveTeamId(name: string, teams: CampTeam[]): string {
+  if (!name.trim()) return "";
+  const normalized = name.trim().toLowerCase();
+  return teams.find((team) => team.name.toLowerCase() === normalized)?.id ?? "";
+}
+
+function resolveVehicleId(name: string, vehicles: CampVehicle[]): string {
+  if (!name.trim()) return "";
+  const normalized = name.trim().toLowerCase();
+  return vehicles.find((vehicle) => vehicle.name.toLowerCase() === normalized || vehicle.driver.toLowerCase() === normalized)?.id ?? "";
+}
+
 function toCampStudentPublic(row: CampCamperRow): CampStudentPublic {
   return {
     id: row.id,
@@ -1023,10 +1341,15 @@ function toCampStudentPublic(row: CampCamperRow): CampStudentPublic {
     teamId: row.team_id ?? "",
     vehicleId: row.vehicle_id ?? "",
     cabin: row.cabin ?? "",
+    shirtSize: row.shirt_size ?? "",
+    registrationExternalId: row.registration_external_id ?? undefined,
     limitedSafetyFlags: normalizeFlags(row.limited_safety_flags ?? []),
     hasRestrictedMedicalInfo: Boolean(row.has_restricted_medical_info),
     hasMedicationPlan: Boolean(row.has_medication_plan),
     needsParentClarification: Boolean(row.needs_parent_clarification),
+    emergencyContactOnFile: Boolean(row.emergency_contact_on_file),
+    hasMedicalAlert: Boolean(row.has_medical_alert),
+    hasDietaryAlert: Boolean(row.has_dietary_alert),
     archivedAt: row.archived_at ?? undefined,
     archiveReason: row.archive_reason ?? undefined
   };
@@ -1040,7 +1363,13 @@ function toRestrictedMedicalRecord(row: CampRestrictedMedicalRow, campers: Map<s
     restrictedNotes: row.restricted_notes ?? "",
     allergyNotes: row.allergy_notes ?? "",
     insuranceStatus: row.insurance_status ?? "",
-    parentMedicalNotes: row.parent_medical_notes ?? ""
+    parentMedicalNotes: row.parent_medical_notes ?? "",
+    emergencyContactName: row.emergency_contact_name ?? "",
+    emergencyContactPhone: row.emergency_contact_phone ?? "",
+    emergencyContactRelationship: row.emergency_contact_relationship ?? "",
+    guardianName: row.guardian_name ?? "",
+    guardianPhone: row.guardian_phone ?? "",
+    dietaryRequirements: row.dietary_requirements ?? ""
   };
 }
 

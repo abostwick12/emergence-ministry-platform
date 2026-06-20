@@ -113,6 +113,35 @@ describe("leader-safety mapper", () => {
     expect(serialized).toContain("medication on file");
   });
 
+  it("shows a Medical alert indicator from the imported has_medical_alert boolean", () => {
+    const result = toLeaderSafetyStudent(visibleStudent({ hasMedicalAlert: true }));
+    expect(result.indicators.map((i) => i.label)).toContain(LEADER_SAFETY_LABELS.medicalAlert);
+  });
+
+  it("prefers Medication-on-file over Medical alert when both are set (one medical line)", () => {
+    const result = toLeaderSafetyStudent(visibleStudent({ hasMedicationPlan: true, hasMedicalAlert: true }));
+    const medical = result.indicators.filter((i) => i.tone === "medical");
+    expect(medical).toHaveLength(1);
+    expect(medical[0].label).toBe(LEADER_SAFETY_LABELS.medicationOnFile);
+  });
+
+  it("shows Dietary and Emergency-contact indicators from imported booleans", () => {
+    const result = toLeaderSafetyStudent(visibleStudent({ hasDietaryAlert: true, emergencyContactOnFile: true }));
+    const labels = result.indicators.map((i) => i.label);
+    expect(labels).toContain(LEADER_SAFETY_LABELS.dietaryNote);
+    expect(labels).toContain(LEADER_SAFETY_LABELS.emergencyContact);
+  });
+
+  it("never leaks restricted contact/medical detail even with all new booleans set", () => {
+    const result = toLeaderSafetyStudent(
+      visibleStudent({ hasMedicalAlert: true, hasDietaryAlert: true, emergencyContactOnFile: true })
+    );
+    const serialized = JSON.stringify(result).toLowerCase();
+    for (const token of RESTRICTED_TOKENS) {
+      expect(serialized).not.toContain(token);
+    }
+  });
+
   it("publishes a calm, explicit contact-the-leads guidance string", () => {
     expect(LEADER_SAFETY_CONTACT_GUIDANCE).toMatch(/Andrew, Jaci, or Joel/);
   });

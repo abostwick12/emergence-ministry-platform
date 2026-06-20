@@ -56,10 +56,18 @@ export type CampStudentPublic = {
   teamId: string;
   vehicleId: string;
   cabin: string;
+  shirtSize?: string;
+  registrationExternalId?: string;
   limitedSafetyFlags: string[];
   hasRestrictedMedicalInfo: boolean;
   hasMedicationPlan: boolean;
   needsParentClarification: boolean;
+  // SAFE leader-facing presence indicators. Derived ONLY from the workbook's
+  // explicit Quick Filter category + whether a restricted note exists — never by
+  // parsing medical/dietary free text. Booleans only; never expose detail.
+  emergencyContactOnFile?: boolean;
+  hasMedicalAlert?: boolean;
+  hasDietaryAlert?: boolean;
   archivedAt?: string;
   archiveReason?: string;
 };
@@ -71,6 +79,11 @@ export type CampStudentInput = {
   teamId: string;
   vehicleId: string;
   cabin: string;
+  shirtSize?: string;
+  registrationExternalId?: string;
+  emergencyContactOnFile?: boolean;
+  hasMedicalAlert?: boolean;
+  hasDietaryAlert?: boolean;
   limitedSafetyFlags?: string[];
 };
 
@@ -89,10 +102,14 @@ export type CampVisibleStudent = {
   teamId?: string;
   teamName?: string;
   cabin?: string;
+  shirtSize?: string;
   limitedSafetyFlags?: string[];
   hasRestrictedMedicalInfo?: boolean;
   hasMedicationPlan?: boolean;
   needsParentClarification?: boolean;
+  emergencyContactOnFile?: boolean;
+  hasMedicalAlert?: boolean;
+  hasDietaryAlert?: boolean;
   archivedAt?: string;
   archiveReason?: string;
 };
@@ -105,6 +122,37 @@ export type CampRestrictedMedicalRecord = {
   allergyNotes: string;
   insuranceStatus: string;
   parentMedicalNotes: string;
+  // Restricted contact + dietary detail (Andrew/Jaci/Joel only). Optional so
+  // existing callers/records remain valid.
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
+  emergencyContactRelationship?: string;
+  guardianName?: string;
+  guardianPhone?: string;
+  dietaryRequirements?: string;
+};
+
+// Adult / volunteer / leader roster. SAFE operational fields only — no restricted
+// medical/contact data is stored on staff in this iteration.
+export type CampStaffMember = {
+  id: string;
+  name: string;
+  role: "adult_volunteer" | "leader" | "staff";
+  shirtSize?: string;
+  registrationExternalId?: string;
+  teamId?: string;
+  teamName?: string;
+  archivedAt?: string;
+  archiveReason?: string;
+};
+
+export type CampStaffInput = {
+  id?: string;
+  name: string;
+  role?: CampStaffMember["role"];
+  shirtSize?: string;
+  registrationExternalId?: string;
+  teamId?: string;
 };
 
 export type CampMedicationRecord = {
@@ -291,4 +339,116 @@ export type CampRegistrationImportPreview = {
     clarificationRows: number;
     blockedRows: number;
   };
+};
+
+// ── Camp Oakwood full-roster import (Quick View workbook) ───────────────────
+// matchStatus drives the commit: only "new" and "matched" rows are written;
+// "ambiguous" rows are NEVER auto-committed (manual resolution required),
+// "skipped" are non-person/section rows, "invalid" lack a usable name.
+export type CampImportMatchStatus = "new" | "matched" | "ambiguous" | "skipped" | "invalid";
+
+export type CampOakwoodImportPersonType = "student" | "adult";
+
+export type CampOakwoodSafeIndicators = {
+  emergencyContactOnFile: boolean;
+  hasMedicalAlert: boolean;
+  hasDietaryAlert: boolean;
+};
+
+// Restricted payload built per student row. Lives only in restricted storage.
+export type CampOakwoodRestrictedPayload = {
+  medicalFormStatus: "Received" | "Needs Parent Clarification";
+  emergencyContactName: string;
+  emergencyContactPhone: string;
+  emergencyContactRelationship: string;
+  guardianName: string;
+  guardianPhone: string;
+  insuranceStatus: string;
+  restrictedNotes: string;
+  dietaryRequirements: string;
+  parentMedicalNotes: string;
+};
+
+export type CampOakwoodImportRow = {
+  rowNumber: number;
+  matchStatus: CampImportMatchStatus;
+  personType: CampOakwoodImportPersonType;
+  warnings: string[];
+  // SAFE operational person fields. Blank source values stay blank (no team,
+  // vehicle, or room is ever fabricated).
+  person: {
+    name: string;
+    grade: string;
+    cabin: string;
+    shirtSize: string;
+    registrationExternalId: string;
+    teamName: string;
+    vehicleName: string;
+  };
+  safeIndicators: CampOakwoodSafeIndicators;
+  // Present only for students; held in restricted storage on commit.
+  restricted?: CampOakwoodRestrictedPayload;
+  matchedExistingId?: string;
+  matchCandidateCount?: number;
+};
+
+export type CampOakwoodImportSummary = {
+  totalSourceRows: number;
+  personRows: number;
+  students: number;
+  adults: number;
+  newCount: number;
+  matchedCount: number;
+  ambiguousCount: number;
+  skippedCount: number;
+  invalidCount: number;
+  safeFieldRows: number;
+  restrictedRecordRows: number;
+  staffRows: number;
+};
+
+// One entry per uploaded registration-export file. The original workbook is never
+// stored; only this metadata is retained (filename + SHA-256 + sheet + scope + rows).
+export type CampOakwoodUploadSource = {
+  fileName: string;
+  checksumSha256: string;
+  sheetName?: string;
+  scope: "full_roster" | "camper_only" | "staff_only";
+  rowCount: number;
+};
+
+export type CampOakwoodImportPreview = {
+  sourceFile: string;
+  sourceKind?: "csv" | "upload";
+  uploadSources?: CampOakwoodUploadSource[];
+  importScope?: "full_roster" | "staff_only" | "camper_only";
+  rows: CampOakwoodImportRow[];
+  summary: CampOakwoodImportSummary;
+};
+
+export type CampImportAuditBatch = {
+  id: string;
+  sourceFile: string;
+  sourceChecksum?: string;
+  importedByName: string;
+  importedAt: string;
+  createdCount: number;
+  updatedCount: number;
+  skippedCount: number;
+  ambiguousCount: number;
+  invalidCount: number;
+  restrictedCount: number;
+  safeCount: number;
+  staffCount: number;
+};
+
+export type CampOakwoodImportCommitResult = {
+  auditBatch: CampImportAuditBatch;
+  committed: Array<{
+    rowNumber: number;
+    personType: CampOakwoodImportPersonType;
+    action: "created" | "updated";
+    id: string;
+    name: string;
+  }>;
 };

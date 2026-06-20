@@ -7,6 +7,7 @@ const auditMigration = readFileSync(join(process.cwd(), "supabase/migrations/008
 const intakeMigration = readFileSync(join(process.cwd(), "supabase/migrations/009_camp_medication_intake_signature.sql"), "utf8");
 const archivePhotoMigration = readFileSync(join(process.cwd(), "supabase/migrations/010_camp_archive_camper.sql"), "utf8");
 const correctionAuditMigration = readFileSync(join(process.cwd(), "supabase/migrations/011_camp_medication_correction_audit.sql"), "utf8");
+const oakwoodMigration = readFileSync(join(process.cwd(), "supabase/migrations/013_camp_oakwood_operational_data.sql"), "utf8");
 
 describe("camp persistence RLS migration shape", () => {
   it("keeps restricted medical and medication tables behind the restricted access helper", () => {
@@ -111,5 +112,34 @@ describe("camp persistence RLS migration shape", () => {
     expect(correctionAuditMigration).not.toContain("for delete");
     expect(correctionAuditMigration).toContain("create policy \"restricted can update camp_medication_intake_records\"");
     expect(correctionAuditMigration).toContain("create policy \"restricted can update camp_medication_administration_logs\"");
+  });
+
+  it("adds Oakwood operational fields without moving restricted detail into public camper rows", () => {
+    for (const safeColumn of [
+      "registration_external_id",
+      "shirt_size",
+      "emergency_contact_on_file",
+      "has_medical_alert",
+      "has_dietary_alert"
+    ]) {
+      expect(oakwoodMigration).toContain(`alter table public.camp_campers add column if not exists ${safeColumn}`);
+    }
+
+    for (const restrictedColumn of [
+      "emergency_contact_name",
+      "emergency_contact_phone",
+      "guardian_name",
+      "guardian_phone",
+      "dietary_requirements"
+    ]) {
+      expect(oakwoodMigration).toContain(`alter table public.camp_restricted_medical_records add column if not exists ${restrictedColumn}`);
+      expect(oakwoodMigration).not.toContain(`alter table public.camp_campers add column if not exists ${restrictedColumn}`);
+    }
+
+    expect(oakwoodMigration).toContain("create table if not exists public.camp_staff");
+    expect(oakwoodMigration).toContain("alter table public.camp_staff enable row level security");
+    expect(oakwoodMigration).toContain("create policy \"ministry can select camp_staff\"");
+    expect(oakwoodMigration).toContain("alter table public.camp_import_batches add column if not exists created_count");
+    expect(oakwoodMigration).toContain("alter table public.camp_import_batches add column if not exists staff_count");
   });
 });
