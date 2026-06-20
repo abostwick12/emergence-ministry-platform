@@ -3039,6 +3039,46 @@ textarea:focus-visible {
   font-size: 15px;
 }
 
+/* Leader Safety View + discoverable entry cards */
+.camp-cc-more { display: flex; flex-direction: column; gap: 16px; }
+.camp-cc-tag.alert { background: rgba(217, 119, 6, 0.16); color: #b45309; }
+.camp-cc-tag.warn { background: rgba(2, 132, 199, 0.14); color: #0369a1; }
+.camp-safety-guidance {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(3, 105, 161, 0.18);
+  background: linear-gradient(150deg, rgba(224, 242, 254, 0.7), rgba(255, 255, 255, 0.85));
+}
+.camp-safety-guidance strong { color: var(--camp-ink); font-size: 13.5px; }
+.camp-cc-entry {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(13, 71, 109, 0.14);
+  background: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+  text-decoration: none;
+  color: inherit;
+}
+.camp-cc-entry-icon {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  background: linear-gradient(150deg, #e0f2fe, #bae6fd);
+  color: #0c4a6e;
+}
+.camp-cc-entry-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.camp-cc-entry-body strong { color: var(--camp-ink); font-size: 15px; }
+.camp-cc-entry-arrow { margin-left: auto; color: var(--camp-accent); }
+
 /* Schedule */
 .camp-schedule-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .camp-schedule-item { display: flex; gap: 12px; padding: 12px; border-radius: 14px; background: rgba(255, 255, 255, 0.74); border: 1px solid rgba(13, 71, 109, 0.12); }
