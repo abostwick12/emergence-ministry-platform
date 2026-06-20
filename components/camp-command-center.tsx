@@ -109,6 +109,7 @@ function emptySignatureData(): CampMedicationIntakeInput["guardianSignatureData"
 }
 
 const emptyOverview: CampOverviewPayload = {
+  campName: "Camp Oakwood",
   campStartsOn: "2026-06-29",
   teams: [],
   vehicles: [],

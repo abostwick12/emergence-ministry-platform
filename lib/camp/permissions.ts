@@ -58,6 +58,27 @@ export function assertCampRestrictedAccess(context: CampAccessContext) {
   return { allowed: true as const, actor: context.restrictedActor ?? "Andrew" };
 }
 
+// Medical Command is a stricter capability than the normal restricted medication
+// workflows: it is limited to Andrew ONLY. Jaci and Joel keep their existing
+// restricted medication access but must never reach Medical Command. The check
+// keys off the server-resolved restrictedActor (email-derived in production,
+// not spoofable by the ?role= query param), so no schema change is required.
+export function canAccessCampMedicalCommand(context: CampAccessContext): boolean {
+  return context.restrictedActor === "Andrew";
+}
+
+export function assertCampMedicalCommandAccess(context: CampAccessContext) {
+  if (!canAccessCampMedicalCommand(context)) {
+    return {
+      allowed: false as const,
+      status: 403,
+      error: "Camp Medical Command access is limited to Andrew."
+    };
+  }
+
+  return { allowed: true as const, actor: "Andrew" as const };
+}
+
 function restrictedActorForSession(session: AuthSession): CampRestrictedActor | undefined {
   const emailLocalPart = session.user.email.split("@")[0]?.toLowerCase() ?? "";
   const match = restrictedCampNames.find((name) => isRestrictedEmailLocalPart(emailLocalPart, name));

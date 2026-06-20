@@ -1,11 +1,18 @@
 import type { CampDocument, CampScheduleBlock, CampStudentPublic, CampTeam, CampVehicle } from "@/lib/camp/types";
 
+export const campName = "Camp Oakwood";
 export const campStartsOn = "2026-06-29";
 
+// Real Camp Oakwood teams: the six colors are the teams. Leader/co-leader/room
+// are intentionally blank here (not invented) and render only when real data
+// is present. Mirrors migration 012 / the live camp_teams records.
 export const campTeams: CampTeam[] = [
-  { id: "team-cypress", name: "Cypress", color: "Teal", leader: "Maya Thompson" },
-  { id: "team-summit", name: "Summit", color: "Blue", leader: "Caleb Rivera" },
-  { id: "team-harbor", name: "Harbor", color: "Green", leader: "Nora James" }
+  { id: "team-blue", name: "Blue", color: "Blue", leader: "", coLeader: "", room: "" },
+  { id: "team-red", name: "Red", color: "Red", leader: "", coLeader: "", room: "" },
+  { id: "team-yellow", name: "Yellow", color: "Yellow", leader: "", coLeader: "", room: "" },
+  { id: "team-green", name: "Green", color: "Green", leader: "", coLeader: "", room: "" },
+  { id: "team-orange", name: "Orange", color: "Orange", leader: "", coLeader: "", room: "" },
+  { id: "team-purple", name: "Purple", color: "Purple", leader: "", coLeader: "", room: "" }
 ];
 
 export const campVehicles: CampVehicle[] = [
@@ -36,7 +43,7 @@ export const campStudents: CampStudentPublic[] = [
     name: "Avery Johnson",
     photoInitials: "AJ",
     grade: "8th",
-    teamId: "team-cypress",
+    teamId: "team-blue",
     vehicleId: "van-1",
     cabin: "Cabin A",
     limitedSafetyFlags: ["Restricted info on file"],
@@ -49,7 +56,7 @@ export const campStudents: CampStudentPublic[] = [
     name: "Jordan Kim",
     photoInitials: "JK",
     grade: "7th",
-    teamId: "team-summit",
+    teamId: "team-red",
     vehicleId: "van-2",
     cabin: "Cabin B",
     limitedSafetyFlags: ["Needs Parent Clarification"],
@@ -62,7 +69,7 @@ export const campStudents: CampStudentPublic[] = [
     name: "Riley Brooks",
     photoInitials: "RB",
     grade: "9th",
-    teamId: "team-harbor",
+    teamId: "team-yellow",
     vehicleId: "van-2",
     cabin: "Cabin C",
     limitedSafetyFlags: [],
@@ -75,7 +82,7 @@ export const campStudents: CampStudentPublic[] = [
     name: "Taylor Nguyen",
     photoInitials: "TN",
     grade: "10th",
-    teamId: "team-cypress",
+    teamId: "team-green",
     vehicleId: "van-3",
     cabin: "Cabin A",
     limitedSafetyFlags: ["Restricted info on file"],
@@ -88,7 +95,7 @@ export const campStudents: CampStudentPublic[] = [
     name: "Morgan Smith",
     photoInitials: "MS",
     grade: "6th",
-    teamId: "team-summit",
+    teamId: "team-orange",
     vehicleId: "van-1",
     cabin: "Cabin B",
     limitedSafetyFlags: [],
@@ -101,7 +108,7 @@ export const campStudents: CampStudentPublic[] = [
     name: "Casey Patel",
     photoInitials: "CP",
     grade: "8th",
-    teamId: "team-harbor",
+    teamId: "team-purple",
     vehicleId: "van-3",
     cabin: "Cabin C",
     limitedSafetyFlags: ["Medication plan on file"],

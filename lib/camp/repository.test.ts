@@ -48,7 +48,7 @@ describe("camp repository mock fallback", () => {
     const student = await upsertCampStudent(mockSession, context, {
       name: "Safety Flag Camper",
       grade: "9",
-      teamId: "team-cypress",
+      teamId: "team-blue",
       vehicleId: "van-1",
       cabin: "Cabin S",
       limitedSafetyFlags: ["Benadryl at bedtime", "Hydration reminder"]
@@ -83,7 +83,7 @@ describe("camp repository mock fallback", () => {
     const student = await upsertCampStudent(mockSession, general, {
       name: "Repository Camper",
       grade: "8",
-      teamId: "team-cypress",
+      teamId: "team-blue",
       vehicleId: "van-1",
       cabin: "Cabin R",
       limitedSafetyFlags: ["Hydration reminder"]

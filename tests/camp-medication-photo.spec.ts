@@ -6,7 +6,7 @@ test.describe("Camp restricted medication photo thumbnails", () => {
   test("fresh mock state does not show stale seed photos before a real upload", async ({ page }) => {
     await login(page);
 
-    await page.goto("/camp");
+    await page.goto("/camp/more");
     await page.getByRole("button", { name: "Andrew" }).click();
 
     const checkIn = page.getByRole("region", { name: "Check-in workflow" });
@@ -18,7 +18,7 @@ test.describe("Camp restricted medication photo thumbnails", () => {
     await login(page);
     await uploadMedicationPhoto(page, "med-1");
 
-    await page.goto("/camp");
+    await page.goto("/camp/more");
     await page.getByRole("button", { name: "Andrew" }).click();
 
     const checkIn = page.getByRole("region", { name: "Check-in workflow" });
@@ -42,7 +42,7 @@ test.describe("Camp restricted medication photo thumbnails", () => {
       await route.continue();
     });
 
-    await page.goto("/camp");
+    await page.goto("/camp/more");
     await page.getByRole("button", { name: "Andrew" }).click();
 
     const checkIn = page.getByRole("region", { name: "Check-in workflow" });
@@ -55,7 +55,7 @@ test.describe("Camp restricted medication photo thumbnails", () => {
   test("General Leader and Driver cannot receive or render medication photo data", async ({ page }) => {
     await login(page);
 
-    await page.goto("/camp");
+    await page.goto("/camp/more");
     await expect(page.getByText("Not available for this access view")).toBeVisible();
     await expect(page.getByRole("button", { name: "View Photo" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: /View medication photo/ })).toHaveCount(0);

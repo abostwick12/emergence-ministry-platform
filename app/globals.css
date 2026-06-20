@@ -2754,6 +2754,388 @@ textarea:focus-visible {
   padding-bottom: 32px;
 }
 
+/* ── Mobile-first Camp Command Center (separate /camp/* routes) ─────────── */
+.camp-cc {
+  --camp-accent: #0369a1;
+  --camp-ink: #0f2c54;
+  --camp-muted: #51637a;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.camp-cc-header {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.camp-cc-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--camp-accent);
+  text-decoration: none;
+}
+.camp-cc-header-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.camp-cc-name {
+  font-size: 22px;
+  font-weight: 900;
+  color: var(--camp-ink);
+  letter-spacing: -0.01em;
+}
+.camp-cc-dates {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--camp-muted);
+}
+.camp-cc-main {
+  min-height: 50vh;
+}
+.camp-cc-home,
+.camp-cc-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.camp-cc-page-head h1,
+.camp-cc-page h1 {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 800;
+  color: var(--camp-ink);
+}
+.camp-cc-muted { color: var(--camp-muted); font-size: 13px; margin: 0; }
+.camp-cc-error { color: #b42318; font-size: 13px; margin: 0; }
+.camp-cc-eyebrow {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--camp-accent);
+}
+.camp-cc-placeholder {
+  color: #94a3b8;
+  font-style: italic;
+  font-weight: 500;
+}
+.camp-cc-link { color: var(--camp-accent); font-weight: 700; font-size: 13px; text-decoration: none; }
+.camp-cc-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.camp-cc-section-head h2 { margin: 0; font-size: 16px; font-weight: 800; color: var(--camp-ink); }
+
+/* Access preview + mode toggle */
+.camp-cc-access { display: flex; flex-direction: column; gap: 6px; }
+.camp-cc-access-tabs,
+.camp-cc-mode {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.camp-cc-access-tab,
+.camp-cc-mode-tab {
+  min-height: 36px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(13, 71, 109, 0.2);
+  background: rgba(255, 255, 255, 0.7);
+  color: #334155;
+  font-weight: 700;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.camp-cc-access-tab.active,
+.camp-cc-mode-tab.active {
+  background: linear-gradient(135deg, rgba(3, 105, 161, 0.95), rgba(2, 132, 199, 0.92));
+  border-color: transparent;
+  color: #fff;
+}
+.camp-cc-mode { background: rgba(15, 23, 42, 0.05); border-radius: 999px; padding: 4px; }
+.camp-cc-mode-tab { flex: 1; border: 0; background: transparent; }
+
+/* Day selector */
+.camp-cc-days {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.camp-cc-days::-webkit-scrollbar { display: none; }
+.camp-cc-day {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 62px;
+  min-height: 58px;
+  padding: 8px 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(13, 71, 109, 0.16);
+  background: rgba(255, 255, 255, 0.72);
+  cursor: pointer;
+}
+.camp-cc-day-wd { font-size: 11px; font-weight: 800; text-transform: uppercase; color: var(--camp-muted); letter-spacing: 0.06em; }
+.camp-cc-day-dt { font-size: 13px; font-weight: 700; color: var(--camp-ink); }
+.camp-cc-day.active {
+  border-color: transparent;
+  background: linear-gradient(160deg, rgba(3, 105, 161, 0.96), rgba(14, 116, 144, 0.92));
+  box-shadow: 0 8px 20px rgba(3, 105, 161, 0.22);
+}
+.camp-cc-day.active .camp-cc-day-wd,
+.camp-cc-day.active .camp-cc-day-dt { color: #fff; }
+
+/* Next Up glass card */
+.camp-cc-nextup {
+  position: relative;
+  border-radius: 20px;
+  padding: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  background:
+    linear-gradient(150deg, rgba(255, 255, 255, 0.82), rgba(224, 242, 254, 0.6)),
+    linear-gradient(135deg, rgba(3, 105, 161, 0.12), rgba(14, 116, 144, 0.08));
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.1);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.camp-cc-nextup-label { margin: 0 0 6px; font-size: 11px; font-weight: 800; letter-spacing: 0.16em; color: var(--camp-accent); }
+.camp-cc-nextup-title { margin: 0; font-size: 22px; font-weight: 800; color: var(--camp-ink); line-height: 1.12; }
+.camp-cc-nextup-meta { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 8px; }
+.camp-cc-nextup-time { font-weight: 800; color: #0c4a6e; }
+.camp-cc-nextup-loc { color: var(--camp-muted); font-weight: 600; }
+.camp-cc-nextup-foot { margin-top: 14px; }
+.camp-cc-nextup-cta {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: rgba(3, 105, 161, 0.95);
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  text-decoration: none;
+}
+.camp-cc-nextup.empty { background: rgba(248, 250, 252, 0.9); }
+
+/* Team carousel + cards */
+.camp-cc-teams { display: flex; flex-direction: column; gap: 10px; }
+.camp-team-carousel {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+.camp-team-carousel::-webkit-scrollbar { display: none; }
+.camp-team-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+.camp-team-card {
+  --camp-team-accent: #475569;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--camp-team-accent) 38%, transparent);
+  border-left: 4px solid var(--camp-team-accent);
+  background:
+    linear-gradient(150deg, rgba(255, 255, 255, 0.92), color-mix(in srgb, var(--camp-team-accent) 9%, rgba(255, 255, 255, 0.9)));
+  text-decoration: none;
+  color: inherit;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+}
+.camp-team-card-carousel { flex: 0 0 78%; max-width: 280px; scroll-snap-align: start; }
+.camp-team-card-head { display: flex; align-items: center; gap: 8px; }
+.camp-team-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--camp-team-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--camp-team-accent) 24%, transparent); }
+.camp-team-dot.lg { width: 18px; height: 18px; }
+.camp-team-name { font-weight: 800; font-size: 16px; color: var(--camp-ink); }
+.camp-team-count {
+  margin-left: auto;
+  min-width: 26px;
+  text-align: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--camp-team-accent) 16%, transparent);
+  color: var(--camp-team-accent);
+  font-weight: 800;
+  font-size: 12.5px;
+}
+.camp-team-card-body { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0; }
+.camp-team-card-body dt { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--camp-muted); }
+.camp-team-card-body dd { margin: 0; font-size: 13.5px; font-weight: 600; color: var(--camp-ink); }
+.camp-team-card-cta { font-size: 12.5px; font-weight: 700; color: var(--camp-team-accent); }
+
+/* Team detail */
+.camp-team-detail-head { display: flex; align-items: center; gap: 12px; }
+.camp-team-detail-head h1 { margin: 0; }
+.camp-team-detail-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 0; padding: 14px; border-radius: 14px; background: rgba(255, 255, 255, 0.7); border: 1px solid rgba(13, 71, 109, 0.14); }
+.camp-team-detail-meta dt { font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--camp-muted); }
+.camp-team-detail-meta dd { margin: 2px 0 0; font-weight: 700; color: var(--camp-ink); }
+
+/* Student rows */
+.camp-student-list { display: flex; flex-direction: column; gap: 8px; }
+.camp-student-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.74);
+  border: 1px solid rgba(13, 71, 109, 0.12);
+}
+.camp-student-avatar {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: linear-gradient(150deg, #e0f2fe, #bae6fd);
+  color: #0c4a6e;
+  font-weight: 800;
+  font-size: 13px;
+}
+.camp-student-avatar.sm { width: 26px; height: 26px; border-radius: 8px; font-size: 11px; }
+.camp-student-info { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.camp-student-info strong { color: var(--camp-ink); }
+.camp-student-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 2px; }
+.camp-cc-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(3, 105, 161, 0.1);
+  color: #0c4a6e;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+.camp-cc-tag.subtle { background: rgba(100, 116, 139, 0.12); color: #475569; }
+
+/* Roster search */
+.camp-cc-search {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(13, 71, 109, 0.2);
+  background: rgba(255, 255, 255, 0.85);
+  font-size: 15px;
+}
+
+/* Schedule */
+.camp-schedule-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.camp-schedule-item { display: flex; gap: 12px; padding: 12px; border-radius: 14px; background: rgba(255, 255, 255, 0.74); border: 1px solid rgba(13, 71, 109, 0.12); }
+.camp-schedule-time { flex: 0 0 64px; font-weight: 800; color: #0c4a6e; font-size: 13px; }
+.camp-schedule-body { display: flex; flex-direction: column; gap: 3px; }
+.camp-schedule-body strong { color: var(--camp-ink); }
+
+/* Vehicles */
+.camp-vehicle-list { display: flex; flex-direction: column; gap: 12px; }
+.camp-vehicle-card { padding: 14px; border-radius: 16px; background: rgba(255, 255, 255, 0.74); border: 1px solid rgba(13, 71, 109, 0.12); }
+.camp-vehicle-head { display: flex; align-items: baseline; justify-content: space-between; }
+.camp-vehicle-head strong { font-size: 16px; color: var(--camp-ink); }
+.camp-vehicle-riders { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.camp-vehicle-riders li { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 4px; border-radius: 999px; background: rgba(241, 245, 249, 0.9); font-size: 12.5px; font-weight: 600; color: #334155; }
+
+/* Medical Command */
+.camp-cc-medcmd { display: flex; flex-direction: column; gap: 12px; }
+.camp-cc-medcmd-head h2 { margin: 4px 0 0; font-size: 18px; color: var(--camp-ink); }
+.camp-cc-medcmd-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.camp-cc-medcmd-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(13, 71, 109, 0.14);
+  text-decoration: none;
+  color: inherit;
+}
+.camp-cc-medcmd-avatar { flex: 0 0 auto; display: grid; place-items: center; width: 38px; height: 38px; border-radius: 11px; background: linear-gradient(150deg, #ecfeff, #cffafe); color: #155e75; font-weight: 800; font-size: 12.5px; }
+.camp-cc-medcmd-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.camp-cc-medcmd-info strong { color: var(--camp-ink); }
+.camp-cc-medcmd-status { margin-left: auto; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 800; }
+.camp-cc-medcmd-status.scheduled { background: rgba(2, 132, 199, 0.14); color: #0369a1; }
+.camp-cc-medcmd-status.logged { background: rgba(22, 163, 74, 0.14); color: #15803d; }
+.camp-cc-medcmd-status.clarification { background: rgba(217, 119, 6, 0.16); color: #b45309; }
+
+/* Camp section navigation: top tabs on desktop, fixed bottom bar on mobile */
+.camp-nav {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(13, 71, 109, 0.14);
+}
+.camp-nav-link {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 44px;
+  padding: 6px 4px;
+  border-radius: 10px;
+  color: #51637a;
+  text-decoration: none;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+.camp-nav-link.active { background: linear-gradient(160deg, rgba(3, 105, 161, 0.95), rgba(2, 132, 199, 0.92)); color: #fff; }
+.camp-nav-icon { width: 20px; height: 20px; }
+
+@media (max-width: 720px) {
+  .camp-cc-name { font-size: 20px; }
+  .camp-team-card-body { grid-template-columns: 1fr 1fr; }
+  /* Fixed bottom navigation, clear of the iPhone home indicator. */
+  .camp-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    border-radius: 0;
+    border: 0;
+    border-top: 1px solid rgba(13, 71, 109, 0.16);
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
+    box-shadow: 0 -6px 18px rgba(15, 23, 42, 0.08);
+  }
+  .camp-nav-link { min-height: 48px; }
+  /* Keep page content clear of the fixed bottom bar (save buttons, signature,
+     photo controls, feedback must never be covered). */
+  .camp-cc-main { padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
+}
+
+@media (min-width: 721px) {
+  .camp-cc-header { flex-direction: row; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .camp-nav { margin-left: auto; max-width: 540px; }
+  .camp-team-grid { grid-template-columns: repeat(2, 1fr); }
+  .camp-team-card-carousel { flex-basis: 300px; }
+}
+
 .camp-hero {
   display: flex;
   align-items: stretch;

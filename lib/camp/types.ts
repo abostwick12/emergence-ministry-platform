@@ -19,6 +19,8 @@ export type CampTeam = {
   name: string;
   color: string;
   leader: string;
+  coLeader?: string;
+  room?: string;
 };
 
 export type CampVehicle = {
@@ -261,6 +263,7 @@ export type CampMedicationVoidInput = {
 };
 
 export type CampOverviewPayload = {
+  campName: string;
   campStartsOn: string;
   teams: CampTeam[];
   vehicles: CampVehicle[];

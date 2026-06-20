@@ -18,6 +18,7 @@ vi.mock("@/lib/auth/server", async () => {
 
 import { POST as importPOST } from "@/app/api/camp/import/route";
 import { GET as campGET } from "@/app/api/camp/route";
+import { GET as medicalCommandGET } from "@/app/api/camp/medical-command/route";
 import { GET as photoGET, POST as photoPOST } from "@/app/api/camp/medication/photos/route";
 import { GET as medicationGET, POST as medicationPOST } from "@/app/api/camp/medication/route";
 import { GET as medicalGET, POST as medicalPOST } from "@/app/api/camp/restricted-medical/route";
@@ -283,13 +284,86 @@ describe("camp API restricted data boundaries", () => {
     expect(medicationPayload.intakeHistory[0]).toMatchObject({ quantityReceived: "10 tablets" });
   });
 
+  it("blocks Medical Command for General Leaders and Drivers (no payload)", async () => {
+    getServerSessionMock.mockResolvedValue(session());
+
+    for (const role of ["general_leader", "driver"]) {
+      const response = await medicalCommandGET(new Request(`http://localhost/api/camp/medical-command?role=${role}`));
+      expect(response.status).toBe(403);
+      expectNoRestrictedPayloadDetails(await json(response));
+    }
+  });
+
+  it("blocks Andrew-only Medical Command for Jaci and Joel while keeping their normal medication access", async () => {
+    getServerSessionMock.mockResolvedValue(session());
+
+    for (const role of ["jaci", "joel"]) {
+      const medCmd = await medicalCommandGET(new Request(`http://localhost/api/camp/medical-command?role=${role}`));
+      expect(medCmd.status).toBe(403);
+      expectNoRestrictedPayloadDetails(await json(medCmd));
+
+      // They retain normal restricted medication access.
+      const medication = await medicationGET(new Request(`http://localhost/api/camp/medication?role=${role}`));
+      expect(medication.status).toBe(200);
+
+      // And the overview never advertises the Medical Command capability to them.
+      const overview = await campGET(new Request(`http://localhost/api/camp?role=${role}`));
+      const caps = (await overview.json() as { capabilities?: { medicalCommand?: boolean; restrictedMedical?: boolean } }).capabilities;
+      expect(caps?.medicalCommand).toBe(false);
+      expect(caps?.restrictedMedical).toBe(true);
+    }
+  });
+
+  it("allows Andrew to access Medical Command with a medication time-block payload", async () => {
+    getServerSessionMock.mockResolvedValue(session());
+
+    const response = await medicalCommandGET(new Request("http://localhost/api/camp/medical-command?role=andrew"));
+    expect(response.status).toBe(200);
+    const payload = await response.json() as {
+      timeBlocks: Array<Record<string, unknown>>;
+      checkIn?: unknown;
+      intakeHistory?: unknown;
+    };
+    expect(Array.isArray(payload.timeBlocks)).toBe(true);
+    expect(payload.checkIn).toBeUndefined();
+    expect(payload.intakeHistory).toBeUndefined();
+    expectNoRestrictedPayloadDetails(payload);
+    expect(payload.timeBlocks[0]).toEqual(expect.objectContaining({
+      id: expect.any(String),
+      studentName: expect.any(String),
+      timeWindow: expect.any(String),
+      parentHandoffOnFile: expect.any(Boolean),
+      stateLabel: expect.any(String),
+      tone: expect.any(String)
+    }));
+    expect(JSON.stringify(payload)).not.toContain("Due");
+    expect(JSON.stringify(payload)).not.toContain("Completed");
+    expect(JSON.stringify(payload)).not.toContain("Overdue");
+    expect(JSON.stringify(payload)).not.toContain("Needs Attention");
+
+    const overview = await campGET(new Request("http://localhost/api/camp?role=andrew"));
+    const caps = (await overview.json() as { capabilities?: { medicalCommand?: boolean } }).capabilities;
+    expect(caps?.medicalCommand).toBe(true);
+  });
+
+  it("does not advertise Medical Command capability to General Leaders or Drivers", async () => {
+    getServerSessionMock.mockResolvedValue(session());
+
+    for (const role of ["general_leader", "driver"]) {
+      const overview = await campGET(new Request(`http://localhost/api/camp?role=${role}`));
+      const caps = (await overview.json() as { capabilities?: { medicalCommand?: boolean; restrictedMedical?: boolean } }).capabilities;
+      expect(caps?.medicalCommand).toBe(false);
+      expect(caps?.restrictedMedical).toBe(false);
+    }
+  });
+
   it("forbids import preview and commit for General Leaders and Drivers", async () => {
     getServerSessionMock.mockResolvedValue(session());
 
     for (const role of ["general_leader", "driver"]) {
       const previewResponse = await importPOST(jsonRequest(`http://localhost/api/camp/import?role=${role}`, {
         action: "preview",
-        csv: "Student Name,Team,Vehicle\nCamper,Cypress,Van 1"
+        csv: "Student Name,Team,Vehicle\nCamper,Blue,Van 1"
       }));
       const commitResponse = await importPOST(jsonRequest(`http://localhost/api/camp/import?role=${role}`, {
         action: "commit",
@@ -308,7 +382,7 @@ describe("camp API restricted data boundaries", () => {
       action: "preview",
       csv: [
         "Student Name,Grade,Team,Vehicle,Medication Name,Medication Instructions,Medication Time,Parent Medical Notes",
-        "Import Camper,8th,Cypress,Van 1,Parent-labeled medication,Follow signed parent instructions,Breakfast,Restricted parent note"
+        "Import Camper,8th,Blue,Van 1,Parent-labeled medication,Follow signed parent instructions,Breakfast,Restricted parent note"
       ].join("\n")
     }));
     const previewPayload = await previewResponse.json() as { preview: unknown };

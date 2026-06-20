@@ -1,5 +1,5 @@
-import { CampCommandCenter } from "@/components/camp-command-center";
+import { CampHome } from "@/components/camp/camp-home";
 
 export default function CampPage() {
-  return <CampCommandCenter />;
+  return <CampHome />;
 }
