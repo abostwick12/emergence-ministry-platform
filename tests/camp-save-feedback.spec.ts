@@ -75,7 +75,7 @@ test.describe("Camp save feedback and recovery", () => {
     await intake.getByLabel("Guardian Printed Name").fill("Pat Parent");
     await intake.getByLabel("Guardian Relationship").fill("Parent");
     await intake.getByLabel("Parent-Provided Instructions").fill("Follow signed parent instructions.");
-    await page.locator("input[type='file']").first().setInputFiles({
+    await intake.getByLabel("Choose From Photo Library").setInputFiles({
       name: "medicine.png",
       mimeType: "image/png",
       buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR42mP8z8BQDwAFgwJ/lwDW0wAAAABJRU5ErkJggg==", "base64")

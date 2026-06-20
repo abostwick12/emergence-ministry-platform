@@ -32,7 +32,7 @@ import type {
   CampVehicle
 } from "@/lib/camp/types";
 import { getCampVisibleStudentsForData } from "@/lib/camp/access";
-import { buildOakwoodImportPreviewFromCsv } from "@/lib/camp/oakwood-import";
+import { buildOakwoodImportPreviewFromCsv, mergeOakwoodImportPreviews, type OakwoodExistingPerson } from "@/lib/camp/oakwood-import";
 import { resolveMinistryScope } from "@/lib/ministry/scope";
 
 type CampSessionRow = {
@@ -317,6 +317,78 @@ export async function getOakwoodImportPreview(
   };
 }
 
+export async function getOakwoodUploadImportPreview(
+  session: AuthSession,
+  context: CampAccessContext,
+  input: {
+    sourceName?: string;
+    sources: Array<{ scope: "full_roster" | "camper_only" | "staff_only"; csv: string; fileName: string; checksumSha256: string; sheetName?: string }>;
+  }
+) {
+  const access = assertCampRestrictedAccess(context);
+  if (!access.allowed) return access;
+  if (!input.sources.length) {
+    return { allowed: false as const, status: 400, error: "Upload at least one camper or staff registration file before previewing." };
+  }
+
+  // Existing camper + staff records for matching. Campers match against existing
+  // campers and adults against existing staff — never across the two.
+  const existing = await loadOakwoodExistingPeople(session);
+  const parts: CampOakwoodImportPreview[] = [];
+  const uploadSources: NonNullable<CampOakwoodImportPreview["uploadSources"]> = [];
+
+  for (const source of input.sources) {
+    const part = buildOakwoodImportPreviewFromCsv(source.csv, {
+      sourceFile: source.sheetName ? `${source.fileName} / ${source.sheetName}` : source.fileName,
+      sourceKind: "upload",
+      importScope: source.scope,
+      existingCampers: existing.campers,
+      existingStaff: existing.staff
+    });
+    parts.push(part);
+    uploadSources.push({
+      fileName: source.fileName,
+      checksumSha256: source.checksumSha256,
+      sheetName: source.sheetName,
+      scope: source.scope,
+      rowCount: part.summary.totalSourceRows
+    });
+  }
+
+  const scopes = new Set(input.sources.map((source) => source.scope));
+  const importScope =
+    scopes.has("full_roster") || (scopes.has("camper_only") && scopes.has("staff_only"))
+      ? "full_roster"
+      : input.sources[0].scope;
+
+  const preview = mergeOakwoodImportPreviews(parts, {
+    sourceFile: input.sourceName?.trim() || input.sources.map((source) => source.fileName).join(" + "),
+    sourceKind: "upload",
+    uploadSources,
+    importScope
+  });
+
+  return { allowed: true as const, status: 200, preview };
+}
+
+async function loadOakwoodExistingPeople(session: AuthSession): Promise<{ campers: OakwoodExistingPerson[]; staff: OakwoodExistingPerson[] }> {
+  if (shouldUseMock(session)) {
+    return { campers: mockStore.listOakwoodExistingCampers(), staff: mockStore.listOakwoodExistingStaff() };
+  }
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const basics = await ensureCampBasics(session);
+  const [campers, staff] = await Promise.all([
+    supabase.from("camp_campers").select("id,name,registration_external_id").eq("camp_id", basics.camp.id).is("archived_at", null).returns<Array<{ id: string; name: string; registration_external_id: string | null }>>(),
+    supabase.from("camp_staff").select("id,name,registration_external_id").eq("camp_id", basics.camp.id).is("archived_at", null).returns<Array<{ id: string; name: string; registration_external_id: string | null }>>()
+  ]);
+  throwIfSupabaseError(campers.error);
+  throwIfSupabaseError(staff.error);
+  return {
+    campers: (campers.data ?? []).map((row) => ({ id: row.id, name: row.name, registrationExternalId: row.registration_external_id ?? undefined })),
+    staff: (staff.data ?? []).map((row) => ({ id: row.id, name: row.name, registrationExternalId: row.registration_external_id ?? undefined }))
+  };
+}
+
 export async function commitOakwoodImport(
   session: AuthSession,
   context: CampAccessContext,
@@ -329,6 +401,9 @@ export async function commitOakwoodImport(
   }
   if (input.preview.summary.ambiguousCount > 0 || input.preview.summary.invalidCount > 0) {
     return { allowed: true as const, status: 409, error: "Resolve ambiguous or invalid Oakwood rows before committing." };
+  }
+  if (!session.isMock) {
+    return { allowed: true as const, status: 403, error: "Production Oakwood import commit is disabled until migration 013 is applied and live import approval is complete." };
   }
 
   if (shouldUseMock(session)) {
@@ -417,6 +492,7 @@ export async function commitOakwoodImport(
     imported_by: session.user.id,
     source_name: input.preview.sourceFile,
     source_file: input.preview.sourceFile,
+    source_checksum: input.preview.uploadSources?.map((source) => source.checksumSha256).join(", ") ?? null,
     row_count: input.preview.summary.totalSourceRows,
     status: "committed",
     warnings: input.preview.rows
@@ -442,6 +518,7 @@ export async function commitOakwoodImport(
       auditBatch: {
         id: audit.data.id,
         sourceFile: input.preview.sourceFile,
+        sourceChecksum: input.preview.uploadSources?.map((source) => source.checksumSha256).join(", "),
         importedByName: access.actor,
         importedAt: audit.data.created_at,
         createdCount: auditRow.created_count,

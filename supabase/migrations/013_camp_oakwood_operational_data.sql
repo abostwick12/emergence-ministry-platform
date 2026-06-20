@@ -91,6 +91,9 @@ with check (ministry_id = public.current_ministry_id() and public.current_user_r
 
 -- ── camp_import_batches: audit summary counts ───────────────────────────────
 alter table public.camp_import_batches add column if not exists source_file text;
+-- SHA-256 of the uploaded registration export(s). The original workbook is never
+-- stored; only this checksum + filename + counts are retained for audit.
+alter table public.camp_import_batches add column if not exists source_checksum text;
 alter table public.camp_import_batches add column if not exists created_count integer not null default 0;
 alter table public.camp_import_batches add column if not exists updated_count integer not null default 0;
 alter table public.camp_import_batches add column if not exists skipped_count integer not null default 0;

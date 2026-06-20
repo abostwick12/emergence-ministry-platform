@@ -12,8 +12,7 @@ import {
   oakwoodExpectedCsvHeaders,
   oakwoodOptionalCsvHeaders,
   oakwoodRecommendedCsvHeaders,
-  oakwoodRequiredCsvHeaders,
-  oakwoodSampleHeaderRow
+  oakwoodRequiredCsvHeaders
 } from "@/lib/camp/oakwood-source-format";
 import type {
   CampAccessRole,
@@ -114,6 +113,50 @@ type CampActionStatus = {
   tone: "saving" | "success" | "error";
   message: string;
 };
+type OakwoodUploadFileField = "combinedFile" | "camperFile" | "staffFile";
+type OakwoodSelectedFile = {
+  name: string;
+  size: number;
+  type: string;
+};
+
+const oakwoodUploadSlots: Array<{
+  field: OakwoodUploadFileField;
+  sheetField: "combinedSheet" | "camperSheet" | "staffSheet";
+  label: string;
+  description: string;
+}> = [
+  {
+    field: "combinedFile",
+    sheetField: "combinedSheet",
+    label: "Combined roster file",
+    description: "Flattened Quick View source"
+  },
+  {
+    field: "camperFile",
+    sheetField: "camperSheet",
+    label: "Camper file",
+    description: "Camper-only source"
+  },
+  {
+    field: "staffFile",
+    sheetField: "staffSheet",
+    label: "Staff file",
+    description: "Adult/staff-only source"
+  }
+];
+
+const emptyOakwoodSelectedFiles: Record<OakwoodUploadFileField, OakwoodSelectedFile | null> = {
+  combinedFile: null,
+  camperFile: null,
+  staffFile: null
+};
+
+const emptyOakwoodSelectedSheets: Record<OakwoodUploadFileField, string> = {
+  combinedFile: "",
+  camperFile: "",
+  staffFile: ""
+};
 
 function emptySignatureData(): CampMedicationIntakeInput["guardianSignatureData"] {
   return { width: 640, height: 220, strokes: [] };
@@ -154,6 +197,14 @@ function hasSignature(signature: CampMedicationIntakeInput["guardianSignatureDat
   return signature.strokes.some((stroke) => stroke.length > 0);
 }
 
+function isXlsxFile(file: OakwoodSelectedFile | null) {
+  return Boolean(file?.name && /\.xlsx$/i.test(file.name));
+}
+
+function waitForVisibleStatus() {
+  return new Promise((resolve) => setTimeout(resolve, 150));
+}
+
 async function errorMessageFromResponse(response: Response, fallback: string) {
   const body = (await response.json().catch(() => null)) as { error?: string } | null;
   const cleanFallback = fallback.replace(/[.\s]+$/, "");
@@ -183,11 +234,17 @@ export function CampCommandCenter() {
   const [importCsv, setImportCsv] = useState("");
   const [importPreview, setImportPreview] = useState<CampRegistrationImportPreview | null>(null);
   const [importMessage, setImportMessage] = useState("");
-  const [oakwoodSourceFile, setOakwoodSourceFile] = useState("Camp_Quick_View.csv");
-  const [oakwoodCsv, setOakwoodCsv] = useState("");
+  const oakwoodInputRefs = {
+    combinedFile: useRef<HTMLInputElement>(null),
+    camperFile: useRef<HTMLInputElement>(null),
+    staffFile: useRef<HTMLInputElement>(null)
+  };
+  const [oakwoodSourceName, setOakwoodSourceName] = useState("");
+  const [oakwoodSelectedFiles, setOakwoodSelectedFiles] = useState<Record<OakwoodUploadFileField, OakwoodSelectedFile | null>>(emptyOakwoodSelectedFiles);
+  const [oakwoodSelectedSheets, setOakwoodSelectedSheets] = useState<Record<OakwoodUploadFileField, string>>(emptyOakwoodSelectedSheets);
+  const [oakwoodDetectedSheets, setOakwoodDetectedSheets] = useState<Record<string, string[]>>({});
   const [oakwoodPreview, setOakwoodPreview] = useState<CampOakwoodImportPreview | null>(null);
   const [oakwoodConfirmed, setOakwoodConfirmed] = useState(false);
-  const [oakwoodMessage, setOakwoodMessage] = useState("");
   const [studentForm, setStudentForm] = useState<StudentForm>({
     name: "",
     grade: "",
@@ -644,6 +701,7 @@ export function CampCommandCenter() {
     const payload = (await response.json()) as { record?: CampMedicationRecord };
     if (intakePhotoFile && payload.record?.id) {
       beginAction("photo", "Uploading container photo...");
+      await waitForVisibleStatus();
       const formData = new FormData();
       formData.set("medicationRecordId", payload.record.id);
       formData.set("photo", intakePhotoFile);
@@ -986,29 +1044,88 @@ export function CampCommandCenter() {
     completeAction("importCommit", "Import saved.");
   }
 
+  function selectedOakwoodFile(field: OakwoodUploadFileField) {
+    return oakwoodInputRefs[field].current?.files?.[0] ?? null;
+  }
+
+  function selectOakwoodFile(field: OakwoodUploadFileField, file: File | null) {
+    setOakwoodSelectedFiles((current) => ({
+      ...current,
+      [field]: file ? { name: file.name, size: file.size, type: file.type } : null
+    }));
+    setOakwoodSelectedSheets((current) => ({ ...current, [field]: "" }));
+    setOakwoodDetectedSheets((current) => {
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+    setOakwoodPreview(null);
+    setOakwoodConfirmed(false);
+  }
+
+  function setOakwoodUploadSheet(field: OakwoodUploadFileField, sheetName: string) {
+    setOakwoodSelectedSheets((current) => ({ ...current, [field]: sheetName }));
+    setOakwoodPreview(null);
+    setOakwoodConfirmed(false);
+  }
+
+  function appendOakwoodUploadFiles(formData: FormData, includeSheets: boolean) {
+    for (const slot of oakwoodUploadSlots) {
+      const file = selectedOakwoodFile(slot.field);
+      if (!file) continue;
+      formData.append(slot.field, file);
+      if (includeSheets && oakwoodSelectedSheets[slot.field]) {
+        formData.append(slot.sheetField, oakwoodSelectedSheets[slot.field]);
+      }
+    }
+  }
+
+  async function inspectOakwoodUpload() {
+    if (activeAction) return;
+    setOakwoodConfirmed(false);
+    const formData = new FormData();
+    formData.set("mode", "inspect");
+    appendOakwoodUploadFiles(formData, false);
+
+    beginAction("oakwoodImportPreview", "Inspecting Oakwood workbook sheets...");
+    const response = await fetch(`/api/camp/import/upload?role=${accessRole}`, {
+      method: "POST",
+      body: formData
+    });
+    if (!response.ok) {
+      const message = await errorMessageFromResponse(response, "Oakwood workbook inspection failed.");
+      failAction("oakwoodImportPreview", message);
+      return;
+    }
+
+    const payload = (await response.json()) as { files: Array<{ slot: OakwoodUploadFileField; kind: "csv" | "xlsx"; sheetNames: string[] }> };
+    const detected: Record<string, string[]> = {};
+    for (const file of payload.files) detected[file.slot] = file.sheetNames;
+    setOakwoodDetectedSheets(detected);
+    completeAction("oakwoodImportPreview", "Oakwood workbook sheets ready for review.");
+  }
+
   async function previewOakwoodImport() {
     if (activeAction) return;
     setOakwoodConfirmed(false);
-    beginAction("oakwoodImportPreview", "Building Oakwood preview...");
-    const response = await fetch(`/api/camp/import?role=${accessRole}`, {
+    const formData = new FormData();
+    formData.set("mode", "preview");
+    if (oakwoodSourceName.trim()) formData.set("sourceName", oakwoodSourceName.trim());
+    appendOakwoodUploadFiles(formData, true);
+
+    beginAction("oakwoodImportPreview", "Building Oakwood upload preview...");
+    const response = await fetch(`/api/camp/import/upload?role=${accessRole}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "oakwoodPreview",
-        csv: oakwoodCsv,
-        sourceFile: oakwoodSourceFile
-      })
+      body: formData
     });
     if (!response.ok) {
       const message = await errorMessageFromResponse(response, "Oakwood preview could not be created.");
-      setOakwoodMessage(message);
       failAction("oakwoodImportPreview", message);
       return;
     }
     const payload = (await response.json()) as { preview: CampOakwoodImportPreview };
     setOakwoodPreview(payload.preview);
-    const message = "Oakwood preview ready. Review every section before confirming.";
-    setOakwoodMessage(message);
+    const message = "Oakwood upload preview ready. Review real names before confirming.";
     completeAction("oakwoodImportPreview", message);
   }
 
@@ -1016,7 +1133,6 @@ export function CampCommandCenter() {
     if (activeAction || !oakwoodPreview) return;
     if (!oakwoodConfirmed) {
       const message = "Confirm the reviewed Oakwood preview before saving.";
-      setOakwoodMessage(message);
       failAction("oakwoodImportCommit", message);
       return;
     }
@@ -1032,7 +1148,6 @@ export function CampCommandCenter() {
     });
     if (!response.ok) {
       const message = await errorMessageFromResponse(response, "Oakwood import could not be saved.");
-      setOakwoodMessage(message);
       failAction("oakwoodImportCommit", message);
       return;
     }
@@ -1040,11 +1155,9 @@ export function CampCommandCenter() {
     beginAction("oakwoodImportCommit", "Refreshing Camp views...");
     await loadOverview();
     await loadRestrictedData();
-    setOakwoodCsv("");
     setOakwoodPreview(null);
     setOakwoodConfirmed(false);
     const message = `Oakwood import saved: ${payload.result.committed.length} rows committed.`;
-    setOakwoodMessage(message);
     completeAction("oakwoodImportCommit", message);
   }
 
@@ -1102,7 +1215,7 @@ export function CampCommandCenter() {
           </span>
           <span className="camp-cc-entry-body">
             <strong>Oakwood import preview</strong>
-            <span className="camp-cc-muted">Restricted admin workflow. Uses pasted Quick View CSV rows; demo/mock preview is clearly labeled before any write.</span>
+            <span className="camp-cc-muted">Restricted admin workflow. Uploads an approved roster export for review before any save.</span>
           </span>
           <span className="camp-cc-entry-arrow" aria-hidden="true">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1112,7 +1225,7 @@ export function CampCommandCenter() {
         </a>
       ) : null}
 
-      {saveMessage ? <p className={`camp-save-message ${actionStatus?.tone === "error" ? "error" : actionStatus?.tone === "success" ? "success" : ""}`} role="status">{saveMessage}</p> : null}
+      {saveMessage && actionStatus?.action !== "oakwoodImportPreview" && actionStatus?.action !== "oakwoodImportCommit" ? <p className={`camp-save-message ${actionStatus?.tone === "error" ? "error" : actionStatus?.tone === "success" ? "success" : ""}`} role="status">{saveMessage}</p> : null}
 
       <section className="panel" aria-labelledby="student-lookup">
         <div className="camp-section-header">
@@ -1244,18 +1357,22 @@ export function CampCommandCenter() {
           setImportCsv={setImportCsv}
           importPreview={importPreview}
           importMessage={importMessage}
-          oakwoodSourceFile={oakwoodSourceFile}
-          setOakwoodSourceFile={setOakwoodSourceFile}
-          oakwoodCsv={oakwoodCsv}
-          setOakwoodCsv={setOakwoodCsv}
+          oakwoodSourceName={oakwoodSourceName}
+          setOakwoodSourceName={setOakwoodSourceName}
+          oakwoodInputRefs={oakwoodInputRefs}
+          oakwoodSelectedFiles={oakwoodSelectedFiles}
+          oakwoodSelectedSheets={oakwoodSelectedSheets}
+          oakwoodDetectedSheets={oakwoodDetectedSheets}
+          onSelectOakwoodFile={selectOakwoodFile}
+          onSetOakwoodSheet={setOakwoodUploadSheet}
           oakwoodPreview={oakwoodPreview}
           oakwoodConfirmed={oakwoodConfirmed}
           setOakwoodConfirmed={setOakwoodConfirmed}
-          oakwoodMessage={oakwoodMessage}
           activeAction={activeAction}
           actionStatus={actionStatus}
           onPreviewImport={previewImport}
           onCommitImport={commitImport}
+          onInspectOakwoodUpload={inspectOakwoodUpload}
           onPreviewOakwoodImport={previewOakwoodImport}
           onCommitOakwoodImport={commitOakwoodImport}
         />
@@ -1420,23 +1537,29 @@ function RestrictedCampTools(props: {
   setImportCsv: React.Dispatch<React.SetStateAction<string>>;
   importPreview: CampRegistrationImportPreview | null;
   importMessage: string;
-  oakwoodSourceFile: string;
-  setOakwoodSourceFile: React.Dispatch<React.SetStateAction<string>>;
-  oakwoodCsv: string;
-  setOakwoodCsv: React.Dispatch<React.SetStateAction<string>>;
+  oakwoodSourceName: string;
+  setOakwoodSourceName: React.Dispatch<React.SetStateAction<string>>;
+  oakwoodInputRefs: Record<OakwoodUploadFileField, React.RefObject<HTMLInputElement>>;
+  oakwoodSelectedFiles: Record<OakwoodUploadFileField, OakwoodSelectedFile | null>;
+  oakwoodSelectedSheets: Record<OakwoodUploadFileField, string>;
+  oakwoodDetectedSheets: Record<string, string[]>;
+  onSelectOakwoodFile: (field: OakwoodUploadFileField, file: File | null) => void;
+  onSetOakwoodSheet: (field: OakwoodUploadFileField, sheetName: string) => void;
   oakwoodPreview: CampOakwoodImportPreview | null;
   oakwoodConfirmed: boolean;
   setOakwoodConfirmed: React.Dispatch<React.SetStateAction<boolean>>;
-  oakwoodMessage: string;
   activeAction: CampSaveAction | null;
   actionStatus: CampActionStatus | null;
   onPreviewImport: () => Promise<void>;
   onCommitImport: () => Promise<void>;
+  onInspectOakwoodUpload: () => Promise<void>;
   onPreviewOakwoodImport: () => Promise<void>;
   onCommitOakwoodImport: () => Promise<void>;
 }) {
   const medication = props.restrictedState?.medication;
   const isSaving = (action: CampSaveAction) => props.activeAction === action;
+  const hasOakwoodUpload = oakwoodUploadSlots.some((slot) => Boolean(props.oakwoodSelectedFiles[slot.field]));
+  const missingOakwoodSheets = oakwoodUploadSlots.filter((slot) => isXlsxFile(props.oakwoodSelectedFiles[slot.field]) && !props.oakwoodSelectedSheets[slot.field]);
 
   if (props.restrictedLoading) return <section className="panel"><p className="muted">Loading restricted tools...</p></section>;
   if (props.restrictedError) return <section className="panel"><p className="camp-error">{props.restrictedError}</p></section>;
@@ -1503,26 +1626,26 @@ function RestrictedCampTools(props: {
       <div className="camp-grid camp-medication-sections">
         <section className="panel" aria-labelledby="oakwood-import">
           <p className="eyebrow">Camp Oakwood Import</p>
-          <h3 id="oakwood-import" className="section-title">Preview Oakwood roster import</h3>
+          <h3 id="oakwood-import" className="section-title">Upload Oakwood roster file</h3>
           <div className="camp-list camp-form-spaced" aria-label="Oakwood import mode readiness">
             <div className="camp-list-row align-start">
               <div>
-                <strong>Demo/mock preview mode</strong>
-                <p className="muted">When this Preview deployment is running without live Supabase Camp data, matching starts from the seeded demo/mock Camp roster. Avery/Jordan-style seeded records are not real workbook rows.</p>
+                <strong>Restricted server preview</strong>
+                <p className="muted">Upload an approved .xlsx or .csv export. The server reads it for this request and keeps only filename, checksum, worksheet, timestamp, reviewer, and counts.</p>
               </div>
-              <span className="camp-status warn">Mock safe</span>
+              <span className="camp-status">No sync</span>
             </div>
             <div className="camp-list-row align-start">
               <div>
-                <strong>Real workbook CSV preview mode</strong>
-                <p className="muted">Paste exported Google Sheet Quick View CSV rows below. The data is previewed first; ignored columns are skipped; no Drive sync, file upload, or workbook ingestion is wired here.</p>
+                <strong>Combined or split sources</strong>
+                <p className="muted">Use one flattened Quick View file, or separate camper and staff files. Adult rows write only to staff; camper rows write only to campers.</p>
               </div>
-              <span className="camp-status">Preview first</span>
+              <span className="camp-status ready">Camper + staff</span>
             </div>
             <div className="camp-list-row align-start">
               <div>
                 <strong>Production commit unavailable until ready</strong>
-                <p className="muted">Do not save real Oakwood data until migration 013 has been applied to the live Supabase database and the Preview confirms the selected real CSV source.</p>
+                <p className="muted">Live Oakwood saves are disabled in this iteration. Do not save real Oakwood data until migration 013 is applied and live import approval is complete.</p>
               </div>
               <span className="camp-status locked">Hold</span>
             </div>
@@ -1530,37 +1653,68 @@ function RestrictedCampTools(props: {
           <div className="camp-list camp-form-spaced" aria-label="Oakwood CSV source instructions">
             <div className="camp-list-row align-start">
               <div>
-                <strong>Expected CSV headers</strong>
+                <strong>Expected source tab headers</strong>
                 <p className="muted">Required to import a person row: {oakwoodRequiredCsvHeaders.join(", ")}. Recommended for correct classification and matching: {oakwoodRecommendedCsvHeaders.join(", ")}. Optional supported columns: {oakwoodOptionalCsvHeaders.join(", ")}.</p>
-                <p className="muted">Headers are matched case-insensitively with normalized spacing and known aliases, but the sample below is the exact preferred source format. Extra Google Sheet columns can remain in the paste; unsupported columns are ignored.</p>
+                <p className="muted">Headers are matched case-insensitively with normalized spacing and known aliases. Extra export columns can remain in the file; unsupported columns are ignored.</p>
               </div>
             </div>
-            <label className="field camp-wide-field">
-              <span>Sample header row</span>
-              <textarea className="input" rows={3} readOnly value={oakwoodSampleHeaderRow} aria-label="Copyable Oakwood sample header row" />
-            </label>
-            <p className="muted">From Google Sheets: open the Quick View tab, keep the header row selected with the person rows, copy or export as CSV, then paste the header plus rows into the box below. Always run Preview Oakwood import before any save.</p>
             <p className="muted">Accepted headers: {oakwoodExpectedCsvHeaders.join(", ")}.</p>
           </div>
           <div className="camp-form-grid">
-            <label className="field">
-              <span>Source file</span>
-              <input className="input" value={props.oakwoodSourceFile} onChange={(event) => props.setOakwoodSourceFile(event.target.value)} />
-            </label>
             <label className="field camp-wide-field">
-              <span>Quick View CSV rows</span>
-              <textarea className="input" rows={6} value={props.oakwoodCsv} onChange={(event) => props.setOakwoodCsv(event.target.value)} placeholder={oakwoodSampleHeaderRow} />
+              <span>Reviewer source label</span>
+              <input className="input" value={props.oakwoodSourceName} onChange={(event) => props.setOakwoodSourceName(event.target.value)} placeholder="Camp Oakwood Quick View" />
             </label>
+            {oakwoodUploadSlots.map((slot) => {
+              const selected = props.oakwoodSelectedFiles[slot.field];
+              const sheetNames = props.oakwoodDetectedSheets[slot.field] ?? [];
+              return (
+                <div className="field" key={slot.field}>
+                  <label htmlFor={`oakwood-${slot.field}`}>{slot.label}</label>
+                  <input
+                    id={`oakwood-${slot.field}`}
+                    ref={props.oakwoodInputRefs[slot.field]}
+                    className="input"
+                    type="file"
+                    accept=".xlsx,.csv,text/csv,application/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    onChange={(event) => props.onSelectOakwoodFile(slot.field, event.currentTarget.files?.[0] ?? null)}
+                  />
+                  <p className="muted">
+                    {selected ? `${selected.name} (${Math.ceil(selected.size / 1024)} KB)` : slot.description}
+                  </p>
+                  {isXlsxFile(selected) ? (
+                    <label className="field">
+                      <span>{slot.label} worksheet</span>
+                      <select
+                        className="input"
+                        value={props.oakwoodSelectedSheets[slot.field]}
+                        disabled={sheetNames.length === 0}
+                        onChange={(event) => props.onSetOakwoodSheet(slot.field, event.target.value)}
+                      >
+                        <option value="">{sheetNames.length ? "Select worksheet" : "Inspect workbook first"}</option>
+                        {sheetNames.map((sheetName) => <option key={sheetName} value={sheetName}>{sheetName}</option>)}
+                      </select>
+                    </label>
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
+          {missingOakwoodSheets.length ? <p className="muted">Select a worksheet for: {missingOakwoodSheets.map((slot) => slot.label).join(", ")}.</p> : null}
           <div className="toolbar">
-            <button className="button" type="button" disabled={isSaving("oakwoodImportPreview") || isSaving("oakwoodImportCommit")} onClick={() => void props.onPreviewOakwoodImport()}>
-              {isSaving("oakwoodImportPreview") ? "Building preview..." : "Preview Oakwood import"}
+            <button className="button" type="button" disabled={!hasOakwoodUpload || isSaving("oakwoodImportPreview") || isSaving("oakwoodImportCommit")} onClick={() => void props.onInspectOakwoodUpload()}>
+              {isSaving("oakwoodImportPreview") ? "Inspecting..." : "Inspect worksheets"}
+            </button>
+            <button className="button" type="button" disabled={!hasOakwoodUpload || missingOakwoodSheets.length > 0 || isSaving("oakwoodImportPreview") || isSaving("oakwoodImportCommit")} onClick={() => void props.onPreviewOakwoodImport()}>
+              {isSaving("oakwoodImportPreview") ? "Building preview..." : "Preview uploaded roster"}
             </button>
             <button
               className="button primary"
               type="button"
               disabled={
                 !props.oakwoodPreview ||
+                props.oakwoodPreview.sourceKind !== "upload" ||
+                props.oakwoodPreview.summary.safeFieldRows === 0 ||
                 !props.oakwoodConfirmed ||
                 props.oakwoodPreview.summary.ambiguousCount > 0 ||
                 props.oakwoodPreview.summary.invalidCount > 0 ||
@@ -1572,7 +1726,6 @@ function RestrictedCampTools(props: {
             </button>
           </div>
           <ActionStatusMessage status={props.actionStatus} action={props.actionStatus?.action === "oakwoodImportCommit" ? "oakwoodImportCommit" : "oakwoodImportPreview"} />
-          {props.oakwoodMessage ? <p className="camp-save-message" role="status">{props.oakwoodMessage}</p> : null}
           {props.oakwoodPreview ? (
             <OakwoodPreview preview={props.oakwoodPreview} confirmed={props.oakwoodConfirmed} setConfirmed={props.setOakwoodConfirmed} />
           ) : null}
@@ -1914,14 +2067,20 @@ function OakwoodPreview({
   const skippedInvalid = preview.rows.filter((row) => row.matchStatus === "skipped" || row.matchStatus === "invalid");
   const safeChanges = preview.rows.filter((row) => row.matchStatus === "new" || row.matchStatus === "matched");
   const restrictedChanges = safeChanges.filter((row) => row.restricted);
-  const canCommit = preview.summary.ambiguousCount === 0 && preview.summary.invalidCount === 0;
+  const canCommit = preview.sourceKind === "upload" && preview.summary.safeFieldRows > 0 && preview.summary.ambiguousCount === 0 && preview.summary.invalidCount === 0;
 
   return (
     <div className="camp-list camp-form-spaced">
       <div className="camp-list-row align-start">
         <div>
           <strong>{preview.sourceFile}</strong>
-          <p className="muted">{preview.summary.totalSourceRows} source rows. {preview.summary.students} students. {preview.summary.adults} adults.</p>
+          <p className="muted">{preview.summary.totalSourceRows} source rows. Campers in scope: {preview.summary.students}. Staff/leaders in scope: {preview.summary.adults}. Skipped rows: {preview.summary.skippedCount}.</p>
+          {preview.uploadSources?.map((source) => (
+            <p className="muted" key={`${source.fileName}-${source.checksumSha256}`}>
+              Uploaded: {source.fileName}{source.sheetName ? ` / sheet ${source.sheetName}` : ""} — scope {source.scope} — {source.rowCount} rows — SHA-256 {source.checksumSha256.slice(0, 12)}…
+            </p>
+          ))}
+          <p className="muted">The original file is not stored. Live save stays disabled until migration 013 is applied, live Supabase is configured, and the real-name preview is approved.</p>
         </div>
         <div className="camp-row-actions">
           <span className="camp-status">{preview.summary.newCount} new</span>
@@ -1936,7 +2095,7 @@ function OakwoodPreview({
       <OakwoodPreviewSection title="Ambiguous rows" rows={ambiguous} empty="No ambiguous rows." warn />
       <OakwoodPreviewSection title="Skipped and invalid rows" rows={skippedInvalid} empty="No skipped or invalid rows." warn />
       <OakwoodPreviewSection title="Safe-data changes" rows={safeChanges} empty="No safe-data changes." mode="safe" />
-      <OakwoodPreviewSection title="Restricted-data changes" rows={restrictedChanges} empty="No restricted-data changes." mode="restricted" />
+      <OakwoodPreviewSection title="Restricted-data presence" rows={restrictedChanges} empty="No restricted-data changes." mode="restricted" />
       <label className="camp-confirm-row">
         <input
           type="checkbox"

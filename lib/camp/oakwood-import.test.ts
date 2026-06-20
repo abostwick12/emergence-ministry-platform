@@ -104,6 +104,23 @@ describe("oakwood-import engine", () => {
     expect(row.restricted).toBeUndefined();
   });
 
+  it("keeps staff-only upload previews from importing camper rows", () => {
+    const preview = buildOakwoodImportPreview(
+      [
+        student({ name: "Camper Not Yet", selection: "Student" }),
+        student({ name: "Staff Helper", selection: "Adult Volunteer", grade: "" })
+      ],
+      { importScope: "staff_only", sourceKind: "upload" }
+    );
+
+    expect(preview.importScope).toBe("staff_only");
+    expect(preview.sourceKind).toBe("upload");
+    expect(preview.rows.find((row) => row.person.name === "Camper Not Yet")).toMatchObject({ personType: "student", matchStatus: "skipped" });
+    expect(preview.rows.find((row) => row.person.name === "Staff Helper")).toMatchObject({ personType: "adult", matchStatus: "new" });
+    expect(preview.summary.staffRows).toBe(1);
+    expect(preview.summary.restrictedRecordRows).toBe(0);
+  });
+
   it("skips non-person section rows (no numeric Registration ID)", () => {
     const rows: OakwoodSourceRow[] = [
       student(),

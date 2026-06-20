@@ -407,8 +407,21 @@ export type CampOakwoodImportSummary = {
   staffRows: number;
 };
 
+// One entry per uploaded registration-export file. The original workbook is never
+// stored; only this metadata is retained (filename + SHA-256 + sheet + scope + rows).
+export type CampOakwoodUploadSource = {
+  fileName: string;
+  checksumSha256: string;
+  sheetName?: string;
+  scope: "full_roster" | "camper_only" | "staff_only";
+  rowCount: number;
+};
+
 export type CampOakwoodImportPreview = {
   sourceFile: string;
+  sourceKind?: "csv" | "upload";
+  uploadSources?: CampOakwoodUploadSource[];
+  importScope?: "full_roster" | "staff_only" | "camper_only";
   rows: CampOakwoodImportRow[];
   summary: CampOakwoodImportSummary;
 };
@@ -416,6 +429,7 @@ export type CampOakwoodImportPreview = {
 export type CampImportAuditBatch = {
   id: string;
   sourceFile: string;
+  sourceChecksum?: string;
   importedByName: string;
   importedAt: string;
   createdCount: number;

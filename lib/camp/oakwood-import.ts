@@ -2,6 +2,7 @@ import type {
   CampImportMatchStatus,
   CampOakwoodImportPreview,
   CampOakwoodImportRow,
+  CampOakwoodImportSummary,
   CampOakwoodRestrictedPayload,
   CampOakwoodSafeIndicators
 } from "@/lib/camp/types";
@@ -30,6 +31,8 @@ export type OakwoodExistingPerson = {
 
 export type OakwoodImportOptions = {
   sourceFile?: string;
+  sourceKind?: CampOakwoodImportPreview["sourceKind"];
+  importScope?: CampOakwoodImportPreview["importScope"];
   existingCampers?: OakwoodExistingPerson[];
   existingStaff?: OakwoodExistingPerson[];
 };
@@ -61,31 +64,61 @@ export function buildOakwoodImportPreview(rows: OakwoodSourceRow[], options: Oak
 
   const importRows: CampOakwoodImportRow[] = rows.map((row, index) =>
     // Students match against existing campers; adults against existing staff.
-    normalizePersonRow(row, index + 2, existingCampers, existingStaff)
+    normalizePersonRow(row, index + 2, existingCampers, existingStaff, options.importScope ?? "full_roster")
   );
 
+  return {
+    sourceFile: options.sourceFile ?? "Camp_Quick_View",
+    sourceKind: options.sourceKind ?? "csv",
+    importScope: options.importScope ?? "full_roster",
+    rows: importRows,
+    summary: summarizeOakwoodRows(importRows, totalSourceRows)
+  };
+}
+
+// Combine separate upload previews (for example camper-only + staff-only) into
+// one full-roster preview, recomputing the summary from the merged rows so counts
+// never double up.
+export function mergeOakwoodImportPreviews(
+  parts: CampOakwoodImportPreview[],
+  meta: {
+    sourceFile: string;
+    sourceKind?: CampOakwoodImportPreview["sourceKind"];
+    uploadSources?: CampOakwoodImportPreview["uploadSources"];
+    importScope?: CampOakwoodImportPreview["importScope"];
+  }
+): CampOakwoodImportPreview {
+  const rows = parts.flatMap((part) => part.rows);
+  const totalSourceRows = parts.reduce((total, part) => total + part.summary.totalSourceRows, 0);
+  return {
+    sourceFile: meta.sourceFile,
+    sourceKind: meta.sourceKind ?? "upload",
+    uploadSources: meta.uploadSources,
+    importScope: meta.importScope ?? "full_roster",
+    rows,
+    summary: summarizeOakwoodRows(rows, totalSourceRows)
+  };
+}
+
+function summarizeOakwoodRows(importRows: CampOakwoodImportRow[], totalSourceRows: number): CampOakwoodImportSummary {
   const personRows = importRows.filter((r) => r.matchStatus !== "skipped");
   const students = personRows.filter((r) => r.personType === "student");
   const adults = personRows.filter((r) => r.personType === "adult");
   const byStatus = (status: CampImportMatchStatus) => importRows.filter((r) => r.matchStatus === status).length;
-
+  const committable = (r: CampOakwoodImportRow) => r.matchStatus === "new" || r.matchStatus === "matched";
   return {
-    sourceFile: options.sourceFile ?? "Camp_Quick_View",
-    rows: importRows,
-    summary: {
-      totalSourceRows,
-      personRows: personRows.length,
-      students: students.length,
-      adults: adults.length,
-      newCount: byStatus("new"),
-      matchedCount: byStatus("matched"),
-      ambiguousCount: byStatus("ambiguous"),
-      skippedCount: byStatus("skipped"),
-      invalidCount: byStatus("invalid"),
-      safeFieldRows: importRows.filter((r) => r.matchStatus === "new" || r.matchStatus === "matched").length,
-      restrictedRecordRows: importRows.filter((r) => r.restricted && (r.matchStatus === "new" || r.matchStatus === "matched")).length,
-      staffRows: adults.filter((r) => r.matchStatus === "new" || r.matchStatus === "matched").length
-    }
+    totalSourceRows,
+    personRows: personRows.length,
+    students: students.length,
+    adults: adults.length,
+    newCount: byStatus("new"),
+    matchedCount: byStatus("matched"),
+    ambiguousCount: byStatus("ambiguous"),
+    skippedCount: byStatus("skipped"),
+    invalidCount: byStatus("invalid"),
+    safeFieldRows: importRows.filter(committable).length,
+    restrictedRecordRows: importRows.filter((r) => r.restricted && committable(r)).length,
+    staffRows: adults.filter(committable).length
   };
 }
 
@@ -93,7 +126,8 @@ function normalizePersonRow(
   row: OakwoodSourceRow,
   rowNumber: number,
   existingCampers: OakwoodExistingPerson[],
-  existingStaff: OakwoodExistingPerson[]
+  existingStaff: OakwoodExistingPerson[],
+  importScope: CampOakwoodImportPreview["importScope"]
 ): CampOakwoodImportRow {
   const warnings: string[] = [];
   const name = pick(row, ["name"]) || joinName(pick(row, ["first name"]), pick(row, ["last name"]));
@@ -112,6 +146,28 @@ function normalizePersonRow(
       matchStatus: "skipped",
       personType,
       warnings: ["No numeric Registration ID - skipped as a non-person workbook row."],
+      person: { name, grade, cabin, shirtSize, registrationExternalId, teamName, vehicleName },
+      safeIndicators: { emergencyContactOnFile: false, hasMedicalAlert: false, hasDietaryAlert: false }
+    };
+  }
+
+  if (importScope === "staff_only" && personType === "student") {
+    return {
+      rowNumber,
+      matchStatus: "skipped",
+      personType,
+      warnings: ["Student row skipped on the staff tab; campers are imported from the approved camper tab."],
+      person: { name, grade, cabin, shirtSize, registrationExternalId, teamName, vehicleName },
+      safeIndicators: { emergencyContactOnFile: false, hasMedicalAlert: false, hasDietaryAlert: false }
+    };
+  }
+
+  if (importScope === "camper_only" && personType === "adult") {
+    return {
+      rowNumber,
+      matchStatus: "skipped",
+      personType,
+      warnings: ["Adult/staff row skipped on the camper tab; staff are imported from the approved staff tab."],
       person: { name, grade, cabin, shirtSize, registrationExternalId, teamName, vehicleName },
       safeIndicators: { emergencyContactOnFile: false, hasMedicalAlert: false, hasDietaryAlert: false }
     };

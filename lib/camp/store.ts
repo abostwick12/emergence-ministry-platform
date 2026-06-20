@@ -236,6 +236,7 @@ export function commitOakwoodImportPreview(role: CampAccessRole, preview: CampOa
   const auditBatch: CampImportAuditBatch = {
     id: uid("campimport"),
     sourceFile: preview.sourceFile,
+    sourceChecksum: preview.uploadSources?.map((source) => source.checksumSha256).join(", "),
     importedByName,
     importedAt: new Date().toISOString(),
     createdCount: committed.filter((item) => item.action === "created").length,

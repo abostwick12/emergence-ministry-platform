@@ -17,6 +17,7 @@ vi.mock("@/lib/auth/server", async () => {
 });
 
 import { POST as importPOST } from "@/app/api/camp/import/route";
+import { POST as uploadImportPOST } from "@/app/api/camp/import/upload/route";
 import { GET as campGET } from "@/app/api/camp/route";
 import { GET as medicalCommandGET } from "@/app/api/camp/medical-command/route";
 import { GET as photoGET, POST as photoPOST } from "@/app/api/camp/medication/photos/route";
@@ -99,7 +100,34 @@ function expectNoRestrictedPayloadDetails(payload: unknown) {
 beforeEach(() => {
   __resetCampStoreForTests();
   getServerSessionMock.mockReset();
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
 });
+
+function oakwoodUploadRequest(url: string, file: File, options: { field?: "combinedFile" | "camperFile" | "staffFile"; sourceName?: string; mode?: "inspect" | "preview"; sheetName?: string } = {}) {
+  const formData = new FormData();
+  formData.set("mode", options.mode ?? "preview");
+  if (options.sourceName) formData.set("sourceName", options.sourceName);
+  const field = options.field ?? "combinedFile";
+  formData.set(field, file);
+  if (options.sheetName) {
+    const sheetField = field === "combinedFile" ? "combinedSheet" : field === "camperFile" ? "camperSheet" : "staffSheet";
+    formData.set(sheetField, options.sheetName);
+  }
+  return new Request(url, { method: "POST", body: formData });
+}
+
+function oakwoodCsvFile(name = "oakwood.csv", content = oakwoodCsvRows()) {
+  return new File([content], name, { type: "text/csv" });
+}
+
+function oakwoodCsvRows() {
+  return [
+    "Registration ID,Name,Selection,Grade,Room Number,T-Shirt Size,Quick Filter,Emergency Contact,Medical Notes,Dietary Requirements",
+    "70000100,Oakwood API Camper,Student,9th,,Adult Small,Medical + Food/Diet,Pat Parent - (555) 333-4444,Private medical note,Peanut-free",
+    "70000101,Oakwood API Adult,Adult Volunteer,,Suite 1,Adult Large,No Concern,,,"
+  ].join("\n");
+}
 
 describe("camp API restricted data boundaries", () => {
   it("requires an authenticated session for the Camp overview", async () => {
@@ -436,32 +464,26 @@ describe("camp API restricted data boundaries", () => {
     expect(commitPayload.committed).toHaveLength(1);
   });
 
-  it("requires restricted access and confirmation for Oakwood preview and commit", async () => {
+  it("requires restricted access and confirmation for Oakwood upload preview and commit", async () => {
     getServerSessionMock.mockResolvedValue(session());
 
-    const csv = [
-      "Registration ID,Name,Selection,Grade,Room Number,T-Shirt Size,Quick Filter,Emergency Contact,Medical Notes,Dietary Requirements",
-      "70000100,Oakwood API Camper,Student,9th,,Adult Small,Medical + Food/Diet,Pat Parent - (555) 333-4444,Private medical note,Peanut-free",
-      "70000101,Oakwood API Adult,Adult Volunteer,,Suite 1,Adult Large,No Concern,,,,"
-    ].join("\n");
-
     for (const role of ["general_leader", "driver"]) {
-      const denied = await importPOST(jsonRequest(`http://localhost/api/camp/import?role=${role}`, {
-        action: "oakwoodPreview",
-        csv
-      }));
+      const denied = await uploadImportPOST(oakwoodUploadRequest(`http://localhost/api/camp/import/upload?role=${role}`, oakwoodCsvFile()));
       expect(denied.status).toBe(403);
       expectNoRestrictedPayloadDetails(await json(denied));
     }
 
-    const previewResponse = await importPOST(jsonRequest("http://localhost/api/camp/import?role=andrew", {
-      action: "oakwoodPreview",
-      csv,
-      sourceFile: "Camp_Quick_View.csv"
+    const previewResponse = await uploadImportPOST(oakwoodUploadRequest("http://localhost/api/camp/import/upload?role=andrew", oakwoodCsvFile(), {
+      sourceName: "Camp Oakwood Upload"
     }));
-    const previewPayload = await previewResponse.json() as { preview: Record<string, unknown> };
+    const previewPayload = await previewResponse.json() as { preview: { rows: Array<{ personType: string; matchStatus: string; person: { name: string } }>; summary: Record<string, number>; sourceKind?: string; importScope?: string } };
     expect(previewResponse.status).toBe(200);
-    expect(JSON.stringify(previewPayload.preview)).toContain("Oakwood API Camper");
+    expect(previewPayload.preview.sourceKind).toBe("upload");
+    expect(previewPayload.preview.importScope).toBe("full_roster");
+    expect(previewPayload.preview.rows.find((row) => row.person.name === "Oakwood API Adult")).toMatchObject({ personType: "adult", matchStatus: "new" });
+    expect(previewPayload.preview.rows.find((row) => row.person.name === "Oakwood API Camper")).toMatchObject({ personType: "student", matchStatus: "new" });
+    expect(previewPayload.preview.summary.staffRows).toBe(1);
+    expect(previewPayload.preview.summary.restrictedRecordRows).toBe(1);
 
     const unconfirmed = await importPOST(jsonRequest("http://localhost/api/camp/import?role=andrew", {
       action: "oakwoodCommit",
@@ -478,32 +500,48 @@ describe("camp API restricted data boundaries", () => {
     const commitPayload = await commitResponse.json() as { result: { committed: Array<unknown>; auditBatch: Record<string, unknown> } };
     expect(commitResponse.status).toBe(200);
     expect(commitPayload.result.committed).toHaveLength(2);
-    expect(commitPayload.result.auditBatch).toMatchObject({ sourceFile: "Camp_Quick_View.csv", staffCount: 1, restrictedCount: 1 });
+    expect(commitPayload.result.auditBatch).toMatchObject({ sourceFile: "Camp Oakwood Upload", staffCount: 1, restrictedCount: 1 });
 
     const publicOverview = await campGET(new Request("http://localhost/api/camp?role=general_leader"));
     const publicPayload = await publicOverview.json();
-    expect(JSON.stringify(publicPayload)).toContain("Oakwood API Camper");
     expect(JSON.stringify(publicPayload)).not.toContain("Private medical note");
     expect(JSON.stringify(publicPayload)).not.toContain("555");
     expectNoRestrictedPayloadDetails(publicPayload);
   });
 
-  it("does not let live General Leaders or Drivers spoof Oakwood import access with role=andrew", async () => {
-    const csv = [
-      "Registration ID,Name,Selection,Grade,Room Number,T-Shirt Size,Quick Filter,Emergency Contact",
-      "70000120,Spoofed Oakwood Camper,Student,9th,Room 1,Adult Small,No Concern,Pat Parent - (555) 111-2222"
-    ].join("\n");
+  it("rejects invalid Oakwood upload extension and MIME combinations", async () => {
+    getServerSessionMock.mockResolvedValue(session());
 
+    const badExtension = await uploadImportPOST(oakwoodUploadRequest(
+      "http://localhost/api/camp/import/upload?role=andrew",
+      new File(["not a roster"], "oakwood.txt", { type: "text/plain" })
+    ));
+    const badMime = await uploadImportPOST(oakwoodUploadRequest(
+      "http://localhost/api/camp/import/upload?role=andrew",
+      new File([oakwoodCsvRows()], "oakwood.csv", { type: "text/plain" })
+    ));
+
+    expect(badExtension.status).toBe(415);
+    expect(badMime.status).toBe(415);
+  });
+
+  it("rejects oversized Oakwood uploads before parsing", async () => {
+    getServerSessionMock.mockResolvedValue(session());
+
+    const oversized = new File([new Uint8Array(10 * 1024 * 1024 + 1)], "oakwood.csv", { type: "text/csv" });
+    const response = await uploadImportPOST(oakwoodUploadRequest("http://localhost/api/camp/import/upload?role=andrew", oversized));
+
+    expect(response.status).toBe(413);
+  });
+
+  it("does not let live General Leaders or Drivers spoof Oakwood upload access with role=andrew", async () => {
     for (const liveSession of [
       session("leader", { isMock: false, user: { id: "live_leader", email: "leader@example.test", fullName: "Live Leader", role: "leader" } }),
       session("driver", { isMock: false, user: { id: "live_driver", email: "driver@example.test", fullName: "Live Driver", role: "driver" } })
     ]) {
       getServerSessionMock.mockResolvedValue(liveSession);
 
-      const previewResponse = await importPOST(jsonRequest("http://localhost/api/camp/import?role=andrew", {
-        action: "oakwoodPreview",
-        csv
-      }));
+      const previewResponse = await uploadImportPOST(oakwoodUploadRequest("http://localhost/api/camp/import/upload?role=andrew", oakwoodCsvFile()));
       const commitResponse = await importPOST(jsonRequest("http://localhost/api/camp/import?role=andrew", {
         action: "oakwoodCommit",
         oakwoodPreview: {
@@ -534,22 +572,58 @@ describe("camp API restricted data boundaries", () => {
     }
   });
 
-  it("uses live session identity, not the role query, for restricted Oakwood authorization", async () => {
+  it("uses live session identity, not the role query, for restricted Oakwood upload authorization", async () => {
     getServerSessionMock.mockResolvedValue(session("leader", {
       isMock: false,
       user: { id: "live_andrew", email: "andrew@example.test", fullName: "Andrew", role: "leader" }
     }));
 
-    const response = await importPOST(jsonRequest("http://localhost/api/camp/import?role=driver", {
-      action: "oakwoodPreview",
-      csv: [
+    const response = await uploadImportPOST(oakwoodUploadRequest(
+      "http://localhost/api/camp/import/upload?role=driver",
+      oakwoodCsvFile("oakwood.csv", [
         "Registration ID,Name,Selection,Grade,Room Number,T-Shirt Size,Quick Filter,Emergency Contact",
-        "70000121,Live Andrew Preview Camper,Student,9th,Room 1,Adult Small,No Concern,Pat Parent - (555) 111-2222"
-      ].join("\n")
-    }));
+        "70000121,Live Andrew Preview Staff,Adult Volunteer,,Room 1,Adult Small,No Concern,"
+      ].join("\n"))
+    ));
 
     expect(response.status).toBe(200);
-    expect(JSON.stringify(await response.json())).toContain("Live Andrew Preview Camper");
+    expect(JSON.stringify(await response.json())).toContain("Live Andrew Preview Staff");
+  });
+
+  it("keeps live Oakwood commits disabled even for restricted identities in this iteration", async () => {
+    getServerSessionMock.mockResolvedValue(session("leader", {
+      isMock: false,
+      user: { id: "live_andrew", email: "andrew@example.test", fullName: "Andrew", role: "leader" }
+    }));
+
+    const response = await importPOST(jsonRequest("http://localhost/api/camp/import?role=andrew", {
+      action: "oakwoodCommit",
+      oakwoodPreview: {
+        sourceFile: "Live Upload",
+        sourceKind: "upload",
+        importScope: "full_roster",
+        rows: [],
+        summary: {
+          totalSourceRows: 0,
+          personRows: 0,
+          students: 0,
+          adults: 0,
+          newCount: 0,
+          matchedCount: 0,
+          ambiguousCount: 0,
+          skippedCount: 0,
+          invalidCount: 0,
+          safeFieldRows: 0,
+          restrictedRecordRows: 0,
+          staffRows: 0
+        }
+      },
+      confirmed: true
+    }));
+    const payload = await response.json() as { error: string };
+
+    expect(response.status).toBe(403);
+    expect(payload.error).toMatch(/Production Oakwood import commit is disabled/i);
   });
 
   it("rejects ambiguous Oakwood commits instead of overwriting automatically", async () => {
@@ -559,7 +633,7 @@ describe("camp API restricted data boundaries", () => {
       action: "oakwoodPreview",
       csv: [
         "Registration ID,Name,Selection,Grade,Room Number,T-Shirt Size,Quick Filter,Emergency Contact",
-        "70000110,Ambiguous Camper,Student,9th,Room 1,Adult Small,No Concern,Pat Parent - (555) 111-2222"
+        "70000110,Ambiguous Staff,Adult Volunteer,,Room 1,Adult Small,No Concern,"
       ].join("\n")
     }));
     const firstPayload = await firstPreview.json() as { preview: unknown };
@@ -574,7 +648,7 @@ describe("camp API restricted data boundaries", () => {
       action: "oakwoodPreview",
       csv: [
         "Registration ID,Name,Selection,Grade,Room Number,T-Shirt Size,Quick Filter,Emergency Contact",
-        "99999999,Ambiguous Camper,Student,9th,Room 2,Adult Medium,No Concern,Pat Parent - (555) 111-2222"
+        "99999999,Ambiguous Staff,Adult Volunteer,,Room 2,Adult Medium,No Concern,"
       ].join("\n")
     }));
     const ambiguousPayload = await ambiguousPreview.json() as { preview: { rows: Array<{ matchStatus: string }> } };
