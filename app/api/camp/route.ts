@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession, unauthorizedResponse } from "@/lib/auth/server";
 import { getDefaultCampAccessScope } from "@/lib/camp/access";
-import { resolveCampAccessContext } from "@/lib/camp/permissions";
+import { canAccessCampMedicalCommand, resolveCampAccessContext } from "@/lib/camp/permissions";
 import { getCampOverview } from "@/lib/camp/repository";
 
 export async function GET(request: Request) {
@@ -12,5 +12,16 @@ export async function GET(request: Request) {
   const context = resolveCampAccessContext(session, searchParams.get("role"));
   const vehicleId = searchParams.get("vehicleId") ?? getDefaultCampAccessScope(context.effectiveRole).vehicleId;
 
-  return NextResponse.json(await getCampOverview(session, context, vehicleId ? { vehicleId } : {}));
+  const overview = await getCampOverview(session, context, vehicleId ? { vehicleId } : {});
+
+  // Server-authoritative capability flags so the client only renders affordances
+  // the current identity is actually allowed to use. These are booleans only and
+  // expose no restricted data; the corresponding routes/APIs enforce again.
+  return NextResponse.json({
+    ...overview,
+    capabilities: {
+      restrictedMedical: context.canAccessRestricted,
+      medicalCommand: canAccessCampMedicalCommand(context)
+    }
+  });
 }

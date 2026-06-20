@@ -5,7 +5,7 @@ test.describe("Camp save feedback and recovery", () => {
 
   test("medication check-in disables the save button, shows real stages, and persists after refresh", async ({ page }) => {
     await login(page);
-    await page.goto("/camp");
+    await page.goto("/camp/more");
     await page.getByRole("button", { name: "Andrew" }).click();
 
     const checkIn = page.getByRole("region", { name: "Check-in workflow" });
@@ -34,7 +34,7 @@ test.describe("Camp save feedback and recovery", () => {
 
   test("schedule save failure surfaces the server message and preserves form values", async ({ page }) => {
     await login(page);
-    await page.goto("/camp");
+    await page.goto("/camp/more");
     await page.getByRole("button", { name: "Andrew" }).click();
 
     const schedule = page.getByRole("region", { name: "Schedule workflow" });
@@ -63,7 +63,7 @@ test.describe("Camp save feedback and recovery", () => {
 
   test("intake with a real fake image shows upload stage text and keeps the thumbnail after refresh", async ({ page }) => {
     await login(page);
-    await page.goto("/camp");
+    await page.goto("/camp/more");
     await page.getByRole("button", { name: "Andrew" }).click();
 
     const intake = page.getByRole("region", { name: "Drop-off intake" });

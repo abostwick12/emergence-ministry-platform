@@ -135,7 +135,8 @@ export function AppShell({ children, devAuth = false }: { children: React.ReactN
   const pathname = usePathname();
   const { activeRole, setActiveRole } = useRole();
   const { openCreate } = useEventCard();
-  const title = pageTitles[pathname] ?? "Dashboard";
+  const isCampRoute = pathname.startsWith("/camp");
+  const title = isCampRoute ? "Camp Command Center" : pageTitles[pathname] ?? "Dashboard";
   const isDashboard = pathname === "/dashboard";
 
   return (
@@ -200,55 +201,59 @@ export function AppShell({ children, devAuth = false }: { children: React.ReactN
       </aside>
 
       <main className="main app-main app-main-shell">
-        <header className="app-header app-fixed-header">
-          <div className="app-header-text">
-            {isDashboard ? (
-              <>
-                <h1 className="app-header-title">Dashboard</h1>
-                <p className="app-header-welcome">Welcome back, Alex! Here&apos;s what&apos;s going on across the ministry.</p>
-              </>
-            ) : (
-              <h1 className="app-header-title app-header-title-compact">{title}</h1>
-            )}
-          </div>
+        {!isCampRoute ? (
+          <header className="app-header app-fixed-header">
+            <div className="app-header-text">
+              {isDashboard ? (
+                <>
+                  <h1 className="app-header-title">Dashboard</h1>
+                  <p className="app-header-welcome">Welcome back, Alex! Here&apos;s what&apos;s going on across the ministry.</p>
+                </>
+              ) : (
+                <h1 className="app-header-title app-header-title-compact">{title}</h1>
+              )}
+            </div>
 
-          <div className="app-header-right">
-            <span className="pill stub">Stub Mode</span>
-            {devAuth ? <span className="pill dev-auth">DEV AUTH</span> : null}
-            <span className="hub-bell" role="img" aria-label="2 notifications">
-              <BellIcon />
-              <span className="hub-bell-badge">2</span>
-            </span>
-          </div>
-        </header>
+            <div className="app-header-right">
+              <span className="pill stub">Stub Mode</span>
+              {devAuth ? <span className="pill dev-auth">DEV AUTH</span> : null}
+              <span className="hub-bell" role="img" aria-label="2 notifications">
+                <BellIcon />
+                <span className="hub-bell-badge">2</span>
+              </span>
+            </div>
+          </header>
+        ) : null}
 
         <div className="app-content app-scroll-region">{children}</div>
       </main>
 
-      <nav className="mobile-bottom-nav" aria-label="Mobile navigation">
-        {mobileLinks.map((link) => (
-          <Link className={pathname === link.href ? "mobile-nav-link active" : "mobile-nav-link"} href={link.href} key={link.href}>
-            {link.label}
-          </Link>
-        ))}
-        <details className="mobile-more-menu">
-          <summary className="mobile-nav-link">More</summary>
-          <div className="mobile-more-panel" aria-label="More navigation">
-            <button
-              className="button primary mobile-add-event-btn"
-              type="button"
-              onClick={openCreate}
-            >
-              + Add Event
-            </button>
-            {mobileMoreLinks.map((link) => (
-              <Link className="app-nav-link" href={link.href} key={link.href}>
-                {link.label}
-              </Link>
-            ))}
-          </div>
-        </details>
-      </nav>
+      {!isCampRoute ? (
+        <nav className="mobile-bottom-nav" aria-label="Mobile navigation">
+          {mobileLinks.map((link) => (
+            <Link className={pathname === link.href ? "mobile-nav-link active" : "mobile-nav-link"} href={link.href} key={link.href}>
+              {link.label}
+            </Link>
+          ))}
+          <details className="mobile-more-menu">
+            <summary className="mobile-nav-link">More</summary>
+            <div className="mobile-more-panel" aria-label="More navigation">
+              <button
+                className="button primary mobile-add-event-btn"
+                type="button"
+                onClick={openCreate}
+              >
+                + Add Event
+              </button>
+              {mobileMoreLinks.map((link) => (
+                <Link className="app-nav-link" href={link.href} key={link.href}>
+                  {link.label}
+                </Link>
+              ))}
+            </div>
+          </details>
+        </nav>
+      ) : null}
     </div>
   );
 }
