@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { getServerSession, unauthorizedResponse } from "@/lib/auth/server";
 import { buildMedicalCommandBlocks } from "@/lib/camp/emma";
-import { assertCampMedicalCommandAccess, resolveCampAccessContext } from "@/lib/camp/permissions";
+import { assertCampMedicalCommandAccess } from "@/lib/camp/permissions";
+import { resolveCampAccessForRequest } from "@/lib/camp/access-control";
 import { getRestrictedCampMedicationPayload } from "@/lib/camp/repository";
 
 // Andrew-only Medical Command feed. Enforcement is server-side and identity-based
@@ -14,7 +15,7 @@ export async function GET(request: Request) {
   if (!session) return unauthorizedResponse();
 
   const { searchParams } = new URL(request.url);
-  const context = resolveCampAccessContext(session, searchParams.get("role"));
+  const context = await resolveCampAccessForRequest(session, searchParams.get("role"));
   const selectedDay = searchParams.get("day") ?? undefined;
 
   const access = assertCampMedicalCommandAccess(context);

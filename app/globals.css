@@ -3180,17 +3180,18 @@ textarea:focus-visible {
   .camp-team-card-carousel { flex-basis: 300px; }
 }
 
-/* Camp Oakwood mobile EMMA refresh: blue watercolor shell + glass dock. */
-.app-main-shell-camp {
-  z-index: 5;
+/* Camp Oakwood: deep-blue liquid-glass command center.
+   One painted aquatic depth — navy base + cyan/teal/violet blooms + soft caustic
+   light — with frosted-glass surfaces over it. No stripes, no parchment. */
+/* Higher specificity than shell-continuity's `.app-shell` parchment base. */
+.app-shell.app-shell-camp {
   background:
-    linear-gradient(180deg, rgba(219, 244, 255, 0.96), rgba(236, 249, 255, 0.84) 42%, rgba(186, 230, 253, 0.9)),
-    linear-gradient(115deg, rgba(96, 191, 239, 0.72), rgba(226, 246, 255, 0.88) 34%, rgba(56, 189, 248, 0.7) 72%, rgba(186, 230, 253, 0.92));
+    radial-gradient(125% 82% at 50% -10%, #0f3a60 0%, #0b2a49 36%, #081d34 70%, #050f1e 100%);
 }
 
-.app-shell-camp {
-  background:
-    linear-gradient(180deg, #dff6ff 0%, #edfaff 46%, #bdeeff 100%);
+.app-main-shell-camp {
+  z-index: 5;
+  background: transparent;
 }
 
 .app-shell-camp .app-shell-parchment,
@@ -3200,36 +3201,82 @@ textarea:focus-visible {
 }
 
 .app-shell-camp .app-sidebar {
-  background: linear-gradient(180deg, #0b1930 0%, #081426 100%);
+  background: linear-gradient(180deg, #0a1c33 0%, #06101f 100%);
 }
 
+/* Fixed full-viewport aquatic field: blurred colour blooms, edge-darkened. */
 .app-main-shell-camp::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background:
+    radial-gradient(58% 42% at 20% 12%, rgba(56, 189, 248, 0.34), transparent 70%),
+    radial-gradient(56% 46% at 88% 20%, rgba(45, 212, 191, 0.22), transparent 72%),
+    radial-gradient(72% 52% at 52% 4%, rgba(125, 211, 252, 0.22), transparent 64%),
+    radial-gradient(66% 60% at 80% 94%, rgba(79, 107, 216, 0.26), transparent 74%),
+    radial-gradient(84% 72% at 14% 98%, rgba(8, 145, 178, 0.24), transparent 76%),
+    radial-gradient(150% 122% at 50% 132%, rgba(1, 6, 14, 0.86), transparent 56%),
+    linear-gradient(180deg, #0f3b62 0%, #0b2a49 38%, #081d34 72%, #04101f 100%);
+}
+
+/* Second layer: faint refracted-light caustics, very low opacity. */
+.app-main-shell-camp::after {
   content: "";
   position: fixed;
   inset: 0;
   z-index: -1;
   pointer-events: none;
+  opacity: 0.55;
+  mix-blend-mode: screen;
   background:
-    repeating-linear-gradient(106deg, rgba(255, 255, 255, 0.18) 0 9px, rgba(14, 165, 233, 0.06) 10px 18px, rgba(255, 255, 255, 0.08) 19px 32px),
-    linear-gradient(168deg, rgba(3, 105, 161, 0.24), rgba(255, 255, 255, 0.08) 24%, rgba(255, 255, 255, 0.28) 52%, rgba(14, 116, 144, 0.2) 100%);
+    radial-gradient(34% 20% at 30% 28%, rgba(103, 232, 249, 0.12), transparent 70%),
+    radial-gradient(28% 16% at 70% 42%, rgba(186, 230, 253, 0.09), transparent 72%),
+    radial-gradient(40% 24% at 48% 80%, rgba(45, 212, 191, 0.08), transparent 74%);
 }
 
 .app-main-shell-camp .app-content {
   min-height: 100vh;
   padding: 20px clamp(14px, 4vw, 28px) 0;
-  background:
-    linear-gradient(180deg, rgba(232, 248, 255, 0.54), rgba(255, 255, 255, 0.1) 48%, rgba(186, 230, 253, 0.34)),
-    repeating-linear-gradient(102deg, rgba(255, 255, 255, 0.13) 0 8px, rgba(14, 165, 233, 0.04) 9px 19px, rgba(255, 255, 255, 0.06) 20px 32px);
+  background: transparent;
 }
 
 .camp-cc {
-  --camp-accent-bright: #0ea5e9;
-  --camp-glass: rgba(255, 255, 255, 0.72);
-  --camp-glass-strong: rgba(255, 255, 255, 0.88);
+  /* Deep-blue liquid-glass palette (over the aquatic environment). */
+  --camp-ink: #eaf4ff;
+  --camp-muted: rgba(196, 220, 242, 0.74);
+  --camp-accent: #7dd3fc;
+  --camp-accent-bright: #38bdf8;
+  --camp-cyan: #22d3ee;
+  /* Frosted glass surfaces — translucent cool veils over the dark field. */
+  --camp-glass: linear-gradient(158deg, rgba(150, 200, 236, 0.16), rgba(40, 92, 140, 0.10));
+  --camp-glass-strong: linear-gradient(158deg, rgba(170, 216, 248, 0.23), rgba(52, 112, 164, 0.15));
+  --camp-glass-soft: linear-gradient(158deg, rgba(140, 190, 228, 0.10), rgba(30, 76, 120, 0.07));
+  --camp-glass-fill: rgba(120, 178, 220, 0.12);
+  --camp-border: rgba(160, 206, 240, 0.24);
+  --camp-border-hi: rgba(198, 230, 252, 0.44);
+  --camp-highlight: inset 0 1px 0 rgba(220, 242, 255, 0.34);
+  --camp-shadow: 0 18px 40px rgba(2, 11, 24, 0.46);
+  --camp-shadow-soft: 0 10px 24px rgba(2, 11, 24, 0.32);
+  --camp-liquid-cyan: linear-gradient(150deg, #5fd0fb 0%, #2aa9ea 42%, #2563eb 100%);
+  /* Default camp text is light on the deep-blue field; specific muted/accent
+     colours still apply where set. */
+  color: var(--camp-ink);
   min-height: 100vh;
   position: relative;
   isolation: isolate;
 }
+
+/* Generic legacy headings/labels inside the camp shell inherit light ink. */
+.camp-cc h1,
+.camp-cc h2,
+.camp-cc h3,
+.camp-cc h4,
+.camp-cc label,
+.camp-cc dt,
+.camp-cc dd,
+.camp-cc strong { color: var(--camp-ink); }
 
 .camp-cc-header {
   padding: 10px 0 2px;
@@ -3243,11 +3290,13 @@ textarea:focus-visible {
 .camp-student-row,
 .camp-team-detail-meta,
 .camp-schedule-item,
-.camp-vehicle-card {
+.camp-vehicle-card,
+.camp-cc-medcmd-row {
   background: var(--camp-glass);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  box-shadow: 0 8px 18px rgba(14, 116, 144, 0.08);
+  border: 1px solid var(--camp-border);
+  box-shadow: var(--camp-shadow-soft), var(--camp-highlight);
+  backdrop-filter: blur(14px) saturate(1.15);
+  -webkit-backdrop-filter: blur(14px) saturate(1.15);
 }
 
 .camp-cc-day-dot {
@@ -3259,27 +3308,33 @@ textarea:focus-visible {
 }
 
 .camp-cc-nextup {
+  border: 1px solid var(--camp-border-hi);
   background:
-    linear-gradient(150deg, rgba(255, 255, 255, 0.9), rgba(224, 242, 254, 0.7)),
-    linear-gradient(135deg, rgba(3, 105, 161, 0.12), rgba(14, 116, 144, 0.08));
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+    radial-gradient(130% 96% at 6% -6%, rgba(103, 232, 249, 0.22), transparent 58%),
+    radial-gradient(120% 100% at 100% 110%, rgba(79, 107, 216, 0.18), transparent 64%),
+    var(--camp-glass-strong);
+  box-shadow: var(--camp-shadow), var(--camp-highlight);
+  backdrop-filter: blur(22px) saturate(1.2);
+  -webkit-backdrop-filter: blur(22px) saturate(1.2);
 }
 
 .camp-cc-nextup-note {
   margin: 10px 0 0;
-  color: #29435f;
+  color: var(--camp-muted);
   font-size: 13.5px;
-  font-weight: 650;
+  font-weight: 600;
   line-height: 1.38;
 }
 
 .camp-team-card {
+  border: 1px solid color-mix(in srgb, var(--camp-team-accent) 46%, var(--camp-border));
+  border-left: 3px solid color-mix(in srgb, var(--camp-team-accent) 78%, #bfe6ff);
   background:
-    linear-gradient(150deg, rgba(255, 255, 255, 0.84), color-mix(in srgb, var(--camp-team-accent) 12%, rgba(255, 255, 255, 0.86)));
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+    linear-gradient(150deg, color-mix(in srgb, var(--camp-team-accent) 30%, transparent), transparent 60%),
+    var(--camp-glass);
+  box-shadow: var(--camp-shadow-soft), var(--camp-highlight);
+  backdrop-filter: blur(15px) saturate(1.25);
+  -webkit-backdrop-filter: blur(15px) saturate(1.25);
 }
 
 .camp-team-card-alert {
@@ -3295,9 +3350,14 @@ textarea:focus-visible {
 .camp-cc-entry,
 .camp-cc-search {
   background: var(--camp-glass-strong);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--camp-border);
+  box-shadow: var(--camp-shadow-soft), var(--camp-highlight);
+  backdrop-filter: blur(16px) saturate(1.15);
+  -webkit-backdrop-filter: blur(16px) saturate(1.15);
 }
+
+.camp-cc-search { color: var(--camp-ink); }
+.camp-cc-search::placeholder { color: var(--camp-muted); }
 
 .camp-cc-medcmd-status.due { background: rgba(2, 132, 199, 0.14); color: #0369a1; }
 .camp-cc-medcmd-status.completed { background: rgba(22, 163, 74, 0.14); color: #15803d; }
@@ -3305,28 +3365,30 @@ textarea:focus-visible {
 .camp-cc-medcmd-status.missing { background: rgba(217, 119, 6, 0.16); color: #b45309; }
 
 .camp-nav {
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.68);
-  border: 1px solid rgba(255, 255, 255, 0.64);
-  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.1);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  border-radius: 20px;
+  background: linear-gradient(160deg, rgba(22, 58, 95, 0.44), rgba(7, 24, 44, 0.36));
+  border: 1px solid var(--camp-border);
+  box-shadow: 0 18px 46px rgba(2, 11, 24, 0.5), var(--camp-highlight);
+  backdrop-filter: blur(28px) saturate(1.3);
+  -webkit-backdrop-filter: blur(28px) saturate(1.3);
 }
 
 .camp-nav-link {
   border: 0;
   background: transparent;
   cursor: pointer;
+  color: var(--camp-muted);
 }
 
 .camp-nav-link.active {
-  background: linear-gradient(160deg, rgba(3, 105, 161, 0.95), rgba(14, 165, 233, 0.9));
-  box-shadow: 0 8px 18px rgba(14, 165, 233, 0.22);
+  background: var(--camp-liquid-cyan);
+  color: #ffffff;
+  box-shadow: 0 10px 22px rgba(34, 169, 234, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.5);
 }
 
 .camp-nav-emma {
   position: relative;
-  color: #075985;
+  color: var(--camp-accent);
 }
 
 .camp-nav-emma .emma-wave-orb {
@@ -3339,9 +3401,20 @@ textarea:focus-visible {
   width: 58px;
   height: 58px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.24);
-  box-shadow: 0 14px 26px rgba(2, 132, 199, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.7);
+  background: radial-gradient(circle at 32% 26%, rgba(224, 250, 255, 0.55), rgba(56, 189, 248, 0.20) 46%, rgba(8, 47, 73, 0.32));
+  border: 1px solid rgba(186, 230, 253, 0.55);
+  box-shadow:
+    0 16px 30px rgba(8, 47, 73, 0.5),
+    0 0 0 4px rgba(56, 189, 248, 0.12),
+    inset 0 2px 3px rgba(255, 255, 255, 0.6),
+    inset 0 -7px 13px rgba(2, 47, 73, 0.42);
   transition: transform 180ms ease;
+}
+
+.emma-wave-orb-swell {
+  animation: emma-orb-drift 4.6s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
 }
 
 .emma-wave-orb-svg {
@@ -3547,6 +3620,11 @@ textarea:focus-visible {
   100% { stroke-dasharray: 90 0; opacity: 1; }
 }
 
+@keyframes emma-orb-drift {
+  0%, 100% { transform: translateY(0); opacity: 0.66; }
+  50% { transform: translateY(1.3px); opacity: 1; }
+}
+
 @media (max-width: 720px) {
   .app-shell {
     grid-template-columns: 1fr;
@@ -3600,10 +3678,162 @@ textarea:focus-visible {
 
 @media (prefers-reduced-motion: reduce) {
   .camp-nav-emma:active .emma-wave-orb-crest,
-  .emma-wave-orb.active .emma-wave-orb-crest {
+  .emma-wave-orb.active .emma-wave-orb-crest,
+  .emma-wave-orb-swell {
     animation: none;
   }
 }
+
+/* ── Deep-blue liquid-glass surface layer (overrides legacy light treatment) ── */
+
+/* Hero accents: cyan liquid fills + light metadata. */
+.camp-cc-nextup-time,
+.camp-schedule-time { color: var(--camp-accent); }
+.camp-cc-nextup.empty { background: var(--camp-glass); border-color: var(--camp-border); }
+.camp-cc-nextup-cta {
+  background: var(--camp-liquid-cyan);
+  color: #04243f;
+  box-shadow: 0 10px 22px rgba(34, 169, 234, 0.30), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+/* Day selector — floating glass pills with a rich cyan-to-blue active fill. */
+.camp-cc-day { border-radius: 16px; }
+.camp-cc-day.active {
+  border-color: transparent;
+  background: var(--camp-liquid-cyan);
+  box-shadow: 0 12px 24px rgba(34, 169, 234, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+.camp-cc-day.active .camp-cc-day-wd,
+.camp-cc-day.active .camp-cc-day-dt { color: #05273f; }
+
+/* Access preview + mode toggles. */
+.camp-cc-mode { background: rgba(8, 26, 46, 0.42); }
+.camp-cc-access-tab,
+.camp-cc-mode-tab {
+  background: var(--camp-glass-fill);
+  border-color: var(--camp-border);
+  color: var(--camp-muted);
+}
+.camp-cc-access-tab.active,
+.camp-cc-mode-tab.active {
+  background: var(--camp-liquid-cyan);
+  border-color: transparent;
+  color: #04243f;
+}
+
+/* Safe / status tags — glass with controlled warm accents. */
+.camp-cc-tag { background: rgba(56, 189, 248, 0.16); color: var(--camp-accent); }
+.camp-cc-tag.subtle { background: rgba(150, 184, 214, 0.14); color: var(--camp-muted); }
+.camp-cc-tag.warn { background: rgba(56, 189, 248, 0.16); color: var(--camp-accent); }
+.camp-cc-tag.alert { background: rgba(245, 158, 11, 0.20); color: #fbcf6b; }
+
+/* Avatars / icon tiles. */
+.camp-student-avatar,
+.camp-cc-entry-icon,
+.camp-cc-medcmd-avatar {
+  background: linear-gradient(150deg, rgba(56, 189, 248, 0.32), rgba(14, 116, 144, 0.22));
+  border: 1px solid var(--camp-border);
+  color: #dbf3ff;
+}
+
+/* Restricted / safety entry surfaces. */
+.camp-restricted-entry {
+  border-color: rgba(56, 189, 248, 0.36);
+  background:
+    radial-gradient(120% 90% at 6% 0%, rgba(56, 189, 248, 0.16), transparent 60%),
+    var(--camp-glass-strong);
+}
+.camp-safety-guidance {
+  border-color: var(--camp-border);
+  background:
+    radial-gradient(120% 90% at 4% 0%, rgba(56, 189, 248, 0.14), transparent 62%),
+    var(--camp-glass);
+}
+.camp-cc-entry-arrow { color: var(--camp-accent); }
+
+/* Medical Command — compact, refined glass status chips. */
+.camp-cc-medcmd-status {
+  padding: 2px 9px;
+  font-size: 11px;
+  border: 1px solid transparent;
+}
+.camp-cc-medcmd-status.due,
+.camp-cc-medcmd-status.scheduled {
+  background: rgba(56, 189, 248, 0.16);
+  color: var(--camp-accent);
+  border-color: rgba(56, 189, 248, 0.30);
+}
+.camp-cc-medcmd-status.logged,
+.camp-cc-medcmd-status.completed {
+  background: rgba(34, 197, 94, 0.18);
+  color: #8ef0b0;
+  border-color: rgba(34, 197, 94, 0.32);
+}
+.camp-cc-medcmd-status.attention,
+.camp-cc-medcmd-status.missing,
+.camp-cc-medcmd-status.clarification {
+  background: rgba(245, 158, 11, 0.20);
+  color: #fbcf6b;
+  border-color: rgba(251, 191, 36, 0.34);
+}
+
+/* Schedule audience renders as a `.camp-cc-tag.subtle` glass chip (styled above). */
+
+/* Vehicle riders. */
+.camp-vehicle-riders li { background: var(--camp-glass-fill); color: var(--camp-ink); }
+
+/* More menu. */
+.camp-more-sheet {
+  border-color: var(--camp-border);
+  box-shadow: var(--camp-shadow), var(--camp-highlight);
+}
+.camp-more-grid a {
+  background: var(--camp-glass-fill);
+  border: 1px solid var(--camp-border);
+  color: var(--camp-ink);
+}
+.camp-more-grid.medical a { background: rgba(56, 189, 248, 0.16); color: var(--camp-accent); }
+
+/* EMMA sheet — deep frosted glass, integrated with the liquid environment. */
+.camp-emma-backdrop { background: rgba(4, 14, 28, 0.52); }
+.camp-emma-sheet {
+  border: 1px solid var(--camp-border-hi);
+  background:
+    radial-gradient(120% 70% at 4% -6%, rgba(56, 189, 248, 0.16), transparent 58%),
+    linear-gradient(160deg, rgba(18, 50, 82, 0.88), rgba(8, 24, 44, 0.84));
+  box-shadow: 0 30px 80px rgba(2, 11, 24, 0.62), var(--camp-highlight);
+  backdrop-filter: blur(30px) saturate(1.25);
+  -webkit-backdrop-filter: blur(30px) saturate(1.25);
+}
+.camp-emma-close {
+  border: 1px solid var(--camp-border);
+  background: var(--camp-glass-fill);
+  color: var(--camp-ink);
+}
+.camp-emma-form input {
+  border: 1px solid var(--camp-border);
+  background: var(--camp-glass-fill);
+  color: var(--camp-ink);
+}
+.camp-emma-form input::placeholder { color: var(--camp-muted); }
+.camp-emma-form button { background: var(--camp-liquid-cyan); color: #04243f; }
+.camp-emma-examples button {
+  background: rgba(56, 189, 248, 0.16);
+  border: 1px solid var(--camp-border);
+  color: var(--camp-accent);
+}
+.camp-emma-answer {
+  border: 1px solid var(--camp-border);
+  background: var(--camp-glass);
+}
+.camp-emma-answer ul { color: var(--camp-muted); }
+.camp-emma-actions a { background: rgba(56, 189, 248, 0.16); color: var(--camp-accent); }
+.camp-emma-tabs { background: rgba(8, 26, 46, 0.42); }
+.camp-emma-tabs button { color: var(--camp-muted); }
+.camp-emma-tabs button.active { background: var(--camp-liquid-cyan); color: #04243f; box-shadow: none; }
+
+/* Keep the EMMA orb tab label cyan on the dark dock (mobile + desktop). */
+.camp-nav-emma.active { color: var(--camp-accent); }
 
 .camp-hero {
   display: flex;
@@ -4133,3 +4363,103 @@ textarea:focus-visible {
     width: 100%;
   }
 }
+
+/* ── Legacy Camp Command Center surfaces, reskinned to deep-blue glass ──
+   These render on /camp/more and the Andrew medication workflows. Scoped to the
+   camp shell; functional signature/photo canvases stay light for legibility. */
+.camp-hero {
+  border: 1px solid var(--camp-border-hi);
+  border-radius: 18px;
+  background:
+    radial-gradient(130% 96% at 6% -6%, rgba(103, 232, 249, 0.20), transparent 58%),
+    var(--camp-glass-strong);
+  box-shadow: var(--camp-shadow), var(--camp-highlight);
+  backdrop-filter: blur(20px) saturate(1.2);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+}
+.camp-title { color: var(--camp-ink); }
+.camp-lede { color: var(--camp-muted); }
+
+.camp-countdown {
+  border: 1px solid var(--camp-border);
+  border-radius: 14px;
+  background: var(--camp-glass-fill);
+  color: var(--camp-ink);
+}
+.camp-countdown span { color: var(--camp-muted); }
+
+.camp-role-tab {
+  border: 1px solid var(--camp-border);
+  background: var(--camp-glass-fill);
+  color: var(--camp-muted);
+}
+.camp-role-tab.active {
+  border-color: transparent;
+  background: var(--camp-liquid-cyan);
+  color: #04243f;
+}
+
+/* Camp text fields / selects — frosted glass with light text (checkboxes excluded). */
+.camp-cc input:not([type="checkbox"]):not([type="radio"]),
+.camp-cc select,
+.camp-cc textarea {
+  background: var(--camp-glass-fill);
+  border: 1px solid var(--camp-border);
+  color: var(--camp-ink);
+}
+.camp-cc input::placeholder,
+.camp-cc textarea::placeholder { color: var(--camp-muted); }
+.camp-cc select option { color: #0b1f33; }
+
+.camp-student-card,
+.camp-secure-card {
+  border: 1px solid var(--camp-border);
+  border-radius: 14px;
+  background: var(--camp-glass);
+  box-shadow: var(--camp-shadow-soft), var(--camp-highlight);
+  backdrop-filter: blur(14px) saturate(1.15);
+  -webkit-backdrop-filter: blur(14px) saturate(1.15);
+}
+.camp-secure-card {
+  border-color: rgba(251, 191, 36, 0.32);
+  background:
+    radial-gradient(120% 90% at 6% 0%, rgba(245, 158, 11, 0.14), transparent 60%),
+    var(--camp-glass);
+}
+.camp-student-button:hover,
+.camp-secure-button:hover,
+.camp-edit-row:hover {
+  border-color: var(--camp-border-hi);
+  background: rgba(56, 189, 248, 0.10);
+}
+
+.camp-avatar {
+  background: linear-gradient(150deg, rgba(56, 189, 248, 0.32), rgba(14, 116, 144, 0.22));
+  border: 1px solid var(--camp-border);
+  color: #dbf3ff;
+}
+
+.camp-list-row { border-bottom-color: var(--camp-border); }
+.camp-edit-row { border-bottom-color: var(--camp-border); }
+.camp-time { color: var(--camp-accent); }
+.camp-mini-list { color: var(--camp-muted); }
+
+.camp-status { background: var(--camp-glass-fill); color: var(--camp-ink); }
+.camp-status.ready { background: rgba(34, 197, 94, 0.18); color: #8ef0b0; }
+.camp-status.warn { background: rgba(245, 158, 11, 0.20); color: #fbcf6b; }
+.camp-status.locked { background: rgba(248, 113, 113, 0.20); color: #fda4a4; }
+
+.camp-save-message {
+  border: 1px solid var(--camp-border);
+  background: var(--camp-glass-fill);
+  color: var(--camp-ink);
+}
+.camp-save-message.success { border-color: rgba(34, 197, 94, 0.32); background: rgba(34, 197, 94, 0.16); color: #8ef0b0; }
+.camp-save-message.error { border-color: rgba(248, 113, 113, 0.34); background: rgba(248, 113, 113, 0.18); color: #fda4a4; }
+.camp-error { color: #fda4a4; }
+
+/* Medication intake — glass the frames, keep photo/signature canvases legible. */
+.camp-intake-photo-section { border: 1px solid var(--camp-border); background: var(--camp-glass-fill); }
+.camp-medicine-photo { border-color: var(--camp-border); background: var(--camp-glass-fill); color: var(--camp-muted); }
+.camp-confirm-row { color: var(--camp-muted); }
+.camp-preview-section { border-top-color: var(--camp-border); }

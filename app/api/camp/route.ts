@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { getServerSession, unauthorizedResponse } from "@/lib/auth/server";
 import { getDefaultCampAccessScope } from "@/lib/camp/access";
-import { canAccessCampMedicalCommand, resolveCampAccessContext } from "@/lib/camp/permissions";
+import { canAccessCampMedicalCommand } from "@/lib/camp/permissions";
+import { resolveCampAccessForRequest } from "@/lib/camp/access-control";
 import { getCampOverview } from "@/lib/camp/repository";
 
 export async function GET(request: Request) {
@@ -9,7 +10,7 @@ export async function GET(request: Request) {
   if (!session) return unauthorizedResponse();
 
   const { searchParams } = new URL(request.url);
-  const context = resolveCampAccessContext(session, searchParams.get("role"));
+  const context = await resolveCampAccessForRequest(session, searchParams.get("role"));
   const vehicleId = searchParams.get("vehicleId") ?? getDefaultCampAccessScope(context.effectiveRole).vehicleId;
 
   const overview = await getCampOverview(session, context, vehicleId ? { vehicleId } : {});

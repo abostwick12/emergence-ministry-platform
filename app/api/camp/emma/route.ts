@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { getServerSession, unauthorizedResponse } from "@/lib/auth/server";
 import { getDefaultCampAccessScope } from "@/lib/camp/access";
 import { buildCampEmmaAnswer, buildMedicalCommandBlocks, type CampEmmaAccess, type CampEmmaMode } from "@/lib/camp/emma";
-import { canAccessCampMedicalCommand, resolveCampAccessContext } from "@/lib/camp/permissions";
+import { canAccessCampMedicalCommand } from "@/lib/camp/permissions";
+import { resolveCampAccessForRequest } from "@/lib/camp/access-control";
 import { getCampOverview, getRestrictedCampMedicationPayload } from "@/lib/camp/repository";
 
 type CampEmmaRequestBody = {
@@ -17,7 +18,7 @@ export async function POST(request: Request) {
   if (!session) return unauthorizedResponse();
 
   const { searchParams } = new URL(request.url);
-  const context = resolveCampAccessContext(session, searchParams.get("role"));
+  const context = await resolveCampAccessForRequest(session, searchParams.get("role"));
   const vehicleId = searchParams.get("vehicleId") ?? getDefaultCampAccessScope(context.effectiveRole).vehicleId;
 
   let body: CampEmmaRequestBody = {};

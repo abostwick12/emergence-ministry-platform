@@ -1,11 +1,14 @@
+import { CampAccessAdminPanel } from "@/components/camp/camp-access-admin";
 import { EmmaAdminTestPanel } from "@/components/emma-admin-test-panel";
 import { EmmaProposalReviewPanel } from "@/components/emma-proposal-review-panel";
 import { PlaceholderPage } from "@/components/placeholder-page";
 import { getServerSession } from "@/lib/auth/server";
+import { isCampAccessAdmin } from "@/lib/camp/access-admin";
 
 export default async function SettingsPage() {
   const session = await getServerSession();
   const isAdmin = session?.user.role === "admin";
+  const canManageCampAccess = session ? await isCampAccessAdmin(session) : false;
 
   return (
     <div className="grid">
@@ -23,6 +26,7 @@ export default async function SettingsPage() {
           "Future API connection settings"
         ]}
       />
+      {canManageCampAccess ? <CampAccessAdminPanel /> : null}
       {isAdmin ? (
         <>
           <EmmaAdminTestPanel />

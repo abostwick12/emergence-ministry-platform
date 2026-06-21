@@ -31,6 +31,9 @@ const emptyCapabilities: CampCapabilities = { restrictedMedical: false, medicalC
 type CampContextValue = {
   role: CampAccessRole;
   setRole: (role: CampAccessRole) => void;
+  // True only in dev/test (server-decided). Gates the Access Preview picker; the
+  // server is always authoritative regardless of this value.
+  rolePreviewEnabled: boolean;
   driverVehicleId: string;
   setDriverVehicleId: (id: string) => void;
   overview: CampOverviewPayload;
@@ -47,7 +50,7 @@ type CampContextValue = {
 
 const CampContext = createContext<CampContextValue | null>(null);
 
-export function CampProvider({ children }: { children: React.ReactNode }) {
+export function CampProvider({ children, rolePreviewEnabled = false }: { children: React.ReactNode; rolePreviewEnabled?: boolean }) {
   const [role, setRole] = useState<CampAccessRole>("general_leader");
   const [driverVehicleId, setDriverVehicleId] = useState(getDefaultCampAccessScope("driver").vehicleId ?? "van-2");
   const [overview, setOverview] = useState<CampOverviewPayload>(emptyOverview);
@@ -99,6 +102,7 @@ export function CampProvider({ children }: { children: React.ReactNode }) {
     () => ({
       role,
       setRole,
+      rolePreviewEnabled,
       driverVehicleId,
       setDriverVehicleId,
       overview,
@@ -112,7 +116,7 @@ export function CampProvider({ children }: { children: React.ReactNode }) {
       setHomeMode,
       refresh
     }),
-    [role, driverVehicleId, overview, capabilities, loading, days, selectedDay, scheduleForSelectedDay, homeMode, refresh]
+    [role, rolePreviewEnabled, driverVehicleId, overview, capabilities, loading, days, selectedDay, scheduleForSelectedDay, homeMode, refresh]
   );
 
   return <CampContext.Provider value={value}>{children}</CampContext.Provider>;
