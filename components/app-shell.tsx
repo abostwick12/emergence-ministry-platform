@@ -140,7 +140,7 @@ export function AppShell({ children, devAuth = false }: { children: React.ReactN
   const isDashboard = pathname === "/dashboard";
 
   return (
-    <div className="app-shell">
+    <div className={isCampRoute ? "app-shell app-shell-camp" : "app-shell"}>
       <div className="app-shell-parchment" aria-hidden="true" />
       <div className="app-shell-night-sky" aria-hidden="true" />
       <div className="app-top-art-clip" aria-hidden="true">

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServerSession, unauthorizedResponse } from "@/lib/auth/server";
+import { buildMedicalCommandBlocks } from "@/lib/camp/emma";
 import { assertCampMedicalCommandAccess, resolveCampAccessContext } from "@/lib/camp/permissions";
 import { getRestrictedCampMedicationPayload } from "@/lib/camp/repository";
 
@@ -14,6 +15,7 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const context = resolveCampAccessContext(session, searchParams.get("role"));
+  const selectedDay = searchParams.get("day") ?? undefined;
 
   const access = assertCampMedicalCommandAccess(context);
   if (!access.allowed) {
@@ -25,11 +27,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: payload.error }, { status: payload.status });
   }
 
-  const intakeRecordIds = new Set(payload.intakeHistory.map((item) => item.medicationRecordId).filter(Boolean));
+  const intakeRecordIds = new Set(payload.intakeHistory.map((item) => item.medicationRecordId).filter(isString));
   const loggedScheduleIds = new Set(
     payload.administrationLog
-      .filter((log) => log.status === "Logged" && log.scheduleItemId)
+      .filter((log) => log.status === "Logged")
       .map((log) => log.scheduleItemId)
+      .filter(isString)
   );
 
   // Time blocks are derived from the existing medication schedule rows, but the
@@ -37,18 +40,15 @@ export async function GET(request: Request) {
   // names, instructions, dosage, signatures, photos, insurance, audit history,
   // and all parent-provided notes.
   return NextResponse.json({
-    timeBlocks: payload.schedule.map((block) => {
-      const logRecorded = block.status === "Logged" || Boolean(block.lastLoggedAt) || loggedScheduleIds.has(block.id);
-      const needsClarification = block.status === "Needs Parent Clarification";
-
-      return {
-        id: block.id,
-        studentName: block.studentName,
-        timeWindow: block.timeWindow,
-        parentHandoffOnFile: block.medicationRecordId ? intakeRecordIds.has(block.medicationRecordId) : false,
-        stateLabel: logRecorded ? "Log recorded" : needsClarification ? "Clarification flagged" : "Scheduled",
-        tone: logRecorded ? "logged" : needsClarification ? "clarification" : "scheduled"
-      };
+    timeBlocks: buildMedicalCommandBlocks({
+      schedule: payload.schedule,
+      loggedScheduleIds,
+      intakeRecordIds,
+      selectedDay
     })
   });
+}
+
+function isString(value: string | undefined): value is string {
+  return typeof value === "string" && value.length > 0;
 }

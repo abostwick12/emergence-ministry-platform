@@ -10,8 +10,8 @@ type MedicalCommandPayload = {
     studentName: string;
     timeWindow: string;
     parentHandoffOnFile: boolean;
-    stateLabel: "Scheduled" | "Log recorded" | "Clarification flagged";
-    tone: "scheduled" | "logged" | "clarification";
+    stateLabel: "Due" | "Completed" | "Needs Attention" | "Intake Missing";
+    tone: "due" | "completed" | "attention" | "missing";
   }>;
 };
 
@@ -23,7 +23,9 @@ export function CampMedicalCommand() {
   useEffect(() => {
     let active = true;
     setState("loading");
-    fetch(`/api/camp/medical-command?role=${role}`, { cache: "no-store" })
+    const params = new URLSearchParams({ role });
+    if (selectedDay) params.set("day", selectedDay);
+    fetch(`/api/camp/medical-command?${params.toString()}`, { cache: "no-store" })
       .then(async (response) => {
         if (!active) return;
         if (response.status === 403) {
@@ -41,7 +43,7 @@ export function CampMedicalCommand() {
     return () => {
       active = false;
     };
-  }, [role]);
+  }, [role, selectedDay]);
 
   if (!capabilities.medicalCommand || state === "forbidden") {
     return <p className="camp-cc-muted">Medical Command is not available for this access view.</p>;
@@ -50,6 +52,7 @@ export function CampMedicalCommand() {
   if (state === "error") return <p className="camp-cc-error">Medical Command data could not be loaded.</p>;
 
   const blocks = data?.timeBlocks ?? [];
+  const hasDueMedication = blocks.some((block) => block.tone === "due" || block.tone === "missing" || block.tone === "attention");
 
   return (
     <section className="camp-cc-medcmd" aria-label="Medical Command">
@@ -58,6 +61,11 @@ export function CampMedicalCommand() {
         <h2>Medication time blocks</h2>
         <p className="camp-cc-muted">Operational logging view for {selectedDay || "camp"}. Restricted details stay in More Camp tools.</p>
       </div>
+      {hasDueMedication ? (
+        <Link href="/camp/more" className="camp-cc-nextup-cta">
+          Administer Medicine
+        </Link>
+      ) : null}
       {blocks.length === 0 ? (
         <p className="camp-cc-muted">No medication time blocks on file.</p>
       ) : (

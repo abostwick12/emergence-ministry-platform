@@ -14,10 +14,16 @@ const schedule: CampScheduleBlock[] = [
 ];
 
 describe("camp day derivation", () => {
-  it("derives distinct days in first-seen order with weekday/date parts", () => {
+  it("derives distinct days in first-seen order with weekday/date parts when no start date exists", () => {
     const days = deriveCampDays(schedule);
     expect(days.map((d) => d.key)).toEqual(["Mon, Jun 29", "Tue, Jun 30", "Fri, Jul 3"]);
-    expect(days[0]).toEqual({ key: "Mon, Jun 29", weekday: "Mon", date: "Jun 29" });
+    expect(days[0]).toEqual({ key: "Mon, Jun 29", weekday: "Mon", date: "Jun 29", hasSchedule: true });
+  });
+
+  it("derives a Monday-Friday camp strip from the camp start date", () => {
+    const days = deriveCampDays(schedule, "2026-06-29");
+    expect(days.map((d) => d.key)).toEqual(["Mon, Jun 29", "Tue, Jun 30", "Wed, Jul 1", "Thu, Jul 2", "Fri, Jul 3"]);
+    expect(days.map((d) => d.hasSchedule)).toEqual([true, true, false, false, true]);
   });
 
   it("returns no days for an empty schedule (dynamic, not hard-coded)", () => {

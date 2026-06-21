@@ -3180,6 +3180,431 @@ textarea:focus-visible {
   .camp-team-card-carousel { flex-basis: 300px; }
 }
 
+/* Camp Oakwood mobile EMMA refresh: blue watercolor shell + glass dock. */
+.app-main-shell-camp {
+  z-index: 5;
+  background:
+    linear-gradient(180deg, rgba(219, 244, 255, 0.96), rgba(236, 249, 255, 0.84) 42%, rgba(186, 230, 253, 0.9)),
+    linear-gradient(115deg, rgba(96, 191, 239, 0.72), rgba(226, 246, 255, 0.88) 34%, rgba(56, 189, 248, 0.7) 72%, rgba(186, 230, 253, 0.92));
+}
+
+.app-shell-camp {
+  background:
+    linear-gradient(180deg, #dff6ff 0%, #edfaff 46%, #bdeeff 100%);
+}
+
+.app-shell-camp .app-shell-parchment,
+.app-shell-camp .app-shell-night-sky,
+.app-shell-camp .app-top-art-clip {
+  display: none;
+}
+
+.app-shell-camp .app-sidebar {
+  background: linear-gradient(180deg, #0b1930 0%, #081426 100%);
+}
+
+.app-main-shell-camp::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(106deg, rgba(255, 255, 255, 0.18) 0 9px, rgba(14, 165, 233, 0.06) 10px 18px, rgba(255, 255, 255, 0.08) 19px 32px),
+    linear-gradient(168deg, rgba(3, 105, 161, 0.24), rgba(255, 255, 255, 0.08) 24%, rgba(255, 255, 255, 0.28) 52%, rgba(14, 116, 144, 0.2) 100%);
+}
+
+.app-main-shell-camp .app-content {
+  min-height: 100vh;
+  padding: 20px clamp(14px, 4vw, 28px) 0;
+  background:
+    linear-gradient(180deg, rgba(232, 248, 255, 0.54), rgba(255, 255, 255, 0.1) 48%, rgba(186, 230, 253, 0.34)),
+    repeating-linear-gradient(102deg, rgba(255, 255, 255, 0.13) 0 8px, rgba(14, 165, 233, 0.04) 9px 19px, rgba(255, 255, 255, 0.06) 20px 32px);
+}
+
+.camp-cc {
+  --camp-accent-bright: #0ea5e9;
+  --camp-glass: rgba(255, 255, 255, 0.72);
+  --camp-glass-strong: rgba(255, 255, 255, 0.88);
+  min-height: 100vh;
+  position: relative;
+  isolation: isolate;
+}
+
+.camp-cc-header {
+  padding: 10px 0 2px;
+}
+
+.camp-cc-name {
+  letter-spacing: 0;
+}
+
+.camp-cc-day,
+.camp-student-row,
+.camp-team-detail-meta,
+.camp-schedule-item,
+.camp-vehicle-card {
+  background: var(--camp-glass);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 8px 18px rgba(14, 116, 144, 0.08);
+}
+
+.camp-cc-day-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.72;
+}
+
+.camp-cc-nextup {
+  background:
+    linear-gradient(150deg, rgba(255, 255, 255, 0.9), rgba(224, 242, 254, 0.7)),
+    linear-gradient(135deg, rgba(3, 105, 161, 0.12), rgba(14, 116, 144, 0.08));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.camp-cc-nextup-note {
+  margin: 10px 0 0;
+  color: #29435f;
+  font-size: 13.5px;
+  font-weight: 650;
+  line-height: 1.38;
+}
+
+.camp-team-card {
+  background:
+    linear-gradient(150deg, rgba(255, 255, 255, 0.84), color-mix(in srgb, var(--camp-team-accent) 12%, rgba(255, 255, 255, 0.86)));
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.camp-team-card-alert {
+  align-self: flex-start;
+  border-radius: 999px;
+  background: rgba(217, 119, 6, 0.15);
+  color: #92400e;
+  padding: 3px 9px;
+  font-size: 11.5px;
+  font-weight: 800;
+}
+
+.camp-cc-entry,
+.camp-cc-search {
+  background: var(--camp-glass-strong);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.camp-cc-medcmd-status.due { background: rgba(2, 132, 199, 0.14); color: #0369a1; }
+.camp-cc-medcmd-status.completed { background: rgba(22, 163, 74, 0.14); color: #15803d; }
+.camp-cc-medcmd-status.attention,
+.camp-cc-medcmd-status.missing { background: rgba(217, 119, 6, 0.16); color: #b45309; }
+
+.camp-nav {
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.68);
+  border: 1px solid rgba(255, 255, 255, 0.64);
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.1);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.camp-nav-link {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.camp-nav-link.active {
+  background: linear-gradient(160deg, rgba(3, 105, 161, 0.95), rgba(14, 165, 233, 0.9));
+  box-shadow: 0 8px 18px rgba(14, 165, 233, 0.22);
+}
+
+.camp-nav-emma {
+  position: relative;
+  color: #075985;
+}
+
+.camp-nav-emma .emma-wave-orb {
+  margin-top: -18px;
+}
+
+.emma-wave-orb {
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.24);
+  box-shadow: 0 14px 26px rgba(2, 132, 199, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.7);
+  transition: transform 180ms ease;
+}
+
+.emma-wave-orb-svg {
+  width: 56px;
+  height: 56px;
+  display: block;
+  filter: drop-shadow(0 10px 18px rgba(2, 132, 199, 0.24));
+}
+
+.camp-nav-emma:active .emma-wave-orb,
+.emma-wave-orb.active {
+  transform: scale(1.04);
+}
+
+.camp-nav-emma:active .emma-wave-orb-crest,
+.emma-wave-orb.active .emma-wave-orb-crest {
+  animation: emma-wave-pulse 360ms ease-out;
+}
+
+.camp-emma-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(8, 47, 73, 0.24);
+}
+
+.camp-emma-sheet {
+  width: min(100%, 560px);
+  max-height: min(82vh, 720px);
+  overflow: auto;
+  display: grid;
+  gap: 14px;
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.68);
+  background: rgba(247, 252, 255, 0.92);
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.24);
+  padding: 18px;
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+}
+
+.camp-emma-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.camp-emma-head h2 {
+  margin: 2px 0 0;
+  color: var(--camp-ink);
+  font-size: 20px;
+}
+
+.camp-emma-close {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(13, 71, 109, 0.14);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--camp-ink);
+}
+
+.camp-emma-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(14, 116, 144, 0.1);
+}
+
+.camp-emma-tabs button {
+  min-height: 38px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #31506e;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.camp-emma-tabs button.active {
+  background: #fff;
+  color: #075985;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+}
+
+.camp-emma-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.camp-emma-form input {
+  min-height: 44px;
+  border: 1px solid rgba(13, 71, 109, 0.18);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.88);
+  padding: 0 13px;
+}
+
+.camp-emma-form button,
+.camp-emma-actions a,
+.camp-emma-examples button {
+  border: 0;
+  border-radius: 999px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.camp-emma-form button {
+  min-height: 44px;
+  padding: 0 15px;
+  background: #0284c7;
+  color: #fff;
+}
+
+.camp-emma-examples {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 3px;
+}
+
+.camp-emma-examples button {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 0 12px;
+  background: rgba(224, 242, 254, 0.9);
+  color: #075985;
+  font-size: 12.5px;
+}
+
+.camp-emma-answer {
+  display: grid;
+  gap: 10px;
+  border-radius: 16px;
+  border: 1px solid rgba(13, 71, 109, 0.12);
+  background: rgba(255, 255, 255, 0.72);
+  padding: 14px;
+}
+
+.camp-emma-answer strong { color: var(--camp-ink); }
+.camp-emma-answer ul { margin: 0; padding-left: 18px; color: #29435f; }
+.camp-emma-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.camp-emma-actions a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  background: rgba(3, 105, 161, 0.1);
+  color: #075985;
+}
+
+.camp-more-sheet {
+  display: grid;
+  gap: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.62);
+  border-radius: 20px;
+  background: var(--camp-glass);
+  padding: 14px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.camp-more-group { display: grid; gap: 8px; }
+
+.camp-more-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+  gap: 8px;
+}
+
+.camp-more-grid a {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--camp-ink);
+  padding: 9px 11px;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.camp-more-grid.medical a {
+  background: rgba(224, 242, 254, 0.84);
+  color: #075985;
+}
+
+@keyframes emma-wave-pulse {
+  0% { stroke-dasharray: 0 90; opacity: 0.4; }
+  100% { stroke-dasharray: 90 0; opacity: 1; }
+}
+
+@media (max-width: 720px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .app-sidebar {
+    display: none;
+  }
+
+  .camp-nav {
+    left: 18px;
+    right: 18px;
+    bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+    border-radius: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    padding: 6px 8px;
+    background: rgba(255, 255, 255, 0.76);
+    box-shadow: 0 18px 46px rgba(8, 47, 73, 0.18);
+  }
+
+  .camp-nav-link { min-height: 50px; }
+  .camp-nav-link.active:not(.camp-nav-emma) { flex: 1.35; flex-direction: row; gap: 6px; border-radius: 999px; }
+  .camp-nav-emma { flex: 0.94; }
+  .camp-nav-emma.active { background: transparent; box-shadow: none; color: #075985; }
+  .camp-cc-main { padding-bottom: calc(104px + env(safe-area-inset-bottom, 0px)); }
+  .camp-emma-backdrop { padding: 12px 12px calc(100px + env(safe-area-inset-bottom, 0px)); }
+  .camp-emma-sheet { border-radius: 22px; max-height: 68vh; }
+  .camp-more-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .camp-more-grid a {
+    min-height: 38px;
+    padding: 8px 9px;
+    font-size: 11.5px;
+    line-height: 1.18;
+  }
+}
+
+@media (min-width: 721px) {
+  .camp-nav-emma .emma-wave-orb {
+    width: 34px;
+    height: 34px;
+    margin: 0;
+  }
+
+  .camp-nav-emma .emma-wave-orb-svg {
+    width: 34px;
+    height: 34px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .camp-nav-emma:active .emma-wave-orb-crest,
+  .emma-wave-orb.active .emma-wave-orb-crest {
+    animation: none;
+  }
+}
+
 .camp-hero {
   display: flex;
   align-items: stretch;
