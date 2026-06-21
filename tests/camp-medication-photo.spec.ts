@@ -1,70 +1,42 @@
 import { expect, type Page, test } from "@playwright/test";
 
-test.describe("Camp restricted medication photo thumbnails", () => {
-  test.describe.configure({ mode: "serial" });
-
-  test("fresh mock state does not show stale seed photos before a real upload", async ({ page }) => {
+test.describe("Camp restricted medication photo boundaries", () => {
+  test("More stays a launcher and does not render the old check-in photo workflow", async ({ page }) => {
     await login(page);
 
     await page.goto("/camp/more");
-    await page.getByRole("button", { name: "Andrew" }).click();
 
-    const checkIn = page.getByRole("region", { name: "Check-in workflow" });
-    await expect(checkIn.getByRole("button", { name: "View medication photo for Avery Johnson" })).toHaveCount(0);
-    await expect(checkIn.getByText("Photo capture happens during Medication Intake / Parent Handoff.").first()).toBeVisible();
-  });
-
-  test("restricted user sees a real thumbnail and opens the modal from the thumbnail only", async ({ page }) => {
-    await login(page);
-    await uploadMedicationPhoto(page, "med-1");
-
-    await page.goto("/camp/more");
-    await page.getByRole("button", { name: "Andrew" }).click();
-
-    const checkIn = page.getByRole("region", { name: "Check-in workflow" });
-    const thumbnail = checkIn.getByRole("button", { name: "View medication photo for Avery Johnson" });
-    await expect(thumbnail.locator("img")).toBeVisible();
-    await expect(checkIn.getByRole("button", { name: "View Photo" })).toHaveCount(0);
-    await thumbnail.click();
-    await expect(page.getByRole("dialog", { name: "Medication photo preview" })).toBeVisible();
-    await expect(page.getByRole("dialog", { name: "Medication photo preview" }).locator("img")).toBeVisible();
-  });
-
-  test("failed restricted thumbnail retrieval shows Photo unavailable with retry", async ({ page }) => {
-    await login(page);
-    await uploadMedicationPhoto(page, "med-1");
-    await page.route("**/api/camp/medication/photos?**", async (route) => {
-      const request = route.request();
-      if (request.method() === "GET" && request.url().includes("medicationRecordId=med-1")) {
-        await route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ error: "Medication photo not found." }) });
-        return;
-      }
-      await route.continue();
-    });
-
-    await page.goto("/camp/more");
-    await page.getByRole("button", { name: "Andrew" }).click();
-
-    const checkIn = page.getByRole("region", { name: "Check-in workflow" });
-    await expect(checkIn.getByText("Photo unavailable")).toBeVisible();
-    await expect(checkIn.getByRole("button", { name: "Retry Photo" })).toBeVisible();
-    await expect(checkIn.getByRole("button", { name: "View Photo" })).toHaveCount(0);
-    await expect(checkIn.getByRole("button", { name: "View medication photo for Avery Johnson" })).toHaveCount(0);
-  });
-
-  test("General Leader and Driver cannot receive or render medication photo data", async ({ page }) => {
-    await login(page);
-
-    await page.goto("/camp/more");
-    await expect(page.getByText("Not available for this access view")).toBeVisible();
-    await expect(page.getByRole("button", { name: "View Photo" })).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "Check-in workflow" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: /View medication photo/ })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Medical Quick View" })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Medicine Intake / Return" })).toHaveCount(0);
+  });
+
+  test("restricted photo endpoints stay blocked for General Leader and Driver", async ({ page }) => {
+    await login(page);
 
     const generalStatus = await page.evaluate(async () => (await fetch("/api/camp/medication/photos?role=general_leader&medicationRecordId=med-1")).status);
     const driverStatus = await page.evaluate(async () => (await fetch("/api/camp/medication/photos?role=driver&medicationRecordId=med-1")).status);
 
     expect(generalStatus).toBe(403);
     expect(driverStatus).toBe(403);
+  });
+
+  test("Andrew reaches the dedicated Medical Quick View without photo thumbnails on More", async ({ page }) => {
+    await login(page);
+    await uploadMedicationPhoto(page, "med-1");
+
+    await page.goto("/camp");
+    await page.getByRole("button", { name: "Andrew", exact: true }).click();
+    await page.getByRole("navigation", { name: "Camp sections" }).getByRole("link", { name: "More", exact: true }).click();
+    await page.waitForURL(/\/camp\/more$/);
+
+    await expect(page.getByRole("button", { name: /View medication photo/ })).toHaveCount(0);
+    await page.getByRole("link", { name: "Medical Quick View" }).click();
+    await page.waitForURL(/\/camp\/medical-quick-view$/);
+    await expect(page.getByRole("heading", { name: "Medical Quick View" })).toBeVisible();
+    await expect(page.getByText(/Photo: Photo On File/)).toBeVisible();
+    await expect(page.getByRole("button", { name: /View medication photo/ })).toHaveCount(0);
   });
 });
 

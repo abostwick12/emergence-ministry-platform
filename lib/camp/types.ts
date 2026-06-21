@@ -276,6 +276,9 @@ export type CampMedicationAdministrationLog = {
   loggedBy: string;
   status: "Logged" | "Skipped" | "Needs Parent Clarification";
   notes: string;
+  studentAcknowledgementInitials?: string;
+  studentAcknowledgementUnavailable?: boolean;
+  studentAcknowledgementUnavailableReason?: string;
   supersedesAdministrationLogId?: string;
   correctionNote?: string;
   auditStatus?: CampAuditStatus;

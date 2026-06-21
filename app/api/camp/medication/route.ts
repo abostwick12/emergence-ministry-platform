@@ -99,6 +99,9 @@ export async function POST(request: Request) {
         loggedBy: body.loggedBy ?? "",
         status: (body.status as CampMedicationAdministrationLog["status"] | undefined) ?? "Logged",
         notes: body.notes,
+        studentAcknowledgementInitials: body.studentAcknowledgementInitials,
+        studentAcknowledgementUnavailable: body.studentAcknowledgementUnavailable,
+        studentAcknowledgementUnavailableReason: body.studentAcknowledgementUnavailableReason,
         supersedesAdministrationLogId: body.supersedesAdministrationLogId,
         correctionNote: body.correctionNote
       });

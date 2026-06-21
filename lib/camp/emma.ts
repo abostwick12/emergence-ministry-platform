@@ -17,6 +17,8 @@ export type CampEmmaAnswer = {
 
 export type CampMedicalCommandBlock = {
   id: string;
+  medicationRecordId: string;
+  studentId: string;
   studentName: string;
   timeWindow: string;
   parentHandoffOnFile: boolean;
@@ -120,6 +122,8 @@ export function buildMedicalCommandBlocks(input: {
 
       return {
         id: block.id,
+        medicationRecordId: block.medicationRecordId,
+        studentId: block.studentId,
         studentName: block.studentName,
         timeWindow: block.timeWindow,
         parentHandoffOnFile: !intakeMissing,
@@ -282,7 +286,7 @@ function answerMedical(blocks: CampMedicalCommandBlock[]): CampEmmaAnswer {
       ? `${blocks.length} medication ${blocks.length === 1 ? "block is" : "blocks are"} scheduled for the selected Camp day in Medical Command.`
       : "No medication blocks are scheduled for the selected Camp day.",
     details: [`Due (per parent schedule): ${due}`, `Intake missing: ${missing}`, `Needs attention: ${attention}`, ...blocks.map((block) => `${block.timeWindow}: ${block.studentName} (${block.stateLabel})`)],
-    actions: [{ label: "Administer Medicine", href: "/camp/more" }]
+    actions: [{ label: "Administer Medicine", href: "/camp/medical-command/administer" }]
   };
 }
 

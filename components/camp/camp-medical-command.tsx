@@ -7,6 +7,8 @@ import { useCamp } from "@/components/camp/camp-provider";
 type MedicalCommandPayload = {
   timeBlocks: Array<{
     id: string;
+    medicationRecordId: string;
+    studentId: string;
     studentName: string;
     timeWindow: string;
     parentHandoffOnFile: boolean;
@@ -53,6 +55,18 @@ export function CampMedicalCommand() {
 
   const blocks = data?.timeBlocks ?? [];
   const hasDueMedication = blocks.some((block) => block.tone === "due" || block.tone === "missing" || block.tone === "attention");
+  const firstDueMedication = blocks.find((block) => block.tone === "due" || block.tone === "missing" || block.tone === "attention");
+  const administerHref = (block?: MedicalCommandPayload["timeBlocks"][number]) => {
+    const params = new URLSearchParams();
+    if (block) {
+      params.set("scheduleItemId", block.id);
+      params.set("studentId", block.studentId);
+      params.set("medicationRecordId", block.medicationRecordId);
+      params.set("timeWindow", block.timeWindow);
+    }
+    const query = params.toString();
+    return query ? `/camp/medical-command/administer?${query}` : "/camp/medical-command/administer";
+  };
 
   return (
     <section className="camp-cc-medcmd" aria-label="Medical Command">
@@ -62,7 +76,7 @@ export function CampMedicalCommand() {
         <p className="camp-cc-muted">Operational logging view for {selectedDay || "camp"}. Restricted details stay in More Camp tools.</p>
       </div>
       {hasDueMedication ? (
-        <Link href="/camp/more" className="camp-cc-nextup-cta">
+        <Link href={administerHref(firstDueMedication)} className="camp-cc-nextup-cta">
           Administer Medicine
         </Link>
       ) : null}
@@ -73,7 +87,7 @@ export function CampMedicalCommand() {
           {blocks.map((block) => {
             return (
               <li key={block.id} className="camp-cc-medcmd-block">
-                <Link href="/camp/more" className="camp-cc-medcmd-row" aria-label={`Open medication detail for ${block.studentName}`}>
+                <Link href={administerHref(block)} className="camp-cc-medcmd-row" aria-label={`Open medication detail for ${block.studentName}`}>
                   <span className="camp-cc-medcmd-avatar" aria-hidden="true">
                     {block.studentName.split(" ").map((p) => p[0]).join("").slice(0, 2).toUpperCase()}
                   </span>
