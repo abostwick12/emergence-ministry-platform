@@ -40,9 +40,9 @@ function CampShellChrome({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function CampShell({ children }: { children: React.ReactNode }) {
+export function CampShell({ children, rolePreviewEnabled = false }: { children: React.ReactNode; rolePreviewEnabled?: boolean }) {
   return (
-    <CampProvider>
+    <CampProvider rolePreviewEnabled={rolePreviewEnabled}>
       <CampShellChrome>{children}</CampShellChrome>
     </CampProvider>
   );

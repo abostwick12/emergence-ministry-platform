@@ -68,7 +68,11 @@ async function waitForServer() {
 
 function runPlaywright() {
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, ["node_modules/@playwright/test/cli.js", "test"], {
+    // Serialize on a single worker. This suite drives one shared `next dev` server, and
+    // parallel workers competing for on-demand route compilation exceed the per-test
+    // navigation timeout, making `npm run test:e2e` flaky. One worker keeps it deterministic
+    // (CI already ran a single worker). Run `npx playwright test` directly for parallel debugging.
+    const child = spawn(process.execPath, ["node_modules/@playwright/test/cli.js", "test", "--workers=1"], {
       stdio: "inherit",
       windowsHide: true,
       env: {

@@ -2,11 +2,12 @@
 
 import { useCamp } from "@/components/camp/camp-provider";
 import { CampTeamCard } from "@/components/camp/camp-team-card";
-import { useTeamStudentCounts } from "@/components/camp/camp-team-carousel";
+import { useTeamMissingAssignmentCounts, useTeamStudentCounts } from "@/components/camp/camp-team-carousel";
 
 export default function CampTeamsPage() {
   const { overview, loading } = useCamp();
   const counts = useTeamStudentCounts();
+  const missingCounts = useTeamMissingAssignmentCounts();
 
   return (
     <div className="camp-cc-page">
@@ -19,7 +20,13 @@ export default function CampTeamsPage() {
       ) : (
         <div className="camp-team-grid">
           {overview.teams.map((team) => (
-            <CampTeamCard key={team.id} team={team} studentCount={counts.get(team.id) ?? 0} variant="list" />
+            <CampTeamCard
+              key={team.id}
+              team={team}
+              studentCount={counts.get(team.id) ?? 0}
+              missingAssignmentCount={missingCounts.get(team.id) ?? 0}
+              variant="list"
+            />
           ))}
         </div>
       )}

@@ -18,6 +18,7 @@ vi.mock("@/lib/auth/server", async () => {
 
 import { POST as importPOST } from "@/app/api/camp/import/route";
 import { POST as uploadImportPOST } from "@/app/api/camp/import/upload/route";
+import { POST as campEmmaPOST } from "@/app/api/camp/emma/route";
 import { GET as campGET } from "@/app/api/camp/route";
 import { GET as medicalCommandGET } from "@/app/api/camp/medical-command/route";
 import { GET as photoGET, POST as photoPOST } from "@/app/api/camp/medication/photos/route";
@@ -403,10 +404,8 @@ describe("camp API restricted data boundaries", () => {
       stateLabel: expect.any(String),
       tone: expect.any(String)
     }));
-    expect(JSON.stringify(payload)).not.toContain("Due");
-    expect(JSON.stringify(payload)).not.toContain("Completed");
-    expect(JSON.stringify(payload)).not.toContain("Overdue");
-    expect(JSON.stringify(payload)).not.toContain("Needs Attention");
+    expect(JSON.stringify(payload)).not.toContain("Parent-labeled medication");
+    expect(JSON.stringify(payload)).not.toContain("Follow the parent label");
 
     const overview = await campGET(new Request("http://localhost/api/camp?role=andrew"));
     const caps = (await overview.json() as { capabilities?: { medicalCommand?: boolean } }).capabilities;
@@ -462,6 +461,74 @@ describe("camp API restricted data boundaries", () => {
     expect(previewResponse.status).toBe(200);
     expect(commitResponse.status).toBe(200);
     expect(commitPayload.committed).toHaveLength(1);
+  });
+
+  it("keeps Camp Finder safe for General Leaders and blocks EMMA modes", async () => {
+    getServerSessionMock.mockResolvedValue(session());
+
+    const finder = await campEmmaPOST(jsonRequest("http://localhost/api/camp/emma?role=general_leader", {
+      mode: "finder",
+      query: "Where is Avery?",
+      selectedDay: "Mon, Jun 29"
+    }));
+    const finderPayload = await finder.json();
+    expect(finder.status).toBe(200);
+    expect(JSON.stringify(finderPayload)).toContain("Avery Johnson");
+    expectNoRestrictedPayloadDetails(finderPayload);
+
+    const blocked = await campEmmaPOST(jsonRequest("http://localhost/api/camp/emma?role=general_leader", {
+      mode: "ask_emma",
+      query: "What still needs attention?"
+    }));
+    expect(blocked.status).toBe(403);
+    expectNoRestrictedPayloadDetails(await json(blocked));
+  });
+
+  it("allows Jaci operational Camp EMMA but does not expose medical details", async () => {
+    getServerSessionMock.mockResolvedValue(session());
+
+    const response = await campEmmaPOST(jsonRequest("http://localhost/api/camp/emma?role=jaci", {
+      mode: "ask_emma",
+      query: "What medication dose does Avery need?",
+      selectedDay: "Mon, Jun 29"
+    }));
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(JSON.stringify(payload)).toMatch(/restricted medical details are not available/i);
+    expectNoRestrictedPayloadDetails(payload);
+  });
+
+  it("does not expand Joel into Camp EMMA Smart Search or Ask EMMA", async () => {
+    getServerSessionMock.mockResolvedValue(session());
+
+    const response = await campEmmaPOST(jsonRequest("http://localhost/api/camp/emma?role=joel", {
+      mode: "ask_emma",
+      query: "What still needs attention?"
+    }));
+
+    expect(response.status).toBe(403);
+    expectNoRestrictedPayloadDetails(await json(response));
+  });
+
+  it("allows Andrew Medical Command-aware EMMA counts without restricted medication payload details", async () => {
+    getServerSessionMock.mockResolvedValue(session());
+
+    const response = await campEmmaPOST(jsonRequest("http://localhost/api/camp/emma?role=andrew", {
+      mode: "ask_emma",
+      query: "What medicine is due?",
+      selectedDay: "Mon, Jun 29",
+      medicalCommandActive: true
+    }));
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(JSON.stringify(payload)).toContain("andrew_medical");
+    expect(JSON.stringify(payload)).toContain("scheduled for the selected Camp day");
+    expect(JSON.stringify(payload)).toContain("medication blocks");
+    // Temporal honesty: status counts are surfaced without claiming real-time "due now".
+    expect(JSON.stringify(payload).toLowerCase()).not.toMatch(/due now|right now|tonight|today/);
+    expectNoRestrictedPayloadDetails(payload);
   });
 
   it("requires restricted access and confirmation for Oakwood upload preview and commit", async () => {

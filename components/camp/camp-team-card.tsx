@@ -22,10 +22,11 @@ export function teamAccent(color: string): string {
 type CampTeamCardProps = {
   team: CampTeam;
   studentCount: number;
+  missingAssignmentCount?: number;
   variant?: "carousel" | "list";
 };
 
-export function CampTeamCard({ team, studentCount, variant = "list" }: CampTeamCardProps) {
+export function CampTeamCard({ team, studentCount, missingAssignmentCount = 0, variant = "list" }: CampTeamCardProps) {
   const accentStyle = { "--camp-team-accent": teamAccent(team.color) } as CSSProperties;
 
   return (
@@ -56,6 +57,9 @@ export function CampTeamCard({ team, studentCount, variant = "list" }: CampTeamC
           </div>
         ) : null}
       </dl>
+      {missingAssignmentCount > 0 ? (
+        <span className="camp-team-card-alert">{missingAssignmentCount} missing assignment{missingAssignmentCount === 1 ? "" : "s"}</span>
+      ) : null}
       <span className="camp-team-card-cta">Open team →</span>
     </Link>
   );

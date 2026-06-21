@@ -7,6 +7,8 @@ import type { CampVisibleStudent } from "@/lib/camp/types";
 function safeTags(student: CampVisibleStudent): string[] {
   const tags: string[] = [];
   if (student.hasMedicationPlan) tags.push("Medication on file");
+  if (student.hasDietaryAlert) tags.push("Food allergy");
+  if (student.needsParentClarification) tags.push("Missing form");
   if (student.needsParentClarification) tags.push("Needs check-in");
   // limitedSafetyFlags are server-scrubbed public strings; render as-is.
   for (const flag of student.limitedSafetyFlags ?? []) {

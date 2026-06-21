@@ -3,10 +3,12 @@
 import { campAccessLabels, campAccessRoles } from "@/lib/camp/access";
 import { useCamp } from "@/components/camp/camp-provider";
 
-// Mirrors the existing Camp "Access Preview" control. Server-side rules remain
-// authoritative; this only previews server-filtered access while building rosters.
+// Development/test-only "Access Preview" control. Server-side rules are always
+// authoritative; this never renders in production or normal Preview (gated by the
+// server-decided rolePreviewEnabled flag), so no normal user can self-select a role.
 export function CampAccessSwitcher() {
-  const { role, setRole } = useCamp();
+  const { role, setRole, rolePreviewEnabled } = useCamp();
+  if (!rolePreviewEnabled) return null;
   return (
     <section className="camp-cc-access" aria-label="Camp access preview">
       <p className="camp-cc-eyebrow">Access preview</p>

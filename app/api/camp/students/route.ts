@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServerSession, unauthorizedResponse } from "@/lib/auth/server";
-import { resolveCampAccessContext } from "@/lib/camp/permissions";
+import { resolveCampAccessForRequest } from "@/lib/camp/access-control";
 import { archiveCampStudent, assignCampStudent, getArchivedCampStudents, restoreCampStudent, upsertCampStudent } from "@/lib/camp/repository";
 import type { CampStudentInput } from "@/lib/camp/types";
 
@@ -9,7 +9,7 @@ export async function GET(request: Request) {
   if (!session) return unauthorizedResponse();
 
   const { searchParams } = new URL(request.url);
-  const context = resolveCampAccessContext(session, searchParams.get("role"));
+  const context = await resolveCampAccessForRequest(session, searchParams.get("role"));
 
   const payload = await getArchivedCampStudents(session, context);
   if (!payload.allowed) return NextResponse.json({ error: payload.error }, { status: payload.status });
@@ -21,7 +21,7 @@ export async function POST(request: Request) {
   if (!session) return unauthorizedResponse();
 
   const { searchParams } = new URL(request.url);
-  const context = resolveCampAccessContext(session, searchParams.get("role"));
+  const context = await resolveCampAccessForRequest(session, searchParams.get("role"));
   if (context.effectiveRole === "driver") {
     return NextResponse.json({ error: "Camp roster editing is not available for this role." }, { status: 403 });
   }
@@ -45,7 +45,7 @@ export async function PATCH(request: Request) {
   if (!session) return unauthorizedResponse();
 
   const { searchParams } = new URL(request.url);
-  const context = resolveCampAccessContext(session, searchParams.get("role"));
+  const context = await resolveCampAccessForRequest(session, searchParams.get("role"));
   if (context.effectiveRole === "driver") {
     return NextResponse.json({ error: "Camp roster editing is not available for this role." }, { status: 403 });
   }

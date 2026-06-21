@@ -24,6 +24,7 @@ export function CampDaySelector() {
           >
             <span className="camp-cc-day-wd">{day.weekday}</span>
             <span className="camp-cc-day-dt">{day.date}</span>
+            {day.hasSchedule ? <span className="camp-cc-day-dot" aria-label="Has schedule items" /> : null}
           </button>
         );
       })}

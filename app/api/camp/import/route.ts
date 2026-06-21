@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession, unauthorizedResponse } from "@/lib/auth/server";
-import { assertCampRestrictedAccess, resolveCampAccessContext } from "@/lib/camp/permissions";
+import { assertCampRestrictedAccess } from "@/lib/camp/permissions";
+import { resolveCampAccessForRequest } from "@/lib/camp/access-control";
 import { parseCampRegistrationImport } from "@/lib/camp/import";
 import {
   commitOakwoodImport,
@@ -18,10 +19,9 @@ export async function POST(request: Request) {
   if (!session) return unauthorizedResponse();
 
   const { searchParams } = new URL(request.url);
-  const requestedRole = searchParams.get("role");
-  // The role query parameter is only a mock/dev Access Preview affordance. Live
-  // sessions must be authorized from the authenticated server session identity.
-  const context = resolveCampAccessContext(session, session.isMock ? requestedRole : null);
+  // The role query parameter is only honored in dev/test (preview). Live sessions
+  // are authorized from the authenticated server identity via the durable store.
+  const context = await resolveCampAccessForRequest(session, searchParams.get("role"));
   const restrictedAccess = assertCampRestrictedAccess(context);
   if (!restrictedAccess.allowed) {
     return NextResponse.json({ error: restrictedAccess.error }, { status: restrictedAccess.status });

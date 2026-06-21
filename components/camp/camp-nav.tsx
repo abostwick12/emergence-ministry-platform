@@ -2,6 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import { CampEmmaSheet } from "@/components/camp/camp-emma-sheet";
+import { EmmaWaveOrb } from "@/components/camp/emma-wave-orb";
 
 type CampNavItem = {
   href: string;
@@ -19,8 +22,8 @@ const ICONS = {
   roster: (
     <path d="M5 4h14v16H5zM9 8h6M9 12h6M9 16h4" />
   ),
-  schedule: (
-    <path d="M4 6h16v14H4zM4 10h16M8 3v4M16 3v4" />
+  emma: (
+    <path d="M12 4c3.4 0 6 2.5 6 5.7 0 2.2-1.1 4.1-3 5.1V19l-3-1.7L9 19v-4.2c-1.9-1-3-2.9-3-5.1C6 6.5 8.6 4 12 4Z" />
   ),
   more: (
     <path d="M5 7h14M5 12h14M5 17h14" />
@@ -30,8 +33,8 @@ const ICONS = {
 const NAV_ITEMS: CampNavItem[] = [
   { href: "/camp", label: "Home", icon: ICONS.home },
   { href: "/camp/teams", label: "Teams", icon: ICONS.teams },
+  { href: "#emma", label: "EMMA", icon: ICONS.emma },
   { href: "/camp/roster", label: "Roster", icon: ICONS.roster },
-  { href: "/camp/schedule", label: "Schedule", icon: ICONS.schedule },
   { href: "/camp/more", label: "More", icon: ICONS.more }
 ];
 
@@ -42,25 +45,49 @@ function isActive(pathname: string, href: string): boolean {
 
 export function CampNav() {
   const pathname = usePathname() ?? "/camp";
+  const [emmaOpen, setEmmaOpen] = useState(false);
+
+  useEffect(() => {
+    setEmmaOpen(false);
+  }, [pathname]);
 
   return (
-    <nav className="camp-nav" aria-label="Camp sections">
-      {NAV_ITEMS.map((item) => {
-        const active = isActive(pathname, item.href);
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={active ? "camp-nav-link active" : "camp-nav-link"}
-            aria-current={active ? "page" : undefined}
-          >
-            <svg className="camp-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              {item.icon}
-            </svg>
-            <span>{item.label}</span>
-          </Link>
-        );
-      })}
-    </nav>
+    <>
+      <nav className="camp-nav" aria-label="Camp sections">
+        {NAV_ITEMS.map((item) => {
+          if (item.label === "EMMA") {
+            return (
+              <button
+                key={item.href}
+                type="button"
+                className={emmaOpen ? "camp-nav-link camp-nav-emma active" : "camp-nav-link camp-nav-emma"}
+                aria-label="Open EMMA Camp Finder"
+                aria-expanded={emmaOpen}
+                onClick={() => setEmmaOpen(true)}
+              >
+                <EmmaWaveOrb active={emmaOpen} />
+                <span>{item.label}</span>
+              </button>
+            );
+          }
+
+          const active = isActive(pathname, item.href);
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={active ? "camp-nav-link active" : "camp-nav-link"}
+              aria-current={active ? "page" : undefined}
+            >
+              <svg className="camp-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                {item.icon}
+              </svg>
+              <span>{item.label}</span>
+            </Link>
+          );
+        })}
+      </nav>
+      <CampEmmaSheet open={emmaOpen} onClose={() => setEmmaOpen(false)} />
+    </>
   );
 }

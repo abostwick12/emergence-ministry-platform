@@ -5,6 +5,8 @@ import { getDefaultCampAccessScope } from "@/lib/camp/access";
 import { deriveCampDays, scheduleForDay, type CampDay } from "@/lib/camp/days";
 import type { CampAccessRole, CampOverviewPayload, CampScheduleBlock } from "@/lib/camp/types";
 
+export type CampHomeMode = "operations" | "medical";
+
 export type CampCapabilities = {
   restrictedMedical: boolean;
   medicalCommand: boolean;
@@ -29,6 +31,9 @@ const emptyCapabilities: CampCapabilities = { restrictedMedical: false, medicalC
 type CampContextValue = {
   role: CampAccessRole;
   setRole: (role: CampAccessRole) => void;
+  // True only in dev/test (server-decided). Gates the Access Preview picker; the
+  // server is always authoritative regardless of this value.
+  rolePreviewEnabled: boolean;
   driverVehicleId: string;
   setDriverVehicleId: (id: string) => void;
   overview: CampOverviewPayload;
@@ -38,18 +43,21 @@ type CampContextValue = {
   selectedDay: string;
   setSelectedDay: (key: string) => void;
   scheduleForSelectedDay: CampScheduleBlock[];
+  homeMode: CampHomeMode;
+  setHomeMode: (mode: CampHomeMode) => void;
   refresh: () => Promise<void>;
 };
 
 const CampContext = createContext<CampContextValue | null>(null);
 
-export function CampProvider({ children }: { children: React.ReactNode }) {
+export function CampProvider({ children, rolePreviewEnabled = false }: { children: React.ReactNode; rolePreviewEnabled?: boolean }) {
   const [role, setRole] = useState<CampAccessRole>("general_leader");
   const [driverVehicleId, setDriverVehicleId] = useState(getDefaultCampAccessScope("driver").vehicleId ?? "van-2");
   const [overview, setOverview] = useState<CampOverviewPayload>(emptyOverview);
   const [capabilities, setCapabilities] = useState<CampCapabilities>(emptyCapabilities);
   const [loading, setLoading] = useState(true);
   const [selectedDay, setSelectedDay] = useState("");
+  const [homeMode, setHomeMode] = useState<CampHomeMode>("operations");
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -71,7 +79,7 @@ export function CampProvider({ children }: { children: React.ReactNode }) {
     void refresh();
   }, [refresh]);
 
-  const days = useMemo(() => deriveCampDays(overview.schedule), [overview.schedule]);
+  const days = useMemo(() => deriveCampDays(overview.schedule, overview.campStartsOn), [overview.schedule, overview.campStartsOn]);
 
   // Keep the selected day valid as data loads or the schedule changes.
   useEffect(() => {
@@ -86,10 +94,15 @@ export function CampProvider({ children }: { children: React.ReactNode }) {
     [overview.schedule, selectedDay]
   );
 
+  useEffect(() => {
+    if (!capabilities.medicalCommand && homeMode === "medical") setHomeMode("operations");
+  }, [capabilities.medicalCommand, homeMode]);
+
   const value = useMemo<CampContextValue>(
     () => ({
       role,
       setRole,
+      rolePreviewEnabled,
       driverVehicleId,
       setDriverVehicleId,
       overview,
@@ -99,9 +112,11 @@ export function CampProvider({ children }: { children: React.ReactNode }) {
       selectedDay,
       setSelectedDay,
       scheduleForSelectedDay,
+      homeMode,
+      setHomeMode,
       refresh
     }),
-    [role, driverVehicleId, overview, capabilities, loading, days, selectedDay, scheduleForSelectedDay, refresh]
+    [role, rolePreviewEnabled, driverVehicleId, overview, capabilities, loading, days, selectedDay, scheduleForSelectedDay, homeMode, refresh]
   );
 
   return <CampContext.Provider value={value}>{children}</CampContext.Provider>;
