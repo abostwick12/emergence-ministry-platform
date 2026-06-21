@@ -525,6 +525,7 @@ describe("camp API restricted data boundaries", () => {
     expect(response.status).toBe(200);
     expect(JSON.stringify(payload)).toContain("andrew_medical");
     expect(JSON.stringify(payload)).toContain("scheduled for the selected Camp day");
+    expect(JSON.stringify(payload)).toContain("medication blocks");
     // Temporal honesty: status counts are surfaced without claiming real-time "due now".
     expect(JSON.stringify(payload).toLowerCase()).not.toMatch(/due now|right now|tonight|today/);
     expectNoRestrictedPayloadDetails(payload);
