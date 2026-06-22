@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo } from "react";
 import { useCamp } from "@/components/camp/camp-provider";
 import type { CampVisibleStudent } from "@/lib/camp/types";
@@ -20,6 +21,12 @@ export default function CampVehiclesPage() {
 
   return (
     <div className="camp-cc-page">
+      <Link href="/camp/more" className="camp-cc-back">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M15 18l-6-6 6-6" />
+        </svg>
+        <span>More</span>
+      </Link>
       <header className="camp-cc-page-head">
         <h1>Transportation</h1>
         <p className="camp-cc-muted">{overview.vehicles.length} vehicles</p>

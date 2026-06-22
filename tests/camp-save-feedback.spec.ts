@@ -1,103 +1,94 @@
 import { expect, type Page, test } from "@playwright/test";
 
-test.describe("Camp save feedback and recovery", () => {
-  test.describe.configure({ mode: "serial" });
-
-  test("medication check-in disables the save button, shows real stages, and persists after refresh", async ({ page }) => {
+test.describe("Camp dedicated medication tool pages", () => {
+  test("General Leader sees safe More tools without restricted medication workflows", async ({ page }) => {
     await login(page);
     await page.goto("/camp/more");
-    await page.getByRole("button", { name: "Andrew" }).click();
 
-    const checkIn = page.getByRole("region", { name: "Check-in workflow" });
-    await checkIn.getByLabel("Medication Label").fill("Feedback Check-in Medication");
-    await checkIn.getByLabel("Parent-Provided Instructions").fill("Follow signed parent instructions.");
-    await checkIn.getByLabel("Check-In Status").selectOption("Checked In");
-
-    await page.route("**/api/camp/medication?**", async (route) => {
-      const request = route.request();
-      if (request.method() === "POST") await page.waitForTimeout(350);
-      await route.continue();
-    });
-
-    const response = page.waitForResponse((res) => res.url().includes("/api/camp/medication?role=andrew") && res.request().method() === "POST");
-    const saveButton = checkIn.getByRole("button", { name: "Save medication check-in" });
-    await saveButton.click();
-    await expect(checkIn.getByRole("button", { name: "Saving medication..." })).toBeDisabled();
-    await expect(checkIn.getByText("Saving medication check-in...")).toBeVisible();
-    expect((await response).status()).toBe(200);
-    await expect(checkIn.getByText("Medication check-in saved.")).toBeVisible();
-
-    await page.reload();
-    await page.getByRole("button", { name: "Andrew" }).click();
-    await expect(page.getByRole("region", { name: "Check-in workflow" }).getByText("Feedback Check-in Medication")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "More Camp tools" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Full Schedule" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Transportation / Vehicles" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Forms & Documents" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Medicine Intake / Return" })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Administer Medicine" })).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "Drop-off intake" })).toHaveCount(0);
   });
 
-  test("schedule save failure surfaces the server message and preserves form values", async ({ page }) => {
+  test("Jaci can open restricted staff medicine pages but not Andrew-only administration", async ({ page }) => {
     await login(page);
-    await page.goto("/camp/more");
-    await page.getByRole("button", { name: "Andrew" }).click();
+    await page.goto("/camp");
+    await page.getByRole("button", { name: "Jaci", exact: true }).click();
+    await page.getByRole("navigation", { name: "Camp sections" }).getByRole("link", { name: "More", exact: true }).click();
 
-    const schedule = page.getByRole("region", { name: "Schedule workflow" });
-    await schedule.getByLabel("Time Window").fill("Failure recovery window");
-    await schedule.getByLabel("Parent Instructions").fill("Follow signed parent instructions.");
+    await expect(page.getByRole("link", { name: "Medicine Intake / Return" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Medication Schedule" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Medication History & Corrections" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Administer Medicine" })).toHaveCount(0);
 
-    await page.route("**/api/camp/medication?**", async (route) => {
-      const request = route.request();
-      if (request.method() === "POST") {
-        const body = JSON.parse(request.postData() ?? "{}") as { target?: string };
-        if (body.target === "schedule") {
-          await page.waitForTimeout(250);
-          await route.fulfill({ status: 400, contentType: "application/json", body: JSON.stringify({ error: "Broken schedule save" }) });
-          return;
-        }
-      }
-      await route.continue();
-    });
+    await page.getByRole("link", { name: "Medicine Intake / Return" }).click();
+    await expect(page.getByRole("heading", { name: "Medicine Intake / Return" })).toBeVisible();
+    await expect(page.getByText("Intake and return edit controls are not split into this dedicated page yet.")).toBeVisible();
 
-    await schedule.getByRole("button", { name: "Add schedule item" }).click();
-    await expect(schedule.getByRole("button", { name: "Saving schedule..." })).toBeDisabled();
-    await expect(schedule.getByText("Medication schedule could not be saved: Broken schedule save")).toBeVisible();
-    await expect(schedule.getByRole("button", { name: "Add schedule item" })).toBeEnabled();
-    await expect(schedule.getByLabel("Time Window")).toHaveValue("Failure recovery window");
+    await page.goto("/camp/medical-command/administer");
+    await expect(page.getByText("This page is available only in Andrew Medical Command.")).toBeVisible();
   });
 
-  test("intake with a real fake image shows upload stage text and keeps the thumbnail after refresh", async ({ page }) => {
+  test("tapping a Medical Command time block opens administration with the block preselected", async ({ page }) => {
     await login(page);
-    await page.goto("/camp/more");
-    await page.getByRole("button", { name: "Andrew" }).click();
+    await page.goto("/camp");
+    await page.getByRole("button", { name: "Andrew", exact: true }).click();
 
-    const intake = page.getByRole("region", { name: "Drop-off intake" });
-    await intake.getByLabel("Medication Name / Type").fill("Photo Feedback Intake");
-    await intake.getByLabel("Dose").fill("Parent label dose");
-    await intake.getByLabel("Schedule / When Given").fill("Breakfast");
-    await intake.getByLabel("Quantity Received").fill("4 tablets");
-    await intake.getByLabel("Container Status").fill("Original bottle");
-    await intake.getByLabel("Guardian Printed Name").fill("Pat Parent");
-    await intake.getByLabel("Guardian Relationship").fill("Parent");
-    await intake.getByLabel("Parent-Provided Instructions").fill("Follow signed parent instructions.");
-    await intake.getByLabel("Choose From Photo Library").setInputFiles({
-      name: "medicine.png",
-      mimeType: "image/png",
-      buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR42mP8z8BQDwAFgwJ/lwDW0wAAAABJRU5ErkJggg==", "base64")
+    await page.getByRole("button", { name: "Medical Command" }).click();
+    await page.getByRole("link", { name: "Open medication detail for Avery Johnson" }).click();
+    await page.waitForURL(/\/camp\/medical-command\/administer\?.*scheduleItemId=med-sched-1/);
+    await expect(page.getByRole("heading", { name: "Administer Medicine" })).toBeVisible();
+    await expect(page.getByLabel("Medication time block")).toHaveValue("med-sched-1");
+    await expect(page.getByText("Avery Johnson - Breakfast").first()).toBeVisible();
+    await expect(page.locator("a.camp-cc-back", { hasText: "More" })).toBeVisible();
+  });
+
+  test("Andrew administration requires acknowledgement initials or unavailable reason", async ({ page }) => {
+    await login(page);
+    await page.goto("/camp");
+    await page.getByRole("button", { name: "Andrew", exact: true }).click();
+    await page.getByRole("navigation", { name: "Camp sections" }).getByRole("link", { name: "More", exact: true }).click();
+
+    await page.getByRole("link", { name: "Administer Medicine" }).click();
+    await page.waitForURL(/\/camp\/medical-command\/administer$/);
+    await page.getByLabel("Medication time block").selectOption("med-sched-1");
+    await page.getByRole("button", { name: "Log medication administration" }).click();
+    await expect(page.getByText("Student acknowledgement initials are required")).toBeVisible();
+
+    await page.getByLabel("Student acknowledgement initials").fill("aj");
+    await page.getByRole("button", { name: "Clear and Re-sign" }).click();
+    await expect(page.getByLabel("Student acknowledgement initials")).toHaveValue("");
+
+    await page.getByLabel("Student acknowledgement initials").fill("aj");
+    await page.getByLabel("Staff notes").fill("Logged after student acknowledgement.");
+    await page.getByRole("button", { name: "Log medication administration" }).click();
+    await expect(page.getByText("Medication administration logged.")).toBeVisible();
+  });
+
+  test("Edit Camper action stays compact inside tall roster cards", async ({ page }) => {
+    await login(page);
+    await page.goto("/camp");
+    await page.evaluate(() => {
+      const probe = document.createElement("div");
+      probe.innerHTML = `
+        <button class="camp-student-card camp-student-button" style="height: 220px">
+          <span class="camp-avatar">AJ</span>
+          <span>
+            <strong>Layout Probe</strong>
+            <span class="muted">Tall card content</span>
+            <span class="button compact-button camp-card-action">Edit Camper</span>
+          </span>
+        </button>
+      `;
+      document.body.appendChild(probe);
     });
-    await drawSignature(page);
-    await intake.getByLabel(/I confirm this reflects/).check();
-
-    await page.route("**/api/camp/medication/photos?**", async (route) => {
-      if (route.request().method() === "POST") await page.waitForTimeout(400);
-      await route.continue();
-    });
-
-    await intake.getByRole("button", { name: "Save medication intake" }).click();
-    await expect(intake.getByText("Saving medication intake...")).toBeVisible();
-    await expect(intake.getByText("Uploading container photo...")).toBeVisible();
-    await expect(page.getByText("Medication intake saved. Photo on file.").first()).toBeVisible();
-
-    await page.reload();
-    await page.getByRole("button", { name: "Andrew" }).click();
-    const checkIn = page.getByRole("region", { name: "Check-in workflow" });
-    const thumbnail = checkIn.getByRole("button", { name: "View medication photo for Avery Johnson" }).first();
-    await expect(thumbnail.locator("img")).toBeVisible();
+    const action = page.locator(".camp-card-action").last();
+    const box = await action.boundingBox();
+    expect(box?.height).toBeLessThan(48);
   });
 });
 
@@ -107,17 +98,4 @@ async function login(page: Page) {
   await page.getByLabel("Password").fill(process.env.E2E_TEST_PASSWORD ?? "password");
   await page.getByRole("button", { name: "Log in" }).click();
   await page.waitForURL(/\/dashboard$/);
-}
-
-async function drawSignature(page: Page) {
-  const canvas = page.locator("canvas[aria-label='Parent or guardian signature']");
-  await canvas.scrollIntoViewIfNeeded();
-  const box = await canvas.boundingBox();
-  if (!box) throw new Error("signature canvas not visible");
-  await page.mouse.move(box.x + 24, box.y + 24);
-  await page.mouse.down();
-  await page.mouse.move(box.x + 80, box.y + 50, { steps: 4 });
-  await page.mouse.move(box.x + 140, box.y + 92, { steps: 4 });
-  await page.mouse.up();
-  await page.waitForTimeout(100);
 }

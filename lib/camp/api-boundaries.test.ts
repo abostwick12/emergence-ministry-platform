@@ -398,6 +398,8 @@ describe("camp API restricted data boundaries", () => {
     expectNoRestrictedPayloadDetails(payload);
     expect(payload.timeBlocks[0]).toEqual(expect.objectContaining({
       id: expect.any(String),
+      medicationRecordId: expect.any(String),
+      studentId: expect.any(String),
       studentName: expect.any(String),
       timeWindow: expect.any(String),
       parentHandoffOnFile: expect.any(Boolean),
@@ -410,6 +412,48 @@ describe("camp API restricted data boundaries", () => {
     const overview = await campGET(new Request("http://localhost/api/camp?role=andrew"));
     const caps = (await overview.json() as { capabilities?: { medicalCommand?: boolean } }).capabilities;
     expect(caps?.medicalCommand).toBe(true);
+  });
+
+  it("limits medication administration writes to Andrew and requires student acknowledgement", async () => {
+    getServerSessionMock.mockResolvedValue(session());
+
+    for (const role of ["jaci", "joel", "general_leader", "driver"]) {
+      const response = await medicationPOST(jsonRequest(`http://localhost/api/camp/medication?role=${role}`, {
+        target: "administrationLog",
+        scheduleItemId: "med-sched-1",
+        loggedBy: role,
+        status: "Logged",
+        studentAcknowledgementInitials: "AJ"
+      }));
+      expect(response.status).toBe(403);
+    }
+
+    const missingAck = await medicationPOST(jsonRequest("http://localhost/api/camp/medication?role=andrew", {
+      target: "administrationLog",
+      scheduleItemId: "med-sched-1",
+      loggedBy: "Andrew",
+      status: "Logged"
+    }));
+    expect(missingAck.status).toBe(400);
+    expect(await missingAck.json()).toMatchObject({ error: expect.stringMatching(/acknowledgement initials are required/i) });
+
+    const logged = await medicationPOST(jsonRequest("http://localhost/api/camp/medication?role=andrew", {
+      target: "administrationLog",
+      scheduleItemId: "med-sched-1",
+      loggedBy: "Andrew",
+      status: "Logged",
+      notes: "Logged after student acknowledgement.",
+      studentAcknowledgementInitials: "AJ"
+    }));
+    expect(logged.status).toBe(200);
+    const payload = await logged.json() as { log: Record<string, unknown> };
+    expect(payload.log).toMatchObject({
+      scheduleItemId: "med-sched-1",
+      loggedBy: "Andrew",
+      status: "Logged",
+      studentAcknowledgementInitials: "AJ",
+      studentAcknowledgementUnavailable: false
+    });
   });
 
   it("does not advertise Medical Command capability to General Leaders or Drivers", async () => {

@@ -4,6 +4,7 @@ import { randomUUID } from "crypto";
 import { campDocuments, campSchedule, campStartsOn, campTeams, campVehicles } from "@/lib/camp/public-data";
 import { sanitizePublicSafetyFlags } from "@/lib/camp/public-safety";
 import {
+  assertCampMedicalCommandAccess,
   assertCampRestrictedAccess,
   type CampAccessContext
 } from "@/lib/camp/permissions";
@@ -156,6 +157,9 @@ type CampMedicationLogRow = {
   logged_by: string;
   status: CampMedicationAdministrationLog["status"];
   notes: string | null;
+  student_acknowledgement_initials?: string | null;
+  student_acknowledgement_unavailable?: boolean | null;
+  student_acknowledgement_unavailable_reason?: string | null;
   supersedes_administration_log_id: string | null;
   correction_note: string | null;
   voided_at: string | null;
@@ -1013,9 +1017,19 @@ export async function getMedicationPhotoAccess(session: AuthSession, context: Ca
 export async function logMedicationAdministration(
   session: AuthSession,
   context: CampAccessContext,
-  input: { scheduleItemId: string; loggedBy: string; status: CampMedicationAdministrationLog["status"]; notes?: string; supersedesAdministrationLogId?: string; correctionNote?: string }
+  input: {
+    scheduleItemId: string;
+    loggedBy: string;
+    status: CampMedicationAdministrationLog["status"];
+    notes?: string;
+    studentAcknowledgementInitials?: string;
+    studentAcknowledgementUnavailable?: boolean;
+    studentAcknowledgementUnavailableReason?: string;
+    supersedesAdministrationLogId?: string;
+    correctionNote?: string;
+  }
 ) {
-  const access = assertCampRestrictedAccess(context);
+  const access = assertCampMedicalCommandAccess(context);
   if (!access.allowed) return access;
   if (shouldUseMock(session)) return mockStore.logMedicationAdministration(context.effectiveRole, input);
 
@@ -1031,6 +1045,7 @@ export async function logMedicationAdministration(
   await requireActiveCamper(session, scheduleItem.camper_id);
 
   const status = mockStore.normalizeAdministrationStatus(input.status, input.notes);
+  const acknowledgement = normalizeStudentAcknowledgement(input);
   const loggedAt = new Date().toISOString();
   const { data, error } = await supabase.from("camp_medication_administration_logs").insert({
     ...ministryScopeColumns(await resolveMinistryScope(session)),
@@ -1043,6 +1058,9 @@ export async function logMedicationAdministration(
     logged_by: input.loggedBy.trim() || access.actor,
     status,
     notes: input.notes?.trim() || "Logged per parent-provided instructions.",
+    student_acknowledgement_initials: acknowledgement.initials,
+    student_acknowledgement_unavailable: acknowledgement.unavailable,
+    student_acknowledgement_unavailable_reason: acknowledgement.unavailableReason,
     supersedes_administration_log_id: input.supersedesAdministrationLogId || null,
     correction_note: input.correctionNote?.trim() || ""
   }).select("*").single<CampMedicationLogRow>();
@@ -1059,6 +1077,22 @@ export async function logMedicationAdministration(
   throwIfSupabaseError(updateResult.error);
   await refreshCamperRestrictedFlags(session, data.camper_id);
   return { allowed: true as const, status: 200, log: toAdministrationLog(data, await getCampersById(session, basics.camp.id)) };
+}
+
+function normalizeStudentAcknowledgement(input: {
+  studentAcknowledgementInitials?: string;
+  studentAcknowledgementUnavailable?: boolean;
+  studentAcknowledgementUnavailableReason?: string;
+}) {
+  const unavailable = input.studentAcknowledgementUnavailable === true;
+  const initials = input.studentAcknowledgementInitials?.trim().toUpperCase() ?? "";
+  const unavailableReason = input.studentAcknowledgementUnavailableReason?.trim() ?? "";
+  if (unavailable) {
+    if (!unavailableReason) throw new Error("Reason is required when the student is unavailable or declined to initial.");
+    return { initials: "", unavailable: true, unavailableReason };
+  }
+  if (!initials) throw new Error("Student acknowledgement initials are required, or mark unavailable/declined with a reason.");
+  return { initials, unavailable: false, unavailableReason: "" };
 }
 
 export async function updateMedicationReturnItem(
@@ -1472,6 +1506,9 @@ function toAdministrationLog(row: CampMedicationLogRow, campers: Map<string, Cam
     loggedBy: row.logged_by,
     status: row.status,
     notes: row.notes ?? "",
+    studentAcknowledgementInitials: row.student_acknowledgement_initials ?? "",
+    studentAcknowledgementUnavailable: row.student_acknowledgement_unavailable ?? false,
+    studentAcknowledgementUnavailableReason: row.student_acknowledgement_unavailable_reason ?? "",
     supersedesAdministrationLogId: row.supersedes_administration_log_id ?? undefined,
     correctionNote: row.correction_note || undefined,
     auditStatus,

@@ -1,69 +1,67 @@
 "use client";
 
 import Link from "next/link";
-import { CampCommandCenter } from "@/components/camp-command-center";
 import { useCamp } from "@/components/camp/camp-provider";
 
-// The full lower-frequency Camp toolset (roster entry, transportation, forms,
-// medication intake / check-in / schedule / administration log / return, and the
-// restricted-medical workflows) is preserved by reusing the existing Command
-// Center component rather than rebuilding any workflow. Its internal permission
-// gating remains authoritative, so restricted tools stay hidden from unauthorized
-// roles.
+type MoreTile = {
+  href: string;
+  label: string;
+  description: string;
+};
+
+const SAFE_TOOLS: MoreTile[] = [
+  { href: "/camp/schedule", label: "Full Schedule", description: "Camp-wide timeline by day." },
+  { href: "/camp/vehicles", label: "Transportation / Vehicles", description: "Vehicles, drivers, and visible riders." },
+  { href: "/camp/forms", label: "Forms & Documents", description: "Leader packet and document status." },
+  { href: "/camp/announcements", label: "Camp Announcements", description: "Current leader-facing schedule signals." },
+  { href: "/camp/checkout", label: "Checkout / Return Home", description: "Return-home planning status." },
+  { href: "/camp/my-team", label: "My Team / My Assignments", description: "Assignments visible to this access view." },
+  { href: "/camp/safety", label: "Leader Safety", description: "Safe indicators and contact guidance." }
+];
+
+const RESTRICTED_TOOLS: MoreTile[] = [
+  { href: "/camp/medicine-intake", label: "Medicine Intake / Return", description: "Restricted handoff and return records." },
+  { href: "/camp/medication-schedule", label: "Medication Schedule", description: "Restricted schedule status." },
+  { href: "/camp/medication-history", label: "Medication History & Corrections", description: "Restricted audit history." },
+  { href: "/camp/medical-quick-view", label: "Medical Quick View", description: "Restricted operational flags." }
+];
+
+const MEDICAL_COMMAND_TOOLS: MoreTile[] = [
+  { href: "/camp/medical-command", label: "Medical Dashboard", description: "Andrew-only Medical Command summary." },
+  { href: "/camp/medical-command/administer", label: "Administer Medicine", description: "Andrew-only administration queue." },
+  { href: "/camp/settings", label: "Camp Settings", description: "Camp access and settings entry point." }
+];
+
 export default function CampMorePage() {
   const { capabilities } = useCamp();
+  const groups = [
+    { title: "Camp tools", eyebrow: "Camp menu", tiles: SAFE_TOOLS, medical: false },
+    ...(capabilities.restrictedMedical ? [{ title: "Restricted staff tools", eyebrow: "Restricted workflows", tiles: RESTRICTED_TOOLS, medical: true }] : []),
+    ...(capabilities.medicalCommand ? [{ title: "Andrew Medical Command", eyebrow: "Admin tools", tiles: MEDICAL_COMMAND_TOOLS, medical: true }] : [])
+  ];
 
   return (
     <div className="camp-cc-more">
       <header className="camp-cc-page-head">
         <h1>More Camp tools</h1>
-        <p className="camp-cc-muted">Lower-frequency tools. Restricted tools appear only for authorized staff.</p>
+        <p className="camp-cc-muted">Camp-only launcher. Restricted tools appear only for authorized staff.</p>
       </header>
       <section className="camp-more-sheet" aria-label="Camp tools menu">
-        <div className="camp-more-group">
-          <p className="camp-cc-eyebrow">Camp menu</p>
-          <div className="camp-more-grid">
-            <Link href="/camp/schedule">Full Schedule</Link>
-            <Link href="/camp/vehicles">Transportation / Vehicles</Link>
-            <a href="#camp-documents">Forms &amp; Documents</a>
-            <a href="#camp-home">Camp Announcements</a>
-            <a href="#camp-transportation">Checkout / Return Home</a>
-            <Link href="/camp/teams">My Team / My Assignments</Link>
-            <a href="#camp-home">Settings</a>
-          </div>
-        </div>
-        {capabilities.medicalCommand ? (
-          <div className="camp-more-group">
-            <p className="camp-cc-eyebrow">Andrew Medical Command</p>
-            <div className="camp-more-grid medical">
-              <Link href="/camp">Medical Dashboard</Link>
-              <a href="#med-log">Administer Medicine</a>
-              <a href="#med-intake">Medicine Intake / Return</a>
-              <a href="#med-schedule">Medication Schedule</a>
-              <a href="#med-log">Medication History &amp; Corrections</a>
-              <a href="#camp-medical">Medical Quick View</a>
+        {groups.map((group) => (
+          <div className="camp-more-group" key={group.title}>
+            <p className="camp-cc-eyebrow">{group.eyebrow}</p>
+            <h2 className="camp-tool-group-title">{group.title}</h2>
+            <div className={group.medical ? "camp-more-grid medical" : "camp-more-grid"}>
+              {group.tiles.map((tile) => (
+                <Link href={tile.href} key={tile.href} aria-label={tile.label}>
+                  <strong>{tile.label}</strong>
+                  <span>{tile.description}</span>
+                </Link>
+              ))}
             </div>
           </div>
-        ) : null}
+        ))}
       </section>
-      <Link href="/camp/safety" className="camp-cc-entry" aria-label="Open Leader Safety view">
-        <span className="camp-cc-entry-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 3l7 3v5c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6l7-3Z" />
-            <path d="M9.3 12l1.8 1.8 3.6-3.8" />
-          </svg>
-        </span>
-        <span className="camp-cc-entry-body">
-          <strong>Leader Safety</strong>
-          <span className="camp-cc-muted">Safety basics for every leader — No leader safety alerts on file.</span>
-        </span>
-        <span className="camp-cc-entry-arrow" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M9 6l6 6-6 6" />
-          </svg>
-        </span>
-      </Link>
-      <CampCommandCenter />
     </div>
   );
 }

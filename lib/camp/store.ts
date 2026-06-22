@@ -490,12 +490,23 @@ export function getMedicationPhotoAccess(role: CampAccessRole, medicationRecordI
 
 export function logMedicationAdministration(
   role: CampAccessRole,
-  input: { scheduleItemId: string; loggedBy: string; status: CampMedicationAdministrationLog["status"]; notes?: string; supersedesAdministrationLogId?: string; correctionNote?: string }
+  input: {
+    scheduleItemId: string;
+    loggedBy: string;
+    status: CampMedicationAdministrationLog["status"];
+    notes?: string;
+    studentAcknowledgementInitials?: string;
+    studentAcknowledgementUnavailable?: boolean;
+    studentAcknowledgementUnavailableReason?: string;
+    supersedesAdministrationLogId?: string;
+    correctionNote?: string;
+  }
 ) {
-  if (!isRestrictedCampMedicalRole(role)) return restrictedMedicationDenied();
+  if (role !== "andrew") return restrictedMedicationDenied();
   const scheduleItem = store.medicationSchedule.find((item) => item.id === input.scheduleItemId);
   if (!scheduleItem) return { allowed: true as const, status: 404, error: "Medication schedule item not found." };
   const status = normalizeAdministrationStatus(input.status, input.notes);
+  const acknowledgement = normalizeStudentAcknowledgement(input);
   const loggedAt = new Date().toISOString();
   const log: CampMedicationAdministrationLog = {
     id: uid("camplog"),
@@ -508,6 +519,9 @@ export function logMedicationAdministration(
     loggedBy: input.loggedBy.trim() || "Andrew",
     status,
     notes: input.notes?.trim() || "Logged per parent-provided instructions.",
+    studentAcknowledgementInitials: acknowledgement.initials,
+    studentAcknowledgementUnavailable: acknowledgement.unavailable,
+    studentAcknowledgementUnavailableReason: acknowledgement.unavailableReason,
     supersedesAdministrationLogId: input.supersedesAdministrationLogId,
     correctionNote: input.correctionNote?.trim()
   };
@@ -516,6 +530,22 @@ export function logMedicationAdministration(
   scheduleItem.lastLoggedAt = loggedAt;
   scheduleItem.lastLoggedBy = log.loggedBy;
   return { allowed: true as const, status: 200, log };
+}
+
+function normalizeStudentAcknowledgement(input: {
+  studentAcknowledgementInitials?: string;
+  studentAcknowledgementUnavailable?: boolean;
+  studentAcknowledgementUnavailableReason?: string;
+}) {
+  const unavailable = input.studentAcknowledgementUnavailable === true;
+  const initials = input.studentAcknowledgementInitials?.trim().toUpperCase() ?? "";
+  const unavailableReason = input.studentAcknowledgementUnavailableReason?.trim() ?? "";
+  if (unavailable) {
+    if (!unavailableReason) throw new Error("Reason is required when the student is unavailable or declined to initial.");
+    return { initials: "", unavailable: true, unavailableReason };
+  }
+  if (!initials) throw new Error("Student acknowledgement initials are required, or mark unavailable/declined with a reason.");
+  return { initials, unavailable: false, unavailableReason: "" };
 }
 
 export function updateMedicationReturnItem(

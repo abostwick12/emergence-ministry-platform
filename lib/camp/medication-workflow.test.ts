@@ -51,14 +51,15 @@ describe("camp medication workflow", () => {
       scheduleItemId: schedule.item.id,
       loggedBy: "Jaci",
       status: "Logged",
-      notes: "Logged per parent-provided instructions."
+      notes: "Logged per parent-provided instructions.",
+      studentAcknowledgementInitials: "RB"
     });
     expect(log.allowed).toBe(true);
 
     const payload = getRestrictedCampMedicationPayload("andrew");
     expect(payload.allowed).toBe(true);
     if (!payload.allowed) throw new Error("expected restricted payload");
-    expect(payload.administrationLog[0]).toMatchObject({ studentName: "Riley Brooks", loggedBy: "Jaci", status: "Logged" });
+    expect(payload.administrationLog[0]).toMatchObject({ studentName: "Riley Brooks", loggedBy: "Jaci", status: "Logged", studentAcknowledgementInitials: "RB" });
 
     const returnItem = payload.returnChecklist.find((item) => item.medicationRecordId === created.record.id);
     expect(returnItem).toBeTruthy();
@@ -124,8 +125,40 @@ describe("camp medication workflow", () => {
       guardianSignatureData: { width: 640, height: 220, strokes: [[{ x: 10, y: 10 }, { x: 20, y: 20 }]] },
       confirmationAcknowledged: true
     }).allowed).toBe(false);
-    expect(logMedicationAdministration("driver", { scheduleItemId: "med-sched-1", loggedBy: "Driver", status: "Logged" }).allowed).toBe(false);
+    expect(logMedicationAdministration("jaci", { scheduleItemId: "med-sched-1", loggedBy: "Jaci", status: "Logged", studentAcknowledgementInitials: "AJ" }).allowed).toBe(false);
+    expect(logMedicationAdministration("joel", { scheduleItemId: "med-sched-1", loggedBy: "Joel", status: "Logged", studentAcknowledgementInitials: "AJ" }).allowed).toBe(false);
+    expect(logMedicationAdministration("driver", { scheduleItemId: "med-sched-1", loggedBy: "Driver", status: "Logged", studentAcknowledgementInitials: "AJ" }).allowed).toBe(false);
     expect(voidMedicationWorkflowItem("driver", { target: "medication", id: "med-1", voidReason: "Blocked" }).allowed).toBe(false);
+  });
+
+  it("requires student acknowledgement initials or an unavailable reason for administration", () => {
+    expect(() => logMedicationAdministration("andrew", {
+      scheduleItemId: "med-sched-1",
+      loggedBy: "Andrew",
+      status: "Logged"
+    })).toThrow(/acknowledgement initials are required/i);
+
+    expect(() => logMedicationAdministration("andrew", {
+      scheduleItemId: "med-sched-1",
+      loggedBy: "Andrew",
+      status: "Logged",
+      studentAcknowledgementUnavailable: true
+    })).toThrow(/Reason is required/i);
+
+    const unavailable = logMedicationAdministration("andrew", {
+      scheduleItemId: "med-sched-1",
+      loggedBy: "Andrew",
+      status: "Needs Parent Clarification",
+      notes: "Student declined to initial.",
+      studentAcknowledgementUnavailable: true,
+      studentAcknowledgementUnavailableReason: "Student declined to initial"
+    });
+    expect(unavailable.allowed).toBe(true);
+    if (!unavailable.allowed) throw new Error("expected unavailable acknowledgement log");
+    expect(unavailable.log).toMatchObject({
+      studentAcknowledgementUnavailable: true,
+      studentAcknowledgementUnavailableReason: "Student declined to initial"
+    });
   });
 
   it("preserves corrected and voided medication rows in restricted audit history while active lists show current rows only", () => {
