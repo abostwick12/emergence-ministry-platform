@@ -298,3 +298,35 @@ When finishing a task, report:
 - any remaining risks or manual checks
 
 Do not claim a deployment is verified unless the actual deployed commit and environment were confirmed.
+
+## Camp Oakwood Build (Current Priority)
+
+Camp Oakwood functionality is the current top priority. It takes precedence over other Camp polish work in this iteration.
+
+### Operating Principles
+
+- The Camp app must function as a real operations control center, not a read-only dashboard.
+- Every visible operational item must be actionable, clearly labeled read-only, or removed.
+- Use the main-app interaction pattern: click/tap → modal or detail sheet → edit → save → clear success/error feedback.
+- Desktop uses focused modals or popovers; mobile uses full-screen sheets or bottom sheets.
+- Do not claim functionality works until a real create/edit/save/read cycle has been tested.
+
+### Current Functional Focus
+
+- roster import
+- schedule
+- transportation
+- teams
+- roster
+- forms/documents
+- Camp Updates
+- Camp Settings
+
+### Guardrails for This Iteration
+
+- Do not let permission work block normal Camp functionality in this iteration.
+- Keep existing medical safety boundaries intact, but role and visibility configuration belongs in Camp Settings rather than driving this build.
+- Preserve audit and correction history for destructive or sensitive actions.
+- Work from current `main`. Do not revive older Camp branches or modify recovery stash or backup branches.
+- Preserve the deep-blue Camp shell, the readable dock, and the current Camp route structure.
+- Do not apply Supabase migrations, seed users, import real Camp data, commit, push, deploy, or alter unrelated features unless explicitly approved.
