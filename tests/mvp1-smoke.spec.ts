@@ -233,8 +233,9 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await expect(modal.getByLabel("Event Name")).toHaveValue("Winter Retreat");
     await modal.getByRole("button", { name: /Next: Tasks/ }).click();
     await expect(modal.getByRole("tab", { name: /Tasks & Integrations/ })).toHaveAttribute("aria-selected", "true");
-    await expect(modal.getByText("Changed due date for task: Confirm venue contract and deposit")).toBeVisible();
-    await expect(modal.getByText("Moved task to blocked: Confirm venue contract and deposit")).toBeVisible();
+    const activityLog = modal.locator("#modal-activity-log");
+    await expect(activityLog).toContainText("Changed due date for task: Confirm venue contract and deposit");
+    await expect(activityLog).toContainText("Moved task to blocked: Confirm venue contract and deposit");
   });
 
   test("event and task notes can be saved and create activity entries", async ({ page }) => {
