@@ -141,64 +141,68 @@ export function AppShell({ children, devAuth = false }: { children: React.ReactN
 
   return (
     <div className={isCampRoute ? "app-shell app-shell-camp" : "app-shell"}>
-      <div className="app-shell-parchment" aria-hidden="true" />
-      <div className="app-shell-night-sky" aria-hidden="true" />
-      <div className="app-top-art-clip" aria-hidden="true">
-        <UnifiedDashboardBrandArt />
-      </div>
+      {!isCampRoute ? (
+        <>
+          <div className="app-shell-parchment" aria-hidden="true" />
+          <div className="app-shell-night-sky" aria-hidden="true" />
+          <div className="app-top-art-clip" aria-hidden="true">
+            <UnifiedDashboardBrandArt />
+          </div>
 
-      <aside className="sidebar app-sidebar" aria-label="Primary navigation">
-        <Link className="brand-lead" href="/dashboard" aria-label="Lead Emergence Automated Platform">
-          <span className="brand-lead-name">
-            <span className="brand-lead-light">Lead</span> <span className="brand-lead-bold">Emergence</span>
-          </span>
-          <span className="brand-lead-sub">Automated Platform</span>
-        </Link>
-
-        <nav className="app-nav-list" aria-label="Desktop navigation">
-          {primaryLinks.map((link) => (
-            <Link className={pathname === link.href ? "app-nav-link active" : "app-nav-link"} href={link.href} key={link.href}>
-              <NavIcon href={link.href} />
-              {link.label}
+          <aside className="sidebar app-sidebar" aria-label="Primary navigation">
+            <Link className="brand-lead" href="/dashboard" aria-label="Lead Emergence Automated Platform">
+              <span className="brand-lead-name">
+                <span className="brand-lead-light">Lead</span> <span className="brand-lead-bold">Emergence</span>
+              </span>
+              <span className="brand-lead-sub">Automated Platform</span>
             </Link>
-          ))}
-        </nav>
 
-        <div className="role-control" role="group" aria-label="Switch active role">
-          {(["admin", "leader"] as Role[]).map((role) => (
+            <nav className="app-nav-list" aria-label="Desktop navigation">
+              {primaryLinks.map((link) => (
+                <Link className={pathname === link.href ? "app-nav-link active" : "app-nav-link"} href={link.href} key={link.href}>
+                  <NavIcon href={link.href} />
+                  {link.label}
+                </Link>
+              ))}
+            </nav>
+
+            <div className="role-control" role="group" aria-label="Switch active role">
+              {(["admin", "leader"] as Role[]).map((role) => (
+                <button
+                  className={activeRole === role ? "role-pill active" : "role-pill"}
+                  key={role}
+                  type="button"
+                  onClick={() => setActiveRole(role)}
+                >
+                  {roleLabels[role]}
+                </button>
+              ))}
+            </div>
+
             <button
-              className={activeRole === role ? "role-pill active" : "role-pill"}
-              key={role}
+              className="button primary sidebar-add-event"
               type="button"
-              onClick={() => setActiveRole(role)}
+              aria-label="Add new event"
+              onClick={openCreate}
             >
-              {roleLabels[role]}
+              + Add Event
             </button>
-          ))}
-        </div>
 
-        <button
-          className="button primary sidebar-add-event"
-          type="button"
-          aria-label="Add new event"
-          onClick={openCreate}
-        >
-          + Add Event
-        </button>
+            <div className="sidebar-profile">
+              <span className="sidebar-avatar" aria-hidden="true">AW</span>
+              <span className="sidebar-profile-text">
+                <strong>Alex Walker</strong>
+                <span className="muted">{roleLabels[activeRole]}</span>
+              </span>
+              <a className="sidebar-profile-logout" href="/api/auth/logout">
+                Log out
+              </a>
+            </div>
 
-        <div className="sidebar-profile">
-          <span className="sidebar-avatar" aria-hidden="true">AW</span>
-          <span className="sidebar-profile-text">
-            <strong>Alex Walker</strong>
-            <span className="muted">{roleLabels[activeRole]}</span>
-          </span>
-          <a className="sidebar-profile-logout" href="/api/auth/logout">
-            Log out
-          </a>
-        </div>
-
-        <div className="sidebar-wash-bottom" aria-hidden="true" />
-      </aside>
+            <div className="sidebar-wash-bottom" aria-hidden="true" />
+          </aside>
+        </>
+      ) : null}
 
       <main className={`main app-main app-main-shell${isCampRoute ? " app-main-shell-camp" : ""}`}>
         {!isCampRoute ? (

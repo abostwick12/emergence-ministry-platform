@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { getServerSession, unauthorizedResponse } from "@/lib/auth/server";
-import { assertCampRestrictedAccess } from "@/lib/camp/permissions";
+import { assertCampAdminAccess } from "@/lib/camp/permissions";
 import { resolveCampAccessForRequest } from "@/lib/camp/access-control";
 import { getOakwoodUploadImportPreview } from "@/lib/camp/repository";
 import { detectOakwoodWorkbook, extractOakwoodCsv, sha256Hex, MAX_OAKWOOD_UPLOAD_BYTES } from "@/lib/camp/oakwood-upload-source";
 
 // Restricted Camp Oakwood registration-export upload. .xlsx/.csv are parsed
-// server-side only; the original workbook is never persisted. Andrew/Jaci/Joel
-// only. mode=inspect returns worksheet names (so a sheet can be chosen without
+// server-side only; the original workbook is never persisted. Camp Admin only.
+// mode=inspect returns worksheet names (so a sheet can be chosen without
 // guessing); mode=preview builds the real-name import preview.
 export const runtime = "nodejs";
 
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
   // authorized from the authenticated server identity via the durable store, never
   // from ?role=, the request body, local storage, or a client selector.
   const context = await resolveCampAccessForRequest(session, searchParams.get("role"));
-  const access = assertCampRestrictedAccess(context);
+  const access = assertCampAdminAccess(context);
   if (!access.allowed) return NextResponse.json({ error: access.error }, { status: access.status });
 
   let form: FormData;
