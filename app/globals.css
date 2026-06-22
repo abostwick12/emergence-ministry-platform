@@ -3186,7 +3186,9 @@ textarea:focus-visible {
 /* Higher specificity than shell-continuity's `.app-shell` parchment base. */
 .app-shell.app-shell-camp {
   grid-template-columns: minmax(0, 1fr);
-  height: 100dvh;
+  /* Grow with content (min-height, not a fixed height). A clamped 100dvh height
+     let taller Camp pages overflow past the deep-blue field and reveal the pale
+     body base mid-scroll — the field must cover the full scroll height. */
   min-height: 100dvh;
   background:
     radial-gradient(125% 82% at 50% -10%, #0f3a60 0%, #0b2a49 36%, #081d34 70%, #050f1e 100%);
@@ -3194,6 +3196,15 @@ textarea:focus-visible {
 
 .app-shell.app-shell-camp::before {
   content: none;
+}
+
+/* Belt-and-suspenders: the document base itself is the deep-blue field on Camp
+   routes, so no parchment/pale global background can show behind scrolled content
+   or during overscroll. :has() matches on the first SSR paint (the camp shell is
+   in the server HTML), so there is no light flash, and it stays scoped to Camp. */
+html:has(.app-shell-camp),
+html:has(.app-shell-camp) body {
+  background: #050f1e;
 }
 
 .app-main-shell-camp {
