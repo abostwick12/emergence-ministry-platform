@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useCamp } from "@/components/camp/camp-provider";
 import type { CampEmmaAnswer, CampEmmaMode } from "@/lib/camp/emma";
+import type { CampEmmaCommandResult } from "@/lib/camp/types";
 
 type CampEmmaSheetProps = {
   open: boolean;
@@ -27,11 +28,164 @@ type SheetState =
 const leaderExamples = ["Where is Avery?", "Who is on Blue Team?", "Who is in Van 2?", "What time is dinner?"];
 const smartSearchExamples = ["What room is Avery in?", "Which teams are short a leader?", "Which students are missing rooms?", "Give me a leader briefing for tonight"];
 
+type CampEmmaActiveProposal = {
+  studentId: string;
+  studentName: string;
+  currentRoom: string;
+  proposedRoom: string;
+  originalRequest: string;
+  model: string;
+  deployment: string;
+};
+
+type CampEmmaCommandResponse = {
+  ok?: boolean;
+  result?: CampEmmaCommandResult;
+  error?: string;
+};
+
+type CampEmmaConfirmResponse = {
+  ok?: boolean;
+  error?: string;
+};
+
 export function CampEmmaSheet({ open, onClose }: CampEmmaSheetProps) {
   const { capabilities, selectedDay, homeMode } = useCamp();
   const isEmmaUser = capabilities.restrictedMedical;
   const [query, setQuery] = useState("");
   const [state, setState] = useState<SheetState>({ status: "idle", answer: null, error: null });
+
+  // Andrew-only EMMA room-change command flow. Nothing here ever writes to the
+  // roster directly — interpretCampEmmaCommand (server) only ever returns a
+  // proposal/clarification/blocked/unavailable/error result, and a write only
+  // happens after Confirm is pressed below, via a separate request.
+  const [commandText, setCommandText] = useState("");
+  const [commandLoading, setCommandLoading] = useState(false);
+  const [commandMessage, setCommandMessage] = useState<string | null>(null);
+  const [activeProposal, setActiveProposal] = useState<CampEmmaActiveProposal | null>(null);
+  const [editedRoom, setEditedRoom] = useState("");
+  const [isEditingRoom, setIsEditingRoom] = useState(false);
+  const [clarificationCandidates, setClarificationCandidates] = useState<
+    Array<{ studentId: string; studentName: string; currentRoom: string }> | null
+  >(null);
+  const [pendingClarification, setPendingClarification] = useState<{
+    proposedRoom: string;
+    originalRequest: string;
+    model: string;
+    deployment: string;
+  } | null>(null);
+  const [confirmLoading, setConfirmLoading] = useState(false);
+  const [confirmedNotice, setConfirmedNotice] = useState<string | null>(null);
+
+  function resetCommandFlow() {
+    setActiveProposal(null);
+    setIsEditingRoom(false);
+    setClarificationCandidates(null);
+    setPendingClarification(null);
+    setCommandMessage(null);
+    setConfirmedNotice(null);
+  }
+
+  async function runCommand() {
+    const text = commandText.trim();
+    if (!text) return;
+    resetCommandFlow();
+    setCommandLoading(true);
+    try {
+      const response = await fetch("/api/camp/emma/command", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text })
+      });
+      const payload = (await response.json()) as CampEmmaCommandResponse;
+      if (!response.ok || payload.ok !== true || !payload.result) {
+        setCommandMessage(payload.error ?? "EMMA could not process that command.");
+        return;
+      }
+      applyCommandResult(payload.result);
+    } catch {
+      setCommandMessage("EMMA could not process that command. Please try again.");
+    } finally {
+      setCommandLoading(false);
+    }
+  }
+
+  function applyCommandResult(result: CampEmmaCommandResult) {
+    if (result.kind === "proposal") {
+      setActiveProposal({
+        studentId: result.studentId,
+        studentName: result.studentName,
+        currentRoom: result.currentRoom,
+        proposedRoom: result.proposedRoom,
+        originalRequest: result.originalRequest,
+        model: result.model,
+        deployment: result.deployment
+      });
+      setEditedRoom(result.proposedRoom);
+      return;
+    }
+    if (result.kind === "clarification") {
+      setClarificationCandidates(result.candidates);
+      setPendingClarification({
+        proposedRoom: result.proposedRoom,
+        originalRequest: result.originalRequest,
+        model: result.model,
+        deployment: result.deployment
+      });
+      return;
+    }
+    // blocked | unavailable | error — all carry a safe, user-facing message.
+    setCommandMessage(result.message);
+  }
+
+  function chooseClarificationCandidate(candidate: { studentId: string; studentName: string; currentRoom: string }) {
+    if (!pendingClarification) return;
+    setActiveProposal({
+      studentId: candidate.studentId,
+      studentName: candidate.studentName,
+      currentRoom: candidate.currentRoom,
+      proposedRoom: pendingClarification.proposedRoom,
+      originalRequest: pendingClarification.originalRequest,
+      model: pendingClarification.model,
+      deployment: pendingClarification.deployment
+    });
+    setEditedRoom(pendingClarification.proposedRoom);
+    setClarificationCandidates(null);
+    setPendingClarification(null);
+  }
+
+  async function confirmProposal() {
+    if (!activeProposal) return;
+    const proposedRoom = (isEditingRoom ? editedRoom : activeProposal.proposedRoom).trim();
+    if (!proposedRoom) return;
+    setConfirmLoading(true);
+    try {
+      const response = await fetch("/api/camp/emma/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentId: activeProposal.studentId,
+          proposedRoom,
+          originalRequest: activeProposal.originalRequest,
+          model: activeProposal.model,
+          deployment: activeProposal.deployment
+        })
+      });
+      const payload = (await response.json()) as CampEmmaConfirmResponse;
+      if (!response.ok || payload.ok !== true) {
+        setCommandMessage(payload.error ?? "EMMA could not save that change.");
+        return;
+      }
+      setConfirmedNotice(`${activeProposal.studentName} is now assigned to ${proposedRoom}.`);
+      setActiveProposal(null);
+      setIsEditingRoom(false);
+      setCommandText("");
+    } catch {
+      setCommandMessage("EMMA could not save that change. Please try again.");
+    } finally {
+      setConfirmLoading(false);
+    }
+  }
 
   const examples = useMemo(() => (isEmmaUser ? smartSearchExamples : leaderExamples), [isEmmaUser]);
   // Smart Search and the old "Ask EMMA" tab returned identical results, so they are
@@ -118,6 +272,100 @@ export function CampEmmaSheet({ open, onClose }: CampEmmaSheetProps) {
             </button>
           ))}
         </div>
+
+        {capabilities.operationsCommand ? (
+          <section className="camp-emma-command" aria-label="EMMA room-change command">
+            <p className="camp-cc-eyebrow">EMMA Commands (Andrew only)</p>
+            <form
+              className="camp-emma-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void runCommand();
+              }}
+            >
+              <input
+                type="text"
+                value={commandText}
+                onChange={(event) => setCommandText(event.target.value)}
+                placeholder='Try "Change John West to room 508"'
+                aria-label="EMMA room-change command"
+              />
+              <button type="submit" disabled={commandLoading}>
+                {commandLoading ? "Asking EMMA" : "Send to EMMA"}
+              </button>
+            </form>
+
+            {commandMessage ? <p className="camp-cc-error" role="alert">{commandMessage}</p> : null}
+            {confirmedNotice ? <p className="camp-cc-success" role="status">{confirmedNotice}</p> : null}
+
+            {clarificationCandidates ? (
+              <div className="camp-emma-clarify" role="alert">
+                <p>I found {clarificationCandidates.length} students with that name. Which one do you mean?</p>
+                <div className="camp-emma-clarify-options">
+                  {clarificationCandidates.map((candidate) => (
+                    <button key={candidate.studentId} type="button" onClick={() => chooseClarificationCandidate(candidate)}>
+                      {candidate.studentName}{candidate.currentRoom ? ` — currently ${candidate.currentRoom}` : " — no current room on file"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            {activeProposal ? (
+              <div className="camp-emma-proposal" role="alert">
+                <dl>
+                  <dt>Student</dt>
+                  <dd>{activeProposal.studentName}</dd>
+                  <dt>Current room</dt>
+                  <dd>{activeProposal.currentRoom || "Not set"}</dd>
+                  <dt>Proposed room</dt>
+                  <dd>
+                    {isEditingRoom ? (
+                      <input
+                        type="text"
+                        value={editedRoom}
+                        onChange={(event) => setEditedRoom(event.target.value)}
+                        aria-label="Proposed room"
+                      />
+                    ) : (
+                      activeProposal.proposedRoom
+                    )}
+                  </dd>
+                </dl>
+                <p className="camp-cc-muted">Nothing changes until you press Confirm.</p>
+                <div className="camp-emma-proposal-actions">
+                  <button type="button" disabled={confirmLoading} onClick={() => void confirmProposal()}>
+                    {confirmLoading ? "Saving" : "Confirm"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={confirmLoading}
+                    onClick={() => {
+                      if (isEditingRoom) {
+                        setIsEditingRoom(false);
+                      } else {
+                        setEditedRoom(activeProposal.proposedRoom);
+                        setIsEditingRoom(true);
+                      }
+                    }}
+                  >
+                    {isEditingRoom ? "Done editing" : "Edit"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={confirmLoading}
+                    onClick={() => {
+                      setActiveProposal(null);
+                      setIsEditingRoom(false);
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </section>
+        ) : null}
 
         {state.status === "error" ? <p className="camp-cc-error" role="alert">{state.error}</p> : null}
 

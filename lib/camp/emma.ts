@@ -26,15 +26,26 @@ export type CampMedicalCommandBlock = {
   tone: "due" | "completed" | "attention" | "missing";
 };
 
-const restrictedNeedles = [
+// Exported so the EMMA command/write path (lib/camp/emma-command.ts) can apply
+// the same restricted-topic gate to natural-language room-change commands,
+// independent of and in addition to the model's own classification.
+export const restrictedNeedles = [
   "medication",
   "dose",
   "allergy details",
+  "allergy",
+  "allergic",
   "insurance",
   "parent phone",
+  "parent contact",
   "guardian",
   "physician",
-  "medical notes"
+  "medical notes",
+  "medical",
+  "emergency contact",
+  "prescription",
+  "epipen",
+  "inhaler"
 ];
 
 export function buildCampEmmaAnswer(input: {

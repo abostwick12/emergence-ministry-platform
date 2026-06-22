@@ -494,6 +494,82 @@ export type CampImportAuditBatch = {
   staffCount: number;
 };
 
+// ── EMMA room-change command slice (Andrew-only, operational writes only) ──
+// The model only ever classifies intent and extracts entities (student name,
+// room value) into this shape. It never writes to the database directly —
+// the server matches/validates everything below before any write occurs.
+export type CampEmmaCommandIntent = {
+  intent: "update_room" | "restricted_or_unsupported" | "unsupported";
+  studentNameQuery?: string;
+  proposedRoom?: string;
+};
+
+export type CampEmmaRoomChangeProposal = {
+  kind: "proposal";
+  studentId: string;
+  studentName: string;
+  currentRoom: string;
+  proposedRoom: string;
+  originalRequest: string;
+  model: string;
+  deployment: string;
+};
+
+export type CampEmmaClarificationNeeded = {
+  kind: "clarification";
+  message: string;
+  candidates: Array<{ studentId: string; studentName: string; currentRoom: string }>;
+  proposedRoom: string;
+  originalRequest: string;
+  model: string;
+  deployment: string;
+};
+
+export type CampEmmaCommandBlocked = {
+  kind: "blocked";
+  reason: "restricted_topic" | "unsupported_action" | "no_match";
+  message: string;
+};
+
+export type CampEmmaCommandUnavailable = {
+  kind: "unavailable";
+  message: string;
+};
+
+export type CampEmmaCommandError = {
+  kind: "error";
+  message: string;
+};
+
+export type CampEmmaCommandResult =
+  | CampEmmaRoomChangeProposal
+  | CampEmmaClarificationNeeded
+  | CampEmmaCommandBlocked
+  | CampEmmaCommandUnavailable
+  | CampEmmaCommandError;
+
+export type CampEmmaConfirmInput = {
+  studentId: string;
+  proposedRoom: string;
+  originalRequest: string;
+  model: string;
+  deployment: string;
+};
+
+export type CampEmmaActionAudit = {
+  id: string;
+  actor: string;
+  studentId: string;
+  studentName: string;
+  oldRoom: string;
+  newRoom: string;
+  source: "emma";
+  originalRequest: string;
+  model: string;
+  deployment: string;
+  createdAt: string;
+};
+
 export type CampOakwoodImportCommitResult = {
   auditBatch: CampImportAuditBatch;
   committed: Array<{

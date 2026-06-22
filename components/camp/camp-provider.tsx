@@ -9,6 +9,10 @@ export type CampHomeMode = "operations" | "medical";
 export type CampCapabilities = {
   restrictedMedical: boolean;
   medicalCommand: boolean;
+  // Andrew-only, for this first EMMA slice: lets the EMMA sheet show the
+  // room-change command UI. General leaders and Jaci do not get this even
+  // though they may have restrictedMedical/medicalCommand-adjacent access.
+  operationsCommand: boolean;
 };
 
 export type { CampDay };
@@ -26,7 +30,7 @@ const emptyOverview: CampOverviewPayload = {
   staff: []
 };
 
-const emptyCapabilities: CampCapabilities = { restrictedMedical: false, medicalCommand: false };
+const emptyCapabilities: CampCapabilities = { restrictedMedical: false, medicalCommand: false, operationsCommand: false };
 
 type CampContextValue = {
   overview: CampOverviewPayload;

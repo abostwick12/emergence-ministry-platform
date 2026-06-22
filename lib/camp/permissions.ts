@@ -79,6 +79,29 @@ export function assertCampMedicalCommandAccess(context: CampAccessContext) {
   return { allowed: true as const, actor: "Andrew" as const };
 }
 
+// Camp EMMA operational write commands (e.g. "change John West to room 508")
+// are a stricter capability than general restricted Camp access: limited to
+// Andrew ONLY for this first slice. Jaci and Joel keep their existing
+// restricted Q&A/medication access but must not be able to issue EMMA write
+// commands yet. Mirrors canAccessCampMedicalCommand's shape deliberately, but
+// is named and checked separately so the two capabilities can diverge later
+// without silently changing each other's behavior.
+export function canAccessCampEmmaOperationsCommand(context: CampAccessContext): boolean {
+  return context.restrictedActor === "Andrew";
+}
+
+export function assertCampEmmaOperationsAccess(context: CampAccessContext) {
+  if (!canAccessCampEmmaOperationsCommand(context)) {
+    return {
+      allowed: false as const,
+      status: 403,
+      error: "Camp EMMA operational commands (like room changes) are limited to Andrew in this first slice."
+    };
+  }
+
+  return { allowed: true as const, actor: "Andrew" as const };
+}
+
 export function assertCampAdminAccess(context: CampAccessContext) {
   if (context.restrictedActor !== "Andrew") {
     return {
