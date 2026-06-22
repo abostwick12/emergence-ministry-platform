@@ -19,8 +19,7 @@ const TONE_CLASS: Record<LeaderSafetyTone, string> = {
 
 // Leader Safety View: a mobile-first, supervision-only summary for approved
 // leaders. It reads ONLY the general-leader-safe overview payload (via
-// useCamp) and the pure mapper, so it cannot expose restricted medical data
-// even when an authorized identity previews a different access role.
+// useCamp) and the pure mapper, so it cannot expose restricted medical data.
 export function CampLeaderSafetyView() {
   const { overview, loading } = useCamp();
   const [query, setQuery] = useState("");

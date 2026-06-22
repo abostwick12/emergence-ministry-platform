@@ -97,8 +97,8 @@ export function devAuthRole(): string {
 export function getMockAuthUser() {
   return {
     id: "00000000-0000-4000-8000-000000000001",
-    email: "staff@example.com",
-    fullName: "MVP Staff User",
+    email: "andrew.w.bostwick12@gmail.com",
+    fullName: "Andrew Bostwick",
     role: devAuthRole()
   };
 }

@@ -55,7 +55,7 @@ function LeaderSelect({
 }
 
 export default function CampTeamsPage() {
-  const { role, overview, loading, refresh } = useCamp();
+  const { overview, loading, refresh } = useCamp();
   const counts = useTeamStudentCounts();
   const missingCounts = useTeamMissingAssignmentCounts();
   const [editing, setEditing] = useState<CampTeamInput | null>(null);
@@ -67,7 +67,7 @@ export default function CampTeamsPage() {
     if (!editing) return;
     setMessage(null);
     setSaving(true);
-    const response = await fetch(`/api/camp/teams?role=${role}`, {
+    const response = await fetch("/api/camp/teams", {
       method: editing.id ? "PATCH" : "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(editing)
@@ -87,7 +87,7 @@ export default function CampTeamsPage() {
     if (!editing?.id || !window.confirm("Archive this team and clear its camper assignments?")) return;
     setMessage(null);
     setSaving(true);
-    const response = await fetch(`/api/camp/teams?role=${role}`, {
+    const response = await fetch("/api/camp/teams", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: editing.id, action: "archive" })

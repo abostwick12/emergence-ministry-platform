@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { CampAccessAdminPanel } from "@/components/camp/camp-access-admin";
 import { useCamp } from "@/components/camp/camp-provider";
 import type {
   CampDocument,
@@ -63,7 +64,7 @@ function StatusPill({ children, tone }: { children: React.ReactNode; tone?: "rea
 }
 
 function useRestrictedMedicationData(required: "restricted" | "medicalCommand" = "restricted"): MedicationState {
-  const { role, capabilities } = useCamp();
+  const { capabilities } = useCamp();
   const [state, setState] = useState<MedicationState>({ status: "idle" });
   const allowed = required === "medicalCommand" ? capabilities.medicalCommand : capabilities.restrictedMedical;
 
@@ -75,7 +76,7 @@ function useRestrictedMedicationData(required: "restricted" | "medicalCommand" =
 
     let active = true;
     setState({ status: "loading" });
-    fetch(`/api/camp/medication?role=${role}`, { cache: "no-store" })
+    fetch("/api/camp/medication", { cache: "no-store" })
       .then(async (response) => {
         if (!active) return;
         if (response.status === 403) {
@@ -93,7 +94,7 @@ function useRestrictedMedicationData(required: "restricted" | "medicalCommand" =
     return () => {
       active = false;
     };
-  }, [allowed, role]);
+  }, [allowed]);
 
   return state;
 }
@@ -316,20 +317,20 @@ export function CampCheckoutToolPage() {
 }
 
 export function CampAssignmentsToolPage() {
-  const { role, overview, loading } = useCamp();
+  const { overview, loading } = useCamp();
   const grouped = useMemo(() => {
     const map = new Map<string, CampVisibleStudent[]>();
     for (const student of overview.students) {
-      const key = role === "driver" ? student.vehicleName : student.teamName ?? "Unassigned team";
+      const key = student.teamName ?? "Unassigned team";
       const list = map.get(key) ?? [];
       list.push(student);
       map.set(key, list);
     }
     return Array.from(map.entries());
-  }, [overview.students, role]);
+  }, [overview.students]);
 
   return (
-    <ToolPageShell title="My Team / My Assignments" subtitle={role === "driver" ? "Transport-scoped assignments visible to this driver view." : "Team assignments visible to this Camp access view."}>
+    <ToolPageShell title="My Team / My Assignments" subtitle="Assignments visible to your authenticated Camp access.">
       {loading && !overview.students.length ? (
         <EmptyState>Loading assignments...</EmptyState>
       ) : grouped.length === 0 ? (
@@ -360,7 +361,7 @@ export function CampSettingsToolPage() {
           <Link className="camp-cc-entry" href="/settings">
             <span className="camp-cc-entry-body">
               <strong>Open Platform Settings</strong>
-              <span className="camp-cc-muted">Camp access management lives in Settings for approved administrators.</span>
+              <span className="camp-cc-muted">Platform-wide settings and EMMA review controls.</span>
             </span>
             <span className="camp-cc-entry-arrow" aria-hidden="true">&gt;</span>
           </Link>
@@ -371,6 +372,7 @@ export function CampSettingsToolPage() {
             </span>
             <span className="camp-cc-entry-arrow" aria-hidden="true">&gt;</span>
           </Link>
+          <CampAccessAdminPanel />
         </div>
       ) : (
         <RestrictedNotice required="medicalCommand" />
@@ -392,7 +394,7 @@ function oakwoodPersonTypeLabel(personType: CampOakwoodImportPreview["rows"][num
 }
 
 export function CampSettingsImportToolPage() {
-  const { role, capabilities, refresh } = useCamp();
+  const { capabilities, refresh } = useCamp();
   const [sourceName, setSourceName] = useState("Camp Oakwood Upload");
   const [files, setFiles] = useState<Record<OakwoodUploadField, File | null>>({ combinedFile: null, camperFile: null, staffFile: null });
   const [sheetNames, setSheetNames] = useState<Record<OakwoodUploadField, string[]>>({ combinedFile: [], camperFile: [], staffFile: [] });
@@ -434,7 +436,7 @@ export function CampSettingsImportToolPage() {
     setPreview(null);
     setConfirmed(false);
     setBusy("inspect");
-    const response = await fetch(`/api/camp/import/upload?role=${role}`, { method: "POST", body: buildUploadForm("inspect") });
+    const response = await fetch("/api/camp/import/upload", { method: "POST", body: buildUploadForm("inspect") });
     const body = await response.json().catch(() => ({})) as { error?: string; files?: Array<{ slot: OakwoodUploadField; sheetNames: string[] }> };
     setBusy(null);
     if (!response.ok || !body.files) {
@@ -461,7 +463,7 @@ export function CampSettingsImportToolPage() {
     setPreview(null);
     setConfirmed(false);
     setBusy("preview");
-    const response = await fetch(`/api/camp/import/upload?role=${role}`, { method: "POST", body: buildUploadForm("preview") });
+    const response = await fetch("/api/camp/import/upload", { method: "POST", body: buildUploadForm("preview") });
     const body = await response.json().catch(() => ({})) as { error?: string; preview?: CampOakwoodImportPreview };
     setBusy(null);
     if (!response.ok || !body.preview) {
@@ -478,7 +480,7 @@ export function CampSettingsImportToolPage() {
       return;
     }
     setBusy("commit");
-    const response = await fetch(`/api/camp/import?role=${role}`, {
+    const response = await fetch("/api/camp/import", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "oakwoodCommit", oakwoodPreview: preview, confirmed: true })
@@ -628,7 +630,6 @@ function MedicationAdministrationForm({
   openItems: CampMedicationScheduleItem[];
   requestedScheduleItemId: string | null;
 }) {
-  const { role } = useCamp();
   const activeItems = openItems.length ? openItems : data.schedule;
   const initialScheduleId = activeItems.some((item) => item.id === requestedScheduleItemId) ? requestedScheduleItemId ?? activeItems[0]?.id ?? "" : activeItems[0]?.id ?? "";
   const [scheduleItemId, setScheduleItemId] = useState(initialScheduleId);
@@ -664,7 +665,7 @@ function MedicationAdministrationForm({
     }
 
     setSaving(true);
-    const response = await fetch(`/api/camp/medication?role=${role}`, {
+    const response = await fetch("/api/camp/medication", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -806,7 +807,6 @@ export function CampMedicineIntakeToolPage() {
 }
 
 function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
-  const { role } = useCamp();
   const [intakeHistory, setIntakeHistory] = useState(data.intakeHistory);
   const [returnChecklist, setReturnChecklist] = useState(data.returnChecklist);
   const [medicationRecordId, setMedicationRecordId] = useState(data.checkIn[0]?.id ?? "");
@@ -818,7 +818,7 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
   const [parentInstructions, setParentInstructions] = useState(selectedMedication?.parentProvidedInstructions ?? "");
   const [staffNotes, setStaffNotes] = useState("");
   const [containerStatus, setContainerStatus] = useState("Original labeled container received");
-  const [receivedByName, setReceivedByName] = useState(role === "jaci" ? "Jaci" : role === "joel" ? "Joel" : "Andrew");
+  const [receivedByName, setReceivedByName] = useState("Andrew");
   const [guardianName, setGuardianName] = useState("");
   const [guardianRelationship, setGuardianRelationship] = useState("Parent/Guardian");
   const [guardianSignature, setGuardianSignature] = useState<CampSignatureData>(() => emptySignatureData());
@@ -827,7 +827,7 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
   const [returnItemId, setReturnItemId] = useState(returnChecklist[0]?.id ?? "");
   const selectedReturn = returnChecklist.find((item) => item.id === returnItemId) ?? returnChecklist[0];
   const [returnStatus, setReturnStatus] = useState<CampMedicationReturnItem["returnStatus"]>(selectedReturn?.returnStatus ?? "Pending Return");
-  const [returnedBy, setReturnedBy] = useState(role === "jaci" ? "Jaci" : role === "joel" ? "Joel" : "Andrew");
+  const [returnedBy, setReturnedBy] = useState("Andrew");
   const [recipientName, setRecipientName] = useState(selectedReturn?.recipientName ?? "");
   const [recipientRelationship, setRecipientRelationship] = useState(selectedReturn?.recipientRelationship ?? "");
   const [returnNotes, setReturnNotes] = useState(selectedReturn?.returnNotes ?? "");
@@ -865,7 +865,7 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
     }
 
     setSaving("intake");
-    const response = await fetch(`/api/camp/medication?role=${role}`, {
+    const response = await fetch("/api/camp/medication", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -911,7 +911,7 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
     }
 
     setSaving("return");
-    const response = await fetch(`/api/camp/medication?role=${role}`, {
+    const response = await fetch("/api/camp/medication", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

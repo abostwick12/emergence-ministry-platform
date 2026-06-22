@@ -43,7 +43,7 @@ function scheduleToInput(item?: CampScheduleBlock, selectedDay = ""): CampSchedu
 }
 
 export default function CampSchedulePage() {
-  const { role, scheduleForSelectedDay, selectedDay, loading, overview, refresh } = useCamp();
+  const { scheduleForSelectedDay, selectedDay, loading, overview, refresh } = useCamp();
   const [editing, setEditing] = useState<CampScheduleInput | null>(null);
   const [message, setMessage] = useState<{ tone: "error" | "success"; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
@@ -54,7 +54,7 @@ export default function CampSchedulePage() {
     if (!editing) return;
     setMessage(null);
     setSaving(true);
-    const response = await fetch(`/api/camp/schedule?role=${role}`, {
+    const response = await fetch("/api/camp/schedule", {
       method: editing.id ? "PATCH" : "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(editing)
@@ -74,7 +74,7 @@ export default function CampSchedulePage() {
     if (!editing?.id || !window.confirm("Archive this schedule item?")) return;
     setMessage(null);
     setSaving(true);
-    const response = await fetch(`/api/camp/schedule?role=${role}`, {
+    const response = await fetch("/api/camp/schedule", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: editing.id, action: "archive" })

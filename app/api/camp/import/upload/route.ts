@@ -36,9 +36,8 @@ export async function POST(request: Request) {
   if (!session) return unauthorizedResponse();
 
   const { searchParams } = new URL(request.url);
-  // The role query param is honored only in dev/test (preview). Live sessions are
-  // authorized from the authenticated server identity via the durable store, never
-  // from ?role=, the request body, local storage, or a client selector.
+  // Camp Admin access resolves from authenticated identity, never from query/body,
+  // local storage, or a client selector.
   const context = await resolveCampAccessForRequest(session, searchParams.get("role"));
   const access = assertCampAdminAccess(context);
   if (!access.allowed) return NextResponse.json({ error: access.error }, { status: access.status });

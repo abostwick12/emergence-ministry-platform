@@ -11,6 +11,7 @@ vi.mock("@/lib/auth/config", () => ({
 }));
 
 import {
+  BOOTSTRAP_CAMP_ADMIN_EMAIL,
   buildCampAccessFromStoredRole,
   canManageCampAccess,
   isCampRolePreviewEnabled,
@@ -27,13 +28,13 @@ function session(overrides: Partial<AuthSession> = {}): AuthSession {
   };
 }
 
-function mockStoredRole(role: string | null) {
+function mockStoredRole(role: string | null, error: unknown = null) {
   getSupabaseAuthClientMock.mockReturnValue({
     from: () => ({
       select: () => ({
         eq: () => ({
           eq: () => ({
-            maybeSingle: async () => (role ? { data: { camp_role: role }, error: null } : { data: null, error: null })
+            maybeSingle: async () => (error ? { data: null, error } : role ? { data: { camp_role: role }, error: null } : { data: null, error: null })
           })
         })
       })
@@ -64,47 +65,50 @@ describe("camp access-control", () => {
     expect(canManageCampAccess(buildCampAccessFromStoredRole("leader"))).toBe(false);
   });
 
-  it("never enables the role-preview override in Vercel production", () => {
-    process.env.VERCEL_ENV = "production";
+  it("never enables manual role preview", () => {
+    process.env.VERCEL_ENV = "preview";
+    expect(isCampRolePreviewEnabled()).toBe(false);
     expect(isCampRolePreviewEnabled()).toBe(false);
   });
 
-  it("enables the role-preview override under test / E2E", () => {
-    delete process.env.VERCEL_ENV;
-    expect(isCampRolePreviewEnabled()).toBe(true); // NODE_ENV=test
-  });
-
-  it("honors the role override param only when preview is enabled (dev/test)", async () => {
-    delete process.env.VERCEL_ENV; // NODE_ENV=test -> preview enabled
-    const ctx = await resolveCampAccessForRequest(session({ isMock: true }), "andrew");
-    expect(ctx).toMatchObject({ restrictedActor: "Andrew", canAccessRestricted: true });
-  });
-
-  it("uses the durable stored role and ignores a spoofed client param in production", async () => {
-    process.env.VERCEL_ENV = "production";
+  it("uses the durable stored role and ignores a spoofed client param", async () => {
     mockStoredRole("camp_admin");
     const ctx = await resolveCampAccessForRequest(session(), "general_leader");
     expect(ctx).toMatchObject({ restrictedActor: "Andrew", canAccessRestricted: true });
   });
 
-  it("falls back safely without trusting a client param when no assignment exists", async () => {
-    process.env.VERCEL_ENV = "production";
-    mockStoredRole(null);
-    // Real andrew-emailed user, no durable row yet: transitional 007 fallback keeps
-    // access, but it derives from the session (not the spoofable client param).
+  it("uses Andrew's exact bootstrap identity while the durable table is unavailable", async () => {
+    mockStoredRole(null, { message: "relation camp_access_members does not exist" });
     const ctx = await resolveCampAccessForRequest(
-      session({ user: { id: "u1", email: "andrew@example.com", fullName: "Andrew", role: "staff" } }),
-      "general_leader"
+      session({ user: { id: "u1", email: BOOTSTRAP_CAMP_ADMIN_EMAIL, fullName: "Andrew", role: "staff" } }),
+      "driver"
     );
-    expect(ctx.restrictedActor).toBe("Andrew");
-    expect(ctx.canAccessRestricted).toBe(true);
+    expect(ctx).toMatchObject({ restrictedActor: "Andrew", canAccessRestricted: true });
   });
 
-  it("defaults an unknown production user to safe general-leader access", async () => {
-    process.env.VERCEL_ENV = "production";
+  it("does not use bootstrap after the durable table is available without an active row", async () => {
+    mockStoredRole(null);
+    const ctx = await resolveCampAccessForRequest(
+      session({ user: { id: "u1", email: BOOTSTRAP_CAMP_ADMIN_EMAIL, fullName: "Andrew", role: "staff" } }),
+      "andrew"
+    );
+    expect(ctx.canAccessRestricted).toBe(false);
+    expect(ctx.restrictedActor).toBeUndefined();
+  });
+
+  it("defaults an unknown user to safe general-leader access and ignores role params", async () => {
     mockStoredRole(null);
     const ctx = await resolveCampAccessForRequest(session(), "andrew");
     expect(ctx.canAccessRestricted).toBe(false);
     expect(ctx.restrictedActor).toBeUndefined();
+  });
+
+  it("lets the mock Andrew dev-auth identity resolve through bootstrap", async () => {
+    isSupabaseConfiguredMock.mockReturnValue(false);
+    const ctx = await resolveCampAccessForRequest(
+      session({ isMock: true, user: { id: "mock", email: BOOTSTRAP_CAMP_ADMIN_EMAIL, fullName: "Andrew", role: "admin" } }),
+      "general_leader"
+    );
+    expect(ctx).toMatchObject({ restrictedActor: "Andrew", canAccessRestricted: true });
   });
 });

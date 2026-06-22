@@ -4426,6 +4426,51 @@ html:has(.app-shell-camp) body {
   justify-self: start;
 }
 
+.camp-access-admin {
+  display: grid;
+  gap: 12px;
+}
+
+.camp-access-add,
+.camp-access-row,
+.camp-access-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.camp-access-add {
+  grid-template-columns: minmax(220px, 1fr) minmax(180px, 240px) auto;
+  align-items: end;
+}
+
+.camp-access-list,
+.camp-access-audit ul {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.camp-access-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.camp-access-user {
+  display: grid;
+  gap: 4px;
+}
+
+.camp-access-actions {
+  grid-template-columns: minmax(180px, 240px) auto;
+  align-items: center;
+}
+
 .camp-inline-button {
   border: 0;
   background: transparent;
@@ -4666,6 +4711,12 @@ html:has(.app-shell-camp) body {
   }
 
   .camp-field-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .camp-access-add,
+  .camp-access-row,
+  .camp-access-actions {
     grid-template-columns: 1fr;
   }
 

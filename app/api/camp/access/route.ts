@@ -11,25 +11,30 @@ export async function GET() {
 
   const result = await listCampAccess(session);
   if (!result.allowed) return NextResponse.json({ error: result.error }, { status: result.status });
-  return NextResponse.json({ available: result.available, roles: result.roles, members: result.members, audit: result.audit });
+  return NextResponse.json({
+    available: result.available,
+    bootstrapActive: result.bootstrapActive,
+    roles: result.roles,
+    members: result.members,
+    audit: result.audit
+  });
 }
 
 export async function PATCH(request: Request) {
   const session = await getServerSession();
   if (!session) return unauthorizedResponse();
 
-  let body: { userId?: string; email?: string; campRole?: string; isActive?: boolean } = {};
+  let body: { email?: string; campRole?: string; isActive?: boolean } = {};
   try {
     body = await request.json();
   } catch {
     body = {};
   }
-  if (!body.userId || !body.email || !body.campRole) {
-    return NextResponse.json({ error: "userId, email, and campRole are required." }, { status: 400 });
+  if (!body.email || !body.campRole) {
+    return NextResponse.json({ error: "Email and Camp role are required." }, { status: 400 });
   }
 
   const result = await updateCampAccessMember(session, {
-    userId: body.userId,
     email: body.email,
     campRole: body.campRole as CampStoredRole,
     isActive: body.isActive

@@ -19,7 +19,7 @@ function vehicleToInput(vehicle?: CampVehicle): CampVehicleInput {
 }
 
 export default function CampVehiclesPage() {
-  const { role, overview, loading, refresh } = useCamp();
+  const { overview, loading, refresh } = useCamp();
   const [editing, setEditing] = useState<CampVehicleInput | null>(null);
   const [movingStudent, setMovingStudent] = useState<CampVisibleStudent | null>(null);
   const [targetVehicleId, setTargetVehicleId] = useState("");
@@ -43,7 +43,7 @@ export default function CampVehiclesPage() {
     if (!editing) return;
     setMessage(null);
     setSaving(true);
-    const response = await fetch(`/api/camp/vehicles?role=${role}`, {
+    const response = await fetch("/api/camp/vehicles", {
       method: editing.id ? "PATCH" : "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(editing)
@@ -63,7 +63,7 @@ export default function CampVehiclesPage() {
     if (!editing?.id || !window.confirm("Archive this vehicle and clear its rider assignments?")) return;
     setMessage(null);
     setSaving(true);
-    const response = await fetch(`/api/camp/vehicles?role=${role}`, {
+    const response = await fetch("/api/camp/vehicles", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: editing.id, action: "archive" })
@@ -83,7 +83,7 @@ export default function CampVehiclesPage() {
     if (!movingStudent) return;
     setMessage(null);
     setSaving(true);
-    const response = await fetch(`/api/camp/students?role=${role}`, {
+    const response = await fetch("/api/camp/students", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ studentId: movingStudent.id, assignmentOnly: true, vehicleId })

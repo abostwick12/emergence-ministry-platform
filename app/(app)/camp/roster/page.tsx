@@ -23,7 +23,7 @@ function studentToInput(student?: CampVisibleStudent): CampStudentInput {
 }
 
 export default function CampRosterPage() {
-  const { role, overview, loading, refresh } = useCamp();
+  const { overview, loading, refresh } = useCamp();
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<CampStudentInput | null>(null);
   const [message, setMessage] = useState<{ tone: "error" | "success"; text: string } | null>(null);
@@ -44,7 +44,7 @@ export default function CampRosterPage() {
     if (!editing) return;
     setMessage(null);
     setSaving(true);
-    const response = await fetch(`/api/camp/students?role=${role}`, {
+    const response = await fetch("/api/camp/students", {
       method: editing.id ? "PATCH" : "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(editing)
@@ -64,7 +64,7 @@ export default function CampRosterPage() {
     if (!editing?.id || !window.confirm("Archive this camper?")) return;
     setMessage(null);
     setSaving(true);
-    const response = await fetch(`/api/camp/students?role=${role}`, {
+    const response = await fetch("/api/camp/students", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ studentId: editing.id, action: "archive", archiveReason: "Archived from Camp roster editor" })

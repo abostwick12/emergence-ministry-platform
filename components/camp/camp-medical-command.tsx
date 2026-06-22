@@ -18,16 +18,17 @@ type MedicalCommandPayload = {
 };
 
 export function CampMedicalCommand() {
-  const { role, capabilities, selectedDay } = useCamp();
+  const { capabilities, selectedDay } = useCamp();
   const [data, setData] = useState<MedicalCommandPayload | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "forbidden" | "error">("loading");
 
   useEffect(() => {
     let active = true;
     setState("loading");
-    const params = new URLSearchParams({ role });
+    const params = new URLSearchParams();
     if (selectedDay) params.set("day", selectedDay);
-    fetch(`/api/camp/medical-command?${params.toString()}`, { cache: "no-store" })
+    const query = params.toString();
+    fetch(query ? `/api/camp/medical-command?${query}` : "/api/camp/medical-command", { cache: "no-store" })
       .then(async (response) => {
         if (!active) return;
         if (response.status === 403) {
@@ -45,7 +46,7 @@ export function CampMedicalCommand() {
     return () => {
       active = false;
     };
-  }, [role, selectedDay]);
+  }, [selectedDay]);
 
   if (!capabilities.medicalCommand || state === "forbidden") {
     return <p className="camp-cc-muted">Medical Command is not available for this access view.</p>;

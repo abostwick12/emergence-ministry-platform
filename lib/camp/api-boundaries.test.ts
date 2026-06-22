@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AuthSession } from "@/lib/auth/server";
+import { BOOTSTRAP_CAMP_ADMIN_EMAIL } from "@/lib/camp/access-control";
 import { __resetCampStoreForTests } from "@/lib/camp/store";
 
 const { getServerSessionMock } = vi.hoisted(() => ({
@@ -18,6 +19,7 @@ vi.mock("@/lib/auth/server", async () => {
 
 import { POST as importPOST } from "@/app/api/camp/import/route";
 import { POST as uploadImportPOST } from "@/app/api/camp/import/upload/route";
+import { GET as accessGET, PATCH as accessPATCH } from "@/app/api/camp/access/route";
 import { POST as campEmmaPOST } from "@/app/api/camp/emma/route";
 import { GET as campGET } from "@/app/api/camp/route";
 import { GET as medicalCommandGET } from "@/app/api/camp/medical-command/route";
@@ -70,6 +72,18 @@ function session(role = "admin", overrides: Partial<AuthSession> = {}): AuthSess
       role: overrides.user?.role ?? role
     }
   };
+}
+
+function andrewSession(overrides: Partial<AuthSession> = {}): AuthSession {
+  return session("admin", {
+    ...overrides,
+    user: {
+      id: overrides.user?.id ?? "usr_andrew",
+      email: overrides.user?.email ?? BOOTSTRAP_CAMP_ADMIN_EMAIL,
+      fullName: overrides.user?.fullName ?? "Andrew Bostwick",
+      role: overrides.user?.role ?? "admin"
+    }
+  });
 }
 
 function jsonRequest(url: string, body: unknown, method = "POST") {
@@ -183,7 +197,7 @@ describe("camp API restricted data boundaries", () => {
     expectNoRestrictedPayloadDetails(payload);
   });
 
-  it("returns driver vehicle roster identity only and no restricted fields", async () => {
+  it("ignores driver role query params when the authenticated user has no driver assignment", async () => {
     getServerSessionMock.mockResolvedValue(session("driver"));
 
     const response = await campGET(new Request("http://localhost/api/camp?role=driver&vehicleId=van-2"));
@@ -192,10 +206,24 @@ describe("camp API restricted data boundaries", () => {
     expect(response.status).toBe(200);
     expect(payload.students.length).toBeGreaterThan(0);
     for (const student of payload.students) {
-      expect(Object.keys(student).sort()).toEqual(["id", "name", "photoInitials", "vehicleId", "vehicleName"].sort());
-      expect(student.vehicleId).toBe("van-2");
+      expect(student).toHaveProperty("teamName");
+      expect(student).toHaveProperty("vehicleName");
+      expect(student).not.toHaveProperty("medicationName");
     }
     expectNoRestrictedPayloadDetails(payload);
+  });
+
+  it("rejects Camp access management endpoints for non-admin authenticated users", async () => {
+    getServerSessionMock.mockResolvedValue(session());
+
+    const list = await accessGET();
+    const update = await accessPATCH(jsonRequest("http://localhost/api/camp/access", {
+      email: "leader@example.test",
+      campRole: "leader"
+    }, "PATCH"));
+
+    expect(list.status).toBe(403);
+    expect(update.status).toBe(403);
   });
 
   it("blocks General Leaders from restricted medical read and write routes", async () => {
@@ -272,22 +300,20 @@ describe("camp API restricted data boundaries", () => {
     }
   });
 
-  it("allows Andrew, Jaci, and Joel to reach restricted medical and medication routes", async () => {
-    getServerSessionMock.mockResolvedValue(session());
+  it("allows Andrew's authenticated bootstrap identity to reach restricted medical and medication routes", async () => {
+    getServerSessionMock.mockResolvedValue(andrewSession());
 
-    for (const role of ["andrew", "jaci", "joel"]) {
-      const medicalResponse = await medicalGET(new Request(`http://localhost/api/camp/restricted-medical?role=${role}`));
-      const medicationResponse = await medicationGET(new Request(`http://localhost/api/camp/medication?role=${role}`));
+    const medicalResponse = await medicalGET(new Request("http://localhost/api/camp/restricted-medical"));
+    const medicationResponse = await medicationGET(new Request("http://localhost/api/camp/medication"));
 
-      expect(medicalResponse.status).toBe(200);
-      expect(medicationResponse.status).toBe(200);
-      expect(JSON.stringify(await medicalResponse.json())).toContain("Insurance card copy received");
-      expect(JSON.stringify(await medicationResponse.json())).toContain("Parent-labeled medication");
-    }
+    expect(medicalResponse.status).toBe(200);
+    expect(medicationResponse.status).toBe(200);
+    expect(JSON.stringify(await medicalResponse.json())).toContain("Insurance card copy received");
+    expect(JSON.stringify(await medicationResponse.json())).toContain("Parent-labeled medication");
   });
 
   it("allows restricted users to archive, restore, upload, and retrieve medication photos", async () => {
-    getServerSessionMock.mockResolvedValue(session());
+    getServerSessionMock.mockResolvedValue(andrewSession());
 
     const upload = await photoPOST(photoRequest("http://localhost/api/camp/medication/photos?role=andrew"));
     const uploadPayload = await upload.json() as { record: Record<string, unknown> };
@@ -315,7 +341,7 @@ describe("camp API restricted data boundaries", () => {
   });
 
   it("allows restricted users to save medication intake with signature history", async () => {
-    getServerSessionMock.mockResolvedValue(session());
+    getServerSessionMock.mockResolvedValue(andrewSession());
 
     const response = await medicationPOST(jsonRequest("http://localhost/api/camp/medication?role=andrew", {
       target: "intake",
@@ -362,7 +388,7 @@ describe("camp API restricted data boundaries", () => {
     }
   });
 
-  it("blocks Andrew-only Medical Command for Jaci and Joel while keeping their normal medication access", async () => {
+  it("does not let Jaci or Joel role query params grant restricted medication access", async () => {
     getServerSessionMock.mockResolvedValue(session());
 
     for (const role of ["jaci", "joel"]) {
@@ -370,20 +396,18 @@ describe("camp API restricted data boundaries", () => {
       expect(medCmd.status).toBe(403);
       expectNoRestrictedPayloadDetails(await json(medCmd));
 
-      // They retain normal restricted medication access.
       const medication = await medicationGET(new Request(`http://localhost/api/camp/medication?role=${role}`));
-      expect(medication.status).toBe(200);
+      expect(medication.status).toBe(403);
 
-      // And the overview never advertises the Medical Command capability to them.
       const overview = await campGET(new Request(`http://localhost/api/camp?role=${role}`));
       const caps = (await overview.json() as { capabilities?: { medicalCommand?: boolean; restrictedMedical?: boolean } }).capabilities;
       expect(caps?.medicalCommand).toBe(false);
-      expect(caps?.restrictedMedical).toBe(true);
+      expect(caps?.restrictedMedical).toBe(false);
     }
   });
 
   it("allows Andrew to access Medical Command with a medication time-block payload", async () => {
-    getServerSessionMock.mockResolvedValue(session());
+    getServerSessionMock.mockResolvedValue(andrewSession());
 
     const response = await medicalCommandGET(new Request("http://localhost/api/camp/medical-command?role=andrew"));
     expect(response.status).toBe(200);
@@ -427,6 +451,8 @@ describe("camp API restricted data boundaries", () => {
       }));
       expect(response.status).toBe(403);
     }
+
+    getServerSessionMock.mockResolvedValue(andrewSession());
 
     const missingAck = await medicationPOST(jsonRequest("http://localhost/api/camp/medication?role=andrew", {
       target: "administrationLog",
@@ -496,7 +522,7 @@ describe("camp API restricted data boundaries", () => {
   });
 
   it("allows Andrew to preview and commit registration imports", async () => {
-    getServerSessionMock.mockResolvedValue(session());
+    getServerSessionMock.mockResolvedValue(andrewSession());
 
     const previewResponse = await importPOST(jsonRequest("http://localhost/api/camp/import?role=andrew", {
       action: "preview",
@@ -538,7 +564,7 @@ describe("camp API restricted data boundaries", () => {
     expectNoRestrictedPayloadDetails(await json(blocked));
   });
 
-  it("allows Jaci operational Camp EMMA but does not expose medical details", async () => {
+  it("does not let a Jaci role query param unlock Camp EMMA", async () => {
     getServerSessionMock.mockResolvedValue(session());
 
     const response = await campEmmaPOST(jsonRequest("http://localhost/api/camp/emma?role=jaci", {
@@ -546,11 +572,9 @@ describe("camp API restricted data boundaries", () => {
       query: "What medication dose does Avery need?",
       selectedDay: "Mon, Jun 29"
     }));
-    const payload = await response.json();
 
-    expect(response.status).toBe(200);
-    expect(JSON.stringify(payload)).toMatch(/restricted medical details are not available/i);
-    expectNoRestrictedPayloadDetails(payload);
+    expect(response.status).toBe(403);
+    expectNoRestrictedPayloadDetails(await json(response));
   });
 
   it("does not expand Joel into Camp EMMA Smart Search or Ask EMMA", async () => {
@@ -566,7 +590,7 @@ describe("camp API restricted data boundaries", () => {
   });
 
   it("allows Andrew Medical Command-aware EMMA counts without restricted medication payload details", async () => {
-    getServerSessionMock.mockResolvedValue(session());
+    getServerSessionMock.mockResolvedValue(andrewSession());
 
     const response = await campEmmaPOST(jsonRequest("http://localhost/api/camp/emma?role=andrew", {
       mode: "ask_emma",
@@ -593,6 +617,8 @@ describe("camp API restricted data boundaries", () => {
       expect(denied.status).toBe(403);
       expectNoRestrictedPayloadDetails(await json(denied));
     }
+
+    getServerSessionMock.mockResolvedValue(andrewSession());
 
     const previewResponse = await uploadImportPOST(oakwoodUploadRequest("http://localhost/api/camp/import/upload?role=andrew", oakwoodCsvFile(), {
       sourceName: "Camp Oakwood Upload"
@@ -631,7 +657,7 @@ describe("camp API restricted data boundaries", () => {
   });
 
   it("Oakwood upload preview does not save automatically", async () => {
-    getServerSessionMock.mockResolvedValue(session());
+    getServerSessionMock.mockResolvedValue(andrewSession());
 
     const previewResponse = await uploadImportPOST(oakwoodUploadRequest("http://localhost/api/camp/import/upload?role=andrew", oakwoodCsvFile("oakwood.csv", [
       "Registration ID,Name,Selection,Grade,Room Number,T-Shirt Size,Quick Filter,Emergency Contact",
@@ -645,7 +671,7 @@ describe("camp API restricted data boundaries", () => {
   });
 
   it("rejects invalid Oakwood upload extension and MIME combinations", async () => {
-    getServerSessionMock.mockResolvedValue(session());
+    getServerSessionMock.mockResolvedValue(andrewSession());
 
     const badExtension = await uploadImportPOST(oakwoodUploadRequest(
       "http://localhost/api/camp/import/upload?role=andrew",
@@ -661,7 +687,7 @@ describe("camp API restricted data boundaries", () => {
   });
 
   it("rejects oversized Oakwood uploads before parsing", async () => {
-    getServerSessionMock.mockResolvedValue(session());
+    getServerSessionMock.mockResolvedValue(andrewSession());
 
     const oversized = new File([new Uint8Array(10 * 1024 * 1024 + 1)], "oakwood.csv", { type: "text/csv" });
     const response = await uploadImportPOST(oakwoodUploadRequest("http://localhost/api/camp/import/upload?role=andrew", oversized));
@@ -710,7 +736,7 @@ describe("camp API restricted data boundaries", () => {
   it("uses live session identity, not the role query, for Camp Admin Oakwood upload authorization", async () => {
     getServerSessionMock.mockResolvedValue(session("leader", {
       isMock: false,
-      user: { id: "live_andrew", email: "andrew@example.test", fullName: "Andrew", role: "leader" }
+      user: { id: "live_andrew", email: BOOTSTRAP_CAMP_ADMIN_EMAIL, fullName: "Andrew", role: "leader" }
     }));
 
     const response = await uploadImportPOST(oakwoodUploadRequest(
@@ -736,7 +762,7 @@ describe("camp API restricted data boundaries", () => {
   it("keeps live Oakwood commits disabled even for restricted identities in this iteration", async () => {
     getServerSessionMock.mockResolvedValue(session("leader", {
       isMock: false,
-      user: { id: "live_andrew", email: "andrew@example.test", fullName: "Andrew", role: "leader" }
+      user: { id: "live_andrew", email: BOOTSTRAP_CAMP_ADMIN_EMAIL, fullName: "Andrew", role: "leader" }
     }));
 
     const response = await importPOST(jsonRequest("http://localhost/api/camp/import?role=andrew", {
@@ -770,7 +796,7 @@ describe("camp API restricted data boundaries", () => {
   });
 
   it("rejects ambiguous Oakwood commits instead of overwriting automatically", async () => {
-    getServerSessionMock.mockResolvedValue(session());
+    getServerSessionMock.mockResolvedValue(andrewSession());
 
     const firstPreview = await importPOST(jsonRequest("http://localhost/api/camp/import?role=andrew", {
       action: "oakwoodPreview",

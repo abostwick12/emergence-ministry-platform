@@ -34,7 +34,7 @@ test.describe("Camp mobile Command Center", () => {
 
     await nav.getByRole("button", { name: "Open EMMA Camp Finder" }).click();
     await expect(page.getByRole("dialog", { name: "Find anything fast" })).toBeVisible();
-    await page.getByLabel("Search Camp Finder").fill("Where is Avery?");
+    await page.getByRole("searchbox", { name: "Smart Camp Search" }).fill("Where is Avery?");
     await page.getByRole("button", { name: "Search" }).click();
     await expect(page.getByText(/Avery Johnson/)).toBeVisible();
     await expect(page.locator("body")).not.toContainText("Parent-labeled medication");
@@ -71,23 +71,20 @@ test.describe("Camp mobile Command Center", () => {
     }
   });
 
-  test("Medical Command toggle is hidden for General Leaders and shown only for Andrew", async ({ page }) => {
+  test("Andrew bootstrap sees Medical Command automatically without a role selector", async ({ page }) => {
     await login(page);
     await page.goto("/camp");
 
-    // Default access preview is General Leader: no Medical Command anywhere.
-    await expect(page.getByRole("button", { name: "Medical Command" })).toHaveCount(0);
-
-    // Switching the access preview to Andrew reveals the server-authorized toggle.
-    await page.getByRole("button", { name: "Andrew", exact: true }).click();
     await expect(page.getByRole("button", { name: "Medical Command" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Andrew", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Jaci", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Driver", exact: true })).toHaveCount(0);
   });
 
-  test("Jaci uses unified Smart Camp Search without restricted medical details", async ({ page }) => {
+  test("Andrew uses unified Smart Camp Search without leaking restricted record text", async ({ page }) => {
     await login(page);
     await page.goto("/camp");
 
-    await page.getByRole("button", { name: "Jaci", exact: true }).click();
     await page.getByRole("button", { name: "Open EMMA Camp Finder" }).click();
     const sheet = page.getByRole("dialog", { name: "Find anything fast" });
     await expect(sheet).toBeVisible();
@@ -103,7 +100,6 @@ test.describe("Camp mobile Command Center", () => {
     await login(page);
     await page.goto("/camp");
 
-    await page.getByRole("button", { name: "Andrew", exact: true }).click();
     await page.getByRole("navigation", { name: "Camp sections" }).getByRole("link", { name: "More", exact: true }).click();
     await page.waitForURL(/\/camp\/more$/);
     await expect(page.getByRole("link", { name: "Medical Dashboard" })).toBeVisible();

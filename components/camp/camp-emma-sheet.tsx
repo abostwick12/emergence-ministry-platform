@@ -28,8 +28,8 @@ const leaderExamples = ["Where is Avery?", "Who is on Blue Team?", "Who is in Va
 const smartSearchExamples = ["What room is Avery in?", "Which teams are short a leader?", "Which students are missing rooms?", "Give me a leader briefing for tonight"];
 
 export function CampEmmaSheet({ open, onClose }: CampEmmaSheetProps) {
-  const { role, driverVehicleId, capabilities, selectedDay, homeMode } = useCamp();
-  const isEmmaUser = capabilities.restrictedMedical && role !== "joel";
+  const { capabilities, selectedDay, homeMode } = useCamp();
+  const isEmmaUser = capabilities.restrictedMedical;
   const [query, setQuery] = useState("");
   const [state, setState] = useState<SheetState>({ status: "idle", answer: null, error: null });
 
@@ -46,11 +46,8 @@ export function CampEmmaSheet({ open, onClose }: CampEmmaSheetProps) {
     setQuery(trimmed);
     setState((current) => ({ status: "loading", answer: current.answer, error: null }));
 
-    const params = new URLSearchParams({ role });
-    if (role === "driver") params.set("vehicleId", driverVehicleId);
-
     try {
-      const response = await fetch(`/api/camp/emma?${params.toString()}`, {
+      const response = await fetch("/api/camp/emma", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
