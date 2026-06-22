@@ -386,7 +386,7 @@ type OakwoodUploadField = "combinedFile" | "camperFile" | "staffFile";
 const oakwoodUploadFields: Array<{ field: OakwoodUploadField; label: string; sheetField: string }> = [
   { field: "combinedFile", label: "Combined Oakwood workbook", sheetField: "combinedSheet" },
   { field: "camperFile", label: "Camper workbook", sheetField: "camperSheet" },
-  { field: "staffFile", label: "Staff workbook", sheetField: "staffSheet" }
+  { field: "staffFile", label: "Leaders/Staff workbook", sheetField: "staffSheet" }
 ];
 
 function oakwoodPersonTypeLabel(personType: CampOakwoodImportPreview["rows"][number]["personType"]): string {
