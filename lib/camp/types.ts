@@ -21,6 +21,8 @@ export type CampTeam = {
   leader: string;
   coLeader?: string;
   room?: string;
+  notes?: string;
+  archivedAt?: string;
 };
 
 export type CampVehicle = {
@@ -28,16 +30,62 @@ export type CampVehicle = {
   name: string;
   driver: string;
   departureWindow: string;
+  departureLocation?: string;
   capacity: number;
+  notes?: string;
+  archivedAt?: string;
 };
 
 export type CampScheduleBlock = {
   id: string;
   day: string;
   time: string;
+  date?: string;
+  startTime?: string;
+  endTime?: string;
   title: string;
   location: string;
+  owner?: string;
+  notes?: string;
+  status?: "Planned" | "Confirmed" | "Needs Review" | "Canceled";
+  visibility?: "All Camp" | "Leaders Only" | "Medical Only";
   audience: "All Camp" | "Leaders" | "Medical Team";
+};
+
+export type CampTeamInput = {
+  id?: string;
+  name: string;
+  color: string;
+  leader?: string;
+  coLeader?: string;
+  room?: string;
+  notes?: string;
+};
+
+export type CampVehicleInput = {
+  id?: string;
+  name: string;
+  driver?: string;
+  departureWindow?: string;
+  departureLocation?: string;
+  capacity: number;
+  notes?: string;
+};
+
+export type CampScheduleInput = {
+  id?: string;
+  title: string;
+  day: string;
+  time: string;
+  date?: string;
+  startTime?: string;
+  endTime?: string;
+  location?: string;
+  owner?: string;
+  audience: CampScheduleBlock["audience"];
+  notes?: string;
+  status?: CampScheduleBlock["status"];
+  visibility?: CampScheduleBlock["visibility"];
 };
 
 export type CampDocument = {
@@ -321,6 +369,7 @@ export type CampOverviewPayload = {
   schedule: CampScheduleBlock[];
   documents: CampDocument[];
   students: CampVisibleStudent[];
+  staff: CampStaffMember[];
 };
 
 export type CampRegistrationImportPreviewRow = {

@@ -23,7 +23,8 @@ const emptyOverview: CampOverviewPayload = {
   vehicles: [],
   schedule: [],
   documents: [],
-  students: []
+  students: [],
+  staff: []
 };
 
 const emptyCapabilities: CampCapabilities = { restrictedMedical: false, medicalCommand: false };

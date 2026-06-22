@@ -4267,6 +4267,179 @@ html:has(.app-shell-camp) body {
   gap: 12px;
 }
 
+.camp-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(2, 19, 38, 0.62);
+}
+
+.camp-dialog {
+  --text: #0f172a;
+  --muted: #475569;
+  --surface: #ffffff;
+  --line: #cbd5e1;
+  --primary: #1d4ed8;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(100%, 720px);
+  max-height: min(90vh, 820px);
+  overflow: hidden;
+  border: 1px solid var(--camp-border);
+  border-radius: 8px;
+  background: #f8fbff;
+  color: #0f172a;
+  box-shadow: 0 28px 90px rgba(2, 19, 38, 0.36);
+  outline: none;
+}
+
+.camp-dialog-head,
+.camp-dialog-foot {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  border-bottom: 1px solid var(--camp-border);
+}
+
+.camp-dialog-head h2 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 1.15rem;
+}
+
+.camp-dialog .camp-cc-muted,
+.camp-dialog .field > span,
+.camp-dialog label > span,
+.camp-dialog .camp-checkbox-line,
+.camp-dialog .camp-save-message,
+.camp-dialog .camp-cc-error,
+.camp-dialog strong {
+  color: #334155;
+}
+
+.camp-dialog .field > span,
+.camp-dialog label > span {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.camp-dialog .input,
+.camp-dialog input,
+.camp-dialog select,
+.camp-dialog textarea {
+  border-color: #94a3b8;
+  background: #ffffff;
+  color: #0f172a;
+}
+
+.camp-dialog .input::placeholder,
+.camp-dialog input::placeholder,
+.camp-dialog textarea::placeholder {
+  color: #64748b;
+  opacity: 1;
+}
+
+.camp-dialog .input:focus,
+.camp-dialog input:focus,
+.camp-dialog select:focus,
+.camp-dialog textarea:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
+  outline: none;
+}
+
+.camp-dialog .button {
+  border-color: #94a3b8;
+  background: #ffffff;
+  color: #0f172a;
+}
+
+.camp-dialog-head .button,
+.camp-dialog-foot .button {
+  flex-shrink: 0;
+  overflow-wrap: normal;
+  white-space: nowrap;
+}
+
+.camp-dialog .button:hover:not(:disabled) {
+  background: #e2e8f0;
+}
+
+.camp-dialog .button.primary {
+  border-color: #1d4ed8;
+  background: #1d4ed8;
+  color: #ffffff;
+}
+
+.camp-dialog .button.primary:hover:not(:disabled) {
+  background: #1e40af;
+}
+
+.camp-dialog .button:disabled {
+  opacity: 0.62;
+  color: #475569;
+}
+
+.camp-dialog .button:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.45);
+  outline-offset: 2px;
+}
+
+.camp-dialog-body {
+  display: grid;
+  gap: 12px;
+  overflow: auto;
+  padding: 14px;
+}
+
+.camp-dialog-foot {
+  align-items: center;
+  justify-content: flex-end;
+  border-top: 1px solid var(--camp-border);
+  border-bottom: 0;
+}
+
+.camp-field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.camp-editor-card {
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-auto-flow: row;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--camp-border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.camp-editor-card > .button {
+  grid-column: auto;
+  justify-self: start;
+}
+
+.camp-inline-button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.camp-inline-button:focus-visible {
+  outline: 2px solid var(--camp-accent);
+  outline-offset: 3px;
+}
+
 .camp-ack-box {
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -4478,6 +4651,24 @@ html:has(.app-shell-camp) body {
     display: grid;
   }
 
+  .camp-dialog-backdrop {
+    align-items: end;
+    padding: 0;
+  }
+
+  .camp-dialog {
+    width: 100%;
+    max-height: 92vh;
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius: 8px 8px 0 0;
+  }
+
+  .camp-field-grid {
+    grid-template-columns: 1fr;
+  }
+
   .camp-medicine-photo {
     width: 84px;
     height: 84px;
@@ -4535,6 +4726,20 @@ html:has(.app-shell-camp) body {
 .camp-cc input::placeholder,
 .camp-cc textarea::placeholder { color: var(--camp-muted); }
 .camp-cc select option { color: #0b1f33; }
+
+.camp-cc .camp-dialog input:not([type="checkbox"]):not([type="radio"]),
+.camp-cc .camp-dialog select,
+.camp-cc .camp-dialog textarea {
+  background: #ffffff;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+.camp-cc .camp-dialog input::placeholder,
+.camp-cc .camp-dialog textarea::placeholder {
+  color: #64748b;
+  opacity: 1;
+}
 
 .camp-student-card,
 .camp-secure-card {

@@ -13,7 +13,8 @@ const overview: CampOverviewPayload = {
   vehicles: campVehicles,
   schedule: campSchedule,
   documents: campDocuments,
-  students: getCampVisibleStudentsForData("general_leader", {}, { students: campStudents, teams: campTeams, vehicles: campVehicles })
+  students: getCampVisibleStudentsForData("general_leader", {}, { students: campStudents, teams: campTeams, vehicles: campVehicles }),
+  staff: []
 };
 
 describe("Camp EMMA safe answer builder", () => {

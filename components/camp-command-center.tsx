@@ -169,7 +169,8 @@ const emptyOverview: CampOverviewPayload = {
   vehicles: [],
   schedule: [],
   documents: [],
-  students: []
+  students: [],
+  staff: []
 };
 
 function daysUntilCamp(startDate: string) {

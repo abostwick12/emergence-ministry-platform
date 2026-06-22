@@ -330,6 +330,10 @@ describe("camp repository mock fallback", () => {
     expect(commit.allowed).toBe(true);
     if (!commit.allowed || "error" in commit) throw new Error("expected commit success");
     expect(commit.result.committed).toHaveLength(2);
+    expect(commit.result.committed).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: "Oakwood Adult", personType: "adult" }),
+      expect.objectContaining({ name: "Oakwood Camper", personType: "student" })
+    ]));
     expect(commit.result.auditBatch).toMatchObject({ sourceFile: "Camp_Quick_View.csv", staffCount: 1, restrictedCount: 1 });
 
     const overview = await getCampOverview(mockSession, general);
@@ -342,6 +346,12 @@ describe("camp repository mock fallback", () => {
       hasDietaryAlert: true,
       emergencyContactOnFile: true
     });
+    expect(overview.staff.find((staff) => staff.name === "Oakwood Adult")).toMatchObject({
+      role: "adult_volunteer",
+      shirtSize: "Adult Large",
+      registrationExternalId: "70000011"
+    });
+    expect(overview.students.some((student) => student.name === "Oakwood Adult")).toBe(false);
     expect(JSON.stringify(overview)).not.toContain("Parent medical note");
     expect(JSON.stringify(overview)).not.toContain("555");
   });

@@ -387,8 +387,12 @@ const oakwoodUploadFields: Array<{ field: OakwoodUploadField; label: string; she
   { field: "staffFile", label: "Staff workbook", sheetField: "staffSheet" }
 ];
 
+function oakwoodPersonTypeLabel(personType: CampOakwoodImportPreview["rows"][number]["personType"]): string {
+  return personType === "adult" ? "Leader/staff" : "Camper";
+}
+
 export function CampSettingsImportToolPage() {
-  const { role, capabilities } = useCamp();
+  const { role, capabilities, refresh } = useCamp();
   const [sourceName, setSourceName] = useState("Camp Oakwood Upload");
   const [files, setFiles] = useState<Record<OakwoodUploadField, File | null>>({ combinedFile: null, camperFile: null, staffFile: null });
   const [sheetNames, setSheetNames] = useState<Record<OakwoodUploadField, string[]>>({ combinedFile: [], camperFile: [], staffFile: [] });
@@ -407,6 +411,9 @@ export function CampSettingsImportToolPage() {
   }
 
   const hasFile = oakwoodUploadFields.some((item) => files[item.field]);
+  const missingSheetLabels = oakwoodUploadFields
+    .filter((item) => files[item.field] && sheetNames[item.field].length > 1 && !selectedSheets[item.field])
+    .map((item) => item.label);
 
   function buildUploadForm(mode: "inspect" | "preview") {
     const formData = new FormData();
@@ -447,6 +454,10 @@ export function CampSettingsImportToolPage() {
 
   async function previewUpload() {
     setMessage(null);
+    if (missingSheetLabels.length) {
+      setMessage({ tone: "error", text: `Choose a worksheet before previewing: ${missingSheetLabels.join(", ")}.` });
+      return;
+    }
     setPreview(null);
     setConfirmed(false);
     setBusy("preview");
@@ -472,13 +483,16 @@ export function CampSettingsImportToolPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "oakwoodCommit", oakwoodPreview: preview, confirmed: true })
     });
-    const body = await response.json().catch(() => ({})) as { error?: string; result?: { committed: unknown[] } };
+    const body = await response.json().catch(() => ({})) as { error?: string; result?: { committed: Array<{ personType?: string }> } };
     setBusy(null);
     if (!response.ok || !body.result) {
       setMessage({ tone: "error", text: body.error ?? "Oakwood import could not be saved." });
       return;
     }
-    setMessage({ tone: "success", text: `Oakwood import saved: ${body.result.committed.length} rows committed.` });
+    await refresh();
+    const staffCommitted = body.result.committed.filter((row) => row.personType === "adult").length;
+    const camperCommitted = body.result.committed.filter((row) => row.personType === "student").length;
+    setMessage({ tone: "success", text: `Oakwood import saved: ${camperCommitted} campers and ${staffCommitted} leaders/staff committed.` });
     setPreview(null);
     setConfirmed(false);
   }
@@ -500,9 +514,10 @@ export function CampSettingsImportToolPage() {
                 <input
                   className="input"
                   type="file"
-                  accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                  accept=".xlsx,.csv,text/csv,application/csv,application/vnd.ms-excel,application/octet-stream,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                   onChange={(event) => {
-                    setFiles((current) => ({ ...current, [item.field]: event.currentTarget.files?.[0] ?? null }));
+                    const selectedFile = event.currentTarget.files?.[0] ?? null;
+                    setFiles((current) => ({ ...current, [item.field]: selectedFile }));
                     setPreview(null);
                     setConfirmed(false);
                   }}
@@ -527,6 +542,7 @@ export function CampSettingsImportToolPage() {
               {busy === "preview" ? "Previewing..." : "Build preview"}
             </button>
           </div>
+          {missingSheetLabels.length ? <p className="camp-cc-error">Choose a worksheet for: {missingSheetLabels.join(", ")}.</p> : null}
         </section>
 
         {preview ? (
@@ -536,9 +552,38 @@ export function CampSettingsImportToolPage() {
               <div className="camp-list-row"><strong>Total source rows</strong><StatusPill>{preview.summary.totalSourceRows}</StatusPill></div>
               <div className="camp-list-row"><strong>New people</strong><StatusPill>{preview.summary.newCount}</StatusPill></div>
               <div className="camp-list-row"><strong>Matched people</strong><StatusPill>{preview.summary.matchedCount}</StatusPill></div>
+              <div className="camp-list-row"><strong>Leader/staff rows</strong><StatusPill tone={preview.summary.staffRows ? "ready" : "locked"}>{preview.summary.staffRows}</StatusPill></div>
+              <div className="camp-list-row"><strong>Warning rows</strong><StatusPill tone={preview.rows.some((row) => row.warnings.length) ? "warn" : "ready"}>{preview.rows.filter((row) => row.warnings.length > 0).length}</StatusPill></div>
+              <div className="camp-list-row"><strong>Duplicate / ambiguous rows</strong><StatusPill tone={preview.summary.ambiguousCount ? "warn" : "ready"}>{preview.summary.ambiguousCount}</StatusPill></div>
               <div className="camp-list-row"><strong>Ambiguous rows</strong><StatusPill tone={preview.summary.ambiguousCount ? "warn" : "ready"}>{preview.summary.ambiguousCount}</StatusPill></div>
               <div className="camp-list-row"><strong>Invalid rows</strong><StatusPill tone={preview.summary.invalidCount ? "warn" : "ready"}>{preview.summary.invalidCount}</StatusPill></div>
             </div>
+            {preview.uploadSources?.length ? (
+              <div className="camp-list">
+                {preview.uploadSources.map((source) => (
+                  <div className="camp-list-row align-start" key={`${source.fileName}-${source.scope}`}>
+                    <div>
+                      <strong>{source.fileName}{source.sheetName ? ` / ${source.sheetName}` : ""}</strong>
+                      <p className="camp-cc-muted">Scope: {source.scope}. Rows: {source.rowCount}. SHA-256: {source.checksumSha256.slice(0, 12)}...</p>
+                    </div>
+                    <StatusPill>{source.scope}</StatusPill>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            <div className="camp-list">
+              {preview.rows.slice(0, 12).map((row) => (
+                <div className="camp-list-row align-start" key={`${row.rowNumber}-${row.person.name}`}>
+                  <div>
+                    <strong>Row {row.rowNumber}: {row.person.name || "No name"}</strong>
+                    <p className="camp-cc-muted">{oakwoodPersonTypeLabel(row.personType)} - {row.matchStatus} - Team: {row.person.teamName || "Unassigned"} - Vehicle: {row.person.vehicleName || "Unassigned"}</p>
+                    {row.warnings.length ? <p className="camp-cc-muted">{row.warnings.join(" ")}</p> : null}
+                  </div>
+                  <StatusPill tone={row.matchStatus === "new" || row.matchStatus === "matched" ? "ready" : "warn"}>{row.matchStatus}</StatusPill>
+                </div>
+              ))}
+            </div>
+            {preview.rows.length > 12 ? <p className="camp-cc-muted">Showing the first 12 preview rows. All rows are included in the summary and commit guard.</p> : null}
             <p className="camp-cc-muted">Restricted medical/contact/dietary fields stay in restricted storage on commit. Ambiguous or invalid rows block saving.</p>
             <label className="camp-checkbox-line">
               <input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} />

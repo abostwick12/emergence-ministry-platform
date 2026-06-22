@@ -24,6 +24,7 @@ import type {
   CampOverviewPayload,
   CampRestrictedMedicalRecord,
   CampScheduleBlock,
+  CampScheduleInput,
   CampStudentInput,
   CampStudentPublic,
   CampStaffMember,
@@ -31,6 +32,8 @@ import type {
   CampOakwoodImportPreview,
   CampOakwoodImportCommitResult,
   CampTeam,
+  CampTeamInput,
+  CampVehicleInput,
   CampVehicle
 } from "@/lib/camp/types";
 import { uid } from "@/lib/utils";
@@ -120,16 +123,104 @@ export function getCampOverview(role: CampAccessRole, scope: CampAccessScope = {
   return {
     campName,
     campStartsOn,
-    teams: cloneArray(store.teams),
-    vehicles: cloneArray(store.vehicles),
-    schedule: role === "driver" ? store.schedule.filter((item) => item.audience === "All Camp") : cloneArray(store.schedule),
+    teams: cloneArray(store.teams.filter((team) => !team.archivedAt)),
+    vehicles: cloneArray(store.vehicles.filter((vehicle) => !vehicle.archivedAt)),
+    schedule: role === "driver"
+      ? store.schedule.filter((item) => item.audience === "All Camp" && item.status !== "Canceled")
+      : cloneArray(store.schedule.filter((item) => item.status !== "Canceled")),
     documents: filterDocumentsForRole(role),
     students: getCampVisibleStudentsForData(role, scope, {
       students: listCampStudents(),
-      teams: store.teams,
-      vehicles: store.vehicles
-    })
+      teams: store.teams.filter((team) => !team.archivedAt),
+      vehicles: store.vehicles.filter((vehicle) => !vehicle.archivedAt)
+    }),
+    staff: cloneArray(store.staff.filter((staff) => !staff.archivedAt))
   };
+}
+
+export function upsertCampScheduleItem(input: CampScheduleInput): CampScheduleBlock {
+  const existing = input.id ? store.schedule.find((item) => item.id === input.id) : undefined;
+  const normalized: CampScheduleBlock = {
+    id: existing?.id ?? uid("campsched"),
+    day: input.day.trim(),
+    time: input.time.trim(),
+    date: input.date?.trim() || existing?.date,
+    startTime: input.startTime?.trim() || existing?.startTime,
+    endTime: input.endTime?.trim() || existing?.endTime,
+    title: input.title.trim(),
+    location: input.location?.trim() ?? existing?.location ?? "",
+    owner: input.owner?.trim() ?? existing?.owner ?? "",
+    notes: input.notes?.trim() ?? existing?.notes ?? "",
+    status: input.status ?? existing?.status ?? "Planned",
+    visibility: input.visibility ?? existing?.visibility ?? "All Camp",
+    audience: input.audience
+  };
+
+  if (existing) Object.assign(existing, normalized);
+  else store.schedule.push(normalized);
+  sortSchedule();
+  return { ...normalized };
+}
+
+export function archiveCampScheduleItem(input: { id: string }) {
+  const item = store.schedule.find((candidate) => candidate.id === input.id);
+  if (!item) return { allowed: true as const, status: 404, error: "Schedule item not found." };
+  item.status = "Canceled";
+  return { allowed: true as const, status: 200, item: { ...item } };
+}
+
+export function upsertCampTeam(input: CampTeamInput): CampTeam {
+  const existing = input.id ? store.teams.find((team) => team.id === input.id) : undefined;
+  if (existing?.archivedAt) throw new Error("Camp team is archived.");
+  const normalized: CampTeam = {
+    id: existing?.id ?? uid("campteam"),
+    name: input.name.trim(),
+    color: input.color.trim() || input.name.trim(),
+    leader: input.leader?.trim() ?? existing?.leader ?? "",
+    coLeader: input.coLeader?.trim() ?? existing?.coLeader ?? "",
+    room: input.room?.trim() ?? existing?.room ?? "",
+    notes: input.notes?.trim() ?? existing?.notes ?? ""
+  };
+  if (existing) Object.assign(existing, normalized);
+  else store.teams.push(normalized);
+  return { ...normalized };
+}
+
+export function archiveCampTeam(input: { id: string }) {
+  const team = store.teams.find((candidate) => candidate.id === input.id);
+  if (!team || team.archivedAt) return { allowed: true as const, status: 404, error: "Active team not found." };
+  team.archivedAt = new Date().toISOString();
+  for (const student of store.students) {
+    if (student.teamId === team.id) student.teamId = "";
+  }
+  return { allowed: true as const, status: 200, team: { ...team } };
+}
+
+export function upsertCampVehicle(input: CampVehicleInput): CampVehicle {
+  const existing = input.id ? store.vehicles.find((vehicle) => vehicle.id === input.id) : undefined;
+  if (existing?.archivedAt) throw new Error("Camp vehicle is archived.");
+  const normalized: CampVehicle = {
+    id: existing?.id ?? uid("campveh"),
+    name: input.name.trim(),
+    driver: input.driver?.trim() ?? existing?.driver ?? "",
+    departureWindow: input.departureWindow?.trim() ?? existing?.departureWindow ?? "",
+    departureLocation: input.departureLocation?.trim() ?? existing?.departureLocation ?? "",
+    capacity: Number.isFinite(input.capacity) ? Math.max(0, Math.floor(input.capacity)) : existing?.capacity ?? 0,
+    notes: input.notes?.trim() ?? existing?.notes ?? ""
+  };
+  if (existing) Object.assign(existing, normalized);
+  else store.vehicles.push(normalized);
+  return { ...normalized };
+}
+
+export function archiveCampVehicle(input: { id: string }) {
+  const vehicle = store.vehicles.find((candidate) => candidate.id === input.id);
+  if (!vehicle || vehicle.archivedAt) return { allowed: true as const, status: 404, error: "Active vehicle not found." };
+  vehicle.archivedAt = new Date().toISOString();
+  for (const student of store.students) {
+    if (student.vehicleId === vehicle.id) student.vehicleId = "";
+  }
+  return { allowed: true as const, status: 200, vehicle: { ...vehicle } };
 }
 
 export function upsertCampStudent(input: CampStudentInput): CampStudentPublic {
@@ -699,6 +790,14 @@ function vehicleIdForName(name: string): string {
   if (!name.trim()) return "";
   const normalized = name.trim().toLowerCase();
   return store.vehicles.find((vehicle) => vehicle.name.toLowerCase() === normalized || vehicle.driver.toLowerCase() === normalized)?.id ?? "";
+}
+
+function sortSchedule() {
+  store.schedule.sort((a, b) => {
+    const aKey = `${a.date ?? a.day} ${a.startTime ?? a.time}`;
+    const bKey = `${b.date ?? b.day} ${b.startTime ?? b.time}`;
+    return aKey.localeCompare(bKey);
+  });
 }
 
 function collectionForVoidTarget(target: CampMedicationVoidInput["target"]) {
