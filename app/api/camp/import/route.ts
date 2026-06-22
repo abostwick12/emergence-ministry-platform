@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServerSession, unauthorizedResponse } from "@/lib/auth/server";
-import { assertCampRestrictedAccess } from "@/lib/camp/permissions";
+import { assertCampAdminAccess } from "@/lib/camp/permissions";
 import { resolveCampAccessForRequest } from "@/lib/camp/access-control";
 import { parseCampRegistrationImport } from "@/lib/camp/import";
 import {
@@ -22,9 +22,9 @@ export async function POST(request: Request) {
   // The role query parameter is only honored in dev/test (preview). Live sessions
   // are authorized from the authenticated server identity via the durable store.
   const context = await resolveCampAccessForRequest(session, searchParams.get("role"));
-  const restrictedAccess = assertCampRestrictedAccess(context);
-  if (!restrictedAccess.allowed) {
-    return NextResponse.json({ error: restrictedAccess.error }, { status: restrictedAccess.status });
+  const adminAccess = assertCampAdminAccess(context);
+  if (!adminAccess.allowed) {
+    return NextResponse.json({ error: adminAccess.error }, { status: adminAccess.status });
   }
 
   const body = (await request.json()) as {
@@ -84,7 +84,7 @@ export async function POST(request: Request) {
           parentProvidedInstructions: row.medication.parentProvidedInstructions,
           checkInStatus: row.medication.checkInStatus,
           clarificationStatus: row.medication.clarificationStatus,
-          receivedBy: restrictedAccess.actor
+          receivedBy: adminAccess.actor
         });
         if (!medicationPayload.allowed) return NextResponse.json({ error: medicationPayload.error }, { status: medicationPayload.status });
 

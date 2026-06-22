@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useCamp } from "@/components/camp/camp-provider";
 import type {
   CampDocument,
@@ -11,7 +11,9 @@ import type {
   CampMedicationRecord,
   CampMedicationReturnItem,
   CampMedicationScheduleItem,
+  CampOakwoodImportPreview,
   CampScheduleBlock,
+  CampSignatureData,
   CampVisibleStudent
 } from "@/lib/camp/types";
 
@@ -127,6 +129,120 @@ function statusTone(status: string): "ready" | "warn" | undefined {
   return undefined;
 }
 
+function emptySignatureData(width = 640, height = 220): CampSignatureData {
+  return { width, height, strokes: [] };
+}
+
+function hasSignature(signature: CampSignatureData): boolean {
+  return signature.strokes.some((stroke) => stroke.length > 1);
+}
+
+function serializeStudentAcknowledgement(signature: CampSignatureData): string {
+  return `DRAWN_INITIALS:${JSON.stringify(signature)}`;
+}
+
+function formatStudentAcknowledgement(log: CampMedicationAdministrationLog): string {
+  if (log.studentAcknowledgementUnavailable) return `Unavailable/declined - ${log.studentAcknowledgementUnavailableReason}`;
+  if (log.studentAcknowledgementInitials?.startsWith("DRAWN_INITIALS:")) return "Finger/stylus acknowledgement on file";
+  return log.studentAcknowledgementInitials || "Not recorded";
+}
+
+function SignaturePad({
+  value,
+  onChange,
+  label,
+  description,
+  clearLabel = "Clear signature",
+  disabled = false
+}: {
+  value: CampSignatureData;
+  onChange: (signature: CampSignatureData) => void;
+  label: string;
+  description: string;
+  clearLabel?: string;
+  disabled?: boolean;
+}) {
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const drawingRef = useRef(false);
+  const signatureRef = useRef(value);
+
+  useEffect(() => {
+    signatureRef.current = value;
+  }, [value]);
+
+  function pointForEvent(event: React.PointerEvent<SVGSVGElement>) {
+    const rect = svgRef.current?.getBoundingClientRect();
+    if (!rect) return { x: 0, y: 0 };
+    return {
+      x: Math.max(0, Math.min(value.width, ((event.clientX - rect.left) / rect.width) * value.width)),
+      y: Math.max(0, Math.min(value.height, ((event.clientY - rect.top) / rect.height) * value.height))
+    };
+  }
+
+  function startDrawing(event: React.PointerEvent<SVGSVGElement>) {
+    if (disabled) return;
+    event.preventDefault();
+    drawingRef.current = true;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const nextSignature = { ...signatureRef.current, strokes: [...signatureRef.current.strokes, [pointForEvent(event)]] };
+    signatureRef.current = nextSignature;
+    onChange(nextSignature);
+  }
+
+  function draw(event: React.PointerEvent<SVGSVGElement>) {
+    if (disabled || !drawingRef.current) return;
+    event.preventDefault();
+    const current = signatureRef.current;
+    const strokes = [...current.strokes];
+    const activeStroke = strokes[strokes.length - 1] ?? [];
+    strokes[strokes.length - 1] = [...activeStroke, pointForEvent(event)];
+    const nextSignature = { ...current, strokes };
+    signatureRef.current = nextSignature;
+    onChange(nextSignature);
+  }
+
+  function stopDrawing(event: React.PointerEvent<SVGSVGElement>) {
+    drawingRef.current = false;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }
+
+  return (
+    <div className={disabled ? "camp-signature-block disabled" : "camp-signature-block"}>
+      <div className="camp-signature-head">
+        <div>
+          <p className="eyebrow">{label}</p>
+          <p className="camp-cc-muted">{description}</p>
+        </div>
+        <button className="button compact-button" type="button" disabled={disabled} onClick={() => onChange(emptySignatureData(value.width, value.height))}>
+          {clearLabel}
+        </button>
+      </div>
+      <svg
+        ref={svgRef}
+        aria-label={label}
+        className="camp-signature-pad"
+        viewBox={`0 0 ${value.width} ${value.height}`}
+        role="img"
+        onPointerDown={startDrawing}
+        onPointerMove={draw}
+        onPointerUp={stopDrawing}
+        onPointerCancel={stopDrawing}
+        onPointerLeave={(event) => {
+          if (drawingRef.current) stopDrawing(event);
+        }}
+      >
+        <rect width={value.width} height={value.height} rx="18" aria-hidden="true" />
+        <path d={`M ${Math.round(value.width * 0.08)} ${Math.round(value.height * 0.72)} H ${Math.round(value.width * 0.92)}`} aria-hidden="true" />
+        {value.strokes.map((stroke, index) => (
+          <polyline key={`${index}-${stroke.length}`} points={stroke.map((point) => `${point.x},${point.y}`).join(" ")} />
+        ))}
+      </svg>
+    </div>
+  );
+}
+
 export function CampDocumentsToolPage() {
   const { overview, loading } = useCamp();
   return (
@@ -240,16 +356,202 @@ export function CampSettingsToolPage() {
   return (
     <ToolPageShell title="Camp Settings" subtitle="Camp access and platform settings stay behind admin-only controls.">
       {capabilities.medicalCommand ? (
-        <Link className="camp-cc-entry" href="/settings">
-          <span className="camp-cc-entry-body">
-            <strong>Open Platform Settings</strong>
-            <span className="camp-cc-muted">Camp access management lives in Settings for approved administrators.</span>
-          </span>
-          <span className="camp-cc-entry-arrow" aria-hidden="true">&gt;</span>
-        </Link>
+        <div className="camp-list">
+          <Link className="camp-cc-entry" href="/settings">
+            <span className="camp-cc-entry-body">
+              <strong>Open Platform Settings</strong>
+              <span className="camp-cc-muted">Camp access management lives in Settings for approved administrators.</span>
+            </span>
+            <span className="camp-cc-entry-arrow" aria-hidden="true">&gt;</span>
+          </Link>
+          <Link className="camp-cc-entry" href="/camp/settings/import">
+            <span className="camp-cc-entry-body">
+              <strong>Import Camp Roster</strong>
+              <span className="camp-cc-muted">Approved Oakwood roster/workbook uploads with preview, validation, and explicit commit.</span>
+            </span>
+            <span className="camp-cc-entry-arrow" aria-hidden="true">&gt;</span>
+          </Link>
+        </div>
       ) : (
         <RestrictedNotice required="medicalCommand" />
       )}
+    </ToolPageShell>
+  );
+}
+
+type OakwoodUploadField = "combinedFile" | "camperFile" | "staffFile";
+
+const oakwoodUploadFields: Array<{ field: OakwoodUploadField; label: string; sheetField: string }> = [
+  { field: "combinedFile", label: "Combined Oakwood workbook", sheetField: "combinedSheet" },
+  { field: "camperFile", label: "Camper workbook", sheetField: "camperSheet" },
+  { field: "staffFile", label: "Staff workbook", sheetField: "staffSheet" }
+];
+
+export function CampSettingsImportToolPage() {
+  const { role, capabilities } = useCamp();
+  const [sourceName, setSourceName] = useState("Camp Oakwood Upload");
+  const [files, setFiles] = useState<Record<OakwoodUploadField, File | null>>({ combinedFile: null, camperFile: null, staffFile: null });
+  const [sheetNames, setSheetNames] = useState<Record<OakwoodUploadField, string[]>>({ combinedFile: [], camperFile: [], staffFile: [] });
+  const [selectedSheets, setSelectedSheets] = useState<Record<OakwoodUploadField, string>>({ combinedFile: "", camperFile: "", staffFile: "" });
+  const [preview, setPreview] = useState<CampOakwoodImportPreview | null>(null);
+  const [confirmed, setConfirmed] = useState(false);
+  const [message, setMessage] = useState<{ tone: "error" | "success"; text: string } | null>(null);
+  const [busy, setBusy] = useState<"inspect" | "preview" | "commit" | null>(null);
+
+  if (!capabilities.medicalCommand) {
+    return (
+      <ToolPageShell title="Import Camp Roster" subtitle="Approved Oakwood roster/workbook import.">
+        <EmptyState>This route is restricted to Camp Admins.</EmptyState>
+      </ToolPageShell>
+    );
+  }
+
+  const hasFile = oakwoodUploadFields.some((item) => files[item.field]);
+
+  function buildUploadForm(mode: "inspect" | "preview") {
+    const formData = new FormData();
+    formData.set("mode", mode);
+    formData.set("sourceName", sourceName);
+    for (const item of oakwoodUploadFields) {
+      const file = files[item.field];
+      if (!file) continue;
+      formData.set(item.field, file);
+      const sheetName = selectedSheets[item.field];
+      if (sheetName) formData.set(item.sheetField, sheetName);
+    }
+    return formData;
+  }
+
+  async function inspectUpload() {
+    setMessage(null);
+    setPreview(null);
+    setConfirmed(false);
+    setBusy("inspect");
+    const response = await fetch(`/api/camp/import/upload?role=${role}`, { method: "POST", body: buildUploadForm("inspect") });
+    const body = await response.json().catch(() => ({})) as { error?: string; files?: Array<{ slot: OakwoodUploadField; sheetNames: string[] }> };
+    setBusy(null);
+    if (!response.ok || !body.files) {
+      setMessage({ tone: "error", text: body.error ?? "Oakwood workbook inspection failed." });
+      return;
+    }
+    const nextSheets = { combinedFile: [] as string[], camperFile: [] as string[], staffFile: [] as string[] };
+    const nextSelected = { ...selectedSheets };
+    for (const file of body.files) {
+      nextSheets[file.slot] = file.sheetNames;
+      if (file.sheetNames.length === 1) nextSelected[file.slot] = file.sheetNames[0];
+    }
+    setSheetNames(nextSheets);
+    setSelectedSheets(nextSelected);
+    setMessage({ tone: "success", text: "Workbook sheets inspected. Choose sheets, then preview before saving." });
+  }
+
+  async function previewUpload() {
+    setMessage(null);
+    setPreview(null);
+    setConfirmed(false);
+    setBusy("preview");
+    const response = await fetch(`/api/camp/import/upload?role=${role}`, { method: "POST", body: buildUploadForm("preview") });
+    const body = await response.json().catch(() => ({})) as { error?: string; preview?: CampOakwoodImportPreview };
+    setBusy(null);
+    if (!response.ok || !body.preview) {
+      setMessage({ tone: "error", text: body.error ?? "Oakwood preview could not be created." });
+      return;
+    }
+    setPreview(body.preview);
+    setMessage({ tone: "success", text: "Oakwood preview ready. Nothing has been saved." });
+  }
+
+  async function commitPreview() {
+    if (!preview || !confirmed) {
+      setMessage({ tone: "error", text: "Review and confirm the preview before saving." });
+      return;
+    }
+    setBusy("commit");
+    const response = await fetch(`/api/camp/import?role=${role}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "oakwoodCommit", oakwoodPreview: preview, confirmed: true })
+    });
+    const body = await response.json().catch(() => ({})) as { error?: string; result?: { committed: unknown[] } };
+    setBusy(null);
+    if (!response.ok || !body.result) {
+      setMessage({ tone: "error", text: body.error ?? "Oakwood import could not be saved." });
+      return;
+    }
+    setMessage({ tone: "success", text: `Oakwood import saved: ${body.result.committed.length} rows committed.` });
+    setPreview(null);
+    setConfirmed(false);
+  }
+
+  return (
+    <ToolPageShell title="Import Camp Roster" subtitle="Camp Admin-only Oakwood roster/workbook upload with preview, validation, and explicit commit.">
+      <div className="camp-tool-workflow">
+        <section className="camp-admin-form" aria-label="Oakwood roster import">
+          <p className="camp-cc-muted">Use this only for approved Oakwood roster/workbook imports. Uploads are inspected and previewed first; no roster data is saved automatically on upload.</p>
+          <StatusPill tone="locked">Camp Admin only</StatusPill>
+          <label className="field">
+            <span>Import label</span>
+            <input className="input" value={sourceName} onChange={(event) => setSourceName(event.target.value)} />
+          </label>
+          {oakwoodUploadFields.map((item) => (
+            <div className="camp-list-row align-start" key={item.field}>
+              <label className="field">
+                <span>{item.label}</span>
+                <input
+                  className="input"
+                  type="file"
+                  accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                  onChange={(event) => {
+                    setFiles((current) => ({ ...current, [item.field]: event.currentTarget.files?.[0] ?? null }));
+                    setPreview(null);
+                    setConfirmed(false);
+                  }}
+                />
+              </label>
+              {sheetNames[item.field].length ? (
+                <label className="field">
+                  <span>Worksheet</span>
+                  <select className="input" value={selectedSheets[item.field]} onChange={(event) => setSelectedSheets((current) => ({ ...current, [item.field]: event.target.value }))}>
+                    <option value="">Select worksheet</option>
+                    {sheetNames[item.field].map((sheet) => <option key={sheet} value={sheet}>{sheet}</option>)}
+                  </select>
+                </label>
+              ) : null}
+            </div>
+          ))}
+          <div className="camp-row-actions">
+            <button className="button" type="button" disabled={!hasFile || busy !== null} onClick={() => void inspectUpload()}>
+              {busy === "inspect" ? "Inspecting..." : "Inspect sheets"}
+            </button>
+            <button className="button primary" type="button" disabled={!hasFile || busy !== null} onClick={() => void previewUpload()}>
+              {busy === "preview" ? "Previewing..." : "Build preview"}
+            </button>
+          </div>
+        </section>
+
+        {preview ? (
+          <section className="camp-admin-form" aria-label="Oakwood import preview">
+            <h2 className="camp-tool-group-title">Preview summary</h2>
+            <div className="camp-list">
+              <div className="camp-list-row"><strong>Total source rows</strong><StatusPill>{preview.summary.totalSourceRows}</StatusPill></div>
+              <div className="camp-list-row"><strong>New people</strong><StatusPill>{preview.summary.newCount}</StatusPill></div>
+              <div className="camp-list-row"><strong>Matched people</strong><StatusPill>{preview.summary.matchedCount}</StatusPill></div>
+              <div className="camp-list-row"><strong>Ambiguous rows</strong><StatusPill tone={preview.summary.ambiguousCount ? "warn" : "ready"}>{preview.summary.ambiguousCount}</StatusPill></div>
+              <div className="camp-list-row"><strong>Invalid rows</strong><StatusPill tone={preview.summary.invalidCount ? "warn" : "ready"}>{preview.summary.invalidCount}</StatusPill></div>
+            </div>
+            <p className="camp-cc-muted">Restricted medical/contact/dietary fields stay in restricted storage on commit. Ambiguous or invalid rows block saving.</p>
+            <label className="camp-checkbox-line">
+              <input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} />
+              <span>I reviewed this Oakwood preview and approve saving the non-ambiguous rows.</span>
+            </label>
+            <button className="button primary" type="button" disabled={!confirmed || busy !== null || preview.summary.ambiguousCount > 0 || preview.summary.invalidCount > 0} onClick={() => void commitPreview()}>
+              {busy === "commit" ? "Saving..." : "Save confirmed Oakwood import"}
+            </button>
+          </section>
+        ) : null}
+
+        {message ? <p className={message.tone === "error" ? "camp-save-message error" : "camp-save-message success"} role="status">{message.text}</p> : null}
+      </div>
     </ToolPageShell>
   );
 }
@@ -288,7 +590,7 @@ function MedicationAdministrationForm({
   const [loggedBy, setLoggedBy] = useState("Andrew");
   const [status, setStatus] = useState<CampMedicationAdministrationLog["status"]>("Logged");
   const [notes, setNotes] = useState("");
-  const [initials, setInitials] = useState("");
+  const [ackSignature, setAckSignature] = useState<CampSignatureData>(() => emptySignatureData());
   const [ackUnavailable, setAckUnavailable] = useState(false);
   const [ackReason, setAckReason] = useState("");
   const [message, setMessage] = useState<{ tone: "error" | "success"; text: string } | null>(null);
@@ -311,8 +613,8 @@ function MedicationAdministrationForm({
       setMessage({ tone: "error", text: "Reason is required when the student is unavailable or declined to initial." });
       return;
     }
-    if (!ackUnavailable && !initials.trim()) {
-      setMessage({ tone: "error", text: "Student acknowledgement initials are required, or mark unavailable/declined with a reason." });
+    if (!ackUnavailable && !hasSignature(ackSignature)) {
+      setMessage({ tone: "error", text: "Student acknowledgement signature is required, or mark unavailable/declined with a reason." });
       return;
     }
 
@@ -326,7 +628,7 @@ function MedicationAdministrationForm({
         loggedBy,
         status,
         notes,
-        studentAcknowledgementInitials: initials,
+        studentAcknowledgementInitials: ackUnavailable ? "" : serializeStudentAcknowledgement(ackSignature),
         studentAcknowledgementUnavailable: ackUnavailable,
         studentAcknowledgementUnavailableReason: ackReason
       })
@@ -339,7 +641,7 @@ function MedicationAdministrationForm({
     }
     setMessage({ tone: "success", text: "Medication administration logged. Student acknowledgement recorded as acknowledgement only." });
     setNotes("");
-    setInitials("");
+    setAckSignature(emptySignatureData());
     setAckUnavailable(false);
     setAckReason("");
   }
@@ -386,26 +688,26 @@ function MedicationAdministrationForm({
       <section className="camp-ack-box" aria-label="Student acknowledgement only">
         <div>
           <strong>Student acknowledgement only</strong>
-          <p className="camp-cc-muted">Initials confirm acknowledgement of the interaction. They are not consent, approval, or a medication-administration signature.</p>
+          <p className="camp-cc-muted">Finger initials acknowledge the interaction only. They are not consent, approval, or the staff medication-administration record.</p>
         </div>
-        <label className="field">
-          <span>Student initials</span>
-          <input
-            className="input camp-ack-input"
-            value={initials}
-            onChange={(event) => setInitials(event.target.value.toUpperCase())}
-            disabled={ackUnavailable}
-            inputMode="text"
-            maxLength={6}
-            aria-label="Student acknowledgement initials"
-          />
-        </label>
+        <SignaturePad
+          value={ackSignature}
+          onChange={setAckSignature}
+          label="Student acknowledgement signature pad"
+          description="Have the student draw their initials with a finger, mouse, or stylus when available."
+          clearLabel="Clear and Re-sign"
+          disabled={ackUnavailable}
+        />
         <div className="camp-row-actions">
-          <button className="button compact-button" type="button" onClick={() => { setInitials(""); setAckUnavailable(false); setAckReason(""); }}>
-            Clear and Re-sign
-          </button>
           <label className="camp-checkbox-line">
-            <input type="checkbox" checked={ackUnavailable} onChange={(event) => setAckUnavailable(event.target.checked)} />
+            <input
+              type="checkbox"
+              checked={ackUnavailable}
+              onChange={(event) => {
+                setAckUnavailable(event.target.checked);
+                if (event.target.checked) setAckSignature(emptySignatureData());
+              }}
+            />
             <span>Unavailable or declined to initial</span>
           </label>
         </div>
@@ -433,7 +735,7 @@ function MedicationAdministrationForm({
                   <strong>{log.status} - {new Date(log.loggedAt).toLocaleString()}</strong>
                   <p className="camp-cc-muted">Logged by {log.loggedBy}. {log.notes}</p>
                   <p className="camp-cc-muted">
-                    Acknowledgement: {log.studentAcknowledgementUnavailable ? `Unavailable/declined - ${log.studentAcknowledgementUnavailableReason}` : log.studentAcknowledgementInitials || "Not recorded"}
+                    Acknowledgement: {formatStudentAcknowledgement(log)}
                   </p>
                 </div>
                 <StatusPill tone={statusTone(log.status)}>{log.auditStatus ?? "Active"}</StatusPill>
@@ -452,29 +754,294 @@ export function CampMedicineIntakeToolPage() {
   return (
     <ToolPageShell title="Medicine Intake / Return" subtitle="Restricted staff handoff records and return checklist.">
       <MedicationDataGate>
-        {(data) => (
-          <div className="camp-list">
-            <div className="camp-list-row align-start">
-              <div>
-                <strong>Recent intake records</strong>
-                <p className="camp-cc-muted">{data.intakeHistory.length ? data.intakeHistory.slice(0, 4).map((item) => `${item.studentName} (${item.quantityReceived || "quantity not recorded"})`).join(", ") : "No intake records on file."}</p>
-              </div>
-              <StatusPill>{data.intakeHistory.length}</StatusPill>
-            </div>
-            {data.returnChecklist.map((item) => (
-              <div className="camp-list-row align-start" key={item.id}>
-                <div>
-                  <strong>{item.studentName}</strong>
-                  <p className="camp-cc-muted">{item.returnNotes || "No return note on file."}</p>
-                </div>
-                <StatusPill tone={statusTone(item.returnStatus)}>{item.returnStatus}</StatusPill>
-              </div>
-            ))}
-            <EmptyState>Intake and return edit controls are not split into this dedicated page yet.</EmptyState>
-          </div>
-        )}
+        {(data) => <MedicineIntakeReturnWorkflow data={data} />}
       </MedicationDataGate>
     </ToolPageShell>
+  );
+}
+
+function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
+  const { role } = useCamp();
+  const [intakeHistory, setIntakeHistory] = useState(data.intakeHistory);
+  const [returnChecklist, setReturnChecklist] = useState(data.returnChecklist);
+  const [medicationRecordId, setMedicationRecordId] = useState(data.checkIn[0]?.id ?? "");
+  const selectedMedication = data.checkIn.find((record) => record.id === medicationRecordId) ?? data.checkIn[0];
+  const [medicationName, setMedicationName] = useState(selectedMedication?.medicationName ?? "");
+  const [dose, setDose] = useState("");
+  const [scheduleText, setScheduleText] = useState(data.schedule.find((item) => item.medicationRecordId === selectedMedication?.id)?.timeWindow ?? "");
+  const [quantityReceived, setQuantityReceived] = useState("");
+  const [parentInstructions, setParentInstructions] = useState(selectedMedication?.parentProvidedInstructions ?? "");
+  const [staffNotes, setStaffNotes] = useState("");
+  const [containerStatus, setContainerStatus] = useState("Original labeled container received");
+  const [receivedByName, setReceivedByName] = useState(role === "jaci" ? "Jaci" : role === "joel" ? "Joel" : "Andrew");
+  const [guardianName, setGuardianName] = useState("");
+  const [guardianRelationship, setGuardianRelationship] = useState("Parent/Guardian");
+  const [guardianSignature, setGuardianSignature] = useState<CampSignatureData>(() => emptySignatureData());
+  const [clarificationStatus, setClarificationStatus] = useState<CampMedicationIntakeRecord["clarificationStatus"]>("Clear");
+  const [confirmationAcknowledged, setConfirmationAcknowledged] = useState(false);
+  const [returnItemId, setReturnItemId] = useState(returnChecklist[0]?.id ?? "");
+  const selectedReturn = returnChecklist.find((item) => item.id === returnItemId) ?? returnChecklist[0];
+  const [returnStatus, setReturnStatus] = useState<CampMedicationReturnItem["returnStatus"]>(selectedReturn?.returnStatus ?? "Pending Return");
+  const [returnedBy, setReturnedBy] = useState(role === "jaci" ? "Jaci" : role === "joel" ? "Joel" : "Andrew");
+  const [recipientName, setRecipientName] = useState(selectedReturn?.recipientName ?? "");
+  const [recipientRelationship, setRecipientRelationship] = useState(selectedReturn?.recipientRelationship ?? "");
+  const [returnNotes, setReturnNotes] = useState(selectedReturn?.returnNotes ?? "");
+  const [message, setMessage] = useState<{ tone: "error" | "success"; text: string } | null>(null);
+  const [saving, setSaving] = useState<"intake" | "return" | null>(null);
+
+  useEffect(() => {
+    if (!selectedMedication) return;
+    setMedicationName(selectedMedication.medicationName);
+    setParentInstructions(selectedMedication.parentProvidedInstructions);
+    setScheduleText(data.schedule.find((item) => item.medicationRecordId === selectedMedication.id)?.timeWindow ?? "");
+  }, [data.schedule, selectedMedication]);
+
+  useEffect(() => {
+    if (!selectedReturn) return;
+    setReturnStatus(selectedReturn.returnStatus);
+    setRecipientName(selectedReturn.recipientName ?? "");
+    setRecipientRelationship(selectedReturn.recipientRelationship ?? "");
+    setReturnNotes(selectedReturn.returnNotes ?? "");
+  }, [selectedReturn]);
+
+  async function saveIntake() {
+    setMessage(null);
+    if (!selectedMedication) {
+      setMessage({ tone: "error", text: "Choose a camper medication record before saving intake." });
+      return;
+    }
+    if (!hasSignature(guardianSignature)) {
+      setMessage({ tone: "error", text: "Parent/guardian handoff signature is required." });
+      return;
+    }
+    if (!confirmationAcknowledged) {
+      setMessage({ tone: "error", text: "Confirm that the handoff details were reviewed with the parent/guardian." });
+      return;
+    }
+
+    setSaving("intake");
+    const response = await fetch(`/api/camp/medication?role=${role}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        target: "intake",
+        medicationRecordId: selectedMedication.id,
+        studentId: selectedMedication.studentId,
+        medicationName,
+        dose,
+        scheduleText,
+        parentInstructions,
+        staffNotes,
+        quantityReceived,
+        containerStatus,
+        receivedByName,
+        guardianName,
+        guardianRelationship,
+        guardianSignatureData: guardianSignature,
+        clarificationStatus,
+        confirmationAcknowledged
+      })
+    });
+    const body = await response.json().catch(() => ({})) as { error?: string; intake?: CampMedicationIntakeRecord };
+    setSaving(null);
+    if (!response.ok || !body.intake) {
+      setMessage({ tone: "error", text: body.error ?? "Medication intake could not be saved." });
+      return;
+    }
+    setIntakeHistory((current) => [body.intake as CampMedicationIntakeRecord, ...current]);
+    setMessage({ tone: "success", text: "Medication intake recorded with parent/guardian acknowledgement." });
+    setQuantityReceived("");
+    setStaffNotes("");
+    setGuardianName("");
+    setGuardianRelationship("Parent/Guardian");
+    setGuardianSignature(emptySignatureData());
+    setConfirmationAcknowledged(false);
+  }
+
+  async function saveReturn() {
+    setMessage(null);
+    if (!selectedReturn) {
+      setMessage({ tone: "error", text: "Choose a return checklist item before saving." });
+      return;
+    }
+
+    setSaving("return");
+    const response = await fetch(`/api/camp/medication?role=${role}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        target: "return",
+        id: selectedReturn.id,
+        returnStatus,
+        returnedBy,
+        recipientName,
+        recipientRelationship,
+        returnNotes
+      })
+    });
+    const body = await response.json().catch(() => ({})) as { error?: string; item?: CampMedicationReturnItem };
+    setSaving(null);
+    if (!response.ok || !body.item) {
+      setMessage({ tone: "error", text: body.error ?? "Medication return could not be saved." });
+      return;
+    }
+    setReturnChecklist((current) => current.map((item) => item.id === body.item?.id ? body.item : item));
+    setMessage({ tone: "success", text: "Medication return status updated." });
+  }
+
+  if (!data.checkIn.length) {
+    return <EmptyState>No medication records are available for intake or return yet.</EmptyState>;
+  }
+
+  return (
+    <div className="camp-tool-workflow">
+      <section className="camp-admin-form" aria-label="Medication intake handoff">
+        <h2 className="camp-tool-group-title">Record medication handoff / intake</h2>
+        <p className="camp-cc-muted">Document original labeled containers, parent-provided dose/time/instructions, quantity, staff receipt, and parent/guardian handoff acknowledgement.</p>
+        <label className="field">
+          <span>Camper medication record</span>
+          <select className="input" value={medicationRecordId} onChange={(event) => setMedicationRecordId(event.target.value)} aria-label="Camper medication record">
+            {data.checkIn.map((record) => (
+              <option key={record.id} value={record.id}>{record.studentName} - {record.medicationName}</option>
+            ))}
+          </select>
+        </label>
+        <div className="camp-form-grid">
+          <label className="field">
+            <span>Medication name/type</span>
+            <input className="input" value={medicationName} onChange={(event) => setMedicationName(event.target.value)} />
+          </label>
+          <label className="field">
+            <span>Dose</span>
+            <input className="input" value={dose} onChange={(event) => setDose(event.target.value)} placeholder="As written on parent label" />
+          </label>
+          <label className="field">
+            <span>Scheduled time(s)</span>
+            <input className="input" value={scheduleText} onChange={(event) => setScheduleText(event.target.value)} />
+          </label>
+          <label className="field">
+            <span>Quantity received</span>
+            <input className="input" value={quantityReceived} onChange={(event) => setQuantityReceived(event.target.value)} placeholder="Example: 10 tablets" />
+          </label>
+        </div>
+        <label className="field">
+          <span>Parent/guardian instructions</span>
+          <textarea className="input" rows={3} value={parentInstructions} onChange={(event) => setParentInstructions(event.target.value)} />
+        </label>
+        <div className="camp-form-grid">
+          <label className="field">
+            <span>Container status</span>
+            <input className="input" value={containerStatus} onChange={(event) => setContainerStatus(event.target.value)} />
+          </label>
+          <label className="field">
+            <span>Received by leader/staff</span>
+            <input className="input" value={receivedByName} onChange={(event) => setReceivedByName(event.target.value)} />
+          </label>
+          <label className="field">
+            <span>Parent/guardian name</span>
+            <input className="input" value={guardianName} onChange={(event) => setGuardianName(event.target.value)} />
+          </label>
+          <label className="field">
+            <span>Relationship</span>
+            <input className="input" value={guardianRelationship} onChange={(event) => setGuardianRelationship(event.target.value)} />
+          </label>
+        </div>
+        <label className="field">
+          <span>Staff notes</span>
+          <textarea className="input" rows={3} value={staffNotes} onChange={(event) => setStaffNotes(event.target.value)} />
+        </label>
+        <label className="field">
+          <span>Clarification status</span>
+          <select className="input" value={clarificationStatus} onChange={(event) => setClarificationStatus(event.target.value as CampMedicationIntakeRecord["clarificationStatus"])}>
+            <option value="Clear">Clear</option>
+            <option value="Needs Parent Clarification">Needs Parent Clarification</option>
+          </select>
+        </label>
+        <SignaturePad
+          value={guardianSignature}
+          onChange={setGuardianSignature}
+          label="Parent or guardian signature"
+          description="Restricted handoff acknowledgement captured with finger, mouse, or stylus."
+        />
+        <label className="camp-checkbox-line">
+          <input type="checkbox" checked={confirmationAcknowledged} onChange={(event) => setConfirmationAcknowledged(event.target.checked)} />
+          <span>Parent/guardian handoff details reviewed with staff.</span>
+        </label>
+        <button className="button primary" type="button" disabled={saving === "intake"} onClick={() => void saveIntake()}>
+          {saving === "intake" ? "Saving intake..." : "Save medication intake"}
+        </button>
+      </section>
+
+      <section className="camp-admin-form" aria-label="Medication return checkout">
+        <h2 className="camp-tool-group-title">Record medication return / checkout</h2>
+        {returnChecklist.length ? (
+          <>
+            <label className="field">
+              <span>Return checklist item</span>
+              <select className="input" value={returnItemId} onChange={(event) => setReturnItemId(event.target.value)} aria-label="Return checklist item">
+                {returnChecklist.map((item) => (
+                  <option key={item.id} value={item.id}>{item.studentName} - {item.returnStatus}</option>
+                ))}
+              </select>
+            </label>
+            <div className="camp-form-grid">
+              <label className="field">
+                <span>Return status</span>
+                <select className="input" value={returnStatus} onChange={(event) => setReturnStatus(event.target.value as CampMedicationReturnItem["returnStatus"])}>
+                  <option value="Pending Return">Pending Return</option>
+                  <option value="Returned to Parent/Guardian">Returned to Parent/Guardian</option>
+                  <option value="Needs Parent Clarification">Needs Parent Clarification</option>
+                  <option value="Not Returned / Follow-Up Needed">Not Returned / Follow-Up Needed</option>
+                </select>
+              </label>
+              <label className="field">
+                <span>Returned by staff</span>
+                <input className="input" value={returnedBy} onChange={(event) => setReturnedBy(event.target.value)} />
+              </label>
+              <label className="field">
+                <span>Recipient name</span>
+                <input className="input" value={recipientName} onChange={(event) => setRecipientName(event.target.value)} />
+              </label>
+              <label className="field">
+                <span>Recipient relationship</span>
+                <input className="input" value={recipientRelationship} onChange={(event) => setRecipientRelationship(event.target.value)} />
+              </label>
+            </div>
+            <label className="field">
+              <span>Return notes</span>
+              <textarea className="input" rows={3} value={returnNotes} onChange={(event) => setReturnNotes(event.target.value)} />
+            </label>
+            <p className="camp-cc-muted">Return acknowledgement signatures are not in the current durable schema; record recipient acknowledgement in return notes until that field exists.</p>
+            <button className="button primary" type="button" disabled={saving === "return"} onClick={() => void saveReturn()}>
+              {saving === "return" ? "Saving return..." : "Save return status"}
+            </button>
+          </>
+        ) : (
+          <EmptyState>No return checklist items are available yet.</EmptyState>
+        )}
+      </section>
+
+      {message ? <p className={message.tone === "error" ? "camp-save-message error" : "camp-save-message success"} role="status">{message.text}</p> : null}
+
+      <section aria-label="Recent medication intake records">
+        <h2 className="camp-tool-group-title">Recent intake records</h2>
+        {intakeHistory.length ? (
+          <div className="camp-list">
+            {intakeHistory.slice(0, 5).map((item) => (
+              <div className="camp-list-row align-start" key={item.id}>
+                <div>
+                  <strong>{item.studentName} - {item.medicationName}</strong>
+                  <p className="camp-cc-muted">{item.quantityReceived || "Quantity not recorded"} received by {item.receivedByName}.</p>
+                </div>
+                <StatusPill tone={statusTone(item.clarificationStatus)}>{item.auditStatus ?? item.clarificationStatus}</StatusPill>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <EmptyState>No intake records on file.</EmptyState>
+        )}
+      </section>
+    </div>
   );
 }
 

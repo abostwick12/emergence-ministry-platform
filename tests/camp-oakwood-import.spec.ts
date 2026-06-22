@@ -20,6 +20,23 @@ test.describe("Camp Oakwood restricted import boundaries", () => {
     await expect(page.getByRole("link", { name: /Oakwood import preview/ })).toHaveCount(0);
   });
 
+  test("Camp Settings exposes Andrew-only roster import route", async ({ page }) => {
+    await login(page);
+    await page.goto("/camp");
+    await page.getByRole("button", { name: "Jaci", exact: true }).click();
+    await page.goto("/camp/settings/import");
+    await expect(page.getByText("This route is restricted to Camp Admins.")).toBeVisible();
+
+    await page.goto("/camp");
+    await page.getByRole("button", { name: "Andrew", exact: true }).click();
+    await page.getByRole("navigation", { name: "Camp sections" }).getByRole("link", { name: "More", exact: true }).click();
+    await page.getByRole("link", { name: "Camp Settings" }).click();
+    await page.getByRole("link", { name: "Import Camp Roster" }).click();
+    await page.waitForURL(/\/camp\/settings\/import$/);
+    await expect(page.getByRole("heading", { name: "Import Camp Roster" })).toBeVisible();
+    await expect(page.getByText("no roster data is saved automatically on upload")).toBeVisible();
+  });
+
   test("removes synthetic john test from active Camp views through the restricted archive workflow", async ({ page }) => {
     await login(page);
 

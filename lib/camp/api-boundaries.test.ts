@@ -437,6 +437,16 @@ describe("camp API restricted data boundaries", () => {
     expect(missingAck.status).toBe(400);
     expect(await missingAck.json()).toMatchObject({ error: expect.stringMatching(/acknowledgement initials are required/i) });
 
+    const missingUnavailableReason = await medicationPOST(jsonRequest("http://localhost/api/camp/medication?role=andrew", {
+      target: "administrationLog",
+      scheduleItemId: "med-sched-1",
+      loggedBy: "Andrew",
+      status: "Logged",
+      studentAcknowledgementUnavailable: true
+    }));
+    expect(missingUnavailableReason.status).toBe(400);
+    expect(await missingUnavailableReason.json()).toMatchObject({ error: expect.stringMatching(/reason is required/i) });
+
     const logged = await medicationPOST(jsonRequest("http://localhost/api/camp/medication?role=andrew", {
       target: "administrationLog",
       scheduleItemId: "med-sched-1",
@@ -467,10 +477,10 @@ describe("camp API restricted data boundaries", () => {
     }
   });
 
-  it("forbids import preview and commit for General Leaders and Drivers", async () => {
+  it("forbids import preview and commit outside Camp Admin", async () => {
     getServerSessionMock.mockResolvedValue(session());
 
-    for (const role of ["general_leader", "driver"]) {
+    for (const role of ["jaci", "joel", "general_leader", "driver"]) {
       const previewResponse = await importPOST(jsonRequest(`http://localhost/api/camp/import?role=${role}`, {
         action: "preview",
         csv: "Student Name,Team,Vehicle\nCamper,Blue,Van 1"
@@ -485,7 +495,7 @@ describe("camp API restricted data boundaries", () => {
     }
   });
 
-  it("allows restricted users to preview and commit registration imports", async () => {
+  it("allows Andrew to preview and commit registration imports", async () => {
     getServerSessionMock.mockResolvedValue(session());
 
     const previewResponse = await importPOST(jsonRequest("http://localhost/api/camp/import?role=andrew", {
@@ -575,10 +585,10 @@ describe("camp API restricted data boundaries", () => {
     expectNoRestrictedPayloadDetails(payload);
   });
 
-  it("requires restricted access and confirmation for Oakwood upload preview and commit", async () => {
+  it("requires Camp Admin access and confirmation for Oakwood upload preview and commit", async () => {
     getServerSessionMock.mockResolvedValue(session());
 
-    for (const role of ["general_leader", "driver"]) {
+    for (const role of ["jaci", "joel", "general_leader", "driver"]) {
       const denied = await uploadImportPOST(oakwoodUploadRequest(`http://localhost/api/camp/import/upload?role=${role}`, oakwoodCsvFile()));
       expect(denied.status).toBe(403);
       expectNoRestrictedPayloadDetails(await json(denied));
@@ -618,6 +628,20 @@ describe("camp API restricted data boundaries", () => {
     expect(JSON.stringify(publicPayload)).not.toContain("Private medical note");
     expect(JSON.stringify(publicPayload)).not.toContain("555");
     expectNoRestrictedPayloadDetails(publicPayload);
+  });
+
+  it("Oakwood upload preview does not save automatically", async () => {
+    getServerSessionMock.mockResolvedValue(session());
+
+    const previewResponse = await uploadImportPOST(oakwoodUploadRequest("http://localhost/api/camp/import/upload?role=andrew", oakwoodCsvFile("oakwood.csv", [
+      "Registration ID,Name,Selection,Grade,Room Number,T-Shirt Size,Quick Filter,Emergency Contact",
+      "70000133,Preview Only Camper,Student,9th,Room 7,Adult Small,No Concern,"
+    ].join("\n"))));
+    expect(previewResponse.status).toBe(200);
+    expect(JSON.stringify(await previewResponse.json())).toContain("Preview Only Camper");
+
+    const publicOverview = await campGET(new Request("http://localhost/api/camp?role=general_leader"));
+    expect(JSON.stringify(await publicOverview.json())).not.toContain("Preview Only Camper");
   });
 
   it("rejects invalid Oakwood upload extension and MIME combinations", async () => {
@@ -683,7 +707,7 @@ describe("camp API restricted data boundaries", () => {
     }
   });
 
-  it("uses live session identity, not the role query, for restricted Oakwood upload authorization", async () => {
+  it("uses live session identity, not the role query, for Camp Admin Oakwood upload authorization", async () => {
     getServerSessionMock.mockResolvedValue(session("leader", {
       isMock: false,
       user: { id: "live_andrew", email: "andrew@example.test", fullName: "Andrew", role: "leader" }
@@ -699,6 +723,14 @@ describe("camp API restricted data boundaries", () => {
 
     expect(response.status).toBe(200);
     expect(JSON.stringify(await response.json())).toContain("Live Andrew Preview Staff");
+
+    getServerSessionMock.mockResolvedValue(session("leader", {
+      isMock: false,
+      user: { id: "live_jaci", email: "jaci@example.test", fullName: "Jaci", role: "leader" }
+    }));
+
+    const denied = await uploadImportPOST(oakwoodUploadRequest("http://localhost/api/camp/import/upload?role=andrew", oakwoodCsvFile()));
+    expect(denied.status).toBe(403);
   });
 
   it("keeps live Oakwood commits disabled even for restricted identities in this iteration", async () => {

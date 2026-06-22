@@ -1,4 +1,4 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 
 test.describe("Camp dedicated medication tool pages", () => {
   test("General Leader sees safe More tools without restricted medication workflows", async ({ page }) => {
@@ -27,7 +27,8 @@ test.describe("Camp dedicated medication tool pages", () => {
 
     await page.getByRole("link", { name: "Medicine Intake / Return" }).click();
     await expect(page.getByRole("heading", { name: "Medicine Intake / Return" })).toBeVisible();
-    await expect(page.getByText("Intake and return edit controls are not split into this dedicated page yet.")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Save medication intake" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Save return status" })).toBeVisible();
 
     await page.goto("/camp/medical-command/administer");
     await expect(page.getByText("This page is available only in Andrew Medical Command.")).toBeVisible();
@@ -57,16 +58,60 @@ test.describe("Camp dedicated medication tool pages", () => {
     await page.waitForURL(/\/camp\/medical-command\/administer$/);
     await page.getByLabel("Medication time block").selectOption("med-sched-1");
     await page.getByRole("button", { name: "Log medication administration" }).click();
-    await expect(page.getByText("Student acknowledgement initials are required")).toBeVisible();
+    await expect(page.getByText("Student acknowledgement signature is required")).toBeVisible();
 
-    await page.getByLabel("Student acknowledgement initials").fill("aj");
+    await signPad(page.getByRole("img", { name: "Student acknowledgement signature pad" }));
     await page.getByRole("button", { name: "Clear and Re-sign" }).click();
-    await expect(page.getByLabel("Student acknowledgement initials")).toHaveValue("");
+    await page.getByRole("button", { name: "Log medication administration" }).click();
+    await expect(page.getByText("Student acknowledgement signature is required")).toBeVisible();
 
-    await page.getByLabel("Student acknowledgement initials").fill("aj");
+    await signPad(page.getByRole("img", { name: "Student acknowledgement signature pad" }));
     await page.getByLabel("Staff notes").fill("Logged after student acknowledgement.");
     await page.getByRole("button", { name: "Log medication administration" }).click();
     await expect(page.getByText("Medication administration logged.")).toBeVisible();
+  });
+
+  test("Andrew acknowledgement unavailable requires a reason", async ({ page }) => {
+    await login(page);
+    await page.goto("/camp");
+    await page.getByRole("button", { name: "Andrew", exact: true }).click();
+    await page.getByRole("navigation", { name: "Camp sections" }).getByRole("link", { name: "More", exact: true }).click();
+    await page.getByRole("link", { name: "Administer Medicine" }).click();
+    await page.waitForURL(/\/camp\/medical-command\/administer$/);
+
+    await page.getByLabel("Unavailable or declined to initial").check();
+    await page.getByRole("button", { name: "Log medication administration" }).click();
+    await expect(page.getByText("Reason is required when the student is unavailable or declined to initial.")).toBeVisible();
+
+    await page.getByLabel("Reason required").fill("Student was asleep during documentation.");
+    await page.getByRole("button", { name: "Log medication administration" }).click();
+    await expect(page.getByText("Medication administration logged.")).toBeVisible();
+  });
+
+  test("Medicine Intake saves parent handoff with signature and updates return status", async ({ page }) => {
+    await login(page);
+    await page.goto("/camp");
+    await page.getByRole("button", { name: "Jaci", exact: true }).click();
+    await page.getByRole("navigation", { name: "Camp sections" }).getByRole("link", { name: "More", exact: true }).click();
+    await page.getByRole("link", { name: "Medicine Intake \/ Return" }).click();
+    await page.waitForURL(/\/camp\/medicine-intake$/);
+
+    await page.getByLabel("Camper medication record").selectOption("med-1");
+    await page.getByLabel("Dose").fill("Parent label dose");
+    await page.getByLabel("Quantity received").fill("8 tablets");
+    await page.getByLabel("Parent/guardian name").fill("Pat Parent");
+    await signPad(page.getByRole("img", { name: "Parent or guardian signature" }));
+    await page.getByLabel("Parent/guardian handoff details reviewed with staff.").check();
+    await page.getByRole("button", { name: "Save medication intake" }).click();
+    await expect(page.getByText("Medication intake recorded with parent/guardian acknowledgement.")).toBeVisible();
+    await expect(page.getByText("8 tablets received by Jaci")).toBeVisible();
+
+    await page.getByLabel("Return status").selectOption("Returned to Parent/Guardian");
+    await page.getByLabel("Recipient name").fill("Pat Parent");
+    await page.getByLabel("Recipient relationship").fill("Parent");
+    await page.getByLabel("Return notes").fill("Returned at checkout.");
+    await page.getByRole("button", { name: "Save return status" }).click();
+    await expect(page.getByText("Medication return status updated.")).toBeVisible();
   });
 
   test("Edit Camper action stays compact inside tall roster cards", async ({ page }) => {
@@ -98,4 +143,16 @@ async function login(page: Page) {
   await page.getByLabel("Password").fill(process.env.E2E_TEST_PASSWORD ?? "password");
   await page.getByRole("button", { name: "Log in" }).click();
   await page.waitForURL(/\/dashboard$/);
+}
+
+async function signPad(locator: Locator) {
+  await locator.scrollIntoViewIfNeeded();
+  const box = await locator.boundingBox();
+  expect(box).not.toBeNull();
+  if (!box) return;
+  await locator.page().mouse.move(box.x + 24, box.y + 40);
+  await locator.page().mouse.down();
+  await locator.page().mouse.move(box.x + 78, box.y + 86);
+  await locator.page().mouse.move(box.x + 132, box.y + 42);
+  await locator.page().mouse.up();
 }

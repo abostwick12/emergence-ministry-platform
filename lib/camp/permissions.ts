@@ -79,6 +79,18 @@ export function assertCampMedicalCommandAccess(context: CampAccessContext) {
   return { allowed: true as const, actor: "Andrew" as const };
 }
 
+export function assertCampAdminAccess(context: CampAccessContext) {
+  if (context.restrictedActor !== "Andrew") {
+    return {
+      allowed: false as const,
+      status: 403,
+      error: "Camp roster imports and access management are limited to Camp Admins."
+    };
+  }
+
+  return { allowed: true as const, actor: "Andrew" as const };
+}
+
 function restrictedActorForSession(session: AuthSession): CampRestrictedActor | undefined {
   const emailLocalPart = session.user.email.split("@")[0]?.toLowerCase() ?? "";
   const match = restrictedCampNames.find((name) => isRestrictedEmailLocalPart(emailLocalPart, name));
