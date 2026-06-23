@@ -202,6 +202,7 @@ function SignaturePad({
 }) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const drawingRef = useRef(false);
+  const activePointerIdRef = useRef<number | null>(null);
   const signatureRef = useRef(value);
 
   useEffect(() => {
@@ -221,14 +222,23 @@ function SignaturePad({
     if (disabled) return;
     event.preventDefault();
     drawingRef.current = true;
-    event.currentTarget.setPointerCapture(event.pointerId);
+    activePointerIdRef.current = event.pointerId;
     const nextSignature = { ...signatureRef.current, strokes: [...signatureRef.current.strokes, [pointForEvent(event)]] };
     signatureRef.current = nextSignature;
     onChange(nextSignature);
+    if (event.currentTarget.setPointerCapture) {
+      try {
+        event.currentTarget.setPointerCapture(event.pointerId);
+      } catch {
+        // Some mobile browsers do not allow capture on SVG; drawing still works
+        // from the initial point and normal pointer move events.
+      }
+    }
   }
 
   function draw(event: React.PointerEvent<SVGSVGElement>) {
     if (disabled || !drawingRef.current) return;
+    if (activePointerIdRef.current !== null && event.pointerId !== activePointerIdRef.current) return;
     event.preventDefault();
     const current = signatureRef.current;
     const strokes = [...current.strokes];
@@ -241,7 +251,8 @@ function SignaturePad({
 
   function stopDrawing(event: React.PointerEvent<SVGSVGElement>) {
     drawingRef.current = false;
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+    activePointerIdRef.current = null;
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
   }
