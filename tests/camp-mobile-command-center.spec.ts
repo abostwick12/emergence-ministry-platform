@@ -27,12 +27,14 @@ test.describe("Camp mobile Command Center", () => {
     await page.goto("/camp");
 
     const nav = page.getByRole("navigation", { name: "Camp sections" });
+    await suppressNextDevPortal(page);
     await nav.getByRole("link", { name: "Teams", exact: true }).click();
     await page.waitForURL(/\/camp\/teams$/);
     await expect(page.getByRole("heading", { name: "Teams" })).toBeVisible();
 
     await expect(nav.getByRole("link", { name: "Schedule", exact: true })).toHaveCount(0);
 
+    await suppressNextDevPortal(page);
     await nav.getByRole("button", { name: "Open EMMA Camp Finder" }).click();
     await expect(page.getByRole("dialog", { name: "Find anything fast" })).toBeVisible();
     await page.getByRole("searchbox", { name: "Smart Camp Search" }).fill("Where is Avery?");
@@ -41,10 +43,12 @@ test.describe("Camp mobile Command Center", () => {
     await expect(page.locator("body")).not.toContainText("Parent-labeled medication");
 
     await page.getByRole("button", { name: "Close EMMA" }).click();
+    await suppressNextDevPortal(page);
     await nav.getByRole("link", { name: "Roster", exact: true }).click();
     await page.waitForURL(/\/camp\/roster$/);
     await expect(page.getByRole("heading", { name: "Roster" })).toBeVisible();
 
+    await suppressNextDevPortal(page);
     await nav.getByRole("link", { name: "Home", exact: true }).click();
     await page.waitForURL(/\/camp$/);
   });
@@ -121,12 +125,29 @@ async function login(page: Page) {
 }
 
 async function keepNextDevPortalOffPointerPath(page: Page) {
-  const content = "nextjs-portal { pointer-events: none !important; }";
-  await page.addInitScript((css) => {
-    const style = document.createElement("style");
-    style.setAttribute("data-e2e-next-dev-portal-style", "true");
-    style.textContent = css;
-    document.documentElement.appendChild(style);
-  }, content);
-  await page.addStyleTag({ content }).catch(() => undefined);
+  await page.addInitScript(() => {
+    const suppress = () => {
+      for (const portal of document.querySelectorAll("nextjs-portal")) {
+        const element = portal as HTMLElement;
+        element.style.setProperty("display", "none", "important");
+        element.style.setProperty("pointer-events", "none", "important");
+      }
+    };
+    const install = () => {
+      suppress();
+      new MutationObserver(suppress).observe(document.documentElement, { childList: true, subtree: true });
+    };
+    if (document.documentElement) install();
+    else window.addEventListener("DOMContentLoaded", install, { once: true });
+  });
+}
+
+async function suppressNextDevPortal(page: Page) {
+  await page.evaluate(() => {
+    for (const portal of document.querySelectorAll("nextjs-portal")) {
+      const element = portal as HTMLElement;
+      element.style.setProperty("display", "none", "important");
+      element.style.setProperty("pointer-events", "none", "important");
+    }
+  });
 }
