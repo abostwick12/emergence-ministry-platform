@@ -12,6 +12,7 @@ import type {
   CampAccessScope,
   CampAuditStatus,
   CampDocument,
+  CampEmmaActionAudit,
   CampMedicationAdministrationLog,
   CampArchiveInput,
   CampMedicationIntakeInput,
@@ -54,6 +55,7 @@ type CampStoreState = {
   medicationPhotoRecords: Array<CampMedicationPhotoRecord & { mockSignedUrl?: string }>;
   staff: CampStaffMember[];
   importBatches: CampImportAuditBatch[];
+  emmaActions: CampEmmaActionAudit[];
 };
 
 type CampGlobal = typeof globalThis & { __leadEmergenceCampStore?: CampStoreState };
@@ -78,7 +80,8 @@ function createInitialState(): CampStoreState {
     medicationIntakeRecords: [],
     medicationPhotoRecords: [],
     staff: [],
-    importBatches: []
+    importBatches: [],
+    emmaActions: []
   };
 }
 
@@ -350,6 +353,23 @@ export function assignCampStudent(input: { studentId: string; teamId?: string; v
   if (input.vehicleId) student.vehicleId = input.vehicleId;
   if (input.cabin !== undefined) student.cabin = input.cabin;
   return withDerivedStudentFlags(student);
+}
+
+// Non-throwing lookup used by the EMMA room-change command path, which needs
+// to read a student's current room before deciding whether to write, without
+// crashing the request if the model proposed an id that no longer exists.
+export function getActiveCampStudentById(studentId: string): CampStudentPublic | undefined {
+  const student = store.students.find((item) => item.id === studentId && !item.archivedAt);
+  return student ? withDerivedStudentFlags(student) : undefined;
+}
+
+export function recordCampEmmaAction(action: CampEmmaActionAudit): CampEmmaActionAudit {
+  store.emmaActions.unshift(action);
+  return action;
+}
+
+export function listCampEmmaActions(): CampEmmaActionAudit[] {
+  return cloneArray(store.emmaActions);
 }
 
 export function archiveCampStudent(role: CampAccessRole, input: CampArchiveInput) {

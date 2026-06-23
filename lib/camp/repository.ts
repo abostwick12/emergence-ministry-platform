@@ -4,6 +4,7 @@ import { randomUUID } from "crypto";
 import { campDocuments, campSchedule, campStartsOn, campTeams, campVehicles } from "@/lib/camp/public-data";
 import { sanitizePublicSafetyFlags } from "@/lib/camp/public-safety";
 import {
+  assertCampEmmaOperationsAccess,
   assertCampMedicalCommandAccess,
   assertCampRestrictedAccess,
   type CampAccessContext
@@ -14,6 +15,8 @@ import type {
   CampAuditStatus,
   CampArchiveInput,
   CampDocument,
+  CampEmmaActionAudit,
+  CampEmmaConfirmInput,
   CampMedicationAdministrationLog,
   CampMedicationIntakeInput,
   CampMedicationIntakeRecord,
@@ -773,6 +776,96 @@ export async function assignCampStudent(
   throwIfSupabaseError(error);
   if (!data) throw new Error("Camp assignment update returned no row.");
   return { allowed: true as const, status: 200, student: toCampStudentPublic(data) };
+}
+
+// Non-throwing active-student lookup. Used by the EMMA room-change confirm
+// path to read the current room before writing, without needing the caller
+// to catch a "not found" exception.
+export async function getActiveCampStudentById(session: AuthSession, studentId: string): Promise<CampStudentPublic | undefined> {
+  if (shouldUseMock(session)) return mockStore.getActiveCampStudentById(studentId);
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const { data, error } = await supabase
+    .from("camp_campers")
+    .select("*")
+    .eq("id", studentId)
+    .is("archived_at", null)
+    .maybeSingle<CampCamperRow>();
+  throwIfSupabaseError(error);
+  return data ? toCampStudentPublic(data) : undefined;
+}
+
+// Confirms an EMMA-proposed room/cabin change. This is the ONLY place model
+// output can ever result in a database write, and only after: (1) the caller
+// has already re-resolved the user's server-side access context (never
+// trusting role data from the browser), (2) this function re-asserts the
+// Andrew-only EMMA operations gate itself, and (3) the room value is
+// re-validated here regardless of what the model proposed. The model's job
+// ended at producing a proposal; nothing here re-invokes the model.
+export async function confirmCampEmmaRoomChange(session: AuthSession, context: CampAccessContext, input: CampEmmaConfirmInput) {
+  const access = assertCampEmmaOperationsAccess(context);
+  if (!access.allowed) return access;
+
+  const proposedRoom = input.proposedRoom.trim();
+  if (!proposedRoom) return { allowed: false as const, status: 400, error: "A room or cabin value is required." };
+  if (proposedRoom.length > 80) return { allowed: false as const, status: 400, error: "Room value is too long." };
+
+  const student = await getActiveCampStudentById(session, input.studentId);
+  if (!student) return { allowed: false as const, status: 404, error: "Active camper not found." };
+
+  const oldRoom = student.cabin ?? "";
+
+  const assignResult = await assignCampStudent(session, context, { studentId: input.studentId, cabin: proposedRoom });
+  if (!assignResult.allowed) return assignResult;
+
+  const audit = await recordCampEmmaAction(session, {
+    actor: access.actor,
+    studentId: student.id,
+    studentName: student.name,
+    oldRoom,
+    newRoom: proposedRoom,
+    source: "emma",
+    originalRequest: input.originalRequest,
+    model: input.model,
+    deployment: input.deployment
+  });
+
+  return { allowed: true as const, status: 200, student: assignResult.student, audit };
+}
+
+async function recordCampEmmaAction(
+  session: AuthSession,
+  input: Omit<CampEmmaActionAudit, "id" | "createdAt">
+): Promise<CampEmmaActionAudit> {
+  const createdAt = new Date().toISOString();
+
+  if (shouldUseMock(session)) {
+    return mockStore.recordCampEmmaAction({ id: randomUUID(), createdAt, ...input });
+  }
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const basics = await ensureCampBasics(session);
+  const row = {
+    ...ministryScopeColumns(await resolveMinistryScope(session)),
+    camp_id: basics.camp.id,
+    camper_id: input.studentId,
+    actor_name: input.actor,
+    student_name: input.studentName,
+    old_room: input.oldRoom,
+    new_room: input.newRoom,
+    source: input.source,
+    original_request: input.originalRequest,
+    model: input.model,
+    deployment: input.deployment
+  };
+  const { data, error } = await supabase
+    .from("camp_emma_actions")
+    .insert(row)
+    .select("id, created_at")
+    .single<{ id: string; created_at: string }>();
+  throwIfSupabaseError(error);
+
+  return { id: data?.id ?? randomUUID(), createdAt: data?.created_at ?? createdAt, ...input };
 }
 
 export async function archiveCampStudent(session: AuthSession, context: CampAccessContext, input: CampArchiveInput) {
@@ -1761,7 +1854,7 @@ function toScheduleItem(row: CampMedicationScheduleRow, campers: Map<string, Cam
 function toAdministrationLog(row: CampMedicationLogRow, campers: Map<string, CampStudentPublic>, auditStatus?: CampAuditStatus): CampMedicationAdministrationLog {
   return {
     id: row.id,
-    medicationRecordId: row.medication_record_id,
+medicationRecordId: row.medication_record_id,
     scheduleItemId: row.schedule_item_id ?? undefined,
     studentId: row.camper_id,
     studentName: campers.get(row.camper_id)?.name ?? "Camper",
