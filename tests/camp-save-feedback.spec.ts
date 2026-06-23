@@ -117,6 +117,7 @@ test.describe("Camp dedicated medication tool pages", () => {
   test("Edit Camper action stays compact inside tall roster cards", async ({ page }) => {
     await login(page);
     await page.goto("/camp");
+    await expect(page.getByText("Camp Oakwood").first()).toBeVisible();
     await page.evaluate(() => {
       const probe = document.createElement("div");
       probe.innerHTML = `
@@ -125,13 +126,14 @@ test.describe("Camp dedicated medication tool pages", () => {
           <span>
             <strong>Layout Probe</strong>
             <span class="muted">Tall card content</span>
-            <span class="button compact-button camp-card-action">Edit Camper</span>
+            <span class="button compact-button camp-card-action" data-testid="camp-card-action-probe">Edit Camper</span>
           </span>
         </button>
       `;
       document.body.appendChild(probe);
     });
-    const action = page.locator(".camp-card-action").last();
+    const action = page.getByTestId("camp-card-action-probe");
+    await expect(action).toBeVisible();
     const box = await action.boundingBox();
     expect(box?.height).toBeLessThan(48);
   });
