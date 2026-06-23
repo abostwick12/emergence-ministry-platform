@@ -1,5 +1,7 @@
 # Camp Leader Safety View — Phase 2 Spec (PROPOSAL — NOT APPLIED)
 
+> **Gap status**: This proposal is documented as a known gap in [`docs/camp/CAMP_KNOWN_GAPS.md`](camp/CAMP_KNOWN_GAPS.md) (Gap 4). No migration has been applied as of 2026-06-23. Awaiting Andrew's approval before implementation.
+
 Status: **Draft for Andrew's approval. No migration has been applied and no
 workbook data has been imported.** Phase 1 (shipped on `feat/camp-leader-safety-view`)
 adds the Leader Safety View using only data General Leaders already receive and

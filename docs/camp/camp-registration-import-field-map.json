@@ -1,0 +1,196 @@
+{
+  "source_format": "Oakwood Camp Quick View workbook",
+  "note": "This is NOT the full Oakwood registration export. The Quick View workbook is a specific 17-column operational export. Many fields from the full registration report (financial, demographic, additional contact) are not present in this format and therefore never reach the parser.",
+  "inspected_files": [
+    "lib/camp/oakwood-source-format.ts",
+    "lib/camp/oakwood-import.ts"
+  ],
+  "verified_date": "2026-06-23",
+  "totals": {
+    "total_quick_view_columns": 17,
+    "captured_safe": 7,
+    "captured_derived": 2,
+    "captured_restricted": 6,
+    "gated_restricted": 2,
+    "not_captured": 0,
+    "math_check": "7 + 2 + 6 + 2 = 17"
+  },
+  "fields": [
+    {
+      "oakwood_column": "Registration ID",
+      "status": "captured_safe",
+      "target_table": "camp_campers",
+      "target_field": "registration_external_id",
+      "required": true,
+      "notes": "Household-level ID. Not a unique person key — siblings share this ID. Must be 5+ numeric digits or the row is skipped as a non-person workbook row."
+    },
+    {
+      "oakwood_column": "Name",
+      "status": "captured_safe",
+      "target_table": "camp_campers",
+      "target_field": "name",
+      "required": true,
+      "alternate_columns": ["First Name + Last Name"],
+      "notes": "Parser also accepts separate First Name / Last Name columns as a fallback. Rows with no resolved name are marked invalid."
+    },
+    {
+      "oakwood_column": "Selection",
+      "status": "captured_derived",
+      "target_table": null,
+      "target_field": "personType (student | adult)",
+      "required": false,
+      "notes": "Value 'adult' (case-insensitive) → adult/staff; all other values → student. Determines import scope routing. Raw Selection text is not stored as a dedicated column."
+    },
+    {
+      "oakwood_column": "Grade",
+      "status": "captured_safe",
+      "target_table": "camp_campers",
+      "target_field": "grade",
+      "required": false,
+      "notes": "Recommended for student rows. Warning generated if blank for a student. Stored as-is."
+    },
+    {
+      "oakwood_column": "Room Number",
+      "status": "captured_safe",
+      "target_table": "camp_campers",
+      "target_field": "cabin",
+      "required": false,
+      "alternate_columns": ["Cabin", "Room"],
+      "notes": "Left blank if source is blank — never fabricated. Warning generated if blank."
+    },
+    {
+      "oakwood_column": "T-Shirt Size",
+      "status": "captured_safe",
+      "target_table": "camp_campers",
+      "target_field": "shirt_size",
+      "required": false,
+      "alternate_columns": ["T Shirt Size", "Shirt Size"],
+      "notes": "Stored as-is."
+    },
+    {
+      "oakwood_column": "Quick Filter",
+      "status": "captured_derived",
+      "target_table": "camp_campers",
+      "target_field": "has_medical_alert (boolean), has_dietary_alert (boolean)",
+      "required": false,
+      "notes": "CRITICAL: hasMedicalAlert set true if value contains 'medical'. hasDietaryAlert set true if value contains 'food/diet', 'food / diet', or 'diet'. Raw Quick Filter text is NOT stored. This is the only safe source for these indicators — never derived from parsing medical/dietary free text."
+    },
+    {
+      "oakwood_column": "Emergency Contact",
+      "status": "captured_restricted",
+      "target_table": "camp_restricted_medical_records",
+      "target_field": "emergency_contact_name, emergency_contact_phone",
+      "required": false,
+      "notes": "Parsed via regex to extract name and phone. Sets emergencyContactOnFile boolean indicator on camp_campers to true if non-blank. Warning generated if blank. Restricted table — Andrew/Jaci/Joel only."
+    },
+    {
+      "oakwood_column": "Medical Notes",
+      "status": "gated_restricted",
+      "target_table": "camp_restricted_medical_records",
+      "target_field": "restricted_notes",
+      "required": false,
+      "gate_condition": "Stored only if hasMedicalAlert is true (from Quick Filter or note presence). Stored as empty string otherwise.",
+      "notes": "Restricted table — Andrew/Jaci/Joel only."
+    },
+    {
+      "oakwood_column": "Dietary Requirements",
+      "status": "gated_restricted",
+      "target_table": "camp_restricted_medical_records",
+      "target_field": "dietary_requirements",
+      "required": false,
+      "gate_condition": "Stored only if hasDietaryAlert is true. Stored as empty string otherwise.",
+      "notes": "Restricted table — Andrew/Jaci/Joel only."
+    },
+    {
+      "oakwood_column": "Team",
+      "status": "captured_safe",
+      "target_table": "camp_campers",
+      "target_field": "team_name (matched to camp_teams record)",
+      "required": false,
+      "alternate_columns": ["Team Name"],
+      "notes": "Left blank if source is blank. Warning generated if blank. Matched by name to existing camp_teams records."
+    },
+    {
+      "oakwood_column": "Vehicle",
+      "status": "captured_safe",
+      "target_table": "camp_campers",
+      "target_field": "vehicle_name (matched to camp_vehicles record)",
+      "required": false,
+      "alternate_columns": ["Vehicle Name", "Transportation", "Van"],
+      "notes": "Left blank if source is blank. Warning generated if blank."
+    },
+    {
+      "oakwood_column": "Registration Contact First Name",
+      "status": "captured_restricted",
+      "target_table": "camp_restricted_medical_records",
+      "target_field": "guardian_name (combined with Last Name)",
+      "required": false,
+      "notes": "Restricted table — Andrew/Jaci/Joel only."
+    },
+    {
+      "oakwood_column": "Registration Contact Last Name",
+      "status": "captured_restricted",
+      "target_table": "camp_restricted_medical_records",
+      "target_field": "guardian_name (combined with First Name)",
+      "required": false,
+      "notes": "Restricted table — Andrew/Jaci/Joel only."
+    },
+    {
+      "oakwood_column": "Registration Contact Phone Number",
+      "status": "captured_restricted",
+      "target_table": "camp_restricted_medical_records",
+      "target_field": "guardian_phone",
+      "required": false,
+      "notes": "Restricted table — Andrew/Jaci/Joel only."
+    },
+    {
+      "oakwood_column": "Insurance",
+      "status": "captured_restricted",
+      "target_table": "camp_restricted_medical_records",
+      "target_field": "insurance_status",
+      "required": false,
+      "alternate_columns": ["Insurance Status"],
+      "notes": "N/A values (n/a, na, none, no, -, n.a, tbd, .) are stripped to empty string. Restricted table — Andrew/Jaci/Joel only."
+    },
+    {
+      "oakwood_column": "Any other important information you would like us to know about your child?",
+      "status": "captured_restricted",
+      "target_table": "camp_restricted_medical_records",
+      "target_field": "parent_medical_notes",
+      "required": false,
+      "alternate_columns": ["Other Important Information", "Notes"],
+      "notes": "N/A values stripped. Restricted table — Andrew/Jaci/Joel only."
+    }
+  ],
+  "full_registration_export_fields_not_in_quick_view": [
+    "First Name (separate column)",
+    "Last Name (separate column)",
+    "Birthdate",
+    "Age",
+    "Gender",
+    "Mobile Phone Number",
+    "Home Phone Number",
+    "Home Email Address",
+    "Work Email Address",
+    "Other Email Address",
+    "Home Address Street",
+    "Home Address City",
+    "Home Address State",
+    "Home Address Zip",
+    "Registration Contact Address",
+    "Registration Contact Home Email Address",
+    "Registration Contact Work Email Address",
+    "Registration Contact Other Email Address",
+    "Status",
+    "Submitted",
+    "Registration Cost",
+    "Attendee Balance Due",
+    "Registration Amount Paid",
+    "Balance Due",
+    "Paid by Check",
+    "Paid by Credit",
+    "Paid by Cash",
+    "Paid by Other",
+    "Paid by Scholarships"
+  ]
+}
