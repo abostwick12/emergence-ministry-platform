@@ -127,11 +127,11 @@ async function login(page: Page) {
 async function keepNextDevPortalOffPointerPath(page: Page) {
   await page.addInitScript(() => {
     const suppress = () => {
-      for (const portal of document.querySelectorAll("nextjs-portal")) {
+      Array.from(document.querySelectorAll("nextjs-portal")).forEach((portal) => {
         const element = portal as HTMLElement;
         element.style.setProperty("display", "none", "important");
         element.style.setProperty("pointer-events", "none", "important");
-      }
+      });
     };
     const install = () => {
       suppress();
@@ -144,10 +144,10 @@ async function keepNextDevPortalOffPointerPath(page: Page) {
 
 async function suppressNextDevPortal(page: Page) {
   await page.evaluate(() => {
-    for (const portal of document.querySelectorAll("nextjs-portal")) {
+    Array.from(document.querySelectorAll("nextjs-portal")).forEach((portal) => {
       const element = portal as HTMLElement;
       element.style.setProperty("display", "none", "important");
       element.style.setProperty("pointer-events", "none", "important");
-    }
+    });
   });
 }
