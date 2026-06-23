@@ -51,6 +51,7 @@ export function getCampVisibleStudentsForData(
         id: student.id,
         name: student.name,
         photoInitials: student.photoInitials,
+        profilePhotoUrl: student.profilePhotoUrl,
         vehicleId: student.vehicleId,
         vehicleName: vehicle?.name ?? "Unassigned"
       };
@@ -62,6 +63,7 @@ export function getCampVisibleStudentsForData(
       id: student.id,
       name: student.name,
       photoInitials: student.photoInitials,
+      profilePhotoUrl: student.profilePhotoUrl,
       grade: student.grade,
       teamId: student.teamId,
       teamName: team?.name ?? "Unassigned",

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { CampOperationDialog } from "@/components/camp/camp-operation-dialog";
 import { useCamp } from "@/components/camp/camp-provider";
+import { CampStudentAvatar } from "@/components/camp/camp-student-card";
 import type { CampVehicle, CampVehicleInput, CampVisibleStudent } from "@/lib/camp/types";
 
 function vehicleToInput(vehicle?: CampVehicle): CampVehicleInput {
@@ -139,7 +140,7 @@ export default function CampVehiclesPage() {
                   <ul className="camp-vehicle-riders">
                     {riders.map((rider) => (
                       <li key={rider.id}>
-                        <span className="camp-student-avatar sm" aria-hidden="true">{rider.photoInitials}</span>
+                        <CampStudentAvatar student={rider} size="sm" />
                         <button className="camp-inline-button" type="button" onClick={() => { setMovingStudent(rider); setTargetVehicleId(rider.vehicleId); }}>{rider.name}</button>
                       </li>
                     ))}

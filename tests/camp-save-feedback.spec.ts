@@ -55,18 +55,18 @@ test.describe("Camp dedicated medication tool pages", () => {
     await page.getByRole("link", { name: "Administer Medicine" }).click();
     await page.waitForURL(/\/camp\/medical-command\/administer$/);
     await page.getByLabel("Medication time block").selectOption("med-sched-1");
-    await page.getByRole("button", { name: "Log medication administration" }).click();
-    await expect(page.getByText("Student acknowledgement signature is required")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Confirm Administration" })).toBeDisabled();
 
     await signPad(page.getByRole("img", { name: "Student acknowledgement signature pad" }));
+    await expect(page.getByRole("button", { name: "Confirm Administration" })).toBeEnabled();
     await page.getByRole("button", { name: "Clear and Re-sign" }).click();
-    await page.getByRole("button", { name: "Log medication administration" }).click();
-    await expect(page.getByText("Student acknowledgement signature is required")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Confirm Administration" })).toBeDisabled();
 
     await signPad(page.getByRole("img", { name: "Student acknowledgement signature pad" }));
     await page.getByLabel("Staff notes").fill("Logged after student acknowledgement.");
-    await page.getByRole("button", { name: "Log medication administration" }).click();
+    await page.getByRole("button", { name: "Confirm Administration" }).click();
     await expect(page.getByText("Medication administration logged.")).toBeVisible();
+    await expect(page.getByRole("img", { name: /Student acknowledgement preview/ })).toBeVisible();
   });
 
   test("Andrew acknowledgement unavailable requires a reason", async ({ page }) => {
@@ -77,11 +77,10 @@ test.describe("Camp dedicated medication tool pages", () => {
     await page.waitForURL(/\/camp\/medical-command\/administer$/);
 
     await page.getByLabel("Unavailable or declined to initial").check();
-    await page.getByRole("button", { name: "Log medication administration" }).click();
-    await expect(page.getByText("Reason is required when the student is unavailable or declined to initial.")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Confirm Administration" })).toBeDisabled();
 
     await page.getByLabel("Reason required").fill("Student was asleep during documentation.");
-    await page.getByRole("button", { name: "Log medication administration" }).click();
+    await page.getByRole("button", { name: "Confirm Administration" }).click();
     await expect(page.getByText("Medication administration logged.")).toBeVisible();
   });
 
@@ -96,10 +95,15 @@ test.describe("Camp dedicated medication tool pages", () => {
     await page.getByLabel("Dose").fill("Parent label dose");
     await page.getByLabel("Quantity received").fill("8 tablets");
     await page.getByLabel("Parent/guardian name").fill("Pat Parent");
-    await signPad(page.getByRole("img", { name: "Parent or guardian signature" }));
+    await page.getByLabel("Upload photo").setInputFiles(pngFile("medicine.png"));
+    await expect(page.getByAltText("Selected medication label or container preview")).toBeVisible();
+    await signPad(page.getByRole("img", { name: "Parent or guardian signature", exact: true }));
     await page.getByLabel("Parent/guardian handoff details reviewed with staff.").check();
+    await expect(page.getByRole("button", { name: "Save medication intake" })).toBeEnabled();
     await page.getByRole("button", { name: "Save medication intake" }).click();
     await expect(page.getByText("Medication intake recorded with parent/guardian acknowledgement.")).toBeVisible();
+    await expect(page.getByRole("img", { name: /Parent or guardian signature preview/ }).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "View Photo" })).toBeVisible();
     await expect(page.getByText("8 tablets received by Andrew")).toBeVisible();
 
     await page.getByLabel("Return status").selectOption("Returned to Parent/Guardian");
@@ -131,6 +135,35 @@ test.describe("Camp dedicated medication tool pages", () => {
     const box = await action.boundingBox();
     expect(box?.height).toBeLessThan(48);
   });
+
+  test("mobile photo and signature controls are usable on routed Camp workflows", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await login(page);
+
+    await page.goto("/camp/medicine-intake");
+    await page.getByLabel("Camper medication record").selectOption("med-1");
+    await page.getByLabel("Dose").fill("Parent label dose");
+    await page.getByLabel("Quantity received").fill("8 tablets");
+    await page.getByLabel("Parent/guardian name").fill("Pat Parent");
+    await page.getByLabel("Upload photo").setInputFiles(pngFile("mobile-medicine.png"));
+    await signPad(page.getByRole("img", { name: "Parent or guardian signature", exact: true }));
+    await page.getByLabel("Parent/guardian handoff details reviewed with staff.").check();
+    await expect(page.getByRole("button", { name: "Save medication intake" })).toBeEnabled();
+
+    await page.goto("/camp/medical-command/administer");
+    await page.getByLabel("Medication time block").selectOption({ index: 0 });
+    await signPad(page.getByRole("img", { name: "Student acknowledgement signature pad" }));
+    await expect(page.getByRole("button", { name: "Confirm Administration" })).toBeEnabled();
+
+    await page.goto("/camp/roster");
+    await page.getByRole("button", { name: /Avery Johnson/ }).click();
+    await expect(page.getByText("Camper photo")).toBeVisible();
+    await page.getByLabel("Upload photo").setInputFiles(pngFile("avery.png"));
+    await expect(page.getByRole("button", { name: "Save" })).toBeEnabled();
+    await page.getByRole("button", { name: "Save" }).click();
+    await expect(page.getByText("Camper saved.")).toBeVisible();
+    await expect(page.locator(".camp-student-avatar img").first()).toBeVisible();
+  });
 });
 
 async function login(page: Page) {
@@ -151,4 +184,12 @@ async function signPad(locator: Locator) {
   await locator.page().mouse.move(box.x + 78, box.y + 86);
   await locator.page().mouse.move(box.x + 132, box.y + 42);
   await locator.page().mouse.up();
+}
+
+function pngFile(name: string) {
+  return {
+    name,
+    mimeType: "image/png",
+    buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR42mP8z8BQDwAFgwJ/lwDW0wAAAABJRU5ErkJggg==", "base64")
+  };
 }

@@ -26,6 +26,7 @@ import { GET as medicalCommandGET } from "@/app/api/camp/medical-command/route";
 import { GET as photoGET, POST as photoPOST } from "@/app/api/camp/medication/photos/route";
 import { GET as medicationGET, POST as medicationPOST } from "@/app/api/camp/medication/route";
 import { GET as medicalGET, POST as medicalPOST } from "@/app/api/camp/restricted-medical/route";
+import { DELETE as studentPhotoDELETE, POST as studentPhotoPOST } from "@/app/api/camp/students/photo/route";
 import { GET as studentsGET, PATCH as studentsPATCH } from "@/app/api/camp/students/route";
 
 const restrictedNeedles = [
@@ -98,6 +99,21 @@ function photoRequest(url: string, medicationRecordId = "med-1") {
   const formData = new FormData();
   formData.set("medicationRecordId", medicationRecordId);
   formData.set("photo", new File(["fake image"], "medicine.jpg", { type: "image/jpeg" }));
+  return new Request(url, { method: "POST", body: formData });
+}
+
+function medicationPhotoRequest(url: string, medicationRecordId: string, intakeRecordId?: string) {
+  const formData = new FormData();
+  formData.set("medicationRecordId", medicationRecordId);
+  if (intakeRecordId) formData.set("intakeRecordId", intakeRecordId);
+  formData.set("photo", new File(["fake image"], "medicine.jpg", { type: "image/jpeg" }));
+  return new Request(url, { method: "POST", body: formData });
+}
+
+function camperPhotoRequest(url: string, studentId = "stu-1") {
+  const formData = new FormData();
+  formData.set("studentId", studentId);
+  formData.set("photo", new File(["fake image"], "camper.jpg", { type: "image/jpeg" }));
   return new Request(url, { method: "POST", body: formData });
 }
 
@@ -338,6 +354,67 @@ describe("camp API restricted data boundaries", () => {
     expect(archivedList.status).toBe(200);
     expect(JSON.stringify(await archivedList.json())).toContain("Duplicate");
     expect(restore.status).toBe(200);
+  });
+
+  it("links restricted medication photos to the intake record when provided", async () => {
+    getServerSessionMock.mockResolvedValue(andrewSession());
+
+    const intakeResponse = await medicationPOST(jsonRequest("http://localhost/api/camp/medication?role=andrew", {
+      target: "intake",
+      studentId: "stu-1",
+      medicationRecordId: "med-1",
+      medicationName: "Parent handoff medication",
+      dose: "Parent-labeled dose",
+      scheduleText: "Breakfast",
+      parentInstructions: "Follow signed parent instructions.",
+      staffNotes: "Original bottle received.",
+      quantityReceived: "10 tablets",
+      containerStatus: "Original bottle, label readable",
+      receivedByName: "Andrew",
+      guardianName: "Pat Parent",
+      guardianRelationship: "Parent",
+      guardianSignatureData: { width: 640, height: 220, strokes: [[{ x: 4, y: 4 }, { x: 18, y: 18 }]] },
+      clarificationStatus: "Clear",
+      confirmationAcknowledged: true
+    }));
+    const intakePayload = await intakeResponse.json() as { intake: { id: string; medicationRecordId: string } };
+
+    const upload = await photoPOST(medicationPhotoRequest("http://localhost/api/camp/medication/photos?role=andrew", intakePayload.intake.medicationRecordId, intakePayload.intake.id));
+    const uploadPayload = await upload.json() as { photo: Record<string, unknown> };
+
+    expect(upload.status).toBe(201);
+    expect(uploadPayload.photo).toMatchObject({ intakeRecordId: intakePayload.intake.id });
+  });
+
+  it("keeps ordinary camper profile photos on authenticated roster routes and away from EMMA answers", async () => {
+    getServerSessionMock.mockResolvedValue(session());
+
+    const upload = await studentPhotoPOST(camperPhotoRequest("http://localhost/api/camp/students/photo", "stu-1"));
+    const uploadPayload = await upload.json() as { student?: { profilePhotoUrl?: string } };
+    const overview = await campGET(new Request("http://localhost/api/camp"));
+    const overviewPayload = await overview.json() as { students: Array<{ id: string; profilePhotoUrl?: string }> };
+    const emma = await campEmmaPOST(jsonRequest("http://localhost/api/camp/emma", { query: "Where is Avery Johnson?", mode: "finder" }));
+    const emmaPayload = await emma.json();
+    const removed = await studentPhotoDELETE(new Request("http://localhost/api/camp/students/photo?studentId=stu-1", { method: "DELETE" }));
+    const afterRemove = await campGET(new Request("http://localhost/api/camp"));
+    const afterRemovePayload = await afterRemove.json() as { students: Array<{ id: string; profilePhotoUrl?: string }> };
+
+    expect(upload.status).toBe(201);
+    expect(uploadPayload.student?.profilePhotoUrl).toMatch(/^data:image\/jpeg;base64,/);
+    expect(overviewPayload.students.find((student) => student.id === "stu-1")?.profilePhotoUrl).toMatch(/^data:image\/jpeg;base64,/);
+    expect(JSON.stringify(emmaPayload)).not.toContain("data:image");
+    expect(removed.status).toBe(200);
+    expect(afterRemovePayload.students.find((student) => student.id === "stu-1")?.profilePhotoUrl).toBeUndefined();
+  });
+
+  it("requires authentication for camper profile photo writes", async () => {
+    getServerSessionMock.mockResolvedValue(null);
+
+    const upload = await studentPhotoPOST(camperPhotoRequest("http://localhost/api/camp/students/photo", "stu-1"));
+    const removed = await studentPhotoDELETE(new Request("http://localhost/api/camp/students/photo?studentId=stu-1", { method: "DELETE" }));
+
+    expect(upload.status).toBe(401);
+    expect(removed.status).toBe(401);
   });
 
   it("allows restricted users to save medication intake with signature history", async () => {

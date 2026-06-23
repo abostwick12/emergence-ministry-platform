@@ -3011,8 +3011,14 @@ textarea:focus-visible {
   color: #0c4a6e;
   font-weight: 800;
   font-size: 13px;
+  overflow: hidden;
 }
 .camp-student-avatar.sm { width: 26px; height: 26px; border-radius: 8px; font-size: 11px; }
+.camp-student-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
 .camp-student-info { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .camp-student-info strong { color: var(--camp-ink); }
 .camp-student-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 2px; }
@@ -4696,6 +4702,12 @@ html:has(.app-shell-camp) body {
   touch-action: none;
 }
 
+.camp-signature-pad.preview {
+  max-width: 280px;
+  cursor: default;
+  margin-top: 8px;
+}
+
 .camp-signature-pad rect {
   fill: #ffffff;
 }
@@ -4713,6 +4725,26 @@ html:has(.app-shell-camp) body {
   stroke-width: 5;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+.camp-profile-photo-editor {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.camp-profile-photo-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.camp-profile-photo-row .camp-student-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  font-size: 18px;
 }
 
 .camp-confirm-row {

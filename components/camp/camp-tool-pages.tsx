@@ -142,10 +142,47 @@ function serializeStudentAcknowledgement(signature: CampSignatureData): string {
   return `DRAWN_INITIALS:${JSON.stringify(signature)}`;
 }
 
+function parseStoredSignatureData(value?: string): CampSignatureData | null {
+  if (!value?.trim().toUpperCase().startsWith("DRAWN_INITIALS:")) return null;
+  try {
+    const parsed = JSON.parse(value.slice(value.indexOf(":") + 1)) as {
+      width?: number;
+      WIDTH?: number;
+      height?: number;
+      HEIGHT?: number;
+      strokes?: Array<Array<{ x?: number; X?: number; y?: number; Y?: number }>>;
+      STROKES?: Array<Array<{ x?: number; X?: number; y?: number; Y?: number }>>;
+    };
+    const width = parsed.width ?? parsed.WIDTH ?? 640;
+    const height = parsed.height ?? parsed.HEIGHT ?? 220;
+    const strokes = (parsed.strokes ?? parsed.STROKES ?? []).map((stroke) =>
+      stroke.map((point) => ({
+        x: point.x ?? point.X ?? 0,
+        y: point.y ?? point.Y ?? 0
+      }))
+    );
+    return { width, height, strokes };
+  } catch {
+    return null;
+  }
+}
+
 function formatStudentAcknowledgement(log: CampMedicationAdministrationLog): string {
   if (log.studentAcknowledgementUnavailable) return `Unavailable/declined - ${log.studentAcknowledgementUnavailableReason}`;
-  if (log.studentAcknowledgementInitials?.startsWith("DRAWN_INITIALS:")) return "Finger/stylus acknowledgement on file";
+  if (log.studentAcknowledgementInitials?.toUpperCase().startsWith("DRAWN_INITIALS:")) return "Finger/stylus acknowledgement on file";
   return log.studentAcknowledgementInitials || "Not recorded";
+}
+
+function SignaturePreview({ value, label }: { value: CampSignatureData; label: string }) {
+  return (
+    <svg className="camp-signature-pad preview" viewBox={`0 0 ${value.width} ${value.height}`} role="img" aria-label={label}>
+      <rect width={value.width} height={value.height} rx="18" aria-hidden="true" />
+      <path d={`M ${Math.round(value.width * 0.08)} ${Math.round(value.height * 0.72)} H ${Math.round(value.width * 0.92)}`} aria-hidden="true" />
+      {value.strokes.map((stroke, index) => (
+        <polyline key={`${index}-${stroke.length}`} points={stroke.map((point) => `${point.x},${point.y}`).join(" ")} />
+      ))}
+    </svg>
+  );
 }
 
 function SignaturePad({
@@ -639,6 +676,7 @@ function MedicationAdministrationForm({
   const [ackSignature, setAckSignature] = useState<CampSignatureData>(() => emptySignatureData());
   const [ackUnavailable, setAckUnavailable] = useState(false);
   const [ackReason, setAckReason] = useState("");
+  const [administrationLog, setAdministrationLog] = useState(data.administrationLog);
   const [message, setMessage] = useState<{ tone: "error" | "success"; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -649,8 +687,9 @@ function MedicationAdministrationForm({
   }, [activeItems, requestedScheduleItemId]);
 
   const selected = data.schedule.find((item) => item.id === scheduleItemId) ?? activeItems[0];
-  const history = data.administrationLog.filter((log) => log.scheduleItemId === selected?.id);
-  const canSubmit = Boolean(selected) && !saving;
+  const history = administrationLog.filter((log) => log.scheduleItemId === selected?.id);
+  const acknowledgementReady = ackUnavailable ? Boolean(ackReason.trim()) : hasSignature(ackSignature);
+  const canSubmit = Boolean(selected) && Boolean(loggedBy.trim()) && acknowledgementReady && !saving;
 
   async function submit() {
     if (!selected) return;
@@ -679,11 +718,14 @@ function MedicationAdministrationForm({
         studentAcknowledgementUnavailableReason: ackReason
       })
     });
-    const body = await response.json().catch(() => ({})) as { error?: string };
+    const body = await response.json().catch(() => ({})) as { error?: string; log?: CampMedicationAdministrationLog };
     setSaving(false);
     if (!response.ok) {
       setMessage({ tone: "error", text: body.error ?? "Medication administration could not be logged." });
       return;
+    }
+    if (body.log) {
+      setAdministrationLog((current) => [body.log as CampMedicationAdministrationLog, ...current.filter((log) => log.id !== body.log?.id)]);
     }
     setMessage({ tone: "success", text: "Medication administration logged. Student acknowledgement recorded as acknowledgement only." });
     setNotes("");
@@ -768,7 +810,7 @@ function MedicationAdministrationForm({
       {message ? <p className={message.tone === "error" ? "camp-cc-error" : "camp-save-message success"} role="status">{message.text}</p> : null}
 
       <button className="button primary" type="button" disabled={!canSubmit} onClick={() => void submit()}>
-        {saving ? "Logging administration..." : "Log medication administration"}
+        {saving ? "Confirming administration..." : "Confirm Administration"}
       </button>
 
       <section aria-label="Administration history">
@@ -783,6 +825,9 @@ function MedicationAdministrationForm({
                   <p className="camp-cc-muted">
                     Acknowledgement: {formatStudentAcknowledgement(log)}
                   </p>
+                  {parseStoredSignatureData(log.studentAcknowledgementInitials) ? (
+                    <SignaturePreview value={parseStoredSignatureData(log.studentAcknowledgementInitials) as CampSignatureData} label={`Student acknowledgement preview for ${log.studentName}`} />
+                  ) : null}
                 </div>
                 <StatusPill tone={statusTone(log.status)}>{log.auditStatus ?? "Active"}</StatusPill>
               </div>
@@ -809,6 +854,7 @@ export function CampMedicineIntakeToolPage() {
 function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
   const [intakeHistory, setIntakeHistory] = useState(data.intakeHistory);
   const [returnChecklist, setReturnChecklist] = useState(data.returnChecklist);
+  const [medicationIdsWithPhoto, setMedicationIdsWithPhoto] = useState(() => new Set(data.checkIn.filter((record) => record.hasMedicationPhoto || record.medicinePhotoStatus === "Photo On File").map((record) => record.id)));
   const [medicationRecordId, setMedicationRecordId] = useState(data.checkIn[0]?.id ?? "");
   const selectedMedication = data.checkIn.find((record) => record.id === medicationRecordId) ?? data.checkIn[0];
   const [medicationName, setMedicationName] = useState(selectedMedication?.medicationName ?? "");
@@ -824,6 +870,10 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
   const [guardianSignature, setGuardianSignature] = useState<CampSignatureData>(() => emptySignatureData());
   const [clarificationStatus, setClarificationStatus] = useState<CampMedicationIntakeRecord["clarificationStatus"]>("Clear");
   const [confirmationAcknowledged, setConfirmationAcknowledged] = useState(false);
+  const [intakePhotoFile, setIntakePhotoFile] = useState<File | null>(null);
+  const [intakePhotoPreviewUrl, setIntakePhotoPreviewUrl] = useState("");
+  const [photoMessage, setPhotoMessage] = useState("");
+  const [photoModal, setPhotoModal] = useState<{ url: string; title: string } | null>(null);
   const [returnItemId, setReturnItemId] = useState(returnChecklist[0]?.id ?? "");
   const selectedReturn = returnChecklist.find((item) => item.id === returnItemId) ?? returnChecklist[0];
   const [returnStatus, setReturnStatus] = useState<CampMedicationReturnItem["returnStatus"]>(selectedReturn?.returnStatus ?? "Pending Return");
@@ -833,6 +883,16 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
   const [returnNotes, setReturnNotes] = useState(selectedReturn?.returnNotes ?? "");
   const [message, setMessage] = useState<{ tone: "error" | "success"; text: string } | null>(null);
   const [saving, setSaving] = useState<"intake" | "return" | null>(null);
+
+  useEffect(() => {
+    if (!intakePhotoFile) {
+      setIntakePhotoPreviewUrl("");
+      return;
+    }
+    const nextUrl = URL.createObjectURL(intakePhotoFile);
+    setIntakePhotoPreviewUrl(nextUrl);
+    return () => URL.revokeObjectURL(nextUrl);
+  }, [intakePhotoFile]);
 
   useEffect(() => {
     if (!selectedMedication) return;
@@ -849,6 +909,36 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
     setReturnNotes(selectedReturn.returnNotes ?? "");
   }, [selectedReturn]);
 
+  function selectIntakePhoto(file: File | null) {
+    setIntakePhotoFile(file);
+    setPhotoMessage(file ? "Medication photo selected. It will save with this parent handoff." : "Medication photo capture cancelled. Intake can still be saved without a photo.");
+  }
+
+  async function openMedicationPhoto(medicationId: string, title: string) {
+    setPhotoMessage("");
+    const response = await fetch(`/api/camp/medication/photos?medicationRecordId=${encodeURIComponent(medicationId)}`, { cache: "no-store" });
+    const body = await response.json().catch(() => ({})) as { signedUrl?: string; error?: string };
+    if (!response.ok || !body.signedUrl) {
+      setPhotoMessage(body.error ?? "Medication photo is unavailable from this account.");
+      return;
+    }
+    setPhotoModal({ url: body.signedUrl, title });
+  }
+
+  const validIntakeFields = Boolean(
+    selectedMedication &&
+    medicationName.trim() &&
+    dose.trim() &&
+    scheduleText.trim() &&
+    quantityReceived.trim() &&
+    parentInstructions.trim() &&
+    containerStatus.trim() &&
+    receivedByName.trim() &&
+    guardianName.trim() &&
+    guardianRelationship.trim()
+  );
+  const canSaveIntake = validIntakeFields && hasSignature(guardianSignature) && confirmationAcknowledged && saving === null;
+
   async function saveIntake() {
     setMessage(null);
     if (!selectedMedication) {
@@ -861,6 +951,11 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
     }
     if (!confirmationAcknowledged) {
       setMessage({ tone: "error", text: "Confirm that the handoff details were reviewed with the parent/guardian." });
+      return;
+    }
+
+    if (!validIntakeFields) {
+      setMessage({ tone: "error", text: "Complete the visible medication intake fields before saving." });
       return;
     }
 
@@ -893,6 +988,25 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
       setMessage({ tone: "error", text: body.error ?? "Medication intake could not be saved." });
       return;
     }
+
+    if (intakePhotoFile && body.intake.medicationRecordId) {
+      const formData = new FormData();
+      formData.set("medicationRecordId", body.intake.medicationRecordId);
+      formData.set("intakeRecordId", body.intake.id);
+      formData.set("photo", intakePhotoFile);
+      setSaving("intake");
+      const photoResponse = await fetch("/api/camp/medication/photos", { method: "POST", body: formData });
+      const photoBody = await photoResponse.json().catch(() => ({})) as { error?: string };
+      setSaving(null);
+      if (!photoResponse.ok) {
+        setIntakeHistory((current) => [body.intake as CampMedicationIntakeRecord, ...current]);
+        setMessage({ tone: "error", text: photoBody.error ?? "Medication intake saved, but the photo could not be uploaded." });
+        return;
+      }
+      setMedicationIdsWithPhoto((current) => new Set(current).add(body.intake?.medicationRecordId as string));
+      setPhotoMessage("Medication label / container photo saved with this handoff.");
+    }
+
     setIntakeHistory((current) => [body.intake as CampMedicationIntakeRecord, ...current]);
     setMessage({ tone: "success", text: "Medication intake recorded with parent/guardian acknowledgement." });
     setQuantityReceived("");
@@ -900,6 +1014,7 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
     setGuardianName("");
     setGuardianRelationship("Parent/Guardian");
     setGuardianSignature(emptySignatureData());
+    setIntakePhotoFile(null);
     setConfirmationAcknowledged(false);
   }
 
@@ -1002,6 +1117,37 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
             <option value="Needs Parent Clarification">Needs Parent Clarification</option>
           </select>
         </label>
+        <section className="camp-intake-photo-section" aria-labelledby="intake-medication-photo">
+          <div>
+            <h3 id="intake-medication-photo">Medication label / container photo (optional)</h3>
+            <p className="camp-cc-muted">Photograph the original labeled medication container at parent handoff.</p>
+          </div>
+          <div className="camp-photo-actions">
+            <label className="button compact-button">
+              <span>Take photo</span>
+              <input className="sr-only" type="file" accept="image/*" capture="environment" onChange={(event) => selectIntakePhoto(event.target.files?.[0] ?? null)} />
+            </label>
+            <label className="button compact-button">
+              <span>Upload photo</span>
+              <input className="sr-only" type="file" accept="image/*" onChange={(event) => selectIntakePhoto(event.target.files?.[0] ?? null)} />
+            </label>
+          </div>
+          {intakePhotoPreviewUrl ? (
+            <div className="camp-photo-preview">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={intakePhotoPreviewUrl} alt="Selected medication label or container preview" />
+              <div className="camp-photo-preview-actions">
+                <span className="camp-status ready">{intakePhotoFile?.name ? `Photo selected: ${intakePhotoFile.name}` : "Photo selected"}</span>
+                <label className="button compact-button">
+                  <span>Replace photo</span>
+                  <input className="sr-only" type="file" accept="image/*" onChange={(event) => selectIntakePhoto(event.target.files?.[0] ?? null)} />
+                </label>
+                <button className="button compact-button" type="button" onClick={() => { setIntakePhotoFile(null); setPhotoMessage("Medication photo removed. Intake can still be saved without a photo."); }}>Remove photo</button>
+              </div>
+            </div>
+          ) : null}
+          {photoMessage ? <p className="camp-save-message" role="status">{photoMessage}</p> : null}
+        </section>
         <SignaturePad
           value={guardianSignature}
           onChange={setGuardianSignature}
@@ -1012,7 +1158,7 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
           <input type="checkbox" checked={confirmationAcknowledged} onChange={(event) => setConfirmationAcknowledged(event.target.checked)} />
           <span>Parent/guardian handoff details reviewed with staff.</span>
         </label>
-        <button className="button primary" type="button" disabled={saving === "intake"} onClick={() => void saveIntake()}>
+        <button className="button primary" type="button" disabled={!canSaveIntake} onClick={() => void saveIntake()}>
           {saving === "intake" ? "Saving intake..." : "Save medication intake"}
         </button>
       </section>
@@ -1068,6 +1214,22 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
 
       {message ? <p className={message.tone === "error" ? "camp-save-message error" : "camp-save-message success"} role="status">{message.text}</p> : null}
 
+      {photoModal ? (
+        <div className="camp-photo-modal" role="dialog" aria-modal="true" aria-label="Medication photo preview">
+          <div className="camp-photo-modal-panel">
+            <div className="camp-section-header">
+              <div>
+                <p className="eyebrow">Restricted Photo</p>
+                <h3 className="section-title">{photoModal.title}</h3>
+              </div>
+              <button className="button compact-button" type="button" onClick={() => setPhotoModal(null)}>Close</button>
+            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={photoModal.url} alt={`Restricted medication photo for ${photoModal.title}`} />
+          </div>
+        </div>
+      ) : null}
+
       <section aria-label="Recent medication intake records">
         <h2 className="camp-tool-group-title">Recent intake records</h2>
         {intakeHistory.length ? (
@@ -1077,6 +1239,12 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
                 <div>
                   <strong>{item.studentName} - {item.medicationName}</strong>
                   <p className="camp-cc-muted">{item.quantityReceived || "Quantity not recorded"} received by {item.receivedByName}.</p>
+                  <SignaturePreview value={item.guardianSignatureData} label={`Parent or guardian signature preview for ${item.studentName}`} />
+                  {item.medicationRecordId && medicationIdsWithPhoto.has(item.medicationRecordId) ? (
+                    <button className="button compact-button" type="button" onClick={() => void openMedicationPhoto(item.medicationRecordId as string, `${item.studentName} - ${item.medicationName}`)}>
+                      View Photo
+                    </button>
+                  ) : null}
                 </div>
                 <StatusPill tone={statusTone(item.clarificationStatus)}>{item.auditStatus ?? item.clarificationStatus}</StatusPill>
               </div>

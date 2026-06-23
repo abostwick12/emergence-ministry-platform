@@ -25,7 +25,7 @@ export function CampStudentCard({ student }: { student: CampVisibleStudent }) {
 
   return (
     <div className="camp-student-row">
-      <span className="camp-student-avatar" aria-hidden="true">{student.photoInitials}</span>
+      <CampStudentAvatar student={student} />
       <div className="camp-student-info">
         <strong>{student.name}</strong>
         {meta ? <span className="camp-cc-muted">{meta}</span> : null}
@@ -39,4 +39,17 @@ export function CampStudentCard({ student }: { student: CampVisibleStudent }) {
       </div>
     </div>
   );
+}
+
+export function CampStudentAvatar({ student, size = "default" }: { student: Pick<CampVisibleStudent, "name" | "photoInitials" | "profilePhotoUrl">; size?: "default" | "sm" }) {
+  const className = size === "sm" ? "camp-student-avatar sm" : "camp-student-avatar";
+  if (student.profilePhotoUrl) {
+    return (
+      <span className={className} aria-hidden="true">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={student.profilePhotoUrl} alt="" />
+      </span>
+    );
+  }
+  return <span className={className} aria-hidden="true">{student.photoInitials}</span>;
 }

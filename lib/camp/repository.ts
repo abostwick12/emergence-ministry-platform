@@ -14,6 +14,7 @@ import type {
   CampAccessScope,
   CampAuditStatus,
   CampArchiveInput,
+  CampCamperProfilePhotoRecord,
   CampDocument,
   CampEmmaActionAudit,
   CampEmmaConfirmInput,
@@ -244,9 +245,24 @@ type CampMedicationPhotoRow = {
   id: string;
   camper_id: string;
   medication_record_id: string;
+  intake_record_id?: string | null;
   content_type: string;
   file_size: number;
   uploaded_at: string;
+};
+
+type CampCamperProfilePhotoRow = {
+  id: string;
+  camper_id: string;
+  content_type: string;
+  file_size: number;
+  uploaded_at: string;
+  removed_at: string | null;
+};
+
+type CampCamperProfilePhotoStorageRow = CampCamperProfilePhotoRow & {
+  storage_bucket: string;
+  storage_object_path: string;
 };
 
 type CampBasics = {
@@ -274,19 +290,8 @@ export async function getCampOverview(
     return mockStore.getCampOverview(context.effectiveRole, scope);
   }
 
-  const supabase = getSupabaseAuthClient(session.accessToken);
   const basics = await ensureCampBasics(session);
-  const { data, error } = await supabase
-    .from("camp_campers")
-    .select("*")
-    .eq("camp_id", basics.camp.id)
-    .is("archived_at", null)
-    .order("name", { ascending: true })
-    .returns<CampCamperRow[]>();
-
-  throwIfSupabaseError(error);
-
-  const students = (data ?? []).map(toCampStudentPublic);
+  const students = await loadActiveCampStudents(session, basics.camp.id);
   return {
     campName: basics.camp.name,
     campStartsOn: basics.camp.starts_on,
@@ -590,7 +595,7 @@ export async function getArchivedCampStudents(session: AuthSession, context: Cam
     .returns<CampCamperRow[]>();
 
   throwIfSupabaseError(error);
-  return { allowed: true as const, status: 200, students: (data ?? []).map(toCampStudentPublic) };
+  return { allowed: true as const, status: 200, students: (data ?? []).map((row) => toCampStudentPublic(row)) };
 }
 
 export async function upsertCampStudent(session: AuthSession, context: CampAccessContext, input: CampStudentInput) {
@@ -625,6 +630,102 @@ export async function upsertCampStudent(session: AuthSession, context: CampAcces
   throwIfSupabaseError(result.error);
   if (!result.data) throw new Error("Camp camper write returned no row.");
   return { allowed: true as const, status: input.id ? 200 : 201, student: toCampStudentPublic(result.data) };
+}
+
+export async function saveCampCamperProfilePhoto(
+  session: AuthSession,
+  context: CampAccessContext,
+  input: { studentId: string; file: File }
+) {
+  if (context.isDriver) return { allowed: false as const, status: 403, error: "Camper photo editing is not available for this role." };
+
+  const contentType = input.file.type || "application/octet-stream";
+  const fileSize = input.file.size;
+  assertCamperProfilePhotoFile(contentType, fileSize);
+
+  if (shouldUseMock(session)) {
+    const buffer = Buffer.from(await input.file.arrayBuffer());
+    return mockStore.saveCampCamperProfilePhoto({
+      studentId: input.studentId,
+      contentType,
+      fileSize,
+      mockSignedUrl: `data:${contentType};base64,${buffer.toString("base64")}`
+    });
+  }
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const basics = await ensureCampBasics(session);
+  const camper = await requireActiveCamper(session, input.studentId);
+  const photoId = randomUUID();
+  const extension = extensionForContentType(contentType);
+  const objectPath = `ministry/${camper.ministry_id}/camp/${basics.camp.id}/camper/${camper.id}/profile/${photoId}.${extension}`;
+  const upload = await supabase.storage.from("camp-camper-profile-photos").upload(objectPath, input.file, {
+    contentType,
+    upsert: false
+  });
+  if (upload.error) throw upload.error;
+
+  const { data, error } = await supabase
+    .from("camp_camper_profile_photo_records")
+    .insert({
+      id: photoId,
+      ...ministryScopeColumns(await resolveMinistryScope(session)),
+      camp_id: basics.camp.id,
+      camper_id: camper.id,
+      storage_bucket: "camp-camper-profile-photos",
+      storage_object_path: objectPath,
+      content_type: contentType,
+      file_size: fileSize,
+      uploaded_by_user_id: session.user.id
+    })
+    .select("*")
+    .single<CampCamperProfilePhotoRow>();
+
+  if (error) {
+    await supabase.storage.from("camp-camper-profile-photos").remove([objectPath]);
+    throwIfSupabaseError(error);
+  }
+  if (!data) throw new Error("Camper photo write returned no row.");
+
+  const replacement = await supabase
+    .from("camp_camper_profile_photo_records")
+    .update({ replaced_by_photo_id: photoId })
+    .eq("camp_id", basics.camp.id)
+    .eq("camper_id", camper.id)
+    .neq("id", photoId)
+    .is("removed_at", null)
+    .is("replaced_by_photo_id", null);
+  throwIfSupabaseError(replacement.error);
+
+  const signed = await supabase.storage.from("camp-camper-profile-photos").createSignedUrl(objectPath, 300);
+  if (signed.error) throw signed.error;
+  return {
+    allowed: true as const,
+    status: 201,
+    photo: toCamperProfilePhotoRecord(data, new Map([[camper.id, toCampStudentPublic(camper)]])),
+    student: toCampStudentPublic(camper, signed.data.signedUrl)
+  };
+}
+
+export async function removeCampCamperProfilePhoto(session: AuthSession, context: CampAccessContext, input: { studentId: string }) {
+  if (context.isDriver) return { allowed: false as const, status: 403, error: "Camper photo editing is not available for this role." };
+  if (shouldUseMock(session)) return mockStore.removeCampCamperProfilePhoto(input);
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const basics = await ensureCampBasics(session);
+  const camper = await requireActiveCamper(session, input.studentId);
+  const { error } = await supabase
+    .from("camp_camper_profile_photo_records")
+    .update({ removed_at: new Date().toISOString() })
+    .eq("camp_id", basics.camp.id)
+    .eq("camper_id", camper.id)
+    .is("removed_at", null)
+    .is("replaced_by_photo_id", null);
+  if (isMissingTableError(error, "camp_camper_profile_photo_records")) {
+    return { allowed: true as const, status: 200, student: toCampStudentPublic(camper) };
+  }
+  throwIfSupabaseError(error);
+  return { allowed: true as const, status: 200, student: toCampStudentPublic(camper) };
 }
 
 export async function upsertCampScheduleItem(session: AuthSession, context: CampAccessContext, input: CampScheduleInput) {
@@ -1172,7 +1273,7 @@ export async function upsertMedicationScheduleItem(
 export async function saveMedicationPhoto(
   session: AuthSession,
   context: CampAccessContext,
-  input: { medicationRecordId: string; file: File }
+  input: { medicationRecordId: string; file: File; intakeRecordId?: string }
 ) {
   const access = assertCampRestrictedAccess(context);
   if (!access.allowed) return access;
@@ -1185,6 +1286,7 @@ export async function saveMedicationPhoto(
     const buffer = Buffer.from(await input.file.arrayBuffer());
     return mockStore.saveMedicationPhoto(context.effectiveRole, {
       medicationRecordId: input.medicationRecordId,
+      intakeRecordId: input.intakeRecordId,
       contentType,
       fileSize,
       mockSignedUrl: `data:${contentType};base64,${buffer.toString("base64")}`
@@ -1196,6 +1298,10 @@ export async function saveMedicationPhoto(
   const medication = await requireMedication(session, input.medicationRecordId);
   const camper = await requireActiveCamper(session, medication.camper_id);
   if (medication.camper_id !== camper.id) throw new Error("Medication record does not match camper.");
+  const intake = input.intakeRecordId ? await requireMedicationIntake(session, input.intakeRecordId) : undefined;
+  if (intake && (intake.medication_record_id !== medication.id || intake.camper_id !== camper.id)) {
+    throw new Error("Medication photo intake link does not match the selected medication record.");
+  }
 
   const photoId = randomUUID();
   const extension = extensionForContentType(contentType);
@@ -1214,6 +1320,7 @@ export async function saveMedicationPhoto(
       camp_id: basics.camp.id,
       camper_id: camper.id,
       medication_record_id: medication.id,
+      ...(intake ? { intake_record_id: intake.id } : {}),
       storage_bucket: "camp-medication-photos",
       storage_object_path: objectPath,
       content_type: contentType,
@@ -1339,13 +1446,14 @@ function normalizeStudentAcknowledgement(input: {
   studentAcknowledgementUnavailableReason?: string;
 }) {
   const unavailable = input.studentAcknowledgementUnavailable === true;
-  const initials = input.studentAcknowledgementInitials?.trim().toUpperCase() ?? "";
+  const initials = input.studentAcknowledgementInitials?.trim() ?? "";
   const unavailableReason = input.studentAcknowledgementUnavailableReason?.trim() ?? "";
   if (unavailable) {
     if (!unavailableReason) throw new Error("Reason is required when the student is unavailable or declined to initial.");
     return { initials: "", unavailable: true, unavailableReason };
   }
   if (!initials) throw new Error("Student acknowledgement initials are required, or mark unavailable/declined with a reason.");
+  if (initials.length > 64_000) throw new Error("Student acknowledgement is too large.");
   return { initials, unavailable: false, unavailableReason: "" };
 }
 
@@ -1535,10 +1643,44 @@ async function loadStaff(session: AuthSession, campId: string, teams: CampTeam[]
 }
 
 async function getCampersById(session: AuthSession, campId: string): Promise<Map<string, CampStudentPublic>> {
+  const students = await loadActiveCampStudents(session, campId);
+  return new Map(students.map((student) => [student.id, student]));
+}
+
+async function loadActiveCampStudents(session: AuthSession, campId: string): Promise<CampStudentPublic[]> {
   const supabase = getSupabaseAuthClient(session.accessToken);
   const { data, error } = await supabase.from("camp_campers").select("*").eq("camp_id", campId).is("archived_at", null).returns<CampCamperRow[]>();
   throwIfSupabaseError(error);
-  return new Map((data ?? []).map((row) => [row.id, toCampStudentPublic(row)]));
+  const photoUrls = await loadCamperProfilePhotoUrls(session, campId);
+  return (data ?? []).map((row) => toCampStudentPublic(row, photoUrls.get(row.id)));
+}
+
+async function loadCamperProfilePhotoUrls(session: AuthSession, campId: string): Promise<Map<string, string>> {
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const { data, error } = await supabase
+    .from("camp_camper_profile_photo_records")
+    .select("*")
+    .eq("camp_id", campId)
+    .is("removed_at", null)
+    .is("replaced_by_photo_id", null)
+    .order("uploaded_at", { ascending: false })
+    .returns<CampCamperProfilePhotoStorageRow[]>();
+
+  if (isMissingTableError(error, "camp_camper_profile_photo_records")) return new Map();
+  throwIfSupabaseError(error);
+
+  const latestByCamper = new Map<string, CampCamperProfilePhotoStorageRow>();
+  for (const row of data ?? []) {
+    if (!latestByCamper.has(row.camper_id)) latestByCamper.set(row.camper_id, row);
+  }
+
+  const entries = await Promise.all(Array.from(latestByCamper.values()).map(async (row) => {
+    const signed = await supabase.storage.from(row.storage_bucket).createSignedUrl(row.storage_object_path, 300);
+    if (signed.error) return undefined;
+    return [row.camper_id, signed.data.signedUrl] as const;
+  }));
+
+  return new Map(entries.filter((entry): entry is readonly [string, string] => Boolean(entry)));
 }
 
 async function requireActiveCamper(session: AuthSession, camperId: string): Promise<CampCamperRow> {
@@ -1554,6 +1696,14 @@ async function requireMedication(session: AuthSession, medicationRecordId: strin
   const { data, error } = await supabase.from("camp_medication_records").select("*").eq("id", medicationRecordId).single<CampMedicationRow>();
   throwIfSupabaseError(error);
   if (!data) throw new Error("Medication record not found.");
+  return data;
+}
+
+async function requireMedicationIntake(session: AuthSession, intakeRecordId: string): Promise<CampMedicationIntakeRow> {
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const { data, error } = await supabase.from("camp_medication_intake_records").select("*").eq("id", intakeRecordId).single<CampMedicationIntakeRow>();
+  throwIfSupabaseError(error);
+  if (!data) throw new Error("Medication intake record not found.");
   return data;
 }
 
@@ -1723,11 +1873,12 @@ function toCampStaff(row: CampStaffRow, teams: CampTeam[]): CampStaffMember {
   };
 }
 
-function toCampStudentPublic(row: CampCamperRow): CampStudentPublic {
+function toCampStudentPublic(row: CampCamperRow, profilePhotoUrl?: string): CampStudentPublic {
   return {
     id: row.id,
     name: row.name,
     photoInitials: row.photo_initials || initialsForName(row.name),
+    profilePhotoUrl,
     grade: row.grade ?? "",
     teamId: row.team_id ?? "",
     vehicleId: row.vehicle_id ?? "",
@@ -1795,9 +1946,22 @@ function toMedicationPhotoRecord(row: CampMedicationPhotoRow, campers: Map<strin
     studentId: row.camper_id,
     studentName: campers.get(row.camper_id)?.name ?? "Camper",
     medicationRecordId: row.medication_record_id,
+    intakeRecordId: row.intake_record_id ?? undefined,
     contentType: row.content_type,
     fileSize: row.file_size,
     uploadedAt: row.uploaded_at
+  };
+}
+
+function toCamperProfilePhotoRecord(row: CampCamperProfilePhotoRow, campers: Map<string, CampStudentPublic>): CampCamperProfilePhotoRecord {
+  return {
+    id: row.id,
+    studentId: row.camper_id,
+    studentName: campers.get(row.camper_id)?.name ?? "Camper",
+    contentType: row.content_type,
+    fileSize: row.file_size,
+    uploadedAt: row.uploaded_at,
+    removedAt: row.removed_at ?? undefined
   };
 }
 
@@ -1940,6 +2104,15 @@ function assertMedicationPhotoFile(contentType: string, fileSize: number) {
   }
   if (fileSize <= 0 || fileSize > 10 * 1024 * 1024) {
     throw new Error("Medication photo must be under 10 MB.");
+  }
+}
+
+function assertCamperProfilePhotoFile(contentType: string, fileSize: number) {
+  if (!["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"].includes(contentType.toLowerCase())) {
+    throw new Error("Camper photo must be a supported image file.");
+  }
+  if (fileSize <= 0 || fileSize > 5 * 1024 * 1024) {
+    throw new Error("Camper photo must be under 5 MB.");
   }
 }
 

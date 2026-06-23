@@ -161,6 +161,19 @@ describe("camp medication workflow", () => {
     });
   });
 
+  it("preserves exact drawn student acknowledgement payloads", () => {
+    const drawn = `DRAWN_INITIALS:${JSON.stringify({ width: 640, height: 220, strokes: [[{ x: 10, y: 12 }, { x: 20, y: 24 }]] })}`;
+    const logged = logMedicationAdministration("andrew", {
+      scheduleItemId: "med-sched-1",
+      loggedBy: "Andrew",
+      status: "Logged",
+      studentAcknowledgementInitials: drawn
+    });
+    expect(logged.allowed).toBe(true);
+    if (!logged.allowed || "error" in logged) throw new Error("expected drawn acknowledgement log");
+    expect(logged.log.studentAcknowledgementInitials).toBe(drawn);
+  });
+
   it("preserves corrected and voided medication rows in restricted audit history while active lists show current rows only", () => {
     const created = upsertMedicationRecord("andrew", {
       studentId: "stu-3",
