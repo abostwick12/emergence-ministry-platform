@@ -2,12 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import {
-  campAccessLabels,
-  campAccessRoles,
-  getDefaultCampAccessScope,
-  isRestrictedCampMedicalRole
-} from "@/lib/camp/access";
+import { campAccessLabels } from "@/lib/camp/access";
 import {
   oakwoodExpectedCsvHeaders,
   oakwoodOptionalCsvHeaders,
@@ -169,7 +164,8 @@ const emptyOverview: CampOverviewPayload = {
   vehicles: [],
   schedule: [],
   documents: [],
-  students: []
+  students: [],
+  staff: []
 };
 
 function daysUntilCamp(startDate: string) {
@@ -212,8 +208,7 @@ async function errorMessageFromResponse(response: Response, fallback: string) {
 }
 
 export function CampCommandCenter() {
-  const [accessRole, setAccessRole] = useState<CampAccessRole>("general_leader");
-  const [driverVehicleId, setDriverVehicleId] = useState(getDefaultCampAccessScope("driver").vehicleId ?? "van-2");
+  const accessRole: CampAccessRole = "andrew";
   const [query, setQuery] = useState("");
   const [overview, setOverview] = useState<CampOverviewPayload>(emptyOverview);
   const [isLoadingOverview, setIsLoadingOverview] = useState(true);
@@ -311,8 +306,8 @@ export function CampCommandCenter() {
   });
   const [returnForm, setReturnForm] = useState<ReturnForm | null>(null);
 
-  const canSeeRestrictedMedical = isRestrictedCampMedicalRole(accessRole);
-  const canEditRoster = accessRole !== "driver";
+  const canSeeRestrictedMedical = true;
+  const canEditRoster = true;
   const filteredStudents = useMemo(() => {
     const search = query.trim().toLowerCase();
     if (!search) return overview.students;
@@ -329,9 +324,7 @@ export function CampCommandCenter() {
 
   const loadOverview = useCallback(async () => {
     setIsLoadingOverview(true);
-    const params = new URLSearchParams({ role: accessRole });
-    if (accessRole === "driver") params.set("vehicleId", driverVehicleId);
-    const response = await fetch(`/api/camp?${params.toString()}`, { cache: "no-store" });
+    const response = await fetch("/api/camp", { cache: "no-store" });
     if (response.ok) {
       const payload = (await response.json()) as CampOverviewPayload;
       setOverview(payload);
@@ -345,7 +338,7 @@ export function CampCommandCenter() {
       setIntakeForm((current) => ({ ...current, studentId: current.studentId || payload.students[0]?.id || "" }));
     }
     setIsLoadingOverview(false);
-  }, [accessRole, driverVehicleId]);
+  }, []);
 
   const loadRestrictedData = useCallback(async () => {
     if (!canSeeRestrictedMedical) {
@@ -360,8 +353,8 @@ export function CampCommandCenter() {
 
     try {
       const [medicalResponse, medicationResponse] = await Promise.all([
-        fetch(`/api/camp/restricted-medical?role=${accessRole}`, { cache: "no-store" }),
-        fetch(`/api/camp/medication?role=${accessRole}`, { cache: "no-store" })
+        fetch("/api/camp/restricted-medical", { cache: "no-store" }),
+        fetch("/api/camp/medication", { cache: "no-store" })
       ]);
 
       if (!medicalResponse.ok || !medicationResponse.ok) throw new Error("Restricted camp data could not be loaded.");
@@ -389,7 +382,7 @@ export function CampCommandCenter() {
     } finally {
       setRestrictedLoading(false);
     }
-  }, [accessRole, canSeeRestrictedMedical]);
+  }, [canSeeRestrictedMedical]);
 
   const loadArchivedStudents = useCallback(async () => {
     if (!canSeeRestrictedMedical) {
@@ -397,12 +390,12 @@ export function CampCommandCenter() {
       return;
     }
 
-    const response = await fetch(`/api/camp/students?role=${accessRole}`, { cache: "no-store" });
+    const response = await fetch("/api/camp/students", { cache: "no-store" });
     if (response.ok) {
       const payload = (await response.json()) as { students: CampStudentPublic[] };
       setArchivedStudents(payload.students);
     }
-  }, [accessRole, canSeeRestrictedMedical]);
+  }, [canSeeRestrictedMedical]);
 
   useEffect(() => {
     void loadOverview();
@@ -422,7 +415,7 @@ export function CampCommandCenter() {
     setActiveAction(null);
     setPhotoMessage("");
     setIntakePhotoFile(null);
-  }, [accessRole]);
+  }, []);
 
   const setActionMessage = useCallback((action: CampSaveAction, tone: CampActionStatus["tone"], message: string) => {
     setActionStatus({ action, tone, message });
@@ -459,7 +452,7 @@ export function CampCommandCenter() {
 
   const fetchMedicationPhotoThumbnail = useCallback(async (record: CampMedicationRecord): Promise<MedicationPhotoThumbnailState> => {
     try {
-      const response = await fetch(`/api/camp/medication/photos?role=${accessRole}&medicationRecordId=${encodeURIComponent(record.id)}`, { cache: "no-store" });
+      const response = await fetch(`/api/camp/medication/photos?medicationRecordId=${encodeURIComponent(record.id)}`, { cache: "no-store" });
       if (!response.ok) {
         console.info("Medication photo thumbnail unavailable.", { medicationRecordId: record.id, status: response.status });
         return { status: "unavailable" };
@@ -474,7 +467,7 @@ export function CampCommandCenter() {
       console.info("Medication photo thumbnail unavailable.", { medicationRecordId: record.id, status: "request-failed" });
       return { status: "unavailable" };
     }
-  }, [accessRole]);
+  }, []);
 
   useEffect(() => {
     if (!canSeeRestrictedMedical || !restrictedState?.medication.checkIn.length) {
@@ -527,7 +520,7 @@ export function CampCommandCenter() {
     }
     beginAction("student", studentForm.id ? "Saving camper updates..." : "Adding camper...");
     const method = studentForm.id ? "PATCH" : "POST";
-    const response = await fetch(`/api/camp/students?role=${accessRole}`, {
+    const response = await fetch("/api/camp/students", {
       method,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -567,7 +560,7 @@ export function CampCommandCenter() {
     if (!confirmed) return;
 
     beginAction("archive", "Archiving camper...");
-    const response = await fetch(`/api/camp/students?role=${accessRole}`, {
+    const response = await fetch("/api/camp/students", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "archive", studentId: studentForm.id, archiveReason })
@@ -590,7 +583,7 @@ export function CampCommandCenter() {
   async function restoreStudent(studentId: string) {
     if (activeAction) return;
     beginAction("restore", "Restoring camper...");
-    const response = await fetch(`/api/camp/students?role=${accessRole}`, {
+    const response = await fetch("/api/camp/students", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "restore", studentId })
@@ -611,7 +604,7 @@ export function CampCommandCenter() {
   async function saveAssignment(studentId: string, teamId: string, vehicleId: string) {
     if (activeAction) return;
     beginAction("assignment", "Saving assignment...");
-    const response = await fetch(`/api/camp/students?role=${accessRole}`, {
+    const response = await fetch("/api/camp/students", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ assignmentOnly: true, studentId, teamId, vehicleId })
@@ -632,7 +625,7 @@ export function CampCommandCenter() {
       return;
     }
     beginAction("medical", "Saving restricted medical record...");
-    const response = await fetch(`/api/camp/restricted-medical?role=${accessRole}`, {
+    const response = await fetch("/api/camp/restricted-medical", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(medicalForm)
@@ -656,7 +649,7 @@ export function CampCommandCenter() {
       return;
     }
     beginAction("medication", "Saving medication check-in...");
-    const response = await fetch(`/api/camp/medication?role=${accessRole}`, {
+    const response = await fetch("/api/camp/medication", {
       method: medicationForm.id ? "PATCH" : "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(medicationForm)
@@ -684,7 +677,7 @@ export function CampCommandCenter() {
       return;
     }
     beginAction("intake", "Saving medication intake...");
-    const response = await fetch(`/api/camp/medication?role=${accessRole}`, {
+    const response = await fetch("/api/camp/medication", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -705,7 +698,7 @@ export function CampCommandCenter() {
       const formData = new FormData();
       formData.set("medicationRecordId", payload.record.id);
       formData.set("photo", intakePhotoFile);
-      const photoResponse = await fetch(`/api/camp/medication/photos?role=${accessRole}`, {
+      const photoResponse = await fetch("/api/camp/medication/photos", {
         method: "POST",
         body: formData
       });
@@ -892,7 +885,7 @@ export function CampCommandCenter() {
     const confirmed = window.confirm("Void this record? It will be hidden from active operational views but retained for restricted audit history.");
     if (!confirmed) return;
     beginAction("void", "Voiding record...");
-    const response = await fetch(`/api/camp/medication?role=${accessRole}`, {
+    const response = await fetch("/api/camp/medication", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ target: "void", voidTarget: target, id, voidReason, voidedByName: campAccessLabels[accessRole] })
@@ -914,7 +907,7 @@ export function CampCommandCenter() {
       return;
     }
     beginAction("schedule", "Saving medication schedule...");
-    const response = await fetch(`/api/camp/medication?role=${accessRole}`, {
+    const response = await fetch("/api/camp/medication", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ target: "schedule", ...scheduleForm })
@@ -936,7 +929,7 @@ export function CampCommandCenter() {
       return;
     }
     beginAction("administration", "Recording medication administration...");
-    const response = await fetch(`/api/camp/medication?role=${accessRole}`, {
+    const response = await fetch("/api/camp/medication", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ target: "administrationLog", ...administrationForm })
@@ -954,7 +947,7 @@ export function CampCommandCenter() {
   async function saveReturnForm() {
     if (activeAction || !returnForm) return;
     beginAction("return", "Recording parent handoff...");
-    const response = await fetch(`/api/camp/medication?role=${accessRole}`, {
+    const response = await fetch("/api/camp/medication", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -1003,7 +996,7 @@ export function CampCommandCenter() {
   async function previewImport() {
     if (activeAction) return;
     beginAction("importPreview", "Validating import rows...");
-    const response = await fetch(`/api/camp/import?role=${accessRole}`, {
+    const response = await fetch("/api/camp/import", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "preview", csv: importCsv })
@@ -1024,7 +1017,7 @@ export function CampCommandCenter() {
   async function commitImport() {
     if (activeAction || !importPreview) return;
     beginAction("importCommit", "Saving reviewed import...");
-    const response = await fetch(`/api/camp/import?role=${accessRole}`, {
+    const response = await fetch("/api/camp/import", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "commit", preview: importPreview })
@@ -1088,7 +1081,7 @@ export function CampCommandCenter() {
     appendOakwoodUploadFiles(formData, false);
 
     beginAction("oakwoodImportPreview", "Inspecting Oakwood workbook sheets...");
-    const response = await fetch(`/api/camp/import/upload?role=${accessRole}`, {
+    const response = await fetch("/api/camp/import/upload", {
       method: "POST",
       body: formData
     });
@@ -1114,7 +1107,7 @@ export function CampCommandCenter() {
     appendOakwoodUploadFiles(formData, true);
 
     beginAction("oakwoodImportPreview", "Building Oakwood upload preview...");
-    const response = await fetch(`/api/camp/import/upload?role=${accessRole}`, {
+    const response = await fetch("/api/camp/import/upload", {
       method: "POST",
       body: formData
     });
@@ -1137,7 +1130,7 @@ export function CampCommandCenter() {
       return;
     }
     beginAction("oakwoodImportCommit", "Saving Oakwood import...");
-    const response = await fetch(`/api/camp/import?role=${accessRole}`, {
+    const response = await fetch("/api/camp/import", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -1175,31 +1168,6 @@ export function CampCommandCenter() {
           <strong>{campDays}</strong>
           <span>days out</span>
         </div>
-      </section>
-
-      <section className="panel camp-controls" aria-label="Camp access controls">
-        <div>
-          <p className="eyebrow">Access Preview</p>
-          <h3 className="section-title">Dev/admin access preview</h3>
-          <p className="muted">This switcher previews server-filtered access. Restricted medical and medication tools only load for Andrew, Jaci, and Joel.</p>
-        </div>
-        <div className="camp-role-tabs" role="group" aria-label="Camp access role">
-          {campAccessRoles.map((role) => (
-            <button className={role === accessRole ? "camp-role-tab active" : "camp-role-tab"} key={role} type="button" onClick={() => setAccessRole(role)}>
-              {campAccessLabels[role]}
-            </button>
-          ))}
-        </div>
-        {accessRole === "driver" ? (
-          <label className="field camp-driver-filter">
-            <span>Driver Vehicle</span>
-            <select className="input" value={driverVehicleId} onChange={(event) => setDriverVehicleId(event.target.value)}>
-              {overview.vehicles.map((vehicle) => (
-                <option key={vehicle.id} value={vehicle.id}>{vehicle.name} - {vehicle.driver}</option>
-              ))}
-            </select>
-          </label>
-        ) : null}
       </section>
 
       {canSeeRestrictedMedical ? (

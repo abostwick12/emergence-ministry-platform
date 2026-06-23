@@ -1,22 +1,19 @@
 -- 014_camp_access_roles.sql
 -- Durable, admin-managed Camp access role assignments + change audit.
 --
--- Purpose: make Camp access a property of the authenticated user (an explicit,
--- admin-granted assignment) instead of email/name inference. Once this is applied
--- and the initial admin is seeded (manual step at the bottom), the application
--- and RLS treat this table as the authoritative source; the legacy email/name
--- inference in 007 remains only as a transitional fallback until every Camp user
--- has a row here, after which it can be retired.
---
--- Additive and idempotent. NOT auto-applied. Apply via your Supabase workflow,
--- confirm the target project first, then run the seed at the bottom.
+-- Additive and idempotent. NOT auto-applied. Apply via the approved Supabase
+-- workflow after confirming the target project.
 
 create extension if not exists pgcrypto;
+create schema if not exists private;
+revoke all on schema private from public;
+revoke all on schema private from anon;
+revoke all on schema private from authenticated;
 
--- Capability tiers (levels, not named persons):
+-- Capability tiers:
 --   camp_admin           -> full Camp operations + admin-only Medical Command
 --   medical_coordinator  -> restricted medical workflows + EMMA smart search, NO Medical Command
---   restricted_assistant -> restricted medical workflows only (no EMMA smart search, no Medical Command)
+--   restricted_assistant -> restricted medical workflows only
 --   leader               -> safe operational views only
 --   driver               -> safe operational views, vehicle-scoped
 create table if not exists public.camp_access_members (
@@ -49,7 +46,6 @@ create table if not exists public.camp_access_audit (
 create index if not exists camp_access_audit_target_idx
   on public.camp_access_audit(target_user_id, created_at desc);
 
--- Authoritative Camp role / admin checks from the durable table.
 create or replace function public.current_user_camp_role()
 returns text language sql stable security definer set search_path = '' as $$
   select m.camp_role
@@ -66,31 +62,124 @@ returns boolean language sql stable security definer set search_path = '' as $$
   );
 $$;
 
+-- Replace legacy restricted identity inference with the durable Camp role table.
+create or replace function public.current_user_can_access_camp_restricted()
+returns boolean language sql stable security definer set search_path = '' as $$
+  select exists (
+    select 1
+    from public.camp_access_members m
+    where m.user_id = auth.uid()
+      and m.is_active
+      and m.camp_role in ('camp_admin','medical_coordinator','restricted_assistant')
+  );
+$$;
+
 alter table public.camp_access_members enable row level security;
 alter table public.camp_access_audit enable row level security;
 
--- Members may read their own assignment; admins read all.
 drop policy if exists camp_access_members_select on public.camp_access_members;
 create policy camp_access_members_select on public.camp_access_members
   for select using (user_id = auth.uid() or public.current_user_is_camp_admin());
 
--- Only admins may create/update/revoke assignments.
 drop policy if exists camp_access_members_modify on public.camp_access_members;
 create policy camp_access_members_modify on public.camp_access_members
   for all using (public.current_user_is_camp_admin())
   with check (public.current_user_is_camp_admin());
 
--- Only admins may read the change audit.
 drop policy if exists camp_access_audit_select on public.camp_access_audit;
 create policy camp_access_audit_select on public.camp_access_audit
   for select using (public.current_user_is_camp_admin());
 
--- Admins may append audit rows (the app writes one per access change).
 drop policy if exists camp_access_audit_insert on public.camp_access_audit;
-create policy camp_access_audit_insert on public.camp_access_audit
-  for insert with check (public.current_user_is_camp_admin());
+revoke insert, update, delete on public.camp_access_audit from anon;
+revoke insert, update, delete on public.camp_access_audit from authenticated;
+grant select on public.camp_access_audit to authenticated;
 
--- Guard: never allow removing or demoting the final active administrator.
+-- Access audit rows are generated from the actual member-table operation.
+-- Clients never provide actor, timestamp, action, or subject metadata.
+create or replace function private.camp_access_audit_member_change()
+returns trigger language plpgsql security definer set search_path = '' as $$
+declare
+  actor_id uuid := auth.uid();
+  actor_mail text;
+  audit_action text;
+  audit_old_role text;
+  audit_new_role text;
+  target_id uuid;
+  target_mail text;
+begin
+  if tg_op = 'UPDATE'
+     and old.camp_role is not distinct from new.camp_role
+     and old.is_active is not distinct from new.is_active then
+    return new;
+  end if;
+
+  if actor_id is null then
+    actor_id := case
+      when tg_op in ('INSERT','UPDATE') then new.granted_by
+      else old.granted_by
+    end;
+  end if;
+
+  select lower(u.email) into actor_mail
+  from auth.users u
+  where u.id = actor_id;
+
+  if tg_op = 'INSERT' then
+    audit_action := case when new.is_active then 'grant' else 'revoke' end;
+    audit_old_role := null;
+    audit_new_role := case when new.is_active then new.camp_role else null end;
+    target_id := new.user_id;
+    target_mail := new.email;
+  elsif tg_op = 'UPDATE' then
+    audit_action := case
+      when old.is_active = false and new.is_active = true then 'grant'
+      when new.is_active = false then 'revoke'
+      else 'update'
+    end;
+    audit_old_role := case when old.is_active then old.camp_role else null end;
+    audit_new_role := case when new.is_active then new.camp_role else null end;
+    target_id := new.user_id;
+    target_mail := new.email;
+  else
+    audit_action := 'revoke';
+    audit_old_role := case when old.is_active then old.camp_role else null end;
+    audit_new_role := null;
+    target_id := old.user_id;
+    target_mail := old.email;
+  end if;
+
+  insert into public.camp_access_audit (
+    actor_user_id,
+    actor_email,
+    target_user_id,
+    target_email,
+    action,
+    old_role,
+    new_role
+  )
+  values (
+    actor_id,
+    actor_mail,
+    target_id,
+    lower(target_mail),
+    audit_action,
+    audit_old_role,
+    audit_new_role
+  );
+
+  if tg_op = 'DELETE' then
+    return old;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists camp_access_members_audit on public.camp_access_members;
+create trigger camp_access_members_audit
+  after insert or update or delete on public.camp_access_members
+  for each row execute function private.camp_access_audit_member_change();
+
 create or replace function public.camp_access_guard_last_admin()
 returns trigger language plpgsql security definer set search_path = '' as $$
 declare remaining int;
@@ -123,10 +212,17 @@ create trigger camp_access_members_last_admin
   before update or delete on public.camp_access_members
   for each row execute function public.camp_access_guard_last_admin();
 
--- ── Manual seed (run ONCE after applying, with Andrew's real auth user id) ──
--- Andrew is the initial Camp administrator. Replace the placeholders with the
--- real auth.users id + email (do not assume an email local part):
---
--- insert into public.camp_access_members (user_id, email, camp_role, granted_by)
--- values ('<ANDREW_AUTH_USER_ID>', '<andrew-email>', 'camp_admin', '<ANDREW_AUTH_USER_ID>')
--- on conflict (user_id) do update set camp_role = 'camp_admin', is_active = true, updated_at = now();
+-- Bootstrap Andrew as the first Camp Admin if his authenticated user exists.
+-- The member trigger writes the corresponding audit row from this database operation.
+insert into public.camp_access_members (user_id, email, camp_role, granted_by)
+select u.id, lower(u.email), 'camp_admin', u.id
+from auth.users u
+where lower(u.email) = 'andrew.w.bostwick12@gmail.com'
+on conflict (user_id) do update
+set email = excluded.email,
+    camp_role = 'camp_admin',
+    is_active = true,
+    granted_by = excluded.granted_by,
+    updated_at = now();
+
+notify pgrst, 'reload schema';

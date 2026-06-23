@@ -7,6 +7,7 @@ import {
   getCampOverview,
   getArchivedCampStudents,
   getOakwoodImportPreview,
+  getOakwoodUploadImportPreview,
   getMedicationPhotoAccess,
   getRestrictedCampMedicalPayload,
   getRestrictedCampMedicationPayload,
@@ -330,6 +331,10 @@ describe("camp repository mock fallback", () => {
     expect(commit.allowed).toBe(true);
     if (!commit.allowed || "error" in commit) throw new Error("expected commit success");
     expect(commit.result.committed).toHaveLength(2);
+    expect(commit.result.committed).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: "Oakwood Adult", personType: "adult" }),
+      expect.objectContaining({ name: "Oakwood Camper", personType: "student" })
+    ]));
     expect(commit.result.auditBatch).toMatchObject({ sourceFile: "Camp_Quick_View.csv", staffCount: 1, restrictedCount: 1 });
 
     const overview = await getCampOverview(mockSession, general);
@@ -342,8 +347,54 @@ describe("camp repository mock fallback", () => {
       hasDietaryAlert: true,
       emergencyContactOnFile: true
     });
+    expect(overview.staff.find((staff) => staff.name === "Oakwood Adult")).toMatchObject({
+      role: "adult_volunteer",
+      shirtSize: "Adult Large",
+      registrationExternalId: "70000011"
+    });
+    expect(overview.students.some((student) => student.name === "Oakwood Adult")).toBe(false);
     expect(JSON.stringify(overview)).not.toContain("Parent medical note");
     expect(JSON.stringify(overview)).not.toContain("555");
+  });
+
+  it("commits explicit staff-only Oakwood rows as staff visible to team assignment data", async () => {
+    const mockSession = session();
+    const general = resolveCampAccessContext(mockSession, "general_leader");
+    const restricted = resolveCampAccessContext(mockSession, "andrew");
+    const csv = [
+      "Registration ID,Name,Selection,Grade,Room Number,T-Shirt Size,Team,Quick Filter,Emergency Contact",
+      "70000041,Fixture Staff Leader,,,Cabin L,Adult XL,Blue Team,No Concern,"
+    ].join("\n");
+
+    const preview = await getOakwoodUploadImportPreview(mockSession, restricted, {
+      sourceName: "Oakwood Leaders Fixture",
+      sources: [{
+        scope: "staff_only",
+        csv,
+        fileName: "Oakwood_Leaders.csv",
+        checksumSha256: "safe-fixture"
+      }]
+    });
+    expect(preview.allowed).toBe(true);
+    if (!preview.allowed) throw new Error("expected staff preview success");
+    expect(preview.preview.summary).toMatchObject({ adults: 1, students: 0, staffRows: 1, restrictedRecordRows: 0 });
+    expect(preview.preview.rows[0]).toMatchObject({ personType: "adult", matchStatus: "new" });
+
+    const commit = await commitOakwoodImport(mockSession, restricted, { preview: preview.preview, confirmed: true });
+    expect(commit.allowed).toBe(true);
+    if (!commit.allowed || "error" in commit) throw new Error("expected staff commit success");
+    expect(commit.result.committed).toEqual([
+      expect.objectContaining({ name: "Fixture Staff Leader", personType: "adult" })
+    ]);
+
+    const overview = await getCampOverview(mockSession, general);
+    expect(overview.staff.find((staff) => staff.name === "Fixture Staff Leader")).toMatchObject({
+      role: "adult_volunteer",
+      shirtSize: "Adult XL",
+      registrationExternalId: "70000041"
+    });
+    expect(overview.students.some((student) => student.name === "Fixture Staff Leader")).toBe(false);
+    expect(JSON.stringify(overview)).not.toContain("Emergency Contact");
   });
 
   it("blocks Oakwood ambiguous rows and never matches household id alone", async () => {

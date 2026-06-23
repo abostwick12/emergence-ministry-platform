@@ -61,8 +61,8 @@ export function assertCampRestrictedAccess(context: CampAccessContext) {
 // Medical Command is a stricter capability than the normal restricted medication
 // workflows: it is limited to Andrew ONLY. Jaci and Joel keep their existing
 // restricted medication access but must never reach Medical Command. The check
-// keys off the server-resolved restrictedActor (email-derived in production,
-// not spoofable by the ?role= query param), so no schema change is required.
+// keys off the server-resolved restrictedActor, which is supplied by the
+// authenticated Camp access resolver and is not spoofable by query params.
 export function canAccessCampMedicalCommand(context: CampAccessContext): boolean {
   return context.restrictedActor === "Andrew";
 }

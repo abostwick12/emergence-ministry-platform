@@ -8,27 +8,14 @@ test.describe("Camp Oakwood restricted import boundaries", () => {
     await page.goto("/camp/more");
 
     await expect(page.getByRole("link", { name: /Oakwood import preview/ })).toHaveCount(0);
-
-    await page.goto("/camp");
-    await page.getByRole("button", { name: "Driver", exact: true }).click();
-    await page.getByRole("navigation", { name: "Camp sections" }).getByRole("link", { name: "More", exact: true }).click();
-    await expect(page.getByRole("link", { name: /Oakwood import preview/ })).toHaveCount(0);
-
-    await page.goto("/camp");
-    await page.getByRole("button", { name: "Andrew", exact: true }).click();
-    await page.getByRole("navigation", { name: "Camp sections" }).getByRole("link", { name: "More", exact: true }).click();
-    await expect(page.getByRole("link", { name: /Oakwood import preview/ })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Andrew", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Driver", exact: true })).toHaveCount(0);
   });
 
-  test("Camp Settings exposes Andrew-only roster import route", async ({ page }) => {
+  test("Camp Settings exposes roster import route for Andrew's authenticated admin access", async ({ page }) => {
     await login(page);
-    await page.goto("/camp");
-    await page.getByRole("button", { name: "Jaci", exact: true }).click();
-    await page.goto("/camp/settings/import");
-    await expect(page.getByText("This route is restricted to Camp Admins.")).toBeVisible();
 
     await page.goto("/camp");
-    await page.getByRole("button", { name: "Andrew", exact: true }).click();
     await page.getByRole("navigation", { name: "Camp sections" }).getByRole("link", { name: "More", exact: true }).click();
     await page.getByRole("link", { name: "Camp Settings" }).click();
     await page.getByRole("link", { name: "Import Camp Roster" }).click();

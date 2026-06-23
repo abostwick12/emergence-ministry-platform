@@ -1,43 +1,32 @@
 // Server-only Camp access resolution.
 //
-// Camp access is a property of the *authenticated user*, not a client-selected
-// role. In production the durable `camp_access_members` table (migration 014) is
-// authoritative; a role override is honored ONLY in development / E2E / local
-// behind a server-side flag (and the matching picker is the only way to send one).
-//
-// This module never reads anything the client controls in production, and never
-// infers access from an email local part as the primary source. The legacy 007
-// inference is used only as a transitional fallback for real users who do not yet
-// have a durable assignment, so applying 014 cannot lock Andrew out mid-rollout.
+// Camp access belongs to the authenticated user, never to a client-selected
+// role. Once migration 014 is applied, `camp_access_members` is authoritative.
+// Until then, Andrew's exact email is the bootstrap Camp Admin so local,
+// Preview, and Production do not require a manual role selector.
 
-// Server-only by construction: it imports the auth server module (next/headers),
-// which cannot be pulled into a Client Component — matching the repo convention
-// in lib/auth/* of not depending on the `server-only` package.
 import { isSupabaseConfigured } from "@/lib/auth/config";
 import { getSupabaseAuthClient, type AuthSession } from "@/lib/auth/server";
-import { resolveCampAccessContext, type CampAccessContext } from "@/lib/camp/permissions";
+import type { CampAccessContext } from "@/lib/camp/permissions";
 import { CAMP_STORED_ROLES, campStoredRoleLabels, type CampStoredRole } from "@/lib/camp/access-roles";
 
-// Re-export the shared, client-safe role constants so existing importers of this
-// server module keep working unchanged.
+export const BOOTSTRAP_CAMP_ADMIN_EMAIL = "andrew.w.bostwick12@gmail.com";
+
 export { CAMP_STORED_ROLES, campStoredRoleLabels };
 export type { CampStoredRole };
 
-// Whether the development/test Camp role override (and its picker) is active.
-// NEVER true in Vercel production, and not in normal Preview behavior either —
-// only unit tests, E2E, an explicit local opt-in, or a local no-Supabase dev run.
+export type CampStoredRoleState = {
+  available: boolean;
+  role: CampStoredRole | null;
+};
+
+// Historical export retained for existing callers. Manual Camp role preview is
+// intentionally disabled: URL params, local storage, and client controls must
+// never determine actual Camp access.
 export function isCampRolePreviewEnabled(): boolean {
-  if (process.env.VERCEL_ENV === "production") return false;
-  if (process.env.NODE_ENV === "test") return true; // vitest unit tests
-  if (process.env.E2E_MOCK_AUTH === "true") return true; // playwright E2E
-  if (process.env.ENABLE_CAMP_ROLE_PREVIEW === "true") return true; // explicit local opt-in
-  if (!isSupabaseConfigured() && process.env.NODE_ENV !== "production") return true; // local dev
   return false;
 }
 
-// Map a durable stored Camp role onto the existing CampAccessContext capability
-// model so every downstream check (Medical Command = Andrew-only, EMMA smart
-// search = Andrew/Jaci, restricted workflows = Andrew/Jaci/Joel) is unchanged.
 export function buildCampAccessFromStoredRole(role: CampStoredRole): CampAccessContext {
   switch (role) {
     case "camp_admin":
@@ -54,11 +43,12 @@ export function buildCampAccessFromStoredRole(role: CampStoredRole): CampAccessC
   }
 }
 
-// Read the signed-in user's durable Camp role. Returns null when there is no real
-// Supabase session, no assignment, or the table is not applied yet — all of which
-// fall back safely. Never throws.
 export async function getStoredCampRole(session: AuthSession): Promise<CampStoredRole | null> {
-  if (session.isMock || !isSupabaseConfigured()) return null;
+  return (await getStoredCampRoleState(session)).role;
+}
+
+export async function getStoredCampRoleState(session: AuthSession): Promise<CampStoredRoleState> {
+  if (session.isMock || !isSupabaseConfigured()) return { available: false, role: null };
   try {
     const supabase = getSupabaseAuthClient(session.accessToken);
     const { data, error } = await supabase
@@ -67,34 +57,31 @@ export async function getStoredCampRole(session: AuthSession): Promise<CampStore
       .eq("user_id", session.user.id)
       .eq("is_active", true)
       .maybeSingle<{ camp_role: CampStoredRole }>();
-    if (error || !data) return null;
-    return data.camp_role;
+    if (error) return { available: false, role: null };
+    return { available: true, role: data?.camp_role ?? null };
   } catch {
-    return null;
+    return { available: false, role: null };
   }
 }
 
-// Authoritative Camp access for an API request.
-//   - dev/test/local (preview enabled): honor the role override param (the picker).
-//   - production / normal preview: use the durable stored role; if none yet, fall
-//     back to the existing server-side resolution WITHOUT trusting any client param.
-export async function resolveCampAccessForRequest(
-  session: AuthSession,
-  requestedRole: string | null
-): Promise<CampAccessContext> {
-  if (isCampRolePreviewEnabled()) {
-    return resolveCampAccessContext(session, requestedRole);
-  }
+export function isBootstrapCampAdmin(session: Pick<AuthSession, "user">): boolean {
+  return normalizeEmail(session.user.email) === BOOTSTRAP_CAMP_ADMIN_EMAIL;
+}
+
+export async function resolveCampAccessForRequest(session: AuthSession, _requestedRole: string | null): Promise<CampAccessContext> {
   if (!session.isMock) {
-    const stored = await getStoredCampRole(session);
-    if (stored) return buildCampAccessFromStoredRole(stored);
+    const stored = await getStoredCampRoleState(session);
+    if (stored.role) return buildCampAccessFromStoredRole(stored.role);
+    if (stored.available) return buildCampAccessFromStoredRole("leader");
   }
-  // Transitional: no durable assignment (or non-preview mock) — never trust a
-  // client role param here.
-  return resolveCampAccessContext(session, null);
+  if (isBootstrapCampAdmin(session)) return buildCampAccessFromStoredRole("camp_admin");
+  return buildCampAccessFromStoredRole("leader");
 }
 
-// Camp/platform administrators (the durable `admin` tier) may manage access.
 export function canManageCampAccess(context: CampAccessContext): boolean {
   return context.restrictedActor === "Andrew";
+}
+
+function normalizeEmail(email: string) {
+  return email.trim().toLowerCase();
 }

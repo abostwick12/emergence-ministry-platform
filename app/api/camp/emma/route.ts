@@ -19,7 +19,7 @@ export async function POST(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const context = await resolveCampAccessForRequest(session, searchParams.get("role"));
-  const vehicleId = searchParams.get("vehicleId") ?? getDefaultCampAccessScope(context.effectiveRole).vehicleId;
+  const vehicleId = getDefaultCampAccessScope(context.effectiveRole).vehicleId;
 
   let body: CampEmmaRequestBody = {};
   try {

@@ -131,7 +131,7 @@ function normalizePersonRow(
 ): CampOakwoodImportRow {
   const warnings: string[] = [];
   const name = pick(row, ["name"]) || joinName(pick(row, ["first name"]), pick(row, ["last name"]));
-  const personType = /adult/i.test(pick(row, ["selection"])) ? "adult" : "student";
+  const personType = resolvePersonType(row, importScope);
   const registrationExternalId = pick(row, ["registration id"]);
   const grade = pick(row, ["grade", "student grade"]);
   // Blank source Room stays blank - no fabrication.
@@ -221,6 +221,12 @@ function deriveSafeIndicators(row: OakwoodSourceRow): CampOakwoodSafeIndicators 
     hasMedicalAlert: quickFilter.includes("medical") || medicalNotePresent,
     hasDietaryAlert: quickFilter.includes("food/diet") || quickFilter.includes("food / diet") || quickFilter.includes("diet") || dietaryNotePresent
   };
+}
+
+function resolvePersonType(row: OakwoodSourceRow, importScope: CampOakwoodImportPreview["importScope"]): CampOakwoodImportRow["personType"] {
+  if (importScope === "staff_only") return "adult";
+  if (importScope === "camper_only") return "student";
+  return /adult|leader|staff|volunteer/i.test(pick(row, ["selection", "record type", "person type", "role"])) ? "adult" : "student";
 }
 
 function buildRestrictedPayload(row: OakwoodSourceRow, indicators: CampOakwoodSafeIndicators): CampOakwoodRestrictedPayload {

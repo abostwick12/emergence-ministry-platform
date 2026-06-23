@@ -1,9 +1,8 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { getDefaultCampAccessScope } from "@/lib/camp/access";
 import { deriveCampDays, scheduleForDay, type CampDay } from "@/lib/camp/days";
-import type { CampAccessRole, CampOverviewPayload, CampScheduleBlock } from "@/lib/camp/types";
+import type { CampOverviewPayload, CampScheduleBlock } from "@/lib/camp/types";
 
 export type CampHomeMode = "operations" | "medical";
 
@@ -23,19 +22,13 @@ const emptyOverview: CampOverviewPayload = {
   vehicles: [],
   schedule: [],
   documents: [],
-  students: []
+  students: [],
+  staff: []
 };
 
 const emptyCapabilities: CampCapabilities = { restrictedMedical: false, medicalCommand: false };
 
 type CampContextValue = {
-  role: CampAccessRole;
-  setRole: (role: CampAccessRole) => void;
-  // True only in dev/test (server-decided). Gates the Access Preview picker; the
-  // server is always authoritative regardless of this value.
-  rolePreviewEnabled: boolean;
-  driverVehicleId: string;
-  setDriverVehicleId: (id: string) => void;
   overview: CampOverviewPayload;
   capabilities: CampCapabilities;
   loading: boolean;
@@ -50,9 +43,7 @@ type CampContextValue = {
 
 const CampContext = createContext<CampContextValue | null>(null);
 
-export function CampProvider({ children, rolePreviewEnabled = false }: { children: React.ReactNode; rolePreviewEnabled?: boolean }) {
-  const [role, setRole] = useState<CampAccessRole>("general_leader");
-  const [driverVehicleId, setDriverVehicleId] = useState(getDefaultCampAccessScope("driver").vehicleId ?? "van-2");
+export function CampProvider({ children }: { children: React.ReactNode }) {
   const [overview, setOverview] = useState<CampOverviewPayload>(emptyOverview);
   const [capabilities, setCapabilities] = useState<CampCapabilities>(emptyCapabilities);
   const [loading, setLoading] = useState(true);
@@ -61,10 +52,8 @@ export function CampProvider({ children, rolePreviewEnabled = false }: { childre
 
   const refresh = useCallback(async () => {
     setLoading(true);
-    const params = new URLSearchParams({ role });
-    if (role === "driver") params.set("vehicleId", driverVehicleId);
     try {
-      const response = await fetch(`/api/camp?${params.toString()}`, { cache: "no-store" });
+      const response = await fetch("/api/camp", { cache: "no-store" });
       if (response.ok) {
         const payload = (await response.json()) as CampOverviewResponse;
         setOverview(payload);
@@ -73,7 +62,7 @@ export function CampProvider({ children, rolePreviewEnabled = false }: { childre
     } finally {
       setLoading(false);
     }
-  }, [role, driverVehicleId]);
+  }, []);
 
   useEffect(() => {
     void refresh();
@@ -100,11 +89,6 @@ export function CampProvider({ children, rolePreviewEnabled = false }: { childre
 
   const value = useMemo<CampContextValue>(
     () => ({
-      role,
-      setRole,
-      rolePreviewEnabled,
-      driverVehicleId,
-      setDriverVehicleId,
       overview,
       capabilities,
       loading,
@@ -116,7 +100,7 @@ export function CampProvider({ children, rolePreviewEnabled = false }: { childre
       setHomeMode,
       refresh
     }),
-    [role, rolePreviewEnabled, driverVehicleId, overview, capabilities, loading, days, selectedDay, scheduleForSelectedDay, homeMode, refresh]
+    [overview, capabilities, loading, days, selectedDay, scheduleForSelectedDay, homeMode, refresh]
   );
 
   return <CampContext.Provider value={value}>{children}</CampContext.Provider>;

@@ -11,7 +11,7 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const context = await resolveCampAccessForRequest(session, searchParams.get("role"));
-  const vehicleId = searchParams.get("vehicleId") ?? getDefaultCampAccessScope(context.effectiveRole).vehicleId;
+  const vehicleId = getDefaultCampAccessScope(context.effectiveRole).vehicleId;
 
   const overview = await getCampOverview(session, context, vehicleId ? { vehicleId } : {});
 

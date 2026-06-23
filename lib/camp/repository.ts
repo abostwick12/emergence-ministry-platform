@@ -26,10 +26,14 @@ import type {
   CampOakwoodImportPreview,
   CampOverviewPayload,
   CampRestrictedMedicalRecord,
+  CampScheduleBlock,
+  CampScheduleInput,
   CampStaffMember,
   CampStudentInput,
   CampStudentPublic,
   CampTeam,
+  CampTeamInput,
+  CampVehicleInput,
   CampVehicle
 } from "@/lib/camp/types";
 import { getCampVisibleStudentsForData } from "@/lib/camp/access";
@@ -52,7 +56,9 @@ type CampTeamRow = {
   leader: string | null;
   co_leader: string | null;
   room: string | null;
+  notes?: string | null;
   display_order: number | null;
+  archived_at?: string | null;
 };
 
 type CampVehicleRow = {
@@ -60,8 +66,29 @@ type CampVehicleRow = {
   name: string;
   driver: string | null;
   departure_window: string | null;
+  departure_location?: string | null;
   capacity: number | null;
+  notes?: string | null;
   display_order: number | null;
+  archived_at?: string | null;
+};
+
+type CampScheduleItemRow = {
+  id: string;
+  day: string;
+  time: string;
+  date: string | null;
+  start_time: string | null;
+  end_time: string | null;
+  title: string;
+  location: string | null;
+  owner: string | null;
+  audience: CampScheduleBlock["audience"];
+  notes: string | null;
+  status: NonNullable<CampScheduleBlock["status"]>;
+  visibility: NonNullable<CampScheduleBlock["visibility"]>;
+  display_order: number | null;
+  archived_at: string | null;
 };
 
 type CampCamperRow = {
@@ -223,6 +250,8 @@ type CampBasics = {
   camp: CampSessionRow;
   teams: CampTeam[];
   vehicles: CampVehicle[];
+  schedule: CampScheduleBlock[];
+  staff: CampStaffMember[];
 };
 
 function shouldUseMock(session: AuthSession) {
@@ -260,13 +289,14 @@ export async function getCampOverview(
     campStartsOn: basics.camp.starts_on,
     teams: basics.teams,
     vehicles: basics.vehicles,
-    schedule: context.effectiveRole === "driver" ? campSchedule.filter((item) => item.audience === "All Camp") : campSchedule.map((item) => ({ ...item })),
+    schedule: context.effectiveRole === "driver" ? basics.schedule.filter((item) => item.audience === "All Camp") : basics.schedule,
     documents: filterDocumentsForRole(context),
     students: getCampVisibleStudentsForData(context.effectiveRole, scope, {
       students,
       teams: basics.teams,
       vehicles: basics.vehicles
-    })
+    }),
+    staff: basics.staff
   };
 }
 
@@ -592,6 +622,137 @@ export async function upsertCampStudent(session: AuthSession, context: CampAcces
   throwIfSupabaseError(result.error);
   if (!result.data) throw new Error("Camp camper write returned no row.");
   return { allowed: true as const, status: input.id ? 200 : 201, student: toCampStudentPublic(result.data) };
+}
+
+export async function upsertCampScheduleItem(session: AuthSession, context: CampAccessContext, input: CampScheduleInput) {
+  if (context.isDriver) return { allowed: false as const, status: 403, error: "Camp schedule editing is not available for this role." };
+  if (shouldUseMock(session)) return { allowed: true as const, status: input.id ? 200 : 201, item: mockStore.upsertCampScheduleItem(input) };
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const basics = await ensureCampBasics(session);
+  const row = scheduleInputToRow(input);
+  const result = input.id
+    ? await supabase.from("camp_schedule_items").update(row).eq("id", input.id).is("archived_at", null).select("*").single<CampScheduleItemRow>()
+    : await supabase.from("camp_schedule_items").insert({
+        ...ministryScopeColumns(await resolveMinistryScope(session)),
+        camp_id: basics.camp.id,
+        display_order: basics.schedule.length + 1,
+        ...row
+      }).select("*").single<CampScheduleItemRow>();
+
+  throwIfSupabaseError(result.error);
+  if (!result.data) throw new Error("Camp schedule write returned no row.");
+  return { allowed: true as const, status: input.id ? 200 : 201, item: toCampScheduleBlock(result.data) };
+}
+
+export async function archiveCampScheduleItem(session: AuthSession, context: CampAccessContext, input: { id: string }) {
+  if (context.isDriver) return { allowed: false as const, status: 403, error: "Camp schedule editing is not available for this role." };
+  if (shouldUseMock(session)) return mockStore.archiveCampScheduleItem(input);
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const { data, error } = await supabase
+    .from("camp_schedule_items")
+    .update({ archived_at: new Date().toISOString(), status: "Canceled" })
+    .eq("id", input.id)
+    .is("archived_at", null)
+    .select("*")
+    .single<CampScheduleItemRow>();
+  throwIfSupabaseError(error);
+  if (!data) return { allowed: true as const, status: 404, error: "Active schedule item not found." };
+  return { allowed: true as const, status: 200, item: toCampScheduleBlock(data) };
+}
+
+export async function upsertCampTeam(session: AuthSession, context: CampAccessContext, input: CampTeamInput) {
+  if (context.isDriver) return { allowed: false as const, status: 403, error: "Camp team editing is not available for this role." };
+  if (shouldUseMock(session)) return { allowed: true as const, status: input.id ? 200 : 201, team: mockStore.upsertCampTeam(input) };
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const basics = await ensureCampBasics(session);
+  const row = {
+    name: input.name.trim(),
+    color: input.color.trim() || input.name.trim(),
+    leader: input.leader?.trim() ?? "",
+    co_leader: input.coLeader?.trim() ?? "",
+    room: input.room?.trim() ?? "",
+    notes: input.notes?.trim() ?? ""
+  };
+  const result = input.id
+    ? await supabase.from("camp_teams").update(row).eq("id", input.id).is("archived_at", null).select("*").single<CampTeamRow>()
+    : await supabase.from("camp_teams").insert({
+        ...ministryScopeColumns(await resolveMinistryScope(session)),
+        camp_id: basics.camp.id,
+        display_order: basics.teams.length + 1,
+        ...row
+      }).select("*").single<CampTeamRow>();
+  throwIfSupabaseError(result.error);
+  if (!result.data) throw new Error("Camp team write returned no row.");
+  return { allowed: true as const, status: input.id ? 200 : 201, team: toCampTeam(result.data) };
+}
+
+export async function archiveCampTeam(session: AuthSession, context: CampAccessContext, input: { id: string }) {
+  if (context.isDriver) return { allowed: false as const, status: 403, error: "Camp team editing is not available for this role." };
+  if (shouldUseMock(session)) return mockStore.archiveCampTeam(input);
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const { data, error } = await supabase
+    .from("camp_teams")
+    .update({ archived_at: new Date().toISOString() })
+    .eq("id", input.id)
+    .is("archived_at", null)
+    .select("*")
+    .single<CampTeamRow>();
+  throwIfSupabaseError(error);
+  if (!data) return { allowed: true as const, status: 404, error: "Active team not found." };
+
+  const clearAssignments = await supabase.from("camp_campers").update({ team_id: null }).eq("team_id", input.id).is("archived_at", null);
+  throwIfSupabaseError(clearAssignments.error);
+  return { allowed: true as const, status: 200, team: toCampTeam(data) };
+}
+
+export async function upsertCampVehicle(session: AuthSession, context: CampAccessContext, input: CampVehicleInput) {
+  if (context.isDriver) return { allowed: false as const, status: 403, error: "Camp vehicle editing is not available for this role." };
+  if (shouldUseMock(session)) return { allowed: true as const, status: input.id ? 200 : 201, vehicle: mockStore.upsertCampVehicle(input) };
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const basics = await ensureCampBasics(session);
+  const row = {
+    name: input.name.trim(),
+    driver: input.driver?.trim() ?? "",
+    departure_window: input.departureWindow?.trim() ?? "",
+    departure_location: input.departureLocation?.trim() ?? "",
+    capacity: Number.isFinite(input.capacity) ? Math.max(0, Math.floor(input.capacity)) : 0,
+    notes: input.notes?.trim() ?? ""
+  };
+  const result = input.id
+    ? await supabase.from("camp_vehicles").update(row).eq("id", input.id).select("*").single<CampVehicleRow>()
+    : await supabase.from("camp_vehicles").insert({
+        ...ministryScopeColumns(await resolveMinistryScope(session)),
+        camp_id: basics.camp.id,
+        display_order: basics.vehicles.length + 1,
+        ...row
+      }).select("*").single<CampVehicleRow>();
+  throwIfSupabaseError(result.error);
+  if (!result.data) throw new Error("Camp vehicle write returned no row.");
+  return { allowed: true as const, status: input.id ? 200 : 201, vehicle: toCampVehicle(result.data) };
+}
+
+export async function archiveCampVehicle(session: AuthSession, context: CampAccessContext, input: { id: string }) {
+  if (context.isDriver) return { allowed: false as const, status: 403, error: "Camp vehicle editing is not available for this role." };
+  if (shouldUseMock(session)) return mockStore.archiveCampVehicle(input);
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const { data, error } = await supabase
+    .from("camp_vehicles")
+    .update({ archived_at: new Date().toISOString() })
+    .eq("id", input.id)
+    .select("*")
+    .single<CampVehicleRow>();
+  throwIfSupabaseError(error);
+  if (!data) return { allowed: true as const, status: 404, error: "Active vehicle not found." };
+
+  const clearAssignments = await supabase.from("camp_campers").update({ vehicle_id: null }).eq("vehicle_id", input.id).is("archived_at", null);
+  throwIfSupabaseError(clearAssignments.error);
+  return { allowed: true as const, status: 200, vehicle: toCampVehicle(data) };
 }
 
 export async function assignCampStudent(
@@ -1215,7 +1376,8 @@ async function ensureCampBasics(session: AuthSession): Promise<CampBasics> {
     vehicles = await loadVehicles(session, camp.id);
   }
 
-  return { camp, teams, vehicles };
+  const [schedule, staff] = await Promise.all([loadSchedule(session, camp.id), loadStaff(session, camp.id, teams)]);
+  return { camp, teams, vehicles, schedule, staff };
 }
 
 async function loadTeams(session: AuthSession, campId: string): Promise<CampTeam[]> {
@@ -1227,9 +1389,56 @@ async function loadTeams(session: AuthSession, campId: string): Promise<CampTeam
 
 async function loadVehicles(session: AuthSession, campId: string): Promise<CampVehicle[]> {
   const supabase = getSupabaseAuthClient(session.accessToken);
-  const { data, error } = await supabase.from("camp_vehicles").select("*").eq("camp_id", campId).order("display_order", { ascending: true }).returns<CampVehicleRow[]>();
+  const { data, error } = await supabase
+    .from("camp_vehicles")
+    .select("*")
+    .eq("camp_id", campId)
+    .is("archived_at", null)
+    .order("display_order", { ascending: true })
+    .returns<CampVehicleRow[]>();
+  if (isMissingColumnError(error, "archived_at")) {
+    const fallback = await supabase.from("camp_vehicles").select("*").eq("camp_id", campId).order("display_order", { ascending: true }).returns<CampVehicleRow[]>();
+    throwIfSupabaseError(fallback.error);
+    return (fallback.data ?? []).map(toCampVehicle);
+  }
   throwIfSupabaseError(error);
   return (data ?? []).map(toCampVehicle);
+}
+
+async function loadSchedule(session: AuthSession, campId: string): Promise<CampScheduleBlock[]> {
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const { data, error } = await supabase
+    .from("camp_schedule_items")
+    .select("*")
+    .eq("camp_id", campId)
+    .is("archived_at", null)
+    .order("date", { ascending: true })
+    .order("start_time", { ascending: true })
+    .order("display_order", { ascending: true })
+    .returns<CampScheduleItemRow[]>();
+
+  if (isMissingTableError(error, "camp_schedule_items")) {
+    return campSchedule.map((item) => ({ ...item }));
+  }
+  throwIfSupabaseError(error);
+  return (data ?? []).map(toCampScheduleBlock);
+}
+
+async function loadStaff(session: AuthSession, campId: string, teams: CampTeam[]): Promise<CampStaffMember[]> {
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const { data, error } = await supabase
+    .from("camp_staff")
+    .select("*")
+    .eq("camp_id", campId)
+    .is("archived_at", null)
+    .order("name", { ascending: true })
+    .returns<CampStaffRow[]>();
+
+  if (isMissingTableError(error, "camp_staff")) {
+    return [];
+  }
+  throwIfSupabaseError(error);
+  return (data ?? []).map((row) => toCampStaff(row, teams));
 }
 
 async function getCampersById(session: AuthSession, campId: string): Promise<Map<string, CampStudentPublic>> {
@@ -1340,7 +1549,9 @@ function toCampTeam(row: CampTeamRow): CampTeam {
     color: row.color ?? "",
     leader: row.leader ?? "",
     coLeader: row.co_leader ?? "",
-    room: row.room ?? ""
+    room: row.room ?? "",
+    notes: row.notes ?? "",
+    archivedAt: row.archived_at ?? undefined
   };
 }
 
@@ -1350,7 +1561,45 @@ function toCampVehicle(row: CampVehicleRow): CampVehicle {
     name: row.name,
     driver: row.driver ?? "",
     departureWindow: row.departure_window ?? "",
-    capacity: row.capacity ?? 0
+    departureLocation: row.departure_location ?? "",
+    capacity: row.capacity ?? 0,
+    notes: row.notes ?? "",
+    archivedAt: row.archived_at ?? undefined
+  };
+}
+
+function toCampScheduleBlock(row: CampScheduleItemRow): CampScheduleBlock {
+  return {
+    id: row.id,
+    day: row.day,
+    time: row.time,
+    date: row.date ?? undefined,
+    startTime: row.start_time ?? undefined,
+    endTime: row.end_time ?? undefined,
+    title: row.title,
+    location: row.location ?? "",
+    owner: row.owner ?? "",
+    audience: row.audience,
+    notes: row.notes ?? "",
+    status: row.status,
+    visibility: row.visibility
+  };
+}
+
+function scheduleInputToRow(input: CampScheduleInput) {
+  return {
+    title: input.title.trim(),
+    day: input.day.trim(),
+    time: input.time.trim(),
+    date: input.date?.trim() || null,
+    start_time: input.startTime?.trim() || null,
+    end_time: input.endTime?.trim() || null,
+    location: input.location?.trim() ?? "",
+    owner: input.owner?.trim() ?? "",
+    audience: input.audience,
+    notes: input.notes?.trim() ?? "",
+    status: input.status ?? "Planned",
+    visibility: input.visibility ?? "All Camp"
   };
 }
 
@@ -1364,6 +1613,21 @@ function resolveVehicleId(name: string, vehicles: CampVehicle[]): string {
   if (!name.trim()) return "";
   const normalized = name.trim().toLowerCase();
   return vehicles.find((vehicle) => vehicle.name.toLowerCase() === normalized || vehicle.driver.toLowerCase() === normalized)?.id ?? "";
+}
+
+function toCampStaff(row: CampStaffRow, teams: CampTeam[]): CampStaffMember {
+  const team = row.team_id ? teams.find((candidate) => candidate.id === row.team_id) : undefined;
+  return {
+    id: row.id,
+    name: row.name,
+    role: row.role,
+    shirtSize: row.shirt_size ?? "",
+    registrationExternalId: row.registration_external_id ?? undefined,
+    teamId: row.team_id ?? undefined,
+    teamName: team?.name,
+    archivedAt: row.archived_at ?? undefined,
+    archiveReason: row.archive_reason ?? undefined
+  };
 }
 
 function toCampStudentPublic(row: CampCamperRow): CampStudentPublic {
@@ -1557,6 +1821,15 @@ function normalizeFlags(flags: string[]): string[] {
 
 function throwIfSupabaseError(error: { message: string } | null) {
   if (error) throw new Error(error.message);
+}
+
+function isMissingTableError(error: { message: string } | null, tableName: string) {
+  const message = error?.message.toLowerCase() ?? "";
+  return Boolean(message.includes(tableName.toLowerCase()) && (message.includes("does not exist") || message.includes("schema cache")));
+}
+
+function isMissingColumnError(error: { message: string } | null, columnName: string) {
+  return Boolean(error?.message.toLowerCase().includes(columnName.toLowerCase()) && error.message.toLowerCase().includes("column"));
 }
 
 function assertSignature(signature: CampMedicationIntakeInput["guardianSignatureData"]) {

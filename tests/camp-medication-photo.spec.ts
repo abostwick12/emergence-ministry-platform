@@ -8,18 +8,17 @@ test.describe("Camp restricted medication photo boundaries", () => {
 
     await expect(page.getByRole("region", { name: "Check-in workflow" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: /View medication photo/ })).toHaveCount(0);
-    await expect(page.getByRole("link", { name: "Medical Quick View" })).toHaveCount(0);
-    await expect(page.getByRole("link", { name: "Medicine Intake / Return" })).toHaveCount(0);
   });
 
-  test("restricted photo endpoints stay blocked for General Leader and Driver", async ({ page }) => {
+  test("role query params cannot downgrade Andrew's authenticated photo access", async ({ page }) => {
     await login(page);
+    await uploadMedicationPhoto(page, "med-1");
 
     const generalStatus = await page.evaluate(async () => (await fetch("/api/camp/medication/photos?role=general_leader&medicationRecordId=med-1")).status);
     const driverStatus = await page.evaluate(async () => (await fetch("/api/camp/medication/photos?role=driver&medicationRecordId=med-1")).status);
 
-    expect(generalStatus).toBe(403);
-    expect(driverStatus).toBe(403);
+    expect(generalStatus).toBe(200);
+    expect(driverStatus).toBe(200);
   });
 
   test("Andrew reaches the dedicated Medical Quick View without photo thumbnails on More", async ({ page }) => {
@@ -27,7 +26,6 @@ test.describe("Camp restricted medication photo boundaries", () => {
     await uploadMedicationPhoto(page, "med-1");
 
     await page.goto("/camp");
-    await page.getByRole("button", { name: "Andrew", exact: true }).click();
     await page.getByRole("navigation", { name: "Camp sections" }).getByRole("link", { name: "More", exact: true }).click();
     await page.waitForURL(/\/camp\/more$/);
 

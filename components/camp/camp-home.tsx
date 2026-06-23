@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useCamp } from "@/components/camp/camp-provider";
-import { CampAccessSwitcher } from "@/components/camp/camp-access-switcher";
 import { CampDaySelector } from "@/components/camp/camp-day-selector";
 import { CampNextUpCard } from "@/components/camp/camp-next-up-card";
 import { CampTeamCarousel } from "@/components/camp/camp-team-carousel";
@@ -13,8 +12,6 @@ export function CampHome() {
 
   return (
     <div className="camp-cc-home">
-      <CampAccessSwitcher />
-
       {capabilities.medicalCommand ? (
         <div className="camp-cc-mode" role="group" aria-label="Camp Home mode">
           <button

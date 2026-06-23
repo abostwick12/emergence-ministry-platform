@@ -21,13 +21,14 @@ const UPLOAD_SLOTS: UploadSlot[] = [
 
 const CSV_MIME_TYPES = new Set(["text/csv", "application/csv", "application/vnd.ms-excel"]);
 const XLSX_MIME_TYPES = new Set(["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"]);
+const GENERIC_UPLOAD_MIME_TYPES = new Set(["", "application/octet-stream", "binary/octet-stream"]);
 
 function validateUploadType(file: File): { ok: true } | { ok: false; status: number; error: string } {
   const name = file.name.trim().toLowerCase();
   const mimeType = file.type.trim().toLowerCase();
-  if (name.endsWith(".csv") && CSV_MIME_TYPES.has(mimeType)) return { ok: true };
-  if (name.endsWith(".xlsx") && XLSX_MIME_TYPES.has(mimeType)) return { ok: true };
-  return { ok: false, status: 415, error: `${file.name} must be a .xlsx or .csv file with a matching file type.` };
+  if (name.endsWith(".csv") && (CSV_MIME_TYPES.has(mimeType) || GENERIC_UPLOAD_MIME_TYPES.has(mimeType))) return { ok: true };
+  if (name.endsWith(".xlsx") && (XLSX_MIME_TYPES.has(mimeType) || GENERIC_UPLOAD_MIME_TYPES.has(mimeType))) return { ok: true };
+  return { ok: false, status: 415, error: `${file.name} must be a .xlsx or .csv file. If the browser sends a generic file type, the extension is used.` };
 }
 
 export async function POST(request: Request) {
@@ -35,9 +36,8 @@ export async function POST(request: Request) {
   if (!session) return unauthorizedResponse();
 
   const { searchParams } = new URL(request.url);
-  // The role query param is honored only in dev/test (preview). Live sessions are
-  // authorized from the authenticated server identity via the durable store, never
-  // from ?role=, the request body, local storage, or a client selector.
+  // Camp Admin access resolves from authenticated identity, never from query/body,
+  // local storage, or a client selector.
   const context = await resolveCampAccessForRequest(session, searchParams.get("role"));
   const access = assertCampAdminAccess(context);
   if (!access.allowed) return NextResponse.json({ error: access.error }, { status: access.status });

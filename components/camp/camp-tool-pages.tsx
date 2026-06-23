@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { CampAccessAdminPanel } from "@/components/camp/camp-access-admin";
 import { useCamp } from "@/components/camp/camp-provider";
 import type {
   CampDocument,
@@ -63,7 +64,7 @@ function StatusPill({ children, tone }: { children: React.ReactNode; tone?: "rea
 }
 
 function useRestrictedMedicationData(required: "restricted" | "medicalCommand" = "restricted"): MedicationState {
-  const { role, capabilities } = useCamp();
+  const { capabilities } = useCamp();
   const [state, setState] = useState<MedicationState>({ status: "idle" });
   const allowed = required === "medicalCommand" ? capabilities.medicalCommand : capabilities.restrictedMedical;
 
@@ -75,7 +76,7 @@ function useRestrictedMedicationData(required: "restricted" | "medicalCommand" =
 
     let active = true;
     setState({ status: "loading" });
-    fetch(`/api/camp/medication?role=${role}`, { cache: "no-store" })
+    fetch("/api/camp/medication", { cache: "no-store" })
       .then(async (response) => {
         if (!active) return;
         if (response.status === 403) {
@@ -93,7 +94,7 @@ function useRestrictedMedicationData(required: "restricted" | "medicalCommand" =
     return () => {
       active = false;
     };
-  }, [allowed, role]);
+  }, [allowed]);
 
   return state;
 }
@@ -316,20 +317,20 @@ export function CampCheckoutToolPage() {
 }
 
 export function CampAssignmentsToolPage() {
-  const { role, overview, loading } = useCamp();
+  const { overview, loading } = useCamp();
   const grouped = useMemo(() => {
     const map = new Map<string, CampVisibleStudent[]>();
     for (const student of overview.students) {
-      const key = role === "driver" ? student.vehicleName : student.teamName ?? "Unassigned team";
+      const key = student.teamName ?? "Unassigned team";
       const list = map.get(key) ?? [];
       list.push(student);
       map.set(key, list);
     }
     return Array.from(map.entries());
-  }, [overview.students, role]);
+  }, [overview.students]);
 
   return (
-    <ToolPageShell title="My Team / My Assignments" subtitle={role === "driver" ? "Transport-scoped assignments visible to this driver view." : "Team assignments visible to this Camp access view."}>
+    <ToolPageShell title="My Team / My Assignments" subtitle="Assignments visible to your authenticated Camp access.">
       {loading && !overview.students.length ? (
         <EmptyState>Loading assignments...</EmptyState>
       ) : grouped.length === 0 ? (
@@ -360,7 +361,7 @@ export function CampSettingsToolPage() {
           <Link className="camp-cc-entry" href="/settings">
             <span className="camp-cc-entry-body">
               <strong>Open Platform Settings</strong>
-              <span className="camp-cc-muted">Camp access management lives in Settings for approved administrators.</span>
+              <span className="camp-cc-muted">Platform-wide settings and EMMA review controls.</span>
             </span>
             <span className="camp-cc-entry-arrow" aria-hidden="true">&gt;</span>
           </Link>
@@ -371,6 +372,7 @@ export function CampSettingsToolPage() {
             </span>
             <span className="camp-cc-entry-arrow" aria-hidden="true">&gt;</span>
           </Link>
+          <CampAccessAdminPanel />
         </div>
       ) : (
         <RestrictedNotice required="medicalCommand" />
@@ -384,11 +386,15 @@ type OakwoodUploadField = "combinedFile" | "camperFile" | "staffFile";
 const oakwoodUploadFields: Array<{ field: OakwoodUploadField; label: string; sheetField: string }> = [
   { field: "combinedFile", label: "Combined Oakwood workbook", sheetField: "combinedSheet" },
   { field: "camperFile", label: "Camper workbook", sheetField: "camperSheet" },
-  { field: "staffFile", label: "Staff workbook", sheetField: "staffSheet" }
+  { field: "staffFile", label: "Leaders/Staff workbook", sheetField: "staffSheet" }
 ];
 
+function oakwoodPersonTypeLabel(personType: CampOakwoodImportPreview["rows"][number]["personType"]): string {
+  return personType === "adult" ? "Leader/staff" : "Camper";
+}
+
 export function CampSettingsImportToolPage() {
-  const { role, capabilities } = useCamp();
+  const { capabilities, refresh } = useCamp();
   const [sourceName, setSourceName] = useState("Camp Oakwood Upload");
   const [files, setFiles] = useState<Record<OakwoodUploadField, File | null>>({ combinedFile: null, camperFile: null, staffFile: null });
   const [sheetNames, setSheetNames] = useState<Record<OakwoodUploadField, string[]>>({ combinedFile: [], camperFile: [], staffFile: [] });
@@ -407,6 +413,9 @@ export function CampSettingsImportToolPage() {
   }
 
   const hasFile = oakwoodUploadFields.some((item) => files[item.field]);
+  const missingSheetLabels = oakwoodUploadFields
+    .filter((item) => files[item.field] && sheetNames[item.field].length > 1 && !selectedSheets[item.field])
+    .map((item) => item.label);
 
   function buildUploadForm(mode: "inspect" | "preview") {
     const formData = new FormData();
@@ -427,7 +436,7 @@ export function CampSettingsImportToolPage() {
     setPreview(null);
     setConfirmed(false);
     setBusy("inspect");
-    const response = await fetch(`/api/camp/import/upload?role=${role}`, { method: "POST", body: buildUploadForm("inspect") });
+    const response = await fetch("/api/camp/import/upload", { method: "POST", body: buildUploadForm("inspect") });
     const body = await response.json().catch(() => ({})) as { error?: string; files?: Array<{ slot: OakwoodUploadField; sheetNames: string[] }> };
     setBusy(null);
     if (!response.ok || !body.files) {
@@ -447,10 +456,14 @@ export function CampSettingsImportToolPage() {
 
   async function previewUpload() {
     setMessage(null);
+    if (missingSheetLabels.length) {
+      setMessage({ tone: "error", text: `Choose a worksheet before previewing: ${missingSheetLabels.join(", ")}.` });
+      return;
+    }
     setPreview(null);
     setConfirmed(false);
     setBusy("preview");
-    const response = await fetch(`/api/camp/import/upload?role=${role}`, { method: "POST", body: buildUploadForm("preview") });
+    const response = await fetch("/api/camp/import/upload", { method: "POST", body: buildUploadForm("preview") });
     const body = await response.json().catch(() => ({})) as { error?: string; preview?: CampOakwoodImportPreview };
     setBusy(null);
     if (!response.ok || !body.preview) {
@@ -467,18 +480,21 @@ export function CampSettingsImportToolPage() {
       return;
     }
     setBusy("commit");
-    const response = await fetch(`/api/camp/import?role=${role}`, {
+    const response = await fetch("/api/camp/import", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "oakwoodCommit", oakwoodPreview: preview, confirmed: true })
     });
-    const body = await response.json().catch(() => ({})) as { error?: string; result?: { committed: unknown[] } };
+    const body = await response.json().catch(() => ({})) as { error?: string; result?: { committed: Array<{ personType?: string }> } };
     setBusy(null);
     if (!response.ok || !body.result) {
       setMessage({ tone: "error", text: body.error ?? "Oakwood import could not be saved." });
       return;
     }
-    setMessage({ tone: "success", text: `Oakwood import saved: ${body.result.committed.length} rows committed.` });
+    await refresh();
+    const staffCommitted = body.result.committed.filter((row) => row.personType === "adult").length;
+    const camperCommitted = body.result.committed.filter((row) => row.personType === "student").length;
+    setMessage({ tone: "success", text: `Oakwood import saved: ${camperCommitted} campers and ${staffCommitted} leaders/staff committed.` });
     setPreview(null);
     setConfirmed(false);
   }
@@ -500,9 +516,10 @@ export function CampSettingsImportToolPage() {
                 <input
                   className="input"
                   type="file"
-                  accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                  accept=".xlsx,.csv,text/csv,application/csv,application/vnd.ms-excel,application/octet-stream,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                   onChange={(event) => {
-                    setFiles((current) => ({ ...current, [item.field]: event.currentTarget.files?.[0] ?? null }));
+                    const selectedFile = event.currentTarget.files?.[0] ?? null;
+                    setFiles((current) => ({ ...current, [item.field]: selectedFile }));
                     setPreview(null);
                     setConfirmed(false);
                   }}
@@ -527,6 +544,7 @@ export function CampSettingsImportToolPage() {
               {busy === "preview" ? "Previewing..." : "Build preview"}
             </button>
           </div>
+          {missingSheetLabels.length ? <p className="camp-cc-error">Choose a worksheet for: {missingSheetLabels.join(", ")}.</p> : null}
         </section>
 
         {preview ? (
@@ -536,9 +554,38 @@ export function CampSettingsImportToolPage() {
               <div className="camp-list-row"><strong>Total source rows</strong><StatusPill>{preview.summary.totalSourceRows}</StatusPill></div>
               <div className="camp-list-row"><strong>New people</strong><StatusPill>{preview.summary.newCount}</StatusPill></div>
               <div className="camp-list-row"><strong>Matched people</strong><StatusPill>{preview.summary.matchedCount}</StatusPill></div>
+              <div className="camp-list-row"><strong>Leader/staff rows</strong><StatusPill tone={preview.summary.staffRows ? "ready" : "locked"}>{preview.summary.staffRows}</StatusPill></div>
+              <div className="camp-list-row"><strong>Warning rows</strong><StatusPill tone={preview.rows.some((row) => row.warnings.length) ? "warn" : "ready"}>{preview.rows.filter((row) => row.warnings.length > 0).length}</StatusPill></div>
+              <div className="camp-list-row"><strong>Duplicate / ambiguous rows</strong><StatusPill tone={preview.summary.ambiguousCount ? "warn" : "ready"}>{preview.summary.ambiguousCount}</StatusPill></div>
               <div className="camp-list-row"><strong>Ambiguous rows</strong><StatusPill tone={preview.summary.ambiguousCount ? "warn" : "ready"}>{preview.summary.ambiguousCount}</StatusPill></div>
               <div className="camp-list-row"><strong>Invalid rows</strong><StatusPill tone={preview.summary.invalidCount ? "warn" : "ready"}>{preview.summary.invalidCount}</StatusPill></div>
             </div>
+            {preview.uploadSources?.length ? (
+              <div className="camp-list">
+                {preview.uploadSources.map((source) => (
+                  <div className="camp-list-row align-start" key={`${source.fileName}-${source.scope}`}>
+                    <div>
+                      <strong>{source.fileName}{source.sheetName ? ` / ${source.sheetName}` : ""}</strong>
+                      <p className="camp-cc-muted">Scope: {source.scope}. Rows: {source.rowCount}. SHA-256: {source.checksumSha256.slice(0, 12)}...</p>
+                    </div>
+                    <StatusPill>{source.scope}</StatusPill>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            <div className="camp-list">
+              {preview.rows.slice(0, 12).map((row) => (
+                <div className="camp-list-row align-start" key={`${row.rowNumber}-${row.person.name}`}>
+                  <div>
+                    <strong>Row {row.rowNumber}: {row.person.name || "No name"}</strong>
+                    <p className="camp-cc-muted">{oakwoodPersonTypeLabel(row.personType)} - {row.matchStatus} - Team: {row.person.teamName || "Unassigned"} - Vehicle: {row.person.vehicleName || "Unassigned"}</p>
+                    {row.warnings.length ? <p className="camp-cc-muted">{row.warnings.join(" ")}</p> : null}
+                  </div>
+                  <StatusPill tone={row.matchStatus === "new" || row.matchStatus === "matched" ? "ready" : "warn"}>{row.matchStatus}</StatusPill>
+                </div>
+              ))}
+            </div>
+            {preview.rows.length > 12 ? <p className="camp-cc-muted">Showing the first 12 preview rows. All rows are included in the summary and commit guard.</p> : null}
             <p className="camp-cc-muted">Restricted medical/contact/dietary fields stay in restricted storage on commit. Ambiguous or invalid rows block saving.</p>
             <label className="camp-checkbox-line">
               <input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} />
@@ -583,7 +630,6 @@ function MedicationAdministrationForm({
   openItems: CampMedicationScheduleItem[];
   requestedScheduleItemId: string | null;
 }) {
-  const { role } = useCamp();
   const activeItems = openItems.length ? openItems : data.schedule;
   const initialScheduleId = activeItems.some((item) => item.id === requestedScheduleItemId) ? requestedScheduleItemId ?? activeItems[0]?.id ?? "" : activeItems[0]?.id ?? "";
   const [scheduleItemId, setScheduleItemId] = useState(initialScheduleId);
@@ -619,7 +665,7 @@ function MedicationAdministrationForm({
     }
 
     setSaving(true);
-    const response = await fetch(`/api/camp/medication?role=${role}`, {
+    const response = await fetch("/api/camp/medication", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -761,7 +807,6 @@ export function CampMedicineIntakeToolPage() {
 }
 
 function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
-  const { role } = useCamp();
   const [intakeHistory, setIntakeHistory] = useState(data.intakeHistory);
   const [returnChecklist, setReturnChecklist] = useState(data.returnChecklist);
   const [medicationRecordId, setMedicationRecordId] = useState(data.checkIn[0]?.id ?? "");
@@ -773,7 +818,7 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
   const [parentInstructions, setParentInstructions] = useState(selectedMedication?.parentProvidedInstructions ?? "");
   const [staffNotes, setStaffNotes] = useState("");
   const [containerStatus, setContainerStatus] = useState("Original labeled container received");
-  const [receivedByName, setReceivedByName] = useState(role === "jaci" ? "Jaci" : role === "joel" ? "Joel" : "Andrew");
+  const [receivedByName, setReceivedByName] = useState("Andrew");
   const [guardianName, setGuardianName] = useState("");
   const [guardianRelationship, setGuardianRelationship] = useState("Parent/Guardian");
   const [guardianSignature, setGuardianSignature] = useState<CampSignatureData>(() => emptySignatureData());
@@ -782,7 +827,7 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
   const [returnItemId, setReturnItemId] = useState(returnChecklist[0]?.id ?? "");
   const selectedReturn = returnChecklist.find((item) => item.id === returnItemId) ?? returnChecklist[0];
   const [returnStatus, setReturnStatus] = useState<CampMedicationReturnItem["returnStatus"]>(selectedReturn?.returnStatus ?? "Pending Return");
-  const [returnedBy, setReturnedBy] = useState(role === "jaci" ? "Jaci" : role === "joel" ? "Joel" : "Andrew");
+  const [returnedBy, setReturnedBy] = useState("Andrew");
   const [recipientName, setRecipientName] = useState(selectedReturn?.recipientName ?? "");
   const [recipientRelationship, setRecipientRelationship] = useState(selectedReturn?.recipientRelationship ?? "");
   const [returnNotes, setReturnNotes] = useState(selectedReturn?.returnNotes ?? "");
@@ -820,7 +865,7 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
     }
 
     setSaving("intake");
-    const response = await fetch(`/api/camp/medication?role=${role}`, {
+    const response = await fetch("/api/camp/medication", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -866,7 +911,7 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
     }
 
     setSaving("return");
-    const response = await fetch(`/api/camp/medication?role=${role}`, {
+    const response = await fetch("/api/camp/medication", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

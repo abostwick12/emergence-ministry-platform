@@ -1,16 +1,19 @@
-// Server-only admin workflow for Camp access management (Settings #2).
+// Server-only Camp access management.
 //
-// Real workflow against the durable `camp_access_members` table (migration 014):
-// list authorized users + their tier, change/revoke a tier (guarded so the final
-// administrator can never be removed), and append an audit row per change.
-// Admin-gated (platform admin OR camp_admin). Exposes NO medical data.
-//
-// When the table is not applied or Supabase is not configured (e.g. local Stub
-// Mode), it reports `available: false` honestly rather than fabricating data.
+// The UI submits email + Camp role. The server resolves that email to an
+// existing authenticated profile, and writes `camp_access_members`. The
+// database trigger on that table appends `camp_access_audit` from auth.uid()
+// and the actual row change, so clients never provide audit metadata.
 
 import { isSupabaseConfigured } from "@/lib/auth/config";
 import { getSupabaseAuthClient, type AuthSession } from "@/lib/auth/server";
-import { CAMP_STORED_ROLES, getStoredCampRole, type CampStoredRole } from "@/lib/camp/access-control";
+import {
+  BOOTSTRAP_CAMP_ADMIN_EMAIL,
+  CAMP_STORED_ROLES,
+  getStoredCampRoleState,
+  isBootstrapCampAdmin,
+  type CampStoredRole
+} from "@/lib/camp/access-control";
 
 export type CampAccessMember = {
   userId: string;
@@ -18,6 +21,7 @@ export type CampAccessMember = {
   campRole: CampStoredRole;
   isActive: boolean;
   updatedAt: string;
+  bootstrap?: boolean;
 };
 
 export type CampAccessAuditEntry = {
@@ -35,6 +39,7 @@ type ListOk = {
   allowed: true;
   status: 200;
   available: boolean;
+  bootstrapActive: boolean;
   roles: CampStoredRole[];
   members: CampAccessMember[];
   audit: CampAccessAuditEntry[];
@@ -42,29 +47,43 @@ type ListOk = {
 type UpdateOk = { allowed: true; status: 200; member: CampAccessMember };
 
 export type CampAccessUpdateInput = {
-  userId: string;
   email: string;
   campRole: CampStoredRole;
   isActive?: boolean;
 };
 
 export async function isCampAccessAdmin(session: AuthSession): Promise<boolean> {
-  if (session.user.role === "admin") return true; // platform admin
-  return (await getStoredCampRole(session)) === "camp_admin"; // Camp admin
+  const stored = await getStoredCampRoleState(session);
+  if (stored.role === "camp_admin") return true;
+  if (stored.available) return false;
+  return isBootstrapCampAdmin(session);
 }
 
 export async function listCampAccess(session: AuthSession): Promise<ListOk | Denied> {
   if (!(await isCampAccessAdmin(session))) {
-    return { allowed: false, status: 403, error: "Camp access management is limited to administrators." };
+    return { allowed: false, status: 403, error: "Camp access management is limited to Camp Admins." };
   }
-  const base = { allowed: true as const, status: 200 as const, roles: CAMP_STORED_ROLES };
+
+  const base = {
+    allowed: true as const,
+    status: 200 as const,
+    roles: CAMP_STORED_ROLES,
+    bootstrapActive: isBootstrapCampAdmin(session)
+  };
+
   if (session.isMock || !isSupabaseConfigured()) {
-    return { ...base, available: false, members: [], audit: [] };
+    return {
+      ...base,
+      available: false,
+      members: base.bootstrapActive ? [bootstrapMember(session)] : [],
+      audit: []
+    };
   }
+
   try {
     const supabase = getSupabaseAuthClient(session.accessToken);
     const [members, audit] = await Promise.all([
-      supabase.from("camp_access_members").select("user_id,email,camp_role,is_active,updated_at").order("email", { ascending: true }),
+      supabase.from("camp_access_members").select("user_id,email,camp_role,is_active,updated_at").eq("is_active", true).order("email", { ascending: true }),
       supabase
         .from("camp_access_audit")
         .select("id,actor_email,target_email,action,old_role,new_role,created_at")
@@ -74,46 +93,72 @@ export async function listCampAccess(session: AuthSession): Promise<ListOk | Den
     if (members.error) throw members.error;
     return {
       ...base,
+      bootstrapActive: false,
       available: true,
       members: (members.data ?? []).map(toMember),
       audit: (audit.data ?? []).map(toAudit)
     };
   } catch {
-    // Table not applied yet, or transient — report unavailable rather than guess.
-    return { ...base, available: false, members: [], audit: [] };
+    return {
+      ...base,
+      available: false,
+      members: base.bootstrapActive ? [bootstrapMember(session)] : [],
+      audit: []
+    };
   }
 }
 
 export async function updateCampAccessMember(session: AuthSession, input: CampAccessUpdateInput): Promise<UpdateOk | Denied> {
   if (!(await isCampAccessAdmin(session))) {
-    return { allowed: false, status: 403, error: "Camp access management is limited to administrators." };
+    return { allowed: false, status: 403, error: "Camp access management is limited to Camp Admins." };
   }
   if (!CAMP_STORED_ROLES.includes(input.campRole)) {
     return { allowed: false, status: 400, error: "Unknown Camp access tier." };
   }
-  if (!input.userId.trim() || !input.email.trim()) {
-    return { allowed: false, status: 400, error: "A user id and email are required." };
-  }
+  const email = normalizeEmail(input.email);
+  if (!email) return { allowed: false, status: 400, error: "Email is required." };
   if (session.isMock || !isSupabaseConfigured()) {
     return {
       allowed: false,
       status: 503,
-      error: "Camp access management requires the camp_access table (migration 014) and a configured Supabase project."
+      error: "Camp access management requires migration 014 and a configured Supabase project."
     };
   }
 
   const supabase = getSupabaseAuthClient(session.accessToken);
-  const existing = await supabase.from("camp_access_members").select("camp_role").eq("user_id", input.userId).maybeSingle<{ camp_role: string }>();
+  const profile = await supabase
+    .from("profiles")
+    .select("id,email")
+    .ilike("email", email)
+    .maybeSingle<{ id: string; email: string }>();
+
+  if (profile.error || !profile.data) {
+    return { allowed: false, status: 404, error: "No authenticated user profile was found for that email." };
+  }
+
+  const targetUserId = profile.data.id;
+  const existing = await supabase
+    .from("camp_access_members")
+    .select("camp_role,is_active")
+    .eq("user_id", targetUserId)
+    .maybeSingle<{ camp_role: CampStoredRole; is_active: boolean }>();
+  if (existing.error) {
+    return { allowed: false, status: 503, error: "Camp access management requires migration 014." };
+  }
+
   const oldRole = existing.data?.camp_role ?? null;
+  const nextActive = input.isActive ?? true;
+  const finalAdminCheck = await assertNotFinalActiveAdminChange(supabase, targetUserId, oldRole, existing.data?.is_active ?? false, input.campRole, nextActive);
+  if (!finalAdminCheck.allowed) return finalAdminCheck;
 
   const { data, error } = await supabase
     .from("camp_access_members")
     .upsert(
       {
-        user_id: input.userId,
-        email: input.email.trim(),
+        user_id: targetUserId,
+        email: profile.data.email,
         camp_role: input.campRole,
-        is_active: input.isActive ?? true,
+        is_active: nextActive,
         granted_by: session.user.id
       },
       { onConflict: "user_id" }
@@ -122,25 +167,44 @@ export async function updateCampAccessMember(session: AuthSession, input: CampAc
     .single();
 
   if (error || !data) {
-    // The last-admin guard raises a clear, safe message; surface it. Otherwise stay generic.
     const message = /final Camp administrator/i.test(error?.message ?? "")
       ? "Cannot demote or remove the final Camp administrator."
       : "Camp access update failed.";
     return { allowed: false, status: 400, error: message };
   }
 
-  // Append the change to the audit trail (actor, target, old/new value, timestamp).
-  await supabase.from("camp_access_audit").insert({
-    actor_user_id: session.user.id,
-    actor_email: session.user.email,
-    target_user_id: input.userId,
-    target_email: input.email.trim(),
-    action: oldRole ? "update" : "grant",
-    old_role: oldRole,
-    new_role: input.campRole
-  });
-
   return { allowed: true, status: 200, member: toMember(data) };
+}
+
+async function assertNotFinalActiveAdminChange(
+  supabase: ReturnType<typeof getSupabaseAuthClient>,
+  targetUserId: string,
+  oldRole: CampStoredRole | null,
+  wasActive: boolean,
+  newRole: CampStoredRole,
+  isActive: boolean
+): Promise<{ allowed: true } | Denied> {
+  if (oldRole !== "camp_admin" || !wasActive || (newRole === "camp_admin" && isActive)) return { allowed: true };
+  const admins = await supabase
+    .from("camp_access_members")
+    .select("user_id")
+    .eq("camp_role", "camp_admin")
+    .eq("is_active", true);
+  if (admins.error) return { allowed: false, status: 400, error: "Could not verify final Camp Admin protection." };
+  const remaining = (admins.data ?? []).filter((row: { user_id: string }) => row.user_id !== targetUserId).length;
+  if (remaining === 0) return { allowed: false, status: 400, error: "Cannot demote or remove the final Camp administrator." };
+  return { allowed: true };
+}
+
+function bootstrapMember(session: AuthSession): CampAccessMember {
+  return {
+    userId: session.user.id,
+    email: BOOTSTRAP_CAMP_ADMIN_EMAIL,
+    campRole: "camp_admin",
+    isActive: true,
+    updatedAt: new Date().toISOString(),
+    bootstrap: true
+  };
 }
 
 function toMember(row: { user_id: string; email: string; camp_role: string; is_active: boolean; updated_at: string }): CampAccessMember {
@@ -171,4 +235,8 @@ function toAudit(row: {
     newRole: row.new_role,
     createdAt: row.created_at
   };
+}
+
+function normalizeEmail(email: string) {
+  return email.trim().toLowerCase();
 }

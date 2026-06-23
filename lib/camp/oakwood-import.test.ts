@@ -104,7 +104,7 @@ describe("oakwood-import engine", () => {
     expect(row.restricted).toBeUndefined();
   });
 
-  it("keeps staff-only upload previews from importing camper rows", () => {
+  it("uses the explicit staff-only upload slot as the leader/staff type selection", () => {
     const preview = buildOakwoodImportPreview(
       [
         student({ name: "Camper Not Yet", selection: "Student" }),
@@ -115,10 +115,23 @@ describe("oakwood-import engine", () => {
 
     expect(preview.importScope).toBe("staff_only");
     expect(preview.sourceKind).toBe("upload");
-    expect(preview.rows.find((row) => row.person.name === "Camper Not Yet")).toMatchObject({ personType: "student", matchStatus: "skipped" });
+    expect(preview.rows.find((row) => row.person.name === "Camper Not Yet")).toMatchObject({ personType: "adult", matchStatus: "new" });
     expect(preview.rows.find((row) => row.person.name === "Staff Helper")).toMatchObject({ personType: "adult", matchStatus: "new" });
-    expect(preview.summary.staffRows).toBe(1);
+    expect(preview.summary.staffRows).toBe(2);
     expect(preview.summary.restrictedRecordRows).toBe(0);
+  });
+
+  it("treats rows in an explicit staff-only upload as leaders even when the source lacks an adult marker", () => {
+    const preview = buildOakwoodImportPreview(
+      [
+        student({ name: "Staff Sheet Leader", selection: "", grade: "", "registration id": "70000044" })
+      ],
+      { importScope: "staff_only", sourceKind: "upload" }
+    );
+
+    expect(preview.rows[0]).toMatchObject({ personType: "adult", matchStatus: "new" });
+    expect(preview.rows[0].restricted).toBeUndefined();
+    expect(preview.summary).toMatchObject({ adults: 1, students: 0, staffRows: 1, restrictedRecordRows: 0 });
   });
 
   it("skips non-person section rows (no numeric Registration ID)", () => {

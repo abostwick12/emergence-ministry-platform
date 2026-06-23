@@ -5,11 +5,9 @@ import { assertCampMedicalCommandAccess } from "@/lib/camp/permissions";
 import { resolveCampAccessForRequest } from "@/lib/camp/access-control";
 import { getRestrictedCampMedicationPayload } from "@/lib/camp/repository";
 
-// Andrew-only Medical Command feed. Enforcement is server-side and identity-based
-// (resolveCampAccessContext -> restrictedActor). Jaci, Joel, General Leaders, and
-// Drivers receive a 403 with no medication payload, regardless of ?role= or any
-// client-side state. Reuses the existing restricted medication data; no new data
-// contract and no schema change.
+// Andrew-only Medical Command feed. Enforcement is server-side and identity-based.
+// Jaci, Joel, General Leaders, and Drivers receive a 403 with no medication
+// payload regardless of query params or client-side state.
 export async function GET(request: Request) {
   const session = await getServerSession();
   if (!session) return unauthorizedResponse();

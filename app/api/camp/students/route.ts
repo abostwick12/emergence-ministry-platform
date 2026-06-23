@@ -27,8 +27,8 @@ export async function POST(request: Request) {
   }
 
   const body = (await request.json()) as CampStudentInput;
-  if (!body.name?.trim() || !body.teamId || !body.vehicleId) {
-    return NextResponse.json({ error: "Name, team, and vehicle are required." }, { status: 400 });
+  if (!body.name?.trim()) {
+    return NextResponse.json({ error: "Camper name is required." }, { status: 400 });
   }
 
   try {
@@ -92,6 +92,11 @@ export async function PATCH(request: Request) {
       teamId: body.teamId ?? "",
       vehicleId: body.vehicleId ?? "",
       cabin: body.cabin ?? "",
+      shirtSize: body.shirtSize,
+      registrationExternalId: body.registrationExternalId,
+      emergencyContactOnFile: body.emergencyContactOnFile,
+      hasMedicalAlert: body.hasMedicalAlert,
+      hasDietaryAlert: body.hasDietaryAlert,
       limitedSafetyFlags: body.limitedSafetyFlags
     });
     if (!payload.allowed) return NextResponse.json({ error: payload.error }, { status: payload.status });
