@@ -11,6 +11,7 @@ import type {
   CampAccessRole,
   CampAccessScope,
   CampAuditStatus,
+  CampCamperProfilePhotoRecord,
   CampDocument,
   CampEmmaActionAudit,
   CampMedicationAdministrationLog,
@@ -53,6 +54,7 @@ type CampStoreState = {
   medicationAdministrationLog: CampMedicationAdministrationLog[];
   medicationIntakeRecords: CampMedicationIntakeRecord[];
   medicationPhotoRecords: Array<CampMedicationPhotoRecord & { mockSignedUrl?: string }>;
+  camperProfilePhotoRecords: Array<CampCamperProfilePhotoRecord & { mockSignedUrl?: string }>;
   staff: CampStaffMember[];
   importBatches: CampImportAuditBatch[];
   emmaActions: CampEmmaActionAudit[];
@@ -79,6 +81,7 @@ function createInitialState(): CampStoreState {
     medicationAdministrationLog: [],
     medicationIntakeRecords: [],
     medicationPhotoRecords: [],
+    camperProfilePhotoRecords: [],
     staff: [],
     importBatches: [],
     emmaActions: []
@@ -256,6 +259,39 @@ export function upsertCampStudent(input: CampStudentInput): CampStudentPublic {
 
   syncStudentName(normalized.id, normalized.name);
   return withDerivedStudentFlags(normalized);
+}
+
+export function saveCampCamperProfilePhoto(input: { studentId: string; contentType: string; fileSize: number; mockSignedUrl?: string }) {
+  const student = requireActiveStudent(input.studentId);
+  if (!isAllowedPhotoType(input.contentType) || input.fileSize <= 0 || input.fileSize > 5 * 1024 * 1024) {
+    throw new Error("Camper photo must be an image under 5 MB.");
+  }
+
+  const now = new Date().toISOString();
+  for (const record of store.camperProfilePhotoRecords) {
+    if (record.studentId === student.id && !record.removedAt) record.removedAt = now;
+  }
+
+  const record: CampCamperProfilePhotoRecord & { mockSignedUrl?: string } = {
+    id: uid("camperphoto"),
+    studentId: student.id,
+    studentName: student.name,
+    contentType: input.contentType,
+    fileSize: input.fileSize,
+    uploadedAt: now,
+    mockSignedUrl: input.mockSignedUrl
+  };
+  store.camperProfilePhotoRecords.unshift(record);
+  return { allowed: true as const, status: 201, photo: record, student: withDerivedStudentFlags(student) };
+}
+
+export function removeCampCamperProfilePhoto(input: { studentId: string }) {
+  const student = requireActiveStudent(input.studentId);
+  const now = new Date().toISOString();
+  for (const record of store.camperProfilePhotoRecords) {
+    if (record.studentId === student.id && !record.removedAt) record.removedAt = now;
+  }
+  return { allowed: true as const, status: 200, student: withDerivedStudentFlags(student) };
 }
 
 export function commitOakwoodImportPreview(role: CampAccessRole, preview: CampOakwoodImportPreview, importedByName: string) {
@@ -565,7 +601,7 @@ export function upsertMedicationScheduleItem(
 
 export function saveMedicationPhoto(
   role: CampAccessRole,
-  input: { medicationRecordId: string; contentType: string; fileSize: number; mockSignedUrl?: string }
+  input: { medicationRecordId: string; intakeRecordId?: string; contentType: string; fileSize: number; mockSignedUrl?: string }
 ) {
   if (!isRestrictedCampMedicalRole(role)) return restrictedMedicationDenied();
   const medication = requireMedication(input.medicationRecordId);
@@ -580,6 +616,7 @@ export function saveMedicationPhoto(
     studentId: medication.studentId,
     studentName: medication.studentName,
     medicationRecordId: medication.id,
+    intakeRecordId: input.intakeRecordId,
     contentType: input.contentType,
     fileSize: input.fileSize,
     uploadedAt: new Date().toISOString(),
@@ -649,7 +686,7 @@ function normalizeStudentAcknowledgement(input: {
   studentAcknowledgementUnavailableReason?: string;
 }) {
   const unavailable = input.studentAcknowledgementUnavailable === true;
-  const initials = input.studentAcknowledgementInitials?.trim().toUpperCase() ?? "";
+  const initials = input.studentAcknowledgementInitials?.trim() ?? "";
   const unavailableReason = input.studentAcknowledgementUnavailableReason?.trim() ?? "";
   if (unavailable) {
     if (!unavailableReason) throw new Error("Reason is required when the student is unavailable or declined to initial.");
@@ -760,11 +797,16 @@ function withDerivedStudentFlags(student: CampStudentPublic): CampStudentPublic 
 
   return {
     ...student,
+    profilePhotoUrl: activeCamperProfilePhotoUrl(student.id),
     hasRestrictedMedicalInfo,
     hasMedicationPlan,
     needsParentClarification,
     limitedSafetyFlags: normalizeFlags([...student.limitedSafetyFlags, ...derivedFlags])
   };
+}
+
+function activeCamperProfilePhotoUrl(studentId: string): string | undefined {
+  return store.camperProfilePhotoRecords.find((record) => record.studentId === studentId && !record.removedAt)?.mockSignedUrl;
 }
 
 function requireStudent(studentId: string, includeArchived = false): CampStudentPublic {

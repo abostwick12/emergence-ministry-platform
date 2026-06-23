@@ -32,11 +32,12 @@ export async function POST(request: Request) {
   try {
     const formData = await request.formData();
     const medicationRecordId = String(formData.get("medicationRecordId") ?? "");
+    const intakeRecordId = String(formData.get("intakeRecordId") ?? "");
     const file = formData.get("photo");
     if (!medicationRecordId) return NextResponse.json({ error: "medicationRecordId is required." }, { status: 400 });
     if (!(file instanceof File)) return NextResponse.json({ error: "Medication photo file is required." }, { status: 400 });
 
-    const payload = await saveMedicationPhoto(session, context, { medicationRecordId, file });
+    const payload = await saveMedicationPhoto(session, context, { medicationRecordId, intakeRecordId: intakeRecordId || undefined, file });
     if (!payload.allowed) return NextResponse.json({ error: payload.error }, { status: payload.status });
     return NextResponse.json({ photo: payload.photo, record: payload.record }, { status: payload.status });
   } catch (error) {

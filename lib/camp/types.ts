@@ -100,6 +100,7 @@ export type CampStudentPublic = {
   id: string;
   name: string;
   photoInitials: string;
+  profilePhotoUrl?: string;
   grade: string;
   teamId: string;
   vehicleId: string;
@@ -144,6 +145,7 @@ export type CampVisibleStudent = {
   id: string;
   name: string;
   photoInitials: string;
+  profilePhotoUrl?: string;
   vehicleId: string;
   vehicleName: string;
   grade?: string;
@@ -230,9 +232,20 @@ export type CampMedicationPhotoRecord = {
   studentId: string;
   studentName: string;
   medicationRecordId: string;
+  intakeRecordId?: string;
   contentType: string;
   fileSize: number;
   uploadedAt: string;
+};
+
+export type CampCamperProfilePhotoRecord = {
+  id: string;
+  studentId: string;
+  studentName: string;
+  contentType: string;
+  fileSize: number;
+  uploadedAt: string;
+  removedAt?: string;
 };
 
 export type CampSignaturePoint = {

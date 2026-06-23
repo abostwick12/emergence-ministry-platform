@@ -8,6 +8,7 @@ const intakeMigration = readFileSync(join(process.cwd(), "supabase/migrations/00
 const archivePhotoMigration = readFileSync(join(process.cwd(), "supabase/migrations/010_camp_archive_camper.sql"), "utf8");
 const correctionAuditMigration = readFileSync(join(process.cwd(), "supabase/migrations/011_camp_medication_correction_audit.sql"), "utf8");
 const oakwoodMigration = readFileSync(join(process.cwd(), "supabase/migrations/013_camp_oakwood_operational_data.sql"), "utf8");
+const intakeCamperPhotoMigration = readFileSync(join(process.cwd(), "supabase/migrations/018_camp_intake_and_camper_profile_photos.sql"), "utf8");
 
 describe("camp persistence RLS migration shape", () => {
   it("keeps restricted medical and medication tables behind the restricted access helper", () => {
@@ -87,6 +88,19 @@ describe("camp persistence RLS migration shape", () => {
     expect(archivePhotoMigration).toContain("create policy \"restricted can select camp medication photo objects\"");
     expect(archivePhotoMigration).toContain("create policy \"restricted can insert camp medication photo objects\"");
     expect(archivePhotoMigration).not.toContain("public = true");
+  });
+
+  it("keeps camper profile photos separate from restricted medication photos", () => {
+    expect(intakeCamperPhotoMigration).toContain("add column if not exists intake_record_id");
+    expect(intakeCamperPhotoMigration).toContain("references public.camp_medication_intake_records(id)");
+    expect(intakeCamperPhotoMigration).toContain("'camp-camper-profile-photos'");
+    expect(intakeCamperPhotoMigration).toContain("create table if not exists public.camp_camper_profile_photo_records");
+    expect(intakeCamperPhotoMigration).toContain("alter table public.camp_camper_profile_photo_records enable row level security;");
+    expect(intakeCamperPhotoMigration).toContain("create policy \"ministry can select camp_camper_profile_photo_records\"");
+    expect(intakeCamperPhotoMigration).toContain("create policy \"staff can insert camp_camper_profile_photo_records\"");
+    expect(intakeCamperPhotoMigration).toContain("create policy \"ministry can select camp camper profile photo objects\"");
+    expect(intakeCamperPhotoMigration).toContain("bucket_id = 'camp-camper-profile-photos'");
+    expect(intakeCamperPhotoMigration).not.toContain("public = true");
   });
 
   it("adds restricted medication correction and void audit fields without hard-delete policies", () => {
