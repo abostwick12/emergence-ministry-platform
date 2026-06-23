@@ -121,6 +121,29 @@ export function CampSignatureTouchBridge() {
         margin-bottom: 4px;
       }
 
+      .camp-photo-actions .button,
+      .camp-photo-preview-actions .button {
+        border-color: #64748b;
+        background: #ffffff;
+        color: #0f172a;
+        -webkit-text-fill-color: #0f172a;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+      }
+
+      .camp-photo-actions .button:hover:not(:disabled),
+      .camp-photo-preview-actions .button:hover:not(:disabled) {
+        border-color: #2563eb;
+        background: #eff6ff;
+        color: #0f172a;
+        -webkit-text-fill-color: #0f172a;
+      }
+
+      .camp-photo-actions .button:focus-visible,
+      .camp-photo-preview-actions .button:focus-visible {
+        outline: 3px solid rgba(37, 99, 235, 0.42);
+        outline-offset: 2px;
+      }
+
       @media (max-width: 520px) {
         .camp-signature-block .camp-signature-head {
           flex-direction: column;
