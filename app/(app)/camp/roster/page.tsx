@@ -6,6 +6,10 @@ import { useCamp } from "@/components/camp/camp-provider";
 import { CampStudentAvatar, CampStudentCard } from "@/components/camp/camp-student-card";
 import type { CampStudentInput, CampVisibleStudent } from "@/lib/camp/types";
 
+const profilePhotoMaxDimension = 1600;
+const profilePhotoMaxPassthroughBytes = 1_200_000;
+const profilePhotoQuality = 0.82;
+
 function studentToInput(student?: CampVisibleStudent): CampStudentInput {
   return {
     id: student?.id,
@@ -36,6 +40,45 @@ function sameStudentInput(left: CampStudentInput, right: CampStudentInput) {
     left.hasDietaryAlert === right.hasDietaryAlert &&
     JSON.stringify(left.limitedSafetyFlags ?? []) === JSON.stringify(right.limitedSafetyFlags ?? [])
   );
+}
+
+async function loadImage(file: File): Promise<HTMLImageElement> {
+  const url = URL.createObjectURL(file);
+  try {
+    const image = new Image();
+    image.decoding = "async";
+    image.src = url;
+    await image.decode();
+    return image;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+async function resizeProfilePhoto(file: File): Promise<File> {
+  if (file.size <= profilePhotoMaxPassthroughBytes && !file.type.startsWith("image/heic") && !file.type.startsWith("image/heif")) return file;
+
+  try {
+    const image = await loadImage(file);
+    const largestSide = Math.max(image.naturalWidth, image.naturalHeight);
+    if (!largestSide || largestSide <= profilePhotoMaxDimension && file.size <= profilePhotoMaxPassthroughBytes) return file;
+
+    const scale = Math.min(1, profilePhotoMaxDimension / largestSide);
+    const width = Math.max(1, Math.round(image.naturalWidth * scale));
+    const height = Math.max(1, Math.round(image.naturalHeight * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d");
+    if (!context) return file;
+    context.drawImage(image, 0, 0, width, height);
+
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", profilePhotoQuality));
+    if (!blob || blob.size >= file.size) return file;
+    return new File([blob], file.name.replace(/\.[^.]+$/, ".jpg"), { type: "image/jpeg", lastModified: Date.now() });
+  } catch {
+    return file;
+  }
 }
 
 export default function CampRosterPage() {
@@ -97,7 +140,7 @@ export default function CampRosterPage() {
     const detailsChanged = !editing.id || !existingStudent || !sameStudentInput(editing, studentToInput(existingStudent));
     const canSavePhotoOnly = Boolean(editing.id && hasPhotoChange && !detailsChanged);
 
-    setMessage(null);
+    setMessage(hasPhotoChange ? { tone: "success", text: profilePhotoFile ? "Preparing camper photo..." : "Removing camper photo..." } : null);
     setSaving(true);
     let studentId = editing.id;
 
@@ -117,6 +160,7 @@ export default function CampRosterPage() {
     }
 
     if (studentId && hasPhotoChange) {
+      setMessage({ tone: "success", text: profilePhotoFile ? "Uploading camper photo..." : "Removing camper photo..." });
       const photoResponse = profilePhotoFile
         ? await uploadProfilePhoto(studentId, profilePhotoFile)
         : await fetch(`/api/camp/students/photo?studentId=${encodeURIComponent(studentId)}`, { method: "DELETE" });
@@ -132,8 +176,7 @@ export default function CampRosterPage() {
         updateStudentProfilePhoto(studentId, photoBody.student?.profilePhotoUrl);
         setSaving(false);
         closeEditor();
-        setMessage({ tone: "success", text: "Camper saved. Team and transportation views are refreshed." });
-        void refresh();
+        setMessage({ tone: "success", text: profilePhotoFile ? "Camper photo updated." : "Camper photo removed." });
         return;
       }
     }
@@ -145,9 +188,10 @@ export default function CampRosterPage() {
   }
 
   async function uploadProfilePhoto(studentId: string, file: File) {
+    const preparedFile = await resizeProfilePhoto(file);
     const formData = new FormData();
     formData.set("studentId", studentId);
-    formData.set("photo", file);
+    formData.set("photo", preparedFile);
     return fetch("/api/camp/students/photo", { method: "POST", body: formData });
   }
 
