@@ -145,6 +145,8 @@ test.describe("Camp dedicated medication tool pages", () => {
     await page.getByLabel("Dose").fill("Parent label dose");
     await page.getByLabel("Quantity received").fill("8 tablets");
     await page.getByLabel("Parent/guardian name").fill("Pat Parent");
+    await expect(page.locator(".camp-intake-photo-section .camp-photo-actions .button", { hasText: "Take photo" })).toHaveCSS("color", "rgb(15, 23, 42)");
+    await expect(page.locator(".camp-intake-photo-section .camp-photo-actions .button", { hasText: "Upload photo" })).toHaveCSS("color", "rgb(15, 23, 42)");
     await page.getByLabel("Upload photo").setInputFiles(pngFile("mobile-medicine.png"));
     await signPadWithWindowTouch(page.getByRole("img", { name: "Parent or guardian signature", exact: true }));
     await page.getByLabel("Parent/guardian handoff details reviewed with staff.").check();
@@ -168,6 +170,8 @@ test.describe("Camp dedicated medication tool pages", () => {
     });
     await page.getByRole("button", { name: /Avery Johnson/ }).click();
     await expect(page.getByText("Camper photo")).toBeVisible();
+    await expect(page.locator(".camp-profile-photo-editor .camp-photo-actions .button", { hasText: "Take photo" })).toHaveCSS("color", "rgb(15, 23, 42)");
+    await expect(page.locator(".camp-profile-photo-editor .camp-photo-actions .button", { hasText: "Upload photo" })).toHaveCSS("color", "rgb(15, 23, 42)");
     await page.getByLabel("Upload photo").setInputFiles(pngFile("avery.png"));
     await expect(page.getByRole("button", { name: "Save" })).toBeEnabled();
     await page.getByRole("button", { name: "Save" }).click();
