@@ -51,6 +51,10 @@ drop policy if exists "andrew can insert camp_emma_actions" on public.camp_emma_
 create policy "ministry can select camp_emma_actions" on public.camp_emma_actions
 for select to authenticated using (ministry_id = public.current_ministry_id());
 create policy "andrew can insert camp_emma_actions" on public.camp_emma_actions
-for insert to authenticated with check (ministry_id = public.current_ministry_id());
+for insert to authenticated
+with check (
+  ministry_id = public.current_ministry_id()
+  and public.current_user_is_camp_admin()
+);
 
 notify pgrst, 'reload schema';
