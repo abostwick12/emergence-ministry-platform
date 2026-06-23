@@ -1,6 +1,8 @@
 # Current Web App Functionality
 
-Current as of June 11, 2026.
+Current as of June 23, 2026. (Originally drafted June 11, 2026; date corrected during 2026-06-23 doc scrub.)
+
+> **Camp module**: For Camp-specific feature inventory, access model, import field map, and regression checklist, see [`docs/camp/CAMP_BLUEPRINT.md`](camp/CAMP_BLUEPRINT.md).
 
 This diagram reflects the active Next.js web app only. The archived Google Sheets and Apps Script build under `archive/google-sheets-v1/` is historical context and is not active application code.
 

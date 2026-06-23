@@ -1,5 +1,7 @@
 # Camp Restricted Data Audit
 
+> **Reference**: This audit informed migration 008 and the current access model. For the current Camp feature blueprint and access model, see [`docs/camp/CAMP_BLUEPRINT.md`](camp/CAMP_BLUEPRINT.md) and [`docs/camp/CAMP_ACCESS_MODEL.md`](camp/CAMP_ACCESS_MODEL.md).
+
 Checked Camp API routes, repository methods, import parsing, UI fetch boundaries, and Supabase RLS policies for medical/medication leakage before real camp data entry.
 
 Findings and fixes:
