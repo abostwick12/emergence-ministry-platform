@@ -22,8 +22,24 @@ function studentToInput(student?: CampVisibleStudent): CampStudentInput {
   };
 }
 
+function sameStudentInput(left: CampStudentInput, right: CampStudentInput) {
+  return (
+    left.id === right.id &&
+    left.name === right.name &&
+    left.grade === right.grade &&
+    left.teamId === right.teamId &&
+    left.vehicleId === right.vehicleId &&
+    left.cabin === right.cabin &&
+    left.shirtSize === right.shirtSize &&
+    left.emergencyContactOnFile === right.emergencyContactOnFile &&
+    left.hasMedicalAlert === right.hasMedicalAlert &&
+    left.hasDietaryAlert === right.hasDietaryAlert &&
+    JSON.stringify(left.limitedSafetyFlags ?? []) === JSON.stringify(right.limitedSafetyFlags ?? [])
+  );
+}
+
 export default function CampRosterPage() {
-  const { overview, loading, refresh } = useCamp();
+  const { overview, loading, refresh, updateStudentProfilePhoto } = useCamp();
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<CampStudentInput | null>(null);
   const [editingProfilePhotoUrl, setEditingProfilePhotoUrl] = useState("");
@@ -76,36 +92,54 @@ export default function CampRosterPage() {
 
   async function saveStudent() {
     if (!editing) return;
+    const hasPhotoChange = Boolean(profilePhotoFile || removeProfilePhoto);
+    const existingStudent = editing.id ? overview.students.find((student) => student.id === editing.id) : undefined;
+    const detailsChanged = !editing.id || !existingStudent || !sameStudentInput(editing, studentToInput(existingStudent));
+    const canSavePhotoOnly = Boolean(editing.id && hasPhotoChange && !detailsChanged);
+
     setMessage(null);
     setSaving(true);
-    const response = await fetch("/api/camp/students", {
-      method: editing.id ? "PATCH" : "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(editing)
-    });
-    const body = await response.json().catch(() => ({})) as { error?: string; student?: { id: string } };
-    setSaving(false);
-    if (!response.ok) {
-      setMessage({ tone: "error", text: body.error ?? "Camper could not be saved." });
-      return;
+    let studentId = editing.id;
+
+    if (!canSavePhotoOnly) {
+      const response = await fetch("/api/camp/students", {
+        method: editing.id ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editing)
+      });
+      const body = await response.json().catch(() => ({})) as { error?: string; student?: { id: string } };
+      if (!response.ok) {
+        setSaving(false);
+        setMessage({ tone: "error", text: body.error ?? "Camper could not be saved." });
+        return;
+      }
+      studentId = body.student?.id ?? editing.id;
     }
 
-    const studentId = body.student?.id ?? editing.id;
-    if (studentId && (profilePhotoFile || removeProfilePhoto)) {
-      setSaving(true);
+    if (studentId && hasPhotoChange) {
       const photoResponse = profilePhotoFile
         ? await uploadProfilePhoto(studentId, profilePhotoFile)
         : await fetch(`/api/camp/students/photo?studentId=${encodeURIComponent(studentId)}`, { method: "DELETE" });
-      const photoBody = await photoResponse.json().catch(() => ({})) as { error?: string };
-      setSaving(false);
+      const photoBody = await photoResponse.json().catch(() => ({})) as { error?: string; student?: { profilePhotoUrl?: string } };
       if (!photoResponse.ok) {
-        await refresh();
+        if (!canSavePhotoOnly) await refresh();
+        setSaving(false);
         setMessage({ tone: "error", text: photoBody.error ?? "Camper saved, but the photo update failed." });
+        return;
+      }
+
+      if (canSavePhotoOnly) {
+        updateStudentProfilePhoto(studentId, photoBody.student?.profilePhotoUrl);
+        setSaving(false);
+        closeEditor();
+        setMessage({ tone: "success", text: "Camper saved. Team and transportation views are refreshed." });
+        void refresh();
         return;
       }
     }
 
     await refresh();
+    setSaving(false);
     closeEditor();
     setMessage({ tone: "success", text: "Camper saved. Team and transportation views are refreshed." });
   }

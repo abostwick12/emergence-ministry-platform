@@ -43,6 +43,7 @@ type CampContextValue = {
   homeMode: CampHomeMode;
   setHomeMode: (mode: CampHomeMode) => void;
   refresh: () => Promise<void>;
+  updateStudentProfilePhoto: (studentId: string, profilePhotoUrl?: string) => void;
 };
 
 const CampContext = createContext<CampContextValue | null>(null);
@@ -66,6 +67,15 @@ export function CampProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  const updateStudentProfilePhoto = useCallback((studentId: string, profilePhotoUrl?: string) => {
+    setOverview((current) => ({
+      ...current,
+      students: current.students.map((student) =>
+        student.id === studentId ? { ...student, profilePhotoUrl } : student
+      )
+    }));
   }, []);
 
   useEffect(() => {
@@ -102,9 +112,10 @@ export function CampProvider({ children }: { children: React.ReactNode }) {
       scheduleForSelectedDay,
       homeMode,
       setHomeMode,
-      refresh
+      refresh,
+      updateStudentProfilePhoto
     }),
-    [overview, capabilities, loading, days, selectedDay, scheduleForSelectedDay, homeMode, refresh]
+    [overview, capabilities, loading, days, selectedDay, scheduleForSelectedDay, homeMode, refresh, updateStudentProfilePhoto]
   );
 
   return <CampContext.Provider value={value}>{children}</CampContext.Provider>;

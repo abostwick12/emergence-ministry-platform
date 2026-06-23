@@ -97,7 +97,7 @@ test.describe("Camp dedicated medication tool pages", () => {
     await page.getByLabel("Parent/guardian name").fill("Pat Parent");
     await page.getByLabel("Upload photo").setInputFiles(pngFile("medicine.png"));
     await expect(page.getByAltText("Selected medication label or container preview")).toBeVisible();
-    await signPad(page.getByRole("img", { name: "Parent or guardian signature", exact: true }));
+    await signPadWithTouch(page.getByRole("img", { name: "Parent or guardian signature", exact: true }));
     await page.getByLabel("Parent/guardian handoff details reviewed with staff.").check();
     await expect(page.getByRole("button", { name: "Save medication intake" })).toBeEnabled();
     await page.getByRole("button", { name: "Save medication intake" }).click();
@@ -152,7 +152,7 @@ test.describe("Camp dedicated medication tool pages", () => {
 
     await page.goto("/camp/medical-command/administer");
     await page.getByLabel("Medication time block").selectOption({ index: 0 });
-    await signPad(page.getByRole("img", { name: "Student acknowledgement signature pad" }));
+    await signPadWithTouch(page.getByRole("img", { name: "Student acknowledgement signature pad" }));
     await expect(page.getByRole("button", { name: "Confirm Administration" })).toBeEnabled();
 
     await page.goto("/camp/roster");
@@ -184,6 +184,50 @@ async function signPad(locator: Locator) {
   await locator.page().mouse.move(box.x + 78, box.y + 86);
   await locator.page().mouse.move(box.x + 132, box.y + 42);
   await locator.page().mouse.up();
+}
+
+async function signPadWithTouch(locator: Locator) {
+  await locator.scrollIntoViewIfNeeded();
+  const box = await locator.boundingBox();
+  expect(box).not.toBeNull();
+  if (!box) return;
+  const points = [
+    { x: box.x + 24, y: box.y + 40 },
+    { x: box.x + 78, y: box.y + 86 },
+    { x: box.x + 132, y: box.y + 42 }
+  ];
+  await locator.dispatchEvent("pointerdown", {
+    bubbles: true,
+    cancelable: true,
+    pointerId: 7,
+    pointerType: "touch",
+    isPrimary: true,
+    buttons: 1,
+    clientX: points[0].x,
+    clientY: points[0].y
+  });
+  for (const point of points.slice(1)) {
+    await locator.dispatchEvent("pointermove", {
+      bubbles: true,
+      cancelable: true,
+      pointerId: 7,
+      pointerType: "touch",
+      isPrimary: true,
+      buttons: 1,
+      clientX: point.x,
+      clientY: point.y
+    });
+  }
+  await locator.dispatchEvent("pointerup", {
+    bubbles: true,
+    cancelable: true,
+    pointerId: 7,
+    pointerType: "touch",
+    isPrimary: true,
+    buttons: 0,
+    clientX: points[2].x,
+    clientY: points[2].y
+  });
 }
 
 function pngFile(name: string) {
