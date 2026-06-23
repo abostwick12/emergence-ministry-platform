@@ -101,5 +101,35 @@ export function CampSignatureTouchBridge() {
     };
   }, []);
 
-  return null;
+  return (
+    <style>{`
+      .camp-signature-block .camp-signature-head > div {
+        max-width: min(100%, 38rem);
+      }
+
+      .camp-signature-block .camp-signature-head .camp-cc-muted,
+      .camp-ack-box > div > .camp-cc-muted {
+        color: #334155;
+        font-size: 15px;
+        line-height: 1.45;
+      }
+
+      .camp-signature-block .eyebrow {
+        color: #0f172a;
+        font-size: 12px;
+        line-height: 1.25;
+        margin-bottom: 4px;
+      }
+
+      @media (max-width: 520px) {
+        .camp-signature-block .camp-signature-head {
+          flex-direction: column;
+        }
+
+        .camp-signature-block .camp-signature-head .button {
+          align-self: flex-start;
+        }
+      }
+    `}</style>
+  );
 }
