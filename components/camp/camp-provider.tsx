@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { CampSignatureTouchBridge } from "@/components/camp/camp-signature-touch-bridge";
 import { deriveCampDays, scheduleForDay, type CampDay } from "@/lib/camp/days";
 import type { CampOverviewPayload, CampScheduleBlock } from "@/lib/camp/types";
 
@@ -118,7 +119,12 @@ export function CampProvider({ children }: { children: React.ReactNode }) {
     [overview, capabilities, loading, days, selectedDay, scheduleForSelectedDay, homeMode, refresh, updateStudentProfilePhoto]
   );
 
-  return <CampContext.Provider value={value}>{children}</CampContext.Provider>;
+  return (
+    <CampContext.Provider value={value}>
+      <CampSignatureTouchBridge />
+      {children}
+    </CampContext.Provider>
+  );
 }
 
 export function useCamp(): CampContextValue {
