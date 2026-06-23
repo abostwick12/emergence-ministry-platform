@@ -22,6 +22,7 @@ test.describe("Camp mobile Command Center", () => {
   });
 
   test("mobile bottom navigation reaches each section", async ({ page }) => {
+    await keepNextDevPortalOffPointerPath(page);
     await login(page);
     await page.goto("/camp");
 
@@ -88,7 +89,7 @@ test.describe("Camp mobile Command Center", () => {
     await page.getByRole("button", { name: "Open EMMA Camp Finder" }).click();
     const sheet = page.getByRole("dialog", { name: "Find anything fast" });
     await expect(sheet).toBeVisible();
-    // Smart Search and Ask EMMA are collapsed into one search — no separate tab inside the sheet.
+    // Smart Search and Ask EMMA are collapsed into one search - no separate tab inside the sheet.
     await expect(sheet.getByRole("tab")).toHaveCount(0);
     await page.getByRole("searchbox", { name: "Smart Camp Search" }).fill("What medication dose does Avery need?");
     await page.getByRole("button", { name: "Search" }).click();
@@ -117,4 +118,15 @@ async function login(page: Page) {
   await page.getByLabel("Password").fill(process.env.E2E_TEST_PASSWORD ?? "password");
   await page.getByRole("button", { name: "Log in" }).click();
   await page.waitForURL(/\/dashboard$/);
+}
+
+async function keepNextDevPortalOffPointerPath(page: Page) {
+  const content = "nextjs-portal { pointer-events: none !important; }";
+  await page.addInitScript((css) => {
+    const style = document.createElement("style");
+    style.setAttribute("data-e2e-next-dev-portal-style", "true");
+    style.textContent = css;
+    document.documentElement.appendChild(style);
+  }, content);
+  await page.addStyleTag({ content }).catch(() => undefined);
 }
