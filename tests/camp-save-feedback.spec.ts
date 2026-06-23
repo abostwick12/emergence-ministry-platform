@@ -62,7 +62,7 @@ test.describe("Camp dedicated medication tool pages", () => {
     await page.getByRole("button", { name: "Clear and Re-sign" }).click();
     await expect(page.getByRole("button", { name: "Confirm Administration" })).toBeDisabled();
 
-    await signPad(page.getByRole("img", { name: "Student acknowledgement signature pad" }));
+    await signPadWithWindowTouch(page.getByRole("img", { name: "Student acknowledgement signature pad" }));
     await page.getByLabel("Staff notes").fill("Logged after student acknowledgement.");
     await page.getByRole("button", { name: "Confirm Administration" }).click();
     await expect(page.getByText("Medication administration logged.")).toBeVisible();
@@ -97,7 +97,7 @@ test.describe("Camp dedicated medication tool pages", () => {
     await page.getByLabel("Parent/guardian name").fill("Pat Parent");
     await page.getByLabel("Upload photo").setInputFiles(pngFile("medicine.png"));
     await expect(page.getByAltText("Selected medication label or container preview")).toBeVisible();
-    await signPadWithTouch(page.getByRole("img", { name: "Parent or guardian signature", exact: true }));
+    await signPadWithWindowTouch(page.getByRole("img", { name: "Parent or guardian signature", exact: true }));
     await page.getByLabel("Parent/guardian handoff details reviewed with staff.").check();
     await expect(page.getByRole("button", { name: "Save medication intake" })).toBeEnabled();
     await page.getByRole("button", { name: "Save medication intake" }).click();
@@ -146,23 +146,35 @@ test.describe("Camp dedicated medication tool pages", () => {
     await page.getByLabel("Quantity received").fill("8 tablets");
     await page.getByLabel("Parent/guardian name").fill("Pat Parent");
     await page.getByLabel("Upload photo").setInputFiles(pngFile("mobile-medicine.png"));
-    await signPad(page.getByRole("img", { name: "Parent or guardian signature", exact: true }));
+    await signPadWithWindowTouch(page.getByRole("img", { name: "Parent or guardian signature", exact: true }));
     await page.getByLabel("Parent/guardian handoff details reviewed with staff.").check();
     await expect(page.getByRole("button", { name: "Save medication intake" })).toBeEnabled();
 
     await page.goto("/camp/medical-command/administer");
     await page.getByLabel("Medication time block").selectOption({ index: 0 });
-    await signPadWithTouch(page.getByRole("img", { name: "Student acknowledgement signature pad" }));
+    await signPadWithWindowTouch(page.getByRole("img", { name: "Student acknowledgement signature pad" }));
     await expect(page.getByRole("button", { name: "Confirm Administration" })).toBeEnabled();
 
     await page.goto("/camp/roster");
+    await expect(page.getByRole("button", { name: /Avery Johnson/ })).toBeVisible();
+    let overviewCallsAfterPhotoSave = 0;
+    page.on("request", (request) => {
+      const url = new URL(request.url());
+      if (url.pathname === "/api/camp") overviewCallsAfterPhotoSave += 1;
+    });
+    await page.route(/\/api\/camp\/students\/photo(?:\?|$)/, async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      await route.continue();
+    });
     await page.getByRole("button", { name: /Avery Johnson/ }).click();
     await expect(page.getByText("Camper photo")).toBeVisible();
     await page.getByLabel("Upload photo").setInputFiles(pngFile("avery.png"));
     await expect(page.getByRole("button", { name: "Save" })).toBeEnabled();
     await page.getByRole("button", { name: "Save" }).click();
-    await expect(page.getByText("Camper saved.")).toBeVisible();
+    await expect(page.getByText("Uploading camper photo...")).toBeVisible();
+    await expect(page.getByText("Camper photo updated.")).toBeVisible();
     await expect(page.locator(".camp-student-avatar img").first()).toBeVisible();
+    await expect.poll(() => overviewCallsAfterPhotoSave).toBe(0);
   });
 });
 
@@ -186,11 +198,12 @@ async function signPad(locator: Locator) {
   await locator.page().mouse.up();
 }
 
-async function signPadWithTouch(locator: Locator) {
+async function signPadWithWindowTouch(locator: Locator) {
   await locator.scrollIntoViewIfNeeded();
   const box = await locator.boundingBox();
   expect(box).not.toBeNull();
   if (!box) return;
+  const pointerId = 7;
   const points = [
     { x: box.x + 24, y: box.y + 40 },
     { x: box.x + 78, y: box.y + 86 },
@@ -199,35 +212,45 @@ async function signPadWithTouch(locator: Locator) {
   await locator.dispatchEvent("pointerdown", {
     bubbles: true,
     cancelable: true,
-    pointerId: 7,
+    pointerId,
     pointerType: "touch",
     isPrimary: true,
     buttons: 1,
     clientX: points[0].x,
     clientY: points[0].y
   });
-  for (const point of points.slice(1)) {
-    await locator.dispatchEvent("pointermove", {
-      bubbles: true,
-      cancelable: true,
-      pointerId: 7,
-      pointerType: "touch",
-      isPrimary: true,
-      buttons: 1,
-      clientX: point.x,
-      clientY: point.y
-    });
-  }
-  await locator.dispatchEvent("pointerup", {
-    bubbles: true,
-    cancelable: true,
-    pointerId: 7,
-    pointerType: "touch",
-    isPrimary: true,
-    buttons: 0,
-    clientX: points[2].x,
-    clientY: points[2].y
-  });
+  await locator.page().evaluate(
+    ({ moves, touchPointerId }) => {
+      for (const point of moves) {
+        window.dispatchEvent(new PointerEvent("pointermove", {
+          bubbles: true,
+          cancelable: true,
+          pointerId: touchPointerId,
+          pointerType: "touch",
+          isPrimary: true,
+          buttons: 1,
+          clientX: point.x,
+          clientY: point.y
+        }));
+      }
+    },
+    { moves: points.slice(1), touchPointerId: pointerId }
+  );
+  await locator.page().evaluate(
+    ({ point, touchPointerId }) => {
+      window.dispatchEvent(new PointerEvent("pointerup", {
+        bubbles: true,
+        cancelable: true,
+        pointerId: touchPointerId,
+        pointerType: "touch",
+        isPrimary: true,
+        buttons: 0,
+        clientX: point.x,
+        clientY: point.y
+      }));
+    },
+    { point: points[2], touchPointerId: pointerId }
+  );
 }
 
 function pngFile(name: string) {
