@@ -305,12 +305,19 @@ describe("camp API restricted data boundaries", () => {
         action: "restore",
         studentId: "stu-1"
       }, "PATCH"));
+      const archiveHistory = await medicationPOST(jsonRequest(`http://localhost/api/camp/medication?role=${role}`, {
+        target: "archive",
+        archiveTarget: "medication",
+        id: "med-1",
+        archiveReason: "Should not hide restricted history"
+      }));
       const upload = await photoPOST(photoRequest(`http://localhost/api/camp/medication/photos?role=${role}`));
       const getPhoto = await photoGET(new Request(`http://localhost/api/camp/medication/photos?role=${role}&medicationRecordId=med-1`));
 
       expect(archivedList.status).toBe(403);
       expect(archive.status).toBe(403);
       expect(restore.status).toBe(403);
+      expect(archiveHistory.status).toBe(403);
       expect(upload.status).toBe(403);
       expect(getPhoto.status).toBe(403);
     }

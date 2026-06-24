@@ -19,6 +19,7 @@ import type {
   CampEmmaActionAudit,
   CampEmmaConfirmInput,
   CampMedicationAdministrationLog,
+  CampMedicationArchiveInput,
   CampMedicationIntakeInput,
   CampMedicationIntakeRecord,
   CampMedicationPhotoRecord,
@@ -160,6 +161,10 @@ type CampMedicationRow = {
   voided_at: string | null;
   voided_by_name: string | null;
   void_reason: string | null;
+  archived_at?: string | null;
+  archived_by_user_id?: string | null;
+  archived_by_name?: string | null;
+  archive_reason?: string | null;
 };
 
 type CampMedicationScheduleRow = {
@@ -176,6 +181,10 @@ type CampMedicationScheduleRow = {
   voided_at: string | null;
   voided_by_name: string | null;
   void_reason: string | null;
+  archived_at?: string | null;
+  archived_by_user_id?: string | null;
+  archived_by_name?: string | null;
+  archive_reason?: string | null;
 };
 
 type CampMedicationLogRow = {
@@ -196,6 +205,10 @@ type CampMedicationLogRow = {
   voided_at: string | null;
   voided_by_name: string | null;
   void_reason: string | null;
+  archived_at?: string | null;
+  archived_by_user_id?: string | null;
+  archived_by_name?: string | null;
+  archive_reason?: string | null;
 };
 
 type CampMedicationReturnRow = {
@@ -213,6 +226,10 @@ type CampMedicationReturnRow = {
   voided_at: string | null;
   voided_by_name: string | null;
   void_reason: string | null;
+  archived_at?: string | null;
+  archived_by_user_id?: string | null;
+  archived_by_name?: string | null;
+  archive_reason?: string | null;
 };
 
 type CampMedicationIntakeRow = {
@@ -238,6 +255,10 @@ type CampMedicationIntakeRow = {
   voided_at: string | null;
   voided_by_name: string | null;
   void_reason: string | null;
+  archived_at?: string | null;
+  archived_by_user_id?: string | null;
+  archived_by_name?: string | null;
+  archive_reason?: string | null;
   created_at: string;
 };
 
@@ -1075,10 +1096,10 @@ export async function upsertRestrictedMedicalRecord(
   return { allowed: true as const, status: 200, record: toRestrictedMedicalRecord(data, await getCampersById(session, basics.camp.id)) };
 }
 
-export async function getRestrictedCampMedicationPayload(session: AuthSession, context: CampAccessContext) {
+export async function getRestrictedCampMedicationPayload(session: AuthSession, context: CampAccessContext, options: { includeArchived?: boolean } = {}) {
   const access = assertCampRestrictedAccess(context);
   if (!access.allowed) return access;
-  if (shouldUseMock(session)) return mockStore.getRestrictedCampMedicationPayload(context.effectiveRole);
+  if (shouldUseMock(session)) return mockStore.getRestrictedCampMedicationPayload(context.effectiveRole, options);
 
   const supabase = getSupabaseAuthClient(session.accessToken);
   const basics = await ensureCampBasics(session);
@@ -1100,7 +1121,11 @@ export async function getRestrictedCampMedicationPayload(session: AuthSession, c
   throwIfSupabaseError(intake.error);
   throwIfSupabaseError(photos.error);
 
-  const intakeRows = (intake.data ?? []).filter((row) => activeCamperIds.has(row.camper_id));
+  const intakeRows = visibleMedicationHistoryRows((intake.data ?? []).filter((row) => activeCamperIds.has(row.camper_id)), options.includeArchived);
+  const checkInRows = visibleMedicationHistoryRows((checkIn.data ?? []).filter((row) => activeCamperIds.has(row.camper_id)), options.includeArchived);
+  const scheduleRows = visibleMedicationHistoryRows((schedule.data ?? []).filter((row) => activeCamperIds.has(row.camper_id)), options.includeArchived);
+  const logRows = visibleMedicationHistoryRows((logs.data ?? []).filter((row) => activeCamperIds.has(row.camper_id)), options.includeArchived);
+  const returnRows = visibleMedicationHistoryRows((returns.data ?? []).filter((row) => activeCamperIds.has(row.camper_id)), options.includeArchived);
   const activeIntakeRows = activeAuditRows(intakeRows, "supersedes_intake_id");
   const intakeHistory = intakeRows.map((row) => toMedicationIntakeRecord(row, campers, auditStatusFor(row, intakeRows, "supersedes_intake_id")));
   const medicationIdsWithPhotoRecords = new Set((photos.data ?? []).map((row) => row.medication_record_id));
@@ -1108,13 +1133,13 @@ export async function getRestrictedCampMedicationPayload(session: AuthSession, c
   return {
     allowed: true as const,
     status: 200,
-    checkIn: activeAuditRows((checkIn.data ?? []).filter((row) => activeCamperIds.has(row.camper_id)), "supersedes_medication_record_id")
-      .map((row) => toMedicationRecord(row, campers, activeIntakeRows.map((item) => toMedicationIntakeRecord(item, campers)), auditStatusFor(row, checkIn.data ?? [], "supersedes_medication_record_id"), medicationIdsWithPhotoRecords.has(row.id))),
-    schedule: activeAuditRows((schedule.data ?? []).filter((row) => activeCamperIds.has(row.camper_id)), "supersedes_schedule_item_id")
-      .map((row) => toScheduleItem(row, campers, auditStatusFor(row, schedule.data ?? [], "supersedes_schedule_item_id"))),
-    administrationLog: (logs.data ?? []).filter((row) => activeCamperIds.has(row.camper_id)).map((row) => toAdministrationLog(row, campers, auditStatusFor(row, logs.data ?? [], "supersedes_administration_log_id"))),
-    returnChecklist: activeAuditRows((returns.data ?? []).filter((row) => activeCamperIds.has(row.camper_id)), "supersedes_return_item_id")
-      .map((row) => toReturnItem(row, campers, auditStatusFor(row, returns.data ?? [], "supersedes_return_item_id"))),
+    checkIn: activeAuditRows(checkInRows, "supersedes_medication_record_id")
+      .map((row) => toMedicationRecord(row, campers, activeIntakeRows.map((item) => toMedicationIntakeRecord(item, campers)), auditStatusFor(row, checkInRows, "supersedes_medication_record_id"), medicationIdsWithPhotoRecords.has(row.id))),
+    schedule: activeAuditRows(scheduleRows, "supersedes_schedule_item_id")
+      .map((row) => toScheduleItem(row, campers, auditStatusFor(row, scheduleRows, "supersedes_schedule_item_id"))),
+    administrationLog: logRows.map((row) => toAdministrationLog(row, campers, auditStatusFor(row, logRows, "supersedes_administration_log_id"))),
+    returnChecklist: activeAuditRows(returnRows, "supersedes_return_item_id")
+      .map((row) => toReturnItem(row, campers, auditStatusFor(row, returnRows, "supersedes_return_item_id"))),
     intakeHistory
   };
 }
@@ -1505,7 +1530,7 @@ export async function voidMedicationWorkflowItem(session: AuthSession, context: 
   if (shouldUseMock(session)) return mockStore.voidMedicationWorkflowItem(context.effectiveRole, { ...input, voidedByName: input.voidedByName || access.actor });
 
   const supabase = getSupabaseAuthClient(session.accessToken);
-  const table = tableForVoidTarget(input.target);
+  const table = tableForMedicationTarget(input.target);
   const update = {
     voided_at: new Date().toISOString(),
     voided_by_user_id: session.user.id,
@@ -1518,6 +1543,25 @@ export async function voidMedicationWorkflowItem(session: AuthSession, context: 
 
   const camperId = (data as { camper_id?: string }).camper_id;
   if (camperId) await refreshCamperRestrictedFlags(session, camperId);
+  return { allowed: true as const, status: 200, item: data };
+}
+
+export async function archiveMedicationWorkflowItem(session: AuthSession, context: CampAccessContext, input: CampMedicationArchiveInput) {
+  const access = assertCampRestrictedAccess(context);
+  if (!access.allowed) return access;
+  if (shouldUseMock(session)) return mockStore.archiveMedicationWorkflowItem(context.effectiveRole, { ...input, archivedByName: input.archivedByName || access.actor });
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const table = tableForMedicationTarget(input.target);
+  const update = {
+    archived_at: new Date().toISOString(),
+    archived_by_user_id: session.user.id,
+    archived_by_name: input.archivedByName?.trim() || access.actor,
+    archive_reason: input.archiveReason?.trim() || ""
+  };
+  const { data, error } = await supabase.from(table).update(update).eq("id", input.id).select("*").single();
+  throwIfSupabaseError(error);
+  if (!data) return { allowed: true as const, status: 404, error: "Medication workflow item not found." };
   return { allowed: true as const, status: 200, item: data };
 }
 
@@ -1786,12 +1830,16 @@ async function refreshCamperRestrictedFlags(session: AuthSession, camperId: stri
   throwIfSupabaseError(update.error);
 }
 
-function tableForVoidTarget(target: CampMedicationVoidInput["target"]) {
+function tableForMedicationTarget(target: CampMedicationVoidInput["target"]) {
   if (target === "intake") return "camp_medication_intake_records";
   if (target === "medication") return "camp_medication_records";
   if (target === "schedule") return "camp_medication_schedule_items";
   if (target === "administrationLog") return "camp_medication_administration_logs";
   return "camp_medication_return_items";
+}
+
+function visibleMedicationHistoryRows<T extends { archived_at?: string | null }>(rows: T[], includeArchived?: boolean): T[] {
+  return includeArchived ? rows : rows.filter((row) => !row.archived_at);
 }
 
 function activeAuditRows<T extends { id: string; voided_at?: string | null }>(rows: T[], supersedesKey: keyof T): T[] {
@@ -1960,7 +2008,10 @@ function toMedicationRecord(row: CampMedicationRow, campers: Map<string, CampStu
     auditStatus,
     voidedAt: row.voided_at ?? undefined,
     voidedByName: row.voided_by_name || undefined,
-    voidReason: row.void_reason || undefined
+    voidReason: row.void_reason || undefined,
+    archivedAt: row.archived_at ?? undefined,
+    archivedByName: row.archived_by_name || undefined,
+    archiveReason: row.archive_reason || undefined
   };
 }
 
@@ -2015,6 +2066,9 @@ function toMedicationIntakeRecord(row: CampMedicationIntakeRow, campers: Map<str
     voidedAt: row.voided_at ?? undefined,
     voidedByName: row.voided_by_name || undefined,
     voidReason: row.void_reason || undefined,
+    archivedAt: row.archived_at ?? undefined,
+    archivedByName: row.archived_by_name || undefined,
+    archiveReason: row.archive_reason || undefined,
     createdAt: row.created_at
   };
 }
@@ -2035,7 +2089,10 @@ function toScheduleItem(row: CampMedicationScheduleRow, campers: Map<string, Cam
     auditStatus,
     voidedAt: row.voided_at ?? undefined,
     voidedByName: row.voided_by_name || undefined,
-    voidReason: row.void_reason || undefined
+    voidReason: row.void_reason || undefined,
+    archivedAt: row.archived_at ?? undefined,
+    archivedByName: row.archived_by_name || undefined,
+    archiveReason: row.archive_reason || undefined
   };
 }
 
@@ -2059,7 +2116,10 @@ medicationRecordId: row.medication_record_id,
     auditStatus,
     voidedAt: row.voided_at ?? undefined,
     voidedByName: row.voided_by_name || undefined,
-    voidReason: row.void_reason || undefined
+    voidReason: row.void_reason || undefined,
+    archivedAt: row.archived_at ?? undefined,
+    archivedByName: row.archived_by_name || undefined,
+    archiveReason: row.archive_reason || undefined
   };
 }
 
@@ -2080,7 +2140,10 @@ function toReturnItem(row: CampMedicationReturnRow, campers: Map<string, CampStu
     auditStatus,
     voidedAt: row.voided_at ?? undefined,
     voidedByName: row.voided_by_name || undefined,
-    voidReason: row.void_reason || undefined
+    voidReason: row.void_reason || undefined,
+    archivedAt: row.archived_at ?? undefined,
+    archivedByName: row.archived_by_name || undefined,
+    archiveReason: row.archive_reason || undefined
   };
 }
 

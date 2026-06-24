@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   __resetCampStoreForTests,
+  archiveMedicationWorkflowItem,
   getRestrictedCampMedicationPayload,
   logMedicationAdministration,
   normalizeAdministrationStatus,
@@ -129,6 +130,7 @@ describe("camp medication workflow", () => {
     expect(logMedicationAdministration("joel", { scheduleItemId: "med-sched-1", loggedBy: "Joel", status: "Logged", studentAcknowledgementInitials: "AJ" }).allowed).toBe(false);
     expect(logMedicationAdministration("driver", { scheduleItemId: "med-sched-1", loggedBy: "Driver", status: "Logged", studentAcknowledgementInitials: "AJ" }).allowed).toBe(false);
     expect(voidMedicationWorkflowItem("driver", { target: "medication", id: "med-1", voidReason: "Blocked" }).allowed).toBe(false);
+    expect(archiveMedicationWorkflowItem("general_leader", { target: "intake", id: "blocked" }).allowed).toBe(false);
   });
 
   it("requires student acknowledgement initials or an unavailable reason for administration", () => {
@@ -279,5 +281,101 @@ describe("camp medication workflow", () => {
       expect.objectContaining({ id: intake.intake.id, auditStatus: "Superseded" }),
       expect.objectContaining({ id: correction.intake.id, auditStatus: "Voided", voidReason: "Duplicate correction entry." })
     ]));
+  });
+
+  it("archives intake history from the default view without deleting or voiding it", () => {
+    const intake = saveMedicationIntake("andrew", {
+      studentId: "stu-3",
+      medicationName: "Archive intake medication",
+      dose: "Parent label dose",
+      scheduleText: "Breakfast",
+      parentInstructions: "Follow signed parent instructions.",
+      staffNotes: "Resolved quantity correction.",
+      quantityReceived: "8 tablets",
+      containerStatus: "Original bottle",
+      receivedByName: "Andrew",
+      guardianName: "Pat Parent",
+      guardianRelationship: "Parent",
+      guardianSignatureData: { width: 640, height: 220, strokes: [[{ x: 10, y: 20 }, { x: 30, y: 40 }]] },
+      clarificationStatus: "Clear",
+      confirmationAcknowledged: true
+    });
+    expect(intake.allowed).toBe(true);
+    if (!intake.allowed) throw new Error("expected intake save success");
+
+    const archived = archiveMedicationWorkflowItem("andrew", {
+      target: "intake",
+      id: intake.intake.id,
+      archiveReason: "Resolved edit hidden from active view.",
+      archivedByName: "Andrew"
+    });
+    expect(archived.allowed).toBe(true);
+    if (!archived.allowed || "error" in archived) throw new Error("expected archive success");
+    expect(archived.item).toMatchObject({
+      id: intake.intake.id,
+      archivedByName: "Andrew",
+      archiveReason: "Resolved edit hidden from active view."
+    });
+    expect(archived.item.archivedAt).toBeTruthy();
+    expect(archived.item.voidedAt).toBeUndefined();
+
+    const activePayload = getRestrictedCampMedicationPayload("andrew");
+    expect(activePayload.allowed).toBe(true);
+    if (!activePayload.allowed) throw new Error("expected active payload");
+    expect(activePayload.intakeHistory.some((item) => item.id === intake.intake.id)).toBe(false);
+
+    const fullPayload = getRestrictedCampMedicationPayload("andrew", { includeArchived: true });
+    expect(fullPayload.allowed).toBe(true);
+    if (!fullPayload.allowed) throw new Error("expected full payload");
+    expect(fullPayload.intakeHistory).toContainEqual(expect.objectContaining({
+      id: intake.intake.id,
+      auditStatus: "Active",
+      archivedByName: "Andrew",
+      archiveReason: "Resolved edit hidden from active view."
+    }));
+  });
+
+  it("archives return history from the active checklist while preserving the audit record", () => {
+    const created = upsertMedicationRecord("andrew", {
+      studentId: "stu-3",
+      medicationName: "Return archive medication",
+      parentProvidedInstructions: "Follow signed parent instructions.",
+      checkInStatus: "Checked In",
+      receivedBy: "Andrew",
+      clarificationStatus: "Clear"
+    });
+    expect(created.allowed).toBe(true);
+    if (!created.allowed) throw new Error("expected medication create success");
+
+    const payload = getRestrictedCampMedicationPayload("andrew");
+    expect(payload.allowed).toBe(true);
+    if (!payload.allowed) throw new Error("expected restricted payload");
+    const returnItem = payload.returnChecklist.find((item) => item.medicationRecordId === created.record.id);
+    expect(returnItem).toBeTruthy();
+
+    const archived = archiveMedicationWorkflowItem("andrew", {
+      target: "return",
+      id: returnItem?.id ?? "",
+      archiveReason: "Return resolved.",
+      archivedByName: "Andrew"
+    });
+    expect(archived.allowed).toBe(true);
+    if (!archived.allowed || "error" in archived) throw new Error("expected return archive success");
+    expect(archived.item).toMatchObject({ id: returnItem?.id, archivedByName: "Andrew", archiveReason: "Return resolved." });
+    expect(archived.item.voidedAt).toBeUndefined();
+
+    const activePayload = getRestrictedCampMedicationPayload("andrew");
+    expect(activePayload.allowed).toBe(true);
+    if (!activePayload.allowed) throw new Error("expected active payload");
+    expect(activePayload.returnChecklist.some((item) => item.id === returnItem?.id)).toBe(false);
+
+    const fullPayload = getRestrictedCampMedicationPayload("andrew", { includeArchived: true });
+    expect(fullPayload.allowed).toBe(true);
+    if (!fullPayload.allowed) throw new Error("expected full payload");
+    expect(fullPayload.returnChecklist).toContainEqual(expect.objectContaining({
+      id: returnItem?.id,
+      archivedByName: "Andrew",
+      archiveReason: "Return resolved."
+    }));
   });
 });

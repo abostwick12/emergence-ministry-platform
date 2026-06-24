@@ -14,6 +14,12 @@ export type CampVoidAudit = {
   voidReason?: string;
 };
 
+export type CampArchiveAudit = {
+  archivedAt?: string;
+  archivedByName?: string;
+  archiveReason?: string;
+};
+
 export type CampTeam = {
   id: string;
   name: string;
@@ -225,6 +231,9 @@ export type CampMedicationRecord = {
   voidedAt?: string;
   voidedByName?: string;
   voidReason?: string;
+  archivedAt?: string;
+  archivedByName?: string;
+  archiveReason?: string;
 };
 
 export type CampMedicationPhotoRecord = {
@@ -284,6 +293,9 @@ export type CampMedicationIntakeRecord = {
   voidedAt?: string;
   voidedByName?: string;
   voidReason?: string;
+  archivedAt?: string;
+  archivedByName?: string;
+  archiveReason?: string;
   createdAt: string;
 };
 
@@ -324,6 +336,9 @@ export type CampMedicationScheduleItem = {
   voidedAt?: string;
   voidedByName?: string;
   voidReason?: string;
+  archivedAt?: string;
+  archivedByName?: string;
+  archiveReason?: string;
 };
 
 export type CampMedicationAdministrationLog = {
@@ -346,6 +361,9 @@ export type CampMedicationAdministrationLog = {
   voidedAt?: string;
   voidedByName?: string;
   voidReason?: string;
+  archivedAt?: string;
+  archivedByName?: string;
+  archiveReason?: string;
 };
 
 export type CampMedicationReturnItem = {
@@ -365,6 +383,9 @@ export type CampMedicationReturnItem = {
   voidedAt?: string;
   voidedByName?: string;
   voidReason?: string;
+  archivedAt?: string;
+  archivedByName?: string;
+  archiveReason?: string;
 };
 
 export type CampMedicationVoidInput = {
@@ -372,6 +393,13 @@ export type CampMedicationVoidInput = {
   id: string;
   voidReason: string;
   voidedByName?: string;
+};
+
+export type CampMedicationArchiveInput = {
+  target: "intake" | "medication" | "schedule" | "administrationLog" | "return";
+  id: string;
+  archiveReason?: string;
+  archivedByName?: string;
 };
 
 export type CampOverviewPayload = {

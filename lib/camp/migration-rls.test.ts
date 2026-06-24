@@ -9,6 +9,7 @@ const archivePhotoMigration = readFileSync(join(process.cwd(), "supabase/migrati
 const correctionAuditMigration = readFileSync(join(process.cwd(), "supabase/migrations/011_camp_medication_correction_audit.sql"), "utf8");
 const oakwoodMigration = readFileSync(join(process.cwd(), "supabase/migrations/013_camp_oakwood_operational_data.sql"), "utf8");
 const intakeCamperPhotoMigration = readFileSync(join(process.cwd(), "supabase/migrations/018_camp_intake_and_camper_profile_photos.sql"), "utf8");
+const medicalHistoryArchiveMigration = readFileSync(join(process.cwd(), "supabase/migrations/019_camp_medical_history_archive.sql"), "utf8");
 
 describe("camp persistence RLS migration shape", () => {
   it("keeps restricted medical and medication tables behind the restricted access helper", () => {
@@ -126,6 +127,30 @@ describe("camp persistence RLS migration shape", () => {
     expect(correctionAuditMigration).not.toContain("for delete");
     expect(correctionAuditMigration).toContain("create policy \"restricted can update camp_medication_intake_records\"");
     expect(correctionAuditMigration).toContain("create policy \"restricted can update camp_medication_administration_logs\"");
+  });
+
+  it("adds restricted medical history archive metadata without delete or general-leader access", () => {
+    const archiveTables = [
+      "camp_medication_intake_records",
+      "camp_medication_records",
+      "camp_medication_schedule_items",
+      "camp_medication_administration_logs",
+      "camp_medication_return_items"
+    ];
+
+    for (const table of archiveTables) {
+      expect(medicalHistoryArchiveMigration).toContain(`alter table public.${table} add column if not exists archived_at timestamptz`);
+      expect(medicalHistoryArchiveMigration).toContain(`alter table public.${table} add column if not exists archived_by_user_id uuid references public.profiles(id)`);
+      expect(medicalHistoryArchiveMigration).toContain(`alter table public.${table} add column if not exists archived_by_name text not null default ''`);
+      expect(medicalHistoryArchiveMigration).toContain(`alter table public.${table} add column if not exists archive_reason text not null default ''`);
+      expect(medicalHistoryArchiveMigration).toContain(`create policy "restricted can update ${table}"`);
+      expect(medicalHistoryArchiveMigration).toContain("public.current_user_can_access_camp_restricted()");
+    }
+
+    expect(medicalHistoryArchiveMigration).toContain("where archived_at is null");
+    expect(medicalHistoryArchiveMigration).toContain("where archived_at is not null");
+    expect(medicalHistoryArchiveMigration).not.toContain("for delete");
+    expect(medicalHistoryArchiveMigration).not.toContain("general_leader");
   });
 
   it("adds Oakwood operational fields without moving restricted detail into public camper rows", () => {

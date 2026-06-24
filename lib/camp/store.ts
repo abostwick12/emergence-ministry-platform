@@ -15,6 +15,7 @@ import type {
   CampDocument,
   CampEmmaActionAudit,
   CampMedicationAdministrationLog,
+  CampMedicationArchiveInput,
   CampArchiveInput,
   CampMedicationIntakeInput,
   CampMedicationIntakeRecord,
@@ -462,7 +463,7 @@ export function upsertRestrictedMedicalRecord(role: CampAccessRole, input: CampR
   return { allowed: true as const, status: 200, record };
 }
 
-export function getRestrictedCampMedicationPayload(role: CampAccessRole) {
+export function getRestrictedCampMedicationPayload(role: CampAccessRole, options: { includeArchived?: boolean } = {}) {
   if (!isRestrictedCampMedicalRole(role)) {
     return {
       allowed: false as const,
@@ -472,23 +473,28 @@ export function getRestrictedCampMedicationPayload(role: CampAccessRole) {
   }
 
   const activeStudentIds = new Set(store.students.filter((student) => !student.archivedAt).map((student) => student.id));
-  const activeIntakes = activeAuditItems(store.medicationIntakeRecords, "supersedesIntakeId");
+  const visibleIntakeRows = visibleMedicationHistoryItems(store.medicationIntakeRecords, options.includeArchived);
+  const visibleMedicationRows = visibleMedicationHistoryItems(store.medicationRecords, options.includeArchived);
+  const visibleScheduleRows = visibleMedicationHistoryItems(store.medicationSchedule, options.includeArchived);
+  const visibleLogRows = visibleMedicationHistoryItems(store.medicationAdministrationLog, options.includeArchived);
+  const visibleReturnRows = visibleMedicationHistoryItems(store.medicationReturnChecklist, options.includeArchived);
+  const activeIntakes = activeAuditItems(visibleIntakeRows, "supersedesIntakeId");
   const intakeHistory = store.medicationIntakeRecords
-    .filter((item) => activeStudentIds.has(item.studentId))
+    .filter((item) => activeStudentIds.has(item.studentId) && (options.includeArchived || !item.archivedAt))
     .map((item) => withAuditStatus(item, store.medicationIntakeRecords, "supersedesIntakeId"));
   return {
     allowed: true as const,
     status: 200,
-    checkIn: activeAuditItems(store.medicationRecords, "supersedesMedicationRecordId")
+    checkIn: activeAuditItems(visibleMedicationRows, "supersedesMedicationRecordId")
       .filter((record) => activeStudentIds.has(record.studentId))
       .map((record) => withLatestIntakeSummary(withAuditStatus(record, store.medicationRecords, "supersedesMedicationRecordId"), activeIntakes)),
-    schedule: activeAuditItems(store.medicationSchedule, "supersedesScheduleItemId")
+    schedule: activeAuditItems(visibleScheduleRows, "supersedesScheduleItemId")
       .filter((item) => activeStudentIds.has(item.studentId))
       .map((item) => withAuditStatus(item, store.medicationSchedule, "supersedesScheduleItemId")),
-    administrationLog: store.medicationAdministrationLog
+    administrationLog: visibleLogRows
       .filter((log) => activeStudentIds.has(log.studentId))
       .map((log) => withAuditStatus(log, store.medicationAdministrationLog, "supersedesAdministrationLogId")),
-    returnChecklist: activeAuditItems(store.medicationReturnChecklist, "supersedesReturnItemId")
+    returnChecklist: activeAuditItems(visibleReturnRows, "supersedesReturnItemId")
       .filter((item) => activeStudentIds.has(item.studentId))
       .map((item) => withAuditStatus(item, store.medicationReturnChecklist, "supersedesReturnItemId")),
     intakeHistory
@@ -741,6 +747,18 @@ export function voidMedicationWorkflowItem(role: CampAccessRole, input: CampMedi
   return { allowed: true as const, status: 200, item: { ...item, auditStatus: "Voided" as CampAuditStatus } };
 }
 
+export function archiveMedicationWorkflowItem(role: CampAccessRole, input: CampMedicationArchiveInput) {
+  if (!isRestrictedCampMedicalRole(role)) return restrictedMedicationDenied();
+  const collection = collectionForMedicationTarget(input.target);
+  const item = collection.find((record) => record.id === input.id);
+  if (!item) return { allowed: true as const, status: 404, error: "Medication workflow item not found." };
+
+  item.archivedAt = new Date().toISOString();
+  item.archivedByName = input.archivedByName?.trim() || roleLabel(role);
+  item.archiveReason = input.archiveReason?.trim() || "";
+  return { allowed: true as const, status: 200, item: { ...item } };
+}
+
 export function normalizeClarification(
   requested: CampMedicationRecord["clarificationStatus"] | undefined,
   instructions?: string
@@ -862,12 +880,20 @@ function sortSchedule() {
   });
 }
 
-function collectionForVoidTarget(target: CampMedicationVoidInput["target"]) {
+function collectionForMedicationTarget(target: CampMedicationVoidInput["target"]) {
   if (target === "intake") return store.medicationIntakeRecords;
   if (target === "medication") return store.medicationRecords;
   if (target === "schedule") return store.medicationSchedule;
   if (target === "administrationLog") return store.medicationAdministrationLog;
   return store.medicationReturnChecklist;
+}
+
+function collectionForVoidTarget(target: CampMedicationVoidInput["target"]) {
+  return collectionForMedicationTarget(target);
+}
+
+function visibleMedicationHistoryItems<T extends { archivedAt?: string }>(items: T[], includeArchived?: boolean): T[] {
+  return includeArchived ? items : items.filter((item) => !item.archivedAt);
 }
 
 function activeAuditItems<T extends { id: string; voidedAt?: string }>(items: T[], supersedesKey: keyof T): T[] {
