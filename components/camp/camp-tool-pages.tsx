@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CampAccessAdminPanel } from "@/components/camp/camp-access-admin";
 import { useCamp } from "@/components/camp/camp-provider";
+import { prepareCampImageFile } from "@/lib/camp/client-image";
 import type {
   CampDocument,
   CampMedicationAdministrationLog,
@@ -956,6 +957,13 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
   const [intakePhotoFile, setIntakePhotoFile] = useState<File | null>(null);
   const [intakePhotoPreviewUrl, setIntakePhotoPreviewUrl] = useState("");
   const [photoMessage, setPhotoMessage] = useState("");
+  const [photoUpload, setPhotoUpload] = useState<{
+    status: "idle" | "uploading" | "uploaded" | "failed";
+    medicationRecordId?: string;
+    intakeRecordId?: string;
+    file?: File;
+    error?: string;
+  }>({ status: "idle" });
   const [photoModal, setPhotoModal] = useState<{ url: string; title: string } | null>(null);
   const [returnItemId, setReturnItemId] = useState(returnChecklist[0]?.id ?? "");
   const visibleReturnChecklist = returnChecklist.filter((item) => showArchivedHistory || !item.archivedAt);
@@ -995,6 +1003,7 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
 
   function selectIntakePhoto(file: File | null) {
     setIntakePhotoFile(file);
+    if (file) setPhotoUpload({ status: "idle" });
     setPhotoMessage(file ? "Medication photo selected. It will save with this parent handoff." : "Medication photo capture cancelled. Intake can still be saved without a photo.");
   }
 
@@ -1073,26 +1082,10 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
       return;
     }
 
-    if (intakePhotoFile && body.intake.medicationRecordId) {
-      const formData = new FormData();
-      formData.set("medicationRecordId", body.intake.medicationRecordId);
-      formData.set("intakeRecordId", body.intake.id);
-      formData.set("photo", intakePhotoFile);
-      setSaving("intake");
-      const photoResponse = await fetch("/api/camp/medication/photos", { method: "POST", body: formData });
-      const photoBody = await photoResponse.json().catch(() => ({})) as { error?: string };
-      setSaving(null);
-      if (!photoResponse.ok) {
-        setIntakeHistory((current) => [body.intake as CampMedicationIntakeRecord, ...current]);
-        setMessage({ tone: "error", text: photoBody.error ?? "Medication intake saved, but the photo could not be uploaded." });
-        return;
-      }
-      setMedicationIdsWithPhoto((current) => new Set(current).add(body.intake?.medicationRecordId as string));
-      setPhotoMessage("Medication label / container photo saved with this handoff.");
-    }
+    const selectedPhotoFile = intakePhotoFile;
 
     setIntakeHistory((current) => [body.intake as CampMedicationIntakeRecord, ...current]);
-    setMessage({ tone: "success", text: "Medication intake recorded with parent/guardian acknowledgement." });
+    setMessage({ tone: "success", text: "Saved. Medication intake recorded with parent/guardian acknowledgement." });
     setQuantityReceived("");
     setStaffNotes("");
     setGuardianName("");
@@ -1100,6 +1093,39 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
     setGuardianSignature(emptySignatureData());
     setIntakePhotoFile(null);
     setConfirmationAcknowledged(false);
+    if (selectedPhotoFile && body.intake.medicationRecordId) {
+      void uploadIntakePhotoInBackground(body.intake.medicationRecordId, body.intake.id, selectedPhotoFile);
+    }
+  }
+
+  async function uploadIntakePhotoInBackground(medicationRecordId: string, intakeRecordId: string, file: File) {
+    setPhotoUpload({ status: "uploading", medicationRecordId, intakeRecordId, file });
+    setPhotoMessage("Photo uploading");
+    try {
+      const preparedFile = await prepareCampImageFile(file, "medicationLabel");
+      const formData = new FormData();
+      formData.set("medicationRecordId", medicationRecordId);
+      formData.set("intakeRecordId", intakeRecordId);
+      formData.set("photo", preparedFile);
+      const photoResponse = await fetch("/api/camp/medication/photos", { method: "POST", body: formData });
+      const photoBody = await photoResponse.json().catch(() => ({})) as { error?: string };
+      if (!photoResponse.ok) {
+        setPhotoUpload({ status: "failed", medicationRecordId, intakeRecordId, file, error: photoBody.error ?? "Photo upload failed." });
+        setPhotoMessage("Photo upload failed");
+        return;
+      }
+      setMedicationIdsWithPhoto((current) => new Set(current).add(medicationRecordId));
+      setPhotoUpload({ status: "uploaded" });
+      setPhotoMessage("Photo uploaded");
+    } catch (error) {
+      setPhotoUpload({ status: "failed", medicationRecordId, intakeRecordId, file, error: error instanceof Error ? error.message : "Photo upload failed." });
+      setPhotoMessage("Photo upload failed");
+    }
+  }
+
+  function retryIntakePhotoUpload() {
+    if (!photoUpload.medicationRecordId || !photoUpload.intakeRecordId || !photoUpload.file) return;
+    void uploadIntakePhotoInBackground(photoUpload.medicationRecordId, photoUpload.intakeRecordId, photoUpload.file);
   }
 
   async function saveReturn() {
@@ -1260,7 +1286,10 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
               </div>
             </div>
           ) : null}
-          {photoMessage ? <p className="camp-save-message" role="status">{photoMessage}</p> : null}
+          {photoMessage ? <p className={photoUpload.status === "failed" ? "camp-save-message error" : "camp-save-message"} role="status">{photoMessage}</p> : null}
+          {photoUpload.status === "failed" ? (
+            <button className="button compact-button" type="button" onClick={retryIntakePhotoUpload}>Retry upload</button>
+          ) : null}
         </section>
         <SignaturePad
           value={guardianSignature}
