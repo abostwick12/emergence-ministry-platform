@@ -1,6 +1,7 @@
 import { isSupabaseConfigured } from "@/lib/auth/config";
 import { getSupabaseAuthClient, type AuthSession } from "@/lib/auth/server";
 import { randomUUID } from "crypto";
+import { parseMedicationScheduleText } from "@/lib/camp/medication-schedule-text";
 import { campDocuments, campSchedule, campStartsOn, campTeams, campVehicles } from "@/lib/camp/public-data";
 import { sanitizePublicSafetyFlags } from "@/lib/camp/public-safety";
 import {
@@ -1417,13 +1418,15 @@ export async function saveMedicationIntake(session: AuthSession, context: CampAc
   throwIfSupabaseError(error);
   if (!data) throw new Error("Medication intake write returned no row.");
   await refreshCamperRestrictedFlags(session, input.studentId);
+  const scheduleItems = await ensureMedicationScheduleItemsForIntake(session, context, medicationPayload.record.id, input.scheduleText, input.parentInstructions);
   const campers = await getCampersById(session, basics.camp.id);
   const intake = toMedicationIntakeRecord(data, campers);
   return {
     allowed: true as const,
     status: 201,
     intake,
-    record: { ...medicationPayload.record, latestQuantityReceived: intake.quantityReceived, latestIntakeAt: intake.receivedAt }
+    record: { ...medicationPayload.record, latestQuantityReceived: intake.quantityReceived, latestIntakeAt: intake.receivedAt },
+    scheduleItems
   };
 }
 
@@ -1509,6 +1512,53 @@ export async function upsertMedicationScheduleItem(
   if (!result.data) throw new Error("Medication schedule write returned no row.");
   await refreshCamperRestrictedFlags(session, result.data.camper_id);
   return { allowed: true as const, status: 200, item: toScheduleItem(result.data, await getCampersById(session, basics.camp.id)) };
+}
+
+async function ensureMedicationScheduleItemsForIntake(
+  session: AuthSession,
+  context: CampAccessContext,
+  medicationRecordId: string,
+  scheduleText: string,
+  parentProvidedInstructions: string
+): Promise<CampMedicationScheduleItem[]> {
+  const timeWindows = parseMedicationScheduleText(scheduleText);
+  if (!timeWindows.length) return [];
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const basics = await ensureCampBasics(session);
+  const { data, error } = await supabase
+    .from("camp_medication_schedule_items")
+    .select("*")
+    .eq("camp_id", basics.camp.id)
+    .eq("medication_record_id", medicationRecordId)
+    .is("voided_at", null)
+    .is("archived_at", null)
+    .returns<CampMedicationScheduleRow[]>();
+
+  throwIfSupabaseError(error);
+  const rows = data ?? [];
+  const supersededIds = new Set(rows.map((row) => row.supersedes_schedule_item_id).filter(Boolean));
+  const existingWindows = new Set(
+    rows
+      .filter((row) => !supersededIds.has(row.id))
+      .map((row) => row.time_window.trim().toLowerCase())
+  );
+  const created: CampMedicationScheduleItem[] = [];
+
+  for (const timeWindow of timeWindows) {
+    const key = timeWindow.trim().toLowerCase();
+    if (!key || existingWindows.has(key)) continue;
+    const payload = await upsertMedicationScheduleItem(session, context, {
+      medicationRecordId,
+      timeWindow,
+      parentProvidedInstructions
+    });
+    if (!payload.allowed) throw new Error(payload.error);
+    created.push(payload.item);
+    existingWindows.add(key);
+  }
+
+  return created;
 }
 
 export async function saveMedicationPhoto(

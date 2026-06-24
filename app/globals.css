@@ -2962,6 +2962,16 @@ textarea:focus-visible {
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
 }
 .camp-team-card-carousel { flex: 0 0 78%; max-width: 280px; scroll-snap-align: start; }
+.camp-team-card-button {
+  width: 100%;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.camp-team-card-button:focus-visible {
+  outline: 3px solid rgba(14, 165, 233, 0.55);
+  outline-offset: 2px;
+}
 .camp-team-card-head { display: flex; align-items: center; gap: 8px; }
 .camp-team-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--camp-team-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--camp-team-accent) 24%, transparent); }
 .camp-team-dot.lg { width: 18px; height: 18px; }
@@ -2999,6 +3009,13 @@ textarea:focus-visible {
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.74);
   border: 1px solid rgba(13, 71, 109, 0.12);
+}
+.camp-student-row.has-team-color {
+  --camp-student-team-accent: #475569;
+  border-color: color-mix(in srgb, var(--camp-student-team-accent) 38%, rgba(13, 71, 109, 0.12));
+  border-left: 4px solid var(--camp-student-team-accent);
+  background:
+    linear-gradient(150deg, color-mix(in srgb, var(--camp-student-team-accent) 10%, #ffffff), #ffffff 78%);
 }
 .camp-student-avatar {
   flex: 0 0 auto;
@@ -3095,6 +3112,16 @@ textarea:focus-visible {
 .camp-schedule-time { flex: 0 0 64px; font-weight: 800; color: #0c4a6e; font-size: 13px; }
 .camp-schedule-body { display: flex; flex-direction: column; gap: 3px; }
 .camp-schedule-body strong { color: var(--camp-ink); }
+.camp-schedule-note {
+  display: -webkit-box;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--camp-muted);
+  font-size: 13px;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
 
 /* Vehicles */
 .camp-vehicle-list { display: flex; flex-direction: column; gap: 12px; }
@@ -3352,13 +3379,12 @@ html:has(.app-shell-camp) body {
 
 .camp-team-card {
   border: 1px solid color-mix(in srgb, var(--camp-team-accent) 46%, var(--camp-border));
-  border-left: 3px solid color-mix(in srgb, var(--camp-team-accent) 78%, #bfe6ff);
+  border-left: 4px solid color-mix(in srgb, var(--camp-team-accent) 84%, #bfe6ff);
   background:
-    linear-gradient(150deg, color-mix(in srgb, var(--camp-team-accent) 30%, transparent), transparent 60%),
-    var(--camp-glass);
-  box-shadow: var(--camp-shadow-soft), var(--camp-highlight);
-  backdrop-filter: blur(15px) saturate(1.25);
-  -webkit-backdrop-filter: blur(15px) saturate(1.25);
+    linear-gradient(150deg, color-mix(in srgb, var(--camp-team-accent) 12%, #f8fbff), #ffffff 72%);
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.12);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .camp-team-card-alert {

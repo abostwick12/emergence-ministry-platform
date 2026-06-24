@@ -45,6 +45,7 @@ function scheduleToInput(item?: CampScheduleBlock, selectedDay = ""): CampSchedu
 export default function CampSchedulePage() {
   const { scheduleForSelectedDay, selectedDay, loading, overview, refresh } = useCamp();
   const [editing, setEditing] = useState<CampScheduleInput | null>(null);
+  const [viewing, setViewing] = useState<CampScheduleBlock | null>(null);
   const [message, setMessage] = useState<{ tone: "error" | "success"; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -121,16 +122,53 @@ export default function CampSchedulePage() {
             <li key={item.id} className="camp-schedule-item">
               <span className="camp-schedule-time">{item.time}</span>
               <div className="camp-schedule-body">
-                <button className="camp-inline-button" type="button" onClick={() => setEditing(scheduleToInput(item, selectedDay))}>
+                <button className="camp-inline-button" type="button" onClick={() => setViewing(item)} aria-label={`Open ${item.title} schedule details`}>
                   <strong>{item.title}</strong>
                 </button>
                 {item.location ? <span className="camp-cc-muted">{item.location}</span> : null}
+                {item.notes ? <span className="camp-schedule-note">{item.notes}</span> : null}
                 <span className="camp-cc-tag subtle">{item.audience}</span>
               </div>
             </li>
           ))}
         </ol>
       )}
+      {viewing ? (
+        <CampOperationDialog
+          title={viewing.title}
+          description="Full schedule details for this Camp event."
+          onClose={() => setViewing(null)}
+          footer={
+            <>
+              <button className="button" type="button" onClick={() => setViewing(null)}>Close</button>
+              <button className="button primary" type="button" onClick={() => { setEditing(scheduleToInput(viewing, selectedDay)); setViewing(null); }}>Edit</button>
+            </>
+          }
+        >
+          <dl className="camp-team-detail-meta">
+            <div>
+              <dt>Time</dt>
+              <dd>{viewing.time}</dd>
+            </div>
+            <div>
+              <dt>Location</dt>
+              <dd>{viewing.location || "No location set"}</dd>
+            </div>
+            <div>
+              <dt>Audience</dt>
+              <dd>{viewing.audience}</dd>
+            </div>
+            <div>
+              <dt>Status</dt>
+              <dd>{viewing.status ?? "Planned"}</dd>
+            </div>
+          </dl>
+          <label className="field">
+            <span>Notes</span>
+            <textarea className="input" rows={4} value={viewing.notes ?? ""} readOnly />
+          </label>
+        </CampOperationDialog>
+      ) : null}
       {editing ? (
         <CampOperationDialog
           title={editing.id ? "Edit Schedule Item" : "Add Schedule Item"}

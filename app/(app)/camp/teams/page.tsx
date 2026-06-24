@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { CampOperationDialog } from "@/components/camp/camp-operation-dialog";
 import { useCamp } from "@/components/camp/camp-provider";
@@ -59,6 +60,7 @@ export default function CampTeamsPage() {
   const counts = useTeamStudentCounts();
   const missingCounts = useTeamMissingAssignmentCounts();
   const [editing, setEditing] = useState<CampTeamInput | null>(null);
+  const [selectedTeam, setSelectedTeam] = useState<CampTeam | null>(null);
   const [message, setMessage] = useState<{ tone: "error" | "success"; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const activeStaff = overview.staff.filter((member) => !member.archivedAt);
@@ -124,18 +126,51 @@ export default function CampTeamsPage() {
       ) : (
         <div className="camp-team-grid">
           {overview.teams.map((team) => (
-            <div className="camp-editor-card" key={team.id} style={{ gridTemplateColumns: "1fr", gridAutoFlow: "row" }}>
-              <CampTeamCard
-                team={team}
-                studentCount={counts.get(team.id) ?? 0}
-                missingAssignmentCount={missingCounts.get(team.id) ?? 0}
-                variant="list"
-              />
-              <button className="button compact-button" type="button" onClick={() => setEditing(teamToInput(team))}>Edit Team</button>
-            </div>
+            <CampTeamCard
+              key={team.id}
+              team={team}
+              studentCount={counts.get(team.id) ?? 0}
+              missingAssignmentCount={missingCounts.get(team.id) ?? 0}
+              variant="list"
+              onSelect={() => setSelectedTeam(team)}
+            />
           ))}
         </div>
       )}
+      {selectedTeam ? (
+        <CampOperationDialog
+          title={`${selectedTeam.name} Team`}
+          description="Open team details or update safe team assignment fields."
+          onClose={() => setSelectedTeam(null)}
+          footer={
+            <>
+              <button className="button" type="button" onClick={() => setSelectedTeam(null)}>Close</button>
+              <Link className="button compact-button" href={`/camp/teams/${selectedTeam.id}`}>Open Team</Link>
+              <button className="button primary" type="button" onClick={() => { setEditing(teamToInput(selectedTeam)); setSelectedTeam(null); }}>Edit</button>
+            </>
+          }
+        >
+          <dl className="camp-team-detail-meta">
+            <div>
+              <dt>Leader</dt>
+              <dd>{selectedTeam.leader?.trim() || "Unassigned"}</dd>
+            </div>
+            <div>
+              <dt>Co-leader</dt>
+              <dd>{selectedTeam.coLeader?.trim() || "Unassigned"}</dd>
+            </div>
+            <div>
+              <dt>Room / cabin</dt>
+              <dd>{selectedTeam.room?.trim() || "Unassigned"}</dd>
+            </div>
+            <div>
+              <dt>Campers</dt>
+              <dd>{counts.get(selectedTeam.id) ?? 0}</dd>
+            </div>
+          </dl>
+          {selectedTeam.notes?.trim() ? <p className="camp-cc-muted">{selectedTeam.notes}</p> : null}
+        </CampOperationDialog>
+      ) : null}
       {editing ? (
         <CampOperationDialog
           title={editing.id ? "Edit Team" : "Add Team"}

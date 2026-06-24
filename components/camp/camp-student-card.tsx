@@ -1,13 +1,16 @@
 "use client";
 
+import type { CSSProperties } from "react";
+import { teamAccent } from "@/components/camp/camp-team-card";
 import type { CampVisibleStudent } from "@/lib/camp/types";
 
-// Only safe, operational tags. Derived from already-public payload fields — never
+// Only safe, operational tags. Derived from already-public payload fields - never
 // from medication names, dosage, allergy specifics, diagnoses, or notes.
 function safeTags(student: CampVisibleStudent): string[] {
   const tags: string[] = [];
   if (student.hasMedicationPlan) tags.push("Medication on file");
   if (student.hasDietaryAlert) tags.push("Food allergy");
+  if (student.hasMedicalAlert) tags.push("Medical concern");
   if (student.needsParentClarification) tags.push("Missing form");
   if (student.needsParentClarification) tags.push("Needs check-in");
   // limitedSafetyFlags are server-scrubbed public strings; render as-is.
@@ -19,12 +22,16 @@ function safeTags(student: CampVisibleStudent): string[] {
 
 export function CampStudentCard({ student }: { student: CampVisibleStudent }) {
   const tags = safeTags(student);
+  const hasTeamColor = Boolean(student.teamName && student.teamName !== "Unassigned");
+  const teamStyle = hasTeamColor
+    ? ({ "--camp-student-team-accent": teamAccent(student.teamName ?? "") } as CSSProperties)
+    : undefined;
   const meta = [student.grade, student.cabin, student.teamName ? `${student.teamName} team` : null]
     .filter(Boolean)
-    .join(" · ");
+    .join(" - ");
 
   return (
-    <div className="camp-student-row">
+    <div className={hasTeamColor ? "camp-student-row has-team-color" : "camp-student-row"} style={teamStyle}>
       <CampStudentAvatar student={student} />
       <div className="camp-student-info">
         <strong>{student.name}</strong>
@@ -41,7 +48,13 @@ export function CampStudentCard({ student }: { student: CampVisibleStudent }) {
   );
 }
 
-export function CampStudentAvatar({ student, size = "default" }: { student: Pick<CampVisibleStudent, "name" | "photoInitials" | "profilePhotoUrl">; size?: "default" | "sm" }) {
+export function CampStudentAvatar({
+  student,
+  size = "default"
+}: {
+  student: Pick<CampVisibleStudent, "name" | "photoInitials" | "profilePhotoUrl">;
+  size?: "default" | "sm";
+}) {
   const className = size === "sm" ? "camp-student-avatar sm" : "camp-student-avatar";
   if (student.profilePhotoUrl) {
     return (

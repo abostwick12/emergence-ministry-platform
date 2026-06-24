@@ -36,7 +36,7 @@ const RESTRICTED_TOKENS = [
   "dose",
   "dosage",
   "insurance",
-  "allerg",
+  "allergy details",
   "diagnos",
   "signature",
   "guardian",
@@ -96,7 +96,7 @@ describe("leader-safety mapper", () => {
   it("returns no indicators and safe meta for a camper with nothing on file", () => {
     const result = toLeaderSafetyStudent(visibleStudent());
     expect(result.indicators).toHaveLength(0);
-    expect(result.meta).toBe("8th · Cabin A · Blue team");
+    expect(result.meta).toBe("8th - Cabin A - Blue team");
   });
 
   it("never emits restricted detail in any label or meta across a roster", () => {

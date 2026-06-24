@@ -1,4 +1,5 @@
 import { getCampVisibleStudentsForData, isRestrictedCampMedicalRole } from "@/lib/camp/access";
+import { parseMedicationScheduleText } from "@/lib/camp/medication-schedule-text";
 import { campDocuments, campName, campSchedule, campStartsOn, campStudents, campTeams, campVehicles } from "@/lib/camp/public-data";
 import { sanitizePublicSafetyFlags } from "@/lib/camp/public-safety";
 import {
@@ -561,7 +562,8 @@ export function saveMedicationIntake(role: CampAccessRole, input: CampMedication
   };
 
   store.medicationIntakeRecords.unshift(record);
-  return { allowed: true as const, status: 201, intake: record, record: withLatestIntakeSummary(medication.record) };
+  const scheduleItems = ensureMedicationScheduleItemsForIntake(role, medication.record.id, input.scheduleText, input.parentInstructions);
+  return { allowed: true as const, status: 201, intake: record, record: withLatestIntakeSummary(medication.record), scheduleItems };
 }
 
 export function upsertMedicationRecord(role: CampAccessRole, input: Partial<CampMedicationRecord> & { studentId: string }) {
@@ -618,6 +620,37 @@ export function upsertMedicationScheduleItem(
   if (existing) Object.assign(existing, item);
   else store.medicationSchedule.unshift(item);
   return { allowed: true as const, status: 200, item };
+}
+
+function ensureMedicationScheduleItemsForIntake(
+  role: CampAccessRole,
+  medicationRecordId: string,
+  scheduleText: string,
+  parentProvidedInstructions: string
+): CampMedicationScheduleItem[] {
+  const timeWindows = parseMedicationScheduleText(scheduleText);
+  if (!timeWindows.length) return [];
+
+  const activeScheduleItems = activeAuditItems(store.medicationSchedule, "supersedesScheduleItemId")
+    .filter((item) => item.medicationRecordId === medicationRecordId && !item.archivedAt);
+  const existingWindows = new Set(activeScheduleItems.map((item) => item.timeWindow.trim().toLowerCase()));
+  const created: CampMedicationScheduleItem[] = [];
+
+  for (const timeWindow of timeWindows) {
+    const key = timeWindow.trim().toLowerCase();
+    if (!key || existingWindows.has(key)) continue;
+    const payload = upsertMedicationScheduleItem(role, {
+      medicationRecordId,
+      timeWindow,
+      parentProvidedInstructions
+    });
+    if (payload.allowed) {
+      created.push(payload.item);
+      existingWindows.add(key);
+    }
+  }
+
+  return created;
 }
 
 export function saveMedicationPhoto(
