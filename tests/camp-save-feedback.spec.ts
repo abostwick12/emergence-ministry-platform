@@ -122,7 +122,7 @@ test.describe("Camp dedicated medication tool pages", () => {
     await expect(page.getByLabel("Camper medication record")).toHaveValue("");
     await page.getByLabel("Medication name/type").fill("New imported camper medication");
     await page.getByLabel("Dose").fill("Parent label dose");
-    await page.getByLabel("Scheduled time(s)").fill("Breakfast");
+    await page.getByLabel("Scheduled time(s)").fill("8am and 12pm");
     await page.getByLabel("Quantity received").fill("6 tablets");
     await page.getByLabel("Parent/guardian instructions").fill("Follow parent instructions.");
     await page.getByLabel("Parent/guardian name").fill("Pat Parent");
@@ -133,6 +133,10 @@ test.describe("Camp dedicated medication tool pages", () => {
     await page.getByRole("button", { name: "Save medication intake" }).click();
     await expect(page.getByText("Saved. Medication intake recorded with parent/guardian acknowledgement.")).toBeVisible();
     await expect(page.getByRole("region", { name: "Recent medication intake records" }).getByText("Riley Brooks - New imported camper medication")).toBeVisible();
+
+    await page.goto("/camp/medical-command/administer");
+    await expect(page.getByLabel("Medication time block")).toContainText("Riley Brooks - 8:00 AM");
+    await expect(page.getByLabel("Medication time block")).toContainText("Riley Brooks - 12:00 PM");
   });
 
   test("Medicine Intake saves the record even when background photo upload fails, then retries", async ({ page }) => {

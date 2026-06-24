@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CampAccessAdminPanel } from "@/components/camp/camp-access-admin";
+import { CampOperationDialog } from "@/components/camp/camp-operation-dialog";
 import { useCamp } from "@/components/camp/camp-provider";
 import { prepareCampImageFile } from "@/lib/camp/client-image";
 import { getMedicineIntakeReturnVisibility } from "@/lib/camp/medication-workflow-visibility";
@@ -840,9 +841,8 @@ export function CampAdministerMedicineToolPage() {
     <ToolPageShell title="Administer Medicine" subtitle="Andrew-only queue for medication administration.">
       <MedicationDataGate required="medicalCommand">
         {(data) => {
-          const openItems = data.schedule.filter((item) => item.status !== "Logged");
           return data.schedule.length ? (
-            <MedicationAdministrationForm data={data} openItems={openItems} requestedScheduleItemId={searchParams.get("scheduleItemId")} />
+            <MedicationAdministrationForm data={data} requestedScheduleItemId={searchParams.get("scheduleItemId")} />
           ) : (
             <EmptyState>No open medication administration items are on file.</EmptyState>
           );
@@ -854,19 +854,26 @@ export function CampAdministerMedicineToolPage() {
 
 function MedicationAdministrationForm({
   data,
-  openItems,
   requestedScheduleItemId
 }: {
   data: MedicationPayload;
-  openItems: CampMedicationScheduleItem[];
   requestedScheduleItemId: string | null;
 }) {
-  const activeItems = openItems.length ? openItems : data.schedule;
+  const [scheduleItems, setScheduleItems] = useState(data.schedule);
+  const currentOpenItems = useMemo(() => scheduleItems.filter((item) => item.status !== "Logged"), [scheduleItems]);
+  const activeItems = useMemo(() => currentOpenItems.length ? currentOpenItems : scheduleItems, [currentOpenItems, scheduleItems]);
   const initialScheduleId = activeItems.some((item) => item.id === requestedScheduleItemId) ? requestedScheduleItemId ?? activeItems[0]?.id ?? "" : activeItems[0]?.id ?? "";
   const [scheduleItemId, setScheduleItemId] = useState(initialScheduleId);
   const [loggedBy, setLoggedBy] = useState("Andrew");
   const [status, setStatus] = useState<CampMedicationAdministrationLog["status"]>("Logged");
   const [notes, setNotes] = useState("");
+  const [scheduleEdit, setScheduleEdit] = useState<{
+    id: string;
+    medicationRecordId: string;
+    timeWindow: string;
+    parentProvidedInstructions: string;
+    status: CampMedicationScheduleItem["status"];
+  } | null>(null);
   const [ackSignature, setAckSignature] = useState<CampSignatureData>(() => emptySignatureData());
   const [ackUnavailable, setAckUnavailable] = useState(false);
   const [ackReason, setAckReason] = useState("");
@@ -881,10 +888,60 @@ function MedicationAdministrationForm({
     }
   }, [activeItems, requestedScheduleItemId]);
 
-  const selected = data.schedule.find((item) => item.id === scheduleItemId) ?? activeItems[0];
+  useEffect(() => {
+    setScheduleItems(data.schedule);
+  }, [data.schedule]);
+
+  const selected = scheduleItems.find((item) => item.id === scheduleItemId) ?? activeItems[0];
   const history = administrationLog.filter((log) => log.scheduleItemId === selected?.id && (showArchivedHistory || !log.archivedAt));
   const acknowledgementReady = ackUnavailable ? Boolean(ackReason.trim()) : hasSignature(ackSignature);
   const canSubmit = Boolean(selected) && Boolean(loggedBy.trim()) && acknowledgementReady && !saving;
+
+  function beginScheduleEdit() {
+    if (!selected) return;
+    setScheduleEdit({
+      id: selected.id,
+      medicationRecordId: selected.medicationRecordId,
+      timeWindow: selected.timeWindow,
+      parentProvidedInstructions: selected.parentProvidedInstructions,
+      status: selected.status
+    });
+    setMessage(null);
+  }
+
+  async function saveScheduleEdit() {
+    if (!scheduleEdit) return;
+    if (!scheduleEdit.timeWindow.trim()) {
+      setMessage({ tone: "error", text: "Medication time block needs a time or label before saving." });
+      return;
+    }
+
+    setSaving(true);
+    setMessage(null);
+    const response = await fetch("/api/camp/medication", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        target: "schedule",
+        id: scheduleEdit.id,
+        medicationRecordId: scheduleEdit.medicationRecordId,
+        timeWindow: scheduleEdit.timeWindow,
+        parentProvidedInstructions: scheduleEdit.parentProvidedInstructions,
+        status: scheduleEdit.status
+      })
+    });
+    const body = await response.json().catch(() => ({})) as { error?: string; item?: CampMedicationScheduleItem };
+    setSaving(false);
+    if (!response.ok || !body.item) {
+      setMessage({ tone: "error", text: body.error ?? "Medication time block could not be saved." });
+      return;
+    }
+
+    setScheduleItems((current) => current.map((item) => item.id === body.item?.id ? body.item as CampMedicationScheduleItem : item));
+    setScheduleItemId(body.item.id);
+    setScheduleEdit(null);
+    setMessage({ tone: "success", text: "Medication time block updated." });
+  }
 
   async function submit() {
     if (!selected) return;
@@ -960,12 +1017,24 @@ function MedicationAdministrationForm({
 
       <label className="field">
         <span>Medication time block</span>
-        <select className="input" value={scheduleItemId} onChange={(event) => setScheduleItemId(event.target.value)}>
+        <select className="input" value={scheduleItemId} onChange={(event) => { setScheduleItemId(event.target.value); setScheduleEdit(null); }}>
           {activeItems.map((item) => (
             <option key={item.id} value={item.id}>{item.studentName} - {item.timeWindow}</option>
           ))}
         </select>
       </label>
+      {selected ? (
+        <section className="camp-editor-card" aria-label="Selected administration block">
+          <div>
+            <strong>{selected.studentName} - {selected.timeWindow}</strong>
+            <p className="camp-cc-muted">{selected.parentProvidedInstructions}</p>
+          </div>
+          <div className="camp-row-actions">
+            <StatusPill tone={statusTone(selected.status)}>{selected.status}</StatusPill>
+            <button className="button compact-button" type="button" onClick={beginScheduleEdit}>Edit Time Block</button>
+          </div>
+        </section>
+      ) : null}
 
       <div className="camp-form-grid">
         <label className="field">
@@ -1060,6 +1129,38 @@ function MedicationAdministrationForm({
           <EmptyState>No administration history is on file for this time block yet. Each save appends a new log.</EmptyState>
         )}
       </section>
+      {scheduleEdit ? (
+        <CampOperationDialog
+          title="Edit Medication Time Block"
+          description="Updates the selected administration block for this medication record."
+          onClose={() => setScheduleEdit(null)}
+          footer={
+            <>
+              <button className="button" type="button" disabled={saving} onClick={() => setScheduleEdit(null)}>Cancel</button>
+              <button className="button primary" type="button" disabled={saving} onClick={() => void saveScheduleEdit()}>{saving ? "Saving..." : "Save Time Block"}</button>
+            </>
+          }
+        >
+          <div className="camp-field-grid">
+            <label className="field">
+              <span>Time block</span>
+              <input className="input" value={scheduleEdit.timeWindow} onChange={(event) => setScheduleEdit({ ...scheduleEdit, timeWindow: event.target.value })} />
+            </label>
+            <label className="field">
+              <span>Status</span>
+              <select className="input" value={scheduleEdit.status} onChange={(event) => setScheduleEdit({ ...scheduleEdit, status: event.target.value as CampMedicationScheduleItem["status"] })}>
+                <option value="Pending">Pending</option>
+                <option value="Logged">Logged</option>
+                <option value="Needs Parent Clarification">Needs Parent Clarification</option>
+              </select>
+            </label>
+          </div>
+          <label className="field">
+            <span>Parent-provided instructions</span>
+            <textarea className="input" rows={3} value={scheduleEdit.parentProvidedInstructions} onChange={(event) => setScheduleEdit({ ...scheduleEdit, parentProvidedInstructions: event.target.value })} />
+          </label>
+        </CampOperationDialog>
+      ) : null}
     </div>
   );
 }

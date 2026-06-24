@@ -618,7 +618,7 @@ describe("camp API restricted data boundaries", () => {
       clarificationStatus: "Clear",
       confirmationAcknowledged: true
     }));
-    const payload = await response.json() as { intake: Record<string, unknown>; record: Record<string, unknown> };
+    const payload = await response.json() as { intake: Record<string, unknown>; record: Record<string, unknown>; scheduleItems: Array<Record<string, unknown>> };
 
     expect(response.status).toBe(201);
     expect(payload.intake).toMatchObject({
@@ -630,10 +630,12 @@ describe("camp API restricted data boundaries", () => {
       checkInStatus: "Checked In",
       latestQuantityReceived: "10 tablets"
     });
+    expect(payload.scheduleItems).toContainEqual(expect.objectContaining({ timeWindow: "Breakfast" }));
 
     const medicationResponse = await medicationGET(new Request("http://localhost/api/camp/medication?role=andrew"));
-    const medicationPayload = await medicationResponse.json() as { intakeHistory: Array<Record<string, unknown>> };
+    const medicationPayload = await medicationResponse.json() as { intakeHistory: Array<Record<string, unknown>>; schedule: Array<Record<string, unknown>> };
     expect(medicationPayload.intakeHistory[0]).toMatchObject({ quantityReceived: "10 tablets" });
+    expect(medicationPayload.schedule).toContainEqual(expect.objectContaining({ timeWindow: "Breakfast" }));
   });
 
   it("blocks Medical Command for General Leaders and Drivers (no payload)", async () => {

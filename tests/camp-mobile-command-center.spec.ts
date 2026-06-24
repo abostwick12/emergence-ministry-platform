@@ -68,7 +68,10 @@ test.describe("Camp mobile Command Center", () => {
     await login(page);
     await page.goto("/camp/teams");
 
-    await expect(page.getByRole("link", { name: /Open Blue team/ })).toBeVisible();
+    await page.getByRole("button", { name: /Open Blue team menu/ }).click();
+    await expect(page.getByRole("dialog", { name: /Blue Team/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Edit", exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Open Team" })).toBeVisible();
 
     const body = (await page.locator("body").textContent()) ?? "";
     for (const needle of ["Parent-labeled medication", "Insurance card", "dosage", "guardianSignature", "allergyNotes"]) {

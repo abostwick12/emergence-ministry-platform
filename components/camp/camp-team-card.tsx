@@ -5,7 +5,7 @@ import type { CSSProperties } from "react";
 import type { CampTeam } from "@/lib/camp/types";
 
 // Restrained, readable accent per real Camp Oakwood color. Used as a translucent
-// gradient + accent border only — never a loud solid block.
+// gradient + accent border only - never a loud solid block.
 const ACCENTS: Record<string, string> = {
   Blue: "#2563eb",
   Red: "#dc2626",
@@ -24,18 +24,20 @@ type CampTeamCardProps = {
   studentCount: number;
   missingAssignmentCount?: number;
   variant?: "carousel" | "list";
+  onSelect?: () => void;
 };
 
-export function CampTeamCard({ team, studentCount, missingAssignmentCount = 0, variant = "list" }: CampTeamCardProps) {
-  const accentStyle = { "--camp-team-accent": teamAccent(team.color) } as CSSProperties;
-
+function CampTeamCardContents({
+  team,
+  studentCount,
+  missingAssignmentCount
+}: {
+  team: CampTeam;
+  studentCount: number;
+  missingAssignmentCount: number;
+}) {
   return (
-    <Link
-      href={`/camp/teams/${team.id}`}
-      className={`camp-team-card camp-team-card-${variant}`}
-      style={accentStyle}
-      aria-label={`Open ${team.name} team`}
-    >
+    <>
       <div className="camp-team-card-head">
         <span className="camp-team-dot" aria-hidden="true" />
         <span className="camp-team-name">{team.name}</span>
@@ -60,7 +62,37 @@ export function CampTeamCard({ team, studentCount, missingAssignmentCount = 0, v
       {missingAssignmentCount > 0 ? (
         <span className="camp-team-card-alert">{missingAssignmentCount} missing assignment{missingAssignmentCount === 1 ? "" : "s"}</span>
       ) : null}
-      <span className="camp-team-card-cta">Open team →</span>
+      <span className="camp-team-card-cta">Open team menu</span>
+    </>
+  );
+}
+
+export function CampTeamCard({ team, studentCount, missingAssignmentCount = 0, variant = "list", onSelect }: CampTeamCardProps) {
+  const accentStyle = { "--camp-team-accent": teamAccent(team.color) } as CSSProperties;
+  const className = `camp-team-card camp-team-card-${variant}`;
+
+  if (onSelect) {
+    return (
+      <button
+        type="button"
+        className={`${className} camp-team-card-button`}
+        style={accentStyle}
+        aria-label={`Open ${team.name} team menu`}
+        onClick={onSelect}
+      >
+        <CampTeamCardContents team={team} studentCount={studentCount} missingAssignmentCount={missingAssignmentCount} />
+      </button>
+    );
+  }
+
+  return (
+    <Link
+      href={`/camp/teams/${team.id}`}
+      className={className}
+      style={accentStyle}
+      aria-label={`Open ${team.name} team`}
+    >
+      <CampTeamCardContents team={team} studentCount={studentCount} missingAssignmentCount={missingAssignmentCount} />
     </Link>
   );
 }

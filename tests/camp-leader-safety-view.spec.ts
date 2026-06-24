@@ -31,6 +31,9 @@ for (const vp of VIEWPORTS) {
       await expect(page.getByRole("searchbox", { name: "Search Leader Safety roster" })).toBeVisible();
       // Calm presence indicator from seeded general-leader-safe data.
       await expect(page.getByText("Medication on file", { exact: false }).first()).toBeVisible();
+      await expect(page.getByLabel("Filter Leader Safety by team")).toBeVisible();
+      await page.getByLabel("Filter Leader Safety by team").selectOption("Blue");
+      await expect(page.getByText("Blue team").first()).toBeVisible();
 
       const body = (await page.locator("body").textContent()) ?? "";
       for (const needle of RESTRICTED_NEEDLES) {

@@ -23,19 +23,25 @@ const TONE_CLASS: Record<LeaderSafetyTone, string> = {
 export function CampLeaderSafetyView() {
   const { overview, loading } = useCamp();
   const [query, setQuery] = useState("");
+  const [teamFilter, setTeamFilter] = useState("all");
 
   const roster = useMemo(() => toLeaderSafetyRoster(overview.students), [overview.students]);
+  const teamOptions = useMemo(
+    () => ["Unassigned", ...overview.teams.map((team) => team.name)].filter((teamName, index, values) => values.indexOf(teamName) === index),
+    [overview.teams]
+  );
 
   const filtered = useMemo(() => {
     const search = query.trim().toLowerCase();
-    if (!search) return roster;
-    return roster.filter((student) =>
-      [student.name, student.meta, ...student.indicators.map((indicator) => indicator.label)]
+    return roster.filter((student) => {
+      if (teamFilter !== "all" && student.teamName !== teamFilter) return false;
+      if (!search) return true;
+      return [student.name, student.meta, ...student.indicators.map((indicator) => indicator.label)]
         .join(" ")
         .toLowerCase()
-        .includes(search)
-    );
-  }, [roster, query]);
+        .includes(search);
+    });
+  }, [roster, query, teamFilter]);
 
   return (
     <div className="camp-cc-page">
@@ -67,6 +73,15 @@ export function CampLeaderSafetyView() {
         onChange={(event) => setQuery(event.target.value)}
         aria-label="Search Leader Safety roster"
       />
+      <label className="field">
+        <span>Filter by team</span>
+        <select className="input" value={teamFilter} onChange={(event) => setTeamFilter(event.target.value)} aria-label="Filter Leader Safety by team">
+          <option value="all">All teams</option>
+          {teamOptions.map((teamName) => (
+            <option key={teamName} value={teamName}>{teamName}</option>
+          ))}
+        </select>
+      </label>
 
       {loading && !roster.length ? (
         <p className="camp-cc-muted">Loading camper safety view…</p>

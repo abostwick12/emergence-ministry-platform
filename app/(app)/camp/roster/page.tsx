@@ -302,6 +302,23 @@ export default function CampRosterPage() {
             <label className="camp-checkbox-line"><input type="checkbox" checked={Boolean(editing.emergencyContactOnFile)} onChange={(event) => setEditing({ ...editing, emergencyContactOnFile: event.target.checked })} /><span>Emergency contact presence confirmed</span></label>
             <label className="camp-checkbox-line"><input type="checkbox" checked={Boolean(editing.hasMedicalAlert)} onChange={(event) => setEditing({ ...editing, hasMedicalAlert: event.target.checked })} /><span>Care plan on file</span></label>
             <label className="camp-checkbox-line"><input type="checkbox" checked={Boolean(editing.hasDietaryAlert)} onChange={(event) => setEditing({ ...editing, hasDietaryAlert: event.target.checked })} /><span>Dietary plan on file</span></label>
+            <label className="field">
+              <span>Leader-safe notes</span>
+              <textarea
+                className="input"
+                rows={3}
+                value={(editing.limitedSafetyFlags ?? []).join("\n")}
+                onChange={(event) => setEditing({
+                  ...editing,
+                  limitedSafetyFlags: event.target.value
+                    .split(/\r?\n/)
+                    .map((line) => line.trim())
+                    .filter(Boolean)
+                })}
+                placeholder="Public operational notes only"
+              />
+            </label>
+            <p className="camp-cc-muted">Do not enter medication names, doses, allergy details, diagnoses, guardian details, or restricted medical notes here.</p>
           </section>
         </CampOperationDialog>
       ) : null}

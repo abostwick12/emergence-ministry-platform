@@ -91,7 +91,7 @@ export async function POST(request: Request) {
         correctionNote: body.correctionNote
       });
       if (!payload.allowed) return NextResponse.json({ error: payload.error }, { status: payload.status });
-      return NextResponse.json({ intake: payload.intake, record: payload.record }, { status: payload.status });
+      return NextResponse.json({ intake: payload.intake, record: payload.record, scheduleItems: payload.scheduleItems ?? [] }, { status: payload.status });
     }
 
     if (body.target === "schedule") {

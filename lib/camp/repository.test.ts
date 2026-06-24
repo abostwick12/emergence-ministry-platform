@@ -26,6 +26,7 @@ import {
   updateCampStaffMember
 } from "@/lib/camp/repository";
 import { __resetCampStoreForTests } from "@/lib/camp/store";
+import { parseMedicationScheduleText } from "@/lib/camp/medication-schedule-text";
 import { getMedicineIntakeReturnVisibility } from "@/lib/camp/medication-workflow-visibility";
 
 function session(fullName = "MVP Staff User", email = "staff@example.com"): AuthSession {
@@ -230,6 +231,63 @@ describe("camp repository mock fallback", () => {
     const publicOverview = await getCampOverview(mockSession, general);
     expect(JSON.stringify(publicOverview)).not.toContain("Repository intake medication");
     expect(JSON.stringify(publicOverview)).not.toContain("Pat Parent");
+  });
+
+  it("parses medication handoff time lists into separate administration blocks", () => {
+    expect(parseMedicationScheduleText("8am and 12pm")).toEqual(["8:00 AM", "12:00 PM"]);
+    expect(parseMedicationScheduleText("0800, 1200")).toEqual(["8:00 AM", "12:00 PM"]);
+    expect(parseMedicationScheduleText("8, 12")).toEqual(["8:00 AM", "12:00 PM"]);
+    expect(parseMedicationScheduleText("Breakfast")).toEqual(["Breakfast"]);
+  });
+
+  it("creates separate medication schedule rows from intake time lists without duplicating active blocks", async () => {
+    const mockSession = session();
+    const restricted = resolveCampAccessContext(mockSession, "andrew");
+
+    const first = await saveMedicationIntake(mockSession, restricted, {
+      studentId: "stu-1",
+      medicationName: "Multi-time parent medication",
+      dose: "Parent-labeled dose",
+      scheduleText: "8am and 12pm",
+      parentInstructions: "Follow signed parent instructions.",
+      staffNotes: "",
+      quantityReceived: "8 tablets",
+      containerStatus: "Original bottle",
+      receivedByName: "Andrew",
+      guardianName: "Pat Parent",
+      guardianRelationship: "Parent",
+      guardianSignatureData: { width: 640, height: 220, strokes: [[{ x: 10, y: 20 }, { x: 30, y: 40 }]] },
+      confirmationAcknowledged: true
+    });
+    expect(first.allowed).toBe(true);
+    if (!first.allowed) throw new Error("expected first intake save success");
+    expect(first.scheduleItems.map((item) => item.timeWindow)).toEqual(["8:00 AM", "12:00 PM"]);
+
+    const second = await saveMedicationIntake(mockSession, restricted, {
+      medicationRecordId: first.record.id,
+      studentId: "stu-1",
+      medicationName: "Multi-time parent medication",
+      dose: "Parent-labeled dose",
+      scheduleText: "0800, 1200",
+      parentInstructions: "Follow signed parent instructions.",
+      staffNotes: "",
+      quantityReceived: "8 tablets",
+      containerStatus: "Original bottle",
+      receivedByName: "Andrew",
+      guardianName: "Pat Parent",
+      guardianRelationship: "Parent",
+      guardianSignatureData: { width: 640, height: 220, strokes: [[{ x: 10, y: 20 }, { x: 30, y: 40 }]] },
+      confirmationAcknowledged: true
+    });
+    expect(second.allowed).toBe(true);
+    if (!second.allowed) throw new Error("expected second intake save success");
+    expect(second.scheduleItems).toEqual([]);
+
+    const payload = await getRestrictedCampMedicationPayload(mockSession, restricted);
+    expect(payload.allowed).toBe(true);
+    if (!payload.allowed) throw new Error("expected restricted payload");
+    const generated = payload.schedule.filter((item) => item.medicationRecordId === first.record.id);
+    expect(generated.map((item) => item.timeWindow).sort()).toEqual(["12:00 PM", "8:00 AM"]);
   });
 
   it("includes imported active campers without assignments or medication records in the restricted medication selector payload", async () => {
