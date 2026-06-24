@@ -16,12 +16,14 @@ import {
   getMedicationPhotoAccess,
   getRestrictedCampMedicalPayload,
   getRestrictedCampMedicationPayload,
+  getCampStaffManagementPayload,
   restoreCampStudent,
   saveMedicationPhoto,
   saveMedicationIntake,
   upsertCampStudent,
   upsertRestrictedMedicalRecord,
-  upsertMedicationRecord
+  upsertMedicationRecord,
+  updateCampStaffMember
 } from "@/lib/camp/repository";
 import { __resetCampStoreForTests } from "@/lib/camp/store";
 import { getMedicineIntakeReturnVisibility } from "@/lib/camp/medication-workflow-visibility";
@@ -228,6 +230,88 @@ describe("camp repository mock fallback", () => {
     const publicOverview = await getCampOverview(mockSession, general);
     expect(JSON.stringify(publicOverview)).not.toContain("Repository intake medication");
     expect(JSON.stringify(publicOverview)).not.toContain("Pat Parent");
+  });
+
+  it("includes imported active campers without assignments or medication records in the restricted medication selector payload", async () => {
+    const mockSession = session();
+    const general = resolveCampAccessContext(mockSession, "general_leader");
+    const restricted = resolveCampAccessContext(mockSession, "andrew");
+
+    const student = await upsertCampStudent(mockSession, general, {
+      name: "Imported No Assignment Camper",
+      grade: "9th",
+      teamId: "",
+      vehicleId: "",
+      cabin: "",
+      registrationExternalId: "70000991",
+      limitedSafetyFlags: []
+    });
+    expect(student.allowed).toBe(true);
+    if (!student.allowed) throw new Error("expected camper create success");
+
+    const payload = await getRestrictedCampMedicationPayload(mockSession, restricted);
+    expect(payload.allowed).toBe(true);
+    if (!payload.allowed) throw new Error("expected restricted medication payload");
+
+    expect(payload.campers).toContainEqual(expect.objectContaining({
+      id: student.student.id,
+      name: "Imported No Assignment Camper",
+      teamId: "",
+      vehicleId: "",
+      cabin: "",
+      registrationExternalId: "70000991"
+    }));
+    expect(payload.checkIn.some((record) => record.studentId === student.student.id)).toBe(false);
+  });
+
+  it("creates medication intake for an existing imported camper without duplicating the camper", async () => {
+    const mockSession = session();
+    const general = resolveCampAccessContext(mockSession, "general_leader");
+    const restricted = resolveCampAccessContext(mockSession, "andrew");
+
+    const student = await upsertCampStudent(mockSession, general, {
+      name: "Imported Medication Camper",
+      grade: "10th",
+      teamId: "",
+      vehicleId: "",
+      cabin: "",
+      registrationExternalId: "70000992",
+      limitedSafetyFlags: []
+    });
+    expect(student.allowed).toBe(true);
+    if (!student.allowed) throw new Error("expected camper create success");
+
+    const before = await getCampOverview(mockSession, general);
+    const intake = await saveMedicationIntake(mockSession, restricted, {
+      studentId: student.student.id,
+      medicationName: "Imported camper parent medication",
+      dose: "Parent label dose",
+      scheduleText: "Breakfast",
+      parentInstructions: "Follow parent instructions.",
+      staffNotes: "",
+      quantityReceived: "12 tablets",
+      containerStatus: "Original labeled container received",
+      receivedByName: "Andrew",
+      guardianName: "Pat Parent",
+      guardianRelationship: "Parent",
+      guardianSignatureData: { width: 640, height: 220, strokes: [[{ x: 4, y: 4 }, { x: 18, y: 18 }]] },
+      clarificationStatus: "Clear",
+      confirmationAcknowledged: true
+    });
+    expect(intake.allowed).toBe(true);
+    if (!intake.allowed) throw new Error("expected intake success");
+
+    const after = await getCampOverview(mockSession, general);
+    expect(after.students.filter((camper) => camper.name === "Imported Medication Camper")).toHaveLength(1);
+    expect(after.students).toHaveLength(before.students.length);
+
+    const payload = await getRestrictedCampMedicationPayload(mockSession, restricted);
+    expect(payload.allowed).toBe(true);
+    if (!payload.allowed) throw new Error("expected restricted medication payload");
+    expect(payload.checkIn).toContainEqual(expect.objectContaining({
+      studentId: student.student.id,
+      medicationName: "Imported camper parent medication"
+    }));
   });
 
   it("keeps active medication workflow records available when history archive filtering is applied", async () => {
@@ -665,6 +749,69 @@ describe("camp repository mock fallback", () => {
     });
     expect(overview.students.some((student) => student.name === "Fixture Staff Leader")).toBe(false);
     expect(JSON.stringify(overview)).not.toContain("Emergency Contact");
+  });
+
+  it("lets Camp Admin edit imported staff details without duplicating staff or exposing restricted data", async () => {
+    const mockSession = session();
+    const general = resolveCampAccessContext(mockSession, "general_leader");
+    const restricted = resolveCampAccessContext(mockSession, "andrew");
+    const csv = [
+      "Registration ID,Name,Selection,Grade,Room Number,T-Shirt Size,Team,Quick Filter,Emergency Contact",
+      "70000042,Editable Staff Leader,,,Cabin L,Adult XL,Blue Team,No Concern,"
+    ].join("\n");
+
+    const preview = await getOakwoodUploadImportPreview(mockSession, restricted, {
+      sourceName: "Oakwood Staff Edit Fixture",
+      sources: [{
+        scope: "staff_only",
+        csv,
+        fileName: "Oakwood_Leaders.csv",
+        checksumSha256: "safe-edit-fixture"
+      }]
+    });
+    if (!preview.allowed) throw new Error("expected staff preview success");
+    const commit = await commitOakwoodImport(mockSession, restricted, { preview: preview.preview, confirmed: true });
+    if (!commit.allowed || "error" in commit) throw new Error("expected staff commit success");
+
+    const before = await getCampStaffManagementPayload(mockSession, restricted);
+    expect(before.allowed).toBe(true);
+    if (!before.allowed) throw new Error("expected staff management payload");
+    const staff = before.staff.find((member) => member.name === "Editable Staff Leader");
+    const team = before.teams.find((item) => item.name === "Red") ?? before.teams[0];
+    expect(staff).toMatchObject({ registrationExternalId: "70000042" });
+    expect(team).toBeDefined();
+    if (!staff || !team) throw new Error("expected imported staff and team");
+
+    const blocked = await updateCampStaffMember(mockSession, general, {
+      id: staff.id,
+      name: "Blocked Staff Edit",
+      role: "leader",
+      teamId: team.id
+    });
+    expect(blocked.allowed).toBe(false);
+
+    const updated = await updateCampStaffMember(mockSession, restricted, {
+      id: staff.id,
+      name: "Editable Staff Leader Updated",
+      role: "leader",
+      shirtSize: "Adult Medium",
+      teamId: team.id
+    });
+    expect(updated.allowed).toBe(true);
+    if (!updated.allowed || "error" in updated) throw new Error("expected staff update success");
+    expect(updated.staff).toMatchObject({
+      id: staff.id,
+      name: "Editable Staff Leader Updated",
+      role: "leader",
+      shirtSize: "Adult Medium",
+      teamId: team.id
+    });
+
+    const overview = await getCampOverview(mockSession, general);
+    expect(overview.staff.filter((member) => member.id === staff.id)).toHaveLength(1);
+    expect(overview.staff).toContainEqual(expect.objectContaining({ id: staff.id, name: "Editable Staff Leader Updated" }));
+    expect(overview.students.some((student) => student.name === "Editable Staff Leader Updated")).toBe(false);
+    expect(JSON.stringify(overview.staff)).not.toContain("Parent medical note");
   });
 
   it("blocks Oakwood ambiguous rows and never matches household id alone", async () => {

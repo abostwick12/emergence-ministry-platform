@@ -114,6 +114,27 @@ test.describe("Camp dedicated medication tool pages", () => {
     await expect(page.getByText("Medication return status updated.")).toBeVisible();
   });
 
+  test("Medicine Intake can start medication for an active camper without an existing medication record", async ({ page }) => {
+    await login(page);
+    await page.goto("/camp/medicine-intake");
+
+    await page.getByLabel("Camper", { exact: true }).selectOption({ label: "Riley Brooks" });
+    await expect(page.getByLabel("Camper medication record")).toHaveValue("");
+    await page.getByLabel("Medication name/type").fill("New imported camper medication");
+    await page.getByLabel("Dose").fill("Parent label dose");
+    await page.getByLabel("Scheduled time(s)").fill("Breakfast");
+    await page.getByLabel("Quantity received").fill("6 tablets");
+    await page.getByLabel("Parent/guardian instructions").fill("Follow parent instructions.");
+    await page.getByLabel("Parent/guardian name").fill("Pat Parent");
+    await signPadWithWindowTouch(page.getByRole("img", { name: "Parent or guardian signature", exact: true }));
+    await page.getByLabel("Parent/guardian handoff details reviewed with staff.").check();
+
+    await expect(page.getByRole("button", { name: "Save medication intake" })).toBeEnabled();
+    await page.getByRole("button", { name: "Save medication intake" }).click();
+    await expect(page.getByText("Saved. Medication intake recorded with parent/guardian acknowledgement.")).toBeVisible();
+    await expect(page.getByRole("region", { name: "Recent medication intake records" }).getByText("Riley Brooks - New imported camper medication")).toBeVisible();
+  });
+
   test("Medicine Intake saves the record even when background photo upload fails, then retries", async ({ page }) => {
     await login(page);
     let photoAttempts = 0;

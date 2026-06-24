@@ -24,6 +24,50 @@ test.describe("Camp Oakwood restricted import boundaries", () => {
     await expect(page.getByText("no roster data is saved automatically on upload")).toBeVisible();
   });
 
+  test("Andrew can find and edit imported leader staff details", async ({ page }) => {
+    await login(page);
+
+    const csv = [
+      "Registration ID,Name,Selection,Grade,Room Number,T-Shirt Size,Team,Quick Filter,Emergency Contact",
+      "70001994,Playwright Staff Leader,Adult Volunteer,,Leader Cabin,Adult Large,Blue Team,No Concern,"
+    ].join("\n");
+    const preview = await page.request.post("/api/camp/import?role=andrew", {
+      data: {
+        action: "oakwoodPreview",
+        csv,
+        sourceFile: "Playwright_Staff.csv"
+      }
+    });
+    expect(preview.ok()).toBe(true);
+    const previewPayload = await preview.json();
+    const commit = await page.request.post("/api/camp/import?role=andrew", {
+      data: {
+        action: "oakwoodCommit",
+        oakwoodPreview: previewPayload.preview,
+        confirmed: true
+      }
+    });
+    expect(commit.ok()).toBe(true);
+
+    await page.goto("/camp/more");
+    await page.getByRole("link", { name: "Leader / Staff Details" }).click();
+    await page.waitForURL(/\/camp\/settings\/staff$/);
+    await expect(page.getByRole("heading", { name: "Leader / Staff Details" })).toBeVisible();
+    await expect(page.getByText("Playwright Staff Leader")).toBeVisible();
+    await expect(page.getByText("Oakwood registration ID: 70001994")).toBeVisible();
+
+    await page.getByRole("button", { name: "Edit Details" }).click();
+    await page.getByLabel("Display name").fill("Playwright Staff Leader Edited");
+    await page.getByLabel("Role / type").selectOption("leader");
+    await page.getByLabel("Team assignment").selectOption("team-red");
+    await page.getByLabel("Shirt size").fill("Adult Medium");
+    await page.getByRole("button", { name: "Save Staff Details" }).click();
+
+    await expect(page.getByText("Staff details saved.")).toBeVisible();
+    await expect(page.getByText("Playwright Staff Leader Edited")).toBeVisible();
+    await expect(page.getByText("Parent medical note")).toHaveCount(0);
+  });
+
   test("removes synthetic john test from active Camp views through the restricted archive workflow", async ({ page }) => {
     await login(page);
 

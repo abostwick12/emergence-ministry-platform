@@ -18,10 +18,14 @@ import type {
   CampOakwoodImportPreview,
   CampScheduleBlock,
   CampSignatureData,
+  CampStaffInput,
+  CampStaffMember,
+  CampTeam,
   CampVisibleStudent
 } from "@/lib/camp/types";
 
 type MedicationPayload = {
+  campers: CampVisibleStudent[];
   checkIn: CampMedicationRecord[];
   schedule: CampMedicationScheduleItem[];
   administrationLog: CampMedicationAdministrationLog[];
@@ -134,6 +138,12 @@ function statusTone(status: string): "ready" | "warn" | undefined {
   if (status.includes("Logged") || status.includes("Checked") || status.includes("Returned") || status.includes("Ready")) return "ready";
   if (status.includes("Clarification") || status.includes("Missing") || status.includes("Needed") || status.includes("Pending")) return "warn";
   return undefined;
+}
+
+function staffRoleLabel(role: CampStaffMember["role"]): string {
+  if (role === "leader") return "Leader";
+  if (role === "staff") return "Staff";
+  return "Adult volunteer";
 }
 
 function emptySignatureData(width = 640, height = 220): CampSignatureData {
@@ -464,11 +474,140 @@ export function CampSettingsToolPage() {
             </span>
             <span className="camp-cc-entry-arrow" aria-hidden="true">&gt;</span>
           </Link>
+          <Link className="camp-cc-entry" href="/camp/settings/staff">
+            <span className="camp-cc-entry-body">
+              <strong>Leader / Staff Details</strong>
+              <span className="camp-cc-muted">View imported leaders and edit safe operational assignments.</span>
+            </span>
+            <span className="camp-cc-entry-arrow" aria-hidden="true">&gt;</span>
+          </Link>
           <CampAccessAdminPanel />
         </div>
       ) : (
         <RestrictedNotice required="medicalCommand" />
       )}
+    </ToolPageShell>
+  );
+}
+
+function staffToInput(staff: CampStaffMember): CampStaffInput & { id: string } {
+  return {
+    id: staff.id,
+    name: staff.name,
+    role: staff.role,
+    shirtSize: staff.shirtSize ?? "",
+    registrationExternalId: staff.registrationExternalId,
+    teamId: staff.teamId ?? ""
+  };
+}
+
+export function CampStaffManagementToolPage() {
+  const { overview, capabilities, loading, refresh } = useCamp();
+  const [editing, setEditing] = useState<(CampStaffInput & { id: string }) | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<{ tone: "error" | "success"; text: string } | null>(null);
+  const activeStaff = overview.staff.filter((staff) => !staff.archivedAt);
+  const teamsById = useMemo(() => new Map(overview.teams.map((team) => [team.id, team])), [overview.teams]);
+
+  async function saveStaff() {
+    if (!editing) return;
+    setSaving(true);
+    setMessage(null);
+    const response = await fetch("/api/camp/staff", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(editing)
+    });
+    const body = await response.json().catch(() => ({})) as { error?: string };
+    setSaving(false);
+    if (!response.ok) {
+      setMessage({ tone: "error", text: body.error ?? "Staff details could not be saved." });
+      return;
+    }
+    await refresh();
+    setEditing(null);
+    setMessage({ tone: "success", text: "Staff details saved." });
+  }
+
+  if (!capabilities.medicalCommand) {
+    return (
+      <ToolPageShell title="Leader / Staff Details" subtitle="Imported staff details stay behind Camp Admin controls.">
+        <RestrictedNotice required="medicalCommand" />
+      </ToolPageShell>
+    );
+  }
+
+  return (
+    <ToolPageShell title="Leader / Staff Details" subtitle="Safe operational details for imported Oakwood leaders and staff.">
+      {message ? <p className={message.tone === "error" ? "camp-save-message error" : "camp-save-message success"} role="status">{message.text}</p> : null}
+      {loading && !activeStaff.length ? (
+        <EmptyState>Loading Camp staff...</EmptyState>
+      ) : activeStaff.length ? (
+        <div className="camp-list">
+          {activeStaff.map((staff) => (
+            <div className="camp-list-row align-start" key={staff.id}>
+              <div>
+                <strong>{staff.name}</strong>
+                <p className="camp-cc-muted">
+                  {staffRoleLabel(staff.role)}{staff.teamName ? ` - ${staff.teamName}` : " - Unassigned team"}{staff.shirtSize ? ` - ${staff.shirtSize}` : ""}
+                </p>
+                {staff.registrationExternalId ? <p className="camp-cc-muted">Oakwood registration ID: {staff.registrationExternalId}</p> : null}
+              </div>
+              <button className="button compact-button" type="button" onClick={() => setEditing(staffToInput(staff))}>Edit Details</button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <EmptyState>No imported leaders or staff are available yet. Commit an approved Oakwood staff roster import before editing leader details.</EmptyState>
+      )}
+
+      {editing ? (
+        <section className="camp-admin-form" aria-label="Edit staff details">
+          <div className="camp-section-header">
+            <div>
+              <p className="eyebrow">Edit Staff</p>
+              <h2 className="camp-tool-group-title">{editing.name || "Staff member"}</h2>
+            </div>
+            <button className="button compact-button" type="button" disabled={saving} onClick={() => setEditing(null)}>Close</button>
+          </div>
+          <div className="camp-form-grid">
+            <label className="field">
+              <span>Display name</span>
+              <input className="input" value={editing.name} onChange={(event) => setEditing({ ...editing, name: event.target.value })} />
+            </label>
+            <label className="field">
+              <span>Role / type</span>
+              <select className="input" value={editing.role ?? "adult_volunteer"} onChange={(event) => setEditing({ ...editing, role: event.target.value as CampStaffMember["role"] })}>
+                <option value="adult_volunteer">Adult volunteer</option>
+                <option value="leader">Leader</option>
+                <option value="staff">Staff</option>
+              </select>
+            </label>
+            <label className="field">
+              <span>Team assignment</span>
+              <select className="input" value={editing.teamId ?? ""} onChange={(event) => setEditing({ ...editing, teamId: event.target.value })}>
+                <option value="">Unassigned</option>
+                {overview.teams.map((team: CampTeam) => (
+                  <option key={team.id} value={team.id}>{team.name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span>Shirt size</span>
+              <input className="input" value={editing.shirtSize ?? ""} onChange={(event) => setEditing({ ...editing, shirtSize: event.target.value })} />
+            </label>
+          </div>
+          {editing.registrationExternalId ? (
+            <p className="camp-cc-muted">Oakwood registration ID {editing.registrationExternalId} is kept read-only to preserve import matching.</p>
+          ) : null}
+          {editing.teamId && !teamsById.has(editing.teamId) ? (
+            <p className="camp-cc-error">Choose an active Camp team before saving.</p>
+          ) : null}
+          <button className="button primary" type="button" disabled={saving || !editing.name.trim()} onClick={() => void saveStaff()}>
+            {saving ? "Saving..." : "Save Staff Details"}
+          </button>
+        </section>
+      ) : null}
     </ToolPageShell>
   );
 }
@@ -936,16 +1075,21 @@ export function CampMedicineIntakeToolPage() {
 }
 
 function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
+  const [checkInRecords, setCheckInRecords] = useState(data.checkIn);
   const [intakeHistory, setIntakeHistory] = useState(data.intakeHistory);
   const [returnChecklist, setReturnChecklist] = useState(data.returnChecklist);
   const [showArchivedHistory, setShowArchivedHistory] = useState(false);
   const workflowVisibility = useMemo(
-    () => getMedicineIntakeReturnVisibility({ checkIn: data.checkIn, intakeHistory, returnChecklist }, showArchivedHistory),
-    [data.checkIn, intakeHistory, returnChecklist, showArchivedHistory]
+    () => getMedicineIntakeReturnVisibility({ checkIn: checkInRecords, intakeHistory, returnChecklist }, showArchivedHistory),
+    [checkInRecords, intakeHistory, returnChecklist, showArchivedHistory]
   );
-  const [medicationIdsWithPhoto, setMedicationIdsWithPhoto] = useState(() => new Set(data.checkIn.filter((record) => record.hasMedicationPhoto || record.medicinePhotoStatus === "Photo On File").map((record) => record.id)));
+  const [medicationIdsWithPhoto, setMedicationIdsWithPhoto] = useState(() => new Set(checkInRecords.filter((record) => record.hasMedicationPhoto || record.medicinePhotoStatus === "Photo On File").map((record) => record.id)));
   const [medicationRecordId, setMedicationRecordId] = useState(data.checkIn[0]?.id ?? data.intakeHistory.find((item) => item.medicationRecordId && !item.archivedAt)?.medicationRecordId ?? "");
-  const selectedMedication = workflowVisibility.operationalMedicationRecords.find((record) => record.id === medicationRecordId) ?? workflowVisibility.operationalMedicationRecords[0];
+  const selectedMedication = medicationRecordId
+    ? workflowVisibility.operationalMedicationRecords.find((record) => record.id === medicationRecordId)
+    : undefined;
+  const [selectedCamperId, setSelectedCamperId] = useState(selectedMedication?.studentId ?? data.campers[0]?.id ?? "");
+  const selectedCamper = data.campers.find((camper) => camper.id === selectedCamperId);
   const [medicationName, setMedicationName] = useState(selectedMedication?.medicationName ?? "");
   const [dose, setDose] = useState("");
   const [scheduleText, setScheduleText] = useState(data.schedule.find((item) => item.medicationRecordId === selectedMedication?.id)?.timeWindow ?? "");
@@ -992,16 +1136,21 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
 
   useEffect(() => {
     if (!selectedMedication) return;
+    setSelectedCamperId(selectedMedication.studentId);
     setMedicationName(selectedMedication.medicationName);
     setParentInstructions(selectedMedication.parentProvidedInstructions);
     setScheduleText(data.schedule.find((item) => item.medicationRecordId === selectedMedication.id)?.timeWindow ?? "");
   }, [data.schedule, selectedMedication]);
 
   useEffect(() => {
-    if (!selectedMedication && workflowVisibility.operationalMedicationRecords[0]) {
+    if (medicationRecordId && !selectedMedication && workflowVisibility.operationalMedicationRecords[0]) {
       setMedicationRecordId(workflowVisibility.operationalMedicationRecords[0].id);
     }
-  }, [selectedMedication, workflowVisibility.operationalMedicationRecords]);
+  }, [medicationRecordId, selectedMedication, workflowVisibility.operationalMedicationRecords]);
+
+  useEffect(() => {
+    if (!selectedCamperId && data.campers[0]) setSelectedCamperId(data.campers[0].id);
+  }, [data.campers, selectedCamperId]);
 
   useEffect(() => {
     if (!selectedReturn) return;
@@ -1029,7 +1178,7 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
   }
 
   const validIntakeFields = Boolean(
-    selectedMedication &&
+    selectedCamper &&
     medicationName.trim() &&
     dose.trim() &&
     scheduleText.trim() &&
@@ -1044,8 +1193,8 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
 
   async function saveIntake() {
     setMessage(null);
-    if (!selectedMedication) {
-      setMessage({ tone: "error", text: "Choose a camper medication record before saving intake." });
+    if (!selectedCamper) {
+      setMessage({ tone: "error", text: "Choose an active camper before saving medication intake." });
       return;
     }
     if (!hasSignature(guardianSignature)) {
@@ -1068,8 +1217,8 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         target: "intake",
-        medicationRecordId: selectedMedication.id,
-        studentId: selectedMedication.studentId,
+        medicationRecordId: selectedMedication?.id,
+        studentId: selectedCamper.id,
         medicationName,
         dose,
         scheduleText,
@@ -1085,7 +1234,7 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
         confirmationAcknowledged
       })
     });
-    const body = await response.json().catch(() => ({})) as { error?: string; intake?: CampMedicationIntakeRecord };
+    const body = await response.json().catch(() => ({})) as { error?: string; intake?: CampMedicationIntakeRecord; record?: CampMedicationRecord };
     setSaving(null);
     if (!response.ok || !body.intake) {
       setMessage({ tone: "error", text: body.error ?? "Medication intake could not be saved." });
@@ -1095,6 +1244,15 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
     const selectedPhotoFile = intakePhotoFile;
 
     setIntakeHistory((current) => [body.intake as CampMedicationIntakeRecord, ...current]);
+    if (body.record) {
+      setCheckInRecords((current) => {
+        const existing = current.some((record) => record.id === body.record?.id);
+        return existing
+          ? current.map((record) => record.id === body.record?.id ? body.record as CampMedicationRecord : record)
+          : [body.record as CampMedicationRecord, ...current];
+      });
+      setMedicationRecordId(body.record.id);
+    }
     setMessage({ tone: "success", text: "Saved. Medication intake recorded with parent/guardian acknowledgement." });
     setQuantityReceived("");
     setStaffNotes("");
@@ -1177,10 +1335,16 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
       if (body.intakeHistory) setIntakeHistory(body.intakeHistory);
       if (body.returnChecklist) {
         setReturnChecklist(body.returnChecklist);
-        const nextVisibleReturns = getMedicineIntakeReturnVisibility({ checkIn: data.checkIn, intakeHistory, returnChecklist: body.returnChecklist }, nextValue).operationalReturnChecklist;
+        const nextVisibleReturns = getMedicineIntakeReturnVisibility({ checkIn: checkInRecords, intakeHistory, returnChecklist: body.returnChecklist }, nextValue).operationalReturnChecklist;
         if (!nextVisibleReturns.some((item) => item.id === returnItemId)) setReturnItemId(nextVisibleReturns[0]?.id ?? "");
       }
     }
+  }
+
+  function clearNewMedicationFields() {
+    setMedicationName("");
+    setParentInstructions("");
+    setScheduleText("");
   }
 
   async function archiveWorkflowHistory(target: "intake" | "return", id: string) {
@@ -1198,8 +1362,8 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
     }
   }
 
-  if (!workflowVisibility.hasOperationalWorkflow) {
-    return <EmptyState>No medication records are available for intake or return yet.</EmptyState>;
+  if (!data.campers.length) {
+    return <EmptyState>No active campers are available for medication intake. Confirm the Oakwood roster import committed active campers for the current Camp Oakwood session.</EmptyState>;
   }
 
   return (
@@ -1207,11 +1371,20 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
       <section className="camp-admin-form" aria-label="Medication intake handoff">
         <h2 className="camp-tool-group-title">Record medication handoff / intake</h2>
         <p className="camp-cc-muted">Document original labeled containers, parent-provided dose/time/instructions, quantity, staff receipt, and parent/guardian handoff acknowledgement.</p>
-        {workflowVisibility.operationalMedicationRecords.length ? (
+        {data.campers.length ? (
           <>
             <label className="field">
+              <span>Camper</span>
+              <select className="input" value={selectedCamperId} onChange={(event) => { setSelectedCamperId(event.target.value); setMedicationRecordId(""); clearNewMedicationFields(); }} aria-label="Camper">
+                {data.campers.map((camper) => (
+                  <option key={camper.id} value={camper.id}>{camper.name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
               <span>Camper medication record</span>
-              <select className="input" value={medicationRecordId} onChange={(event) => setMedicationRecordId(event.target.value)} aria-label="Camper medication record">
+              <select className="input" value={medicationRecordId} onChange={(event) => { setMedicationRecordId(event.target.value); if (!event.target.value) clearNewMedicationFields(); }} aria-label="Camper medication record">
+                <option value="">New medication for selected camper</option>
                 {workflowVisibility.operationalMedicationRecords.map((record) => (
                   <option key={record.id} value={record.id}>{record.studentName} - {record.medicationName}</option>
                 ))}

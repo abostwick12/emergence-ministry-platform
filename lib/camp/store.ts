@@ -28,6 +28,7 @@ import type {
   CampRestrictedMedicalRecord,
   CampScheduleBlock,
   CampScheduleInput,
+  CampStaffInput,
   CampStudentInput,
   CampStudentPublic,
   CampStaffMember,
@@ -114,6 +115,22 @@ export function listOakwoodExistingStaff() {
   return store.staff
     .filter((staff) => !staff.archivedAt)
     .map((staff) => ({ id: staff.id, name: staff.name, registrationExternalId: staff.registrationExternalId }));
+}
+
+export function updateCampStaffMember(input: CampStaffInput & { id: string }) {
+  const existing = store.staff.find((staff) => staff.id === input.id && !staff.archivedAt);
+  if (!existing) return { allowed: true as const, status: 404, error: "Active Camp staff member not found." };
+  const teamId = input.teamId?.trim() ?? existing.teamId ?? "";
+  const staff: CampStaffMember = {
+    ...existing,
+    name: input.name.trim(),
+    role: input.role ?? existing.role,
+    shirtSize: input.shirtSize?.trim() ?? existing.shirtSize,
+    teamId: teamId || undefined,
+    teamName: teamNameForId(teamId)
+  };
+  Object.assign(existing, staff);
+  return { allowed: true as const, status: 200, staff: { ...staff } };
 }
 
 export function listCampImportBatches(role: CampAccessRole) {
@@ -485,6 +502,7 @@ export function getRestrictedCampMedicationPayload(role: CampAccessRole, options
   return {
     allowed: true as const,
     status: 200,
+    campers: store.students.filter((student) => !student.archivedAt).map((student) => ({ ...student })),
     checkIn: activeAuditItems(operationalMedicationRows, "supersedesMedicationRecordId")
       .map((record) => withLatestIntakeSummary(withAuditStatus(record, store.medicationRecords, "supersedesMedicationRecordId"), operationalIntakeRows)),
     schedule: activeAuditItems(operationalScheduleRows, "supersedesScheduleItemId")

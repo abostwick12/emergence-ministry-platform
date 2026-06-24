@@ -26,6 +26,7 @@ export async function GET(request: Request) {
   }
 
   return NextResponse.json({
+    campers: payload.campers,
     checkIn: payload.checkIn,
     schedule: payload.schedule,
     administrationLog: payload.administrationLog,
