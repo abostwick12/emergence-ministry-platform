@@ -4,6 +4,7 @@ import { resolveCampAccessContext } from "@/lib/camp/permissions";
 import {
   archiveMedicationWorkflowItem,
   archiveCampStudent,
+  buildRestrictedCampMedicationPayloadFromRows,
   commitOakwoodImport,
   getCampOverview,
   getArchivedCampStudents,
@@ -20,6 +21,7 @@ import {
   upsertMedicationRecord
 } from "@/lib/camp/repository";
 import { __resetCampStoreForTests } from "@/lib/camp/store";
+import { getMedicineIntakeReturnVisibility } from "@/lib/camp/medication-workflow-visibility";
 
 function session(fullName = "MVP Staff User", email = "staff@example.com"): AuthSession {
   return {
@@ -174,6 +176,116 @@ describe("camp repository mock fallback", () => {
     if (!after.allowed) throw new Error("expected restricted payload");
     expect(after.checkIn.find((item) => item.id === medication.id)).toMatchObject({ archivedAt: expect.any(String) });
     expect(after.returnChecklist.find((item) => item.id === returnItem.id)).toMatchObject({ archivedAt: expect.any(String) });
+  });
+
+  it("maps Supabase active medication workflow rows even when camper roster metadata is unavailable", () => {
+    const payload = buildRestrictedCampMedicationPayloadFromRows({
+      campers: new Map(),
+      checkInRows: [{
+        id: "med-prod-1",
+        camper_id: "camper-prod-1",
+        medication_name: "Parent-labeled medication",
+        medicine_photo_status: "Photo Needed",
+        parent_provided_instructions: "Follow parent label.",
+        check_in_status: "Checked In",
+        received_by: "Andrew",
+        received_at: "2026-06-24T14:00:00.000Z",
+        clarification_status: "Clear",
+        supersedes_medication_record_id: null,
+        correction_note: "",
+        voided_at: null,
+        voided_by_name: null,
+        void_reason: null,
+        archived_at: null,
+        archived_by_user_id: null,
+        archived_by_name: null,
+        archive_reason: null
+      }],
+      scheduleRows: [{
+        id: "sched-prod-1",
+        medication_record_id: "med-prod-1",
+        camper_id: "camper-prod-1",
+        time_window: "Breakfast",
+        parent_provided_instructions: "Follow parent label.",
+        status: "Pending",
+        last_logged_at: null,
+        last_logged_by: null,
+        supersedes_schedule_item_id: null,
+        correction_note: null,
+        voided_at: null,
+        voided_by_name: null,
+        void_reason: null,
+        archived_at: null,
+        archived_by_user_id: null,
+        archived_by_name: null,
+        archive_reason: null
+      }],
+      logRows: [],
+      returnRows: [{
+        id: "return-prod-1",
+        medication_record_id: "med-prod-1",
+        camper_id: "camper-prod-1",
+        return_status: "Pending Return",
+        returned_at: null,
+        returned_by: null,
+        recipient_name: null,
+        recipient_relationship: null,
+        return_notes: null,
+        supersedes_return_item_id: null,
+        correction_note: null,
+        voided_at: null,
+        voided_by_name: null,
+        void_reason: null,
+        archived_at: null,
+        archived_by_user_id: null,
+        archived_by_name: null,
+        archive_reason: null
+      }],
+      intakeRows: [{
+        id: "intake-prod-1",
+        camper_id: "camper-prod-1",
+        medication_record_id: "med-prod-1",
+        medication_name: "Parent-labeled medication",
+        dose: "Parent-labeled dose",
+        schedule_text: "Breakfast",
+        parent_instructions: "Follow parent label.",
+        staff_notes: "",
+        quantity_received: "11 tablets",
+        container_status: "Original bottle",
+        received_by_name: "Andrew",
+        received_at: "2026-06-24T14:00:00.000Z",
+        guardian_name: "Pat Parent",
+        guardian_relationship: "Parent",
+        guardian_signature_data: { width: 640, height: 220, strokes: [[{ x: 1, y: 1 }, { x: 2, y: 2 }]] },
+        clarification_status: "Clear",
+        confirmation_acknowledged: true,
+        supersedes_intake_id: null,
+        correction_note: "",
+        voided_at: null,
+        voided_by_name: null,
+        void_reason: null,
+        archived_at: null,
+        archived_by_user_id: null,
+        archived_by_name: null,
+        archive_reason: null,
+        created_at: "2026-06-24T14:00:00.000Z"
+      }],
+      photoRows: [{ medication_record_id: "med-prod-1" }]
+    });
+
+    expect(payload.checkIn).toHaveLength(1);
+    expect(payload.intakeHistory).toHaveLength(1);
+    expect(payload.returnChecklist).toHaveLength(1);
+    expect(payload.schedule).toHaveLength(1);
+    expect(payload.checkIn[0]).toMatchObject({
+      id: "med-prod-1",
+      studentId: "camper-prod-1",
+      studentName: "Camper",
+      latestQuantityReceived: "11 tablets",
+      hasMedicationPhoto: true
+    });
+    expect(payload.returnChecklist[0]).toMatchObject({ id: "return-prod-1", archivedAt: undefined });
+    expect(getMedicineIntakeReturnVisibility(payload, false).hasOperationalWorkflow).toBe(true);
   });
 
   it("hides archived intake history by default but reveals it when Show archived is requested", async () => {
