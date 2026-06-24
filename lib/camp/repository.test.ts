@@ -5,11 +5,14 @@ import {
   archiveMedicationWorkflowItem,
   archiveCampStudent,
   buildRestrictedCampMedicationPayloadFromRows,
+  checkOakwoodImportSchemaReadinessWithClient,
   commitOakwoodImport,
+  getOakwoodLiveImportReadiness,
   getCampOverview,
   getArchivedCampStudents,
   getOakwoodImportPreview,
   getOakwoodUploadImportPreview,
+  isOakwoodLiveImportApproved,
   getMedicationPhotoAccess,
   getRestrictedCampMedicalPayload,
   getRestrictedCampMedicationPayload,
@@ -37,6 +40,87 @@ function session(fullName = "MVP Staff User", email = "staff@example.com"): Auth
 
 beforeEach(() => {
   __resetCampStoreForTests();
+});
+
+function oakwoodSchemaReadinessClient(errors: Record<string, string> = {}) {
+  return {
+    from(table: string) {
+      return {
+        select() {
+          const query = {
+            limit() {
+              return query;
+            },
+            async returns() {
+              return { data: [], error: errors[table] ? { message: errors[table] } : null };
+            }
+          };
+          return query;
+        }
+      };
+    }
+  };
+}
+
+describe("Oakwood live import readiness", () => {
+  const liveSession: AuthSession = {
+    isMock: false,
+    accessToken: "live-token",
+    user: {
+      id: "live-andrew",
+      email: "andrew@example.com",
+      fullName: "Andrew",
+      role: "admin"
+    }
+  };
+
+  it("requires the server-only live import approval flag", async () => {
+    expect(isOakwoodLiveImportApproved({ CAMP_OAKWOOD_LIVE_IMPORT_APPROVED: "true" })).toBe(true);
+    expect(isOakwoodLiveImportApproved({ CAMP_OAKWOOD_LIVE_IMPORT_APPROVED: "TRUE" })).toBe(false);
+    expect(isOakwoodLiveImportApproved({})).toBe(false);
+
+    const readiness = await getOakwoodLiveImportReadiness(liveSession, {
+      env: {},
+      supabase: oakwoodSchemaReadinessClient()
+    });
+
+    expect(readiness).toMatchObject({
+      ready: false,
+      reason: "approval"
+    });
+    expect(readiness.ready ? "" : readiness.message).toMatch(/live import approval is not enabled/i);
+  });
+
+  it("reports the exact migration 013 schema readiness failure", async () => {
+    const readiness = await getOakwoodLiveImportReadiness(liveSession, {
+      env: { CAMP_OAKWOOD_LIVE_IMPORT_APPROVED: "true" },
+      supabase: oakwoodSchemaReadinessClient({
+        camp_staff: "relation public.camp_staff does not exist",
+        camp_campers: "column registration_external_id does not exist"
+      })
+    });
+
+    expect(readiness).toMatchObject({
+      ready: false,
+      reason: "schema"
+    });
+    expect(readiness.ready ? [] : readiness.failures).toEqual(expect.arrayContaining([
+      expect.stringContaining("public.camp_staff table"),
+      expect.stringContaining("camp_campers migration 013 columns")
+    ]));
+  });
+
+  it("is ready only when approval and every schema check pass", async () => {
+    const schema = await checkOakwoodImportSchemaReadinessWithClient(oakwoodSchemaReadinessClient());
+    expect(schema).toEqual({ ready: true });
+
+    const readiness = await getOakwoodLiveImportReadiness(liveSession, {
+      env: { CAMP_OAKWOOD_LIVE_IMPORT_APPROVED: "true" },
+      supabase: oakwoodSchemaReadinessClient()
+    });
+
+    expect(readiness).toEqual({ ready: true });
+  });
 });
 
 describe("camp repository mock fallback", () => {

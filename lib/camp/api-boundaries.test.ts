@@ -160,6 +160,29 @@ function oakwoodCsvRows() {
   ].join("\n");
 }
 
+function oakwoodCommitPreview(summaryOverrides: Partial<Record<"ambiguousCount" | "invalidCount", number>> = {}) {
+  return {
+    sourceFile: "Live Upload",
+    sourceKind: "upload",
+    importScope: "full_roster",
+    rows: [],
+    summary: {
+      totalSourceRows: 0,
+      personRows: 0,
+      students: 0,
+      adults: 0,
+      newCount: 0,
+      matchedCount: 0,
+      ambiguousCount: summaryOverrides.ambiguousCount ?? 0,
+      skippedCount: 0,
+      invalidCount: summaryOverrides.invalidCount ?? 0,
+      safeFieldRows: 0,
+      restrictedRecordRows: 0,
+      staffRows: 0
+    }
+  };
+}
+
 describe("camp API restricted data boundaries", () => {
   it("requires an authenticated session for the Camp overview", async () => {
     getServerSessionMock.mockResolvedValue(null);
@@ -881,7 +904,7 @@ describe("camp API restricted data boundaries", () => {
     expect(denied.status).toBe(403);
   });
 
-  it("keeps live Oakwood commits disabled even for restricted identities in this iteration", async () => {
+  it("blocks production Oakwood commit when live import approval is missing", async () => {
     getServerSessionMock.mockResolvedValue(session("leader", {
       isMock: false,
       user: { id: "live_andrew", email: BOOTSTRAP_CAMP_ADMIN_EMAIL, fullName: "Andrew", role: "leader" }
@@ -889,32 +912,55 @@ describe("camp API restricted data boundaries", () => {
 
     const response = await importPOST(jsonRequest("http://localhost/api/camp/import?role=andrew", {
       action: "oakwoodCommit",
-      oakwoodPreview: {
-        sourceFile: "Live Upload",
-        sourceKind: "upload",
-        importScope: "full_roster",
-        rows: [],
-        summary: {
-          totalSourceRows: 0,
-          personRows: 0,
-          students: 0,
-          adults: 0,
-          newCount: 0,
-          matchedCount: 0,
-          ambiguousCount: 0,
-          skippedCount: 0,
-          invalidCount: 0,
-          safeFieldRows: 0,
-          restrictedRecordRows: 0,
-          staffRows: 0
-        }
-      },
+      oakwoodPreview: oakwoodCommitPreview(),
       confirmed: true
     }));
     const payload = await response.json() as { error: string };
 
     expect(response.status).toBe(403);
-    expect(payload.error).toMatch(/Production Oakwood import commit is disabled/i);
+    expect(payload.error).toMatch(/live import approval is not enabled/i);
+  });
+
+  it("blocks production Oakwood commit when schema readiness cannot be verified", async () => {
+    vi.stubEnv("CAMP_OAKWOOD_LIVE_IMPORT_APPROVED", "true");
+    getServerSessionMock.mockResolvedValue(session("leader", {
+      isMock: false,
+      user: { id: "live_andrew", email: BOOTSTRAP_CAMP_ADMIN_EMAIL, fullName: "Andrew", role: "leader" }
+    }));
+
+    const response = await importPOST(jsonRequest("http://localhost/api/camp/import?role=andrew", {
+      action: "oakwoodCommit",
+      oakwoodPreview: oakwoodCommitPreview(),
+      confirmed: true
+    }));
+    const payload = await response.json() as { error: string };
+
+    expect(response.status).toBe(403);
+    expect(payload.error).toMatch(/schema readiness/i);
+    expect(payload.error).toMatch(/Supabase/i);
+  });
+
+  it("keeps live Oakwood ambiguous and invalid row blocking ahead of readiness gates", async () => {
+    getServerSessionMock.mockResolvedValue(session("leader", {
+      isMock: false,
+      user: { id: "live_andrew", email: BOOTSTRAP_CAMP_ADMIN_EMAIL, fullName: "Andrew", role: "leader" }
+    }));
+
+    const ambiguous = await importPOST(jsonRequest("http://localhost/api/camp/import?role=andrew", {
+      action: "oakwoodCommit",
+      oakwoodPreview: oakwoodCommitPreview({ ambiguousCount: 1 }),
+      confirmed: true
+    }));
+    const invalid = await importPOST(jsonRequest("http://localhost/api/camp/import?role=andrew", {
+      action: "oakwoodCommit",
+      oakwoodPreview: oakwoodCommitPreview({ invalidCount: 1 }),
+      confirmed: true
+    }));
+
+    expect(ambiguous.status).toBe(409);
+    expect(await ambiguous.json()).toMatchObject({ error: expect.stringMatching(/ambiguous or invalid/i) });
+    expect(invalid.status).toBe(409);
+    expect(await invalid.json()).toMatchObject({ error: expect.stringMatching(/ambiguous or invalid/i) });
   });
 
   it("rejects ambiguous Oakwood commits instead of overwriting automatically", async () => {
