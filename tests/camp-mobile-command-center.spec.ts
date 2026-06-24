@@ -57,11 +57,11 @@ test.describe("Camp mobile Command Center", () => {
     await login(page);
     await page.goto("/camp");
 
-    await expect(page.getByText("Leader check-in and vehicle load")).toBeVisible();
+    await expect(page.getByText("Registration")).toBeVisible();
 
     await page.getByRole("tab", { name: /Tue/ }).click();
-    await expect(page.getByText("Morning rally")).toBeVisible();
-    await expect(page.getByText("Leader check-in and vehicle load")).toHaveCount(0);
+    await expect(page.getByText("Wake Up")).toBeVisible();
+    await expect(page.getByText("Registration")).toHaveCount(0);
   });
 
   test("team cards never expose restricted medical content", async ({ page }) => {

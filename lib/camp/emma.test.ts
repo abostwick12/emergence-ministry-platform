@@ -143,6 +143,76 @@ describe("Camp EMMA safe answer builder", () => {
 
     expect(answer.answer.toLowerCase()).not.toMatch(/\bnow\b|right now|currently|tonight|today/);
     expect(answer.answer.toLowerCase()).toMatch(/selected day|scheduled/);
+    expect(answer.answer).toContain("Registration");
+  });
+
+  it("answers Tuesday schedule questions from the real Camp Oakwood records", () => {
+    const answer = buildCampEmmaAnswer({
+      overview,
+      query: "What is Tuesday's schedule?",
+      mode: "finder",
+      access: "leader",
+      selectedDay: "Mon, Jun 29"
+    });
+
+    expect(answer.answer).toContain("Tue, Jun 30");
+    expect(answer.details[0]).toBe("Tue, Jun 30: 7:30 AM Wake Up");
+    expect(answer.details).toContain("Tue, Jun 30: 12:30 PM Lunch");
+    expect(answer.details).toContain("Tue, Jun 30: 9:00 PM Yak & Snack");
+    expect(answer.details).toContain("Tue, Jun 30: 9:00 PM-10:00 PM Late Night Rec");
+  });
+
+  it("answers tonight, recurring meal, worship, and lights-out schedule questions", () => {
+    const tonight = buildCampEmmaAnswer({
+      overview,
+      query: "What is happening tonight?",
+      mode: "finder",
+      access: "leader",
+      selectedDay: "Tue, Jun 30"
+    });
+    expect(tonight.details).toEqual([
+      "Tue, Jun 30: 6:15 PM Vespers",
+      "Tue, Jun 30: 6:30 PM Dinner",
+      "Tue, Jun 30: 7:30 PM Evening Worship",
+      "Tue, Jun 30: 9:00 PM Yak & Snack",
+      "Tue, Jun 30: 9:00 PM-10:00 PM Late Night Rec"
+    ]);
+
+    const lunch = buildCampEmmaAnswer({
+      overview,
+      query: "When is lunch?",
+      mode: "finder",
+      access: "leader",
+      selectedDay: "Mon, Jun 29"
+    });
+    expect(lunch.details).toEqual([
+      "Tue, Jun 30: 12:30 PM Lunch",
+      "Wed, Jul 1: 12:30 PM Lunch",
+      "Thu, Jul 2: 12:30 PM Lunch"
+    ]);
+
+    const worship = buildCampEmmaAnswer({
+      overview,
+      query: "When is evening worship?",
+      mode: "smart_search",
+      access: "jaci",
+      selectedDay: "Mon, Jun 29"
+    });
+    expect(worship.details).toEqual([
+      "Mon, Jun 29: 7:30 PM Evening Worship",
+      "Tue, Jun 30: 7:30 PM Evening Worship",
+      "Wed, Jul 1: 7:30 PM Evening Worship",
+      "Thu, Jul 2: 7:30 PM Evening Worship"
+    ]);
+
+    const lightsOut = buildCampEmmaAnswer({
+      overview,
+      query: "When is lights out?",
+      mode: "finder",
+      access: "leader",
+      selectedDay: "Tue, Jun 30"
+    });
+    expect(lightsOut.details).toEqual(["Mon, Jun 29: 11:00 PM Lights Out"]);
   });
 
   it("keeps medication detail blocked for General Leader and Jaci", () => {

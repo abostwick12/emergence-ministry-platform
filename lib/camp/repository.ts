@@ -1577,7 +1577,31 @@ async function ensureCampBasics(session: AuthSession): Promise<CampBasics> {
     vehicles = await loadVehicles(session, camp.id);
   }
 
-  const [schedule, staff] = await Promise.all([loadSchedule(session, camp.id), loadStaff(session, camp.id, teams)]);
+  let schedule = await loadSchedule(session, camp.id);
+  if (!schedule.length) {
+    const rows = campSchedule.map((item, index) => ({
+      ...ministryScopeColumns(undefined),
+      camp_id: camp.id,
+      title: item.title,
+      day: item.day,
+      time: item.time,
+      date: item.date ?? null,
+      start_time: item.startTime ?? null,
+      end_time: item.endTime ?? null,
+      location: item.location,
+      owner: item.owner ?? "",
+      audience: item.audience,
+      notes: item.notes ?? "",
+      status: item.status ?? "Planned",
+      visibility: item.visibility ?? "All Camp",
+      display_order: index + 1
+    }));
+    const insert = await supabase.from("camp_schedule_items").insert(rows);
+    throwIfSupabaseError(insert.error);
+    schedule = await loadSchedule(session, camp.id);
+  }
+
+  const staff = await loadStaff(session, camp.id, teams);
   return { camp, teams, vehicles, schedule, staff };
 }
 
