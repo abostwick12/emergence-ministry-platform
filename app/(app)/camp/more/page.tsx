@@ -29,6 +29,7 @@ const RESTRICTED_TOOLS: MoreTile[] = [
 const MEDICAL_COMMAND_TOOLS: MoreTile[] = [
   { href: "/camp/medical-command", label: "Medical Dashboard", description: "Andrew-only Medical Command summary." },
   { href: "/camp/medical-command/administer", label: "Administer Medicine", description: "Andrew-only administration queue." },
+  { href: "/camp/settings/staff", label: "Leader / Staff Details", description: "Edit imported leader and staff operational fields." },
   { href: "/camp/settings", label: "Camp Settings", description: "Camp access and settings entry point." }
 ];
 

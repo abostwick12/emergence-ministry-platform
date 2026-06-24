@@ -4,6 +4,7 @@ import { randomUUID } from "crypto";
 import { campDocuments, campSchedule, campStartsOn, campTeams, campVehicles } from "@/lib/camp/public-data";
 import { sanitizePublicSafetyFlags } from "@/lib/camp/public-safety";
 import {
+  assertCampAdminAccess,
   assertCampEmmaOperationsAccess,
   assertCampMedicalCommandAccess,
   assertCampRestrictedAccess,
@@ -34,6 +35,7 @@ import type {
   CampScheduleBlock,
   CampScheduleInput,
   CampStaffMember,
+  CampStaffInput,
   CampStudentInput,
   CampStudentPublic,
   CampTeam,
@@ -1249,6 +1251,50 @@ export async function getRestrictedCampMedicationPayload(session: AuthSession, c
   };
 }
 
+export async function getCampStaffManagementPayload(session: AuthSession, context: CampAccessContext) {
+  const access = assertCampAdminAccess(context);
+  if (!access.allowed) return access;
+  const overview = await getCampOverview(session, context);
+  return {
+    allowed: true as const,
+    status: 200,
+    staff: overview.staff,
+    teams: overview.teams
+  };
+}
+
+export async function updateCampStaffMember(session: AuthSession, context: CampAccessContext, input: CampStaffInput & { id: string }) {
+  const access = assertCampAdminAccess(context);
+  if (!access.allowed) return access;
+  if (!input.name.trim()) return { allowed: true as const, status: 400, error: "Staff display name is required." };
+  if (!isCampStaffRole(input.role)) return { allowed: true as const, status: 400, error: "Choose a valid staff role." };
+  if (shouldUseMock(session)) return mockStore.updateCampStaffMember(input);
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const basics = await ensureCampBasics(session);
+  const teamId = input.teamId?.trim() || null;
+  if (teamId && !basics.teams.some((team) => team.id === teamId)) {
+    return { allowed: true as const, status: 400, error: "Choose an active Camp team for this staff member." };
+  }
+
+  const { data, error } = await supabase
+    .from("camp_staff")
+    .update({
+      name: input.name.trim(),
+      role: input.role,
+      shirt_size: input.shirtSize?.trim() || null,
+      team_id: teamId
+    })
+    .eq("camp_id", basics.camp.id)
+    .eq("id", input.id)
+    .is("archived_at", null)
+    .select("*")
+    .maybeSingle<CampStaffRow>();
+  throwIfSupabaseError(error);
+  if (!data) return { allowed: true as const, status: 404, error: "Active Camp staff member not found." };
+  return { allowed: true as const, status: 200, staff: toCampStaff(data, basics.teams) };
+}
+
 export function buildRestrictedCampMedicationPayloadFromRows(input: {
   campers: Map<string, CampStudentPublic>;
   checkInRows: CampMedicationRow[];
@@ -1273,6 +1319,7 @@ export function buildRestrictedCampMedicationPayloadFromRows(input: {
   const medicationIdsWithPhotoRecords = new Set(input.photoRows.map((row) => row.medication_record_id));
 
   return {
+    campers: Array.from(input.campers.values()),
     checkIn: activeAuditRows(allCheckInRows, "supersedes_medication_record_id")
       .map((row) => toMedicationRecord(row, input.campers, activeIntakeHistory, auditStatusFor(row, allCheckInRows, "supersedes_medication_record_id"), medicationIdsWithPhotoRecords.has(row.id))),
     schedule: activeAuditRows(allScheduleRows, "supersedes_schedule_item_id")
@@ -2103,6 +2150,10 @@ function resolveVehicleId(name: string, vehicles: CampVehicle[]): string {
   if (!name.trim()) return "";
   const normalized = name.trim().toLowerCase();
   return vehicles.find((vehicle) => vehicle.name.toLowerCase() === normalized || vehicle.driver.toLowerCase() === normalized)?.id ?? "";
+}
+
+function isCampStaffRole(value: unknown): value is CampStaffMember["role"] {
+  return value === "adult_volunteer" || value === "leader" || value === "staff";
 }
 
 function toCampStaff(row: CampStaffRow, teams: CampTeam[]): CampStaffMember {

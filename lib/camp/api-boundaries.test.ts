@@ -26,8 +26,9 @@ import { GET as medicalCommandGET } from "@/app/api/camp/medical-command/route";
 import { GET as photoGET, POST as photoPOST } from "@/app/api/camp/medication/photos/route";
 import { GET as medicationGET, POST as medicationPOST } from "@/app/api/camp/medication/route";
 import { GET as medicalGET, POST as medicalPOST } from "@/app/api/camp/restricted-medical/route";
+import { GET as staffGET, PATCH as staffPATCH } from "@/app/api/camp/staff/route";
 import { DELETE as studentPhotoDELETE, POST as studentPhotoPOST } from "@/app/api/camp/students/photo/route";
-import { GET as studentsGET, PATCH as studentsPATCH } from "@/app/api/camp/students/route";
+import { GET as studentsGET, PATCH as studentsPATCH, POST as studentsPOST } from "@/app/api/camp/students/route";
 
 const restrictedNeedles = [
   "Parent-labeled medication A",
@@ -158,6 +159,27 @@ function oakwoodCsvRows() {
     "70000100,Oakwood API Camper,Student,9th,,Adult Small,Medical + Food/Diet,Pat Parent - (555) 333-4444,Private medical note,Peanut-free",
     "70000101,Oakwood API Adult,Adult Volunteer,,Suite 1,Adult Large,No Concern,,,"
   ].join("\n");
+}
+
+async function seedImportedStaff(name = "API Imported Staff Leader") {
+  const csv = [
+    "Registration ID,Name,Selection,Grade,Room Number,T-Shirt Size,Team,Quick Filter,Emergency Contact",
+    `70000994,${name},Adult Volunteer,,Leader Cabin,Adult Large,Blue Team,No Concern,`
+  ].join("\n");
+  const previewResponse = await importPOST(jsonRequest("http://localhost/api/camp/import", {
+    action: "oakwoodPreview",
+    csv,
+    sourceFile: "Oakwood_Staff.csv"
+  }));
+  const previewPayload = await previewResponse.json() as { preview: unknown };
+  expect(previewResponse.status).toBe(200);
+
+  const commitResponse = await importPOST(jsonRequest("http://localhost/api/camp/import", {
+    action: "oakwoodCommit",
+    oakwoodPreview: previewPayload.preview,
+    confirmed: true
+  }));
+  expect(commitResponse.status).toBe(200);
 }
 
 function oakwoodCommitPreview(summaryOverrides: Partial<Record<"ambiguousCount" | "invalidCount", number>> = {}) {
@@ -356,6 +378,97 @@ describe("camp API restricted data boundaries", () => {
     expect(medicationResponse.status).toBe(200);
     expect(JSON.stringify(await medicalResponse.json())).toContain("Insurance card copy received");
     expect(JSON.stringify(await medicationResponse.json())).toContain("Parent-labeled medication");
+  });
+
+  it("blocks General Leaders from leader/staff management", async () => {
+    getServerSessionMock.mockResolvedValue(session());
+
+    const list = await staffGET(new Request("http://localhost/api/camp/staff?role=general_leader"));
+    const update = await staffPATCH(jsonRequest("http://localhost/api/camp/staff?role=general_leader", {
+      id: "campstaff-missing",
+      name: "Should Not Edit",
+      role: "leader"
+    }, "PATCH"));
+
+    expect(list.status).toBe(403);
+    expect(update.status).toBe(403);
+    expectNoRestrictedPayloadDetails(await json(list));
+    expectNoRestrictedPayloadDetails(await json(update));
+  });
+
+  it("returns active campers for restricted medication intake selection without requiring existing medication records", async () => {
+    getServerSessionMock.mockResolvedValue(andrewSession());
+
+    const create = await studentsPOST(jsonRequest("http://localhost/api/camp/students?role=andrew", {
+      name: "API Imported No Assignment Camper",
+      grade: "9th",
+      teamId: "",
+      vehicleId: "",
+      cabin: "",
+      registrationExternalId: "70000993",
+      limitedSafetyFlags: []
+    }));
+    const created = await create.json() as { student: { id: string } };
+    const medicationResponse = await medicationGET(new Request("http://localhost/api/camp/medication?role=andrew"));
+    const payload = await medicationResponse.json() as {
+      campers: Array<{ id: string; name: string; teamId?: string; vehicleId?: string; cabin?: string; registrationExternalId?: string }>;
+      checkIn: Array<{ studentId: string }>;
+    };
+
+    expect(create.status).toBe(201);
+    expect(medicationResponse.status).toBe(200);
+    expect(payload.campers).toContainEqual(expect.objectContaining({
+      id: created.student.id,
+      name: "API Imported No Assignment Camper",
+      teamId: "",
+      vehicleId: "",
+      cabin: "",
+      registrationExternalId: "70000993"
+    }));
+    expect(payload.checkIn.some((record) => record.studentId === created.student.id)).toBe(false);
+  });
+
+  it("allows Camp Admin to access and edit existing imported leader/staff details", async () => {
+    getServerSessionMock.mockResolvedValue(andrewSession());
+    await seedImportedStaff();
+
+    const before = await staffGET(new Request("http://localhost/api/camp/staff?role=andrew"));
+    const beforePayload = await before.json() as {
+      staff: Array<{ id: string; name: string; role: string; shirtSize?: string; teamId?: string; registrationExternalId?: string }>;
+      teams: Array<{ id: string; name: string }>;
+    };
+    const imported = beforePayload.staff.find((staff) => staff.name === "API Imported Staff Leader");
+    const team = beforePayload.teams.find((candidate) => candidate.name === "Red") ?? beforePayload.teams[0];
+    expect(before.status).toBe(200);
+    expect(imported).toMatchObject({ registrationExternalId: "70000994" });
+    expect(team).toBeDefined();
+    if (!team) throw new Error("expected a Camp team");
+
+    const update = await staffPATCH(jsonRequest("http://localhost/api/camp/staff?role=andrew", {
+      id: imported?.id,
+      name: "API Imported Staff Leader Edited",
+      role: "leader",
+      shirtSize: "Adult Medium",
+      teamId: team.id
+    }, "PATCH"));
+    const updatePayload = await update.json() as { staff: { id: string; name: string; role: string; shirtSize?: string; teamId?: string } };
+    const after = await staffGET(new Request("http://localhost/api/camp/staff?role=andrew"));
+    const afterPayload = await after.json() as { staff: Array<{ id: string; name: string }> };
+    const overview = await campGET(new Request("http://localhost/api/camp?role=andrew"));
+    const overviewPayload = await overview.json() as { staff: Array<{ id: string; name: string }>; students: Array<{ name: string }> };
+
+    expect(update.status).toBe(200);
+    expect(updatePayload.staff).toMatchObject({
+      id: imported?.id,
+      name: "API Imported Staff Leader Edited",
+      role: "leader",
+      shirtSize: "Adult Medium",
+      teamId: team.id
+    });
+    expect(afterPayload.staff.filter((staff) => staff.id === imported?.id)).toHaveLength(1);
+    expect(overviewPayload.staff).toContainEqual(expect.objectContaining({ id: imported?.id, name: "API Imported Staff Leader Edited" }));
+    expect(overviewPayload.students.some((student) => student.name === "API Imported Staff Leader Edited")).toBe(false);
+    expectNoRestrictedPayloadDetails(overviewPayload.staff);
   });
 
   it("allows restricted users to archive, restore, upload, and retrieve medication photos", async () => {
