@@ -335,7 +335,7 @@ describe("camp medication workflow", () => {
     }));
   });
 
-  it("archives return history from the active checklist while preserving the audit record", () => {
+  it("archives return history without removing the operational return checklist item", () => {
     const created = upsertMedicationRecord("andrew", {
       studentId: "stu-3",
       medicationName: "Return archive medication",
@@ -367,7 +367,10 @@ describe("camp medication workflow", () => {
     const activePayload = getRestrictedCampMedicationPayload("andrew");
     expect(activePayload.allowed).toBe(true);
     if (!activePayload.allowed) throw new Error("expected active payload");
-    expect(activePayload.returnChecklist.some((item) => item.id === returnItem?.id)).toBe(false);
+    expect(activePayload.returnChecklist.find((item) => item.id === returnItem?.id)).toMatchObject({
+      archivedByName: "Andrew",
+      archiveReason: "Return resolved."
+    });
 
     const fullPayload = getRestrictedCampMedicationPayload("andrew", { includeArchived: true });
     expect(fullPayload.allowed).toBe(true);

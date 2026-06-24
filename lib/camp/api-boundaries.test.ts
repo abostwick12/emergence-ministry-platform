@@ -363,6 +363,44 @@ describe("camp API restricted data boundaries", () => {
     expect(restore.status).toBe(200);
   });
 
+  it("keeps operational medication and return rows in the route payload after history archive filtering", async () => {
+    getServerSessionMock.mockResolvedValue(andrewSession());
+
+    const before = await medicationGET(new Request("http://localhost/api/camp/medication?role=andrew"));
+    const beforePayload = await before.json() as {
+      checkIn: Array<{ id: string }>;
+      returnChecklist: Array<{ id: string }>;
+    };
+    const medicationId = beforePayload.checkIn[0]?.id;
+    const returnId = beforePayload.returnChecklist[0]?.id;
+    expect(medicationId).toBeTruthy();
+    expect(returnId).toBeTruthy();
+
+    const archiveMedication = await medicationPOST(jsonRequest("http://localhost/api/camp/medication?role=andrew", {
+      target: "archive",
+      archiveTarget: "medication",
+      id: medicationId,
+      archiveReason: "Resolved correction hidden from history"
+    }));
+    const archiveReturn = await medicationPOST(jsonRequest("http://localhost/api/camp/medication?role=andrew", {
+      target: "archive",
+      archiveTarget: "return",
+      id: returnId,
+      archiveReason: "Resolved correction hidden from history"
+    }));
+    const after = await medicationGET(new Request("http://localhost/api/camp/medication?role=andrew"));
+    const afterPayload = await after.json() as {
+      checkIn: Array<{ id: string; archivedAt?: string }>;
+      returnChecklist: Array<{ id: string; archivedAt?: string }>;
+    };
+
+    expect(archiveMedication.status).toBe(200);
+    expect(archiveReturn.status).toBe(200);
+    expect(after.status).toBe(200);
+    expect(afterPayload.checkIn.find((item) => item.id === medicationId)).toMatchObject({ archivedAt: expect.any(String) });
+    expect(afterPayload.returnChecklist.find((item) => item.id === returnId)).toMatchObject({ archivedAt: expect.any(String) });
+  });
+
   it("links restricted medication photos to the intake record when provided", async () => {
     getServerSessionMock.mockResolvedValue(andrewSession());
 

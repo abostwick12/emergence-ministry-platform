@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { AuthSession } from "@/lib/auth/server";
 import { resolveCampAccessContext } from "@/lib/camp/permissions";
 import {
+  archiveMedicationWorkflowItem,
   archiveCampStudent,
   commitOakwoodImport,
   getCampOverview,
@@ -141,6 +142,79 @@ describe("camp repository mock fallback", () => {
     const publicOverview = await getCampOverview(mockSession, general);
     expect(JSON.stringify(publicOverview)).not.toContain("Repository intake medication");
     expect(JSON.stringify(publicOverview)).not.toContain("Pat Parent");
+  });
+
+  it("keeps active medication workflow records available when history archive filtering is applied", async () => {
+    const mockSession = session();
+    const restricted = resolveCampAccessContext(mockSession, "andrew");
+
+    const before = await getRestrictedCampMedicationPayload(mockSession, restricted);
+    expect(before.allowed).toBe(true);
+    if (!before.allowed) throw new Error("expected restricted payload");
+    const medication = before.checkIn[0];
+    const returnItem = before.returnChecklist[0];
+    expect(medication).toBeTruthy();
+    expect(returnItem).toBeTruthy();
+
+    const archiveMedication = await archiveMedicationWorkflowItem(mockSession, restricted, {
+      target: "medication",
+      id: medication.id,
+      archiveReason: "Hide resolved correction row"
+    });
+    expect(archiveMedication.allowed).toBe(true);
+    const archiveReturn = await archiveMedicationWorkflowItem(mockSession, restricted, {
+      target: "return",
+      id: returnItem.id,
+      archiveReason: "Hide resolved correction row"
+    });
+    expect(archiveReturn.allowed).toBe(true);
+
+    const after = await getRestrictedCampMedicationPayload(mockSession, restricted);
+    expect(after.allowed).toBe(true);
+    if (!after.allowed) throw new Error("expected restricted payload");
+    expect(after.checkIn.find((item) => item.id === medication.id)).toMatchObject({ archivedAt: expect.any(String) });
+    expect(after.returnChecklist.find((item) => item.id === returnItem.id)).toMatchObject({ archivedAt: expect.any(String) });
+  });
+
+  it("hides archived intake history by default but reveals it when Show archived is requested", async () => {
+    const mockSession = session();
+    const restricted = resolveCampAccessContext(mockSession, "andrew");
+
+    const intake = await saveMedicationIntake(mockSession, restricted, {
+      studentId: "stu-1",
+      medicationName: "Archived history medication",
+      dose: "Parent-labeled dose",
+      scheduleText: "Dinner",
+      parentInstructions: "Follow signed parent instructions.",
+      staffNotes: "",
+      quantityReceived: "6 tablets",
+      containerStatus: "Original bottle",
+      receivedByName: "Andrew",
+      guardianName: "Pat Parent",
+      guardianRelationship: "Parent",
+      guardianSignatureData: { width: 640, height: 220, strokes: [[{ x: 10, y: 20 }, { x: 30, y: 40 }]] },
+      confirmationAcknowledged: true
+    });
+    expect(intake.allowed).toBe(true);
+    if (!intake.allowed) throw new Error("expected intake save success");
+
+    const archive = await archiveMedicationWorkflowItem(mockSession, restricted, {
+      target: "intake",
+      id: intake.intake.id,
+      archiveReason: "Resolved duplicate"
+    });
+    expect(archive.allowed).toBe(true);
+
+    const defaultPayload = await getRestrictedCampMedicationPayload(mockSession, restricted);
+    expect(defaultPayload.allowed).toBe(true);
+    if (!defaultPayload.allowed) throw new Error("expected restricted payload");
+    expect(defaultPayload.intakeHistory.some((item) => item.id === intake.intake.id)).toBe(false);
+    expect(defaultPayload.checkIn.some((item) => item.id === intake.record.id)).toBe(true);
+
+    const withArchived = await getRestrictedCampMedicationPayload(mockSession, restricted, { includeArchived: true });
+    expect(withArchived.allowed).toBe(true);
+    if (!withArchived.allowed) throw new Error("expected restricted payload");
+    expect(withArchived.intakeHistory.find((item) => item.id === intake.intake.id)).toMatchObject({ archivedAt: expect.any(String) });
   });
 
   it("archives and restores campers while preserving restricted medication history", async () => {

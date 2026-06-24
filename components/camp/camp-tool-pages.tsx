@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { CampAccessAdminPanel } from "@/components/camp/camp-access-admin";
 import { useCamp } from "@/components/camp/camp-provider";
 import { prepareCampImageFile } from "@/lib/camp/client-image";
+import { getMedicineIntakeReturnVisibility } from "@/lib/camp/medication-workflow-visibility";
 import type {
   CampDocument,
   CampMedicationAdministrationLog,
@@ -938,9 +939,13 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
   const [intakeHistory, setIntakeHistory] = useState(data.intakeHistory);
   const [returnChecklist, setReturnChecklist] = useState(data.returnChecklist);
   const [showArchivedHistory, setShowArchivedHistory] = useState(false);
+  const workflowVisibility = useMemo(
+    () => getMedicineIntakeReturnVisibility({ checkIn: data.checkIn, intakeHistory, returnChecklist }, showArchivedHistory),
+    [data.checkIn, intakeHistory, returnChecklist, showArchivedHistory]
+  );
   const [medicationIdsWithPhoto, setMedicationIdsWithPhoto] = useState(() => new Set(data.checkIn.filter((record) => record.hasMedicationPhoto || record.medicinePhotoStatus === "Photo On File").map((record) => record.id)));
-  const [medicationRecordId, setMedicationRecordId] = useState(data.checkIn[0]?.id ?? "");
-  const selectedMedication = data.checkIn.find((record) => record.id === medicationRecordId) ?? data.checkIn[0];
+  const [medicationRecordId, setMedicationRecordId] = useState(data.checkIn[0]?.id ?? data.intakeHistory.find((item) => item.medicationRecordId && !item.archivedAt)?.medicationRecordId ?? "");
+  const selectedMedication = workflowVisibility.operationalMedicationRecords.find((record) => record.id === medicationRecordId) ?? workflowVisibility.operationalMedicationRecords[0];
   const [medicationName, setMedicationName] = useState(selectedMedication?.medicationName ?? "");
   const [dose, setDose] = useState("");
   const [scheduleText, setScheduleText] = useState(data.schedule.find((item) => item.medicationRecordId === selectedMedication?.id)?.timeWindow ?? "");
@@ -966,8 +971,7 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
   }>({ status: "idle" });
   const [photoModal, setPhotoModal] = useState<{ url: string; title: string } | null>(null);
   const [returnItemId, setReturnItemId] = useState(returnChecklist[0]?.id ?? "");
-  const visibleReturnChecklist = returnChecklist.filter((item) => showArchivedHistory || !item.archivedAt);
-  const selectedReturn = visibleReturnChecklist.find((item) => item.id === returnItemId) ?? visibleReturnChecklist[0];
+  const selectedReturn = workflowVisibility.operationalReturnChecklist.find((item) => item.id === returnItemId) ?? workflowVisibility.operationalReturnChecklist[0];
   const [returnStatus, setReturnStatus] = useState<CampMedicationReturnItem["returnStatus"]>(selectedReturn?.returnStatus ?? "Pending Return");
   const [returnedBy, setReturnedBy] = useState("Andrew");
   const [recipientName, setRecipientName] = useState(selectedReturn?.recipientName ?? "");
@@ -992,6 +996,12 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
     setParentInstructions(selectedMedication.parentProvidedInstructions);
     setScheduleText(data.schedule.find((item) => item.medicationRecordId === selectedMedication.id)?.timeWindow ?? "");
   }, [data.schedule, selectedMedication]);
+
+  useEffect(() => {
+    if (!selectedMedication && workflowVisibility.operationalMedicationRecords[0]) {
+      setMedicationRecordId(workflowVisibility.operationalMedicationRecords[0].id);
+    }
+  }, [selectedMedication, workflowVisibility.operationalMedicationRecords]);
 
   useEffect(() => {
     if (!selectedReturn) return;
@@ -1167,7 +1177,7 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
       if (body.intakeHistory) setIntakeHistory(body.intakeHistory);
       if (body.returnChecklist) {
         setReturnChecklist(body.returnChecklist);
-        const nextVisibleReturns = body.returnChecklist.filter((item) => nextValue || !item.archivedAt);
+        const nextVisibleReturns = getMedicineIntakeReturnVisibility({ checkIn: data.checkIn, intakeHistory, returnChecklist: body.returnChecklist }, nextValue).operationalReturnChecklist;
         if (!nextVisibleReturns.some((item) => item.id === returnItemId)) setReturnItemId(nextVisibleReturns[0]?.id ?? "");
       }
     }
@@ -1181,7 +1191,6 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
       if (target === "intake") setIntakeHistory((current) => current.map((item) => item.id === id ? { ...item, ...archived } : item));
       if (target === "return") {
         setReturnChecklist((current) => current.map((item) => item.id === id ? { ...item, ...archived } : item));
-        if (returnItemId === id) setReturnItemId(returnChecklist.find((item) => item.id !== id && !item.archivedAt)?.id ?? "");
       }
       setMessage({ tone: "success", text: "History item archived." });
     } catch (error) {
@@ -1189,7 +1198,7 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
     }
   }
 
-  if (!data.checkIn.length) {
+  if (!workflowVisibility.hasOperationalWorkflow) {
     return <EmptyState>No medication records are available for intake or return yet.</EmptyState>;
   }
 
@@ -1198,122 +1207,128 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
       <section className="camp-admin-form" aria-label="Medication intake handoff">
         <h2 className="camp-tool-group-title">Record medication handoff / intake</h2>
         <p className="camp-cc-muted">Document original labeled containers, parent-provided dose/time/instructions, quantity, staff receipt, and parent/guardian handoff acknowledgement.</p>
-        <label className="field">
-          <span>Camper medication record</span>
-          <select className="input" value={medicationRecordId} onChange={(event) => setMedicationRecordId(event.target.value)} aria-label="Camper medication record">
-            {data.checkIn.map((record) => (
-              <option key={record.id} value={record.id}>{record.studentName} - {record.medicationName}</option>
-            ))}
-          </select>
-        </label>
-        <div className="camp-form-grid">
-          <label className="field">
-            <span>Medication name/type</span>
-            <input className="input" value={medicationName} onChange={(event) => setMedicationName(event.target.value)} />
-          </label>
-          <label className="field">
-            <span>Dose</span>
-            <input className="input" value={dose} onChange={(event) => setDose(event.target.value)} placeholder="As written on parent label" />
-          </label>
-          <label className="field">
-            <span>Scheduled time(s)</span>
-            <input className="input" value={scheduleText} onChange={(event) => setScheduleText(event.target.value)} />
-          </label>
-          <label className="field">
-            <span>Quantity received</span>
-            <input className="input" value={quantityReceived} onChange={(event) => setQuantityReceived(event.target.value)} placeholder="Example: 10 tablets" />
-          </label>
-        </div>
-        <label className="field">
-          <span>Parent/guardian instructions</span>
-          <textarea className="input" rows={3} value={parentInstructions} onChange={(event) => setParentInstructions(event.target.value)} />
-        </label>
-        <div className="camp-form-grid">
-          <label className="field">
-            <span>Container status</span>
-            <input className="input" value={containerStatus} onChange={(event) => setContainerStatus(event.target.value)} />
-          </label>
-          <label className="field">
-            <span>Received by leader/staff</span>
-            <input className="input" value={receivedByName} onChange={(event) => setReceivedByName(event.target.value)} />
-          </label>
-          <label className="field">
-            <span>Parent/guardian name</span>
-            <input className="input" value={guardianName} onChange={(event) => setGuardianName(event.target.value)} />
-          </label>
-          <label className="field">
-            <span>Relationship</span>
-            <input className="input" value={guardianRelationship} onChange={(event) => setGuardianRelationship(event.target.value)} />
-          </label>
-        </div>
-        <label className="field">
-          <span>Staff notes</span>
-          <textarea className="input" rows={3} value={staffNotes} onChange={(event) => setStaffNotes(event.target.value)} />
-        </label>
-        <label className="field">
-          <span>Clarification status</span>
-          <select className="input" value={clarificationStatus} onChange={(event) => setClarificationStatus(event.target.value as CampMedicationIntakeRecord["clarificationStatus"])}>
-            <option value="Clear">Clear</option>
-            <option value="Needs Parent Clarification">Needs Parent Clarification</option>
-          </select>
-        </label>
-        <section className="camp-intake-photo-section" aria-labelledby="intake-medication-photo">
-          <div>
-            <h3 id="intake-medication-photo">Medication label / container photo (optional)</h3>
-            <p className="camp-cc-muted">Photograph the original labeled medication container at parent handoff.</p>
-          </div>
-          <div className="camp-photo-actions">
-            <label className="button compact-button">
-              <span>Take photo</span>
-              <input className="sr-only" type="file" accept="image/*" capture="environment" onChange={(event) => selectIntakePhoto(event.target.files?.[0] ?? null)} />
+        {workflowVisibility.operationalMedicationRecords.length ? (
+          <>
+            <label className="field">
+              <span>Camper medication record</span>
+              <select className="input" value={medicationRecordId} onChange={(event) => setMedicationRecordId(event.target.value)} aria-label="Camper medication record">
+                {workflowVisibility.operationalMedicationRecords.map((record) => (
+                  <option key={record.id} value={record.id}>{record.studentName} - {record.medicationName}</option>
+                ))}
+              </select>
             </label>
-            <label className="button compact-button">
-              <span>Upload photo</span>
-              <input className="sr-only" type="file" accept="image/*" onChange={(event) => selectIntakePhoto(event.target.files?.[0] ?? null)} />
+            <div className="camp-form-grid">
+              <label className="field">
+                <span>Medication name/type</span>
+                <input className="input" value={medicationName} onChange={(event) => setMedicationName(event.target.value)} />
+              </label>
+              <label className="field">
+                <span>Dose</span>
+                <input className="input" value={dose} onChange={(event) => setDose(event.target.value)} placeholder="As written on parent label" />
+              </label>
+              <label className="field">
+                <span>Scheduled time(s)</span>
+                <input className="input" value={scheduleText} onChange={(event) => setScheduleText(event.target.value)} />
+              </label>
+              <label className="field">
+                <span>Quantity received</span>
+                <input className="input" value={quantityReceived} onChange={(event) => setQuantityReceived(event.target.value)} placeholder="Example: 10 tablets" />
+              </label>
+            </div>
+            <label className="field">
+              <span>Parent/guardian instructions</span>
+              <textarea className="input" rows={3} value={parentInstructions} onChange={(event) => setParentInstructions(event.target.value)} />
             </label>
-          </div>
-          {intakePhotoPreviewUrl ? (
-            <div className="camp-photo-preview">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={intakePhotoPreviewUrl} alt="Selected medication label or container preview" />
-              <div className="camp-photo-preview-actions">
-                <span className="camp-status ready">{intakePhotoFile?.name ? `Photo selected: ${intakePhotoFile.name}` : "Photo selected"}</span>
+            <div className="camp-form-grid">
+              <label className="field">
+                <span>Container status</span>
+                <input className="input" value={containerStatus} onChange={(event) => setContainerStatus(event.target.value)} />
+              </label>
+              <label className="field">
+                <span>Received by leader/staff</span>
+                <input className="input" value={receivedByName} onChange={(event) => setReceivedByName(event.target.value)} />
+              </label>
+              <label className="field">
+                <span>Parent/guardian name</span>
+                <input className="input" value={guardianName} onChange={(event) => setGuardianName(event.target.value)} />
+              </label>
+              <label className="field">
+                <span>Relationship</span>
+                <input className="input" value={guardianRelationship} onChange={(event) => setGuardianRelationship(event.target.value)} />
+              </label>
+            </div>
+            <label className="field">
+              <span>Staff notes</span>
+              <textarea className="input" rows={3} value={staffNotes} onChange={(event) => setStaffNotes(event.target.value)} />
+            </label>
+            <label className="field">
+              <span>Clarification status</span>
+              <select className="input" value={clarificationStatus} onChange={(event) => setClarificationStatus(event.target.value as CampMedicationIntakeRecord["clarificationStatus"])}>
+                <option value="Clear">Clear</option>
+                <option value="Needs Parent Clarification">Needs Parent Clarification</option>
+              </select>
+            </label>
+            <section className="camp-intake-photo-section" aria-labelledby="intake-medication-photo">
+              <div>
+                <h3 id="intake-medication-photo">Medication label / container photo (optional)</h3>
+                <p className="camp-cc-muted">Photograph the original labeled medication container at parent handoff.</p>
+              </div>
+              <div className="camp-photo-actions">
                 <label className="button compact-button">
-                  <span>Replace photo</span>
+                  <span>Take photo</span>
+                  <input className="sr-only" type="file" accept="image/*" capture="environment" onChange={(event) => selectIntakePhoto(event.target.files?.[0] ?? null)} />
+                </label>
+                <label className="button compact-button">
+                  <span>Upload photo</span>
                   <input className="sr-only" type="file" accept="image/*" onChange={(event) => selectIntakePhoto(event.target.files?.[0] ?? null)} />
                 </label>
-                <button className="button compact-button" type="button" onClick={() => { setIntakePhotoFile(null); setPhotoMessage("Medication photo removed. Intake can still be saved without a photo."); }}>Remove photo</button>
               </div>
-            </div>
-          ) : null}
-          {photoMessage ? <p className={photoUpload.status === "failed" ? "camp-save-message error" : "camp-save-message"} role="status">{photoMessage}</p> : null}
-          {photoUpload.status === "failed" ? (
-            <button className="button compact-button" type="button" onClick={retryIntakePhotoUpload}>Retry upload</button>
-          ) : null}
-        </section>
-        <SignaturePad
-          value={guardianSignature}
-          onChange={setGuardianSignature}
-          label="Parent or guardian signature"
-          description="Restricted handoff acknowledgement captured with finger, mouse, or stylus."
-        />
-        <label className="camp-checkbox-line">
-          <input type="checkbox" checked={confirmationAcknowledged} onChange={(event) => setConfirmationAcknowledged(event.target.checked)} />
-          <span>Parent/guardian handoff details reviewed with staff.</span>
-        </label>
-        <button className="button primary" type="button" disabled={!canSaveIntake} onClick={() => void saveIntake()}>
-          {saving === "intake" ? "Saving intake..." : "Save medication intake"}
-        </button>
+              {intakePhotoPreviewUrl ? (
+                <div className="camp-photo-preview">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={intakePhotoPreviewUrl} alt="Selected medication label or container preview" />
+                  <div className="camp-photo-preview-actions">
+                    <span className="camp-status ready">{intakePhotoFile?.name ? `Photo selected: ${intakePhotoFile.name}` : "Photo selected"}</span>
+                    <label className="button compact-button">
+                      <span>Replace photo</span>
+                      <input className="sr-only" type="file" accept="image/*" onChange={(event) => selectIntakePhoto(event.target.files?.[0] ?? null)} />
+                    </label>
+                    <button className="button compact-button" type="button" onClick={() => { setIntakePhotoFile(null); setPhotoMessage("Medication photo removed. Intake can still be saved without a photo."); }}>Remove photo</button>
+                  </div>
+                </div>
+              ) : null}
+              {photoMessage ? <p className={photoUpload.status === "failed" ? "camp-save-message error" : "camp-save-message"} role="status">{photoMessage}</p> : null}
+              {photoUpload.status === "failed" ? (
+                <button className="button compact-button" type="button" onClick={retryIntakePhotoUpload}>Retry upload</button>
+              ) : null}
+            </section>
+            <SignaturePad
+              value={guardianSignature}
+              onChange={setGuardianSignature}
+              label="Parent or guardian signature"
+              description="Restricted handoff acknowledgement captured with finger, mouse, or stylus."
+            />
+            <label className="camp-checkbox-line">
+              <input type="checkbox" checked={confirmationAcknowledged} onChange={(event) => setConfirmationAcknowledged(event.target.checked)} />
+              <span>Parent/guardian handoff details reviewed with staff.</span>
+            </label>
+            <button className="button primary" type="button" disabled={!canSaveIntake} onClick={() => void saveIntake()}>
+              {saving === "intake" ? "Saving intake..." : "Save medication intake"}
+            </button>
+          </>
+        ) : (
+          <EmptyState>No medication intake records are available to continue intake.</EmptyState>
+        )}
       </section>
 
       <section className="camp-admin-form" aria-label="Medication return checkout">
         <h2 className="camp-tool-group-title">Record medication return / checkout</h2>
-        {visibleReturnChecklist.length ? (
+        {workflowVisibility.operationalReturnChecklist.length ? (
           <>
             <label className="field">
               <span>Return checklist item</span>
               <select className="input" value={returnItemId} onChange={(event) => setReturnItemId(event.target.value)} aria-label="Return checklist item">
-                {visibleReturnChecklist.map((item) => (
+                {workflowVisibility.operationalReturnChecklist.map((item) => (
                   <option key={item.id} value={item.id}>{item.studentName} - {item.returnStatus}</option>
                 ))}
               </select>
@@ -1384,9 +1399,9 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
 
       <section aria-label="Recent medication intake records">
         <h2 className="camp-tool-group-title">Recent intake records</h2>
-        {intakeHistory.filter((item) => showArchivedHistory || !item.archivedAt).length ? (
+        {workflowVisibility.visibleIntakeHistory.length ? (
           <div className="camp-list">
-            {intakeHistory.filter((item) => showArchivedHistory || !item.archivedAt).slice(0, 5).map((item) => (
+            {workflowVisibility.visibleIntakeHistory.slice(0, 5).map((item) => (
               <div className={archiveClassName(item)} key={item.id}>
                 <div>
                   <strong>{item.studentName} - {item.medicationName}</strong>
@@ -1413,9 +1428,9 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
 
       <section aria-label="Recent medication return records">
         <h2 className="camp-tool-group-title">Recent return records</h2>
-        {returnChecklist.filter((item) => showArchivedHistory || !item.archivedAt).length ? (
+        {workflowVisibility.visibleReturnHistory.length ? (
           <div className="camp-list">
-            {returnChecklist.filter((item) => showArchivedHistory || !item.archivedAt).slice(0, 5).map((item) => (
+            {workflowVisibility.visibleReturnHistory.slice(0, 5).map((item) => (
               <div className={archiveClassName(item)} key={item.id}>
                 <div>
                   <strong>{item.studentName} - {item.returnStatus}</strong>

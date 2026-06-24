@@ -1121,25 +1121,27 @@ export async function getRestrictedCampMedicationPayload(session: AuthSession, c
   throwIfSupabaseError(intake.error);
   throwIfSupabaseError(photos.error);
 
-  const intakeRows = visibleMedicationHistoryRows((intake.data ?? []).filter((row) => activeCamperIds.has(row.camper_id)), options.includeArchived);
-  const checkInRows = visibleMedicationHistoryRows((checkIn.data ?? []).filter((row) => activeCamperIds.has(row.camper_id)), options.includeArchived);
-  const scheduleRows = visibleMedicationHistoryRows((schedule.data ?? []).filter((row) => activeCamperIds.has(row.camper_id)), options.includeArchived);
-  const logRows = visibleMedicationHistoryRows((logs.data ?? []).filter((row) => activeCamperIds.has(row.camper_id)), options.includeArchived);
-  const returnRows = visibleMedicationHistoryRows((returns.data ?? []).filter((row) => activeCamperIds.has(row.camper_id)), options.includeArchived);
-  const activeIntakeRows = activeAuditRows(intakeRows, "supersedes_intake_id");
+  const allIntakeRows = (intake.data ?? []).filter((row) => activeCamperIds.has(row.camper_id));
+  const allCheckInRows = (checkIn.data ?? []).filter((row) => activeCamperIds.has(row.camper_id));
+  const allScheduleRows = (schedule.data ?? []).filter((row) => activeCamperIds.has(row.camper_id));
+  const allLogRows = (logs.data ?? []).filter((row) => activeCamperIds.has(row.camper_id));
+  const allReturnRows = (returns.data ?? []).filter((row) => activeCamperIds.has(row.camper_id));
+  const intakeRows = visibleMedicationHistoryRows(allIntakeRows, options.includeArchived);
+  const logRows = visibleMedicationHistoryRows(allLogRows, options.includeArchived);
+  const activeIntakeRows = activeAuditRows(allIntakeRows, "supersedes_intake_id").filter((row) => !row.archived_at);
   const intakeHistory = intakeRows.map((row) => toMedicationIntakeRecord(row, campers, auditStatusFor(row, intakeRows, "supersedes_intake_id")));
   const medicationIdsWithPhotoRecords = new Set((photos.data ?? []).map((row) => row.medication_record_id));
 
   return {
     allowed: true as const,
     status: 200,
-    checkIn: activeAuditRows(checkInRows, "supersedes_medication_record_id")
-      .map((row) => toMedicationRecord(row, campers, activeIntakeRows.map((item) => toMedicationIntakeRecord(item, campers)), auditStatusFor(row, checkInRows, "supersedes_medication_record_id"), medicationIdsWithPhotoRecords.has(row.id))),
-    schedule: activeAuditRows(scheduleRows, "supersedes_schedule_item_id")
-      .map((row) => toScheduleItem(row, campers, auditStatusFor(row, scheduleRows, "supersedes_schedule_item_id"))),
+    checkIn: activeAuditRows(allCheckInRows, "supersedes_medication_record_id")
+      .map((row) => toMedicationRecord(row, campers, activeIntakeRows.map((item) => toMedicationIntakeRecord(item, campers)), auditStatusFor(row, allCheckInRows, "supersedes_medication_record_id"), medicationIdsWithPhotoRecords.has(row.id))),
+    schedule: activeAuditRows(allScheduleRows, "supersedes_schedule_item_id")
+      .map((row) => toScheduleItem(row, campers, auditStatusFor(row, allScheduleRows, "supersedes_schedule_item_id"))),
     administrationLog: logRows.map((row) => toAdministrationLog(row, campers, auditStatusFor(row, logRows, "supersedes_administration_log_id"))),
-    returnChecklist: activeAuditRows(returnRows, "supersedes_return_item_id")
-      .map((row) => toReturnItem(row, campers, auditStatusFor(row, returnRows, "supersedes_return_item_id"))),
+    returnChecklist: activeAuditRows(allReturnRows, "supersedes_return_item_id")
+      .map((row) => toReturnItem(row, campers, auditStatusFor(row, allReturnRows, "supersedes_return_item_id"))),
     intakeHistory
   };
 }

@@ -474,28 +474,25 @@ export function getRestrictedCampMedicationPayload(role: CampAccessRole, options
 
   const activeStudentIds = new Set(store.students.filter((student) => !student.archivedAt).map((student) => student.id));
   const visibleIntakeRows = visibleMedicationHistoryItems(store.medicationIntakeRecords, options.includeArchived);
-  const visibleMedicationRows = visibleMedicationHistoryItems(store.medicationRecords, options.includeArchived);
-  const visibleScheduleRows = visibleMedicationHistoryItems(store.medicationSchedule, options.includeArchived);
   const visibleLogRows = visibleMedicationHistoryItems(store.medicationAdministrationLog, options.includeArchived);
-  const visibleReturnRows = visibleMedicationHistoryItems(store.medicationReturnChecklist, options.includeArchived);
-  const activeIntakes = activeAuditItems(visibleIntakeRows, "supersedesIntakeId");
+  const operationalIntakeRows = activeAuditItems(store.medicationIntakeRecords, "supersedesIntakeId").filter((item) => !item.archivedAt);
+  const operationalMedicationRows = store.medicationRecords.filter((record) => activeStudentIds.has(record.studentId));
+  const operationalScheduleRows = store.medicationSchedule.filter((item) => activeStudentIds.has(item.studentId));
+  const operationalReturnRows = store.medicationReturnChecklist.filter((item) => activeStudentIds.has(item.studentId));
   const intakeHistory = store.medicationIntakeRecords
     .filter((item) => activeStudentIds.has(item.studentId) && (options.includeArchived || !item.archivedAt))
     .map((item) => withAuditStatus(item, store.medicationIntakeRecords, "supersedesIntakeId"));
   return {
     allowed: true as const,
     status: 200,
-    checkIn: activeAuditItems(visibleMedicationRows, "supersedesMedicationRecordId")
-      .filter((record) => activeStudentIds.has(record.studentId))
-      .map((record) => withLatestIntakeSummary(withAuditStatus(record, store.medicationRecords, "supersedesMedicationRecordId"), activeIntakes)),
-    schedule: activeAuditItems(visibleScheduleRows, "supersedesScheduleItemId")
-      .filter((item) => activeStudentIds.has(item.studentId))
+    checkIn: activeAuditItems(operationalMedicationRows, "supersedesMedicationRecordId")
+      .map((record) => withLatestIntakeSummary(withAuditStatus(record, store.medicationRecords, "supersedesMedicationRecordId"), operationalIntakeRows)),
+    schedule: activeAuditItems(operationalScheduleRows, "supersedesScheduleItemId")
       .map((item) => withAuditStatus(item, store.medicationSchedule, "supersedesScheduleItemId")),
     administrationLog: visibleLogRows
       .filter((log) => activeStudentIds.has(log.studentId))
       .map((log) => withAuditStatus(log, store.medicationAdministrationLog, "supersedesAdministrationLogId")),
-    returnChecklist: activeAuditItems(visibleReturnRows, "supersedesReturnItemId")
-      .filter((item) => activeStudentIds.has(item.studentId))
+    returnChecklist: activeAuditItems(operationalReturnRows, "supersedesReturnItemId")
       .map((item) => withAuditStatus(item, store.medicationReturnChecklist, "supersedesReturnItemId")),
     intakeHistory
   };
