@@ -298,6 +298,102 @@ function shouldUseMock(session: AuthSession) {
   return session.isMock || !isSupabaseConfigured();
 }
 
+const OAKWOOD_LIVE_IMPORT_APPROVAL_ENV = "CAMP_OAKWOOD_LIVE_IMPORT_APPROVED";
+
+const OAKWOOD_IMPORT_SCHEMA_CHECKS = [
+  {
+    label: "public.camp_staff table",
+    table: "camp_staff",
+    columns: ["id"]
+  },
+  {
+    label: "camp_campers migration 013 columns",
+    table: "camp_campers",
+    columns: ["registration_external_id", "shirt_size", "emergency_contact_on_file", "has_medical_alert", "has_dietary_alert"]
+  },
+  {
+    label: "camp_restricted_medical_records migration 013 columns",
+    table: "camp_restricted_medical_records",
+    columns: ["emergency_contact_name", "emergency_contact_phone", "guardian_name", "guardian_phone", "dietary_requirements"]
+  },
+  {
+    label: "camp_import_batches migration 013 audit columns",
+    table: "camp_import_batches",
+    columns: ["source_file", "source_checksum", "created_count", "updated_count", "skipped_count", "ambiguous_count", "invalid_count", "restricted_count", "safe_count", "staff_count"]
+  }
+] as const;
+
+type OakwoodReadinessEnv = Record<string, string | undefined>;
+
+type OakwoodSchemaReadinessClient = {
+  // Supabase query builders are thenable rather than plain Promises; keep this
+  // helper scoped to the tiny read-only surface the readiness probes use.
+  from(table: string): any;
+};
+
+export type OakwoodImportReadiness =
+  | { ready: true }
+  | { ready: false; reason: "approval" | "schema"; failures: string[]; message: string };
+
+export function isOakwoodLiveImportApproved(env: OakwoodReadinessEnv = process.env): boolean {
+  return env[OAKWOOD_LIVE_IMPORT_APPROVAL_ENV] === "true";
+}
+
+export async function checkOakwoodImportSchemaReadinessWithClient(
+  supabase: OakwoodSchemaReadinessClient
+): Promise<{ ready: true } | { ready: false; failures: string[] }> {
+  const failures: string[] = [];
+
+  for (const check of OAKWOOD_IMPORT_SCHEMA_CHECKS) {
+    const { error } = await supabase
+      .from(check.table)
+      .select(check.columns.join(","))
+      .limit(0)
+      .returns();
+
+    if (error) {
+      failures.push(`${check.label}: ${error.message}`);
+    }
+  }
+
+  return failures.length ? { ready: false, failures } : { ready: true };
+}
+
+export async function getOakwoodLiveImportReadiness(
+  session: AuthSession,
+  options: { env?: OakwoodReadinessEnv; supabase?: OakwoodSchemaReadinessClient } = {}
+): Promise<OakwoodImportReadiness> {
+  if (!isOakwoodLiveImportApproved(options.env)) {
+    return {
+      ready: false,
+      reason: "approval",
+      failures: [OAKWOOD_LIVE_IMPORT_APPROVAL_ENV],
+      message: `Oakwood live import approval is not enabled. Set the server-only ${OAKWOOD_LIVE_IMPORT_APPROVAL_ENV}=true only after migration 013 schema readiness and real-name preview approval are complete.`
+    };
+  }
+
+  if (!options.supabase && !isSupabaseConfigured()) {
+    return {
+      ready: false,
+      reason: "schema",
+      failures: ["Supabase environment variables are not configured."],
+      message: "Oakwood import schema readiness could not be checked because live Supabase is not configured."
+    };
+  }
+
+  const schema = await checkOakwoodImportSchemaReadinessWithClient(options.supabase ?? getSupabaseAuthClient(session.accessToken));
+  if (!schema.ready) {
+    return {
+      ready: false,
+      reason: "schema",
+      failures: schema.failures,
+      message: `Oakwood import schema readiness check failed: ${schema.failures.join("; ")}`
+    };
+  }
+
+  return { ready: true };
+}
+
 function ministryScopeColumns(ministryId: string | undefined): { ministry_id?: string } {
   return ministryId ? { ministry_id: ministryId } : {};
 }
@@ -465,14 +561,15 @@ export async function commitOakwoodImport(
   if (input.preview.summary.ambiguousCount > 0 || input.preview.summary.invalidCount > 0) {
     return { allowed: true as const, status: 409, error: "Resolve ambiguous or invalid Oakwood rows before committing." };
   }
-  if (!session.isMock) {
-    return { allowed: true as const, status: 403, error: "Production Oakwood import commit is disabled until migration 013 is applied and live import approval is complete." };
-  }
-
-  if (shouldUseMock(session)) {
+  if (session.isMock) {
     const result = mockStore.commitOakwoodImportPreview(context.effectiveRole, input.preview, access.actor);
     if (!result.allowed) return result;
     return { allowed: true as const, status: 200, result: result.result };
+  }
+
+  const readiness = await getOakwoodLiveImportReadiness(session);
+  if (!readiness.ready) {
+    return { allowed: true as const, status: 403, error: readiness.message };
   }
 
   const supabase = getSupabaseAuthClient(session.accessToken);

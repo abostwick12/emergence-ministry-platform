@@ -595,7 +595,7 @@ export function CampSettingsImportToolPage() {
     <ToolPageShell title="Import Camp Roster" subtitle="Camp Admin-only Oakwood roster/workbook upload with preview, validation, and explicit commit.">
       <div className="camp-tool-workflow">
         <section className="camp-admin-form" aria-label="Oakwood roster import">
-          <p className="camp-cc-muted">Use this only for approved Oakwood roster/workbook imports. Uploads are inspected and previewed first; no roster data is saved automatically on upload.</p>
+          <p className="camp-cc-muted">Use this only for approved Oakwood roster/workbook imports. Uploads are inspected and previewed first; no roster data is saved automatically on upload. Production saving also requires server-verified migration 013 schema readiness and live import approval.</p>
           <StatusPill tone="locked">Camp Admin only</StatusPill>
           <label className="field">
             <span>Import label</span>
@@ -678,7 +678,7 @@ export function CampSettingsImportToolPage() {
               ))}
             </div>
             {preview.rows.length > 12 ? <p className="camp-cc-muted">Showing the first 12 preview rows. All rows are included in the summary and commit guard.</p> : null}
-            <p className="camp-cc-muted">Restricted medical/contact/dietary fields stay in restricted storage on commit. Ambiguous or invalid rows block saving.</p>
+            <p className="camp-cc-muted">Restricted medical/contact/dietary fields stay in restricted storage on commit. Ambiguous or invalid rows block saving. If production saving is not ready, the server will show the exact readiness or approval reason.</p>
             <label className="camp-checkbox-line">
               <input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} />
               <span>I reviewed this Oakwood preview and approve saving the non-ambiguous rows.</span>
