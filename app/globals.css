@@ -4205,6 +4205,11 @@ html:has(.app-shell-camp) body {
   align-items: flex-start;
 }
 
+.camp-list-row.archived {
+  opacity: 0.72;
+  background: rgba(148, 163, 184, 0.12);
+}
+
 .camp-edit-row {
   border: 0;
   border-bottom: 1px solid #e2e8f0;

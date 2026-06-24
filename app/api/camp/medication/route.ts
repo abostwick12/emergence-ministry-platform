@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession, unauthorizedResponse } from "@/lib/auth/server";
 import { resolveCampAccessForRequest } from "@/lib/camp/access-control";
 import {
+  archiveMedicationWorkflowItem,
   getRestrictedCampMedicationPayload,
   logMedicationAdministration,
   saveMedicationIntake,
@@ -10,7 +11,7 @@ import {
   upsertMedicationScheduleItem,
   voidMedicationWorkflowItem
 } from "@/lib/camp/repository";
-import type { CampMedicationAdministrationLog, CampMedicationIntakeInput, CampMedicationRecord, CampMedicationReturnItem, CampMedicationScheduleItem, CampMedicationVoidInput } from "@/lib/camp/types";
+import type { CampMedicationAdministrationLog, CampMedicationArchiveInput, CampMedicationIntakeInput, CampMedicationRecord, CampMedicationReturnItem, CampMedicationScheduleItem, CampMedicationVoidInput } from "@/lib/camp/types";
 
 export async function GET(request: Request) {
   const session = await getServerSession();
@@ -19,7 +20,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const context = await resolveCampAccessForRequest(session, searchParams.get("role"));
 
-  const payload = await getRestrictedCampMedicationPayload(session, context);
+  const payload = await getRestrictedCampMedicationPayload(session, context, { includeArchived: searchParams.get("includeArchived") === "true" });
   if (!payload.allowed) {
     return NextResponse.json({ error: payload.error }, { status: payload.status });
   }
@@ -40,7 +41,7 @@ export async function POST(request: Request) {
   const { searchParams } = new URL(request.url);
   const context = await resolveCampAccessForRequest(session, searchParams.get("role"));
 
-  const body = (await request.json()) as { target?: string; voidTarget?: CampMedicationVoidInput["target"]; voidReason?: string; voidedByName?: string; id?: string } & Partial<CampMedicationRecord> & Partial<CampMedicationScheduleItem> & Partial<CampMedicationAdministrationLog> & Partial<CampMedicationIntakeInput> & Partial<CampMedicationReturnItem>;
+  const body = (await request.json()) as { target?: string; voidTarget?: CampMedicationVoidInput["target"]; voidReason?: string; voidedByName?: string; archiveTarget?: CampMedicationArchiveInput["target"]; archiveReason?: string; archivedByName?: string; id?: string } & Partial<CampMedicationRecord> & Partial<CampMedicationScheduleItem> & Partial<CampMedicationAdministrationLog> & Partial<CampMedicationIntakeInput> & Partial<CampMedicationReturnItem>;
 
   try {
     if (body.target === "void") {
@@ -49,6 +50,18 @@ export async function POST(request: Request) {
         id: body.id ?? "",
         voidReason: body.voidReason ?? "",
         voidedByName: body.voidedByName
+      });
+      if (!payload.allowed) return NextResponse.json({ error: payload.error }, { status: payload.status });
+      if ("error" in payload) return NextResponse.json({ error: payload.error }, { status: payload.status });
+      return NextResponse.json({ item: payload.item }, { status: payload.status });
+    }
+
+    if (body.target === "archive") {
+      const payload = await archiveMedicationWorkflowItem(session, context, {
+        target: body.archiveTarget ?? "medication",
+        id: body.id ?? "",
+        archiveReason: body.archiveReason ?? "",
+        archivedByName: body.archivedByName
       });
       if (!payload.allowed) return NextResponse.json({ error: payload.error }, { status: payload.status });
       if ("error" in payload) return NextResponse.json({ error: payload.error }, { status: payload.status });

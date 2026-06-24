@@ -8,6 +8,7 @@ import { useCamp } from "@/components/camp/camp-provider";
 import type {
   CampDocument,
   CampMedicationAdministrationLog,
+  CampMedicationArchiveInput,
   CampMedicationIntakeRecord,
   CampMedicationRecord,
   CampMedicationReturnItem,
@@ -63,7 +64,7 @@ function StatusPill({ children, tone }: { children: React.ReactNode; tone?: "rea
   return <span className={tone ? `camp-status ${tone}` : "camp-status"}>{children}</span>;
 }
 
-function useRestrictedMedicationData(required: "restricted" | "medicalCommand" = "restricted"): MedicationState {
+function useRestrictedMedicationData(required: "restricted" | "medicalCommand" = "restricted", includeArchived = false): MedicationState {
   const { capabilities } = useCamp();
   const [state, setState] = useState<MedicationState>({ status: "idle" });
   const allowed = required === "medicalCommand" ? capabilities.medicalCommand : capabilities.restrictedMedical;
@@ -76,7 +77,8 @@ function useRestrictedMedicationData(required: "restricted" | "medicalCommand" =
 
     let active = true;
     setState({ status: "loading" });
-    fetch("/api/camp/medication", { cache: "no-store" })
+    const url = includeArchived ? "/api/camp/medication?includeArchived=true" : "/api/camp/medication";
+    fetch(url, { cache: "no-store" })
       .then(async (response) => {
         if (!active) return;
         if (response.status === 403) {
@@ -94,7 +96,7 @@ function useRestrictedMedicationData(required: "restricted" | "medicalCommand" =
     return () => {
       active = false;
     };
-  }, [allowed]);
+  }, [allowed, includeArchived]);
 
   return state;
 }
@@ -111,12 +113,14 @@ function RestrictedNotice({ required }: { required: "restricted" | "medicalComma
 
 function MedicationDataGate({
   required = "restricted",
+  includeArchived = false,
   children
 }: {
   required?: "restricted" | "medicalCommand";
+  includeArchived?: boolean;
   children: (data: MedicationPayload) => React.ReactNode;
 }) {
-  const state = useRestrictedMedicationData(required);
+  const state = useRestrictedMedicationData(required, includeArchived);
   if (state.status === "forbidden") return <RestrictedNotice required={required} />;
   if (state.status === "loading" || state.status === "idle") return <EmptyState>Loading restricted workflow data...</EmptyState>;
   if (state.status === "error") return <p className="camp-cc-error">{state.message}</p>;
@@ -171,6 +175,44 @@ function formatStudentAcknowledgement(log: CampMedicationAdministrationLog): str
   if (log.studentAcknowledgementUnavailable) return `Unavailable/declined - ${log.studentAcknowledgementUnavailableReason}`;
   if (log.studentAcknowledgementInitials?.toUpperCase().startsWith("DRAWN_INITIALS:")) return "Finger/stylus acknowledgement on file";
   return log.studentAcknowledgementInitials || "Not recorded";
+}
+
+const ARCHIVE_HELPER_TEXT = "Archived items are hidden from this view but remain in the medical audit history.";
+
+type MedicationHistoryTarget = CampMedicationArchiveInput["target"];
+type MedicationHistoryRecord =
+  | CampMedicationAdministrationLog
+  | CampMedicationIntakeRecord
+  | CampMedicationRecord
+  | CampMedicationReturnItem
+  | CampMedicationScheduleItem;
+
+function archiveClassName(item: { archivedAt?: string }) {
+  return item.archivedAt ? "camp-list-row align-start archived" : "camp-list-row align-start";
+}
+
+function archiveStatus(item: { archivedAt?: string; archivedByName?: string; archiveReason?: string }) {
+  if (!item.archivedAt) return null;
+  return (
+    <p className="camp-cc-muted">
+      Archived {new Date(item.archivedAt).toLocaleString()} by {item.archivedByName || "restricted staff"}{item.archiveReason ? `: ${item.archiveReason}` : "."}
+    </p>
+  );
+}
+
+async function archiveMedicationHistoryItem(target: MedicationHistoryTarget, id: string, archiveReason: string) {
+  const response = await fetch("/api/camp/medication", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ target: "archive", archiveTarget: target, id, archiveReason })
+  });
+  const body = await response.json().catch(() => ({})) as { error?: string; item?: Partial<MedicationHistoryRecord> };
+  if (!response.ok) throw new Error(body.error ?? "History item could not be archived.");
+  return {
+    archivedAt: typeof body.item?.archivedAt === "string" ? body.item.archivedAt : new Date().toISOString(),
+    archivedByName: typeof body.item?.archivedByName === "string" ? body.item.archivedByName : "Restricted staff",
+    archiveReason
+  };
 }
 
 function SignaturePreview({ value, label }: { value: CampSignatureData; label: string }) {
@@ -688,6 +730,7 @@ function MedicationAdministrationForm({
   const [ackUnavailable, setAckUnavailable] = useState(false);
   const [ackReason, setAckReason] = useState("");
   const [administrationLog, setAdministrationLog] = useState(data.administrationLog);
+  const [showArchivedHistory, setShowArchivedHistory] = useState(false);
   const [message, setMessage] = useState<{ tone: "error" | "success"; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -698,7 +741,7 @@ function MedicationAdministrationForm({
   }, [activeItems, requestedScheduleItemId]);
 
   const selected = data.schedule.find((item) => item.id === scheduleItemId) ?? activeItems[0];
-  const history = administrationLog.filter((log) => log.scheduleItemId === selected?.id);
+  const history = administrationLog.filter((log) => log.scheduleItemId === selected?.id && (showArchivedHistory || !log.archivedAt));
   const acknowledgementReady = ackUnavailable ? Boolean(ackReason.trim()) : hasSignature(ackSignature);
   const canSubmit = Boolean(selected) && Boolean(loggedBy.trim()) && acknowledgementReady && !saving;
 
@@ -743,6 +786,25 @@ function MedicationAdministrationForm({
     setAckSignature(emptySignatureData());
     setAckUnavailable(false);
     setAckReason("");
+  }
+
+  async function toggleArchivedHistory(nextValue: boolean) {
+    setShowArchivedHistory(nextValue);
+    const response = await fetch(nextValue ? "/api/camp/medication?includeArchived=true" : "/api/camp/medication", { cache: "no-store" });
+    const body = await response.json().catch(() => ({})) as Partial<MedicationPayload>;
+    if (response.ok && body.administrationLog) setAdministrationLog(body.administrationLog);
+  }
+
+  async function archiveLog(log: CampMedicationAdministrationLog) {
+    if (!window.confirm("Hide this administration history item from the active view? Archived items remain in the medical audit history.")) return;
+    setMessage(null);
+    try {
+      const archived = await archiveMedicationHistoryItem("administrationLog", log.id, "Resolved administration edit hidden from active Medical Command view.");
+      setAdministrationLog((current) => current.map((item) => item.id === log.id ? { ...item, ...archived } : item));
+      setMessage({ tone: "success", text: "Administration history item archived." });
+    } catch (error) {
+      setMessage({ tone: "error", text: error instanceof Error ? error.message : "Administration history item could not be archived." });
+    }
   }
 
   return (
@@ -826,21 +888,30 @@ function MedicationAdministrationForm({
 
       <section aria-label="Administration history">
         <h2 className="camp-tool-group-title">Correction History</h2>
+        <p className="camp-cc-muted">{ARCHIVE_HELPER_TEXT}</p>
+        <label className="camp-checkbox-line">
+          <input type="checkbox" checked={showArchivedHistory} onChange={(event) => void toggleArchivedHistory(event.target.checked)} />
+          <span>Show archived</span>
+        </label>
         {history.length ? (
           <div className="camp-list">
             {history.map((log) => (
-              <div className="camp-list-row align-start" key={log.id}>
+              <div className={archiveClassName(log)} key={log.id}>
                 <div>
                   <strong>{log.status} - {new Date(log.loggedAt).toLocaleString()}</strong>
                   <p className="camp-cc-muted">Logged by {log.loggedBy}. {log.notes}</p>
                   <p className="camp-cc-muted">
                     Acknowledgement: {formatStudentAcknowledgement(log)}
                   </p>
+                  {archiveStatus(log)}
                   {parseStoredSignatureData(log.studentAcknowledgementInitials) ? (
                     <SignaturePreview value={parseStoredSignatureData(log.studentAcknowledgementInitials) as CampSignatureData} label={`Student acknowledgement preview for ${log.studentName}`} />
                   ) : null}
                 </div>
-                <StatusPill tone={statusTone(log.status)}>{log.auditStatus ?? "Active"}</StatusPill>
+                <div className="camp-row-actions">
+                  <StatusPill tone={log.archivedAt ? "locked" : statusTone(log.status)}>{log.archivedAt ? "Archived" : log.auditStatus ?? "Active"}</StatusPill>
+                  {!log.archivedAt ? <button className="button compact-button" type="button" onClick={() => void archiveLog(log)}>Archive</button> : null}
+                </div>
               </div>
             ))}
           </div>
@@ -865,6 +936,7 @@ export function CampMedicineIntakeToolPage() {
 function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
   const [intakeHistory, setIntakeHistory] = useState(data.intakeHistory);
   const [returnChecklist, setReturnChecklist] = useState(data.returnChecklist);
+  const [showArchivedHistory, setShowArchivedHistory] = useState(false);
   const [medicationIdsWithPhoto, setMedicationIdsWithPhoto] = useState(() => new Set(data.checkIn.filter((record) => record.hasMedicationPhoto || record.medicinePhotoStatus === "Photo On File").map((record) => record.id)));
   const [medicationRecordId, setMedicationRecordId] = useState(data.checkIn[0]?.id ?? "");
   const selectedMedication = data.checkIn.find((record) => record.id === medicationRecordId) ?? data.checkIn[0];
@@ -886,7 +958,8 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
   const [photoMessage, setPhotoMessage] = useState("");
   const [photoModal, setPhotoModal] = useState<{ url: string; title: string } | null>(null);
   const [returnItemId, setReturnItemId] = useState(returnChecklist[0]?.id ?? "");
-  const selectedReturn = returnChecklist.find((item) => item.id === returnItemId) ?? returnChecklist[0];
+  const visibleReturnChecklist = returnChecklist.filter((item) => showArchivedHistory || !item.archivedAt);
+  const selectedReturn = visibleReturnChecklist.find((item) => item.id === returnItemId) ?? visibleReturnChecklist[0];
   const [returnStatus, setReturnStatus] = useState<CampMedicationReturnItem["returnStatus"]>(selectedReturn?.returnStatus ?? "Pending Return");
   const [returnedBy, setReturnedBy] = useState("Andrew");
   const [recipientName, setRecipientName] = useState(selectedReturn?.recipientName ?? "");
@@ -1060,6 +1133,36 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
     setMessage({ tone: "success", text: "Medication return status updated." });
   }
 
+  async function toggleArchivedHistory(nextValue: boolean) {
+    setShowArchivedHistory(nextValue);
+    const response = await fetch(nextValue ? "/api/camp/medication?includeArchived=true" : "/api/camp/medication", { cache: "no-store" });
+    const body = await response.json().catch(() => ({})) as Partial<MedicationPayload>;
+    if (response.ok) {
+      if (body.intakeHistory) setIntakeHistory(body.intakeHistory);
+      if (body.returnChecklist) {
+        setReturnChecklist(body.returnChecklist);
+        const nextVisibleReturns = body.returnChecklist.filter((item) => nextValue || !item.archivedAt);
+        if (!nextVisibleReturns.some((item) => item.id === returnItemId)) setReturnItemId(nextVisibleReturns[0]?.id ?? "");
+      }
+    }
+  }
+
+  async function archiveWorkflowHistory(target: "intake" | "return", id: string) {
+    if (!window.confirm("Hide this item from the active view? Archived items remain in the medical audit history.")) return;
+    setMessage(null);
+    try {
+      const archived = await archiveMedicationHistoryItem(target, id, "Resolved edit hidden from active Medical Command view.");
+      if (target === "intake") setIntakeHistory((current) => current.map((item) => item.id === id ? { ...item, ...archived } : item));
+      if (target === "return") {
+        setReturnChecklist((current) => current.map((item) => item.id === id ? { ...item, ...archived } : item));
+        if (returnItemId === id) setReturnItemId(returnChecklist.find((item) => item.id !== id && !item.archivedAt)?.id ?? "");
+      }
+      setMessage({ tone: "success", text: "History item archived." });
+    } catch (error) {
+      setMessage({ tone: "error", text: error instanceof Error ? error.message : "History item could not be archived." });
+    }
+  }
+
   if (!data.checkIn.length) {
     return <EmptyState>No medication records are available for intake or return yet.</EmptyState>;
   }
@@ -1176,12 +1279,12 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
 
       <section className="camp-admin-form" aria-label="Medication return checkout">
         <h2 className="camp-tool-group-title">Record medication return / checkout</h2>
-        {returnChecklist.length ? (
+        {visibleReturnChecklist.length ? (
           <>
             <label className="field">
               <span>Return checklist item</span>
               <select className="input" value={returnItemId} onChange={(event) => setReturnItemId(event.target.value)} aria-label="Return checklist item">
-                {returnChecklist.map((item) => (
+                {visibleReturnChecklist.map((item) => (
                   <option key={item.id} value={item.id}>{item.studentName} - {item.returnStatus}</option>
                 ))}
               </select>
@@ -1241,15 +1344,25 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
         </div>
       ) : null}
 
+      <section aria-label="Medical history archive controls">
+        <h2 className="camp-tool-group-title">History visibility</h2>
+        <p className="camp-cc-muted">{ARCHIVE_HELPER_TEXT}</p>
+        <label className="camp-checkbox-line">
+          <input type="checkbox" checked={showArchivedHistory} onChange={(event) => void toggleArchivedHistory(event.target.checked)} />
+          <span>Show archived</span>
+        </label>
+      </section>
+
       <section aria-label="Recent medication intake records">
         <h2 className="camp-tool-group-title">Recent intake records</h2>
-        {intakeHistory.length ? (
+        {intakeHistory.filter((item) => showArchivedHistory || !item.archivedAt).length ? (
           <div className="camp-list">
-            {intakeHistory.slice(0, 5).map((item) => (
-              <div className="camp-list-row align-start" key={item.id}>
+            {intakeHistory.filter((item) => showArchivedHistory || !item.archivedAt).slice(0, 5).map((item) => (
+              <div className={archiveClassName(item)} key={item.id}>
                 <div>
                   <strong>{item.studentName} - {item.medicationName}</strong>
                   <p className="camp-cc-muted">{item.quantityReceived || "Quantity not recorded"} received by {item.receivedByName}.</p>
+                  {archiveStatus(item)}
                   <SignaturePreview value={item.guardianSignatureData} label={`Parent or guardian signature preview for ${item.studentName}`} />
                   {item.medicationRecordId && medicationIdsWithPhoto.has(item.medicationRecordId) ? (
                     <button className="button compact-button" type="button" onClick={() => void openMedicationPhoto(item.medicationRecordId as string, `${item.studentName} - ${item.medicationName}`)}>
@@ -1257,12 +1370,38 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
                     </button>
                   ) : null}
                 </div>
-                <StatusPill tone={statusTone(item.clarificationStatus)}>{item.auditStatus ?? item.clarificationStatus}</StatusPill>
+                <div className="camp-row-actions">
+                  <StatusPill tone={item.archivedAt ? "locked" : statusTone(item.clarificationStatus)}>{item.archivedAt ? "Archived" : item.auditStatus ?? item.clarificationStatus}</StatusPill>
+                  {!item.archivedAt ? <button className="button compact-button" type="button" onClick={() => void archiveWorkflowHistory("intake", item.id)}>Archive</button> : null}
+                </div>
               </div>
             ))}
           </div>
         ) : (
           <EmptyState>No intake records on file.</EmptyState>
+        )}
+      </section>
+
+      <section aria-label="Recent medication return records">
+        <h2 className="camp-tool-group-title">Recent return records</h2>
+        {returnChecklist.filter((item) => showArchivedHistory || !item.archivedAt).length ? (
+          <div className="camp-list">
+            {returnChecklist.filter((item) => showArchivedHistory || !item.archivedAt).slice(0, 5).map((item) => (
+              <div className={archiveClassName(item)} key={item.id}>
+                <div>
+                  <strong>{item.studentName} - {item.returnStatus}</strong>
+                  <p className="camp-cc-muted">{item.returnNotes || "No return note on file."}</p>
+                  {archiveStatus(item)}
+                </div>
+                <div className="camp-row-actions">
+                  <StatusPill tone={item.archivedAt ? "locked" : statusTone(item.returnStatus)}>{item.archivedAt ? "Archived" : item.auditStatus ?? item.returnStatus}</StatusPill>
+                  {!item.archivedAt ? <button className="button compact-button" type="button" onClick={() => void archiveWorkflowHistory("return", item.id)}>Archive</button> : null}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <EmptyState>No return records on file.</EmptyState>
         )}
       </section>
     </div>
@@ -1294,27 +1433,85 @@ export function CampMedicationScheduleToolPage() {
 }
 
 export function CampMedicationHistoryToolPage() {
+  const [showArchived, setShowArchived] = useState(false);
+  const [message, setMessage] = useState<{ tone: "error" | "success"; text: string } | null>(null);
+  const [locallyArchived, setLocallyArchived] = useState<Record<string, { archivedAt: string; archivedByName: string; archiveReason: string }>>({});
   return (
     <ToolPageShell title="Medication History & Corrections" subtitle="Restricted audit history for intake, schedule, administration, and return records.">
-      <MedicationDataGate>
+      <MedicationDataGate includeArchived={showArchived}>
         {(data) => {
-          const events = [
-            ...data.administrationLog.map((item) => ({ id: `log-${item.id}`, title: `${item.studentName} - ${item.status}`, body: `${item.timeWindow} logged by ${item.loggedBy || "staff"}`, status: item.auditStatus ?? "Active" })),
-            ...data.intakeHistory.map((item) => ({ id: `intake-${item.id}`, title: `${item.studentName} - intake`, body: item.receivedAt ? new Date(item.receivedAt).toLocaleString() : "Received time not recorded", status: item.auditStatus ?? "Active" })),
-            ...data.returnChecklist.map((item) => ({ id: `return-${item.id}`, title: `${item.studentName} - return`, body: item.returnNotes || "No return note on file.", status: item.auditStatus ?? "Active" }))
+          const baseEvents = [
+            ...data.administrationLog.map((item) => ({ id: `log-${item.id}`, sourceId: item.id, target: "administrationLog" as const, title: `${item.studentName} - ${item.status}`, body: `${item.timeWindow} logged by ${item.loggedBy || "staff"}`, status: item.auditStatus ?? "Active", archivedAt: item.archivedAt, archivedByName: item.archivedByName, archiveReason: item.archiveReason })),
+            ...data.intakeHistory.map((item) => ({ id: `intake-${item.id}`, sourceId: item.id, target: "intake" as const, title: `${item.studentName} - intake`, body: item.receivedAt ? new Date(item.receivedAt).toLocaleString() : "Received time not recorded", status: item.auditStatus ?? "Active", archivedAt: item.archivedAt, archivedByName: item.archivedByName, archiveReason: item.archiveReason })),
+            ...data.checkIn.map((item) => ({ id: `med-${item.id}`, sourceId: item.id, target: "medication" as const, title: `${item.studentName} - medication check-in`, body: item.medicationName, status: item.auditStatus ?? "Active", archivedAt: item.archivedAt, archivedByName: item.archivedByName, archiveReason: item.archiveReason })),
+            ...data.schedule.map((item) => ({ id: `schedule-${item.id}`, sourceId: item.id, target: "schedule" as const, title: `${item.studentName} - medication schedule`, body: item.timeWindow, status: item.auditStatus ?? "Active", archivedAt: item.archivedAt, archivedByName: item.archivedByName, archiveReason: item.archiveReason })),
+            ...data.returnChecklist.map((item) => ({ id: `return-${item.id}`, sourceId: item.id, target: "return" as const, title: `${item.studentName} - return`, body: item.returnNotes || item.returnStatus, status: item.auditStatus ?? "Active", archivedAt: item.archivedAt, archivedByName: item.archivedByName, archiveReason: item.archiveReason }))
           ];
+          const events = baseEvents
+            .map((event) => ({ ...event, ...locallyArchived[event.id] }))
+            .filter((event) => showArchived || !event.archivedAt);
+          const activeResolvedEvents = events.filter((event) => !event.archivedAt && event.status !== "Active");
+
+          async function archiveEvent(event: typeof events[number]) {
+            if (!window.confirm("Hide this history item from the active view? Archived items remain in the medical audit history.")) return;
+            setMessage(null);
+            try {
+              const archived = await archiveMedicationHistoryItem(event.target, event.sourceId, "Resolved edit hidden from active Medical Command view.");
+              setLocallyArchived((current) => ({ ...current, [event.id]: archived }));
+              setMessage({ tone: "success", text: "History item archived." });
+            } catch (error) {
+              setMessage({ tone: "error", text: error instanceof Error ? error.message : "History item could not be archived." });
+            }
+          }
+
+          async function archiveResolvedEdits() {
+            if (!activeResolvedEvents.length) return;
+            if (!window.confirm(`Archive ${activeResolvedEvents.length} resolved edit history item(s)? Archived items remain in the medical audit history.`)) return;
+            setMessage(null);
+            try {
+              const archivedItems = await Promise.all(activeResolvedEvents.map(async (event) => ({
+                event,
+                archived: await archiveMedicationHistoryItem(event.target, event.sourceId, "Resolved edit hidden from active Medical Command view.")
+              })));
+              setLocallyArchived((current) => ({
+                ...current,
+                ...Object.fromEntries(archivedItems.map(({ event, archived }) => [event.id, archived]))
+              }));
+              setMessage({ tone: "success", text: "Resolved edit history items archived." });
+            } catch (error) {
+              setMessage({ tone: "error", text: error instanceof Error ? error.message : "Resolved edit history items could not be archived." });
+            }
+          }
+
           return events.length ? (
-            <div className="camp-list">
-              {events.slice(0, 12).map((event) => (
-                <div className="camp-list-row align-start" key={event.id}>
-                  <div>
-                    <strong>{event.title}</strong>
-                    <p className="camp-cc-muted">{event.body}</p>
+            <>
+              <div className="camp-row-actions">
+                <label className="camp-checkbox-line">
+                  <input type="checkbox" checked={showArchived} onChange={(event) => setShowArchived(event.target.checked)} />
+                  <span>Show archived</span>
+                </label>
+                <button className="button compact-button" type="button" disabled={!activeResolvedEvents.length} onClick={() => void archiveResolvedEdits()}>
+                  Archive resolved edits
+                </button>
+              </div>
+              <p className="camp-cc-muted">{ARCHIVE_HELPER_TEXT}</p>
+              {message ? <p className={message.tone === "error" ? "camp-save-message error" : "camp-save-message success"} role="status">{message.text}</p> : null}
+              <div className="camp-list">
+                {events.slice(0, 20).map((event) => (
+                  <div className={archiveClassName(event)} key={event.id}>
+                    <div>
+                      <strong>{event.title}</strong>
+                      <p className="camp-cc-muted">{event.body}</p>
+                      {archiveStatus(event)}
+                    </div>
+                    <div className="camp-row-actions">
+                      <StatusPill tone={event.archivedAt ? "locked" : event.status === "Active" ? undefined : "warn"}>{event.archivedAt ? "Archived" : event.status}</StatusPill>
+                      {!event.archivedAt ? <button className="button compact-button" type="button" onClick={() => void archiveEvent(event)}>Archive</button> : null}
+                    </div>
                   </div>
-                  <StatusPill tone={event.status === "Active" ? undefined : "warn"}>{event.status}</StatusPill>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            </>
           ) : (
             <EmptyState>No medication history is on file yet.</EmptyState>
           );
