@@ -4546,9 +4546,53 @@ html:has(.app-shell-camp) body {
   justify-self: start;
 }
 
-.camp-access-admin {
+.panel.camp-access-admin {
   display: grid;
-  gap: 12px;
+  gap: 14px;
+  border-color: rgba(125, 211, 252, 0.34);
+  background:
+    radial-gradient(120% 90% at 8% 0%, rgba(56, 189, 248, 0.14), transparent 58%),
+    rgba(8, 28, 49, 0.88);
+  color: #eef8ff;
+  box-shadow:
+    var(--camp-shadow-soft, 0 14px 28px rgba(15, 23, 42, 0.16)),
+    var(--camp-highlight, inset 0 1px 0 rgba(255, 255, 255, 0.08));
+}
+
+.camp-access-heading {
+  display: grid;
+  gap: 3px;
+}
+
+.camp-access-heading .eyebrow {
+  color: #7dd3fc;
+}
+
+.camp-access-heading h2 {
+  margin: 0;
+  color: #f8fcff;
+  font-size: 22px;
+  line-height: 1.15;
+}
+
+.camp-access-security-note,
+.camp-access-supporting-text {
+  margin: 0;
+  color: #d7ecfb;
+  font-weight: 750;
+  line-height: 1.45;
+}
+
+.camp-access-security-note {
+  border: 1px solid rgba(125, 211, 252, 0.28);
+  border-radius: 8px;
+  background: rgba(7, 35, 61, 0.74);
+  padding: 10px 12px;
+}
+
+.camp-access-admin code {
+  color: #ffffff;
+  font-weight: 900;
 }
 
 .camp-access-add,
@@ -4561,6 +4605,76 @@ html:has(.app-shell-camp) body {
 .camp-access-add {
   grid-template-columns: minmax(220px, 1fr) minmax(180px, 240px) auto;
   align-items: end;
+  margin-top: 4px;
+  margin-bottom: 6px;
+  padding: 12px;
+  border: 1px solid rgba(125, 211, 252, 0.25);
+  border-radius: 8px;
+  background: rgba(9, 38, 66, 0.72);
+}
+
+.camp-access-add .field,
+.camp-access-actions .input {
+  min-width: 0;
+}
+
+.camp-access-add .field > span {
+  color: #eef8ff;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.camp-access-admin .input {
+  border-color: rgba(186, 230, 253, 0.44);
+  background: rgba(2, 18, 35, 0.8);
+  color: #f8fcff;
+  font-weight: 800;
+}
+
+.camp-access-admin .input::placeholder {
+  color: #aac9df;
+  opacity: 1;
+}
+
+.camp-access-admin .input:disabled {
+  border-color: rgba(186, 230, 253, 0.34);
+  background: rgba(17, 44, 71, 0.76);
+  color: #d7ecfb;
+  opacity: 1;
+  -webkit-text-fill-color: #d7ecfb;
+}
+
+.camp-access-admin .button:disabled {
+  opacity: 0.78;
+}
+
+.camp-access-admin .button.primary {
+  border-color: rgba(125, 211, 252, 0.82);
+  background: #38bdf8;
+  color: #04243f;
+  font-weight: 900;
+}
+
+.camp-access-admin .camp-status {
+  border: 1px solid rgba(186, 230, 253, 0.28);
+  background: rgba(2, 18, 35, 0.72);
+  color: #f8fcff;
+}
+
+.camp-access-admin .camp-status.locked {
+  border-color: rgba(252, 165, 165, 0.42);
+  background: rgba(127, 29, 29, 0.34);
+  color: #fecaca;
+}
+
+.camp-access-admin .camp-cc-error {
+  margin: 0;
+  border: 1px solid rgba(252, 165, 165, 0.42);
+  border-radius: 8px;
+  background: rgba(127, 29, 29, 0.3);
+  color: #fecaca;
+  padding: 10px 12px;
+  font-weight: 850;
 }
 
 .camp-access-list,
@@ -4575,20 +4689,70 @@ html:has(.app-shell-camp) body {
 .camp-access-row {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  padding: 12px;
-  border: 1px solid var(--line);
+  padding: 14px;
+  border: 1px solid rgba(186, 230, 253, 0.38);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.72);
+  background: rgba(9, 38, 66, 0.84);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 10px 22px rgba(2, 11, 24, 0.2);
 }
 
 .camp-access-user {
   display: grid;
-  gap: 4px;
+  gap: 5px;
+  min-width: 0;
+}
+
+.camp-access-user strong {
+  color: #ffffff;
+  font-size: 15px;
+  line-height: 1.25;
+}
+
+.camp-access-meta {
+  color: #c7dff0;
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.35;
+}
+
+.camp-access-protected-note {
+  width: fit-content;
+  max-width: 100%;
+  border: 1px solid rgba(251, 191, 36, 0.34);
+  border-radius: 999px;
+  background: rgba(245, 158, 11, 0.18);
+  color: #fde68a;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 900;
 }
 
 .camp-access-actions {
   grid-template-columns: minmax(180px, 240px) auto;
   align-items: center;
+}
+
+.camp-access-audit {
+  border: 1px solid rgba(125, 211, 252, 0.25);
+  border-radius: 8px;
+  background: rgba(7, 35, 61, 0.64);
+  padding: 10px 12px;
+}
+
+.camp-access-audit summary {
+  color: #eef8ff;
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.camp-access-audit ul {
+  margin-top: 10px;
+}
+
+.camp-access-audit li {
+  color: #eef8ff;
+  font-weight: 700;
+  line-height: 1.4;
 }
 
 .camp-inline-button {

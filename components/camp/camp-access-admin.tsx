@@ -106,9 +106,11 @@ export function CampAccessAdminPanel() {
 
   return (
     <section className="panel camp-access-admin" aria-label="Camp access management">
-      <p className="eyebrow">Camp access</p>
-      <h2>Camp access management</h2>
-      <p className="muted">
+      <div className="camp-access-heading">
+        <p className="eyebrow">Camp access</p>
+        <h2>Camp access management</h2>
+      </div>
+      <p className="camp-access-security-note">
         Camp roles are resolved from authenticated identity. No role picker or URL override can grant access.
       </p>
 
@@ -116,11 +118,11 @@ export function CampAccessAdminPanel() {
       {message ? <p className={message.tone === "error" ? "camp-cc-error" : "camp-save-message success"} role={message.tone === "error" ? "alert" : "status"}>{message.text}</p> : null}
 
       {!data ? (
-        <p className="muted">Loading...</p>
+        <p className="camp-access-supporting-text">Loading...</p>
       ) : (
         <>
           {!data.available ? (
-            <p className="muted">
+            <p className="camp-access-supporting-text">
               Durable Camp access management is waiting on migration 014. Andrew&apos;s bootstrap admin access is active, and this
               screen will become editable as soon as <code>camp_access_members</code> is available.
             </p>
@@ -152,14 +154,15 @@ export function CampAccessAdminPanel() {
                 <li key={member.userId} className="camp-access-row">
                   <span className="camp-access-user">
                     <strong>{member.email}</strong>
-                    <span className="muted">
+                    <span className="camp-access-meta">
                       {member.bootstrap ? "Bootstrap Camp Admin" : `Updated ${new Date(member.updatedAt).toLocaleString()}`}
                     </span>
                     {audit ? (
-                      <span className="muted">
+                      <span className="camp-access-meta">
                         Last change: {audit.actorEmail ?? "system"} {audit.action} on {new Date(audit.createdAt).toLocaleString()}
                       </span>
                     ) : null}
+                    {isFinalAdmin ? <span className="camp-access-protected-note">Your own Camp Admin access is protected.</span> : null}
                   </span>
                   {data.available && !member.bootstrap ? (
                     <div className="camp-access-actions">
@@ -192,7 +195,7 @@ export function CampAccessAdminPanel() {
               <ul>
                 {data.audit.map((entry) => (
                   <li key={entry.id}>
-                    <span className="muted">{new Date(entry.createdAt).toLocaleString()}</span> - {entry.actorEmail ?? "system"}{" "}
+                    <span className="camp-access-meta">{new Date(entry.createdAt).toLocaleString()}</span> - {entry.actorEmail ?? "system"}{" "}
                     {entry.action} {entry.targetEmail ?? ""}{" "}
                     {entry.oldRole ? `(${entry.oldRole} -> ${entry.newRole ?? "inactive"})` : `(${entry.newRole ?? "inactive"})`}
                   </li>
