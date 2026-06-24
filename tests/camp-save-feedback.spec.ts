@@ -103,8 +103,8 @@ test.describe("Camp dedicated medication tool pages", () => {
     await page.getByRole("button", { name: "Save medication intake" }).click();
     await expect(page.getByText("Medication intake recorded with parent/guardian acknowledgement.")).toBeVisible();
     await expect(page.getByRole("img", { name: /Parent or guardian signature preview/ }).first()).toBeVisible();
-    await expect(page.getByRole("button", { name: "View Photo" })).toBeVisible();
-    await expect(page.getByText("8 tablets received by Andrew")).toBeVisible();
+    await expect(page.getByRole("button", { name: "View Photo" }).first()).toBeVisible();
+    await expect(page.getByText("8 tablets received by Andrew").first()).toBeVisible();
 
     await page.getByLabel("Return status").selectOption("Returned to Parent/Guardian");
     await page.getByLabel("Recipient name").fill("Pat Parent");
@@ -112,6 +112,45 @@ test.describe("Camp dedicated medication tool pages", () => {
     await page.getByLabel("Return notes").fill("Returned at checkout.");
     await page.getByRole("button", { name: "Save return status" }).click();
     await expect(page.getByText("Medication return status updated.")).toBeVisible();
+  });
+
+  test("Medicine Intake saves the record even when background photo upload fails, then retries", async ({ page }) => {
+    await login(page);
+    let photoAttempts = 0;
+    await page.route(/\/api\/camp\/medication\/photos(?:\?|$)/, async (route) => {
+      if (route.request().method() === "POST") {
+        photoAttempts += 1;
+        if (photoAttempts === 1) {
+          await route.fulfill({
+            status: 500,
+            contentType: "application/json",
+            body: JSON.stringify({ error: "Simulated photo upload failure." })
+          });
+          return;
+        }
+      }
+      await route.continue();
+    });
+
+    await page.goto("/camp/medicine-intake");
+    await page.getByLabel("Camper medication record").selectOption("med-1");
+    await page.getByLabel("Dose").fill("Parent label dose");
+    await page.getByLabel("Quantity received").fill("8 tablets");
+    await page.getByLabel("Parent/guardian name").fill("Pat Parent");
+    await page.getByLabel("Upload photo").setInputFiles(pngFile("medicine-retry.png"));
+    await signPadWithWindowTouch(page.getByRole("img", { name: "Parent or guardian signature", exact: true }));
+    await page.getByLabel("Parent/guardian handoff details reviewed with staff.").check();
+    await page.getByRole("button", { name: "Save medication intake" }).click();
+
+    await expect(page.getByText("Saved. Medication intake recorded with parent/guardian acknowledgement.")).toBeVisible();
+    await expect(page.getByText("8 tablets received by Andrew").first()).toBeVisible();
+    await expect(page.getByText("Photo upload failed")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Retry upload" })).toBeVisible();
+
+    await page.getByRole("button", { name: "Retry upload" }).click();
+    await expect(page.getByText("Photo uploaded")).toBeVisible();
+    await expect(page.getByRole("button", { name: "View Photo" }).first()).toBeVisible();
+    expect(photoAttempts).toBe(2);
   });
 
   test("Edit Camper action stays compact inside tall roster cards", async ({ page }) => {
@@ -177,8 +216,8 @@ test.describe("Camp dedicated medication tool pages", () => {
     await page.getByLabel("Upload photo").setInputFiles(pngFile("avery.png"));
     await expect(page.getByRole("button", { name: "Save" })).toBeEnabled();
     await page.getByRole("button", { name: "Save" }).click();
-    await expect(page.getByText("Uploading camper photo...")).toBeVisible();
-    await expect(page.getByText("Camper photo updated.")).toBeVisible();
+    await expect(page.getByText("Photo uploading").first()).toBeVisible();
+    await expect(page.getByText("Photo uploaded")).toBeVisible();
     await expect(page.locator(".camp-student-avatar img").first()).toBeVisible();
     await expect.poll(() => overviewCallsAfterPhotoSave).toBe(0);
   });

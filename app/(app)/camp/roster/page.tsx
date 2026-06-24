@@ -4,11 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { CampOperationDialog } from "@/components/camp/camp-operation-dialog";
 import { useCamp } from "@/components/camp/camp-provider";
 import { CampStudentAvatar, CampStudentCard } from "@/components/camp/camp-student-card";
+import { prepareCampImageFile } from "@/lib/camp/client-image";
 import type { CampStudentInput, CampVisibleStudent } from "@/lib/camp/types";
-
-const profilePhotoMaxDimension = 1600;
-const profilePhotoMaxPassthroughBytes = 1_200_000;
-const profilePhotoQuality = 0.82;
 
 function studentToInput(student?: CampVisibleStudent): CampStudentInput {
   return {
@@ -42,45 +39,6 @@ function sameStudentInput(left: CampStudentInput, right: CampStudentInput) {
   );
 }
 
-async function loadImage(file: File): Promise<HTMLImageElement> {
-  const url = URL.createObjectURL(file);
-  try {
-    const image = new Image();
-    image.decoding = "async";
-    image.src = url;
-    await image.decode();
-    return image;
-  } finally {
-    URL.revokeObjectURL(url);
-  }
-}
-
-async function resizeProfilePhoto(file: File): Promise<File> {
-  if (file.size <= profilePhotoMaxPassthroughBytes && !file.type.startsWith("image/heic") && !file.type.startsWith("image/heif")) return file;
-
-  try {
-    const image = await loadImage(file);
-    const largestSide = Math.max(image.naturalWidth, image.naturalHeight);
-    if (!largestSide || largestSide <= profilePhotoMaxDimension && file.size <= profilePhotoMaxPassthroughBytes) return file;
-
-    const scale = Math.min(1, profilePhotoMaxDimension / largestSide);
-    const width = Math.max(1, Math.round(image.naturalWidth * scale));
-    const height = Math.max(1, Math.round(image.naturalHeight * scale));
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const context = canvas.getContext("2d");
-    if (!context) return file;
-    context.drawImage(image, 0, 0, width, height);
-
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", profilePhotoQuality));
-    if (!blob || blob.size >= file.size) return file;
-    return new File([blob], file.name.replace(/\.[^.]+$/, ".jpg"), { type: "image/jpeg", lastModified: Date.now() });
-  } catch {
-    return file;
-  }
-}
-
 export default function CampRosterPage() {
   const { overview, loading, refresh, updateStudentProfilePhoto } = useCamp();
   const [query, setQuery] = useState("");
@@ -90,6 +48,13 @@ export default function CampRosterPage() {
   const [profilePhotoPreviewUrl, setProfilePhotoPreviewUrl] = useState("");
   const [removeProfilePhoto, setRemoveProfilePhoto] = useState(false);
   const [message, setMessage] = useState<{ tone: "error" | "success"; text: string } | null>(null);
+  const [photoUpload, setPhotoUpload] = useState<{
+    status: "idle" | "uploading" | "uploaded" | "failed";
+    studentId?: string;
+    file?: File;
+    remove?: boolean;
+    error?: string;
+  }>({ status: "idle" });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -131,6 +96,7 @@ export default function CampRosterPage() {
   function selectProfilePhoto(file: File | null) {
     setProfilePhotoFile(file);
     setRemoveProfilePhoto(false);
+    if (file) setPhotoUpload({ status: "idle" });
   }
 
   async function saveStudent() {
@@ -140,7 +106,7 @@ export default function CampRosterPage() {
     const detailsChanged = !editing.id || !existingStudent || !sameStudentInput(editing, studentToInput(existingStudent));
     const canSavePhotoOnly = Boolean(editing.id && hasPhotoChange && !detailsChanged);
 
-    setMessage(hasPhotoChange ? { tone: "success", text: profilePhotoFile ? "Preparing camper photo..." : "Removing camper photo..." } : null);
+    setMessage(null);
     setSaving(true);
     let studentId = editing.id;
 
@@ -160,25 +126,14 @@ export default function CampRosterPage() {
     }
 
     if (studentId && hasPhotoChange) {
-      setMessage({ tone: "success", text: profilePhotoFile ? "Uploading camper photo..." : "Removing camper photo..." });
-      const photoResponse = profilePhotoFile
-        ? await uploadProfilePhoto(studentId, profilePhotoFile)
-        : await fetch(`/api/camp/students/photo?studentId=${encodeURIComponent(studentId)}`, { method: "DELETE" });
-      const photoBody = await photoResponse.json().catch(() => ({})) as { error?: string; student?: { profilePhotoUrl?: string } };
-      if (!photoResponse.ok) {
-        if (!canSavePhotoOnly) await refresh();
-        setSaving(false);
-        setMessage({ tone: "error", text: photoBody.error ?? "Camper saved, but the photo update failed." });
-        return;
-      }
-
-      if (canSavePhotoOnly) {
-        updateStudentProfilePhoto(studentId, photoBody.student?.profilePhotoUrl);
-        setSaving(false);
-        closeEditor();
-        setMessage({ tone: "success", text: profilePhotoFile ? "Camper photo updated." : "Camper photo removed." });
-        return;
-      }
+      const photoFile = profilePhotoFile;
+      const shouldRemovePhoto = removeProfilePhoto;
+      setSaving(false);
+      closeEditor();
+      setMessage({ tone: "success", text: "Saved." });
+      if (!canSavePhotoOnly) void refresh();
+      void runProfilePhotoUpload(studentId, photoFile, shouldRemovePhoto);
+      return;
     }
 
     await refresh();
@@ -188,11 +143,45 @@ export default function CampRosterPage() {
   }
 
   async function uploadProfilePhoto(studentId: string, file: File) {
-    const preparedFile = await resizeProfilePhoto(file);
+    const preparedFile = await prepareCampImageFile(file, "camperProfile");
     const formData = new FormData();
     formData.set("studentId", studentId);
     formData.set("photo", preparedFile);
     return fetch("/api/camp/students/photo", { method: "POST", body: formData });
+  }
+
+  async function runProfilePhotoUpload(studentId: string, file: File | null, remove: boolean) {
+    setPhotoUpload({ status: "uploading", studentId, file: file ?? undefined, remove });
+    setMessage({ tone: "success", text: file ? "Saved. Photo uploading..." : "Saved. Removing photo..." });
+    try {
+      const response = file
+        ? await uploadProfilePhoto(studentId, file)
+        : remove
+          ? await fetch(`/api/camp/students/photo?studentId=${encodeURIComponent(studentId)}`, { method: "DELETE" })
+          : null;
+      if (!response) {
+        setPhotoUpload({ status: "idle" });
+        return;
+      }
+      const body = await response.json().catch(() => ({})) as { error?: string; student?: { profilePhotoUrl?: string } };
+      if (!response.ok) {
+        setPhotoUpload({ status: "failed", studentId, file: file ?? undefined, remove, error: body.error ?? "Photo upload failed." });
+        setMessage({ tone: "error", text: body.error ?? "Saved, but photo upload failed." });
+        return;
+      }
+      updateStudentProfilePhoto(studentId, body.student?.profilePhotoUrl);
+      setPhotoUpload({ status: "uploaded" });
+      setMessage({ tone: "success", text: file ? "Photo uploaded." : "Photo removed." });
+    } catch (error) {
+      const text = error instanceof Error ? error.message : "Photo upload failed.";
+      setPhotoUpload({ status: "failed", studentId, file: file ?? undefined, remove, error: text });
+      setMessage({ tone: "error", text: `Saved, but ${text}` });
+    }
+  }
+
+  function retryProfilePhotoUpload() {
+    if (!photoUpload.studentId) return;
+    void runProfilePhotoUpload(photoUpload.studentId, photoUpload.file ?? null, Boolean(photoUpload.remove));
   }
 
   async function archiveStudent() {
@@ -232,6 +221,12 @@ export default function CampRosterPage() {
         <button className="button primary" type="button" onClick={() => startEditing()}>Add Camper</button>
       </div>
       {message ? <p className={message.tone === "error" ? "camp-save-message error" : "camp-save-message success"} role="status">{message.text}</p> : null}
+      {photoUpload.status === "failed" ? (
+        <div className="camp-save-message error" role="status">
+          <span>Photo upload failed. The camper record is saved.</span>
+          <button className="button compact-button" type="button" onClick={retryProfilePhotoUpload}>Retry upload</button>
+        </div>
+      ) : null}
       <input
         className="camp-cc-search"
         type="search"
