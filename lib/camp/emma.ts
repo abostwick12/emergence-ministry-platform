@@ -94,9 +94,7 @@ export function buildCampEmmaAnswer(input: {
   // generic leader-roster and missing-assignment intents.
   if (isLeaderGapQuestion(normalized)) return answerShortStaffedTeams(input.overview);
   if (normalized.includes("missing")) return answerMissing(input.overview, normalized);
-  if (normalized.includes("next") || normalized.includes("schedule") || normalized.includes("time") || normalized.includes("dinner")) {
-    return answerSchedule(input.overview.schedule, input.selectedDay);
-  }
+  if (isScheduleQuestion(normalized)) return answerSchedule(input.overview.schedule, input.selectedDay, normalized);
   if (normalized.includes("leader")) return answerLeaders(input.overview);
   if (normalized.includes("attention") || normalized.includes("urgent")) return answerBriefing(input.overview, input.selectedDay);
 
@@ -225,8 +223,35 @@ function answerShirts(overview: CampOverviewPayload, normalized: string): CampEm
   };
 }
 
-function answerSchedule(schedule: CampScheduleBlock[], selectedDay?: string): CampEmmaAnswer {
-  const scoped = selectedDay ? schedule.filter((item) => item.day === selectedDay) : schedule;
+function answerSchedule(schedule: CampScheduleBlock[], selectedDay: string | undefined, normalized: string): CampEmmaAnswer {
+  const explicitDay = dayFromScheduleQuestion(normalized);
+  const requestedDay = explicitDay ?? selectedDay;
+  const scoped = requestedDay ? schedule.filter((item) => item.day === requestedDay) : schedule;
+  const titleMatches = findScheduleTitleMatches(explicitDay ? scoped : schedule, normalized);
+  if (titleMatches.length) {
+    return {
+      answer: `${titleMatches[0].title} is scheduled at ${titleMatches[0].time}${sameTitleAcrossDays(titleMatches) ? " on the listed Camp days" : ` on ${titleMatches[0].day}`}.`,
+      details: titleMatches.map(formatScheduleDetail),
+      actions: [{ label: "Open schedule", href: "/camp/schedule" }]
+    };
+  }
+
+  if (isTonightQuestion(normalized)) {
+    const evening = scoped.filter((item) => minutesFromTime(item.startTime, item.time) >= 18 * 60);
+    return evening.length
+      ? {
+          answer: requestedDay ? `Tonight's scheduled items for ${requestedDay} are ready.` : "Tonight's scheduled Camp items are ready.",
+          details: evening.map(formatScheduleDetail),
+          actions: [{ label: "Open schedule", href: "/camp/schedule" }]
+        }
+      : {
+          answer: "There are no evening schedule items for the selected Camp day.",
+          details: [],
+          actions: [{ label: "Open schedule", href: "/camp/schedule" }],
+          uncertainty: "No schedule rows at or after 6:00 PM exist for this day."
+        };
+  }
+
   const next = scoped[0];
   if (!next) {
     return {
@@ -236,11 +261,118 @@ function answerSchedule(schedule: CampScheduleBlock[], selectedDay?: string): Ca
       uncertainty: "No schedule rows exist for this day."
     };
   }
+
+  if (normalized.includes("schedule") || explicitDay) {
+    return {
+      answer: requestedDay ? `${requestedDay} has ${scoped.length} scheduled ${scoped.length === 1 ? "item" : "items"}.` : "The Camp schedule is ready.",
+      details: scoped.map(formatScheduleDetail),
+      actions: [{ label: "Open schedule", href: "/camp/schedule" }]
+    };
+  }
+
   return {
-    answer: `The first scheduled item for the selected day is ${next.title} at ${next.time}.`,
+    answer: `The next scheduled item for the selected day is ${next.title} at ${next.time}.`,
     details: [next.location ? `Location: ${next.location}` : "", `Audience: ${next.audience}`, ...scoped.slice(1, 3).map((item) => `Also scheduled: ${item.time} ${item.title}`)].filter(Boolean),
     actions: [{ label: "Open schedule", href: "/camp/schedule" }]
   };
+}
+
+function isScheduleQuestion(normalized: string): boolean {
+  return [
+    "next",
+    "schedule",
+    "time",
+    "tonight",
+    "happening",
+    "dinner",
+    "lunch",
+    "breakfast",
+    "worship",
+    "vespers",
+    "lights out",
+    "wake up",
+    "registration",
+    "mail call",
+    "recreation",
+    "break-out",
+    "breakout",
+    "pickup"
+  ].some((token) => normalized.includes(token));
+}
+
+function dayFromScheduleQuestion(normalized: string): string | undefined {
+  if (normalized.includes("monday") || normalized.includes("mon ")) return "Mon, Jun 29";
+  if (normalized.includes("tuesday") || normalized.includes("tue ")) return "Tue, Jun 30";
+  if (normalized.includes("wednesday") || normalized.includes("wed ")) return "Wed, Jul 1";
+  if (normalized.includes("thursday") || normalized.includes("thu ")) return "Thu, Jul 2";
+  if (normalized.includes("friday") || normalized.includes("fri ")) return "Fri, Jul 3";
+  return undefined;
+}
+
+function findScheduleTitleMatches(schedule: CampScheduleBlock[], normalized: string): CampScheduleBlock[] {
+  const needles = [
+    "registration",
+    "vespers",
+    "dinner",
+    "team colors",
+    "evening worship",
+    "worship",
+    "yak",
+    "snack",
+    "late night",
+    "leaders meeting",
+    "lights out",
+    "wake up",
+    "morning watch",
+    "breakfast",
+    "morning worship",
+    "break-out group 1",
+    "breakout group 1",
+    "break-out group 2",
+    "breakout group 2",
+    "mail call",
+    "lunch",
+    "youth group",
+    "recreation time #1",
+    "recreation 1",
+    "recreation time #2",
+    "recreation 2",
+    "pictures",
+    "dismissal",
+    "pickup"
+  ];
+  const matchedNeedle = needles.find((needle) => normalized.includes(needle));
+  if (!matchedNeedle) return [];
+  const normalizedNeedle = matchedNeedle.replace("breakout", "break-out").replace("recreation 1", "recreation time #1").replace("recreation 2", "recreation time #2");
+  return schedule.filter((item) => item.title.toLowerCase().includes(normalizedNeedle) || normalizedNeedle.includes(item.title.toLowerCase()));
+}
+
+function sameTitleAcrossDays(items: CampScheduleBlock[]): boolean {
+  return new Set(items.map((item) => item.title)).size === 1 && new Set(items.map((item) => item.day)).size > 1;
+}
+
+function isTonightQuestion(normalized: string): boolean {
+  return normalized.includes("tonight") || normalized.includes("evening");
+}
+
+function formatScheduleDetail(item: CampScheduleBlock): string {
+  const location = item.location ? ` - ${item.location}` : "";
+  return `${item.day}: ${item.time} ${item.title}${location}`;
+}
+
+function minutesFromTime(startTime: string | undefined, displayTime: string): number {
+  if (startTime) {
+    const [hours, minutes] = startTime.split(":").map((part) => Number.parseInt(part, 10));
+    if (Number.isFinite(hours) && Number.isFinite(minutes)) return hours * 60 + minutes;
+  }
+  const match = displayTime.match(/^(\d{1,2}):(\d{2})\s*([AP]M)/i);
+  if (!match) return 0;
+  let hours = Number.parseInt(match[1], 10);
+  const minutes = Number.parseInt(match[2], 10);
+  const meridiem = match[3].toUpperCase();
+  if (meridiem === "PM" && hours !== 12) hours += 12;
+  if (meridiem === "AM" && hours === 12) hours = 0;
+  return hours * 60 + minutes;
 }
 
 function answerMissing(overview: CampOverviewPayload, normalized: string): CampEmmaAnswer {
