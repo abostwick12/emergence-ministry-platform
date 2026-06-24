@@ -334,6 +334,7 @@ describe("camp API restricted data boundaries", () => {
     expect(postResponse.status).toBe(403);
     expect(intakeResponse.status).toBe(403);
     expect(voidResponse.status).toBe(403);
+    expectNoRestrictedPayloadDetails(await json(getResponse));
   });
 
   it("blocks General Leaders and Drivers from archive, restore, archived list, and medication photo routes", async () => {
@@ -377,7 +378,9 @@ describe("camp API restricted data boundaries", () => {
     expect(medicalResponse.status).toBe(200);
     expect(medicationResponse.status).toBe(200);
     expect(JSON.stringify(await medicalResponse.json())).toContain("Insurance card copy received");
-    expect(JSON.stringify(await medicationResponse.json())).toContain("Parent-labeled medication");
+    const medicationPayload = await medicationResponse.json();
+    expect(JSON.stringify(medicationPayload)).toContain("Parent-labeled medication");
+    expect(JSON.stringify(medicationPayload)).toContain("Follow signed parent instructions");
   });
 
   it("blocks General Leaders from leader/staff management", async () => {

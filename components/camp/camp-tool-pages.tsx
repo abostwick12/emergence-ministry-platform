@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { CampAccessAdminPanel } from "@/components/camp/camp-access-admin";
 import { CampOperationDialog } from "@/components/camp/camp-operation-dialog";
 import { useCamp } from "@/components/camp/camp-provider";
+import { CampStatusChip } from "@/components/camp/camp-ui";
 import { prepareCampImageFile } from "@/lib/camp/client-image";
 import { getMedicineIntakeReturnVisibility } from "@/lib/camp/medication-workflow-visibility";
 import type {
@@ -68,7 +69,28 @@ function EmptyState({ children }: { children: React.ReactNode }) {
 }
 
 function StatusPill({ children, tone }: { children: React.ReactNode; tone?: "ready" | "warn" | "locked" }) {
-  return <span className={tone ? `camp-status ${tone}` : "camp-status"}>{children}</span>;
+  return <CampStatusChip tone={tone}>{children}</CampStatusChip>;
+}
+
+function medicationRecordForSchedule(data: MedicationPayload, item?: CampMedicationScheduleItem) {
+  if (!item) return undefined;
+  return data.checkIn.find((record) => record.id === item.medicationRecordId);
+}
+
+function latestIntakeForSchedule(data: MedicationPayload, item?: CampMedicationScheduleItem) {
+  if (!item) return undefined;
+  return data.intakeHistory.find((record) => record.medicationRecordId === item.medicationRecordId && !record.archivedAt);
+}
+
+function medicationDetailsForSchedule(data: MedicationPayload, item?: CampMedicationScheduleItem) {
+  const medication = medicationRecordForSchedule(data, item);
+  const intake = latestIntakeForSchedule(data, item);
+  return {
+    medicationName: medication?.medicationName || intake?.medicationName || "Medication name not recorded",
+    dose: intake?.dose?.trim() || "Dose not recorded",
+    instructions: item?.parentProvidedInstructions || medication?.parentProvidedInstructions || intake?.parentInstructions || "No instructions recorded.",
+    staffNotes: intake?.staffNotes?.trim() || ""
+  };
 }
 
 function useRestrictedMedicationData(required: "restricted" | "medicalCommand" = "restricted", includeArchived = false): MedicationState {
@@ -358,7 +380,7 @@ export function CampDocumentsToolPage() {
       ) : (
         <div className="camp-list">
           {overview.documents.map((doc: CampDocument) => (
-            <div className="camp-list-row align-start" key={doc.id}>
+            <div className="camp-list-row align-start" key={doc.id} data-testid={`camp-document-card-${doc.id}`}>
               <div>
                 <strong>{doc.title}</strong>
                 <p className="camp-cc-muted">Owner: {doc.owner}. Audience: {doc.audience}.</p>
@@ -893,6 +915,7 @@ function MedicationAdministrationForm({
   }, [data.schedule]);
 
   const selected = scheduleItems.find((item) => item.id === scheduleItemId) ?? activeItems[0];
+  const selectedDetails = medicationDetailsForSchedule(data, selected);
   const history = administrationLog.filter((log) => log.scheduleItemId === selected?.id && (showArchivedHistory || !log.archivedAt));
   const acknowledgementReady = ackUnavailable ? Boolean(ackReason.trim()) : hasSignature(ackSignature);
   const canSubmit = Boolean(selected) && Boolean(loggedBy.trim()) && acknowledgementReady && !saving;
@@ -1019,20 +1042,40 @@ function MedicationAdministrationForm({
         <span>Medication time block</span>
         <select className="input" value={scheduleItemId} onChange={(event) => { setScheduleItemId(event.target.value); setScheduleEdit(null); }}>
           {activeItems.map((item) => (
-            <option key={item.id} value={item.id}>{item.studentName} - {item.timeWindow}</option>
+            <option key={item.id} value={item.id}>{item.studentName} - {item.timeWindow} - {medicationDetailsForSchedule(data, item).medicationName}</option>
           ))}
         </select>
       </label>
       {selected ? (
-        <section className="camp-editor-card" aria-label="Selected administration block">
-          <div>
-            <strong>{selected.studentName} - {selected.timeWindow}</strong>
-            <p className="camp-cc-muted">{selected.parentProvidedInstructions}</p>
+        <section className="camp-editor-card camp-medication-admin-card" aria-label="Selected administration block" data-testid={`camp-medication-admin-card-${selected.id}`}>
+          <div className="camp-medication-admin-card-head">
+            <div>
+              <strong>{selected.studentName} - {selected.timeWindow}</strong>
+              <p className="camp-cc-muted">{selectedDetails.medicationName}</p>
+            </div>
+            <div className="camp-row-actions">
+              <StatusPill tone={statusTone(selected.status)}>{selected.status}</StatusPill>
+              <button className="button compact-button" type="button" onClick={beginScheduleEdit}>Edit Time Block</button>
+            </div>
           </div>
-          <div className="camp-row-actions">
-            <StatusPill tone={statusTone(selected.status)}>{selected.status}</StatusPill>
-            <button className="button compact-button" type="button" onClick={beginScheduleEdit}>Edit Time Block</button>
-          </div>
+          <dl className="camp-medication-admin-details">
+            <div>
+              <dt>Medication</dt>
+              <dd>{selectedDetails.medicationName}</dd>
+            </div>
+            <div>
+              <dt>Dose</dt>
+              <dd>{selectedDetails.dose}</dd>
+            </div>
+            <div>
+              <dt>Scheduled time</dt>
+              <dd>{selected.timeWindow}</dd>
+            </div>
+            <div className="wide">
+              <dt>Instructions / notes</dt>
+              <dd>{selectedDetails.instructions}{selectedDetails.staffNotes ? ` ${selectedDetails.staffNotes}` : ""}</dd>
+            </div>
+          </dl>
         </section>
       ) : null}
 
@@ -1732,15 +1775,19 @@ export function CampMedicationScheduleToolPage() {
       <MedicationDataGate>
         {(data) => data.schedule.length ? (
           <div className="camp-list">
-            {data.schedule.map((item) => (
-              <div className="camp-list-row align-start" key={item.id}>
-                <div>
-                  <strong>{item.studentName} - {item.timeWindow}</strong>
-                  <p className="camp-cc-muted">{item.lastLoggedAt ? `Last logged ${new Date(item.lastLoggedAt).toLocaleString()} by ${item.lastLoggedBy || "staff"}.` : "No administration log on this schedule item yet."}</p>
+            {data.schedule.map((item) => {
+              const details = medicationDetailsForSchedule(data, item);
+              return (
+                <div className="camp-list-row align-start" key={item.id} data-testid={`camp-medication-schedule-card-${item.id}`}>
+                  <div>
+                    <strong>{item.studentName} - {item.timeWindow}</strong>
+                    <p className="camp-cc-muted">{details.medicationName} - {details.dose}</p>
+                    <p className="camp-cc-muted">{item.lastLoggedAt ? `Last logged ${new Date(item.lastLoggedAt).toLocaleString()} by ${item.lastLoggedBy || "staff"}.` : "No administration log on this schedule item yet."}</p>
+                  </div>
+                  <StatusPill tone={statusTone(item.status)}>{item.status}</StatusPill>
                 </div>
-                <StatusPill tone={statusTone(item.status)}>{item.status}</StatusPill>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <EmptyState>No medication schedule items are on file.</EmptyState>

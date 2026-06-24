@@ -44,6 +44,10 @@ test.describe("Camp dedicated medication tool pages", () => {
     await expect(page.getByRole("heading", { name: "Administer Medicine" })).toBeVisible();
     await expect(page.getByLabel("Medication time block")).toHaveValue("med-sched-1");
     await expect(page.getByText("Avery Johnson - Breakfast").first()).toBeVisible();
+    const adminCard = page.getByTestId("camp-medication-admin-card-med-sched-1");
+    await expect(adminCard).toContainText("Parent-labeled medication A");
+    await expect(adminCard).toContainText("Dose");
+    await expect(adminCard).toContainText("Follow signed parent instructions");
     await expect(page.locator("a.camp-cc-back", { hasText: "More" })).toBeVisible();
   });
 

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { CampProvider, useCamp } from "@/components/camp/camp-provider";
 import { CampNav } from "@/components/camp/camp-nav";
+import { CampBottomSafeArea } from "@/components/camp/camp-ui";
 
 function formatRange(startsOn: string, lastDayLabel: string): string {
   if (!startsOn) return "";
@@ -35,7 +36,10 @@ function CampShellChrome({ children }: { children: React.ReactNode }) {
         </div>
         <CampNav />
       </header>
-      <main className="camp-cc-main">{children}</main>
+      <main className="camp-cc-main">
+        {children}
+        <CampBottomSafeArea />
+      </main>
     </div>
   );
 }
