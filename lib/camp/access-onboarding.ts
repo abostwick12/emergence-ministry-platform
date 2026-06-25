@@ -61,16 +61,19 @@ export async function findAuthUserByEmail(
 
 export async function inviteAuthUserByEmail(
   supabase: SupabaseAdminClient,
-  input: { email: string; displayName?: string }
+  input: { email: string; displayName?: string; redirectTo?: string }
 ): Promise<{ user: CampAuthUser | null; error: string | null }> {
   const email = normalizeCampAccessEmail(input.email);
   if (!email) return { user: null, error: "Email is required." };
 
   const displayName = normalizeDisplayName(input.displayName);
-  const options = displayName ? { data: { full_name: displayName } } : undefined;
+  const options = {
+    ...(displayName ? { data: { full_name: displayName } } : {}),
+    ...(input.redirectTo ? { redirectTo: input.redirectTo } : {})
+  };
 
   try {
-    const { data, error } = await supabase.auth.admin.inviteUserByEmail(email, options);
+    const { data, error } = await supabase.auth.admin.inviteUserByEmail(email, Object.keys(options).length ? options : undefined);
     if (error || !data.user) return { user: null, error: "Supabase could not send the invite email." };
     return { user: data.user as CampAuthUser, error: null };
   } catch {

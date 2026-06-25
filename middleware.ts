@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authCookieNames, isMockAuthEnabled } from "./lib/auth/config";
 
-const publicPaths = ["/login", "/api/auth/login", "/api/auth/logout"];
+const publicPaths = ["/login", "/auth/set-password", "/api/auth/login", "/api/auth/logout", "/api/auth/invite-session"];
 
 function hasSessionCookie(request: NextRequest) {
   return (

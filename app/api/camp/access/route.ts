@@ -37,7 +37,8 @@ export async function POST(request: Request) {
   const result = await onboardCampAccessMember(session, {
     email: body.email,
     campRole: body.campRole as CampStoredRole,
-    displayName: body.displayName
+    displayName: body.displayName,
+    inviteRedirectTo: new URL("/auth/set-password", request.url).toString()
   });
   if (!result.allowed) return NextResponse.json({ error: result.error }, { status: result.status });
   return NextResponse.json({ member: result.member, onboarding: result.onboarding });

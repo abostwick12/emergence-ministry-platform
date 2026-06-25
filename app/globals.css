@@ -194,6 +194,16 @@ textarea:focus-visible {
   font-weight: 700;
 }
 
+.auth-success {
+  margin: 0;
+  border: 1px solid #bbf7d0;
+  border-radius: 6px;
+  background: #f0fdf4;
+  color: #166534;
+  padding: 9px 10px;
+  font-weight: 700;
+}
+
 .sidebar-logout {
   width: 100%;
   margin-top: 18px;
