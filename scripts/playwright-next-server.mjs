@@ -11,6 +11,18 @@ function shutdown(signal = "SIGTERM") {
   if (isShuttingDown) return;
   isShuttingDown = true;
 
+  if (process.platform === "win32" && child.pid) {
+    const killer = spawn("taskkill", ["/pid", String(child.pid), "/T", "/F"], {
+      stdio: "ignore",
+      windowsHide: true
+    });
+
+    killer.once("exit", () => process.exit(0));
+    killer.once("error", () => process.exit(0));
+    setTimeout(() => process.exit(0), 1500).unref();
+    return;
+  }
+
   if (!child.killed) {
     child.kill(signal);
   }

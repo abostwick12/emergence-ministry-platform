@@ -72,7 +72,8 @@ function runPlaywright() {
     // parallel workers competing for on-demand route compilation exceed the per-test
     // navigation timeout, making `npm run test:e2e` flaky. One worker keeps it deterministic
     // (CI already ran a single worker). Run `npx playwright test` directly for parallel debugging.
-    const child = spawn(process.execPath, ["node_modules/@playwright/test/cli.js", "test", "--workers=1"], {
+    const playwrightArgs = process.argv.slice(2);
+    const child = spawn(process.execPath, ["node_modules/@playwright/test/cli.js", "test", "--workers=1", ...playwrightArgs], {
       stdio: "inherit",
       windowsHide: true,
       env: {
