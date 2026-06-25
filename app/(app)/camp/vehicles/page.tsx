@@ -39,6 +39,7 @@ export default function CampVehiclesPage() {
   }, [overview.students]);
 
   const unassigned = overview.students.filter((student) => !student.vehicleId);
+  const editingVehicleRiders = editing?.id ? ridersByVehicle.get(editing.id) ?? [] : [];
 
   async function saveVehicle() {
     if (!editing) return;
@@ -160,20 +161,47 @@ export default function CampVehiclesPage() {
           onClose={() => setEditing(null)}
           footer={
             <>
-              {editing.id ? <button className="button compact-button" type="button" disabled={saving} onClick={() => void archiveVehicle()}>Archive</button> : null}
+              {editing.id ? <button className="button compact-button danger" type="button" disabled={saving} onClick={() => void archiveVehicle()}>Archive</button> : null}
               <button className="button" type="button" disabled={saving} onClick={() => setEditing(null)}>Cancel</button>
               <button className="button primary" type="button" disabled={saving} onClick={() => void saveVehicle()}>{saving ? "Saving..." : "Save"}</button>
             </>
           }
         >
-          <div className="camp-field-grid">
-            <label className="field"><span>Name</span><input className="input" value={editing.name} onChange={(event) => setEditing({ ...editing, name: event.target.value })} /></label>
-            <label className="field"><span>Driver</span><input className="input" value={editing.driver ?? ""} onChange={(event) => setEditing({ ...editing, driver: event.target.value })} /></label>
-            <label className="field"><span>Departure time</span><input className="input" value={editing.departureWindow ?? ""} onChange={(event) => setEditing({ ...editing, departureWindow: event.target.value })} /></label>
-            <label className="field"><span>Departure location</span><input className="input" value={editing.departureLocation ?? ""} onChange={(event) => setEditing({ ...editing, departureLocation: event.target.value })} /></label>
-            <label className="field"><span>Capacity</span><input className="input" type="number" min={0} value={editing.capacity} onChange={(event) => setEditing({ ...editing, capacity: Number(event.target.value) })} /></label>
-          </div>
-          <label className="field"><span>Notes</span><textarea className="input" rows={3} value={editing.notes ?? ""} onChange={(event) => setEditing({ ...editing, notes: event.target.value })} /></label>
+          <section className="camp-editor-card camp-modal-section" aria-label="Vehicle details">
+            <p className="camp-cc-eyebrow">Vehicle</p>
+            <div className="camp-field-grid">
+              <label className="field"><span>Vehicle name</span><input className="input" value={editing.name} onChange={(event) => setEditing({ ...editing, name: event.target.value })} /></label>
+              <label className="field"><span>Driver</span><input className="input" value={editing.driver ?? ""} onChange={(event) => setEditing({ ...editing, driver: event.target.value })} /></label>
+              <label className="field"><span>Capacity</span><input className="input" type="number" min={0} value={editing.capacity} onChange={(event) => setEditing({ ...editing, capacity: Number(event.target.value) })} /></label>
+            </div>
+          </section>
+          <section className="camp-editor-card camp-modal-section" aria-label="Departure">
+            <p className="camp-cc-eyebrow">Departure</p>
+            <div className="camp-field-grid">
+              <label className="field"><span>Departure time</span><input className="input" value={editing.departureWindow ?? ""} onChange={(event) => setEditing({ ...editing, departureWindow: event.target.value })} /></label>
+              <label className="field"><span>Departure location</span><input className="input" value={editing.departureLocation ?? ""} onChange={(event) => setEditing({ ...editing, departureLocation: event.target.value })} /></label>
+            </div>
+          </section>
+          <section className="camp-editor-card camp-modal-section" aria-label="Vehicle notes">
+            <label className="field"><span>Notes</span><textarea className="input" rows={3} value={editing.notes ?? ""} onChange={(event) => setEditing({ ...editing, notes: event.target.value })} /></label>
+          </section>
+          {editing.id ? (
+            <section className="camp-editor-card camp-modal-section" aria-label="Visible riders">
+              <p className="camp-cc-eyebrow">Riders</p>
+              {editingVehicleRiders.length ? (
+                <ul className="camp-vehicle-modal-riders">
+                  {editingVehicleRiders.map((rider) => (
+                    <li key={rider.id}>
+                      <CampStudentAvatar student={rider} size="sm" />
+                      <span>{rider.name}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="camp-cc-muted">No riders visible for this access view.</p>
+              )}
+            </section>
+          ) : null}
         </CampOperationDialog>
       ) : null}
       {movingStudent ? (
@@ -184,7 +212,7 @@ export default function CampVehiclesPage() {
           footer={
             <>
               <button className="button" type="button" disabled={saving} onClick={() => setMovingStudent(null)}>Cancel</button>
-              <button className="button compact-button" type="button" disabled={saving} onClick={() => void saveRiderMove("")}>Remove Rider</button>
+              <button className="button compact-button danger" type="button" disabled={saving} onClick={() => void saveRiderMove("")}>Remove Rider</button>
               <button className="button primary" type="button" disabled={saving} onClick={() => void saveRiderMove(targetVehicleId)}>{saving ? "Saving..." : "Save Move"}</button>
             </>
           }

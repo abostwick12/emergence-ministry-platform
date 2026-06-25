@@ -85,14 +85,21 @@ test.describe("Camp mobile Command Center", () => {
     const lastCard = page.locator("[data-testid^='camp-student-card-']").last();
     await expect(lastCard).toBeVisible();
 
-    await page.evaluate(() => {
-      const root = document.documentElement;
-      const previousScrollBehavior = root.style.scrollBehavior;
-      root.style.scrollBehavior = "auto";
-      window.scrollTo(0, root.scrollHeight);
-      root.style.scrollBehavior = previousScrollBehavior;
+    await lastCard.evaluate((element) => {
+      const nav = document.querySelector("nav[aria-label='Camp sections']");
+      const scrollers = [
+        ...Array.from(document.querySelectorAll<HTMLElement>(".app-main-shell-camp, .app-shell-camp")),
+        document.scrollingElement
+      ].filter(Boolean) as Array<HTMLElement | Element>;
+      for (let attempt = 0; attempt < 4; attempt += 1) {
+        const navTop = nav?.getBoundingClientRect().top ?? window.innerHeight;
+        const overlap = element.getBoundingClientRect().bottom - navTop + 14;
+        if (overlap <= 0) break;
+        for (const scroller of scrollers) scroller.scrollTop += overlap;
+        window.scrollBy(0, overlap);
+      }
     });
-    await page.waitForFunction(() => window.scrollY > 0);
+    await page.waitForTimeout(100);
 
     const nav = page.getByRole("navigation", { name: "Camp sections" });
     await expect(nav).toBeVisible();
@@ -109,6 +116,55 @@ test.describe("Camp mobile Command Center", () => {
 
     expect(navIsTopLayer).toBe(true);
     expect(lastCardBox.y + lastCardBox.height).toBeLessThan(navBox.y);
+  });
+
+  test("mobile bottom navigation stays clear on schedule tools and operational pages", async ({ page }) => {
+    await keepNextDevPortalOffPointerPath(page);
+    await login(page);
+
+    for (const [path, finalLocator] of [
+      ["/camp/schedule", "[data-testid^='camp-schedule-card-']"],
+      ["/camp/more", ".camp-more-tile"],
+      ["/camp/vehicles", "[data-testid^='camp-vehicle-card-']"],
+      ["/camp/teams", "[data-testid^='camp-team-card-']"]
+    ] as const) {
+      await page.goto(path);
+      await suppressNextDevPortal(page);
+      await page.evaluate(() => {
+        for (const scroller of Array.from(document.querySelectorAll<HTMLElement>(".app-main-shell-camp, .app-shell-camp"))) {
+          scroller.scrollTop = 0;
+        }
+        window.scrollTo(0, 0);
+      });
+      const finalCard = page.locator(finalLocator).last();
+      await expect(finalCard).toBeVisible();
+      await page.waitForTimeout(300);
+      await finalCard.evaluate((element) => {
+        const nav = document.querySelector("nav[aria-label='Camp sections']");
+        const scrollers = [
+          ...Array.from(document.querySelectorAll<HTMLElement>(".app-main-shell-camp, .app-shell-camp")),
+          document.scrollingElement
+        ].filter(Boolean) as Array<HTMLElement | Element>;
+        for (let attempt = 0; attempt < 4; attempt += 1) {
+          const navTop = nav?.getBoundingClientRect().top ?? window.innerHeight;
+          const overlap = element.getBoundingClientRect().bottom - navTop + 14;
+          if (overlap <= 0) break;
+          for (const scroller of scrollers) scroller.scrollTop += overlap;
+          window.scrollBy(0, overlap);
+        }
+      });
+      await page.waitForTimeout(100);
+
+      const nav = page.getByRole("navigation", { name: "Camp sections" });
+      await expect(nav).toBeVisible();
+      const navBox = await nav.boundingBox();
+      const finalCardBox = await finalCard.boundingBox();
+      expect(navBox).not.toBeNull();
+      expect(finalCardBox).not.toBeNull();
+      if (!navBox || !finalCardBox) continue;
+
+      expect(finalCardBox.y + finalCardBox.height).toBeLessThan(navBox.y);
+    }
   });
 
   test("mobile bottom navigation reaches each section", async ({ page }) => {
@@ -169,6 +225,107 @@ test.describe("Camp mobile Command Center", () => {
     }
   });
 
+  test("schedule cards separate location and notes and keep detail/edit actions usable", async ({ page }) => {
+    await login(page);
+    const create = await page.request.post("/api/camp/schedule", {
+      data: {
+        title: "Playwright Location Notes Drill",
+        day: "Mon, Jun 29",
+        time: "4:44 PM-5:00 PM",
+        date: "2026-06-29",
+        startTime: "16:44",
+        endTime: "17:00",
+        location: "Main hall next to cafeteria",
+        audience: "Leaders",
+        notes: "Have shirt size ready",
+        status: "Needs Review",
+        visibility: "Leaders Only"
+      }
+    });
+    expect(create.ok()).toBe(true);
+    const created = await create.json() as { item: { id: string } };
+
+    await page.goto("/camp/schedule");
+    const card = page.getByTestId(`camp-schedule-card-${created.item.id}`);
+    await expect(card).toContainText("4:44 PM-5:00 PM");
+    await expect(card).toContainText("Playwright Location Notes Drill");
+    await expect(card.locator(".camp-schedule-meta-chip.location")).toContainText("Location");
+    await expect(card.locator(".camp-schedule-meta-chip.location")).toContainText("Main hall next to cafeteria");
+    await expect(card.locator(".camp-schedule-meta-chip.location")).not.toContainText("Have shirt size ready");
+    await expect(card.locator(".camp-schedule-note")).toContainText("Notes");
+    await expect(card.locator(".camp-schedule-note")).toContainText("Have shirt size ready");
+
+    await card.getByRole("button", { name: /Open Playwright Location Notes Drill schedule details/ }).click();
+    const detail = page.getByRole("dialog", { name: "Playwright Location Notes Drill" });
+    await expect(detail).toContainText("Event");
+    await expect(detail).toContainText("Time");
+    await expect(detail).toContainText("Location");
+    await expect(detail).toContainText("Audience");
+    await expect(detail).toContainText("Status");
+    await expect(detail).toContainText("Notes");
+
+    await detail.getByRole("button", { name: "Edit", exact: true }).click();
+    const editor = page.getByRole("dialog", { name: "Edit Schedule Item" });
+    await expect(editor).toBeVisible();
+    await editor.getByRole("textbox", { name: "Location" }).fill("Main hall by cafeteria doors");
+    await editor.getByRole("button", { name: "Save" }).click();
+    await expect(page.getByText("Schedule saved. Home and Next Up now use the updated schedule.")).toBeVisible();
+    await expect(page.getByTestId(`camp-schedule-card-${created.item.id}`).locator(".camp-schedule-meta-chip.location")).toContainText("Main hall by cafeteria doors");
+  });
+
+  test("schedule cards render notes without an ambiguous blank location", async ({ page }) => {
+    await login(page);
+    const create = await page.request.post("/api/camp/schedule", {
+      data: {
+        title: "Playwright Notes Only Drill",
+        day: "Mon, Jun 29",
+        time: "5:05 PM",
+        date: "2026-06-29",
+        startTime: "17:05",
+        location: "",
+        audience: "All Camp",
+        notes: "Bring water bottles",
+        status: "Planned",
+        visibility: "All Camp"
+      }
+    });
+    expect(create.ok()).toBe(true);
+    const created = await create.json() as { item: { id: string } };
+
+    await page.goto("/camp/schedule");
+    const card = page.getByTestId(`camp-schedule-card-${created.item.id}`);
+    await expect(card).toContainText("Playwright Notes Only Drill");
+    await expect(card.locator(".camp-schedule-meta-chip.location")).toHaveCount(0);
+    await expect(card.locator(".camp-schedule-note")).toContainText("Notes");
+    await expect(card.locator(".camp-schedule-note")).toContainText("Bring water bottles");
+  });
+
+  test("More tools launcher preserves role-aware visibility", async ({ page }) => {
+    await login(page);
+    const overview = await page.request.get("/api/camp");
+    expect(overview.ok()).toBe(true);
+    const payload = await overview.json();
+    await page.route("**/api/camp", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        json: {
+          ...payload,
+          capabilities: { restrictedMedical: false, medicalCommand: false, operationsCommand: false }
+        }
+      });
+    });
+
+    await page.goto("/camp/more");
+    await expect(page.getByRole("heading", { name: "Camp Menu" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Full Schedule" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Restricted Workflows" })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Admin Tools" })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Medicine Intake / Return" })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Medical Dashboard" })).toHaveCount(0);
+    await expect(page.locator("body")).not.toContainText("Parent-labeled medication");
+  });
+
   test("Andrew bootstrap sees Medical Command automatically without a role selector", async ({ page }) => {
     await login(page);
     await page.goto("/camp");
@@ -206,6 +363,31 @@ test.describe("Camp mobile Command Center", () => {
     await expect(page.getByRole("link", { name: "Medication Schedule" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Medication History & Corrections" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Medical Quick View" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Partner Church Upload" })).toBeVisible();
+  });
+
+  test("vehicle and team edit modals keep save actions functional", async ({ page }) => {
+    await login(page);
+
+    await page.goto("/camp/vehicles");
+    await page.getByRole("button", { name: "Edit Vehicle" }).first().click();
+    const vehicleEditor = page.getByRole("dialog", { name: "Edit Vehicle" });
+    await expect(vehicleEditor).toContainText("Vehicle");
+    await expect(vehicleEditor).toContainText("Departure");
+    await expect(vehicleEditor).toContainText("Riders");
+    await vehicleEditor.getByRole("textbox", { name: "Notes" }).fill("Playwright vehicle note");
+    await vehicleEditor.getByRole("button", { name: "Save" }).click();
+    await expect(page.getByText("Vehicle saved and rider counts refreshed.")).toBeVisible();
+
+    await page.goto("/camp/teams");
+    await page.getByRole("button", { name: /Open Blue team menu/ }).click();
+    await page.getByRole("dialog", { name: /Blue Team/ }).getByRole("button", { name: "Edit", exact: true }).click();
+    const teamEditor = page.getByRole("dialog", { name: "Edit Team" });
+    await expect(teamEditor).toContainText("Team");
+    await expect(teamEditor).toContainText("Leaders");
+    await teamEditor.getByRole("textbox", { name: "Notes" }).fill("Playwright team note");
+    await teamEditor.getByRole("button", { name: "Save" }).click();
+    await expect(page.getByText("Team saved and counts refreshed.")).toBeVisible();
   });
 });
 

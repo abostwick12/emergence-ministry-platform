@@ -42,6 +42,13 @@ function scheduleToInput(item?: CampScheduleBlock, selectedDay = ""): CampSchedu
   };
 }
 
+function scheduleStatusClass(status?: CampScheduleBlock["status"]) {
+  if (status === "Confirmed") return "camp-cc-tag ready";
+  if (status === "Needs Review") return "camp-cc-tag warn";
+  if (status === "Canceled") return "camp-cc-tag alert";
+  return "camp-cc-tag subtle";
+}
+
 export default function CampSchedulePage() {
   const { scheduleForSelectedDay, selectedDay, loading, overview, refresh } = useCamp();
   const [editing, setEditing] = useState<CampScheduleInput | null>(null);
@@ -125,9 +132,22 @@ export default function CampSchedulePage() {
                 <button className="camp-inline-button" type="button" onClick={() => setViewing(item)} aria-label={`Open ${item.title} schedule details`}>
                   <strong>{item.title}</strong>
                 </button>
-                {item.location ? <span className="camp-cc-muted">{item.location}</span> : null}
-                {item.notes ? <span className="camp-schedule-note">{item.notes}</span> : null}
-                <span className="camp-cc-tag subtle">{item.audience}</span>
+                <div className="camp-schedule-meta-row">
+                  {item.location ? (
+                    <span className="camp-schedule-meta-chip location">
+                      <span>Location</span>
+                      <strong>{item.location}</strong>
+                    </span>
+                  ) : null}
+                  <span className="camp-cc-tag subtle">{item.audience}</span>
+                  {item.status ? <span className={scheduleStatusClass(item.status)}>{item.status}</span> : null}
+                </div>
+                {item.notes ? (
+                  <p className="camp-schedule-note">
+                    <span>Notes</span>
+                    {item.notes}
+                  </p>
+                ) : null}
               </div>
             </li>
           ))}
@@ -145,7 +165,11 @@ export default function CampSchedulePage() {
             </>
           }
         >
-          <dl className="camp-team-detail-meta">
+          <dl className="camp-team-detail-meta camp-schedule-detail-meta">
+            <div>
+              <dt>Event</dt>
+              <dd>{viewing.title}</dd>
+            </div>
             <div>
               <dt>Time</dt>
               <dd>{viewing.time}</dd>
@@ -163,10 +187,10 @@ export default function CampSchedulePage() {
               <dd>{viewing.status ?? "Planned"}</dd>
             </div>
           </dl>
-          <label className="field">
-            <span>Notes</span>
-            <textarea className="input" rows={4} value={viewing.notes ?? ""} readOnly />
-          </label>
+          <section className="camp-editor-card camp-schedule-notes-panel" aria-label="Schedule notes">
+            <p className="camp-cc-eyebrow">Notes</p>
+            <p>{viewing.notes?.trim() || "No notes set."}</p>
+          </section>
         </CampOperationDialog>
       ) : null}
       {editing ? (
@@ -176,25 +200,40 @@ export default function CampSchedulePage() {
           onClose={() => setEditing(null)}
           footer={
             <>
-              {editing.id ? <button className="button compact-button" type="button" disabled={saving} onClick={() => void archiveSchedule()}>Archive</button> : null}
+              {editing.id ? <button className="button compact-button danger" type="button" disabled={saving} onClick={() => void archiveSchedule()}>Archive</button> : null}
               <button className="button" type="button" disabled={saving} onClick={() => setEditing(null)}>Cancel</button>
               <button className="button primary" type="button" disabled={saving} onClick={() => void saveSchedule()}>{saving ? "Saving..." : "Save"}</button>
             </>
           }
         >
-          <div className="camp-field-grid">
-            <label className="field"><span>Title</span><input className="input" value={editing.title} onChange={(event) => setEditing({ ...editing, title: event.target.value })} /></label>
-            <label className="field"><span>Day label</span><input className="input" value={editing.day} onChange={(event) => setEditing({ ...editing, day: event.target.value })} /></label>
-            <label className="field"><span>Date</span><input className="input" type="date" value={editing.date ?? ""} onChange={(event) => setEditing({ ...editing, date: event.target.value })} /></label>
-            <label className="field"><span>Display time</span><input className="input" value={editing.time} onChange={(event) => setEditing({ ...editing, time: event.target.value })} /></label>
-            <label className="field"><span>Start time</span><input className="input" type="time" value={editing.startTime ?? ""} onChange={(event) => setEditing({ ...editing, startTime: event.target.value })} /></label>
-            <label className="field"><span>End time</span><input className="input" type="time" value={editing.endTime ?? ""} onChange={(event) => setEditing({ ...editing, endTime: event.target.value })} /></label>
-            <label className="field"><span>Location</span><input className="input" value={editing.location ?? ""} onChange={(event) => setEditing({ ...editing, location: event.target.value })} /></label>
-            <label className="field"><span>Owner</span><input className="input" value={editing.owner ?? ""} onChange={(event) => setEditing({ ...editing, owner: event.target.value })} /></label>
-            <label className="field"><span>Audience</span><select className="input" value={editing.audience} onChange={(event) => setEditing({ ...editing, audience: event.target.value as CampScheduleInput["audience"] })}><option value="All Camp">All Camp</option><option value="Leaders">Leaders</option><option value="Medical Team">Medical Team</option></select></label>
-            <label className="field"><span>Status</span><select className="input" value={editing.status ?? "Planned"} onChange={(event) => setEditing({ ...editing, status: event.target.value as CampScheduleInput["status"] })}><option value="Planned">Planned</option><option value="Confirmed">Confirmed</option><option value="Needs Review">Needs Review</option><option value="Canceled">Canceled</option></select></label>
-          </div>
-          <label className="field"><span>Notes</span><textarea className="input" rows={3} value={editing.notes ?? ""} onChange={(event) => setEditing({ ...editing, notes: event.target.value })} /></label>
+          <section className="camp-editor-card camp-modal-section" aria-label="Event">
+            <p className="camp-cc-eyebrow">Event</p>
+            <div className="camp-field-grid">
+              <label className="field"><span>Title</span><input className="input" value={editing.title} onChange={(event) => setEditing({ ...editing, title: event.target.value })} /></label>
+              <label className="field"><span>Owner</span><input className="input" value={editing.owner ?? ""} onChange={(event) => setEditing({ ...editing, owner: event.target.value })} /></label>
+            </div>
+          </section>
+          <section className="camp-editor-card camp-modal-section" aria-label="Time">
+            <p className="camp-cc-eyebrow">Time</p>
+            <div className="camp-field-grid">
+              <label className="field"><span>Day label</span><input className="input" value={editing.day} onChange={(event) => setEditing({ ...editing, day: event.target.value })} /></label>
+              <label className="field"><span>Date</span><input className="input" type="date" value={editing.date ?? ""} onChange={(event) => setEditing({ ...editing, date: event.target.value })} /></label>
+              <label className="field"><span>Display time</span><input className="input" value={editing.time} onChange={(event) => setEditing({ ...editing, time: event.target.value })} /></label>
+              <label className="field"><span>Start time</span><input className="input" type="time" value={editing.startTime ?? ""} onChange={(event) => setEditing({ ...editing, startTime: event.target.value })} /></label>
+              <label className="field"><span>End time</span><input className="input" type="time" value={editing.endTime ?? ""} onChange={(event) => setEditing({ ...editing, endTime: event.target.value })} /></label>
+            </div>
+          </section>
+          <section className="camp-editor-card camp-modal-section" aria-label="Location and audience">
+            <p className="camp-cc-eyebrow">Location / Audience / Status</p>
+            <div className="camp-field-grid">
+              <label className="field"><span>Location</span><input className="input" value={editing.location ?? ""} onChange={(event) => setEditing({ ...editing, location: event.target.value })} /></label>
+              <label className="field"><span>Audience</span><select className="input" value={editing.audience} onChange={(event) => setEditing({ ...editing, audience: event.target.value as CampScheduleInput["audience"] })}><option value="All Camp">All Camp</option><option value="Leaders">Leaders</option><option value="Medical Team">Medical Team</option></select></label>
+              <label className="field"><span>Status</span><select className="input" value={editing.status ?? "Planned"} onChange={(event) => setEditing({ ...editing, status: event.target.value as CampScheduleInput["status"] })}><option value="Planned">Planned</option><option value="Confirmed">Confirmed</option><option value="Needs Review">Needs Review</option><option value="Canceled">Canceled</option></select></label>
+            </div>
+          </section>
+          <section className="camp-editor-card camp-modal-section" aria-label="Notes">
+            <label className="field"><span>Notes</span><textarea className="input" rows={3} value={editing.notes ?? ""} onChange={(event) => setEditing({ ...editing, notes: event.target.value })} /></label>
+          </section>
         </CampOperationDialog>
       ) : null}
     </div>

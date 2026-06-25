@@ -6507,6 +6507,26 @@ html:has(.app-shell-camp) body {
   .camp-dialog {
     max-height: calc(100dvh - 18px - env(safe-area-inset-top, 0px));
   }
+
+  .camp-dialog-head {
+    align-items: flex-start;
+  }
+
+  .camp-dialog-head > div {
+    min-width: 0;
+  }
+
+  .camp-dialog-head .button {
+    flex: 0 0 auto;
+  }
+
+  .camp-dialog .camp-field-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .camp-dialog .camp-modal-section {
+    overflow: visible;
+  }
 }
 
 @media (max-width: 520px) {
