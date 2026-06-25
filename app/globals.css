@@ -3389,9 +3389,14 @@ textarea:focus-visible {
      let taller Camp pages overflow past the deep-blue field and reveal the pale
      body base mid-scroll — the field must cover the full scroll height. */
   min-height: 100dvh;
-  background:
-    radial-gradient(125% 82% at 50% -10%, rgba(15, 58, 96, 0.92) 0%, rgba(11, 42, 73, 0.94) 36%, rgba(8, 29, 52, 0.98) 70%, #050f1e 100%),
-    #050f1e;
+  background-image:
+    linear-gradient(180deg, #010916 0%, rgba(3, 16, 32, 0.94) 78px, rgba(3, 16, 32, 0.44) 150px, transparent 270px),
+    linear-gradient(180deg, rgba(3, 16, 32, 0.54) 0%, rgba(3, 16, 32, 0.50) 45%, rgba(2, 8, 19, 0.78) 100%),
+    url("/camp-blue-watercolor-background.png"),
+    linear-gradient(180deg, #0f3b62 0%, #0b2a49 38%, #081d34 72%, #04101f 100%);
+  background-position: center, center, left top, center;
+  background-repeat: no-repeat;
+  background-size: 100% 100%, 100% 100%, cover, 100% 100%;
 }
 
 .app-shell.app-shell-camp::before {
@@ -3430,18 +3435,16 @@ html:has(.app-shell-camp) body {
   z-index: -2;
   pointer-events: none;
   background-image:
-    linear-gradient(180deg, rgba(3, 14, 29, 0.78) 0%, rgba(3, 14, 29, 0.56) 170px, transparent 330px),
-    radial-gradient(58% 42% at 18% 10%, rgba(56, 189, 248, 0.12), transparent 70%),
-    radial-gradient(56% 46% at 88% 20%, rgba(45, 212, 191, 0.10), transparent 72%),
-    radial-gradient(78% 58% at 52% -2%, rgba(125, 211, 252, 0.08), transparent 66%),
-    radial-gradient(76% 66% at 83% 96%, rgba(79, 107, 216, 0.24), transparent 74%),
-    radial-gradient(88% 76% at 8% 100%, rgba(8, 145, 178, 0.20), transparent 76%),
-    linear-gradient(180deg, rgba(2, 12, 27, 0.94) 0%, rgba(3, 16, 32, 0.94) 42%, rgba(2, 8, 19, 0.98) 100%),
-    url("/dashboard-watercolor-reference.png"),
+    linear-gradient(180deg, #010916 0%, rgba(3, 16, 32, 0.94) 78px, rgba(3, 16, 32, 0.44) 150px, transparent 270px),
+    radial-gradient(70% 52% at 14% 8%, rgba(56, 189, 248, 0.22), transparent 72%),
+    radial-gradient(70% 58% at 92% 16%, rgba(125, 211, 252, 0.18), transparent 74%),
+    radial-gradient(88% 70% at 50% 104%, rgba(8, 145, 178, 0.16), transparent 76%),
+    linear-gradient(180deg, rgba(3, 16, 32, 0.50) 0%, rgba(3, 16, 32, 0.44) 45%, rgba(2, 8, 19, 0.72) 100%),
+    url("/camp-blue-watercolor-background.png"),
     linear-gradient(180deg, #0f3b62 0%, #0b2a49 38%, #081d34 72%, #04101f 100%);
   background-repeat: no-repeat;
-  background-position: center, center, center, center, center, center, center, center, center;
-  background-size: 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, cover, 100% 100%;
+  background-position: center, center, center, center, center, left top, center;
+  background-size: 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, cover, 100% 100%;
 }
 
 /* Second layer: faint refracted-light caustics, very low opacity. */
@@ -3503,10 +3506,62 @@ html:has(.app-shell-camp) body {
 
 .camp-cc-header {
   padding: 10px 0 2px;
+  position: relative;
+  isolation: isolate;
+}
+
+.camp-cc-header::before {
+  content: "";
+  position: absolute;
+  inset: -26px -20px -42px;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(68% 92% at 50% 22%, rgba(1, 9, 22, 0.88), rgba(3, 16, 32, 0.56) 48%, transparent 76%),
+    linear-gradient(180deg, rgba(1, 9, 22, 0.80), rgba(3, 16, 32, 0.22) 72%, transparent);
 }
 
 .camp-cc-name {
+  position: relative;
+  display: inline-block;
   letter-spacing: 0;
+  color: #f4fbff;
+  background:
+    linear-gradient(180deg, #ffffff 0%, #e8fbff 28%, #8de7ff 58%, #3db8f4 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  -webkit-text-stroke: 0.35px rgba(238, 252, 255, 0.34);
+  filter:
+    drop-shadow(0 1px 0 rgba(255, 255, 255, 0.32))
+    drop-shadow(0 3px 0 rgba(4, 40, 73, 0.74))
+    drop-shadow(0 8px 12px rgba(1, 9, 22, 0.88))
+    drop-shadow(0 0 18px rgba(56, 189, 248, 0.28));
+  text-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.18),
+    0 5px 14px rgba(1, 9, 22, 0.72),
+    0 0 24px rgba(56, 189, 248, 0.36);
+}
+
+.camp-cc-name::after {
+  content: "";
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  bottom: -6px;
+  height: 7px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(125, 211, 252, 0.30), transparent 72%);
+  filter: blur(3px);
+  opacity: 0.78;
+}
+
+.camp-cc-dates {
+  color: rgba(221, 241, 255, 0.94);
+  font-weight: 800;
+  text-shadow:
+    0 1px 8px rgba(1, 9, 22, 0.78),
+    0 0 14px rgba(125, 211, 252, 0.22);
 }
 
 .camp-cc-day,
@@ -5761,6 +5816,26 @@ html:has(.app-shell-camp) body {
 }
 
 @media (max-width: 720px) {
+  .app-shell.app-shell-camp {
+    background-image:
+      linear-gradient(180deg, #010916 0%, rgba(3, 16, 32, 0.94) 78px, rgba(3, 16, 32, 0.44) 150px, transparent 270px),
+      linear-gradient(180deg, rgba(3, 16, 32, 0.54) 0%, rgba(3, 16, 32, 0.50) 45%, rgba(2, 8, 19, 0.76) 100%),
+      url("/camp-blue-watercolor-background.png"),
+      linear-gradient(180deg, #0f3b62 0%, #0b2a49 38%, #081d34 72%, #04101f 100%);
+    background-position: center, center, left top, center;
+    background-repeat: no-repeat;
+    background-size: 100% 100%, 100% 100%, cover, 100% 100%;
+  }
+
+  .camp-cc-header-titles {
+    align-items: center;
+    text-align: center;
+  }
+
+  .camp-cc-name {
+    font-size: 24px;
+  }
+
   .camp-cc-main {
     padding-bottom: calc(128px + env(safe-area-inset-bottom, 0px));
   }
