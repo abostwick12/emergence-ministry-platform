@@ -19,7 +19,7 @@ vi.mock("@/lib/auth/server", async () => {
 
 import { POST as importPOST } from "@/app/api/camp/import/route";
 import { POST as uploadImportPOST } from "@/app/api/camp/import/upload/route";
-import { GET as accessGET, PATCH as accessPATCH } from "@/app/api/camp/access/route";
+import { GET as accessGET, PATCH as accessPATCH, POST as accessPOST } from "@/app/api/camp/access/route";
 import { POST as campEmmaPOST } from "@/app/api/camp/emma/route";
 import { GET as campGET } from "@/app/api/camp/route";
 import { GET as medicalCommandGET } from "@/app/api/camp/medical-command/route";
@@ -282,9 +282,14 @@ describe("camp API restricted data boundaries", () => {
       email: "leader@example.test",
       campRole: "leader"
     }, "PATCH"));
+    const invite = await accessPOST(jsonRequest("http://localhost/api/camp/access", {
+      email: "leader@example.test",
+      campRole: "medical_coordinator"
+    }));
 
     expect(list.status).toBe(403);
     expect(update.status).toBe(403);
+    expect(invite.status).toBe(403);
   });
 
   it("blocks General Leaders from restricted medical read and write routes", async () => {

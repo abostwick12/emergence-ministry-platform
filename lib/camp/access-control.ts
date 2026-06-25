@@ -9,6 +9,7 @@ import { isSupabaseConfigured } from "@/lib/auth/config";
 import { getSupabaseAuthClient, type AuthSession } from "@/lib/auth/server";
 import type { CampAccessContext } from "@/lib/camp/permissions";
 import { CAMP_STORED_ROLES, campStoredRoleLabels, type CampStoredRole } from "@/lib/camp/access-roles";
+import { activatePendingCampInviteForSession } from "@/lib/camp/access-onboarding";
 
 export const BOOTSTRAP_CAMP_ADMIN_EMAIL = "andrew.w.bostwick12@gmail.com";
 
@@ -50,6 +51,9 @@ export async function getStoredCampRole(session: AuthSession): Promise<CampStore
 export async function getStoredCampRoleState(session: AuthSession): Promise<CampStoredRoleState> {
   if (session.isMock || !isSupabaseConfigured()) return { available: false, role: null };
   try {
+    const activatedRole = await activatePendingCampInviteForSession(session);
+    if (activatedRole) return { available: true, role: activatedRole };
+
     const supabase = getSupabaseAuthClient(session.accessToken);
     const { data, error } = await supabase
       .from("camp_access_members")

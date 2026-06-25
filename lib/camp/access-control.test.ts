@@ -1,8 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const getSupabaseAuthClientMock = vi.fn();
+const getSupabaseAdminClientMock = vi.fn();
+const isSupabaseAdminConfiguredMock = vi.fn(() => false);
 vi.mock("@/lib/auth/server", () => ({
-  getSupabaseAuthClient: (...args: unknown[]) => getSupabaseAuthClientMock(...args)
+  getSupabaseAdminClient: (...args: unknown[]) => getSupabaseAdminClientMock(...args),
+  getSupabaseAuthClient: (...args: unknown[]) => getSupabaseAuthClientMock(...args),
+  isSupabaseAdminConfigured: () => isSupabaseAdminConfiguredMock()
 }));
 
 const isSupabaseConfiguredMock = vi.fn(() => true);
@@ -42,11 +46,81 @@ function mockStoredRole(role: string | null, error: unknown = null) {
   });
 }
 
+function pendingInviteActivationClient() {
+  const profileInserts: Array<Record<string, unknown>> = [];
+  const accessUpdates: Array<Record<string, unknown>> = [];
+  const client = {
+    auth: {
+      admin: {
+        getUserById: async () => ({
+          data: { user: { id: "u_pending", email: "pending@example.test", user_metadata: { full_name: "Pending Leader" } } },
+          error: null
+        })
+      }
+    },
+    from(table: string) {
+      if (table === "camp_access_members") {
+        return {
+          select: () => ({
+            eq: () => ({
+              eq: () => ({
+                maybeSingle: async () => ({
+                  data: { user_id: "u_pending", email: "pending@example.test", camp_role: "leader", is_active: false },
+                  error: null
+                })
+              })
+            })
+          }),
+          update: (payload: Record<string, unknown>) => {
+            accessUpdates.push(payload);
+            return {
+              eq: () => ({
+                eq: () => ({
+                  select: () => ({
+                    single: async () => ({ data: { camp_role: "leader" }, error: null })
+                  })
+                })
+              })
+            };
+          }
+        };
+      }
+      if (table === "profiles") {
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: async () => ({ data: null, error: null })
+            }),
+            ilike: () => ({
+              maybeSingle: async () => ({ data: null, error: null })
+            })
+          }),
+          insert: (payload: Record<string, unknown>) => {
+            profileInserts.push(payload);
+            return {
+              select: () => ({
+                single: async () => ({
+                  data: { id: payload.id, email: payload.email, full_name: payload.full_name },
+                  error: null
+                })
+              })
+            };
+          }
+        };
+      }
+      return {};
+    }
+  };
+
+  return { client, profileInserts, accessUpdates };
+}
+
 const ORIGINAL_ENV = { ...process.env };
 afterEach(() => {
   process.env = { ...ORIGINAL_ENV };
   vi.clearAllMocks();
   isSupabaseConfiguredMock.mockReturnValue(true);
+  isSupabaseAdminConfiguredMock.mockReturnValue(false);
 });
 
 describe("camp access-control", () => {
@@ -75,6 +149,28 @@ describe("camp access-control", () => {
     mockStoredRole("camp_admin");
     const ctx = await resolveCampAccessForRequest(session(), "general_leader");
     expect(ctx).toMatchObject({ restrictedActor: "Andrew", canAccessRestricted: true });
+  });
+
+  it("activates a pending invite after the matching Auth user signs in", async () => {
+    isSupabaseAdminConfiguredMock.mockReturnValue(true);
+    const admin = pendingInviteActivationClient();
+    getSupabaseAdminClientMock.mockReturnValue(admin.client);
+
+    const ctx = await resolveCampAccessForRequest(
+      session({ user: { id: "u_pending", email: "pending@example.test", fullName: "Pending Leader", role: "staff" } }),
+      "andrew"
+    );
+
+    expect(ctx).toMatchObject({ effectiveRole: "general_leader", canAccessRestricted: false });
+    expect(admin.profileInserts).toEqual([
+      expect.objectContaining({
+        id: "u_pending",
+        email: "pending@example.test",
+        full_name: "Pending Leader",
+        role: "staff"
+      })
+    ]);
+    expect(admin.accessUpdates).toEqual([{ email: "pending@example.test", is_active: true }]);
   });
 
   it("uses Andrew's exact bootstrap identity while the durable table is unavailable", async () => {
