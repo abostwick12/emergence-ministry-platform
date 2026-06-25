@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import type { CSSProperties } from "react";
 import { useState } from "react";
 import { CampOperationDialog } from "@/components/camp/camp-operation-dialog";
 import { useCamp } from "@/components/camp/camp-provider";
-import { CampTeamCard } from "@/components/camp/camp-team-card";
+import { CampLeaderProfileRow, initialsForName, CampTeamCard, teamAccent } from "@/components/camp/camp-team-card";
 import { useTeamMissingAssignmentCounts, useTeamStudentCounts } from "@/components/camp/camp-team-carousel";
 import type { CampStaffMember, CampTeam, CampTeamInput } from "@/lib/camp/types";
 
@@ -24,6 +25,36 @@ function staffRoleLabel(role: CampStaffMember["role"]): string {
   if (role === "leader") return "Leader";
   if (role === "staff") return "Staff";
   return "Adult volunteer";
+}
+
+function AvailableLeaderTile({ member, teams }: { member: CampStaffMember; teams: CampTeam[] }) {
+  const assignedTeam = member.teamId
+    ? teams.find((team) => team.id === member.teamId)
+    : teams.find((team) => team.name === member.teamName);
+  const accent = assignedTeam ? teamAccent(assignedTeam.color) : "#38bdf8";
+  const style = { "--camp-leader-accent": accent } as CSSProperties;
+
+  return (
+    <li className={assignedTeam ? "camp-available-leader-tile assigned" : "camp-available-leader-tile"} style={style}>
+      <span className="camp-leader-avatar" aria-hidden="true">
+        {member.profilePhotoUrl ? (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={member.profilePhotoUrl} alt="" />
+          </>
+        ) : (
+          initialsForName(member.name)
+        )}
+      </span>
+      <span className="camp-available-leader-body">
+        <strong>{member.name}</strong>
+        <span className="camp-available-leader-meta">{staffRoleLabel(member.role)}</span>
+      </span>
+      <span className="camp-available-leader-status">
+        {assignedTeam ? `${assignedTeam.name} team` : "Unassigned"}
+      </span>
+    </li>
+  );
 }
 
 function LeaderSelect({
@@ -117,8 +148,15 @@ export default function CampTeamsPage() {
       {message ? <p className={message.tone === "error" ? "camp-save-message error" : "camp-save-message success"} role="status">{message.text}</p> : null}
       {activeStaff.length ? (
         <section className="camp-editor-card" aria-label="Available leaders">
-          <strong>Available leaders</strong>
-          <p className="camp-cc-muted">{activeStaff.map((member) => `${member.name}${member.teamName ? ` (${member.teamName})` : ""}`).join(", ")}</p>
+          <div className="camp-available-leaders-head">
+            <strong>Available leaders</strong>
+            <span>{activeStaff.length}</span>
+          </div>
+          <ul className="camp-available-leaders-list">
+            {activeStaff.map((member) => (
+              <AvailableLeaderTile key={member.id} member={member} teams={overview.teams} />
+            ))}
+          </ul>
         </section>
       ) : null}
       {loading && !overview.teams.length ? (
@@ -129,6 +167,7 @@ export default function CampTeamsPage() {
             <CampTeamCard
               key={team.id}
               team={team}
+              staff={activeStaff}
               studentCount={counts.get(team.id) ?? 0}
               missingAssignmentCount={missingCounts.get(team.id) ?? 0}
               variant="list"
@@ -153,11 +192,11 @@ export default function CampTeamsPage() {
           <dl className="camp-team-detail-meta">
             <div>
               <dt>Leader</dt>
-              <dd>{selectedTeam.leader?.trim() || "Unassigned"}</dd>
+              <dd><CampLeaderProfileRow name={selectedTeam.leader} roleLabel="Leader" staff={activeStaff} /></dd>
             </div>
             <div>
               <dt>Co-leader</dt>
-              <dd>{selectedTeam.coLeader?.trim() || "Unassigned"}</dd>
+              <dd><CampLeaderProfileRow name={selectedTeam.coLeader} roleLabel="Co-Leader" staff={activeStaff} /></dd>
             </div>
             <div>
               <dt>Room / cabin</dt>

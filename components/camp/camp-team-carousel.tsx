@@ -51,6 +51,7 @@ export function CampTeamCarousel() {
           <CampTeamCard
             key={team.id}
             team={team}
+            staff={overview.staff}
             studentCount={counts.get(team.id) ?? 0}
             missingAssignmentCount={missingCounts.get(team.id) ?? 0}
             variant="carousel"

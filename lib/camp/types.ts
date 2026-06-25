@@ -193,6 +193,7 @@ export type CampRestrictedMedicalRecord = {
 export type CampStaffMember = {
   id: string;
   name: string;
+  profilePhotoUrl?: string;
   role: "adult_volunteer" | "leader" | "staff";
   shirtSize?: string;
   registrationExternalId?: string;
