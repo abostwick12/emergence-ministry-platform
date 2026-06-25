@@ -151,7 +151,8 @@ describe("camp access-admin", () => {
     const res = await onboardCampAccessMember(session(BOOTSTRAP_CAMP_ADMIN_EMAIL, false), {
       email: "New@Example.test",
       displayName: "New Leader",
-      campRole: "leader"
+      campRole: "leader",
+      inviteRedirectTo: "https://lead.example/auth/set-password"
     });
 
     expect(res).toMatchObject({
@@ -161,7 +162,7 @@ describe("camp access-admin", () => {
     expect(admin.invites).toEqual([
       expect.objectContaining({
         email: "new@example.test",
-        options: { data: { full_name: "New Leader" } }
+        options: { data: { full_name: "New Leader" }, redirectTo: "https://lead.example/auth/set-password" }
       })
     ]);
     expect(admin.profileInserts).toHaveLength(0);

@@ -71,6 +71,7 @@ export type CampAccessOnboardingInput = {
   email: string;
   campRole: CampStoredRole;
   displayName?: string;
+  inviteRedirectTo?: string;
 };
 
 export type CampAccessOnboardingResult = {
@@ -176,7 +177,7 @@ export async function onboardCampAccessMember(session: AuthSession, input: CampA
   if (authLookup.error) return { allowed: false, status: 503, error: authLookup.error };
 
   if (!authLookup.user) {
-    const invited = await inviteAuthUserByEmail(supabase, { email, displayName: input.displayName });
+    const invited = await inviteAuthUserByEmail(supabase, { email, displayName: input.displayName, redirectTo: input.inviteRedirectTo });
     if (invited.error || !invited.user) {
       return { allowed: false, status: 400, error: invited.error ?? "Unable to resolve user." };
     }
