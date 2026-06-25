@@ -1,4 +1,5 @@
 import { campStudents, campTeams, campVehicles } from "@/lib/camp/public-data";
+import { rosterTypeFromFlags, sourceChurchFromFlags } from "@/lib/camp/partner-roster";
 import type { CampAccessRole, CampAccessScope, CampStudentPublic, CampTeam, CampVehicle, CampVisibleStudent } from "@/lib/camp/types";
 
 export const campAccessLabels: Record<CampAccessRole, string> = {
@@ -52,6 +53,8 @@ export function getCampVisibleStudentsForData(
         name: student.name,
         photoInitials: student.photoInitials,
         profilePhotoUrl: student.profilePhotoUrl,
+        sourceChurch: student.sourceChurch ?? sourceChurchFromFlags(student.limitedSafetyFlags),
+        rosterType: student.rosterType ?? rosterTypeFromFlags(student.limitedSafetyFlags),
         vehicleId: student.vehicleId,
         vehicleName: vehicle?.name ?? "Unassigned"
       };
@@ -71,6 +74,8 @@ export function getCampVisibleStudentsForData(
       vehicleName: vehicle?.name ?? "Unassigned",
       cabin: student.cabin,
       shirtSize: student.shirtSize,
+      sourceChurch: student.sourceChurch ?? sourceChurchFromFlags(student.limitedSafetyFlags),
+      rosterType: student.rosterType ?? rosterTypeFromFlags(student.limitedSafetyFlags),
       limitedSafetyFlags: student.limitedSafetyFlags,
       hasRestrictedMedicalInfo: student.hasRestrictedMedicalInfo,
       hasMedicationPlan: student.hasMedicationPlan,

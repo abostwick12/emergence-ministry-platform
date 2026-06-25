@@ -27,12 +27,53 @@ test.describe("Camp Oakwood restricted import boundaries", () => {
   test("Camp Settings exposes Partner Church Upload for reviewed camper spreadsheets", async ({ page }) => {
     await login(page);
 
-    await page.goto("/camp/more");
-    await page.getByRole("link", { name: "Camp Settings" }).click();
-    await page.getByRole("link", { name: "Partner Church Upload" }).click();
-    await page.waitForURL(/\/camp\/settings\/import\?mode=partner$/);
+    await page.goto("/camp/settings/import?mode=partner");
     await expect(page.getByRole("heading", { name: "Partner Church Upload" })).toBeVisible();
-    await expect(page.getByText("Required fields are camper name and partner church/source church")).toBeVisible();
+    await expect(page.getByRole("region", { name: "Partner church roster import" }).getByText("Only student name is required. Team and other details can be added now or edited later.", { exact: true })).toBeVisible();
+  });
+
+  test("partner church campers stay out of default roster but appear in partner and team views", async ({ page }) => {
+    await login(page);
+
+    const camperName = "Playwright Partner Camper";
+    const sourceChurch = "Playwright Partner Church";
+    const preview = await page.request.post("/api/camp/import?role=andrew", {
+      data: {
+        action: "preview",
+        sourceType: "partnerChurch",
+        sourceName: "Partner Church Upload",
+        csv: [
+          "Student Name,Team,Partner Church,Room/Cabin,Shirt Size",
+          `${camperName},Blue,${sourceChurch},Partner Cabin,Adult Small`
+        ].join("\n")
+      }
+    });
+    expect(preview.ok()).toBe(true);
+    const previewPayload = await preview.json();
+    expect(previewPayload.preview.rows[0].camper).toMatchObject({ rosterType: "partner", sourceChurch });
+
+    const commit = await page.request.post("/api/camp/import?role=andrew", {
+      data: {
+        action: "commit",
+        preview: previewPayload.preview
+      }
+    });
+    expect(commit.ok()).toBe(true);
+
+    await page.goto("/camp/roster");
+    await expect(page.getByRole("heading", { name: "Roster" })).toBeVisible();
+    await expect(page.locator("body")).not.toContainText(camperName);
+
+    await page.goto("/camp/partner-campers");
+    await expect(page.getByRole("heading", { name: "Partner Church Campers" })).toBeVisible();
+    await expect(page.getByText(camperName)).toBeVisible();
+    await expect(page.getByRole("button", { name: new RegExp(`${camperName}.*${sourceChurch}`) })).toBeVisible();
+    await expect(page.getByText("Adult Small")).toBeVisible();
+    await expect(page.getByText("Partner Cabin")).toBeVisible();
+
+    await page.goto("/camp/teams/team-blue");
+    await expect(page.getByText(camperName)).toBeVisible();
+    await expect(page.getByText(`Partner Church: ${sourceChurch}`)).toBeVisible();
   });
 
   test("Andrew can find and edit imported leader staff details", async ({ page }) => {
@@ -68,14 +109,17 @@ test.describe("Camp Oakwood restricted import boundaries", () => {
     await expect(page.getByText("Oakwood registration ID: 70001994")).toBeVisible();
 
     await page.getByRole("button", { name: "Edit Details" }).click();
+    await page.getByLabel("Profile photo URL").fill("https://photos.example.test/playwright-staff.jpg");
     await page.getByLabel("Display name").fill("Playwright Staff Leader Edited");
     await page.getByLabel("Role / type").selectOption("leader");
     await page.getByLabel("Team assignment").selectOption("team-red");
     await page.getByLabel("Shirt size").fill("Adult Medium");
+    await page.getByLabel("Partner/source church").fill("Playwright Partner Church");
     await page.getByRole("button", { name: "Save Staff Details" }).click();
 
     await expect(page.getByText("Staff details saved.")).toBeVisible();
     await expect(page.getByText("Playwright Staff Leader Edited")).toBeVisible();
+    await expect(page.getByText("Source church: Playwright Partner Church")).toBeVisible();
     await expect(page.getByText("Parent medical note")).toHaveCount(0);
   });
 

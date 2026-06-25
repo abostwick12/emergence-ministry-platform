@@ -2,6 +2,7 @@
 
 import type { CSSProperties } from "react";
 import { teamAccent } from "@/components/camp/camp-team-card";
+import { isRosterTypeFlag } from "@/lib/camp/partner-roster";
 import type { CampVisibleStudent } from "@/lib/camp/types";
 
 type SafeTag = {
@@ -18,8 +19,11 @@ function safeTags(student: CampVisibleStudent): SafeTag[] {
   if (student.hasMedicalAlert) tags.push({ label: "Medical concern", tone: "medical" });
   if (student.needsParentClarification) tags.push({ label: "Missing form", tone: "warn" });
   if (student.needsParentClarification) tags.push({ label: "Needs check-in", tone: "warn" });
+  if (student.rosterType === "partner") tags.push({ label: student.sourceChurch ? `Partner Church: ${student.sourceChurch}` : "Partner Church", tone: "default" });
   // limitedSafetyFlags are server-scrubbed public strings; render as-is.
   for (const flag of student.limitedSafetyFlags ?? []) {
+    if (isRosterTypeFlag(flag)) continue;
+    if (student.rosterType === "partner" && flag.toLowerCase().startsWith("partner church:")) continue;
     if (flag && !tags.some((tag) => tag.label === flag)) tags.push({ label: flag, tone: "default" });
   }
   return tags;
@@ -35,6 +39,7 @@ export function CampStudentCard({ student }: { student: CampVisibleStudent }) {
     ["Grade", student.grade],
     ["Room", student.cabin],
     ["Team", student.teamName],
+    ["Source", student.rosterType === "partner" ? student.sourceChurch : ""],
     ["Shirt", student.shirtSize],
     ["Vehicle", student.vehicleName]
   ].filter((entry): entry is [string, string] => Boolean(entry[1]?.trim()));
