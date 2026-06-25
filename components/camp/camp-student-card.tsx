@@ -31,7 +31,7 @@ export function CampStudentCard({ student }: { student: CampVisibleStudent }) {
     .join(" - ");
 
   return (
-    <div className={hasTeamColor ? "camp-student-row has-team-color" : "camp-student-row"} style={teamStyle}>
+    <div className={hasTeamColor ? "camp-student-row has-team-color" : "camp-student-row"} style={teamStyle} data-testid={`camp-student-card-${student.id}`}>
       <CampStudentAvatar student={student} />
       <div className="camp-student-info">
         <strong>{student.name}</strong>

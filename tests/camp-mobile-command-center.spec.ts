@@ -21,6 +21,28 @@ test.describe("Camp mobile Command Center", () => {
     }
   });
 
+  test("mobile operational pages expose stable card hooks", async ({ page }) => {
+    await login(page);
+
+    await page.goto("/camp/teams");
+    await expect(page.getByTestId("camp-team-card-team-blue")).toBeVisible();
+
+    await page.goto("/camp/roster");
+    await expect(page.getByTestId("camp-student-card-stu-1")).toBeVisible();
+
+    await page.goto("/camp/schedule");
+    await expect(page.locator("[data-testid^='camp-schedule-card-']").first()).toBeVisible();
+
+    await page.goto("/camp/vehicles");
+    await expect(page.locator("[data-testid^='camp-vehicle-card-']").first()).toBeVisible();
+
+    await page.goto("/camp/forms");
+    await expect(page.locator("[data-testid^='camp-document-card-']").first()).toBeVisible();
+
+    await page.goto("/camp/medical-command/administer");
+    await expect(page.getByTestId("camp-medication-admin-card-med-sched-1")).toBeVisible();
+  });
+
   test("mobile bottom navigation reaches each section", async ({ page }) => {
     await keepNextDevPortalOffPointerPath(page);
     await login(page);

@@ -124,7 +124,7 @@ export default function CampVehiclesPage() {
             const riders = ridersByVehicle.get(vehicle.id) ?? [];
             const remaining = vehicle.capacity - riders.length;
             return (
-              <section key={vehicle.id} className="camp-vehicle-card" aria-label={vehicle.name}>
+              <section key={vehicle.id} className="camp-vehicle-card" aria-label={vehicle.name} data-testid={`camp-vehicle-card-${vehicle.id}`}>
                 <div className="camp-vehicle-head">
                   <strong>{vehicle.name}</strong>
                   <span className={remaining < 0 ? "camp-status warn" : "camp-cc-muted"}>{riders.length}/{vehicle.capacity || 0} seats</span>

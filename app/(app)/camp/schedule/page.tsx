@@ -119,7 +119,7 @@ export default function CampSchedulePage() {
       ) : (
         <ol className="camp-schedule-list">
           {items.map((item) => (
-            <li key={item.id} className="camp-schedule-item">
+            <li key={item.id} className="camp-schedule-item" data-testid={`camp-schedule-card-${item.id}`}>
               <span className="camp-schedule-time">{item.time}</span>
               <div className="camp-schedule-body">
                 <button className="camp-inline-button" type="button" onClick={() => setViewing(item)} aria-label={`Open ${item.title} schedule details`}>

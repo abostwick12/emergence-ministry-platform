@@ -70,6 +70,7 @@ function CampTeamCardContents({
 export function CampTeamCard({ team, studentCount, missingAssignmentCount = 0, variant = "list", onSelect }: CampTeamCardProps) {
   const accentStyle = { "--camp-team-accent": teamAccent(team.color) } as CSSProperties;
   const className = `camp-team-card camp-team-card-${variant}`;
+  const testId = `camp-team-card-${team.id}`;
 
   if (onSelect) {
     return (
@@ -77,6 +78,7 @@ export function CampTeamCard({ team, studentCount, missingAssignmentCount = 0, v
         type="button"
         className={`${className} camp-team-card-button`}
         style={accentStyle}
+        data-testid={testId}
         aria-label={`Open ${team.name} team menu`}
         onClick={onSelect}
       >
@@ -90,6 +92,7 @@ export function CampTeamCard({ team, studentCount, missingAssignmentCount = 0, v
       href={`/camp/teams/${team.id}`}
       className={className}
       style={accentStyle}
+      data-testid={testId}
       aria-label={`Open ${team.name} team`}
     >
       <CampTeamCardContents team={team} studentCount={studentCount} missingAssignmentCount={missingAssignmentCount} />
