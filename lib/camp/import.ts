@@ -50,6 +50,7 @@ function summarizeRows(rows: CampRegistrationImportPreviewRow[]): CampRegistrati
   return {
     totalRows: rows.length,
     readyRows: rows.filter((row) => row.status === "Ready").length,
+    warningRows: rows.filter((row) => row.status === "Warning").length,
     clarificationRows: rows.filter((row) => row.status === "Needs Parent Clarification").length,
     blockedRows: rows.filter((row) => row.status === "Blocked").length,
     addRows: rows.filter((row) => row.importAction === "add").length,
@@ -62,21 +63,28 @@ function normalizeRegistrationRow(row: CsvRow, rowNumber: number, options: Impor
   const warnings: string[] = [];
   const name = pick(row, ["student name", "camper name", "name", "student"]);
   const partnerChurch = pick(row, ["partner church", "source church", "church/source", "church", "home church", "sending church", "source"]);
-  const team = findByName(options.teams, pick(row, ["team", "team name"]));
-  const vehicle = findVehicle(options.vehicles, pick(row, ["vehicle", "car", "van", "transportation"]));
+  const profilePhotoUrl = sanitizeProfilePhotoUrl(pick(row, ["photo", "photo url", "profile photo", "student photo", "image"]));
+  const teamName = pick(row, ["team", "team name"]);
+  const vehicleName = pick(row, ["vehicle", "car", "van", "transportation"]);
+  const team = findTeam(options.teams, teamName);
+  const vehicle = findVehicle(options.vehicles, vehicleName);
   const safetyFlags = splitFlags(pick(row, ["limited safety flags", "safety flags", "public flags", "safe operational notes", "leader-safe notes", "operational notes"]));
   if (partnerChurch) safetyFlags.unshift(`Partner church: ${partnerChurch}`);
 
   if (!name) warnings.push("Missing camper name.");
-  if (options.mode === "partnerChurch" && !partnerChurch) warnings.push("Missing partner church/source church.");
-  if (!team) warnings.push("Team missing or unmatched; first team will be used for preview.");
-  if (!vehicle) warnings.push("Vehicle missing or unmatched; first vehicle will be used for preview.");
+  if (options.mode === "partnerChurch") {
+    if (teamName && !team) warnings.push("Team not matched; camper will import without assigned team.");
+    if (vehicleName && !vehicle) warnings.push("Vehicle not matched; camper will import without assigned vehicle.");
+  } else {
+    if (!team) warnings.push("Team missing or unmatched; first team will be used for preview.");
+    if (!vehicle) warnings.push("Vehicle missing or unmatched; first vehicle will be used for preview.");
+  }
 
   const medicationName = pick(row, ["medication", "medication name", "medication label", "medicine"]);
   const medicationInstructions = pick(row, ["medication instructions", "parent instructions", "parent-provided instructions", "dosage instructions"]);
   const medicationTime = pick(row, ["medication time", "time window", "schedule", "medication schedule"]);
   const medicationOnFileIndicator = boolish(pick(row, ["medication on file", "medication-on-file", "medication indicator", "medication plan on file"]));
-  const hasMedicationData = Boolean(medicationName || medicationInstructions || medicationTime);
+  const hasMedicationData = options.mode !== "partnerChurch" && Boolean(medicationName || medicationInstructions || medicationTime);
   const medicationNeedsClarification = hasMedicationData && (!medicationName || !medicationInstructions || needsClarification(medicationInstructions));
 
   if (hasMedicationData && !medicationName) warnings.push("Medication label missing; marked Needs Parent Clarification.");
@@ -90,7 +98,7 @@ function normalizeRegistrationRow(row: CsvRow, rowNumber: number, options: Impor
   const parentMedicalNotes = pick(row, ["parent medical notes", "parent notes"]);
   const emergencyContactName = pick(row, ["emergency contact name", "emergency contact", "parent/guardian name"]);
   const emergencyContactPhone = pick(row, ["emergency contact phone", "emergency phone", "parent/guardian phone", "phone"]);
-  const hasMedicalData = Boolean(restrictedNotes || allergyNotes || insuranceStatus || parentMedicalNotes || emergencyContactName || emergencyContactPhone);
+  const hasMedicalData = options.mode !== "partnerChurch" && Boolean(restrictedNotes || allergyNotes || insuranceStatus || parentMedicalNotes || emergencyContactName || emergencyContactPhone);
   const medicalNeedsClarification = hasMedicalData && needsClarification(`${restrictedNotes} ${allergyNotes} ${parentMedicalNotes}`);
   if (medicalNeedsClarification) warnings.push("Medical notes require parent clarification.");
 
@@ -101,8 +109,15 @@ function normalizeRegistrationRow(row: CsvRow, rowNumber: number, options: Impor
     options.mode === "partnerChurch" ? resolveStudentImportMatch(name, options.existingStudents ?? []) : { action: "add" };
   if (match.warning) warnings.push(match.warning);
 
-  const blocked = !name || (options.mode === "partnerChurch" && !partnerChurch) || match.action === "skip";
+  const blocked = !name || match.action === "skip";
   const needsParentClarification = medicationNeedsClarification || medicalNeedsClarification || medicationOnFileIndicator;
+  const status: CampRegistrationImportPreviewRow["status"] = blocked
+    ? "Blocked"
+    : options.mode === "partnerChurch" && (warnings.length > 0 || needsParentClarification)
+      ? "Warning"
+      : needsParentClarification
+        ? "Needs Parent Clarification"
+        : "Ready";
   const studentName = name || `Import row ${rowNumber}`;
   const medication = hasMedicationData
     ? {
@@ -125,18 +140,21 @@ function normalizeRegistrationRow(row: CsvRow, rowNumber: number, options: Impor
 
   return {
     rowNumber,
-    status: blocked ? "Blocked" : needsParentClarification ? "Needs Parent Clarification" : "Ready",
+    status,
     importAction: blocked ? "skip" : match.action,
     sourceChurch: partnerChurch,
     warnings,
     camper: {
       id: match.id,
       name: studentName,
+      profilePhotoUrl,
       grade: pick(row, ["grade", "student grade"]) || "",
-      teamId: team?.id ?? options.teams[0]?.id ?? "",
-      vehicleId: vehicle?.id ?? options.vehicles[0]?.id ?? "",
+      teamId: team?.id ?? (options.mode === "partnerChurch" ? "" : options.teams[0]?.id ?? ""),
+      vehicleId: vehicle?.id ?? (options.mode === "partnerChurch" ? "" : options.vehicles[0]?.id ?? ""),
       cabin: pick(row, ["cabin", "room", "room/cabin"]) || "",
       shirtSize: pick(row, ["shirt size", "t-shirt size", "t shirt size"]) || "",
+      sourceChurch: partnerChurch,
+      rosterType: options.mode === "partnerChurch" ? "partner" : "emerge",
       emergencyContactOnFile,
       hasMedicalAlert: medicalConcernIndicator,
       hasDietaryAlert: foodAllergyIndicator,
@@ -241,10 +259,10 @@ function normalizeName(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
-function findByName<T extends { name: string }>(items: T[], name: string): T | undefined {
+function findTeam(items: CampTeam[], name: string): CampTeam | undefined {
   if (!name) return undefined;
-  const normalized = name.trim().toLowerCase();
-  return items.find((item) => item.name.toLowerCase() === normalized);
+  const normalized = normalizeTeamName(name);
+  return items.find((item) => normalizeTeamName(item.name) === normalized || normalizeTeamName(item.color) === normalized);
 }
 
 function findVehicle(vehicles: CampVehicle[], name: string): CampVehicle | undefined {
@@ -269,6 +287,22 @@ function boolish(value: string): boolean {
   return /^(yes|y|true|1|x|on file|filed|present|food|diet|medical|medication|care plan)$/i.test(normalized) || normalized.includes("on file");
 }
 
+function normalizeTeamName(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, " ").replace(/\s+team$/, "");
+}
+
+function sanitizeProfilePhotoUrl(value: string): string | undefined {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  try {
+    const url = new URL(trimmed);
+    if (url.protocol === "https:" || url.protocol === "http:") return url.toString();
+  } catch {
+    return undefined;
+  }
+  return undefined;
+}
+
 function resolveStudentImportMatch(
   name: string,
   existingStudents: Array<Pick<CampVisibleStudent, "id" | "name">>
@@ -277,6 +311,6 @@ function resolveStudentImportMatch(
   const normalized = normalizeName(name);
   const matches = existingStudents.filter((student) => normalizeName(student.name) === normalized);
   if (matches.length === 1) return { action: "update", id: matches[0].id };
-  if (matches.length > 1) return { action: "skip", warning: "Multiple existing campers have this name; skipped for manual review." };
+  if (matches.length > 1) return { action: "add", warning: "Multiple existing campers have this name; camper will import as a new safe roster record." };
   return { action: "add" };
 }

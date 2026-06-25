@@ -15,6 +15,10 @@ export function sanitizePublicSafetyFlags(flags: string[]): string[] {
     const trimmed = flag.trim();
     if (!trimmed) continue;
     const normalized = trimmed.toLowerCase();
+    if (normalized.startsWith("partner church:") || normalized === "roster type: partner") {
+      safeFlags.push(trimmed);
+      continue;
+    }
     if (safeFlagLabels.has(normalized)) {
       safeFlags.push(toCanonicalSafeFlag(normalized, trimmed));
       continue;

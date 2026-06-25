@@ -2,6 +2,7 @@ import { isSupabaseConfigured } from "@/lib/auth/config";
 import { getSupabaseAuthClient, type AuthSession } from "@/lib/auth/server";
 import { randomUUID } from "crypto";
 import { parseMedicationScheduleText } from "@/lib/camp/medication-schedule-text";
+import { rosterTypeFromFlags, sourceChurchFromFlags, withRosterMetadataFlags } from "@/lib/camp/partner-roster";
 import { campDocuments, campSchedule, campStartsOn, campTeams, campVehicles } from "@/lib/camp/public-data";
 import { sanitizePublicSafetyFlags } from "@/lib/camp/public-safety";
 import {
@@ -108,8 +109,11 @@ type CampCamperRow = {
   team_id: string | null;
   vehicle_id: string | null;
   cabin: string | null;
+  profile_photo_url?: string | null;
   limited_safety_flags: string[] | null;
   shirt_size: string | null;
+  source_church?: string | null;
+  roster_type?: "emerge" | "partner" | null;
   registration_external_id: string | null;
   emergency_contact_on_file: boolean | null;
   has_medical_alert: boolean | null;
@@ -141,9 +145,11 @@ type CampRestrictedMedicalRow = {
 type CampStaffRow = {
   id: string;
   name: string;
+  profile_photo_url?: string | null;
   role: CampStaffMember["role"];
   shirt_size: string | null;
   registration_external_id: string | null;
+  source_church?: string | null;
   team_id: string | null;
   archived_at: string | null;
   archive_reason: string | null;
@@ -587,9 +593,11 @@ export async function commitOakwoodImport(
       const teamId = resolveTeamId(row.person.teamName, basics.teams);
       const staffRow = {
         name: row.person.name.trim(),
+        profile_photo_url: row.person.profilePhotoUrl ?? "",
         role: "adult_volunteer" as const,
         shirt_size: row.person.shirtSize,
         registration_external_id: row.person.registrationExternalId || null,
+        source_church: row.person.sourceChurch ?? "",
         team_id: teamId || null
       };
       const write = row.matchedExistingId
@@ -608,6 +616,7 @@ export async function commitOakwoodImport(
     const studentPayload = await upsertCampStudent(session, context, {
       id: row.matchedExistingId,
       name: row.person.name,
+      profilePhotoUrl: row.person.profilePhotoUrl,
       grade: row.person.grade,
       teamId: resolveTeamId(row.person.teamName, basics.teams),
       vehicleId: resolveVehicleId(row.person.vehicleName, basics.vehicles),
@@ -725,6 +734,8 @@ export async function upsertCampStudent(session: AuthSession, context: CampAcces
 
   const supabase = getSupabaseAuthClient(session.accessToken);
   const basics = await ensureCampBasics(session);
+  const sourceChurch = input.sourceChurch?.trim() ?? "";
+  const rosterType = input.rosterType ?? rosterTypeFromFlags(input.limitedSafetyFlags ?? []);
   const row = {
     name: input.name.trim(),
     photo_initials: initialsForName(input.name),
@@ -732,7 +743,7 @@ export async function upsertCampStudent(session: AuthSession, context: CampAcces
     team_id: input.teamId || null,
     vehicle_id: input.vehicleId || null,
     cabin: input.cabin.trim(),
-    limited_safety_flags: normalizeFlags(input.limitedSafetyFlags ?? []),
+    limited_safety_flags: normalizeFlags(withRosterMetadataFlags(input.limitedSafetyFlags ?? [], sourceChurch, rosterType)),
     ...(input.shirtSize !== undefined ? { shirt_size: input.shirtSize.trim() } : {}),
     ...(input.registrationExternalId !== undefined ? { registration_external_id: input.registrationExternalId.trim() || null } : {}),
     ...(input.emergencyContactOnFile !== undefined ? { emergency_contact_on_file: input.emergencyContactOnFile } : {}),
@@ -1284,6 +1295,8 @@ export async function updateCampStaffMember(session: AuthSession, context: CampA
       name: input.name.trim(),
       role: input.role,
       shirt_size: input.shirtSize?.trim() || null,
+      ...(input.profilePhotoUrl !== undefined ? { profile_photo_url: sanitizeProfilePhotoUrl(input.profilePhotoUrl) ?? "" } : {}),
+      ...(input.sourceChurch !== undefined ? { source_church: input.sourceChurch.trim() } : {}),
       team_id: teamId
     })
     .eq("camp_id", basics.camp.id)
@@ -2211,9 +2224,11 @@ function toCampStaff(row: CampStaffRow, teams: CampTeam[]): CampStaffMember {
   return {
     id: row.id,
     name: row.name,
+    profilePhotoUrl: sanitizeProfilePhotoUrl(row.profile_photo_url ?? ""),
     role: row.role,
     shirtSize: row.shirt_size ?? "",
     registrationExternalId: row.registration_external_id ?? undefined,
+    sourceChurch: row.source_church ?? undefined,
     teamId: row.team_id ?? undefined,
     teamName: team?.name,
     archivedAt: row.archived_at ?? undefined,
@@ -2222,6 +2237,7 @@ function toCampStaff(row: CampStaffRow, teams: CampTeam[]): CampStaffMember {
 }
 
 function toCampStudentPublic(row: CampCamperRow, profilePhotoUrl?: string): CampStudentPublic {
+  const limitedSafetyFlags = normalizeFlags(row.limited_safety_flags ?? []);
   return {
     id: row.id,
     name: row.name,
@@ -2232,8 +2248,10 @@ function toCampStudentPublic(row: CampCamperRow, profilePhotoUrl?: string): Camp
     vehicleId: row.vehicle_id ?? "",
     cabin: row.cabin ?? "",
     shirtSize: row.shirt_size ?? "",
+    sourceChurch: row.source_church ?? sourceChurchFromFlags(limitedSafetyFlags),
+    rosterType: row.roster_type ?? rosterTypeFromFlags(limitedSafetyFlags),
     registrationExternalId: row.registration_external_id ?? undefined,
-    limitedSafetyFlags: normalizeFlags(row.limited_safety_flags ?? []),
+    limitedSafetyFlags,
     hasRestrictedMedicalInfo: Boolean(row.has_restricted_medical_info),
     hasMedicationPlan: Boolean(row.has_medication_plan),
     needsParentClarification: Boolean(row.needs_parent_clarification),
@@ -2437,6 +2455,18 @@ function initialsForName(name: string): string {
 
 function normalizeFlags(flags: string[]): string[] {
   return sanitizePublicSafetyFlags(flags);
+}
+
+function sanitizeProfilePhotoUrl(value?: string | null): string | undefined {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed) return undefined;
+  try {
+    const url = new URL(trimmed);
+    if (url.protocol === "https:" || url.protocol === "http:" || url.protocol === "data:") return url.toString();
+  } catch {
+    return undefined;
+  }
+  return undefined;
 }
 
 function throwIfSupabaseError(error: { message: string } | null) {

@@ -102,6 +102,8 @@ export type CampDocument = {
   audience: "All Leaders" | "Drivers" | "Restricted Medical";
 };
 
+export type CampRosterType = "emerge" | "partner";
+
 export type CampStudentPublic = {
   id: string;
   name: string;
@@ -112,6 +114,8 @@ export type CampStudentPublic = {
   vehicleId: string;
   cabin: string;
   shirtSize?: string;
+  sourceChurch?: string;
+  rosterType?: CampRosterType;
   registrationExternalId?: string;
   limitedSafetyFlags: string[];
   hasRestrictedMedicalInfo: boolean;
@@ -130,11 +134,14 @@ export type CampStudentPublic = {
 export type CampStudentInput = {
   id?: string;
   name: string;
+  profilePhotoUrl?: string;
   grade: string;
   teamId: string;
   vehicleId: string;
   cabin: string;
   shirtSize?: string;
+  sourceChurch?: string;
+  rosterType?: CampRosterType;
   registrationExternalId?: string;
   emergencyContactOnFile?: boolean;
   hasMedicalAlert?: boolean;
@@ -159,6 +166,8 @@ export type CampVisibleStudent = {
   teamName?: string;
   cabin?: string;
   shirtSize?: string;
+  sourceChurch?: string;
+  rosterType?: CampRosterType;
   limitedSafetyFlags?: string[];
   hasRestrictedMedicalInfo?: boolean;
   hasMedicationPlan?: boolean;
@@ -197,6 +206,7 @@ export type CampStaffMember = {
   role: "adult_volunteer" | "leader" | "staff";
   shirtSize?: string;
   registrationExternalId?: string;
+  sourceChurch?: string;
   teamId?: string;
   teamName?: string;
   archivedAt?: string;
@@ -206,9 +216,11 @@ export type CampStaffMember = {
 export type CampStaffInput = {
   id?: string;
   name: string;
+  profilePhotoUrl?: string;
   role?: CampStaffMember["role"];
   shirtSize?: string;
   registrationExternalId?: string;
+  sourceChurch?: string;
   teamId?: string;
 };
 
@@ -416,7 +428,7 @@ export type CampOverviewPayload = {
 
 export type CampRegistrationImportPreviewRow = {
   rowNumber: number;
-  status: "Ready" | "Needs Parent Clarification" | "Blocked";
+  status: "Ready" | "Warning" | "Needs Parent Clarification" | "Blocked";
   importAction?: "add" | "update" | "skip";
   sourceChurch?: string;
   warnings: string[];
@@ -440,6 +452,7 @@ export type CampRegistrationImportPreview = {
   summary: {
     totalRows: number;
     readyRows: number;
+    warningRows?: number;
     clarificationRows: number;
     blockedRows: number;
     addRows?: number;
@@ -485,10 +498,12 @@ export type CampOakwoodImportRow = {
   // vehicle, or room is ever fabricated).
   person: {
     name: string;
+    profilePhotoUrl?: string;
     grade: string;
     cabin: string;
     shirtSize: string;
     registrationExternalId: string;
+    sourceChurch?: string;
     teamName: string;
     vehicleName: string;
   };

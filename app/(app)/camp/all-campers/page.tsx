@@ -2,6 +2,6 @@
 
 import { CampRosterView } from "@/components/camp/camp-roster-view";
 
-export default function CampRosterPage() {
-  return <CampRosterView mode="emerge" />;
+export default function CampAllCampersPage() {
+  return <CampRosterView mode="all" />;
 }

@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { CampAccessAdminPanel } from "@/components/camp/camp-access-admin";
 import { CampOperationDialog } from "@/components/camp/camp-operation-dialog";
 import { useCamp } from "@/components/camp/camp-provider";
+import { initialsForName } from "@/components/camp/camp-team-card";
 import { CampStatusChip } from "@/components/camp/camp-ui";
 import { prepareCampImageFile } from "@/lib/camp/client-image";
 import { getMedicineIntakeReturnVisibility } from "@/lib/camp/medication-workflow-visibility";
@@ -525,9 +526,11 @@ function staffToInput(staff: CampStaffMember): CampStaffInput & { id: string } {
   return {
     id: staff.id,
     name: staff.name,
+    profilePhotoUrl: staff.profilePhotoUrl ?? "",
     role: staff.role,
     shirtSize: staff.shirtSize ?? "",
     registrationExternalId: staff.registrationExternalId,
+    sourceChurch: staff.sourceChurch ?? "",
     teamId: staff.teamId ?? ""
   };
 }
@@ -582,6 +585,7 @@ export function CampStaffManagementToolPage() {
                 <p className="camp-cc-muted">
                   {staffRoleLabel(staff.role)}{staff.teamName ? ` - ${staff.teamName}` : " - Unassigned team"}{staff.shirtSize ? ` - ${staff.shirtSize}` : ""}
                 </p>
+                {staff.sourceChurch ? <p className="camp-cc-muted">Source church: {staff.sourceChurch}</p> : null}
                 {staff.registrationExternalId ? <p className="camp-cc-muted">Oakwood registration ID: {staff.registrationExternalId}</p> : null}
               </div>
               <button className="button compact-button" type="button" onClick={() => setEditing(staffToInput(staff))}>Edit Details</button>
@@ -602,6 +606,22 @@ export function CampStaffManagementToolPage() {
             <button className="button compact-button" type="button" disabled={saving} onClick={() => setEditing(null)}>Close</button>
           </div>
           <div className="camp-form-grid">
+            <div className="camp-profile-photo-row">
+              <span className="camp-leader-avatar" aria-hidden="true">
+                {editing.profilePhotoUrl ? (
+                  <>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={editing.profilePhotoUrl} alt="" />
+                  </>
+                ) : (
+                  initialsForName(editing.name)
+                )}
+              </span>
+              <label className="field">
+                <span>Profile photo URL</span>
+                <input className="input" value={editing.profilePhotoUrl ?? ""} onChange={(event) => setEditing({ ...editing, profilePhotoUrl: event.target.value })} placeholder="https://..." />
+              </label>
+            </div>
             <label className="field">
               <span>Display name</span>
               <input className="input" value={editing.name} onChange={(event) => setEditing({ ...editing, name: event.target.value })} />
@@ -626,6 +646,10 @@ export function CampStaffManagementToolPage() {
             <label className="field">
               <span>Shirt size</span>
               <input className="input" value={editing.shirtSize ?? ""} onChange={(event) => setEditing({ ...editing, shirtSize: event.target.value })} />
+            </label>
+            <label className="field">
+              <span>Partner/source church</span>
+              <input className="input" value={editing.sourceChurch ?? ""} onChange={(event) => setEditing({ ...editing, sourceChurch: event.target.value })} />
             </label>
           </div>
           {editing.registrationExternalId ? (
@@ -692,8 +716,9 @@ export function CampSettingsImportToolPage() {
     .filter((item) => files[item.field] && sheetNames[item.field].length > 1 && !selectedSheets[item.field])
     .map((item) => item.label);
   const activePreviewHasBlockingRows = sourceMode === "partnerChurch"
-    ? Boolean(partnerPreview?.summary.blockedRows)
+    ? !partnerPreview?.rows.some((row) => row.status !== "Blocked")
     : Boolean(preview?.summary.ambiguousCount || preview?.summary.invalidCount);
+  const partnerPreviewSaveableRows = partnerPreview?.rows.filter((row) => row.status !== "Blocked").length ?? 0;
 
   function resetImportState(nextMode = sourceMode) {
     setFiles({ combinedFile: null, camperFile: null, staffFile: null });
@@ -787,8 +812,8 @@ export function CampSettingsImportToolPage() {
         setMessage({ tone: "error", text: "Build a partner church preview before saving." });
         return;
       }
-      if (partnerPreview.summary.blockedRows > 0) {
-        setMessage({ tone: "error", text: "Fix missing required fields before saving partner church rows." });
+      if (partnerPreviewSaveableRows === 0) {
+        setMessage({ tone: "error", text: "Add at least one camper row with a student name before saving." });
         return;
       }
       setBusy("commit");
@@ -847,7 +872,7 @@ export function CampSettingsImportToolPage() {
           </div>
           <p className="camp-cc-muted">
             {sourceMode === "partnerChurch"
-              ? "Upload partner church camper spreadsheets for review. Required fields are camper name and partner church/source church. Medical, allergy, and emergency-contact details stay out of general previews and are routed only through restricted records on save."
+              ? "Only student name is required. Team and other details can be added now or edited later. Restricted medical detail is not shown in this preview."
               : "Use this only for approved Oakwood roster/workbook imports. Uploads are inspected and previewed first; no roster data is saved automatically on upload. Production saving also requires server-verified migration 013 schema readiness and live import approval."}
           </p>
           <StatusPill tone="locked">Camp Admin only</StatusPill>
@@ -862,7 +887,7 @@ export function CampSettingsImportToolPage() {
                 <label className="camp-upload-dropzone">
                   <span>{item.label}</span>
                   <strong>{selectedFile?.name ?? "Choose .xlsx or .csv file"}</strong>
-                  <small>{sourceMode === "partnerChurch" ? "Name, grade, partner church/source church, room/cabin, team, vehicle, shirt size, and safe indicators are supported." : "Use the approved Oakwood workbook or CSV export."}</small>
+                  <small>{sourceMode === "partnerChurch" ? "Only student name is required. Team and other details can be added now or edited later." : "Use the approved Oakwood workbook or CSV export."}</small>
                 <input
                   className="sr-only"
                   type="file"
@@ -956,7 +981,8 @@ export function CampSettingsImportToolPage() {
               <div className="camp-list-row"><strong>Total camper rows</strong><StatusPill>{partnerPreview.summary.totalRows}</StatusPill></div>
               <div className="camp-list-row"><strong>Will add</strong><StatusPill tone={partnerPreview.summary.addRows ? "ready" : undefined}>{partnerPreview.summary.addRows ?? 0}</StatusPill></div>
               <div className="camp-list-row"><strong>Will update</strong><StatusPill tone={partnerPreview.summary.updateRows ? "ready" : undefined}>{partnerPreview.summary.updateRows ?? 0}</StatusPill></div>
-              <div className="camp-list-row"><strong>Needs review / skipped</strong><StatusPill tone={partnerPreview.summary.blockedRows ? "warn" : "ready"}>{partnerPreview.summary.blockedRows}</StatusPill></div>
+              <div className="camp-list-row"><strong>Warning rows</strong><StatusPill tone={partnerPreview.summary.warningRows ? "warn" : "ready"}>{partnerPreview.summary.warningRows ?? 0}</StatusPill></div>
+              <div className="camp-list-row"><strong>Blocked rows</strong><StatusPill tone={partnerPreview.summary.blockedRows ? "warn" : "ready"}>{partnerPreview.summary.blockedRows}</StatusPill></div>
               <div className="camp-list-row"><strong>Medical follow-up rows</strong><StatusPill tone={partnerPreview.summary.clarificationRows ? "warn" : "ready"}>{partnerPreview.summary.clarificationRows}</StatusPill></div>
             </div>
             {partnerPreview.uploadSources?.length ? (
@@ -979,21 +1005,22 @@ export function CampSettingsImportToolPage() {
                     <strong>Row {row.rowNumber}: {row.camper.name || "No name"}</strong>
                     <p className="camp-cc-muted">
                       {(row.importAction ?? "add").toUpperCase()} - {row.sourceChurch || "Missing source church"} - Grade: {row.camper.grade || "n/a"} - Room: {row.camper.cabin || "Unassigned"} - Team: {overviewTeamName(row.camper.teamId) || "Unassigned"}
+                      {row.camper.profilePhotoUrl ? " - Photo URL provided" : ""}
                     </p>
                     {row.warnings.length ? <p className="camp-cc-muted">{row.warnings.join(" ")}</p> : null}
                   </div>
-                  <StatusPill tone={row.status === "Ready" ? "ready" : "warn"}>{row.importAction === "skip" ? "skip" : row.status}</StatusPill>
+                  <StatusPill tone={row.status === "Ready" ? "ready" : "warn"}>{row.importAction === "skip" ? "blocked" : row.status}</StatusPill>
                 </div>
               ))}
             </div>
             {partnerPreview.rows.length > 12 ? <p className="camp-cc-muted">Showing the first 12 preview rows. All rows are included in the summary and save guard.</p> : null}
-            <p className="camp-cc-muted">Supported safe fields: name, grade, partner/source church, room/cabin, team, vehicle, shirt size, emergency contact presence, food allergy indicator, medical concern indicator, medication-on-file indicator, and safe operational notes. Restricted detail is not shown in this preview.</p>
+            <p className="camp-cc-muted">Supported safe fields: name, team, partner/source church, grade, room/cabin, shirt size, vehicle, photo URL, emergency contact presence, food allergy indicator, medical concern indicator, medication-on-file indicator, and safe operational notes. Restricted detail is not shown in this preview.</p>
             <label className="camp-checkbox-line">
               <input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} />
-              <span>I reviewed this partner church preview and approve saving rows without missing required fields.</span>
+              <span>I reviewed this partner church preview and approve saving {partnerPreviewSaveableRows} valid row{partnerPreviewSaveableRows === 1 ? "" : "s"}.</span>
             </label>
             <button className="button primary" type="button" disabled={!confirmed || busy !== null || activePreviewHasBlockingRows} onClick={() => void commitPreview()}>
-              {busy === "commit" ? "Saving..." : "Save confirmed partner upload"}
+              {busy === "commit" ? "Saving..." : `Save ${partnerPreviewSaveableRows} valid row${partnerPreviewSaveableRows === 1 ? "" : "s"}`}
             </button>
           </section>
         ) : null}

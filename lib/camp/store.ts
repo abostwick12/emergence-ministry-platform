@@ -1,5 +1,6 @@
 import { getCampVisibleStudentsForData, isRestrictedCampMedicalRole } from "@/lib/camp/access";
 import { parseMedicationScheduleText } from "@/lib/camp/medication-schedule-text";
+import { rosterTypeFromFlags, sourceChurchFromFlags, withRosterMetadataFlags } from "@/lib/camp/partner-roster";
 import { campDocuments, campName, campSchedule, campStartsOn, campStudents, campTeams, campVehicles } from "@/lib/camp/public-data";
 import { sanitizePublicSafetyFlags } from "@/lib/camp/public-safety";
 import {
@@ -125,10 +126,12 @@ export function updateCampStaffMember(input: CampStaffInput & { id: string }) {
   const staff: CampStaffMember = {
     ...existing,
     name: input.name.trim(),
+    profilePhotoUrl: sanitizeProfilePhotoUrl(input.profilePhotoUrl) ?? existing.profilePhotoUrl,
     role: input.role ?? existing.role,
     shirtSize: input.shirtSize?.trim() ?? existing.shirtSize,
     teamId: teamId || undefined,
-    teamName: teamNameForId(teamId)
+    teamName: teamNameForId(teamId),
+    sourceChurch: input.sourceChurch?.trim() ?? existing.sourceChurch
   };
   Object.assign(existing, staff);
   return { allowed: true as const, status: 200, staff: { ...staff } };
@@ -251,17 +254,25 @@ export function archiveCampVehicle(input: { id: string }) {
 export function upsertCampStudent(input: CampStudentInput): CampStudentPublic {
   const existing = input.id ? store.students.find((student) => student.id === input.id) : undefined;
   if (existing?.archivedAt) throw new Error("Camp student is archived.");
+  const incomingFlags = input.limitedSafetyFlags ?? existing?.limitedSafetyFlags ?? [];
+  const sourceChurch = input.sourceChurch !== undefined
+    ? input.sourceChurch.trim()
+    : existing?.sourceChurch ?? sourceChurchFromFlags(incomingFlags);
+  const rosterType = input.rosterType ?? existing?.rosterType ?? rosterTypeFromFlags(incomingFlags);
   const normalized: CampStudentPublic = {
     id: existing?.id ?? uid("campstu"),
     name: input.name.trim(),
+    profilePhotoUrl: sanitizeProfilePhotoUrl(input.profilePhotoUrl) ?? existing?.profilePhotoUrl,
     photoInitials: initialsForName(input.name),
     grade: input.grade.trim(),
     teamId: input.teamId,
     vehicleId: input.vehicleId,
     cabin: input.cabin.trim(),
     shirtSize: input.shirtSize?.trim() || existing?.shirtSize,
+    sourceChurch,
+    rosterType,
     registrationExternalId: input.registrationExternalId?.trim() || existing?.registrationExternalId,
-    limitedSafetyFlags: normalizeFlags(input.limitedSafetyFlags ?? existing?.limitedSafetyFlags ?? []),
+    limitedSafetyFlags: normalizeFlags(withRosterMetadataFlags(incomingFlags, sourceChurch, rosterType)),
     hasRestrictedMedicalInfo: existing?.hasRestrictedMedicalInfo ?? false,
     hasMedicationPlan: existing?.hasMedicationPlan ?? false,
     needsParentClarification: existing?.needsParentClarification ?? false,
@@ -330,9 +341,11 @@ export function commitOakwoodImportPreview(role: CampAccessRole, preview: CampOa
       const staff: CampStaffMember = {
         id: existing?.id ?? uid("campstaff"),
         name: row.person.name.trim(),
+        profilePhotoUrl: row.person.profilePhotoUrl,
         role: "adult_volunteer",
         shirtSize: row.person.shirtSize,
         registrationExternalId: row.person.registrationExternalId,
+        sourceChurch: row.person.sourceChurch,
         teamId,
         teamName: teamNameForId(teamId)
       };
@@ -348,6 +361,7 @@ export function commitOakwoodImportPreview(role: CampAccessRole, preview: CampOa
     const student = upsertCampStudent({
       id: existing?.id,
       name: row.person.name,
+      profilePhotoUrl: row.person.profilePhotoUrl,
       grade: row.person.grade,
       teamId,
       vehicleId,
@@ -863,7 +877,9 @@ function withDerivedStudentFlags(student: CampStudentPublic): CampStudentPublic 
 
   return {
     ...student,
-    profilePhotoUrl: activeCamperProfilePhotoUrl(student.id),
+    profilePhotoUrl: activeCamperProfilePhotoUrl(student.id) ?? sanitizeProfilePhotoUrl(student.profilePhotoUrl),
+    sourceChurch: student.sourceChurch ?? sourceChurchFromFlags(student.limitedSafetyFlags),
+    rosterType: student.rosterType ?? rosterTypeFromFlags(student.limitedSafetyFlags),
     hasRestrictedMedicalInfo,
     hasMedicationPlan,
     needsParentClarification,
@@ -1003,6 +1019,18 @@ function initialsForName(name: string): string {
 
 function normalizeFlags(flags: string[]): string[] {
   return sanitizePublicSafetyFlags(flags);
+}
+
+function sanitizeProfilePhotoUrl(value?: string | null): string | undefined {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed) return undefined;
+  try {
+    const url = new URL(trimmed);
+    if (url.protocol === "https:" || url.protocol === "http:" || url.protocol === "data:") return url.toString();
+  } catch {
+    return undefined;
+  }
+  return undefined;
 }
 
 function needsClarification(value?: string): boolean {
