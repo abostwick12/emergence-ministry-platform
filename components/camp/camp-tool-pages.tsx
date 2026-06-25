@@ -18,6 +18,7 @@ import type {
   CampMedicationReturnItem,
   CampMedicationScheduleItem,
   CampOakwoodImportPreview,
+  CampRegistrationImportPreview,
   CampScheduleBlock,
   CampSignatureData,
   CampStaffInput,
@@ -497,6 +498,13 @@ export function CampSettingsToolPage() {
             </span>
             <span className="camp-cc-entry-arrow" aria-hidden="true">&gt;</span>
           </Link>
+          <Link className="camp-cc-entry" href="/camp/settings/import?mode=partner">
+            <span className="camp-cc-entry-body">
+              <strong>Partner Church Upload</strong>
+              <span className="camp-cc-muted">Preview partner church camper spreadsheets before adding or updating safe roster fields.</span>
+            </span>
+            <span className="camp-cc-entry-arrow" aria-hidden="true">&gt;</span>
+          </Link>
           <Link className="camp-cc-entry" href="/camp/settings/staff">
             <span className="camp-cc-entry-body">
               <strong>Leader / Staff Details</strong>
@@ -636,6 +644,7 @@ export function CampStaffManagementToolPage() {
 }
 
 type OakwoodUploadField = "combinedFile" | "camperFile" | "staffFile";
+type ImportSourceMode = "oakwood" | "partnerChurch";
 
 const oakwoodUploadFields: Array<{ field: OakwoodUploadField; label: string; sheetField: string }> = [
   { field: "combinedFile", label: "Combined Oakwood workbook", sheetField: "combinedSheet" },
@@ -643,17 +652,28 @@ const oakwoodUploadFields: Array<{ field: OakwoodUploadField; label: string; she
   { field: "staffFile", label: "Leaders/Staff workbook", sheetField: "staffSheet" }
 ];
 
+const partnerChurchUploadFields: Array<{ field: OakwoodUploadField; label: string; sheetField: string }> = [
+  { field: "combinedFile", label: "Partner church spreadsheet", sheetField: "combinedSheet" }
+];
+
 function oakwoodPersonTypeLabel(personType: CampOakwoodImportPreview["rows"][number]["personType"]): string {
   return personType === "adult" ? "Leader/staff" : "Camper";
 }
 
+function defaultImportSourceName(mode: ImportSourceMode): string {
+  return mode === "partnerChurch" ? "Partner Church Upload" : "Camp Oakwood Upload";
+}
+
 export function CampSettingsImportToolPage() {
-  const { capabilities, refresh } = useCamp();
-  const [sourceName, setSourceName] = useState("Camp Oakwood Upload");
+  const searchParams = useSearchParams();
+  const { capabilities, overview, refresh } = useCamp();
+  const [sourceMode, setSourceMode] = useState<ImportSourceMode>(searchParams.get("mode") === "partner" ? "partnerChurch" : "oakwood");
+  const [sourceName, setSourceName] = useState(defaultImportSourceName(searchParams.get("mode") === "partner" ? "partnerChurch" : "oakwood"));
   const [files, setFiles] = useState<Record<OakwoodUploadField, File | null>>({ combinedFile: null, camperFile: null, staffFile: null });
   const [sheetNames, setSheetNames] = useState<Record<OakwoodUploadField, string[]>>({ combinedFile: [], camperFile: [], staffFile: [] });
   const [selectedSheets, setSelectedSheets] = useState<Record<OakwoodUploadField, string>>({ combinedFile: "", camperFile: "", staffFile: "" });
   const [preview, setPreview] = useState<CampOakwoodImportPreview | null>(null);
+  const [partnerPreview, setPartnerPreview] = useState<CampRegistrationImportPreview | null>(null);
   const [confirmed, setConfirmed] = useState(false);
   const [message, setMessage] = useState<{ tone: "error" | "success"; text: string } | null>(null);
   const [busy, setBusy] = useState<"inspect" | "preview" | "commit" | null>(null);
@@ -666,16 +686,37 @@ export function CampSettingsImportToolPage() {
     );
   }
 
-  const hasFile = oakwoodUploadFields.some((item) => files[item.field]);
-  const missingSheetLabels = oakwoodUploadFields
+  const activeUploadFields = sourceMode === "partnerChurch" ? partnerChurchUploadFields : oakwoodUploadFields;
+  const hasFile = activeUploadFields.some((item) => files[item.field]);
+  const missingSheetLabels = activeUploadFields
     .filter((item) => files[item.field] && sheetNames[item.field].length > 1 && !selectedSheets[item.field])
     .map((item) => item.label);
+  const activePreviewHasBlockingRows = sourceMode === "partnerChurch"
+    ? Boolean(partnerPreview?.summary.blockedRows)
+    : Boolean(preview?.summary.ambiguousCount || preview?.summary.invalidCount);
+
+  function resetImportState(nextMode = sourceMode) {
+    setFiles({ combinedFile: null, camperFile: null, staffFile: null });
+    setSheetNames({ combinedFile: [], camperFile: [], staffFile: [] });
+    setSelectedSheets({ combinedFile: "", camperFile: "", staffFile: "" });
+    setPreview(null);
+    setPartnerPreview(null);
+    setConfirmed(false);
+    setMessage(null);
+    setSourceName(defaultImportSourceName(nextMode));
+  }
+
+  function switchSourceMode(nextMode: ImportSourceMode) {
+    setSourceMode(nextMode);
+    resetImportState(nextMode);
+  }
 
   function buildUploadForm(mode: "inspect" | "preview") {
     const formData = new FormData();
     formData.set("mode", mode);
+    formData.set("sourceType", sourceMode === "partnerChurch" ? "partnerChurch" : "oakwood");
     formData.set("sourceName", sourceName);
-    for (const item of oakwoodUploadFields) {
+    for (const item of activeUploadFields) {
       const file = files[item.field];
       if (!file) continue;
       formData.set(item.field, file);
@@ -688,6 +729,7 @@ export function CampSettingsImportToolPage() {
   async function inspectUpload() {
     setMessage(null);
     setPreview(null);
+    setPartnerPreview(null);
     setConfirmed(false);
     setBusy("inspect");
     const response = await fetch("/api/camp/import/upload", { method: "POST", body: buildUploadForm("inspect") });
@@ -715,22 +757,61 @@ export function CampSettingsImportToolPage() {
       return;
     }
     setPreview(null);
+    setPartnerPreview(null);
     setConfirmed(false);
     setBusy("preview");
     const response = await fetch("/api/camp/import/upload", { method: "POST", body: buildUploadForm("preview") });
-    const body = await response.json().catch(() => ({})) as { error?: string; preview?: CampOakwoodImportPreview };
+    const body = await response.json().catch(() => ({})) as { error?: string; preview?: CampOakwoodImportPreview | CampRegistrationImportPreview };
     setBusy(null);
     if (!response.ok || !body.preview) {
-      setMessage({ tone: "error", text: body.error ?? "Oakwood preview could not be created." });
+      setMessage({ tone: "error", text: body.error ?? (sourceMode === "partnerChurch" ? "Partner church preview could not be created." : "Oakwood preview could not be created.") });
       return;
     }
-    setPreview(body.preview);
+    if (sourceMode === "partnerChurch") {
+      setPartnerPreview(body.preview as CampRegistrationImportPreview);
+      setMessage({ tone: "success", text: "Partner church preview ready. Nothing has been saved." });
+      return;
+    }
+    setPreview(body.preview as CampOakwoodImportPreview);
     setMessage({ tone: "success", text: "Oakwood preview ready. Nothing has been saved." });
   }
 
   async function commitPreview() {
-    if (!preview || !confirmed) {
+    if (!confirmed) {
       setMessage({ tone: "error", text: "Review and confirm the preview before saving." });
+      return;
+    }
+
+    if (sourceMode === "partnerChurch") {
+      if (!partnerPreview) {
+        setMessage({ tone: "error", text: "Build a partner church preview before saving." });
+        return;
+      }
+      if (partnerPreview.summary.blockedRows > 0) {
+        setMessage({ tone: "error", text: "Fix missing required fields before saving partner church rows." });
+        return;
+      }
+      setBusy("commit");
+      const response = await fetch("/api/camp/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "commit", preview: partnerPreview })
+      });
+      const body = await response.json().catch(() => ({})) as { error?: string; committed?: Array<unknown> };
+      setBusy(null);
+      if (!response.ok || !body.committed) {
+        setMessage({ tone: "error", text: body.error ?? "Partner church import could not be saved." });
+        return;
+      }
+      await refresh();
+      setMessage({ tone: "success", text: `Partner church import saved: ${body.committed.length} camper rows committed.` });
+      setPartnerPreview(null);
+      setConfirmed(false);
+      return;
+    }
+
+    if (!preview) {
+      setMessage({ tone: "error", text: "Build an Oakwood preview before saving." });
       return;
     }
     setBusy("commit");
@@ -754,27 +835,43 @@ export function CampSettingsImportToolPage() {
   }
 
   return (
-    <ToolPageShell title="Import Camp Roster" subtitle="Camp Admin-only Oakwood roster/workbook upload with preview, validation, and explicit commit.">
+    <ToolPageShell
+      title={sourceMode === "partnerChurch" ? "Partner Church Upload" : "Import Camp Roster"}
+      subtitle={sourceMode === "partnerChurch" ? "Camp Admin-only partner church camper upload with preview and explicit commit." : "Camp Admin-only Oakwood roster/workbook upload with preview, validation, and explicit commit."}
+    >
       <div className="camp-tool-workflow">
-        <section className="camp-admin-form" aria-label="Oakwood roster import">
-          <p className="camp-cc-muted">Use this only for approved Oakwood roster/workbook imports. Uploads are inspected and previewed first; no roster data is saved automatically on upload. Production saving also requires server-verified migration 013 schema readiness and live import approval.</p>
+        <section className="camp-admin-form" aria-label={sourceMode === "partnerChurch" ? "Partner church roster import" : "Oakwood roster import"}>
+          <div className="camp-import-mode-switch" role="tablist" aria-label="Import type">
+            <button className={sourceMode === "oakwood" ? "camp-cc-mode-tab active" : "camp-cc-mode-tab"} type="button" role="tab" aria-selected={sourceMode === "oakwood"} onClick={() => switchSourceMode("oakwood")}>Oakwood roster</button>
+            <button className={sourceMode === "partnerChurch" ? "camp-cc-mode-tab active" : "camp-cc-mode-tab"} type="button" role="tab" aria-selected={sourceMode === "partnerChurch"} onClick={() => switchSourceMode("partnerChurch")}>Partner Church Upload</button>
+          </div>
+          <p className="camp-cc-muted">
+            {sourceMode === "partnerChurch"
+              ? "Upload partner church camper spreadsheets for review. Required fields are camper name and partner church/source church. Medical, allergy, and emergency-contact details stay out of general previews and are routed only through restricted records on save."
+              : "Use this only for approved Oakwood roster/workbook imports. Uploads are inspected and previewed first; no roster data is saved automatically on upload. Production saving also requires server-verified migration 013 schema readiness and live import approval."}
+          </p>
           <StatusPill tone="locked">Camp Admin only</StatusPill>
           <label className="field">
             <span>Import label</span>
             <input className="input" value={sourceName} onChange={(event) => setSourceName(event.target.value)} />
           </label>
-          {oakwoodUploadFields.map((item) => (
-            <div className="camp-list-row align-start" key={item.field}>
-              <label className="field">
-                <span>{item.label}</span>
+          {activeUploadFields.map((item) => {
+            const selectedFile = files[item.field];
+            return (
+              <div className="camp-list-row align-start camp-upload-row" key={item.field}>
+                <label className="camp-upload-dropzone">
+                  <span>{item.label}</span>
+                  <strong>{selectedFile?.name ?? "Choose .xlsx or .csv file"}</strong>
+                  <small>{sourceMode === "partnerChurch" ? "Name, grade, partner church/source church, room/cabin, team, vehicle, shirt size, and safe indicators are supported." : "Use the approved Oakwood workbook or CSV export."}</small>
                 <input
-                  className="input"
+                  className="sr-only"
                   type="file"
                   accept=".xlsx,.csv,text/csv,application/csv,application/vnd.ms-excel,application/octet-stream,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                   onChange={(event) => {
                     const selectedFile = event.currentTarget.files?.[0] ?? null;
                     setFiles((current) => ({ ...current, [item.field]: selectedFile }));
                     setPreview(null);
+                    setPartnerPreview(null);
                     setConfirmed(false);
                   }}
                 />
@@ -788,8 +885,9 @@ export function CampSettingsImportToolPage() {
                   </select>
                 </label>
               ) : null}
-            </div>
-          ))}
+              </div>
+            );
+          })}
           <div className="camp-row-actions">
             <button className="button" type="button" disabled={!hasFile || busy !== null} onClick={() => void inspectUpload()}>
               {busy === "inspect" ? "Inspecting..." : "Inspect sheets"}
@@ -801,7 +899,7 @@ export function CampSettingsImportToolPage() {
           {missingSheetLabels.length ? <p className="camp-cc-error">Choose a worksheet for: {missingSheetLabels.join(", ")}.</p> : null}
         </section>
 
-        {preview ? (
+        {sourceMode === "oakwood" && preview ? (
           <section className="camp-admin-form" aria-label="Oakwood import preview">
             <h2 className="camp-tool-group-title">Preview summary</h2>
             <div className="camp-list">
@@ -851,10 +949,63 @@ export function CampSettingsImportToolPage() {
           </section>
         ) : null}
 
+        {sourceMode === "partnerChurch" && partnerPreview ? (
+          <section className="camp-admin-form" aria-label="Partner church import preview">
+            <h2 className="camp-tool-group-title">Partner church preview</h2>
+            <div className="camp-list">
+              <div className="camp-list-row"><strong>Total camper rows</strong><StatusPill>{partnerPreview.summary.totalRows}</StatusPill></div>
+              <div className="camp-list-row"><strong>Will add</strong><StatusPill tone={partnerPreview.summary.addRows ? "ready" : undefined}>{partnerPreview.summary.addRows ?? 0}</StatusPill></div>
+              <div className="camp-list-row"><strong>Will update</strong><StatusPill tone={partnerPreview.summary.updateRows ? "ready" : undefined}>{partnerPreview.summary.updateRows ?? 0}</StatusPill></div>
+              <div className="camp-list-row"><strong>Needs review / skipped</strong><StatusPill tone={partnerPreview.summary.blockedRows ? "warn" : "ready"}>{partnerPreview.summary.blockedRows}</StatusPill></div>
+              <div className="camp-list-row"><strong>Medical follow-up rows</strong><StatusPill tone={partnerPreview.summary.clarificationRows ? "warn" : "ready"}>{partnerPreview.summary.clarificationRows}</StatusPill></div>
+            </div>
+            {partnerPreview.uploadSources?.length ? (
+              <div className="camp-list">
+                {partnerPreview.uploadSources.map((source) => (
+                  <div className="camp-list-row align-start" key={`${source.fileName}-${source.checksumSha256}`}>
+                    <div>
+                      <strong>{source.fileName}{source.sheetName ? ` / ${source.sheetName}` : ""}</strong>
+                      <p className="camp-cc-muted">Rows: {source.rowCount}. SHA-256: {source.checksumSha256.slice(0, 12)}...</p>
+                    </div>
+                    <StatusPill>partner</StatusPill>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            <div className="camp-list">
+              {partnerPreview.rows.slice(0, 12).map((row) => (
+                <div className="camp-list-row align-start" key={`${row.rowNumber}-${row.camper.name}`}>
+                  <div>
+                    <strong>Row {row.rowNumber}: {row.camper.name || "No name"}</strong>
+                    <p className="camp-cc-muted">
+                      {(row.importAction ?? "add").toUpperCase()} - {row.sourceChurch || "Missing source church"} - Grade: {row.camper.grade || "n/a"} - Room: {row.camper.cabin || "Unassigned"} - Team: {overviewTeamName(row.camper.teamId) || "Unassigned"}
+                    </p>
+                    {row.warnings.length ? <p className="camp-cc-muted">{row.warnings.join(" ")}</p> : null}
+                  </div>
+                  <StatusPill tone={row.status === "Ready" ? "ready" : "warn"}>{row.importAction === "skip" ? "skip" : row.status}</StatusPill>
+                </div>
+              ))}
+            </div>
+            {partnerPreview.rows.length > 12 ? <p className="camp-cc-muted">Showing the first 12 preview rows. All rows are included in the summary and save guard.</p> : null}
+            <p className="camp-cc-muted">Supported safe fields: name, grade, partner/source church, room/cabin, team, vehicle, shirt size, emergency contact presence, food allergy indicator, medical concern indicator, medication-on-file indicator, and safe operational notes. Restricted detail is not shown in this preview.</p>
+            <label className="camp-checkbox-line">
+              <input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} />
+              <span>I reviewed this partner church preview and approve saving rows without missing required fields.</span>
+            </label>
+            <button className="button primary" type="button" disabled={!confirmed || busy !== null || activePreviewHasBlockingRows} onClick={() => void commitPreview()}>
+              {busy === "commit" ? "Saving..." : "Save confirmed partner upload"}
+            </button>
+          </section>
+        ) : null}
+
         {message ? <p className={message.tone === "error" ? "camp-save-message error" : "camp-save-message success"} role="status">{message.text}</p> : null}
       </div>
     </ToolPageShell>
   );
+
+  function overviewTeamName(teamId?: string) {
+    return overview.teams.find((team) => team.id === teamId)?.name ?? "";
+  }
 }
 
 export function CampAdministerMedicineToolPage() {

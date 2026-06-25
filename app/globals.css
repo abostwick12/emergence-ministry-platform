@@ -3389,6 +3389,8 @@ textarea:focus-visible {
      let taller Camp pages overflow past the deep-blue field and reveal the pale
      body base mid-scroll — the field must cover the full scroll height. */
   min-height: 100dvh;
+  height: auto;
+  overflow: visible;
   background-image:
     linear-gradient(180deg, #010916 0%, rgba(3, 16, 32, 0.94) 78px, rgba(3, 16, 32, 0.44) 150px, transparent 270px),
     linear-gradient(180deg, rgba(3, 16, 32, 0.54) 0%, rgba(3, 16, 32, 0.50) 45%, rgba(2, 8, 19, 0.78) 100%),
@@ -3414,6 +3416,9 @@ html:has(.app-shell-camp) body {
 
 .app-main-shell-camp {
   z-index: 5;
+  min-height: 100dvh;
+  height: auto;
+  overflow-y: visible;
   background: transparent;
 }
 
@@ -3507,6 +3512,7 @@ html:has(.app-shell-camp) body {
 .camp-cc-header {
   padding: 10px 0 2px;
   position: relative;
+  z-index: var(--camp-layer-bottom-nav);
   isolation: isolate;
 }
 
@@ -5805,6 +5811,350 @@ html:has(.app-shell-camp) body {
   outline-offset: 2px;
 }
 
+/* Camp roster/import/nav polish. Centralizes stacking and safe-area clearance so
+   cards never visually cover the fixed mobile dock, while dialogs still sit over
+   every operational surface. */
+.camp-cc {
+  --camp-layer-card: 1;
+  --camp-layer-bottom-nav: 720;
+  --camp-layer-emma-orb: 760;
+  --camp-layer-popover: 900;
+  --camp-layer-dialog: 1100;
+  --camp-layer-photo-modal: 1200;
+  --camp-bottom-nav-clearance: calc(138px + env(safe-area-inset-bottom, 0px));
+}
+
+.camp-cc-main {
+  padding-bottom: var(--camp-bottom-nav-clearance);
+}
+
+.camp-bottom-safe-area {
+  height: var(--camp-bottom-nav-clearance);
+}
+
+.camp-card,
+.camp-admin-form,
+.camp-ack-box,
+.camp-editor-card,
+.camp-team-card,
+.camp-team-detail-meta,
+.camp-student-row,
+.camp-schedule-item,
+.camp-vehicle-card,
+.camp-list .camp-list-row,
+.camp-cc-entry,
+.camp-cc-nextup,
+.camp-cc-day {
+  z-index: var(--camp-layer-card);
+}
+
+.camp-nav {
+  z-index: var(--camp-layer-bottom-nav);
+}
+
+.camp-nav-emma {
+  z-index: var(--camp-layer-emma-orb);
+}
+
+.camp-nav-emma .emma-wave-orb {
+  position: relative;
+  z-index: var(--camp-layer-emma-orb);
+}
+
+.camp-emma-backdrop {
+  z-index: var(--camp-layer-popover);
+  pointer-events: auto;
+  isolation: isolate;
+}
+
+.camp-emma-sheet {
+  position: relative;
+  z-index: calc(var(--camp-layer-popover) + 1);
+}
+
+.camp-dialog-backdrop {
+  z-index: var(--camp-layer-dialog);
+  background:
+    radial-gradient(80% 70% at 50% 12%, rgba(56, 189, 248, 0.18), transparent 64%),
+    rgba(1, 9, 22, 0.72);
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+}
+
+.camp-photo-modal {
+  z-index: var(--camp-layer-photo-modal);
+}
+
+.camp-cc .button {
+  border: 1px solid var(--camp-border);
+  background:
+    radial-gradient(120% 90% at 8% 0%, rgba(186, 230, 253, 0.18), transparent 58%),
+    var(--camp-glass-fill);
+  color: var(--camp-ink);
+  box-shadow: var(--camp-shadow-soft), var(--camp-highlight);
+  -webkit-text-fill-color: currentColor;
+}
+
+.camp-cc .button:hover:not(:disabled) {
+  border-color: var(--camp-border-hi);
+  background:
+    radial-gradient(120% 90% at 8% 0%, rgba(186, 230, 253, 0.24), transparent 58%),
+    rgba(125, 211, 252, 0.16);
+}
+
+.camp-cc .button.primary {
+  border-color: rgba(125, 211, 252, 0.48);
+  background: var(--camp-liquid-cyan);
+  color: #04243f;
+  box-shadow: 0 12px 26px rgba(34, 169, 234, 0.30), inset 0 1px 0 rgba(255, 255, 255, 0.58);
+}
+
+.camp-cc .button.danger {
+  border-color: rgba(248, 113, 113, 0.44);
+  background:
+    radial-gradient(120% 90% at 8% 0%, rgba(251, 113, 133, 0.24), transparent 58%),
+    rgba(127, 29, 29, 0.44);
+  color: #fecaca;
+}
+
+.camp-cc .button:disabled {
+  opacity: 0.58;
+  box-shadow: none;
+}
+
+.camp-cc .camp-intake-photo-section .camp-photo-actions .button {
+  border-color: #64748b;
+  background: #ffffff;
+  color: #0f172a;
+  -webkit-text-fill-color: #0f172a;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+
+.camp-import-mode-switch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.camp-upload-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+
+.camp-upload-dropzone {
+  display: grid;
+  gap: 5px;
+  min-height: 96px;
+  border: 1px dashed rgba(186, 230, 253, 0.48);
+  border-radius: 16px;
+  background:
+    radial-gradient(80% 120% at 12% 0%, rgba(56, 189, 248, 0.18), transparent 62%),
+    rgba(8, 31, 55, 0.62);
+  padding: 14px;
+  cursor: pointer;
+}
+
+.camp-upload-dropzone span {
+  color: var(--camp-accent);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.camp-upload-dropzone strong {
+  color: var(--camp-ink);
+}
+
+.camp-upload-dropzone small {
+  color: var(--camp-muted);
+  line-height: 1.35;
+}
+
+.camp-student-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 2px;
+}
+
+.camp-student-meta-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 24px;
+  border: 1px solid rgba(186, 230, 253, 0.22);
+  border-radius: 999px;
+  background: rgba(125, 211, 252, 0.10);
+  color: var(--camp-muted);
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.camp-student-meta-chip span {
+  color: rgba(196, 220, 242, 0.78);
+}
+
+.camp-student-meta-chip strong {
+  color: var(--camp-ink);
+}
+
+.camp-cc-tag.food {
+  border-color: rgba(251, 146, 60, 0.46);
+  background: rgba(251, 146, 60, 0.22);
+  color: #fed7aa;
+}
+
+.camp-cc-tag.medical {
+  border-color: rgba(244, 63, 94, 0.50);
+  background: rgba(244, 63, 94, 0.22);
+  color: #fecdd3;
+}
+
+.camp-cc-tag.medication {
+  border-color: rgba(34, 211, 238, 0.48);
+  background: rgba(34, 211, 238, 0.18);
+  color: #a5f3fc;
+}
+
+.camp-cc-tag.warn {
+  border-color: rgba(251, 191, 36, 0.46);
+  background: rgba(245, 158, 11, 0.20);
+  color: #fde68a;
+}
+
+.camp-dialog {
+  --text: var(--camp-ink);
+  --muted: var(--camp-muted);
+  --surface: rgba(8, 31, 55, 0.90);
+  --line: var(--camp-border);
+  width: min(100%, 780px);
+  border-radius: 22px;
+  border-color: var(--camp-border-hi);
+  background:
+    radial-gradient(110% 92% at 8% -8%, rgba(186, 230, 253, 0.22), transparent 58%),
+    linear-gradient(158deg, rgba(18, 60, 101, 0.94), rgba(4, 17, 33, 0.94));
+  color: var(--camp-ink);
+  box-shadow:
+    0 34px 110px rgba(0, 6, 18, 0.72),
+    inset 0 1px 0 rgba(245, 252, 255, 0.42);
+  backdrop-filter: blur(24px) saturate(1.2);
+  -webkit-backdrop-filter: blur(24px) saturate(1.2);
+}
+
+.camp-dialog-head,
+.camp-dialog-foot {
+  border-color: var(--camp-border);
+  background: rgba(3, 16, 32, 0.34);
+}
+
+.camp-dialog-head h2,
+.camp-dialog strong,
+.camp-dialog .camp-checkbox-line {
+  color: var(--camp-ink);
+}
+
+.camp-dialog .camp-cc-muted,
+.camp-dialog .field > span,
+.camp-dialog label > span,
+.camp-dialog .camp-save-message,
+.camp-dialog .camp-cc-error {
+  color: var(--camp-muted);
+}
+
+.camp-dialog .input,
+.camp-dialog input,
+.camp-dialog select,
+.camp-dialog textarea {
+  border-color: var(--camp-border);
+  background: rgba(3, 16, 32, 0.46);
+  color: var(--camp-ink);
+}
+
+.camp-dialog .input::placeholder,
+.camp-dialog input::placeholder,
+.camp-dialog textarea::placeholder {
+  color: rgba(196, 220, 242, 0.58);
+}
+
+.camp-dialog .input:focus,
+.camp-dialog input:focus,
+.camp-dialog select:focus,
+.camp-dialog textarea:focus {
+  border-color: var(--camp-border-hi);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.18);
+}
+
+.camp-dialog .camp-editor-card,
+.camp-dialog .camp-team-detail-meta,
+.camp-dialog .camp-list .camp-list-row {
+  border-color: var(--camp-border);
+  background:
+    radial-gradient(92% 86% at 10% -8%, rgba(186, 230, 253, 0.16), transparent 56%),
+    rgba(8, 31, 55, 0.54);
+  color: var(--camp-ink);
+  box-shadow: var(--camp-highlight);
+  backdrop-filter: blur(14px) saturate(1.12);
+  -webkit-backdrop-filter: blur(14px) saturate(1.12);
+}
+
+.camp-dialog .camp-editor-card strong,
+.camp-dialog .camp-list .camp-list-row strong,
+.camp-dialog .camp-team-detail-meta dd {
+  color: var(--camp-ink);
+}
+
+.camp-dialog .camp-editor-card .camp-cc-muted,
+.camp-dialog .camp-list .camp-list-row .camp-cc-muted,
+.camp-dialog .camp-team-detail-meta dt {
+  color: var(--camp-muted);
+}
+
+.camp-dialog .button {
+  border-color: var(--camp-border);
+  background: rgba(125, 211, 252, 0.12);
+  color: var(--camp-ink);
+}
+
+.camp-dialog .button.primary {
+  border-color: rgba(125, 211, 252, 0.48);
+  background: var(--camp-liquid-cyan);
+  color: #04243f;
+}
+
+.camp-dialog .button.danger {
+  border-color: rgba(248, 113, 113, 0.44);
+  background: rgba(127, 29, 29, 0.42);
+  color: #fecaca;
+}
+
+@media (max-width: 720px) {
+  .camp-cc-header {
+    z-index: var(--camp-layer-bottom-nav);
+  }
+
+  .camp-nav {
+    position: fixed;
+    left: 18px;
+    right: 18px;
+    bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+    z-index: var(--camp-layer-bottom-nav);
+  }
+
+  .camp-cc-main {
+    padding-bottom: var(--camp-bottom-nav-clearance);
+  }
+
+  .camp-cc input,
+  .camp-cc select,
+  .camp-cc textarea,
+  .camp-cc button,
+  .camp-cc canvas {
+    scroll-margin-block-end: var(--camp-bottom-nav-clearance);
+  }
+}
+
 @media (max-width: 520px) {
   .camp-signature-block .camp-signature-head {
     flex-direction: column;
@@ -5876,4 +6226,27 @@ html:has(.app-shell-camp) body {
   .camp-medication-admin-card {
     margin-bottom: calc(76px + env(safe-area-inset-bottom, 0px));
   }
+}
+
+@media (max-width: 720px) {
+  .camp-nav {
+    z-index: var(--camp-layer-bottom-nav);
+  }
+
+  .camp-cc-main {
+    padding-bottom: var(--camp-bottom-nav-clearance);
+  }
+
+  .camp-bottom-safe-area {
+    height: var(--camp-bottom-nav-clearance);
+  }
+}
+
+.camp-cc .camp-intake-photo-section .camp-photo-actions .button,
+.camp-cc .camp-profile-photo-editor .camp-photo-actions .button {
+  border-color: #64748b;
+  background: #ffffff;
+  color: #0f172a;
+  -webkit-text-fill-color: #0f172a;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
 }

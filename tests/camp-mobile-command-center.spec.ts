@@ -43,6 +43,74 @@ test.describe("Camp mobile Command Center", () => {
     await expect(page.getByTestId("camp-medication-admin-card-med-sched-1")).toBeVisible();
   });
 
+  test("roster cards show safe quick-reference fields and distinct safety badges", async ({ page }) => {
+    await login(page);
+
+    const create = await page.request.post("/api/camp/students?role=andrew", {
+      data: {
+        name: "Playwright Badge Camper",
+        grade: "11th",
+        teamId: "team-blue",
+        vehicleId: "van-1",
+        cabin: "Cabin Z",
+        shirtSize: "Adult Small",
+        hasDietaryAlert: true,
+        hasMedicalAlert: true,
+        limitedSafetyFlags: ["Partner church: Test Church"]
+      }
+    });
+    expect(create.ok()).toBe(true);
+    const created = await create.json() as { student: { id: string } };
+
+    await page.goto("/camp/roster");
+    const card = page.getByTestId(`camp-student-card-${created.student.id}`);
+    await expect(card).toContainText("Shirt");
+    await expect(card).toContainText("Adult Small");
+    await expect(card).toContainText("Room");
+    await expect(card).toContainText("Cabin Z");
+    await expect(card).toContainText("Food allergy");
+    await expect(card).toContainText("Medical concern");
+
+    const allergyColor = await card.locator(".camp-cc-tag.food").evaluate((element) => getComputedStyle(element).color);
+    const medicalColor = await card.locator(".camp-cc-tag.medical").evaluate((element) => getComputedStyle(element).color);
+    expect(allergyColor).not.toBe(medicalColor);
+    await expect(card).not.toContainText("Parent-labeled medication");
+  });
+
+  test("mobile bottom navigation stays above scrolled cards with final content clear", async ({ page }) => {
+    await keepNextDevPortalOffPointerPath(page);
+    await login(page);
+    await page.goto("/camp/roster");
+    await suppressNextDevPortal(page);
+    const lastCard = page.locator("[data-testid^='camp-student-card-']").last();
+    await expect(lastCard).toBeVisible();
+
+    await page.evaluate(() => {
+      const root = document.documentElement;
+      const previousScrollBehavior = root.style.scrollBehavior;
+      root.style.scrollBehavior = "auto";
+      window.scrollTo(0, root.scrollHeight);
+      root.style.scrollBehavior = previousScrollBehavior;
+    });
+    await page.waitForFunction(() => window.scrollY > 0);
+
+    const nav = page.getByRole("navigation", { name: "Camp sections" });
+    await expect(nav).toBeVisible();
+    const navBox = await nav.boundingBox();
+    const lastCardBox = await lastCard.boundingBox();
+    expect(navBox).not.toBeNull();
+    expect(lastCardBox).not.toBeNull();
+    if (!navBox || !lastCardBox) return;
+
+    const navIsTopLayer = await page.evaluate(({ x, y }) => {
+      const element = document.elementFromPoint(x, y);
+      return Boolean(element?.closest("nav[aria-label='Camp sections']"));
+    }, { x: navBox.x + navBox.width / 2, y: navBox.y + navBox.height / 2 });
+
+    expect(navIsTopLayer).toBe(true);
+    expect(lastCardBox.y + lastCardBox.height).toBeLessThan(navBox.y);
+  });
+
   test("mobile bottom navigation reaches each section", async ({ page }) => {
     await keepNextDevPortalOffPointerPath(page);
     await login(page);

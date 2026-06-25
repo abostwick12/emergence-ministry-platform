@@ -28,6 +28,8 @@ export async function POST(request: Request) {
 
   const body = (await request.json()) as {
     action?: "preview" | "commit" | "oakwoodPreview" | "oakwoodCommit";
+    sourceType?: "registration" | "partnerChurch";
+    sourceName?: string;
     csv?: string;
     sourceFile?: string;
     preview?: CampRegistrationImportPreview;
@@ -106,7 +108,10 @@ export async function POST(request: Request) {
 
   const preview = parseCampRegistrationImport(body.csv ?? "", {
     teams: overview.teams,
-    vehicles: overview.vehicles
+    vehicles: overview.vehicles,
+    existingStudents: overview.students,
+    mode: body.sourceType === "partnerChurch" ? "partnerChurch" : "registration",
+    sourceName: body.sourceName
   });
   return NextResponse.json({ preview });
 }

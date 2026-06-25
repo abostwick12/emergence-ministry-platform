@@ -7,6 +7,39 @@ import { CampStudentAvatar, CampStudentCard } from "@/components/camp/camp-stude
 import { prepareCampImageFile } from "@/lib/camp/client-image";
 import type { CampStudentInput, CampVisibleStudent } from "@/lib/camp/types";
 
+const PARTNER_CHURCH_PREFIX = "Partner church:";
+
+function isPartnerChurchFlag(flag: string): boolean {
+  return flag.trim().toLowerCase().startsWith(PARTNER_CHURCH_PREFIX.toLowerCase());
+}
+
+function partnerChurchFromFlags(flags: string[] = []): string {
+  const flag = flags.find(isPartnerChurchFlag);
+  return flag ? flag.slice(PARTNER_CHURCH_PREFIX.length).trim() : "";
+}
+
+function operationalFlags(flags: string[] = []): string[] {
+  return flags.filter((flag) => !isPartnerChurchFlag(flag));
+}
+
+function withPartnerChurchFlag(input: CampStudentInput, value: string): CampStudentInput {
+  const rest = operationalFlags(input.limitedSafetyFlags ?? []);
+  const partnerChurch = value.trim();
+  return {
+    ...input,
+    limitedSafetyFlags: partnerChurch ? [`${PARTNER_CHURCH_PREFIX} ${partnerChurch}`, ...rest] : rest
+  };
+}
+
+function withOperationalFlags(input: CampStudentInput, value: string): CampStudentInput {
+  const partnerChurch = partnerChurchFromFlags(input.limitedSafetyFlags ?? []);
+  const notes = value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  return withPartnerChurchFlag({ ...input, limitedSafetyFlags: notes }, partnerChurch);
+}
+
 function studentToInput(student?: CampVisibleStudent): CampStudentInput {
   return {
     id: student?.id,
@@ -255,7 +288,7 @@ export default function CampRosterPage() {
           onClose={closeEditor}
           footer={
             <>
-              {editing.id ? <button className="button compact-button" type="button" disabled={saving} onClick={() => void archiveStudent()}>Archive</button> : null}
+              {editing.id ? <button className="button danger compact-button" type="button" disabled={saving} onClick={() => void archiveStudent()}>Archive</button> : null}
               <button className="button" type="button" disabled={saving} onClick={closeEditor}>Cancel</button>
               <button className="button primary" type="button" disabled={saving} onClick={() => void saveStudent()}>{saving ? "Saving..." : "Save"}</button>
             </>
@@ -289,14 +322,21 @@ export default function CampRosterPage() {
               </div>
             </div>
           </section>
-          <div className="camp-field-grid">
-            <label className="field"><span>Name</span><input className="input" value={editing.name} onChange={(event) => setEditing({ ...editing, name: event.target.value })} /></label>
-            <label className="field"><span>Grade</span><input className="input" value={editing.grade} onChange={(event) => setEditing({ ...editing, grade: event.target.value })} /></label>
-            <label className="field"><span>Team</span><select className="input" value={editing.teamId} onChange={(event) => setEditing({ ...editing, teamId: event.target.value })}><option value="">Unassigned</option>{overview.teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}</select></label>
-            <label className="field"><span>Vehicle</span><select className="input" value={editing.vehicleId} onChange={(event) => setEditing({ ...editing, vehicleId: event.target.value })}><option value="">Unassigned</option>{overview.vehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.name}</option>)}</select></label>
-            <label className="field"><span>Room / cabin</span><input className="input" value={editing.cabin} onChange={(event) => setEditing({ ...editing, cabin: event.target.value })} /></label>
-            <label className="field"><span>Shirt size</span><input className="input" value={editing.shirtSize ?? ""} onChange={(event) => setEditing({ ...editing, shirtSize: event.target.value })} /></label>
-          </div>
+          <section className="camp-editor-card" aria-label="Roster fields">
+            <div>
+              <strong>Roster fields</strong>
+              <p className="camp-cc-muted">Spreadsheet-safe details for cards, teams, and transportation.</p>
+            </div>
+            <div className="camp-field-grid">
+              <label className="field"><span>Name</span><input className="input" value={editing.name} onChange={(event) => setEditing({ ...editing, name: event.target.value })} /></label>
+              <label className="field"><span>Grade</span><input className="input" value={editing.grade} onChange={(event) => setEditing({ ...editing, grade: event.target.value })} /></label>
+              <label className="field"><span>Partner/source church</span><input className="input" value={partnerChurchFromFlags(editing.limitedSafetyFlags ?? [])} onChange={(event) => setEditing(withPartnerChurchFlag(editing, event.target.value))} /></label>
+              <label className="field"><span>Shirt size</span><input className="input" value={editing.shirtSize ?? ""} onChange={(event) => setEditing({ ...editing, shirtSize: event.target.value })} /></label>
+              <label className="field"><span>Team</span><select className="input" value={editing.teamId} onChange={(event) => setEditing({ ...editing, teamId: event.target.value })}><option value="">Unassigned</option>{overview.teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}</select></label>
+              <label className="field"><span>Vehicle</span><select className="input" value={editing.vehicleId} onChange={(event) => setEditing({ ...editing, vehicleId: event.target.value })}><option value="">Unassigned</option>{overview.vehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.name}</option>)}</select></label>
+              <label className="field"><span>Room / cabin</span><input className="input" value={editing.cabin} onChange={(event) => setEditing({ ...editing, cabin: event.target.value })} /></label>
+            </div>
+          </section>
           <section className="camp-editor-card" aria-label="Safe care indicators">
             <strong>Safe operational indicators</strong>
             <label className="camp-checkbox-line"><input type="checkbox" checked={Boolean(editing.emergencyContactOnFile)} onChange={(event) => setEditing({ ...editing, emergencyContactOnFile: event.target.checked })} /><span>Emergency contact presence confirmed</span></label>
@@ -307,14 +347,8 @@ export default function CampRosterPage() {
               <textarea
                 className="input"
                 rows={3}
-                value={(editing.limitedSafetyFlags ?? []).join("\n")}
-                onChange={(event) => setEditing({
-                  ...editing,
-                  limitedSafetyFlags: event.target.value
-                    .split(/\r?\n/)
-                    .map((line) => line.trim())
-                    .filter(Boolean)
-                })}
+                value={operationalFlags(editing.limitedSafetyFlags ?? []).join("\n")}
+                onChange={(event) => setEditing(withOperationalFlags(editing, event.target.value))}
                 placeholder="Public operational notes only"
               />
             </label>
