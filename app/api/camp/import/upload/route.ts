@@ -2,11 +2,13 @@ import { NextResponse } from "next/server";
 import { getServerSession, unauthorizedResponse } from "@/lib/auth/server";
 import { assertCampAdminAccess } from "@/lib/camp/permissions";
 import { resolveCampAccessForRequest } from "@/lib/camp/access-control";
-import { getOakwoodUploadImportPreview } from "@/lib/camp/repository";
+import { mergeCampRegistrationImportPreviews, parseCampRegistrationImport } from "@/lib/camp/import";
+import { getCampOverview, getOakwoodUploadImportPreview } from "@/lib/camp/repository";
 import { detectOakwoodWorkbook, extractOakwoodCsv, sha256Hex, MAX_OAKWOOD_UPLOAD_BYTES } from "@/lib/camp/oakwood-upload-source";
 
-// Restricted Camp Oakwood registration-export upload. .xlsx/.csv are parsed
-// server-side only; the original workbook is never persisted. Camp Admin only.
+// Camp Admin roster uploads. .xlsx/.csv are parsed server-side only; the
+// original workbook is never persisted. Oakwood uses the restricted full-roster
+// parser; partner church uploads use the safe camper preview parser.
 // mode=inspect returns worksheet names (so a sheet can be chosen without
 // guessing); mode=preview builds the real-name import preview.
 export const runtime = "nodejs";
@@ -50,6 +52,7 @@ export async function POST(request: Request) {
   }
 
   const mode = String(form.get("mode") ?? "preview");
+  const sourceType = String(form.get("sourceType") ?? "oakwood");
   const sourceNameValue = form.get("sourceName");
   const sourceName = typeof sourceNameValue === "string" && sourceNameValue.trim() ? sourceNameValue.trim() : undefined;
 
@@ -74,7 +77,11 @@ export async function POST(request: Request) {
   }
 
   if (loaded.length === 0) {
-    return NextResponse.json({ error: "Attach a combined registration file, or a camper file and/or a staff file (.xlsx or .csv)." }, { status: 400 });
+    return NextResponse.json({
+      error: sourceType === "partnerChurch"
+        ? "Attach a partner church camper file (.xlsx or .csv)."
+        : "Attach a combined registration file, or a camper file and/or a staff file (.xlsx or .csv)."
+    }, { status: 400 });
   }
 
   if (mode === "inspect") {
@@ -97,6 +104,33 @@ export async function POST(request: Request) {
       fileName: item.fileName,
       checksumSha256: sha256Hex(item.buffer),
       sheetName: extracted.sheetName ?? item.sheetName
+    });
+  }
+
+  if (sourceType === "partnerChurch") {
+    const overview = await getCampOverview(session, context);
+    const previews = sources.map((source) =>
+      parseCampRegistrationImport(source.csv, {
+        teams: overview.teams,
+        vehicles: overview.vehicles,
+        existingStudents: overview.students,
+        mode: "partnerChurch",
+        sourceName: sourceName ?? source.fileName,
+        sourceKind: "upload"
+      })
+    );
+    const uploadSources = sources.map((source, index) => ({
+      fileName: source.fileName,
+      checksumSha256: source.checksumSha256,
+      sheetName: source.sheetName,
+      rowCount: previews[index]?.summary.totalRows ?? 0
+    }));
+    return NextResponse.json({
+      preview: mergeCampRegistrationImportPreviews(previews, {
+        sourceName: sourceName ?? sources.map((source) => source.fileName).join(" + "),
+        sourceKind: "upload",
+        uploadSources
+      })
     });
   }
 

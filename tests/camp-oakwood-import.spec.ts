@@ -24,6 +24,17 @@ test.describe("Camp Oakwood restricted import boundaries", () => {
     await expect(page.getByText("no roster data is saved automatically on upload")).toBeVisible();
   });
 
+  test("Camp Settings exposes Partner Church Upload for reviewed camper spreadsheets", async ({ page }) => {
+    await login(page);
+
+    await page.goto("/camp/more");
+    await page.getByRole("link", { name: "Camp Settings" }).click();
+    await page.getByRole("link", { name: "Partner Church Upload" }).click();
+    await page.waitForURL(/\/camp\/settings\/import\?mode=partner$/);
+    await expect(page.getByRole("heading", { name: "Partner Church Upload" })).toBeVisible();
+    await expect(page.getByText("Required fields are camper name and partner church/source church")).toBeVisible();
+  });
+
   test("Andrew can find and edit imported leader staff details", async ({ page }) => {
     await login(page);
 

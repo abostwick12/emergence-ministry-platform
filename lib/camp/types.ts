@@ -417,6 +417,8 @@ export type CampOverviewPayload = {
 export type CampRegistrationImportPreviewRow = {
   rowNumber: number;
   status: "Ready" | "Needs Parent Clarification" | "Blocked";
+  importAction?: "add" | "update" | "skip";
+  sourceChurch?: string;
   warnings: string[];
   camper: CampStudentInput;
   restrictedMedical?: CampRestrictedMedicalRecord;
@@ -426,12 +428,23 @@ export type CampRegistrationImportPreviewRow = {
 };
 
 export type CampRegistrationImportPreview = {
+  sourceName?: string;
+  sourceKind?: "csv" | "upload";
+  uploadSources?: Array<{
+    fileName: string;
+    checksumSha256: string;
+    sheetName?: string;
+    rowCount: number;
+  }>;
   rows: CampRegistrationImportPreviewRow[];
   summary: {
     totalRows: number;
     readyRows: number;
     clarificationRows: number;
     blockedRows: number;
+    addRows?: number;
+    updateRows?: number;
+    skippedRows?: number;
   };
 };
 

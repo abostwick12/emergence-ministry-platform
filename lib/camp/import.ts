@@ -3,12 +3,18 @@ import type {
   CampRegistrationImportPreviewRow,
   CampRestrictedMedicalRecord,
   CampTeam,
+  CampVisibleStudent,
   CampVehicle
 } from "@/lib/camp/types";
 
 type ImportOptions = {
   teams: CampTeam[];
   vehicles: CampVehicle[];
+  existingStudents?: Array<Pick<CampVisibleStudent, "id" | "name">>;
+  mode?: "registration" | "partnerChurch";
+  sourceName?: string;
+  sourceKind?: CampRegistrationImportPreview["sourceKind"];
+  uploadSources?: CampRegistrationImportPreview["uploadSources"];
 };
 
 type CsvRow = Record<string, string>;
@@ -20,72 +26,126 @@ export function parseCampRegistrationImport(csv: string, options: ImportOptions)
   const rows = parsed.rows.map((row, index) => normalizeRegistrationRow(row, index + 2, options));
 
   return {
+    sourceName: options.sourceName,
+    sourceKind: options.sourceKind ?? "csv",
+    uploadSources: options.uploadSources,
     rows,
-    summary: {
-      totalRows: rows.length,
-      readyRows: rows.filter((row) => row.status === "Ready").length,
-      clarificationRows: rows.filter((row) => row.status === "Needs Parent Clarification").length,
-      blockedRows: rows.filter((row) => row.status === "Blocked").length
-    }
+    summary: summarizeRows(rows)
+  };
+}
+
+export function mergeCampRegistrationImportPreviews(
+  previews: CampRegistrationImportPreview[],
+  meta: Pick<CampRegistrationImportPreview, "sourceName" | "sourceKind" | "uploadSources"> = {}
+): CampRegistrationImportPreview {
+  const rows = previews.flatMap((preview) => preview.rows);
+  return {
+    ...meta,
+    rows,
+    summary: summarizeRows(rows)
+  };
+}
+
+function summarizeRows(rows: CampRegistrationImportPreviewRow[]): CampRegistrationImportPreview["summary"] {
+  return {
+    totalRows: rows.length,
+    readyRows: rows.filter((row) => row.status === "Ready").length,
+    clarificationRows: rows.filter((row) => row.status === "Needs Parent Clarification").length,
+    blockedRows: rows.filter((row) => row.status === "Blocked").length,
+    addRows: rows.filter((row) => row.importAction === "add").length,
+    updateRows: rows.filter((row) => row.importAction === "update").length,
+    skippedRows: rows.filter((row) => row.importAction === "skip").length
   };
 }
 
 function normalizeRegistrationRow(row: CsvRow, rowNumber: number, options: ImportOptions): CampRegistrationImportPreviewRow {
   const warnings: string[] = [];
   const name = pick(row, ["student name", "camper name", "name", "student"]);
+  const partnerChurch = pick(row, ["partner church", "source church", "church/source", "church", "home church", "sending church", "source"]);
   const team = findByName(options.teams, pick(row, ["team", "team name"]));
   const vehicle = findVehicle(options.vehicles, pick(row, ["vehicle", "car", "van", "transportation"]));
-  const safetyFlags = splitFlags(pick(row, ["limited safety flags", "safety flags", "public flags"]));
+  const safetyFlags = splitFlags(pick(row, ["limited safety flags", "safety flags", "public flags", "safe operational notes", "leader-safe notes", "operational notes"]));
+  if (partnerChurch) safetyFlags.unshift(`Partner church: ${partnerChurch}`);
 
   if (!name) warnings.push("Missing camper name.");
+  if (options.mode === "partnerChurch" && !partnerChurch) warnings.push("Missing partner church/source church.");
   if (!team) warnings.push("Team missing or unmatched; first team will be used for preview.");
   if (!vehicle) warnings.push("Vehicle missing or unmatched; first vehicle will be used for preview.");
 
   const medicationName = pick(row, ["medication", "medication name", "medication label", "medicine"]);
   const medicationInstructions = pick(row, ["medication instructions", "parent instructions", "parent-provided instructions", "dosage instructions"]);
   const medicationTime = pick(row, ["medication time", "time window", "schedule", "medication schedule"]);
+  const medicationOnFileIndicator = boolish(pick(row, ["medication on file", "medication-on-file", "medication indicator", "medication plan on file"]));
   const hasMedicationData = Boolean(medicationName || medicationInstructions || medicationTime);
   const medicationNeedsClarification = hasMedicationData && (!medicationName || !medicationInstructions || needsClarification(medicationInstructions));
 
   if (hasMedicationData && !medicationName) warnings.push("Medication label missing; marked Needs Parent Clarification.");
   if (hasMedicationData && !medicationInstructions) warnings.push("Medication instructions missing; marked Needs Parent Clarification.");
   if (hasMedicationData && needsClarification(medicationInstructions)) warnings.push("Medication instructions unclear; marked Needs Parent Clarification.");
+  if (medicationOnFileIndicator && !hasMedicationData) warnings.push("Medication on file indicator imported without medication details; routed to restricted intake follow-up.");
 
-  const restrictedNotes = pick(row, ["restricted notes", "medical notes", "diagnosis notes"]);
-  const allergyNotes = pick(row, ["allergy notes", "allergies"]);
+  const restrictedNotes = pick(row, ["restricted notes", "medical notes", "diagnosis notes", "medical details", "medical concern details"]);
+  const allergyNotes = pick(row, ["allergy notes", "allergies", "food allergy details", "dietary details"]);
   const insuranceStatus = pick(row, ["insurance", "insurance status"]);
   const parentMedicalNotes = pick(row, ["parent medical notes", "parent notes"]);
-  const hasMedicalData = Boolean(restrictedNotes || allergyNotes || insuranceStatus || parentMedicalNotes);
+  const emergencyContactName = pick(row, ["emergency contact name", "emergency contact", "parent/guardian name"]);
+  const emergencyContactPhone = pick(row, ["emergency contact phone", "emergency phone", "parent/guardian phone", "phone"]);
+  const hasMedicalData = Boolean(restrictedNotes || allergyNotes || insuranceStatus || parentMedicalNotes || emergencyContactName || emergencyContactPhone);
   const medicalNeedsClarification = hasMedicalData && needsClarification(`${restrictedNotes} ${allergyNotes} ${parentMedicalNotes}`);
   if (medicalNeedsClarification) warnings.push("Medical notes require parent clarification.");
 
-  const blocked = !name;
-  const needsParentClarification = medicationNeedsClarification || medicalNeedsClarification;
+  const foodAllergyIndicator = boolish(pick(row, ["food allergy indicator", "food allergy", "dietary plan on file", "food allergy on file", "dietary alert"])) || Boolean(allergyNotes);
+  const medicalConcernIndicator = boolish(pick(row, ["medical concern indicator", "medical concern", "care plan on file", "medical alert"])) || Boolean(restrictedNotes || parentMedicalNotes);
+  const emergencyContactOnFile = boolish(pick(row, ["emergency contact on file", "emergency contact indicator"])) || Boolean(emergencyContactName || emergencyContactPhone);
+  const match: { action: "add" | "update" | "skip"; id?: string; warning?: string } =
+    options.mode === "partnerChurch" ? resolveStudentImportMatch(name, options.existingStudents ?? []) : { action: "add" };
+  if (match.warning) warnings.push(match.warning);
+
+  const blocked = !name || (options.mode === "partnerChurch" && !partnerChurch) || match.action === "skip";
+  const needsParentClarification = medicationNeedsClarification || medicalNeedsClarification || medicationOnFileIndicator;
   const studentName = name || `Import row ${rowNumber}`;
+  const medication = hasMedicationData
+    ? {
+        medicationName: medicationName || "Parent-labeled medication",
+        medicinePhotoStatus: "Photo Needed" as const,
+        parentProvidedInstructions: medicationInstructions || clarificationText,
+        checkInStatus: medicationNeedsClarification ? "Needs Parent Clarification" as const : "Not Checked In" as const,
+        clarificationStatus: medicationNeedsClarification ? "Needs Parent Clarification" as const : "Clear" as const,
+        scheduleTimeWindow: medicationTime || undefined
+      }
+    : medicationOnFileIndicator
+      ? {
+          medicationName: "Medication on file",
+          medicinePhotoStatus: "Photo Needed" as const,
+          parentProvidedInstructions: clarificationText,
+          checkInStatus: "Needs Parent Clarification" as const,
+          clarificationStatus: "Needs Parent Clarification" as const
+        }
+      : undefined;
 
   return {
     rowNumber,
     status: blocked ? "Blocked" : needsParentClarification ? "Needs Parent Clarification" : "Ready",
+    importAction: blocked ? "skip" : match.action,
+    sourceChurch: partnerChurch,
     warnings,
     camper: {
+      id: match.id,
       name: studentName,
       grade: pick(row, ["grade", "student grade"]) || "",
       teamId: team?.id ?? options.teams[0]?.id ?? "",
       vehicleId: vehicle?.id ?? options.vehicles[0]?.id ?? "",
-      cabin: pick(row, ["cabin", "room"]) || "",
+      cabin: pick(row, ["cabin", "room", "room/cabin"]) || "",
+      shirtSize: pick(row, ["shirt size", "t-shirt size", "t shirt size"]) || "",
+      emergencyContactOnFile,
+      hasMedicalAlert: medicalConcernIndicator,
+      hasDietaryAlert: foodAllergyIndicator,
       limitedSafetyFlags: safetyFlags
     },
-    restrictedMedical: hasMedicalData ? toRestrictedMedical(studentName, restrictedNotes, allergyNotes, insuranceStatus, parentMedicalNotes, medicalNeedsClarification) : undefined,
-    medication: hasMedicationData
-      ? {
-          medicationName: medicationName || "Parent-labeled medication",
-          medicinePhotoStatus: "Photo Needed",
-          parentProvidedInstructions: medicationInstructions || clarificationText,
-          checkInStatus: medicationNeedsClarification ? "Needs Parent Clarification" : "Not Checked In",
-          clarificationStatus: medicationNeedsClarification ? "Needs Parent Clarification" : "Clear",
-          scheduleTimeWindow: medicationTime || undefined
-        }
-      : undefined
+    restrictedMedical: hasMedicalData
+      ? toRestrictedMedical(studentName, restrictedNotes, allergyNotes, insuranceStatus, parentMedicalNotes, medicalNeedsClarification, emergencyContactName, emergencyContactPhone)
+      : undefined,
+    medication
   };
 }
 
@@ -95,7 +155,9 @@ function toRestrictedMedical(
   allergyNotes: string,
   insuranceStatus: string,
   parentMedicalNotes: string,
-  needsParentClarification: boolean
+  needsParentClarification: boolean,
+  emergencyContactName = "",
+  emergencyContactPhone = ""
 ): CampRestrictedMedicalRecord {
   return {
     studentId: "",
@@ -104,7 +166,9 @@ function toRestrictedMedical(
     restrictedNotes,
     allergyNotes,
     insuranceStatus,
-    parentMedicalNotes
+    parentMedicalNotes,
+    emergencyContactName,
+    emergencyContactPhone
   };
 }
 
@@ -173,6 +237,10 @@ function normalizeHeader(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
+function normalizeName(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
 function findByName<T extends { name: string }>(items: T[], name: string): T | undefined {
   if (!name) return undefined;
   const normalized = name.trim().toLowerCase();
@@ -192,4 +260,23 @@ function splitFlags(value: string): string[] {
 function needsClarification(value: string): boolean {
   if (!value.trim()) return true;
   return /needs parent clarification|unclear|clarify|conflict|unknown|tbd/i.test(value);
+}
+
+function boolish(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return false;
+  if (/^(no|none|n\/a|na|false|0)$/i.test(normalized)) return false;
+  return /^(yes|y|true|1|x|on file|filed|present|food|diet|medical|medication|care plan)$/i.test(normalized) || normalized.includes("on file");
+}
+
+function resolveStudentImportMatch(
+  name: string,
+  existingStudents: Array<Pick<CampVisibleStudent, "id" | "name">>
+): { action: "add" | "update" | "skip"; id?: string; warning?: string } {
+  if (!name.trim()) return { action: "skip" };
+  const normalized = normalizeName(name);
+  const matches = existingStudents.filter((student) => normalizeName(student.name) === normalized);
+  if (matches.length === 1) return { action: "update", id: matches[0].id };
+  if (matches.length > 1) return { action: "skip", warning: "Multiple existing campers have this name; skipped for manual review." };
+  return { action: "add" };
 }
