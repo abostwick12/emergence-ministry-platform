@@ -2987,10 +2987,173 @@ textarea:focus-visible {
   font-weight: 800;
   font-size: 12.5px;
 }
-.camp-team-card-body { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0; }
+.camp-team-card-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin: 0; }
 .camp-team-card-body dt { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--camp-muted); }
 .camp-team-card-body dd { margin: 0; font-size: 13.5px; font-weight: 600; color: var(--camp-ink); }
 .camp-team-card-cta { font-size: 12.5px; font-weight: 700; color: var(--camp-team-accent); }
+
+.camp-leader-profile-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid color-mix(in srgb, var(--camp-team-accent, #38bdf8) 32%, rgba(160, 206, 240, 0.22));
+  border-radius: 13px;
+  background:
+    radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--camp-team-accent, #38bdf8) 16%, transparent), transparent 64%),
+    rgba(125, 211, 252, 0.10);
+  box-shadow: inset 0 1px 0 rgba(245, 252, 255, 0.20);
+}
+.camp-leader-profile-row.compact { padding: 7px; }
+.camp-leader-profile-row.empty {
+  border-style: dashed;
+  background: rgba(125, 211, 252, 0.08);
+}
+.camp-leader-avatar {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--camp-team-accent, #38bdf8) 38%, rgba(224, 242, 254, 0.30));
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 30% 22%, rgba(255, 255, 255, 0.48), transparent 45%),
+    linear-gradient(150deg, color-mix(in srgb, var(--camp-team-accent, #38bdf8) 34%, rgba(8, 47, 73, 0.80)), rgba(6, 22, 43, 0.82));
+  color: #effbff;
+  font-size: 11px;
+  font-weight: 900;
+  box-shadow: 0 0 18px color-mix(in srgb, var(--camp-team-accent, #38bdf8) 22%, transparent);
+}
+.camp-leader-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.camp-leader-avatar.placeholder {
+  color: var(--camp-accent);
+  font-size: 18px;
+}
+.camp-leader-profile-text {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+.camp-leader-role {
+  color: var(--camp-muted);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.camp-leader-name {
+  overflow: hidden;
+  color: var(--camp-ink);
+  font-size: 13px;
+  font-weight: 850;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.camp-team-room-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  max-width: 100%;
+  padding: 4px 10px;
+  border: 1px solid color-mix(in srgb, var(--camp-team-accent) 30%, var(--camp-border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--camp-team-accent) 16%, rgba(125, 211, 252, 0.08));
+  color: color-mix(in srgb, var(--camp-team-accent) 34%, #eaf8ff);
+  font-size: 11.5px;
+  font-weight: 900;
+}
+
+.camp-available-leaders-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.camp-available-leaders-head span {
+  display: inline-flex;
+  min-width: 26px;
+  justify-content: center;
+  padding: 2px 8px;
+  border: 1px solid var(--camp-border);
+  border-radius: 999px;
+  background: rgba(125, 211, 252, 0.12);
+  color: var(--camp-accent);
+  font-size: 12px;
+  font-weight: 900;
+}
+.camp-available-leaders-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.camp-available-leader-tile {
+  --camp-leader-accent: #38bdf8;
+  display: flex;
+  flex: 1 1 190px;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+  padding: 9px;
+  border: 1px solid color-mix(in srgb, var(--camp-leader-accent) 36%, var(--camp-border));
+  border-radius: 14px;
+  background:
+    radial-gradient(120% 100% at 0% 0%, color-mix(in srgb, var(--camp-leader-accent) 20%, transparent), transparent 62%),
+    rgba(125, 211, 252, 0.10);
+  box-shadow: inset 0 1px 0 rgba(245, 252, 255, 0.20), 0 0 20px color-mix(in srgb, var(--camp-leader-accent) 12%, transparent);
+}
+.camp-available-leader-tile .camp-leader-avatar {
+  border-color: color-mix(in srgb, var(--camp-leader-accent) 42%, rgba(224, 242, 254, 0.30));
+  background:
+    radial-gradient(circle at 30% 22%, rgba(255, 255, 255, 0.48), transparent 45%),
+    linear-gradient(150deg, color-mix(in srgb, var(--camp-leader-accent) 34%, rgba(8, 47, 73, 0.80)), rgba(6, 22, 43, 0.82));
+  box-shadow: 0 0 18px color-mix(in srgb, var(--camp-leader-accent) 22%, transparent);
+}
+.camp-available-leader-body {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 1px;
+}
+.camp-available-leader-body strong {
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.camp-available-leader-meta {
+  color: var(--camp-muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+.camp-available-leader-status {
+  flex: 0 0 auto;
+  max-width: 46%;
+  overflow: hidden;
+  padding: 3px 8px;
+  border: 1px solid color-mix(in srgb, var(--camp-leader-accent) 34%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--camp-leader-accent) 16%, rgba(125, 211, 252, 0.08));
+  color: color-mix(in srgb, var(--camp-leader-accent) 34%, #eaf8ff);
+  font-size: 10.5px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* Team detail */
 .camp-team-detail-head { display: flex; align-items: center; gap: 12px; }
@@ -3183,7 +3346,7 @@ textarea:focus-visible {
 
 @media (max-width: 720px) {
   .camp-cc-name { font-size: 20px; }
-  .camp-team-card-body { grid-template-columns: 1fr 1fr; }
+  .camp-team-card-body { grid-template-columns: minmax(0, 1fr); }
   /* Fixed bottom navigation, clear of the iPhone home indicator. */
   .camp-nav {
     position: fixed;
@@ -3210,6 +3373,9 @@ textarea:focus-visible {
   .camp-cc-header { flex-direction: row; align-items: center; gap: 16px; flex-wrap: wrap; }
   .camp-nav { margin-left: auto; max-width: 540px; }
   .camp-team-grid { grid-template-columns: repeat(2, 1fr); }
+  .camp-team-card-body { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .camp-team-card-carousel .camp-team-card-body { grid-template-columns: minmax(0, 1fr); }
+  .camp-team-room-chip { grid-column: 1 / -1; }
   .camp-team-card-carousel { flex-basis: 300px; }
 }
 
@@ -3224,7 +3390,8 @@ textarea:focus-visible {
      body base mid-scroll — the field must cover the full scroll height. */
   min-height: 100dvh;
   background:
-    radial-gradient(125% 82% at 50% -10%, #0f3a60 0%, #0b2a49 36%, #081d34 70%, #050f1e 100%);
+    radial-gradient(125% 82% at 50% -10%, rgba(15, 58, 96, 0.92) 0%, rgba(11, 42, 73, 0.94) 36%, rgba(8, 29, 52, 0.98) 70%, #050f1e 100%),
+    #050f1e;
 }
 
 .app-shell.app-shell-camp::before {
@@ -3262,14 +3429,19 @@ html:has(.app-shell-camp) body {
   inset: 0;
   z-index: -2;
   pointer-events: none;
-  background:
-    radial-gradient(58% 42% at 20% 12%, rgba(56, 189, 248, 0.34), transparent 70%),
-    radial-gradient(56% 46% at 88% 20%, rgba(45, 212, 191, 0.22), transparent 72%),
-    radial-gradient(72% 52% at 52% 4%, rgba(125, 211, 252, 0.22), transparent 64%),
-    radial-gradient(66% 60% at 80% 94%, rgba(79, 107, 216, 0.26), transparent 74%),
-    radial-gradient(84% 72% at 14% 98%, rgba(8, 145, 178, 0.24), transparent 76%),
-    radial-gradient(150% 122% at 50% 132%, rgba(1, 6, 14, 0.86), transparent 56%),
+  background-image:
+    linear-gradient(180deg, rgba(3, 14, 29, 0.78) 0%, rgba(3, 14, 29, 0.56) 170px, transparent 330px),
+    radial-gradient(58% 42% at 18% 10%, rgba(56, 189, 248, 0.12), transparent 70%),
+    radial-gradient(56% 46% at 88% 20%, rgba(45, 212, 191, 0.10), transparent 72%),
+    radial-gradient(78% 58% at 52% -2%, rgba(125, 211, 252, 0.08), transparent 66%),
+    radial-gradient(76% 66% at 83% 96%, rgba(79, 107, 216, 0.24), transparent 74%),
+    radial-gradient(88% 76% at 8% 100%, rgba(8, 145, 178, 0.20), transparent 76%),
+    linear-gradient(180deg, rgba(2, 12, 27, 0.94) 0%, rgba(3, 16, 32, 0.94) 42%, rgba(2, 8, 19, 0.98) 100%),
+    url("/dashboard-watercolor-reference.png"),
     linear-gradient(180deg, #0f3b62 0%, #0b2a49 38%, #081d34 72%, #04101f 100%);
+  background-repeat: no-repeat;
+  background-position: center, center, center, center, center, center, center, center, center;
+  background-size: 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, cover, 100% 100%;
 }
 
 /* Second layer: faint refracted-light caustics, very low opacity. */
@@ -5502,6 +5674,22 @@ html:has(.app-shell-camp) body {
 .camp-dialog .camp-editor-card .camp-cc-muted,
 .camp-dialog .camp-list .camp-list-row .camp-cc-muted {
   color: #475569;
+}
+
+.camp-dialog .camp-leader-profile-row {
+  border-color: #cbd5e1;
+  background:
+    radial-gradient(120% 90% at 0% 0%, rgba(14, 165, 233, 0.14), transparent 64%),
+    #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+
+.camp-dialog .camp-leader-role {
+  color: #475569;
+}
+
+.camp-dialog .camp-leader-name {
+  color: #0f172a;
 }
 
 .camp-signature-block .camp-signature-head > div {

@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { useMemo } from "react";
 import { useCamp } from "@/components/camp/camp-provider";
 import { CampStudentCard } from "@/components/camp/camp-student-card";
-import { teamAccent } from "@/components/camp/camp-team-card";
+import { CampLeaderProfileRow, teamAccent } from "@/components/camp/camp-team-card";
 import type { CSSProperties } from "react";
 
 export default function CampTeamDetailPage() {
@@ -43,11 +43,11 @@ export default function CampTeamDetailPage() {
       <dl className="camp-team-detail-meta">
         <div>
           <dt>Leader</dt>
-          <dd>{team.leader?.trim() ? team.leader : <span className="camp-cc-placeholder">Add leader</span>}</dd>
+          <dd><CampLeaderProfileRow name={team.leader} roleLabel="Leader" staff={overview.staff} /></dd>
         </div>
         <div>
           <dt>Co-leader</dt>
-          <dd>{team.coLeader?.trim() ? team.coLeader : <span className="camp-cc-placeholder">Add co-leader</span>}</dd>
+          <dd><CampLeaderProfileRow name={team.coLeader} roleLabel="Co-Leader" staff={overview.staff} /></dd>
         </div>
         <div>
           <dt>Room</dt>
