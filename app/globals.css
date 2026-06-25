@@ -4862,7 +4862,7 @@ html:has(.app-shell-camp) body {
 }
 
 .camp-access-add {
-  grid-template-columns: minmax(220px, 1fr) minmax(180px, 240px) auto;
+  grid-template-columns: minmax(220px, 1.2fr) minmax(180px, 1fr) minmax(180px, 240px) auto;
   align-items: end;
   margin-top: 4px;
   margin-bottom: 6px;
@@ -4926,6 +4926,24 @@ html:has(.app-shell-camp) body {
   color: #fecaca;
 }
 
+.camp-access-admin .camp-status.active {
+  border-color: rgba(134, 239, 172, 0.44);
+  background: rgba(20, 83, 45, 0.38);
+  color: #bbf7d0;
+}
+
+.camp-access-admin .camp-status.pending {
+  border-color: rgba(251, 191, 36, 0.44);
+  background: rgba(120, 53, 15, 0.34);
+  color: #fde68a;
+}
+
+.camp-access-admin .camp-status.inactive {
+  border-color: rgba(203, 213, 225, 0.36);
+  background: rgba(30, 41, 59, 0.48);
+  color: #e2e8f0;
+}
+
 .camp-access-admin .camp-cc-error {
   margin: 0;
   border: 1px solid rgba(252, 165, 165, 0.42);
@@ -4972,6 +4990,13 @@ html:has(.app-shell-camp) body {
   font-size: 13px;
   font-weight: 750;
   line-height: 1.35;
+}
+
+.camp-access-statusline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
 }
 
 .camp-access-protected-note {

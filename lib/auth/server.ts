@@ -44,6 +44,23 @@ export function getSupabaseAuthClient(accessToken?: string) {
   });
 }
 
+export function isSupabaseAdminConfigured() {
+  return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
+}
+
+export function getSupabaseAdminClient() {
+  if (!isSupabaseAdminConfigured()) {
+    throw new Error("Supabase Admin environment variables are not configured.");
+  }
+
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  });
+}
+
 export function setAuthCookies(response: NextResponse, input: { accessToken?: string; refreshToken?: string; isMock?: boolean }) {
   if (input.isMock) {
     response.cookies.set(authCookieNames.mockSession, "1", cookieOptions);

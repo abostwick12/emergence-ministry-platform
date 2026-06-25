@@ -1,12 +1,22 @@
 // Server-only Camp access management.
 //
-// The UI submits email + Camp role. The server resolves that email to an
-// existing authenticated profile, and writes `camp_access_members`. The
-// database trigger on that table appends `camp_access_audit` from auth.uid()
+// The UI submits email + Camp role. The server resolves that email to a
+// Supabase Auth identity, repairs the app profile when the identity is ready,
+// and writes `camp_access_members`. Pending invites remain inactive until the
+// invited user signs in and identity resolution can complete. The database
+// trigger on `camp_access_members` appends `camp_access_audit` from auth.uid()
 // and the actual row change, so clients never provide audit metadata.
 
 import { isSupabaseConfigured } from "@/lib/auth/config";
-import { getSupabaseAuthClient, type AuthSession } from "@/lib/auth/server";
+import { getSupabaseAdminClient, getSupabaseAuthClient, isSupabaseAdminConfigured, type AuthSession } from "@/lib/auth/server";
+import {
+  findAuthUserByEmail,
+  inviteAuthUserByEmail,
+  normalizeCampAccessEmail,
+  repairProfileForAuthUser,
+  type CampAuthUser,
+  type CampProfileRow
+} from "@/lib/camp/access-onboarding";
 import {
   BOOTSTRAP_CAMP_ADMIN_EMAIL,
   CAMP_STORED_ROLES,
@@ -15,12 +25,16 @@ import {
   type CampStoredRole
 } from "@/lib/camp/access-control";
 
+export type CampAccessMemberStatus = "active" | "pending_invite" | "inactive" | "bootstrap";
+
 export type CampAccessMember = {
   userId: string;
   email: string;
+  displayName?: string | null;
   campRole: CampStoredRole;
   isActive: boolean;
   updatedAt: string;
+  status: CampAccessMemberStatus;
   bootstrap?: boolean;
 };
 
@@ -35,6 +49,13 @@ export type CampAccessAuditEntry = {
 };
 
 type Denied = { allowed: false; status: number; error: string };
+type CampAccessTableClient = Pick<ReturnType<typeof getSupabaseAuthClient>, "from">;
+type OnboardingOk = {
+  allowed: true;
+  status: 200;
+  member: CampAccessMember;
+  onboarding: CampAccessOnboardingResult;
+};
 type ListOk = {
   allowed: true;
   status: 200;
@@ -45,6 +66,22 @@ type ListOk = {
   audit: CampAccessAuditEntry[];
 };
 type UpdateOk = { allowed: true; status: 200; member: CampAccessMember };
+
+export type CampAccessOnboardingInput = {
+  email: string;
+  campRole: CampStoredRole;
+  displayName?: string;
+};
+
+export type CampAccessOnboardingResult = {
+  status: "already_active" | "invite_sent" | "pending_invite" | "profile_repaired" | "access_granted";
+  email: string;
+  campRole: CampStoredRole;
+  inviteSent: boolean;
+  pendingInvite: boolean;
+  profileRepaired: boolean;
+  accessGranted: boolean;
+};
 
 export type CampAccessUpdateInput = {
   email: string;
@@ -83,7 +120,7 @@ export async function listCampAccess(session: AuthSession): Promise<ListOk | Den
   try {
     const supabase = getSupabaseAuthClient(session.accessToken);
     const [members, audit] = await Promise.all([
-      supabase.from("camp_access_members").select("user_id,email,camp_role,is_active,updated_at").eq("is_active", true).order("email", { ascending: true }),
+      supabase.from("camp_access_members").select("user_id,email,camp_role,is_active,updated_at").order("email", { ascending: true }),
       supabase
         .from("camp_access_audit")
         .select("id,actor_email,target_email,action,old_role,new_role,created_at")
@@ -91,11 +128,13 @@ export async function listCampAccess(session: AuthSession): Promise<ListOk | Den
         .limit(50)
     ]);
     if (members.error) throw members.error;
+    const memberRows = members.data ?? [];
+    const profilesById = await loadProfilesByUserId(supabase, memberRows.map((member) => member.user_id));
     return {
       ...base,
       bootstrapActive: false,
       available: true,
-      members: (members.data ?? []).map(toMember),
+      members: memberRows.map((member) => toMember(member, profilesById.get(member.user_id))),
       audit: (audit.data ?? []).map(toAudit)
     };
   } catch {
@@ -106,6 +145,131 @@ export async function listCampAccess(session: AuthSession): Promise<ListOk | Den
       audit: []
     };
   }
+}
+
+export async function onboardCampAccessMember(session: AuthSession, input: CampAccessOnboardingInput): Promise<OnboardingOk | Denied> {
+  if (!(await isCampAccessAdmin(session))) {
+    return { allowed: false, status: 403, error: "Camp access management is limited to Camp Admins." };
+  }
+  if (!CAMP_STORED_ROLES.includes(input.campRole)) {
+    return { allowed: false, status: 400, error: "Unknown Camp access tier." };
+  }
+  const email = normalizeEmail(input.email);
+  if (!email) return { allowed: false, status: 400, error: "Email is required." };
+  if (session.isMock || !isSupabaseConfigured()) {
+    return {
+      allowed: false,
+      status: 503,
+      error: "Camp access onboarding requires migration 014 and a configured Supabase project."
+    };
+  }
+  if (!isSupabaseAdminConfigured()) {
+    return {
+      allowed: false,
+      status: 503,
+      error: "Camp access onboarding requires the server-only SUPABASE_SERVICE_ROLE_KEY environment variable."
+    };
+  }
+
+  const supabase = getSupabaseAdminClient();
+  const authLookup = await findAuthUserByEmail(supabase, email);
+  if (authLookup.error) return { allowed: false, status: 503, error: authLookup.error };
+
+  if (!authLookup.user) {
+    const invited = await inviteAuthUserByEmail(supabase, { email, displayName: input.displayName });
+    if (invited.error || !invited.user) {
+      return { allowed: false, status: 400, error: invited.error ?? "Unable to resolve user." };
+    }
+
+    const pending = await writePendingInvite(supabase, session, invited.user, email, input.campRole);
+    if (!pending.allowed) return pending;
+    return {
+      allowed: true,
+      status: 200,
+      member: pending.member,
+      onboarding: {
+        status: "invite_sent",
+        email,
+        campRole: input.campRole,
+        inviteSent: true,
+        pendingInvite: true,
+        profileRepaired: false,
+        accessGranted: false
+      }
+    };
+  }
+
+  const existingAccess = await readExistingCampAccess(supabase, authLookup.user.id);
+  if (!existingAccess.allowed) return existingAccess;
+
+  const existingProfile = await readProfileByUserId(supabase, authLookup.user.id);
+  if (!existingProfile.allowed) return existingProfile;
+
+  if (existingAccess.member?.is_active === false && !existingProfile.profile) {
+    const pending = await writePendingInvite(supabase, session, authLookup.user, email, input.campRole);
+    if (!pending.allowed) return pending;
+    return {
+      allowed: true,
+      status: 200,
+      member: pending.member,
+      onboarding: {
+        status: "pending_invite",
+        email,
+        campRole: input.campRole,
+        inviteSent: false,
+        pendingInvite: true,
+        profileRepaired: false,
+        accessGranted: false
+      }
+    };
+  }
+
+  const profile = await repairProfileForAuthUser(supabase, authLookup.user, input.displayName);
+  if (!profile.ok) return { allowed: false, status: 400, error: profile.error };
+
+  const finalAdminCheck = await assertNotFinalActiveAdminChange(
+    supabase,
+    authLookup.user.id,
+    existingAccess.member?.camp_role ?? null,
+    existingAccess.member?.is_active ?? false,
+    input.campRole,
+    true
+  );
+  if (!finalAdminCheck.allowed) return finalAdminCheck;
+
+  const { data, error } = await supabase
+    .from("camp_access_members")
+    .upsert(
+      {
+        user_id: authLookup.user.id,
+        email: profile.profile.email,
+        camp_role: input.campRole,
+        is_active: true,
+        granted_by: session.user.id
+      },
+      { onConflict: "user_id" }
+    )
+    .select("user_id,email,camp_role,is_active,updated_at")
+    .single();
+
+  if (error || !data) return { allowed: false, status: 400, error: "Camp access update failed." };
+
+  const alreadyActive = existingAccess.member?.is_active === true && existingAccess.member.camp_role === input.campRole && !profile.repaired;
+  const status = alreadyActive ? "already_active" : profile.repaired ? "profile_repaired" : "access_granted";
+  return {
+    allowed: true,
+    status: 200,
+    member: toMember(data, profile.profile),
+    onboarding: {
+      status,
+      email: profile.profile.email,
+      campRole: input.campRole,
+      inviteSent: false,
+      pendingInvite: false,
+      profileRepaired: profile.repaired,
+      accessGranted: true
+    }
+  };
 }
 
 export async function updateCampAccessMember(session: AuthSession, input: CampAccessUpdateInput): Promise<UpdateOk | Denied> {
@@ -177,7 +341,7 @@ export async function updateCampAccessMember(session: AuthSession, input: CampAc
 }
 
 async function assertNotFinalActiveAdminChange(
-  supabase: ReturnType<typeof getSupabaseAuthClient>,
+  supabase: CampAccessTableClient,
   targetUserId: string,
   oldRole: CampStoredRole | null,
   wasActive: boolean,
@@ -196,24 +360,94 @@ async function assertNotFinalActiveAdminChange(
   return { allowed: true };
 }
 
+async function readExistingCampAccess(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+  userId: string
+): Promise<{ allowed: true; member: { camp_role: CampStoredRole; is_active: boolean } | null } | Denied> {
+  const existing = await supabase
+    .from("camp_access_members")
+    .select("camp_role,is_active")
+    .eq("user_id", userId)
+    .maybeSingle<{ camp_role: CampStoredRole; is_active: boolean }>();
+  if (existing.error) return { allowed: false, status: 503, error: "Camp access management requires migration 014." };
+  return { allowed: true, member: existing.data ?? null };
+}
+
+async function readProfileByUserId(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+  userId: string
+): Promise<{ allowed: true; profile: CampProfileRow | null } | Denied> {
+  const existing = await supabase.from("profiles").select("id,email,full_name").eq("id", userId).maybeSingle<CampProfileRow>();
+  if (existing.error) return { allowed: false, status: 503, error: "Unable to read the app profile for that Auth user." };
+  return { allowed: true, profile: existing.data ?? null };
+}
+
+async function writePendingInvite(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+  session: AuthSession,
+  authUser: CampAuthUser,
+  email: string,
+  campRole: CampStoredRole
+): Promise<{ allowed: true; member: CampAccessMember } | Denied> {
+  if (!authUser.id) return { allowed: false, status: 400, error: "Unable to resolve user." };
+
+  const { data, error } = await supabase
+    .from("camp_access_members")
+    .upsert(
+      {
+        user_id: authUser.id,
+        email,
+        camp_role: campRole,
+        is_active: false,
+        granted_by: session.user.id
+      },
+      { onConflict: "user_id" }
+    )
+    .select("user_id,email,camp_role,is_active,updated_at")
+    .single();
+
+  if (error || !data) return { allowed: false, status: 400, error: "Unable to save the pending Camp access invite." };
+  return { allowed: true, member: toMember(data) };
+}
+
+async function loadProfilesByUserId(supabase: ReturnType<typeof getSupabaseAuthClient>, userIds: string[]) {
+  const uniqueIds = Array.from(new Set(userIds.filter(Boolean)));
+  const profilesById = new Map<string, CampProfileRow>();
+  if (!uniqueIds.length) return profilesById;
+
+  const profiles = await supabase.from("profiles").select("id,email,full_name").in("id", uniqueIds);
+  if (profiles.error) return profilesById;
+  for (const profile of profiles.data ?? []) {
+    profilesById.set(profile.id, profile);
+  }
+  return profilesById;
+}
+
 function bootstrapMember(session: AuthSession): CampAccessMember {
   return {
     userId: session.user.id,
     email: BOOTSTRAP_CAMP_ADMIN_EMAIL,
+    displayName: session.user.fullName,
     campRole: "camp_admin",
     isActive: true,
     updatedAt: new Date().toISOString(),
+    status: "bootstrap",
     bootstrap: true
   };
 }
 
-function toMember(row: { user_id: string; email: string; camp_role: string; is_active: boolean; updated_at: string }): CampAccessMember {
+function toMember(
+  row: { user_id: string; email: string; camp_role: string; is_active: boolean; updated_at: string },
+  profile?: CampProfileRow | null
+): CampAccessMember {
   return {
     userId: row.user_id,
     email: row.email,
+    displayName: profile?.full_name ?? null,
     campRole: row.camp_role as CampStoredRole,
     isActive: row.is_active,
-    updatedAt: row.updated_at
+    updatedAt: row.updated_at,
+    status: row.is_active ? "active" : profile ? "inactive" : "pending_invite"
   };
 }
 
@@ -238,5 +472,5 @@ function toAudit(row: {
 }
 
 function normalizeEmail(email: string) {
-  return email.trim().toLowerCase();
+  return normalizeCampAccessEmail(email);
 }
