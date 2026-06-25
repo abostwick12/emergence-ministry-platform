@@ -95,6 +95,9 @@ export default function CampTeamsPage() {
   const [message, setMessage] = useState<{ tone: "error" | "success"; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const activeStaff = overview.staff.filter((member) => !member.archivedAt);
+  const selectedTeamAccentStyle = selectedTeam
+    ? ({ "--camp-team-accent": teamAccent(selectedTeam.color) } as CSSProperties)
+    : undefined;
 
   async function saveTeam() {
     if (!editing) return;
@@ -189,7 +192,7 @@ export default function CampTeamsPage() {
             </>
           }
         >
-          <dl className="camp-team-detail-meta">
+          <dl className="camp-team-detail-meta camp-team-popover-meta" style={selectedTeamAccentStyle}>
             <div>
               <dt>Leader</dt>
               <dd><CampLeaderProfileRow name={selectedTeam.leader} roleLabel="Leader" staff={activeStaff} /></dd>
@@ -207,7 +210,12 @@ export default function CampTeamsPage() {
               <dd>{counts.get(selectedTeam.id) ?? 0}</dd>
             </div>
           </dl>
-          {selectedTeam.notes?.trim() ? <p className="camp-cc-muted">{selectedTeam.notes}</p> : null}
+          {selectedTeam.notes?.trim() ? (
+            <section className="camp-editor-card camp-modal-section" aria-label="Team notes" style={selectedTeamAccentStyle}>
+              <p className="camp-cc-eyebrow">Notes</p>
+              <p>{selectedTeam.notes}</p>
+            </section>
+          ) : null}
         </CampOperationDialog>
       ) : null}
       {editing ? (
@@ -217,20 +225,30 @@ export default function CampTeamsPage() {
           onClose={() => setEditing(null)}
           footer={
             <>
-              {editing.id ? <button className="button compact-button" type="button" disabled={saving} onClick={() => void archiveTeam()}>Archive</button> : null}
+              {editing.id ? <button className="button compact-button danger" type="button" disabled={saving} onClick={() => void archiveTeam()}>Archive</button> : null}
               <button className="button" type="button" disabled={saving} onClick={() => setEditing(null)}>Cancel</button>
               <button className="button primary" type="button" disabled={saving} onClick={() => void saveTeam()}>{saving ? "Saving..." : "Save"}</button>
             </>
           }
         >
-          <div className="camp-field-grid">
-            <label className="field"><span>Name</span><input className="input" value={editing.name} onChange={(event) => setEditing({ ...editing, name: event.target.value })} /></label>
-            <label className="field"><span>Color</span><input className="input" value={editing.color} onChange={(event) => setEditing({ ...editing, color: event.target.value })} /></label>
-            <LeaderSelect label="Leader" value={editing.leader ?? ""} staff={activeStaff} onChange={(leader) => setEditing({ ...editing, leader })} />
-            <LeaderSelect label="Co-leader" value={editing.coLeader ?? ""} staff={activeStaff} onChange={(coLeader) => setEditing({ ...editing, coLeader })} />
-            <label className="field"><span>Room / cabin</span><input className="input" value={editing.room ?? ""} onChange={(event) => setEditing({ ...editing, room: event.target.value })} /></label>
-          </div>
-          <label className="field"><span>Notes</span><textarea className="input" rows={3} value={editing.notes ?? ""} onChange={(event) => setEditing({ ...editing, notes: event.target.value })} /></label>
+          <section className="camp-editor-card camp-modal-section" aria-label="Team identity">
+            <p className="camp-cc-eyebrow">Team</p>
+            <div className="camp-field-grid">
+              <label className="field"><span>Name</span><input className="input" value={editing.name} onChange={(event) => setEditing({ ...editing, name: event.target.value })} /></label>
+              <label className="field"><span>Color</span><input className="input" value={editing.color} onChange={(event) => setEditing({ ...editing, color: event.target.value })} /></label>
+              <label className="field"><span>Room / cabin</span><input className="input" value={editing.room ?? ""} onChange={(event) => setEditing({ ...editing, room: event.target.value })} /></label>
+            </div>
+          </section>
+          <section className="camp-editor-card camp-modal-section" aria-label="Team leaders">
+            <p className="camp-cc-eyebrow">Leaders</p>
+            <div className="camp-field-grid">
+              <LeaderSelect label="Leader" value={editing.leader ?? ""} staff={activeStaff} onChange={(leader) => setEditing({ ...editing, leader })} />
+              <LeaderSelect label="Co-leader" value={editing.coLeader ?? ""} staff={activeStaff} onChange={(coLeader) => setEditing({ ...editing, coLeader })} />
+            </div>
+          </section>
+          <section className="camp-editor-card camp-modal-section" aria-label="Team notes">
+            <label className="field"><span>Notes</span><textarea className="input" rows={3} value={editing.notes ?? ""} onChange={(event) => setEditing({ ...editing, notes: event.target.value })} /></label>
+          </section>
         </CampOperationDialog>
       ) : null}
     </div>

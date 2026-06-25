@@ -4193,21 +4193,280 @@ html:has(.app-shell-camp) body {
 }
 
 /* Schedule audience renders as a `.camp-cc-tag.subtle` glass chip (styled above). */
+.camp-cc-tag.ready {
+  border-color: rgba(34, 197, 94, 0.32);
+  background: rgba(34, 197, 94, 0.16);
+  color: #8ef0b0;
+}
+
+.camp-schedule-list {
+  gap: 12px;
+}
+
+.camp-schedule-item {
+  align-items: stretch;
+  gap: 14px;
+  overflow: hidden;
+  border-color: var(--camp-border);
+  background:
+    radial-gradient(110% 110% at 0% 0%, rgba(125, 211, 252, 0.16), transparent 58%),
+    linear-gradient(160deg, rgba(35, 78, 119, 0.28), rgba(8, 31, 55, 0.48));
+}
+
+.camp-schedule-time {
+  display: flex;
+  flex: 0 0 90px;
+  align-items: center;
+  justify-content: center;
+  min-height: 76px;
+  padding: 10px;
+  border: 1px solid rgba(186, 230, 253, 0.28);
+  border-radius: 14px;
+  background:
+    radial-gradient(90% 90% at 32% 12%, rgba(224, 250, 255, 0.26), transparent 60%),
+    rgba(6, 30, 54, 0.58);
+  color: #d9f6ff;
+  font-size: 14px;
+  line-height: 1.2;
+  text-align: center;
+  box-shadow: inset 0 1px 0 rgba(245, 252, 255, 0.24);
+}
+
+.camp-schedule-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 9px;
+}
+
+.camp-schedule-body .camp-inline-button {
+  width: fit-content;
+  max-width: 100%;
+  color: var(--camp-ink);
+  text-align: left;
+}
+
+.camp-schedule-body .camp-inline-button strong {
+  display: block;
+  font-size: 16.5px;
+  line-height: 1.16;
+}
+
+.camp-schedule-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.camp-schedule-meta-chip {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  padding: 4px 9px;
+  border: 1px solid rgba(186, 230, 253, 0.26);
+  border-radius: 999px;
+  background: rgba(125, 211, 252, 0.10);
+  color: var(--camp-ink);
+  font-size: 11.5px;
+  font-weight: 800;
+}
+
+.camp-schedule-meta-chip span {
+  color: rgba(196, 220, 242, 0.78);
+}
+
+.camp-schedule-meta-chip strong {
+  overflow: hidden;
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.camp-schedule-meta-chip.location {
+  border-color: rgba(125, 211, 252, 0.38);
+  background:
+    radial-gradient(120% 90% at 0% 0%, rgba(125, 211, 252, 0.18), transparent 62%),
+    rgba(125, 211, 252, 0.12);
+}
+
+.camp-schedule-note {
+  display: flex;
+  gap: 7px;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid rgba(186, 230, 253, 0.18);
+  border-radius: 12px;
+  background: rgba(3, 16, 32, 0.24);
+  color: var(--camp-muted);
+  font-size: 12.5px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.camp-schedule-note span {
+  flex: 0 0 auto;
+  color: var(--camp-accent);
+  font-weight: 900;
+}
+
+.camp-schedule-detail-meta {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.camp-schedule-notes-panel p:last-child,
+.camp-modal-section p:last-child {
+  margin: 0;
+  color: var(--camp-muted);
+  line-height: 1.45;
+}
+
+.camp-modal-section {
+  display: grid;
+  gap: 11px;
+  padding: 14px;
+}
+
+.camp-modal-section .camp-cc-eyebrow {
+  margin: 0;
+}
 
 /* Vehicle riders. */
 .camp-vehicle-riders li { background: var(--camp-glass-fill); color: var(--camp-ink); }
+.camp-vehicle-card {
+  background:
+    radial-gradient(110% 110% at 0% 0%, rgba(125, 211, 252, 0.14), transparent 58%),
+    var(--camp-glass);
+}
+.camp-vehicle-head {
+  gap: 10px;
+}
+.camp-vehicle-modal-riders {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.camp-vehicle-modal-riders li {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 10px 5px 5px;
+  border: 1px solid rgba(186, 230, 253, 0.18);
+  border-radius: 999px;
+  background: rgba(125, 211, 252, 0.10);
+  color: var(--camp-ink);
+  font-size: 12.5px;
+  font-weight: 800;
+}
+
+.camp-team-popover-meta {
+  border-color: color-mix(in srgb, var(--camp-team-accent, #38bdf8) 38%, var(--camp-border));
+  border-left: 4px solid color-mix(in srgb, var(--camp-team-accent, #38bdf8) 82%, #bfe6ff);
+  background:
+    radial-gradient(120% 90% at 4% 0%, color-mix(in srgb, var(--camp-team-accent, #38bdf8) 18%, transparent), transparent 62%),
+    rgba(8, 31, 55, 0.54);
+}
 
 /* More menu. */
 .camp-more-sheet {
   border-color: var(--camp-border);
+  padding: clamp(14px, 3vw, 22px);
+  background:
+    radial-gradient(90% 78% at 0% 0%, rgba(125, 211, 252, 0.18), transparent 62%),
+    radial-gradient(90% 88% at 100% 100%, rgba(79, 70, 229, 0.12), transparent 64%),
+    var(--camp-glass-strong);
   box-shadow: var(--camp-shadow), var(--camp-highlight);
 }
-.camp-more-grid a {
-  background: var(--camp-glass-fill);
-  border: 1px solid var(--camp-border);
+.camp-more-group {
+  gap: 10px;
+}
+.camp-tool-group-title {
+  font-size: 18px;
   color: var(--camp-ink);
 }
-.camp-more-grid.medical a { background: rgba(56, 189, 248, 0.16); color: var(--camp-accent); }
+.camp-more-grid {
+  gap: 12px;
+}
+.camp-more-grid a {
+  position: relative;
+  min-height: 104px;
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: 12px;
+  overflow: hidden;
+  background:
+    radial-gradient(130% 110% at 8% 0%, rgba(186, 230, 253, 0.20), transparent 58%),
+    linear-gradient(155deg, rgba(125, 211, 252, 0.13), rgba(8, 31, 55, 0.28));
+  border: 1px solid var(--camp-border);
+  border-radius: 18px;
+  color: var(--camp-ink);
+  box-shadow: var(--camp-shadow-soft), var(--camp-highlight);
+  backdrop-filter: blur(16px) saturate(1.12);
+  -webkit-backdrop-filter: blur(16px) saturate(1.12);
+  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+.camp-more-grid a::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.15), transparent 34%, rgba(125, 211, 252, 0.08));
+  opacity: 0.82;
+}
+.camp-more-grid a:hover,
+.camp-more-grid a:focus-visible {
+  transform: translateY(-1px);
+  border-color: var(--camp-border-hi);
+  box-shadow: 0 18px 38px rgba(2, 11, 24, 0.42), var(--camp-highlight);
+}
+.camp-more-grid a:focus-visible {
+  outline: 3px solid rgba(125, 211, 252, 0.42);
+  outline-offset: 2px;
+}
+.camp-more-grid.restricted a,
+.camp-more-grid.admin a {
+  background:
+    radial-gradient(130% 110% at 8% 0%, rgba(125, 211, 252, 0.24), transparent 58%),
+    rgba(56, 189, 248, 0.13);
+  color: var(--camp-ink);
+}
+.camp-more-tile-marker {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 1px solid rgba(186, 230, 253, 0.34);
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 30% 18%, rgba(255, 255, 255, 0.35), transparent 42%),
+    rgba(125, 211, 252, 0.14);
+  color: var(--camp-accent);
+  font-size: 12px;
+  font-weight: 950;
+  box-shadow: inset 0 1px 0 rgba(245, 252, 255, 0.22), 0 0 22px rgba(56, 189, 248, 0.12);
+}
+.camp-more-tile-body {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+.camp-more-grid a span.camp-more-tile-body {
+  color: inherit;
+}
+.camp-more-grid a .camp-more-tile-body span {
+  color: var(--camp-muted);
+}
 
 /* EMMA sheet — deep frosted glass, integrated with the liquid environment. */
 .camp-emma-backdrop { background: rgba(4, 14, 28, 0.52); }
@@ -6154,6 +6413,31 @@ html:has(.app-shell-camp) body {
   color: #fecaca;
 }
 
+.camp-cc .camp-schedule-item {
+  background:
+    radial-gradient(110% 110% at 0% 0%, rgba(125, 211, 252, 0.16), transparent 58%),
+    linear-gradient(160deg, rgba(35, 78, 119, 0.34), rgba(8, 31, 55, 0.54));
+}
+
+.camp-cc .camp-vehicle-card {
+  background:
+    radial-gradient(110% 110% at 0% 0%, rgba(125, 211, 252, 0.14), transparent 58%),
+    linear-gradient(158deg, rgba(22, 69, 112, 0.78), rgba(6, 22, 43, 0.66));
+}
+
+.camp-cc .camp-more-grid a {
+  background:
+    radial-gradient(130% 110% at 8% 0%, rgba(186, 230, 253, 0.20), transparent 58%),
+    linear-gradient(155deg, rgba(125, 211, 252, 0.13), rgba(8, 31, 55, 0.28));
+}
+
+.camp-cc .camp-more-grid.restricted a,
+.camp-cc .camp-more-grid.admin a {
+  background:
+    radial-gradient(130% 110% at 8% 0%, rgba(125, 211, 252, 0.24), transparent 58%),
+    rgba(56, 189, 248, 0.13);
+}
+
 @media (max-width: 720px) {
   .camp-cc-header {
     z-index: var(--camp-layer-bottom-nav);
@@ -6177,6 +6461,71 @@ html:has(.app-shell-camp) body {
   .camp-cc button,
   .camp-cc canvas {
     scroll-margin-block-end: var(--camp-bottom-nav-clearance);
+  }
+
+  .camp-more-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .camp-more-grid a {
+    min-height: 86px;
+    padding: 12px;
+  }
+
+  .camp-more-tile-marker {
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+  }
+
+  .camp-schedule-item {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .camp-schedule-time {
+    flex: none;
+    justify-content: flex-start;
+    min-height: 42px;
+    width: fit-content;
+    max-width: 100%;
+  }
+
+  .camp-schedule-body .camp-inline-button strong {
+    font-size: 16px;
+  }
+
+  .camp-schedule-note {
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .camp-schedule-detail-meta {
+    grid-template-columns: 1fr;
+  }
+
+  .camp-dialog {
+    max-height: calc(100dvh - 18px - env(safe-area-inset-top, 0px));
+  }
+
+  .camp-dialog-head {
+    align-items: flex-start;
+  }
+
+  .camp-dialog-head > div {
+    min-width: 0;
+  }
+
+  .camp-dialog-head .button {
+    flex: 0 0 auto;
+  }
+
+  .camp-dialog .camp-field-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .camp-dialog .camp-modal-section {
+    overflow: visible;
   }
 }
 
@@ -6254,6 +6603,21 @@ html:has(.app-shell-camp) body {
 }
 
 @media (max-width: 720px) {
+  .app-shell.app-shell-camp {
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+    overflow: hidden !important;
+  }
+
+  .app-main-shell-camp {
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior-y: contain;
+    scroll-padding-bottom: var(--camp-bottom-nav-clearance);
+  }
+
   .camp-nav {
     z-index: var(--camp-layer-bottom-nav);
   }
@@ -6264,6 +6628,13 @@ html:has(.app-shell-camp) body {
 
   .camp-bottom-safe-area {
     height: var(--camp-bottom-nav-clearance);
+  }
+
+  .camp-schedule-item,
+  .camp-more-tile,
+  .camp-vehicle-card,
+  .camp-team-card {
+    scroll-margin-block-end: var(--camp-bottom-nav-clearance);
   }
 }
 
