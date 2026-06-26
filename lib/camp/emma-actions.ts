@@ -1,7 +1,8 @@
 import { randomUUID } from "crypto";
 import { getSupabaseAuthClient, type AuthSession } from "@/lib/auth/server";
 import { isSupabaseConfigured } from "@/lib/auth/config";
-import { restrictedNeedles } from "@/lib/camp/emma";
+import { interpretEmmaCampCommand, type InterpretedEmmaCampCommand } from "@/lib/camp/emma-command-interpreter";
+import { parseEmmaCampCommand, type ParsedAction, type ParsedWriteAction } from "@/lib/camp/emma-command-parser";
 import { buildCampEmmaWelcomeGreeting } from "@/lib/camp/emma-greeting";
 import {
   assertAllCampersOperationalWriteAccess,
@@ -30,6 +31,7 @@ const PENDING_TTL_MS = 15 * 60 * 1000;
 const DENIED_MESSAGE = "I can help you find that information, but your current access does not allow me to make that change.";
 const FAILURE_MESSAGE = "I couldn't complete that change. Please try again or update it manually from the roster.";
 const ACTIVE_TEAM_FALLBACKS = ["Blue", "Red", "Yellow", "Green", "Orange", "Purple"];
+const CLARIFICATION_MESSAGE = "I'm not sure what change you want me to make. Try something like 'Move John West to Blue Team' or 'Change Ava's room to 508.'";
 
 export type CampEmmaActionRequest = {
   campId?: string;
@@ -42,26 +44,15 @@ export type CampEmmaActionRequest = {
   confirmed?: boolean;
 };
 
-type ParsedWriteAction = {
-  actionType: Exclude<CampEmmaActionType, "LIST_UNASSIGNED_CAMPERS" | "LIST_UNASSIGNED_LEADERS">;
-  targetType: CampEmmaActionTargetType;
-  targetNameQuery: string;
-  fieldName: CampEmmaEditableField;
-  newValue: string;
-};
+type CampEmmaServiceParsedAction = ParsedAction | { actionType: "CLARIFICATION"; message: string };
 
-type ParsedListAction = {
-  actionType: "LIST_UNASSIGNED_CAMPERS" | "LIST_UNASSIGNED_LEADERS";
-};
-
-type ParsedAction = ParsedWriteAction | ParsedListAction | { actionType: "UNSUPPORTED"; reason: "restricted" | "unknown" };
-
-export { buildCampEmmaWelcomeGreeting };
+export { buildCampEmmaWelcomeGreeting, parseEmmaCampCommand };
 
 export async function handleCampEmmaAction(
   session: AuthSession,
   context: CampAccessContext,
-  request: CampEmmaActionRequest
+  request: CampEmmaActionRequest,
+  options: { fetchImpl?: typeof fetch } = {}
 ): Promise<CampEmmaActionResponse> {
   if (request.pendingActionId && request.confirmed === true) {
     return confirmPendingAction(session, context, request.pendingActionId);
@@ -73,9 +64,28 @@ export async function handleCampEmmaAction(
   const overview = await getCampOverview(session, context);
   const campId = request.campId?.trim() || await resolveCampId(session);
   const originalCommandText = (request.originalCommandText ?? "").trim().slice(0, 500);
-  const parsed = request.actionType && request.targetId && request.proposedChange?.fieldName
-    ? parsedFromExplicitRequest(request)
-    : parseEmmaCampCommand(originalCommandText);
+  const interpreted = request.actionType && request.targetId && request.proposedChange?.fieldName
+    ? null
+    : await interpretEmmaCampCommand({
+      message: originalCommandText,
+      campId,
+      userCanRequestWrites: context.campEditScope !== "read_only",
+      fetchImpl: options.fetchImpl
+    });
+  const parsed = interpreted
+    ? parsedFromInterpretedCommand(interpreted)
+    : parsedFromExplicitRequest(request);
+
+  if (parsed.actionType === "CLARIFICATION") {
+    await auditEmmaAction(session, campId, {
+      actorName: session.user.fullName,
+      originalCommandText,
+      confirmationRequired: false,
+      status: "failed",
+      errorMessage: parsed.message
+    });
+    return { status: "clarification_required", message: parsed.message };
+  }
 
   if (parsed.actionType === "UNSUPPORTED") {
     const message = parsed.reason === "restricted"
@@ -224,33 +234,6 @@ export async function handleCampEmmaAction(
   };
 }
 
-export function parseEmmaCampCommand(commandText: string): ParsedAction {
-  const text = commandText.trim().slice(0, 500);
-  const normalized = text.toLowerCase();
-  if (!text) return { actionType: "UNSUPPORTED", reason: "unknown" };
-  if (restrictedNeedles.some((needle) => normalized.includes(needle))) {
-    return { actionType: "UNSUPPORTED", reason: "restricted" };
-  }
-
-  if (/\b(unassigned campers|campers.*(need|needs|without|not assigned).*team|who still needs a team|who is unassigned)\b/i.test(text)) {
-    return { actionType: "LIST_UNASSIGNED_CAMPERS" };
-  }
-  if (/\b(unassigned leaders|leaders.*(need|needs|without|not assigned).*team|which leaders are not assigned)\b/i.test(text)) {
-    return { actionType: "LIST_UNASSIGNED_LEADERS" };
-  }
-
-  const room = parseRoomCommand(text);
-  if (room) return room;
-
-  const leaderTeam = parseTeamCommand(text, "leader");
-  if (leaderTeam) return leaderTeam;
-
-  const camperTeam = parseTeamCommand(text, "camper");
-  if (camperTeam) return camperTeam;
-
-  return { actionType: "UNSUPPORTED", reason: "unknown" };
-}
-
 async function confirmPendingAction(
   session: AuthSession,
   context: CampAccessContext,
@@ -378,6 +361,46 @@ async function writePendingChange(
   return { allowed: false, status: 400, error: "Unsupported EMMA action." };
 }
 
+function parsedFromInterpretedCommand(command: InterpretedEmmaCampCommand): CampEmmaServiceParsedAction {
+  if (command.kind === "clarification") {
+    return { actionType: "CLARIFICATION", message: command.message || CLARIFICATION_MESSAGE };
+  }
+  if (command.kind === "unsupported") {
+    return { actionType: "UNSUPPORTED", reason: "restricted" };
+  }
+  if (command.actionType === "LIST_UNASSIGNED_CAMPERS" || command.actionType === "LIST_UNASSIGNED_LEADERS") {
+    return { actionType: command.actionType };
+  }
+  if (command.actionType === "UPDATE_CAMPER_ROOM") {
+    if (!command.targetName || !command.roomValue) return { actionType: "CLARIFICATION", message: CLARIFICATION_MESSAGE };
+    return {
+      actionType: "UPDATE_CAMPER_ROOM",
+      targetType: "camper",
+      targetNameQuery: command.targetName,
+      fieldName: "room",
+      newValue: command.roomValue
+    };
+  }
+  if (command.actionType === "ASSIGN_LEADER_TEAM") {
+    if (!command.targetName || !command.teamName) return { actionType: "CLARIFICATION", message: CLARIFICATION_MESSAGE };
+    return {
+      actionType: "ASSIGN_LEADER_TEAM",
+      targetType: "leader",
+      targetNameQuery: command.targetName,
+      fieldName: "team",
+      newValue: command.teamName
+    };
+  }
+  if (!command.targetName || !command.teamName) return { actionType: "CLARIFICATION", message: CLARIFICATION_MESSAGE };
+  return {
+    actionType: "ASSIGN_CAMPER_TEAM",
+    targetType: "camper",
+    targetNameQuery: command.targetName,
+    fieldName: "team",
+    newValue: command.teamName
+  };
+}
+
 function parsedFromExplicitRequest(request: CampEmmaActionRequest): ParsedAction {
   if (
     request.actionType !== "ASSIGN_CAMPER_TEAM"
@@ -394,49 +417,6 @@ function parsedFromExplicitRequest(request: CampEmmaActionRequest): ParsedAction
     fieldName: request.proposedChange?.fieldName ?? (request.actionType === "UPDATE_CAMPER_ROOM" ? "room" : "team"),
     newValue: request.proposedChange?.newValue ?? ""
   };
-}
-
-function parseRoomCommand(text: string): ParsedWriteAction | null {
-  const patterns = [
-    /^(?:change|update|move)\s+(.+?)'?\s*s?\s+room\s+to\s+(.+)$/i,
-    /^(?:change|update|move)\s+(.+?)\s+to\s+(?:room|cabin)\s+(.+)$/i,
-    /^(?:change|update)\s+(.+?)'?\s*s?\s+cabin\s+to\s+(.+)$/i
-  ];
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
-    if (!match) continue;
-    return {
-      actionType: "UPDATE_CAMPER_ROOM",
-      targetType: "camper",
-      targetNameQuery: cleanName(match[1]),
-      fieldName: "room",
-      newValue: cleanupValue(match[2])
-    };
-  }
-  return null;
-}
-
-function parseTeamCommand(text: string, mode: CampEmmaActionTargetType): ParsedWriteAction | null {
-  const leaderPrefix = mode === "leader" ? "(?:leader\\s+)?(.+?)(?:\\s+as\\s+a\\s+leader)?" : "(.+?)";
-  const patterns = [
-    new RegExp(`^(?:move|put|add|assign)\\s+${leaderPrefix}\\s+(?:to|on)\\s+(?:team\\s+)?(.+?)(?:\\s+team)?$`, "i")
-  ];
-  const containsLeader = /\bleader\b/i.test(text);
-  if (mode === "leader" && !containsLeader) return null;
-  if (mode === "camper" && containsLeader) return null;
-
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
-    if (!match) continue;
-    return {
-      actionType: mode === "leader" ? "ASSIGN_LEADER_TEAM" : "ASSIGN_CAMPER_TEAM",
-      targetType: mode,
-      targetNameQuery: cleanName(match[1]),
-      fieldName: "team",
-      newValue: cleanupValue(match[2])
-    };
-  }
-  return null;
 }
 
 function validateProposedValue(parsed: ParsedWriteAction, overview: CampOverviewPayload): { allowed: true; newValue: string } | { allowed: false; message: string } {
@@ -704,14 +684,6 @@ async function resolveCampId(session: AuthSession): Promise<string> {
     .maybeSingle<{ id: string }>();
   if (error || !data) throw error ?? new Error("Active Camp session not found.");
   return data.id;
-}
-
-function cleanName(value: string): string {
-  return value.replace(/\b(team|room|cabin)\b/gi, "").trim().replace(/\s+/g, " ");
-}
-
-function cleanupValue(value: string): string {
-  return value.trim().replace(/[.?!]+$/g, "").replace(/\s+/g, " ");
 }
 
 function normalizeTeamLookup(value: string): string {

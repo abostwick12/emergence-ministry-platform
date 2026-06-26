@@ -37,11 +37,11 @@ type CampEmmaActiveProposal = {
 
 type CampEmmaClarificationState = {
   message: string;
-  options: CampEmmaSafeTargetOption[];
-  actionType: CampEmmaActionType;
-  targetType: "camper" | "leader";
-  proposedChange: { fieldName: "team" | "room"; newValue: string };
-  originalCommandText: string;
+  options?: CampEmmaSafeTargetOption[];
+  actionType?: CampEmmaActionType;
+  targetType?: "camper" | "leader";
+  proposedChange?: { fieldName: "team" | "room"; newValue: string };
+  originalCommandText?: string;
 };
 
 const leaderExamples = ["Where is Avery?", "Who is on Blue Team?", "Who is in Van 2?", "What time is dinner?"];
@@ -137,11 +137,11 @@ export function CampEmmaSheet({ open, onClose }: CampEmmaSheetProps) {
     if (result.status === "clarification_required") {
       setClarification({
         message: result.message,
-        options: result.options,
-        actionType: result.actionType,
-        targetType: result.targetType,
-        proposedChange: result.proposedChange,
-        originalCommandText: result.originalCommandText
+        ...(result.options ? { options: result.options } : {}),
+        ...(result.actionType ? { actionType: result.actionType } : {}),
+        ...(result.targetType ? { targetType: result.targetType } : {}),
+        ...(result.proposedChange ? { proposedChange: result.proposedChange } : {}),
+        ...(result.originalCommandText ? { originalCommandText: result.originalCommandText } : {})
       });
       return;
     }
@@ -158,7 +158,7 @@ export function CampEmmaSheet({ open, onClose }: CampEmmaSheetProps) {
   }
 
   async function chooseClarificationCandidate(candidate: CampEmmaSafeTargetOption) {
-    if (!clarification) return;
+    if (!clarification?.actionType || !clarification.targetType || !clarification.proposedChange || !clarification.originalCommandText) return;
     setCommandLoading(true);
     try {
       const response = await fetch("/api/camp/emma/actions", {
@@ -306,16 +306,18 @@ export function CampEmmaSheet({ open, onClose }: CampEmmaSheetProps) {
           {clarification ? (
             <div className="camp-emma-clarify" role="alert">
               <p>{clarification.message}</p>
-              <div className="camp-emma-clarify-options">
-                {clarification.options.map((candidate) => (
-                  <button key={candidate.targetId} type="button" onClick={() => void chooseClarificationCandidate(candidate)}>
-                    {candidate.targetName}
-                    {candidate.grade ? ` - ${candidate.grade}` : ""}
-                    {candidate.currentTeam ? ` - currently ${candidate.currentTeam} Team` : ""}
-                    {candidate.currentRoom && clarification.proposedChange.fieldName === "room" ? ` - room ${candidate.currentRoom}` : ""}
-                  </button>
-                ))}
-              </div>
+              {clarification.options?.length ? (
+                <div className="camp-emma-clarify-options">
+                  {clarification.options.map((candidate) => (
+                    <button key={candidate.targetId} type="button" onClick={() => void chooseClarificationCandidate(candidate)}>
+                      {candidate.targetName}
+                      {candidate.grade ? ` - ${candidate.grade}` : ""}
+                      {candidate.currentTeam ? ` - currently ${candidate.currentTeam} Team` : ""}
+                      {candidate.currentRoom && clarification.proposedChange?.fieldName === "room" ? ` - room ${candidate.currentRoom}` : ""}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             </div>
           ) : null}
 

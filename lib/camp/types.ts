@@ -707,11 +707,11 @@ export type CampEmmaActionResponse =
   | {
       status: "clarification_required";
       message: string;
-      options: CampEmmaSafeTargetOption[];
-      actionType: CampEmmaActionType;
-      targetType: CampEmmaActionTargetType;
-      proposedChange: { fieldName: CampEmmaEditableField; newValue: string };
-      originalCommandText: string;
+      options?: CampEmmaSafeTargetOption[];
+      actionType?: CampEmmaActionType;
+      targetType?: CampEmmaActionTargetType;
+      proposedChange?: { fieldName: CampEmmaEditableField; newValue: string };
+      originalCommandText?: string;
     }
   | { status: "completed"; message: string; items?: CampEmmaSafeTargetOption[] }
   | { status: "cancelled"; message: string }
