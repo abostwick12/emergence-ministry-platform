@@ -5186,6 +5186,24 @@ html:has(.app-shell-camp) body {
   border-bottom: 0;
 }
 
+.camp-dialog-camper-editor {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.camp-dialog-body-camper-editor {
+  display: block;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scroll-padding-bottom: calc(120px + env(safe-area-inset-bottom, 0px));
+  touch-action: pan-y;
+}
+
+.camp-dialog-body-camper-editor > * + * {
+  margin-top: 12px;
+}
+
 .camp-field-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -6871,11 +6889,23 @@ html:has(.app-shell-camp) body {
     border-radius: 16px;
   }
 
+  .camp-dialog-camper-editor {
+    height: min(680px, calc(100dvh - 168px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)));
+    max-height: min(680px, calc(100dvh - 168px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)));
+  }
+
   .camp-dialog-body {
     overflow-y: auto;
     padding-bottom: calc(28px + env(safe-area-inset-bottom, 0px));
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
+  }
+
+  .camp-dialog-body-camper-editor {
+    min-height: 0;
+    max-height: none;
+    overflow-y: auto;
+    padding-bottom: calc(132px + env(safe-area-inset-bottom, 0px));
   }
 
   .camp-dialog-foot {

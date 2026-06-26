@@ -302,6 +302,8 @@ export function CampRosterView({ mode = "emerge" }: { mode?: RosterViewMode }) {
         <CampOperationDialog
           title={editing.id ? "Edit Camper" : "Add Camper"}
           description="Safe roster fields only. Detailed medical editing stays in Medical Command."
+          className="camp-dialog-camper-editor"
+          bodyClassName="camp-dialog-body-camper-editor"
           onClose={closeEditor}
           footer={
             <>

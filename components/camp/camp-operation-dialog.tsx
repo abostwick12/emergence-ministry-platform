@@ -7,12 +7,16 @@ export function CampOperationDialog({
   description,
   children,
   footer,
+  className,
+  bodyClassName,
   onClose
 }: {
   title: string;
   description?: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  className?: string;
+  bodyClassName?: string;
   onClose: () => void;
 }) {
   const dialogRef = useRef<HTMLDivElement | null>(null);
@@ -37,7 +41,7 @@ export function CampOperationDialog({
 
   return (
     <div className="camp-dialog-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <section className="camp-dialog" role="dialog" aria-modal="true" aria-labelledby="camp-dialog-title" ref={dialogRef} tabIndex={-1}>
+      <section className={["camp-dialog", className].filter(Boolean).join(" ")} role="dialog" aria-modal="true" aria-labelledby="camp-dialog-title" ref={dialogRef} tabIndex={-1}>
         <header className="camp-dialog-head">
           <div>
             <h2 id="camp-dialog-title">{title}</h2>
@@ -47,7 +51,7 @@ export function CampOperationDialog({
             Close
           </button>
         </header>
-        <div className="camp-dialog-body">{children}</div>
+        <div className={["camp-dialog-body", bodyClassName].filter(Boolean).join(" ")}>{children}</div>
         {footer ? <footer className="camp-dialog-foot">{footer}</footer> : null}
       </section>
     </div>
