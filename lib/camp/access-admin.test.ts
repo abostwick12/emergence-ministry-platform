@@ -242,6 +242,30 @@ describe("camp access-admin", () => {
     expect(JSON.stringify(mockClient.upserts)).not.toContain("1999-01-01");
   });
 
+  it("persists assigned team scope and permission-change reason for audit triggers", async () => {
+    const mockClient = successfulAccessClient({ existingRole: "leader", wasActive: true });
+    getSupabaseAuthClientMock.mockReturnValue(mockClient.client as never);
+
+    const res = await updateCampAccessMember(session(BOOTSTRAP_CAMP_ADMIN_EMAIL, false), {
+      email: "Leader@Example.test",
+      campRole: "leader",
+      campEditScope: "read_only",
+      appAreaScope: "camp_only",
+      canPostTeamBulletin: true,
+      assignedTeamIds: ["team-blue", "team-red", "team-blue"],
+      reason: "Blue and Red team bulletin coverage"
+    });
+
+    expect(res).toMatchObject({ allowed: true, status: 200 });
+    expect(mockClient.upserts).toEqual([
+      expect.objectContaining({
+        assigned_team_ids: ["team-blue", "team-red"],
+        can_post_team_bulletin: true,
+        last_change_reason: "Blue and Red team bulletin coverage"
+      })
+    ]);
+  });
+
   it("does not allow the final active Camp Admin to be deactivated", async () => {
     getSupabaseAuthClientMock.mockReturnValue(finalAdminClient() as never);
 

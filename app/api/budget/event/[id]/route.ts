@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { getServerSession, unauthorizedResponse } from "@/lib/auth/server";
+import { requireEmergeOperationsAccess } from "@/lib/app-area-access";
 import { getBudget } from "@/lib/store";
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
-  const session = await getServerSession();
-  if (!session) return unauthorizedResponse();
+  const access = await requireEmergeOperationsAccess();
+  if (!access.allowed) return access.response;
 
   return NextResponse.json(getBudget(params.id));
 }

@@ -1,7 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { campStoredRoleLabels, type CampStoredRole } from "@/lib/camp/access-roles";
+import {
+  campAppAreaScopeLabels,
+  campEditScopeLabels,
+  campStoredRoleLabels,
+  type CampAppAreaScope,
+  type CampEditScope,
+  type CampStoredRole
+} from "@/lib/camp/access-roles";
 
 type MemberStatus = "active" | "pending_invite" | "inactive" | "bootstrap";
 type Member = {
@@ -9,6 +16,11 @@ type Member = {
   email: string;
   displayName?: string | null;
   campRole: CampStoredRole;
+  campEditScope: CampEditScope;
+  appAreaScope: CampAppAreaScope;
+  canPostTeamBulletin: boolean;
+  partnerChurchId?: string | null;
+  assignedTeamIds: string[];
   isActive: boolean;
   updatedAt: string;
   status: MemberStatus;
@@ -21,12 +33,17 @@ type AuditEntry = {
   action: string;
   oldRole: string | null;
   newRole: string | null;
+  reason: string | null;
   createdAt: string;
 };
 type AccessData = {
   available: boolean;
   bootstrapActive: boolean;
   roles: CampStoredRole[];
+  editScopes: CampEditScope[];
+  appAreaScopes: CampAppAreaScope[];
+  partnerChurches: Array<{ id: string; name: string }>;
+  teams: Array<{ id: string; name: string }>;
   members: Member[];
   audit: AuditEntry[];
 };
@@ -34,12 +51,19 @@ type OnboardingStatus = "already_active" | "invite_sent" | "pending_invite" | "p
 type OnboardingResponse = { error?: string; onboarding?: { status?: OnboardingStatus } };
 
 const defaultRole: CampStoredRole = "leader";
+const defaultEditScope: CampEditScope = "read_only";
+const defaultAppAreaScope: CampAppAreaScope = "camp_only";
 
 export function CampAccessAdminPanel() {
   const [data, setData] = useState<AccessData | null>(null);
   const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [campRole, setCampRole] = useState<CampStoredRole>(defaultRole);
+  const [campEditScope, setCampEditScope] = useState<CampEditScope>(defaultEditScope);
+  const [appAreaScope, setAppAreaScope] = useState<CampAppAreaScope>(defaultAppAreaScope);
+  const [canPostTeamBulletin, setCanPostTeamBulletin] = useState(false);
+  const [partnerChurchId, setPartnerChurchId] = useState("");
+  const [assignedTeamIds, setAssignedTeamIds] = useState<string[]>([]);
   const [message, setMessage] = useState<{ tone: "error" | "success"; text: string } | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
 
@@ -60,6 +84,10 @@ export function CampAccessAdminPanel() {
         available: Boolean(payload.available),
         bootstrapActive: Boolean(payload.bootstrapActive),
         roles: payload.roles ?? [],
+        editScopes: payload.editScopes ?? [],
+        appAreaScopes: payload.appAreaScopes ?? [],
+        partnerChurches: payload.partnerChurches ?? [],
+        teams: payload.teams ?? [],
         members: payload.members ?? [],
         audit: payload.audit ?? []
       });
@@ -80,7 +108,7 @@ export function CampAccessAdminPanel() {
       const res = await fetch("/api/camp/access", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, displayName, campRole })
+        body: JSON.stringify({ email, displayName, campRole, campEditScope, appAreaScope, canPostTeamBulletin, partnerChurchId, assignedTeamIds })
       });
       const payload = (await res.json().catch(() => ({}))) as OnboardingResponse;
       if (!res.ok) {
@@ -91,13 +119,27 @@ export function CampAccessAdminPanel() {
       setEmail("");
       setDisplayName("");
       setCampRole(defaultRole);
+      setCampEditScope(defaultEditScope);
+      setAppAreaScope(defaultAppAreaScope);
+      setCanPostTeamBulletin(false);
+      setPartnerChurchId("");
+      setAssignedTeamIds([]);
       await load();
     } finally {
       setBusyKey(null);
     }
   }
 
-  async function submitAccess(input: { email: string; campRole: CampStoredRole; isActive?: boolean }, busyKeyValue: string) {
+  async function submitAccess(input: {
+    email: string;
+    campRole: CampStoredRole;
+    campEditScope: CampEditScope;
+    appAreaScope: CampAppAreaScope;
+    canPostTeamBulletin: boolean;
+    partnerChurchId?: string | null;
+    assignedTeamIds?: string[];
+    isActive?: boolean;
+  }, busyKeyValue: string) {
     setBusyKey(busyKeyValue);
     setMessage(null);
     try {
@@ -115,6 +157,11 @@ export function CampAccessAdminPanel() {
       setEmail("");
       setDisplayName("");
       setCampRole(defaultRole);
+      setCampEditScope(defaultEditScope);
+      setAppAreaScope(defaultAppAreaScope);
+      setCanPostTeamBulletin(false);
+      setPartnerChurchId("");
+      setAssignedTeamIds([]);
       await load();
     } finally {
       setBusyKey(null);
@@ -130,7 +177,32 @@ export function CampAccessAdminPanel() {
   }
 
   function changeRole(member: Member, nextRole: CampStoredRole) {
-    void submitAccess({ email: member.email, campRole: nextRole, isActive: true }, member.userId);
+    void submitAccess({ ...memberAccessInput(member), campRole: nextRole, isActive: true }, `${member.userId}:role`);
+  }
+
+  function changeAppAreaScope(member: Member, nextScope: CampAppAreaScope) {
+    void submitAccess({ ...memberAccessInput(member), appAreaScope: nextScope, isActive: true }, `${member.userId}:app`);
+  }
+
+  function changeEditScope(member: Member, nextScope: CampEditScope) {
+    void submitAccess({
+      ...memberAccessInput(member),
+      campEditScope: nextScope,
+      partnerChurchId: nextScope === "partner_church_only" ? member.partnerChurchId || data?.partnerChurches[0]?.id || "" : null,
+      isActive: true
+    }, `${member.userId}:edit`);
+  }
+
+  function changeBulletin(member: Member, enabled: boolean) {
+    void submitAccess({ ...memberAccessInput(member), canPostTeamBulletin: enabled, isActive: true }, `${member.userId}:bulletin`);
+  }
+
+  function changePartnerChurch(member: Member, nextPartnerChurchId: string) {
+    void submitAccess({ ...memberAccessInput(member), partnerChurchId: nextPartnerChurchId, isActive: true }, `${member.userId}:partner`);
+  }
+
+  function changeAssignedTeams(member: Member, nextAssignedTeamIds: string[]) {
+    void submitAccess({ ...memberAccessInput(member), assignedTeamIds: nextAssignedTeamIds, isActive: true }, `${member.userId}:teams`);
   }
 
   function deactivate(member: Member) {
@@ -139,7 +211,7 @@ export function CampAccessAdminPanel() {
       return;
     }
     if (!window.confirm(`Remove Camp access for ${member.email}?`)) return;
-    void submitAccess({ email: member.email, campRole: member.campRole, isActive: false }, member.userId);
+    void submitAccess({ ...memberAccessInput(member), isActive: false }, member.userId);
   }
 
   return (
@@ -182,6 +254,45 @@ export function CampAccessAdminPanel() {
                   ))}
                 </select>
               </label>
+              <label className="field">
+                <span>App Area Access</span>
+                <select className="input" value={appAreaScope} onChange={(event) => setAppAreaScope(event.target.value as CampAppAreaScope)}>
+                  {data.appAreaScopes.map((scope) => (
+                    <option key={scope} value={scope}>{campAppAreaScopeLabels[scope]}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span>Camp Edit Rights</span>
+                <select className="input" value={campEditScope} onChange={(event) => setCampEditScope(event.target.value as CampEditScope)}>
+                  {data.editScopes.map((scope) => (
+                    <option key={scope} value={scope}>{campEditScopeLabels[scope]}</option>
+                  ))}
+                </select>
+              </label>
+              {campEditScope === "partner_church_only" ? (
+                <label className="field">
+                  <span>Partner Church</span>
+                  <select className="input" value={partnerChurchId} onChange={(event) => setPartnerChurchId(event.target.value)}>
+                    <option value="">Choose partner church</option>
+                    {data.partnerChurches.map((church) => (
+                      <option key={church.id} value={church.id}>{church.name}</option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+              <label className="camp-access-toggle">
+                <input type="checkbox" checked={canPostTeamBulletin} onChange={(event) => setCanPostTeamBulletin(event.target.checked)} />
+                <span>Team Bulletin Board posting</span>
+              </label>
+              <label className="field">
+                <span>Assigned team scope</span>
+                <select className="input" multiple value={assignedTeamIds} onChange={(event) => setAssignedTeamIds(selectedValues(event.currentTarget))}>
+                  {data.teams.map((team) => (
+                    <option key={team.id} value={team.id}>{team.name}</option>
+                  ))}
+                </select>
+              </label>
               <button className="button primary" type="button" disabled={busyKey === "add"} onClick={addMember}>
                 {busyKey === "add" ? "Working..." : "Add or invite"}
               </button>
@@ -199,7 +310,12 @@ export function CampAccessAdminPanel() {
                     <span className="camp-access-statusline">
                       <span className={`camp-status ${statusClass(member.status)}`}>{statusLabel(member)}</span>
                       <span className="camp-access-meta">{campStoredRoleLabels[member.campRole]}</span>
+                      <span className="camp-access-meta">{campEditScopeLabels[member.campEditScope]}</span>
+                      <span className="camp-access-meta">{campAppAreaScopeLabels[member.appAreaScope]}</span>
                     </span>
+                    {member.assignedTeamIds.length ? (
+                      <span className="camp-access-meta">Teams: {teamScopeLabel(member.assignedTeamIds, data.teams)}</span>
+                    ) : null}
                     <span className="camp-access-meta">
                       {member.bootstrap ? "Bootstrap Camp Admin" : `Updated ${new Date(member.updatedAt).toLocaleString()}`}
                     </span>
@@ -223,6 +339,66 @@ export function CampAccessAdminPanel() {
                           <option key={role} value={role}>{campStoredRoleLabels[role]}</option>
                         ))}
                       </select>
+                      <select
+                        className="input"
+                        value={member.appAreaScope}
+                        disabled={busyKey?.startsWith(member.userId)}
+                        onChange={(event) => changeAppAreaScope(member, event.target.value as CampAppAreaScope)}
+                        aria-label={`App area access for ${member.email}`}
+                      >
+                        {data.appAreaScopes.map((scope) => (
+                          <option key={scope} value={scope}>{campAppAreaScopeLabels[scope]}</option>
+                        ))}
+                      </select>
+                      <select
+                        className="input"
+                        value={member.campEditScope}
+                        disabled={busyKey?.startsWith(member.userId)}
+                        onChange={(event) => changeEditScope(member, event.target.value as CampEditScope)}
+                        aria-label={`Camp edit rights for ${member.email}`}
+                      >
+                        {data.editScopes.map((scope) => (
+                          <option key={scope} value={scope}>{campEditScopeLabels[scope]}</option>
+                        ))}
+                      </select>
+                      {member.campEditScope === "partner_church_only" ? (
+                        <select
+                          className="input"
+                          value={member.partnerChurchId ?? ""}
+                          disabled={busyKey?.startsWith(member.userId)}
+                          onChange={(event) => changePartnerChurch(member, event.target.value)}
+                          aria-label={`Partner church scope for ${member.email}`}
+                        >
+                          <option value="">Choose partner church</option>
+                          {data.partnerChurches.map((church) => (
+                            <option key={church.id} value={church.id}>{church.name}</option>
+                          ))}
+                        </select>
+                      ) : null}
+                      <label className="field camp-access-team-scope">
+                        <span>Assigned team scope</span>
+                        <select
+                          className="input"
+                          multiple
+                          value={member.assignedTeamIds}
+                          disabled={busyKey?.startsWith(member.userId)}
+                          onChange={(event) => changeAssignedTeams(member, selectedValues(event.currentTarget))}
+                          aria-label={`Assigned team scope for ${member.email}`}
+                        >
+                          {data.teams.map((team) => (
+                            <option key={team.id} value={team.id}>{team.name}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="camp-access-toggle row-toggle">
+                        <input
+                          type="checkbox"
+                          checked={member.canPostTeamBulletin}
+                          disabled={busyKey?.startsWith(member.userId)}
+                          onChange={(event) => changeBulletin(member, event.target.checked)}
+                        />
+                        <span>Bulletin posting</span>
+                      </label>
                       <button className="button compact-button" type="button" disabled={busyKey === member.userId || isFinalAdmin} onClick={() => deactivate(member)}>
                         Remove access
                       </button>
@@ -246,6 +422,7 @@ export function CampAccessAdminPanel() {
                     <span className="camp-access-meta">{new Date(entry.createdAt).toLocaleString()}</span> - {entry.actorEmail ?? "system"}{" "}
                     {entry.action} {entry.targetEmail ?? ""}{" "}
                     {entry.oldRole ? `(${entry.oldRole} -> ${entry.newRole ?? "inactive"})` : `(${entry.newRole ?? "inactive"})`}
+                    {entry.reason ? ` - ${entry.reason}` : ""}
                   </li>
                 ))}
               </ul>
@@ -255,6 +432,27 @@ export function CampAccessAdminPanel() {
       )}
     </section>
   );
+}
+
+function memberAccessInput(member: Member) {
+  return {
+    email: member.email,
+    campRole: member.campRole,
+    campEditScope: member.campEditScope,
+    appAreaScope: member.appAreaScope,
+    canPostTeamBulletin: member.canPostTeamBulletin,
+    partnerChurchId: member.partnerChurchId,
+    assignedTeamIds: member.assignedTeamIds
+  };
+}
+
+function selectedValues(select: HTMLSelectElement) {
+  return Array.from(select.selectedOptions).map((option) => option.value);
+}
+
+function teamScopeLabel(teamIds: string[], teams: Array<{ id: string; name: string }>) {
+  const names = teamIds.map((teamId) => teams.find((team) => team.id === teamId)?.name ?? "Unknown team");
+  return names.join(", ");
 }
 
 function onboardingMessage(status: OnboardingStatus | undefined) {

@@ -131,11 +131,14 @@ const pageTitles: Record<string, string> = {
   "/settings": "Settings"
 };
 
-export function AppShell({ children, devAuth = false }: { children: React.ReactNode; devAuth?: boolean }) {
+export function AppShell({ children, devAuth = false, campOnly = false }: { children: React.ReactNode; devAuth?: boolean; campOnly?: boolean }) {
   const pathname = usePathname();
   const { activeRole, setActiveRole } = useRole();
   const { openCreate } = useEventCard();
   const isCampRoute = pathname.startsWith("/camp");
+  const visiblePrimaryLinks = campOnly ? primaryLinks.filter((link) => link.href === "/camp") : primaryLinks;
+  const visibleMobileLinks = campOnly ? [{ href: "/camp", label: "Camp" }] : mobileLinks;
+  const visibleMobileMoreLinks = campOnly ? [] : mobileMoreLinks;
   const title = isCampRoute ? "Camp Command Center" : pageTitles[pathname] ?? "Dashboard";
   const isDashboard = pathname === "/dashboard";
 
@@ -158,7 +161,7 @@ export function AppShell({ children, devAuth = false }: { children: React.ReactN
             </Link>
 
             <nav className="app-nav-list" aria-label="Desktop navigation">
-              {primaryLinks.map((link) => (
+              {visiblePrimaryLinks.map((link) => (
                 <Link className={pathname === link.href ? "app-nav-link active" : "app-nav-link"} href={link.href} key={link.href}>
                   <NavIcon href={link.href} />
                   {link.label}
@@ -234,7 +237,7 @@ export function AppShell({ children, devAuth = false }: { children: React.ReactN
 
       {!isCampRoute ? (
         <nav className="mobile-bottom-nav" aria-label="Mobile navigation">
-          {mobileLinks.map((link) => (
+              {visibleMobileLinks.map((link) => (
             <Link className={pathname === link.href ? "mobile-nav-link active" : "mobile-nav-link"} href={link.href} key={link.href}>
               {link.label}
             </Link>
@@ -249,7 +252,7 @@ export function AppShell({ children, devAuth = false }: { children: React.ReactN
               >
                 + Add Event
               </button>
-              {mobileMoreLinks.map((link) => (
+              {visibleMobileMoreLinks.map((link) => (
                 <Link className="app-nav-link" href={link.href} key={link.href}>
                   {link.label}
                 </Link>

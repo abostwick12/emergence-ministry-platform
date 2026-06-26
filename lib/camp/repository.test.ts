@@ -18,15 +18,17 @@ import {
   getRestrictedCampMedicalPayload,
   getRestrictedCampMedicationPayload,
   getCampStaffManagementPayload,
+  postCampTeamBulletin,
   restoreCampStudent,
   saveMedicationPhoto,
   saveMedicationIntake,
   upsertCampStudent,
+  upsertCampTeam,
   upsertRestrictedMedicalRecord,
   upsertMedicationRecord,
   updateCampStaffMember
 } from "@/lib/camp/repository";
-import { __resetCampStoreForTests } from "@/lib/camp/store";
+import { __resetCampStoreForTests, listTeamBulletins } from "@/lib/camp/store";
 import { parseMedicationScheduleText } from "@/lib/camp/medication-schedule-text";
 import { getMedicineIntakeReturnVisibility } from "@/lib/camp/medication-workflow-visibility";
 
@@ -136,6 +138,178 @@ describe("camp repository mock fallback", () => {
     expect(overview.documents.some((doc) => doc.audience === "Restricted Medical")).toBe(false);
     expect(JSON.stringify(overview)).not.toContain("Parent-labeled medication A");
     expect(JSON.stringify(overview)).not.toContain("Insurance card copy received");
+  });
+
+  it("lets a read-only leader view camp data and post only when bulletin permission is assigned", async () => {
+    const mockSession = session();
+    const base = resolveCampAccessContext(mockSession, "general_leader");
+    const readOnly = {
+      ...base,
+      campEditScope: "read_only" as const,
+      canPostTeamBulletin: true,
+      assignedTeamIds: ["team-blue"]
+    };
+
+    const overview = await getCampOverview(mockSession, readOnly);
+    expect(overview.students.length).toBeGreaterThan(0);
+
+    const bulletin = await postCampTeamBulletin(mockSession, readOnly, {
+      teamId: "team-blue",
+      message: "Meet at the cabin porch after lunch."
+    });
+    expect(bulletin.allowed).toBe(true);
+    if (!bulletin.allowed || "error" in bulletin) throw new Error("expected bulletin post success");
+    expect(bulletin.bulletin.partnerChurchId).toBeNull();
+
+    const camperEdit = await upsertCampStudent(mockSession, readOnly, {
+      name: "Blocked Read Only Camper",
+      grade: "9",
+      teamId: "team-blue",
+      vehicleId: "",
+      cabin: "Cabin R",
+      limitedSafetyFlags: []
+    });
+    expect(camperEdit.allowed).toBe(false);
+
+    const teamEdit = await upsertCampTeam(mockSession, readOnly, {
+      id: "team-blue",
+      name: "Blue",
+      color: "Blue"
+    });
+    expect(teamEdit.allowed).toBe(false);
+  });
+
+  it("blocks team bulletin posts outside assigned scope or without posting permission", async () => {
+    const mockSession = session();
+    const base = resolveCampAccessContext(mockSession, "general_leader");
+    const assignedBlue = {
+      ...base,
+      campEditScope: "read_only" as const,
+      canPostTeamBulletin: true,
+      assignedTeamIds: ["team-blue"]
+    };
+    const noPosting = {
+      ...assignedBlue,
+      canPostTeamBulletin: false
+    };
+
+    const otherTeam = await postCampTeamBulletin(mockSession, assignedBlue, {
+      teamId: "team-red",
+      message: "This should not post."
+    });
+    const disabled = await postCampTeamBulletin(mockSession, noPosting, {
+      teamId: "team-blue",
+      message: "This should not post either."
+    });
+
+    expect(otherTeam.allowed).toBe(false);
+    expect(disabled.allowed).toBe(false);
+    expect(listTeamBulletins("team-red")).toHaveLength(0);
+  });
+
+  it("stores partner-scoped bulletin posts with the derived member partner scope", async () => {
+    const mockSession = session();
+    const base = resolveCampAccessContext(mockSession, "general_leader");
+    const partnerScoped = {
+      ...base,
+      campEditScope: "partner_church_only" as const,
+      partnerChurchId: "grace-chapel",
+      canPostTeamBulletin: true,
+      assignedTeamIds: ["team-blue"]
+    };
+
+    const bulletin = await postCampTeamBulletin(mockSession, partnerScoped, {
+      teamId: "team-blue",
+      message: "Grace Chapel campers meet at the flagpole."
+    });
+
+    expect(bulletin.allowed).toBe(true);
+    if (!bulletin.allowed || "error" in bulletin) throw new Error("expected partner-scoped bulletin post success");
+    expect(bulletin.bulletin.partnerChurchId).toBe("grace-chapel");
+    expect(listTeamBulletins("team-blue")[0]).toMatchObject({ partnerChurchId: "grace-chapel" });
+  });
+
+  it("denies Partner Church Only bulletin posts when no partner scope is assigned", async () => {
+    const mockSession = session();
+    const base = resolveCampAccessContext(mockSession, "general_leader");
+    const partnerScoped = {
+      ...base,
+      campEditScope: "partner_church_only" as const,
+      partnerChurchId: null,
+      canPostTeamBulletin: true,
+      assignedTeamIds: ["team-blue"]
+    };
+
+    const bulletin = await postCampTeamBulletin(mockSession, partnerScoped, {
+      teamId: "team-blue",
+      message: "This should not post broadly."
+    });
+
+    expect(bulletin.allowed).toBe(false);
+  });
+
+  it("limits Partner Church Only edits to campers from the assigned partner church", async () => {
+    const mockSession = session();
+    const base = resolveCampAccessContext(mockSession, "general_leader");
+    const partnerOnly = {
+      ...base,
+      campEditScope: "partner_church_only" as const,
+      partnerChurchId: "grace-chapel"
+    };
+
+    const allowed = await upsertCampStudent(mockSession, partnerOnly, {
+      name: "Grace Chapel Camper",
+      grade: "9",
+      teamId: "team-blue",
+      vehicleId: "",
+      cabin: "Partner Cabin",
+      rosterType: "partner",
+      sourceChurch: "Grace Chapel",
+      limitedSafetyFlags: []
+    });
+    expect(allowed.allowed).toBe(true);
+
+    const clc = await upsertCampStudent(mockSession, partnerOnly, {
+      name: "CLC Camper Blocked",
+      grade: "9",
+      teamId: "team-blue",
+      vehicleId: "",
+      cabin: "Cabin C",
+      rosterType: "emerge",
+      sourceChurch: "",
+      limitedSafetyFlags: []
+    });
+    expect(clc.allowed).toBe(false);
+
+    const otherPartner = await upsertCampStudent(mockSession, partnerOnly, {
+      name: "Other Partner Blocked",
+      grade: "9",
+      teamId: "team-blue",
+      vehicleId: "",
+      cabin: "Cabin O",
+      rosterType: "partner",
+      sourceChurch: "Hope Church",
+      limitedSafetyFlags: []
+    });
+    expect(otherPartner.allowed).toBe(false);
+  });
+
+  it("allows All Campers editors to change general camper fields without medical access", async () => {
+    const mockSession = session();
+    const editor = { ...resolveCampAccessContext(mockSession, "general_leader"), campEditScope: "all_campers" as const, canAccessRestricted: false, restrictedActor: undefined };
+
+    const camper = await upsertCampStudent(mockSession, editor, {
+      name: "All Campers Editor Camper",
+      grade: "10",
+      teamId: "team-red",
+      vehicleId: "",
+      cabin: "Cabin A",
+      limitedSafetyFlags: ["Hydration reminder"]
+    });
+    expect(camper.allowed).toBe(true);
+
+    const restricted = await getRestrictedCampMedicalPayload(mockSession, editor);
+    expect(restricted.allowed).toBe(false);
   });
 
   it("scrubs public safety flags to prevent medical detail text from reaching public roster payloads", async () => {
@@ -983,7 +1157,8 @@ describe("camp repository mock fallback", () => {
     expect(team).toBeDefined();
     if (!staff || !team) throw new Error("expected imported staff and team");
 
-    const blocked = await updateCampStaffMember(mockSession, general, {
+    const readOnly = { ...general, campEditScope: "read_only" as const, canPostTeamBulletin: false };
+    const blocked = await updateCampStaffMember(mockSession, readOnly, {
       id: staff.id,
       name: "Blocked Staff Edit",
       role: "leader",

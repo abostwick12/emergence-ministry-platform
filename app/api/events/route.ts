@@ -1,18 +1,18 @@
 import { NextResponse } from "next/server";
-import { getServerSession, unauthorizedResponse } from "@/lib/auth/server";
+import { requireEmergeOperationsAccess } from "@/lib/app-area-access";
 import { createMinistryEvent, getOverview } from "@/lib/data/ministry-repository";
 import type { EventType } from "@/lib/types";
 
 export async function GET() {
-  const session = await getServerSession();
-  if (!session) return unauthorizedResponse();
+  const access = await requireEmergeOperationsAccess();
+  if (!access.allowed) return access.response;
 
-  return NextResponse.json(await getOverview(session));
+  return NextResponse.json(await getOverview(access.session));
 }
 
 export async function POST(request: Request) {
-  const session = await getServerSession();
-  if (!session) return unauthorizedResponse();
+  const access = await requireEmergeOperationsAccess();
+  if (!access.allowed) return access.response;
 
   const body = (await request.json()) as {
     title?: string;
@@ -35,7 +35,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const workspace = await createMinistryEvent(session, {
+    const workspace = await createMinistryEvent(access.session, {
       title: body.title!,
       description: body.description ?? "",
       type: body.type!,

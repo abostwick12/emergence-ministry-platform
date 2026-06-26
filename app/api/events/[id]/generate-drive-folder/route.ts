@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { getServerSession, unauthorizedResponse } from "@/lib/auth/server";
+import { requireEmergeOperationsAccess } from "@/lib/app-area-access";
 import { runMinistryIntegrationStub } from "@/lib/data/ministry-repository";
 
 export async function POST(_: Request, { params }: { params: { id: string } }) {
-  const session = await getServerSession();
-  if (!session) return unauthorizedResponse();
+  const access = await requireEmergeOperationsAccess();
+  if (!access.allowed) return access.response;
 
-  const log = await runMinistryIntegrationStub(session, params.id, "google_drive");
+  const log = await runMinistryIntegrationStub(access.session, params.id, "google_drive");
 
   if (!log) {
     return NextResponse.json({ error: "Event not found" }, { status: 404 });

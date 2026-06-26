@@ -722,7 +722,7 @@ describe("camp API restricted data boundaries", () => {
   });
 
   it("keeps ordinary camper profile photos on authenticated roster routes and away from EMMA answers", async () => {
-    getServerSessionMock.mockResolvedValue(session());
+    getServerSessionMock.mockResolvedValue(andrewSession());
 
     const upload = await studentPhotoPOST(camperPhotoRequest("http://localhost/api/camp/students/photo", "stu-1"));
     const uploadPayload = await upload.json() as { student?: { profilePhotoUrl?: string } };
