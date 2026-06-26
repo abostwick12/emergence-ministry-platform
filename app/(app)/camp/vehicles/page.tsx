@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { CampOperationDialog } from "@/components/camp/camp-operation-dialog";
 import { useCamp } from "@/components/camp/camp-provider";
 import { CampStudentAvatar } from "@/components/camp/camp-student-card";
+import { getEmergencyRosterStudents, isVehicleAssignableCamper } from "@/lib/camp/transportation-roster";
 import type { CampVehicle, CampVehicleInput, CampVisibleStudent } from "@/lib/camp/types";
 
 function vehicleToInput(vehicle?: CampVehicle): CampVehicleInput {
@@ -24,6 +25,7 @@ export default function CampVehiclesPage() {
   const [editing, setEditing] = useState<CampVehicleInput | null>(null);
   const [movingStudent, setMovingStudent] = useState<CampVisibleStudent | null>(null);
   const [targetVehicleId, setTargetVehicleId] = useState("");
+  const [camperToAssignId, setCamperToAssignId] = useState("");
   const [message, setMessage] = useState<{ tone: "error" | "success"; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -38,8 +40,15 @@ export default function CampVehiclesPage() {
     return map;
   }, [overview.students]);
 
-  const unassigned = overview.students.filter((student) => !student.vehicleId);
+  const clcTransportationStudents = getEmergencyRosterStudents(overview.students);
+  const unassigned = clcTransportationStudents.filter((student) => !student.vehicleId);
   const editingVehicleRiders = editing?.id ? ridersByVehicle.get(editing.id) ?? [] : [];
+  const vehicleAssignmentOptions = editing?.id
+    ? clcTransportationStudents
+        .filter((student) => student.vehicleId !== editing.id)
+        .sort((a, b) => a.name.localeCompare(b.name))
+    : [];
+  const selectedCamperToAssign = vehicleAssignmentOptions.find((student) => student.id === camperToAssignId);
 
   async function saveVehicle() {
     if (!editing) return;
@@ -83,6 +92,10 @@ export default function CampVehiclesPage() {
 
   async function saveRiderMove(vehicleId: string) {
     if (!movingStudent) return;
+    if (vehicleId && !isVehicleAssignableCamper(movingStudent)) {
+      setMessage({ tone: "error", text: "Partner church campers are not in the CLC transportation roster." });
+      return;
+    }
     setMessage(null);
     setSaving(true);
     const response = await fetch("/api/camp/students", {
@@ -99,6 +112,39 @@ export default function CampVehiclesPage() {
     await refresh();
     setMovingStudent(null);
     setMessage({ tone: "success", text: "Rider assignment updated." });
+  }
+
+  async function saveVehicleAssignment(studentId: string, vehicleId: string) {
+    const student = overview.students.find((candidate) => candidate.id === studentId);
+    if (!student) {
+      setMessage({ tone: "error", text: "Choose a camper before assigning a vehicle." });
+      return;
+    }
+    if (!isVehicleAssignableCamper(student)) {
+      setMessage({ tone: "error", text: "Partner church campers are not in the CLC transportation roster." });
+      return;
+    }
+    if (vehicleId && student.vehicleId && student.vehicleId !== vehicleId) {
+      setMessage({ tone: "error", text: `${student.name} is already assigned to ${student.vehicleName}. Remove that assignment before moving vehicles.` });
+      return;
+    }
+
+    setMessage(null);
+    setSaving(true);
+    const response = await fetch("/api/camp/students", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ studentId, assignmentOnly: true, vehicleId })
+    });
+    const body = await response.json().catch(() => ({})) as { error?: string };
+    setSaving(false);
+    if (!response.ok) {
+      setMessage({ tone: "error", text: body.error ?? "Vehicle assignment could not be saved." });
+      return;
+    }
+    await refresh();
+    setCamperToAssignId("");
+    setMessage({ tone: "success", text: vehicleId ? `${student.name} assigned to vehicle.` : `${student.name} removed from vehicle.` });
   }
 
   return (
@@ -135,7 +181,7 @@ export default function CampVehiclesPage() {
                 {vehicle.departureLocation ? <p className="camp-cc-muted">From: {vehicle.departureLocation}</p> : null}
                 {remaining < 0 ? <p className="camp-cc-error">Capacity conflict: {Math.abs(remaining)} over capacity.</p> : <p className="camp-cc-muted">{Math.max(remaining, 0)} seats remaining.</p>}
                 <div className="camp-row-actions">
-                  <button className="button compact-button" type="button" onClick={() => setEditing(vehicleToInput(vehicle))}>Edit Vehicle</button>
+                  <button className="button compact-button" type="button" onClick={() => { setEditing(vehicleToInput(vehicle)); setCamperToAssignId(""); }}>Edit Vehicle</button>
                 </div>
                 {riders.length ? (
                   <ul className="camp-vehicle-riders">
@@ -186,14 +232,39 @@ export default function CampVehiclesPage() {
             <label className="field"><span>Notes</span><textarea className="input" rows={3} value={editing.notes ?? ""} onChange={(event) => setEditing({ ...editing, notes: event.target.value })} /></label>
           </section>
           {editing.id ? (
-            <section className="camp-editor-card camp-modal-section" aria-label="Visible riders">
+            <section className="camp-editor-card camp-modal-section" aria-label="Vehicle camper assignments">
               <p className="camp-cc-eyebrow">Riders</p>
+              <div className="camp-team-assignment-controls">
+                <label className="field">
+                  <span>Camper to assign</span>
+                  <select className="input" value={camperToAssignId} onChange={(event) => setCamperToAssignId(event.target.value)} disabled={saving || vehicleAssignmentOptions.length === 0}>
+                    <option value="">{vehicleAssignmentOptions.length ? "Choose a CLC/emergency camper" : "No CLC/emergency campers available"}</option>
+                    {vehicleAssignmentOptions.map((student) => (
+                      <option key={student.id} value={student.id}>
+                        {student.name}{student.vehicleId ? ` - already ${student.vehicleName}` : " - unassigned"}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button
+                  className="button primary compact-button"
+                  type="button"
+                  disabled={saving || !camperToAssignId || Boolean(selectedCamperToAssign?.vehicleId)}
+                  onClick={() => editing.id ? void saveVehicleAssignment(camperToAssignId, editing.id) : undefined}
+                >
+                  Assign to Vehicle
+                </button>
+              </div>
+              {selectedCamperToAssign?.vehicleId ? (
+                <p className="camp-cc-error">{selectedCamperToAssign.name} is already assigned to {selectedCamperToAssign.vehicleName}. Remove that assignment before moving vehicles.</p>
+              ) : null}
               {editingVehicleRiders.length ? (
                 <ul className="camp-vehicle-modal-riders">
                   {editingVehicleRiders.map((rider) => (
                     <li key={rider.id}>
                       <CampStudentAvatar student={rider} size="sm" />
                       <span>{rider.name}</span>
+                      <button className="button compact-button" type="button" disabled={saving} onClick={() => void saveVehicleAssignment(rider.id, "")}>Remove</button>
                     </li>
                   ))}
                 </ul>

@@ -212,6 +212,7 @@ function normalizePersonRow(
   if (!vehicleName) warnings.push("Vehicle blank in source - left unassigned.");
 
   const safeIndicators = deriveSafeIndicators(row);
+  const safeOperationalFlags = buildSafeOperationalFlags(row);
   if (!safeIndicators.emergencyContactOnFile) warnings.push("No emergency contact in source.");
 
   const restricted = personType === "student" ? buildRestrictedPayload(row, safeIndicators) : undefined;
@@ -222,6 +223,7 @@ function normalizePersonRow(
     warnings,
     person: { name, profilePhotoUrl, grade, cabin, shirtSize, registrationExternalId, sourceChurch, teamName, vehicleName },
     safeIndicators,
+    safeOperationalFlags,
     restricted
   };
 
@@ -347,6 +349,18 @@ function isMeaningful(value: string): boolean {
 function cleanNote(value: string): string {
   const trimmed = value.trim();
   return NA_VALUES.has(trimmed.toLowerCase()) ? "" : trimmed;
+}
+
+function buildSafeOperationalFlags(row: OakwoodSourceRow): string[] {
+  const allergy = cleanNote(pick(row, ["allergy", "allergies", "known allergies", "food allergies"]));
+  const dietary = cleanNote(pick(row, ["dietary requirements"]));
+  const safeConcern = cleanNote(pick(row, ["safe concern", "safe medical concern", "leader-safe note", "leader safe note", "supervision note"]));
+  const flags = [
+    allergy ? `Allergy: ${allergy}` : "",
+    dietary ? `Diet: ${dietary}` : "",
+    safeConcern ? `Medical: ${safeConcern}` : ""
+  ].filter(Boolean);
+  return flags;
 }
 
 function isHeaderLikePersonRow(row: OakwoodSourceRow, name: string, importScope: CampOakwoodImportPreview["importScope"]): boolean {

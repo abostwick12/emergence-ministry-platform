@@ -5172,8 +5172,11 @@ html:has(.app-shell-camp) body {
 .camp-dialog-body {
   display: grid;
   gap: 12px;
+  min-height: 0;
   overflow: auto;
+  overscroll-behavior: contain;
   padding: 14px;
+  -webkit-overflow-scrolling: touch;
 }
 
 .camp-dialog-foot {
@@ -5602,6 +5605,41 @@ html:has(.app-shell-camp) body {
 
 .camp-profile-photo-row .camp-leader-avatar {
   flex: 0 0 auto;
+}
+
+.camp-team-detail-head {
+  justify-content: space-between;
+}
+
+.camp-team-detail-head > div {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.camp-team-bulletin-board {
+  gap: 12px;
+}
+
+.camp-team-bulletin-note {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid rgba(186, 230, 253, 0.18);
+  border-radius: 12px;
+  background: rgba(3, 16, 32, 0.28);
+}
+
+.camp-team-bulletin-note p {
+  margin: 0;
+  color: var(--camp-ink);
+  font-weight: 800;
+}
+
+.camp-team-bulletin-note small {
+  color: var(--camp-muted);
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .camp-confirm-row {
@@ -6819,4 +6857,52 @@ html:has(.app-shell-camp) body {
   color: #0f172a;
   -webkit-text-fill-color: #0f172a;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+
+@media (max-width: 720px) {
+  .camp-dialog-backdrop {
+    align-items: stretch;
+    padding: calc(10px + env(safe-area-inset-top, 0px)) 10px calc(96px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .camp-dialog {
+    width: 100%;
+    max-height: calc(100dvh - 106px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    border-radius: 16px;
+  }
+
+  .camp-dialog-body {
+    overflow-y: auto;
+    padding-bottom: calc(28px + env(safe-area-inset-bottom, 0px));
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .camp-dialog-foot {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .camp-dialog-foot .button,
+  .camp-team-detail-head .button {
+    min-height: 44px;
+  }
+
+  .camp-team-detail-head {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .camp-vehicle-modal-riders li {
+    width: 100%;
+    justify-content: space-between;
+    border-radius: 12px;
+    padding: 8px;
+  }
+
+  .camp-vehicle-modal-riders li > span {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
 }

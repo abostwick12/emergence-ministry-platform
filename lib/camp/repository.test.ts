@@ -4,6 +4,7 @@ import { resolveCampAccessContext } from "@/lib/camp/permissions";
 import {
   archiveMedicationWorkflowItem,
   archiveCampStudent,
+  assignCampStudent,
   buildRestrictedCampMedicationPayloadFromRows,
   checkOakwoodImportSchemaReadinessWithClient,
   commitOakwoodImport,
@@ -196,6 +197,81 @@ describe("camp repository mock fallback", () => {
     expect(medication.allowed).toBe(true);
     if (!medication.allowed) throw new Error("expected medication create success");
     expect(medication.record.clarificationStatus).toBe("Needs Parent Clarification");
+  });
+
+  it("limits vehicle assignment to CLC emergency roster campers without mutating unrelated fields", async () => {
+    const mockSession = session();
+    const general = resolveCampAccessContext(mockSession, "general_leader");
+    const restricted = resolveCampAccessContext(mockSession, "andrew");
+
+    const clc = await upsertCampStudent(mockSession, general, {
+      name: "Repository CLC Rider",
+      grade: "10",
+      teamId: "team-blue",
+      vehicleId: "",
+      cabin: "Cabin T",
+      shirtSize: "Adult Medium",
+      registrationExternalId: "CLC-TRANSPORT-1",
+      rosterType: "emerge",
+      hasMedicalAlert: true,
+      limitedSafetyFlags: ["Allergy: Peanuts"]
+    });
+    expect(clc.allowed).toBe(true);
+    if (!clc.allowed) throw new Error("expected CLC camper create success");
+
+    const medical = await upsertRestrictedMedicalRecord(mockSession, restricted, {
+      studentId: clc.student.id,
+      studentName: clc.student.name,
+      medicalFormStatus: "Received",
+      restrictedNotes: "Private transportation-adjacent medical note",
+      allergyNotes: "Private allergy detail",
+      insuranceStatus: "Private insurance status",
+      parentMedicalNotes: "Private parent note"
+    });
+    expect(medical.allowed).toBe(true);
+
+    const assigned = await assignCampStudent(mockSession, general, { studentId: clc.student.id, vehicleId: "van-1" });
+    expect(assigned.allowed).toBe(true);
+    if (!assigned.allowed) throw new Error("expected CLC vehicle assignment success");
+    expect(assigned.student).toMatchObject({
+      id: clc.student.id,
+      teamId: "team-blue",
+      vehicleId: "van-1",
+      cabin: "Cabin T",
+      registrationExternalId: "CLC-TRANSPORT-1",
+      rosterType: "emerge",
+      hasMedicalAlert: true
+    });
+    expect(assigned.student.limitedSafetyFlags).toContain("Allergy: Peanuts");
+
+    const restrictedAfter = await getRestrictedCampMedicalPayload(mockSession, restricted);
+    expect(restrictedAfter.allowed).toBe(true);
+    if (!restrictedAfter.allowed) throw new Error("expected restricted payload");
+    expect(restrictedAfter.records.find((record) => record.studentId === clc.student.id)).toMatchObject({
+      restrictedNotes: "Private transportation-adjacent medical note",
+      insuranceStatus: "Private insurance status"
+    });
+
+    const partner = await upsertCampStudent(mockSession, general, {
+      name: "Repository Partner Rider",
+      grade: "10",
+      teamId: "",
+      vehicleId: "",
+      cabin: "Partner Cabin",
+      rosterType: "partner",
+      sourceChurch: "Grace Chapel",
+      limitedSafetyFlags: []
+    });
+    expect(partner.allowed).toBe(true);
+    if (!partner.allowed) throw new Error("expected partner camper create success");
+
+    const blockedVehicle = await assignCampStudent(mockSession, general, { studentId: partner.student.id, vehicleId: "van-1" });
+    expect(blockedVehicle.allowed).toBe(false);
+
+    const teamAssigned = await assignCampStudent(mockSession, general, { studentId: partner.student.id, teamId: "team-red" });
+    expect(teamAssigned.allowed).toBe(true);
+    if (!teamAssigned.allowed) throw new Error("expected partner team assignment success");
+    expect(teamAssigned.student).toMatchObject({ teamId: "team-red", vehicleId: "", rosterType: "partner", sourceChurch: "Grace Chapel" });
   });
 
   it("saves restricted intake through the repository boundary and keeps it out of public overview", async () => {

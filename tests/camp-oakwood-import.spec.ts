@@ -110,7 +110,8 @@ test.describe("Camp Oakwood restricted import boundaries", () => {
     await expect(page.getByText("Oakwood registration ID: 70001994")).toBeVisible();
 
     await page.getByRole("button", { name: "Edit Details" }).click();
-    await page.getByLabel("Profile photo URL").fill("https://photos.example.test/playwright-staff.jpg");
+    const staffPhotoUrl = "https://photos.example.test/playwright-staff.jpg";
+    await page.getByLabel("Profile photo URL").fill(staffPhotoUrl);
     await page.getByLabel("Display name").fill("Playwright Staff Leader Edited");
     await page.getByLabel("Role / type").selectOption("leader");
     await page.getByLabel("Team assignment").selectOption("team-red");
@@ -121,7 +122,30 @@ test.describe("Camp Oakwood restricted import boundaries", () => {
     await expect(page.getByText("Staff details saved.")).toBeVisible();
     await expect(page.getByText("Playwright Staff Leader Edited")).toBeVisible();
     await expect(page.getByText("Source church: Playwright Partner Church")).toBeVisible();
+    await expect(page.locator(`img[src="${staffPhotoUrl}"]`).first()).toBeVisible();
     await expect(page.getByText("Parent medical note")).toHaveCount(0);
+
+    const teamUpdate = await page.request.patch("/api/camp/teams?role=andrew", {
+      data: {
+        id: "team-red",
+        name: "Red",
+        color: "Red",
+        leader: "Playwright Staff Leader Edited",
+        coLeader: "Playwright Staff Leader Edited",
+        room: "Playwright Room",
+        notes: "Playwright team note"
+      }
+    });
+    expect(teamUpdate.ok()).toBe(true);
+
+    await page.goto("/camp/teams");
+    await expect(page.locator(`img[src="${staffPhotoUrl}"]`).first()).toBeVisible();
+    await page.getByRole("button", { name: /Open Red team menu/ }).click();
+    await expect(page.getByRole("dialog", { name: /Red Team/ }).locator(`img[src="${staffPhotoUrl}"]`)).toHaveCount(2);
+
+    await page.goto("/camp/teams/team-red");
+    await expect(page.getByRole("region", { name: "Team Bulletin" })).toBeVisible();
+    await expect(page.locator(`img[src="${staffPhotoUrl}"]`)).toHaveCount(2);
   });
 
   test("removes synthetic john test from active Camp views through the restricted archive workflow", async ({ page }) => {

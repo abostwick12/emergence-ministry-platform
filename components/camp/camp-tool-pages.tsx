@@ -539,6 +539,7 @@ export function CampStaffManagementToolPage() {
   const { overview, capabilities, loading, refresh } = useCamp();
   const [editing, setEditing] = useState<(CampStaffInput & { id: string }) | null>(null);
   const [saving, setSaving] = useState(false);
+  const [photoStatus, setPhotoStatus] = useState<"idle" | "preparing" | "ready" | "failed">("idle");
   const [message, setMessage] = useState<{ tone: "error" | "success"; text: string } | null>(null);
   const activeStaff = overview.staff.filter((staff) => !staff.archivedAt);
   const teamsById = useMemo(() => new Map(overview.teams.map((team) => [team.id, team])), [overview.teams]);
@@ -560,7 +561,24 @@ export function CampStaffManagementToolPage() {
     }
     await refresh();
     setEditing(null);
+    setPhotoStatus("idle");
     setMessage({ tone: "success", text: "Staff details saved." });
+  }
+
+  async function selectStaffPhoto(file: File | null) {
+    if (!editing || !file) return;
+    setPhotoStatus("preparing");
+    setMessage(null);
+    try {
+      const prepared = await prepareCampImageFile(file, "camperProfile");
+      const dataUrl = await fileToDataUrl(prepared);
+      setEditing({ ...editing, profilePhotoUrl: dataUrl });
+      setPhotoStatus("ready");
+      setMessage({ tone: "success", text: "Leader photo ready. Save Staff Details to keep it." });
+    } catch (error) {
+      setPhotoStatus("failed");
+      setMessage({ tone: "error", text: error instanceof Error ? error.message : "Leader photo could not be prepared." });
+    }
   }
 
   if (!capabilities.medicalCommand) {
@@ -580,6 +598,16 @@ export function CampStaffManagementToolPage() {
         <div className="camp-list">
           {activeStaff.map((staff) => (
             <div className="camp-list-row align-start" key={staff.id}>
+              <span className="camp-leader-avatar" aria-hidden="true">
+                {staff.profilePhotoUrl ? (
+                  <>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={staff.profilePhotoUrl} alt="" />
+                  </>
+                ) : (
+                  initialsForName(staff.name)
+                )}
+              </span>
               <div>
                 <strong>{staff.name}</strong>
                 <p className="camp-cc-muted">
@@ -588,7 +616,7 @@ export function CampStaffManagementToolPage() {
                 {staff.sourceChurch ? <p className="camp-cc-muted">Source church: {staff.sourceChurch}</p> : null}
                 {staff.registrationExternalId ? <p className="camp-cc-muted">Oakwood registration ID: {staff.registrationExternalId}</p> : null}
               </div>
-              <button className="button compact-button" type="button" onClick={() => setEditing(staffToInput(staff))}>Edit Details</button>
+              <button className="button compact-button" type="button" onClick={() => { setEditing(staffToInput(staff)); setPhotoStatus("idle"); }}>Edit Details</button>
             </div>
           ))}
         </div>
@@ -603,7 +631,7 @@ export function CampStaffManagementToolPage() {
               <p className="eyebrow">Edit Staff</p>
               <h2 className="camp-tool-group-title">{editing.name || "Staff member"}</h2>
             </div>
-            <button className="button compact-button" type="button" disabled={saving} onClick={() => setEditing(null)}>Close</button>
+            <button className="button compact-button" type="button" disabled={saving} onClick={() => { setEditing(null); setPhotoStatus("idle"); }}>Close</button>
           </div>
           <div className="camp-form-grid">
             <div className="camp-profile-photo-row">
@@ -617,11 +645,24 @@ export function CampStaffManagementToolPage() {
                   initialsForName(editing.name)
                 )}
               </span>
-              <label className="field">
-                <span>Profile photo URL</span>
-                <input className="input" value={editing.profilePhotoUrl ?? ""} onChange={(event) => setEditing({ ...editing, profilePhotoUrl: event.target.value })} placeholder="https://..." />
-              </label>
+              <div className="camp-photo-actions">
+                <label className="button compact-button">
+                  <span>{photoStatus === "preparing" ? "Preparing..." : "Upload leader photo"}</span>
+                  <input className="sr-only" type="file" accept="image/*" disabled={photoStatus === "preparing"} onChange={(event) => void selectStaffPhoto(event.target.files?.[0] ?? null)} />
+                </label>
+                <label className="button compact-button">
+                  <span>Use camera</span>
+                  <input className="sr-only" type="file" accept="image/*" capture="environment" disabled={photoStatus === "preparing"} onChange={(event) => void selectStaffPhoto(event.target.files?.[0] ?? null)} />
+                </label>
+                {editing.profilePhotoUrl ? <button className="button compact-button" type="button" onClick={() => { setEditing({ ...editing, profilePhotoUrl: "" }); setPhotoStatus("idle"); }}>Remove photo</button> : null}
+              </div>
             </div>
+            {photoStatus === "ready" ? <p className="camp-cc-muted">Thumbnail ready. Save Staff Details to keep this photo.</p> : null}
+            {photoStatus === "failed" ? <p className="camp-cc-error">Leader photo could not be prepared.</p> : null}
+            <label className="field">
+              <span>Profile photo URL</span>
+              <input className="input" value={editing.profilePhotoUrl ?? ""} onChange={(event) => { setEditing({ ...editing, profilePhotoUrl: event.target.value }); setPhotoStatus("idle"); }} placeholder="https://..." />
+            </label>
             <label className="field">
               <span>Display name</span>
               <input className="input" value={editing.name} onChange={(event) => setEditing({ ...editing, name: event.target.value })} />
@@ -665,6 +706,15 @@ export function CampStaffManagementToolPage() {
       ) : null}
     </ToolPageShell>
   );
+}
+
+async function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(new Error("Unable to read leader photo."));
+    reader.readAsDataURL(file);
+  });
 }
 
 type OakwoodUploadField = "combinedFile" | "camperFile" | "staffFile";

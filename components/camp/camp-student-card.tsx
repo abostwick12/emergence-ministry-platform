@@ -8,25 +8,50 @@ import type { CampVisibleStudent } from "@/lib/camp/types";
 type SafeTag = {
   label: string;
   tone: "default" | "food" | "medical" | "medication" | "warn";
+  priority: number;
 };
 
+function concernTone(label: string): SafeTag["tone"] {
+  const normalized = label.toLowerCase();
+  if (normalized.startsWith("allergy:") || normalized.startsWith("diet:")) return "food";
+  if (normalized.startsWith("medical:") || normalized.startsWith("supervision:") || normalized.startsWith("physical:")) return "medical";
+  return "default";
+}
+
+function concernPriority(label: string): number {
+  const normalized = label.toLowerCase();
+  if (normalized.includes("epipen") || normalized.includes("epi-pen") || normalized.includes("severe")) return 10;
+  if (normalized.startsWith("allergy:")) return 20;
+  if (normalized.startsWith("diet:")) return 30;
+  if (normalized.startsWith("medical:") || normalized.startsWith("physical:") || normalized.startsWith("supervision:")) return 40;
+  return 60;
+}
+
 // Only safe, operational tags. Derived from already-public payload fields - never
-// from medication names, dosage, allergy specifics, diagnoses, or notes.
+// from medication names, dosage, insurance, contact details, or private notes.
 function safeTags(student: CampVisibleStudent): SafeTag[] {
   const tags: SafeTag[] = [];
-  if (student.hasMedicationPlan) tags.push({ label: "Medication on file", tone: "medication" });
-  if (student.hasDietaryAlert) tags.push({ label: "Food allergy", tone: "food" });
-  if (student.hasMedicalAlert) tags.push({ label: "Medical concern", tone: "medical" });
-  if (student.needsParentClarification) tags.push({ label: "Missing form", tone: "warn" });
-  if (student.needsParentClarification) tags.push({ label: "Needs check-in", tone: "warn" });
-  if (student.rosterType === "partner") tags.push({ label: student.sourceChurch ? `Partner Church: ${student.sourceChurch}` : "Partner Church", tone: "default" });
+  if (student.hasDietaryAlert) tags.push({ label: "Food allergy", tone: "food", priority: 35 });
+  if (student.hasMedicalAlert) tags.push({ label: "Medical concern", tone: "medical", priority: 45 });
+  if (student.hasMedicationPlan) tags.push({ label: "Medication on file", tone: "medication", priority: 50 });
+  if (student.needsParentClarification) tags.push({ label: "Missing form", tone: "warn", priority: 55 });
+  if (student.needsParentClarification) tags.push({ label: "Needs check-in", tone: "warn", priority: 56 });
+  if (student.rosterType === "partner") tags.push({ label: student.sourceChurch ? `Partner Church: ${student.sourceChurch}` : "Partner Church", tone: "default", priority: 70 });
   // limitedSafetyFlags are server-scrubbed public strings; render as-is.
   for (const flag of student.limitedSafetyFlags ?? []) {
     if (isRosterTypeFlag(flag)) continue;
     if (student.rosterType === "partner" && flag.toLowerCase().startsWith("partner church:")) continue;
-    if (flag && !tags.some((tag) => tag.label === flag)) tags.push({ label: flag, tone: "default" });
+    if (flag && !tags.some((tag) => tag.label === flag)) {
+      tags.push({ label: flag, tone: concernTone(flag), priority: concernPriority(flag) });
+    }
   }
-  return tags;
+  const hasSpecificDiet = tags.some((tag) => tag.label.toLowerCase().startsWith("allergy:") || tag.label.toLowerCase().startsWith("diet:"));
+  const hasSpecificMedical = tags.some((tag) => tag.label.toLowerCase().startsWith("medical:") || tag.label.toLowerCase().startsWith("supervision:") || tag.label.toLowerCase().startsWith("physical:"));
+  return tags
+    .filter((tag) => tag.label !== "Food allergy" || !hasSpecificDiet)
+    .filter((tag) => tag.label !== "Medical concern" || !hasSpecificMedical)
+    .sort((a, b) => a.priority - b.priority)
+    .slice(0, 4);
 }
 
 export function CampStudentCard({ student }: { student: CampVisibleStudent }) {
