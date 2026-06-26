@@ -921,8 +921,12 @@ function ensureReturnChecklist(record: CampMedicationRecord) {
 
 function teamIdForName(name: string): string {
   if (!name.trim()) return "";
-  const normalized = name.trim().toLowerCase();
-  return store.teams.find((team) => team.name.toLowerCase() === normalized)?.id ?? "";
+  const normalized = normalizeTeamLookup(name);
+  return store.teams.find((team) => normalizeTeamLookup(team.name) === normalized || normalizeTeamLookup(team.color) === normalized)?.id ?? "";
+}
+
+function normalizeTeamLookup(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, " ").replace(/\s+team$/, "");
 }
 
 function teamNameForId(id: string): string | undefined {

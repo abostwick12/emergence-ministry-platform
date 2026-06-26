@@ -156,6 +156,74 @@ describe("oakwood-import engine", () => {
     expect(preview.summary).toMatchObject({ adults: 1, students: 0, staffRows: 1, restrictedRecordRows: 0 });
   });
 
+  it("imports a minimal leader sheet with Leader Name and Team", () => {
+    const preview = buildOakwoodImportPreviewFromCsv(
+      [
+        "Leader Name,Team,Source Church",
+        "Partner Leader,Blue,Grace Chapel"
+      ].join("\n"),
+      { importScope: "staff_only", sourceKind: "upload" }
+    );
+
+    expect(preview.rows[0]).toMatchObject({
+      personType: "adult",
+      matchStatus: "new",
+      person: {
+        name: "Partner Leader",
+        teamName: "Blue",
+        sourceChurch: "Grace Chapel",
+        registrationExternalId: ""
+      }
+    });
+    expect(preview.rows[0].restricted).toBeUndefined();
+    expect(preview.summary).toMatchObject({ adults: 1, staffRows: 1, restrictedRecordRows: 0 });
+  });
+
+  it("imports a minimal leader sheet with First Name and Last Name", () => {
+    const preview = buildOakwoodImportPreviewFromCsv(
+      [
+        "First Name,Last Name,Team Color",
+        "First,Leader, purple "
+      ].join("\n"),
+      { importScope: "staff_only", sourceKind: "upload" }
+    );
+
+    expect(preview.rows[0]).toMatchObject({
+      personType: "adult",
+      matchStatus: "new",
+      person: { name: "First Leader", teamName: "purple" }
+    });
+    expect(preview.summary.staffRows).toBe(1);
+  });
+
+  it("skips header-like rows in minimal leader sheets", () => {
+    const preview = buildOakwoodImportPreviewFromCsv(
+      [
+        "Leader Name,Team",
+        "Leader Name,Team",
+        "Real Leader,Orange"
+      ].join("\n"),
+      { importScope: "staff_only", sourceKind: "upload" }
+    );
+
+    expect(preview.rows[0]).toMatchObject({ matchStatus: "skipped" });
+    expect(preview.rows[1]).toMatchObject({ matchStatus: "new", person: { name: "Real Leader", teamName: "Orange" } });
+    expect(preview.summary).toMatchObject({ totalSourceRows: 2, staffRows: 1, skippedCount: 1 });
+  });
+
+  it("keeps leaders with unknown teams saveable with a warning", () => {
+    const preview = buildOakwoodImportPreviewFromCsv(
+      [
+        "Leader Name,Team",
+        "Unknown Team Leader,Silver"
+      ].join("\n"),
+      { importScope: "staff_only", sourceKind: "upload" }
+    );
+
+    expect(preview.rows[0]).toMatchObject({ matchStatus: "new", personType: "adult", person: { teamName: "Silver" } });
+    expect(preview.summary).toMatchObject({ staffRows: 1, invalidCount: 0, ambiguousCount: 0 });
+  });
+
   it("skips non-person section rows (no numeric Registration ID)", () => {
     const rows: OakwoodSourceRow[] = [
       student(),

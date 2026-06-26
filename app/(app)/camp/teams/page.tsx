@@ -34,9 +34,10 @@ function AvailableLeaderTile({ member, teams }: { member: CampStaffMember; teams
     : teams.find((team) => team.name === member.teamName);
   const accent = assignedTeam ? teamAccent(assignedTeam.color) : "#38bdf8";
   const style = { "--camp-leader-accent": accent } as CSSProperties;
+  const isPartner = Boolean(member.sourceChurch);
 
   return (
-    <li className={assignedTeam ? "camp-available-leader-tile assigned" : "camp-available-leader-tile"} style={style}>
+    <li className={["camp-available-leader-tile", assignedTeam ? "assigned" : "", isPartner ? "partner-leader" : ""].filter(Boolean).join(" ")} style={style}>
       <span className="camp-leader-avatar" aria-hidden="true">
         {member.profilePhotoUrl ? (
           <>
@@ -50,7 +51,12 @@ function AvailableLeaderTile({ member, teams }: { member: CampStaffMember; teams
       <span className="camp-available-leader-body">
         <strong>{member.name}</strong>
         <span className="camp-available-leader-meta">{staffRoleLabel(member.role)}</span>
-        {member.sourceChurch ? <span className="camp-available-leader-meta">{member.sourceChurch}</span> : null}
+        {member.sourceChurch ? (
+          <span className="camp-available-leader-meta partner-source">
+            <span className="camp-cc-tag partner">Partner Leader</span>
+            <span>{member.sourceChurch}</span>
+          </span>
+        ) : null}
       </span>
       <span className="camp-available-leader-status">
         {assignedTeam ? `${assignedTeam.name} team` : "Unassigned"}

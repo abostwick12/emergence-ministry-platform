@@ -100,6 +100,25 @@ describe("partner church roster import preview", () => {
     });
   });
 
+  it("maps partner church team color headers to existing Camp teams", () => {
+    const preview = parseCampRegistrationImport(
+      [
+        "Camper Name,Team Color",
+        "Team Color Camper, red "
+      ].join("\n"),
+      { teams, vehicles, mode: "partnerChurch", sourceName: "Partner Church Upload" }
+    );
+
+    expect(preview.rows[0]).toMatchObject({
+      status: "Ready",
+      camper: {
+        name: "Team Color Camper",
+        teamId: "team-red",
+        rosterType: "partner"
+      }
+    });
+  });
+
   it("previews a partner church CSV with only name as valid", () => {
     const preview = parseCampRegistrationImport(
       [

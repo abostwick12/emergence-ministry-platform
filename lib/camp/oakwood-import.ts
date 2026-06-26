@@ -130,7 +130,7 @@ function normalizePersonRow(
   importScope: CampOakwoodImportPreview["importScope"]
 ): CampOakwoodImportRow {
   const warnings: string[] = [];
-  const name = pick(row, ["name"]) || joinName(pick(row, ["first name"]), pick(row, ["last name"]));
+  const name = pick(row, ["leader name", "name", "full name"]) || joinName(pick(row, ["first name"]), pick(row, ["last name"]));
   const personType = resolvePersonType(row, importScope);
   const registrationExternalId = pick(row, ["registration id"]);
   const grade = pick(row, ["grade", "student grade"]);
@@ -139,10 +139,41 @@ function normalizePersonRow(
   const shirtSize = pick(row, ["t-shirt size", "t shirt size", "shirt size"]);
   const profilePhotoUrl = sanitizeProfilePhotoUrl(pick(row, ["photo", "photo url", "profile photo", "student photo", "leader photo", "staff photo", "image"]));
   const sourceChurch = pick(row, ["partner church", "source church", "church/source", "church", "home church", "sending church", "source"]);
-  const teamName = pick(row, ["team", "team name"]);
+  const teamName = pick(row, ["team", "team name", "team color", "color", "team assignment"]);
   const vehicleName = pick(row, ["vehicle", "vehicle name", "transportation", "van"]);
 
+  if (isHeaderLikePersonRow(row, name, importScope)) {
+    return {
+      rowNumber,
+      matchStatus: "skipped",
+      personType,
+      warnings: ["Header-like leader row skipped."],
+      person: { name, profilePhotoUrl, grade, cabin, shirtSize, registrationExternalId, sourceChurch, teamName, vehicleName },
+      safeIndicators: { emergencyContactOnFile: false, hasMedicalAlert: false, hasDietaryAlert: false }
+    };
+  }
+
   if (!/^\d{5,}$/.test(registrationExternalId)) {
+    if (importScope === "staff_only" && name.trim()) {
+      const safeIndicators = { emergencyContactOnFile: false, hasMedicalAlert: false, hasDietaryAlert: false };
+      const warnings = [
+        ...(!cabin ? ["Room blank in source - left unassigned."] : []),
+        ...(!teamName ? ["Team blank in source - left unassigned."] : []),
+        ...(!registrationExternalId ? ["Registration ID blank for leader - imported as staff without app login access."] : ["Registration ID non-numeric for leader - imported as staff without app login access."])
+      ];
+      const match = resolveMatch(name, registrationExternalId, existingStaff);
+      if (match.status === "ambiguous") warnings.push(match.reason);
+      return {
+        rowNumber,
+        matchStatus: match.status,
+        personType: "adult",
+        matchedExistingId: match.matchedId,
+        matchCandidateCount: match.candidateCount,
+        warnings,
+        person: { name, profilePhotoUrl, grade, cabin, shirtSize, registrationExternalId, sourceChurch, teamName, vehicleName },
+        safeIndicators
+      };
+    }
     return {
       rowNumber,
       matchStatus: "skipped",
@@ -316,6 +347,17 @@ function isMeaningful(value: string): boolean {
 function cleanNote(value: string): string {
   const trimmed = value.trim();
   return NA_VALUES.has(trimmed.toLowerCase()) ? "" : trimmed;
+}
+
+function isHeaderLikePersonRow(row: OakwoodSourceRow, name: string, importScope: CampOakwoodImportPreview["importScope"]): boolean {
+  if (importScope !== "staff_only") return false;
+  const normalizedName = normalizeHeader(name);
+  if (["leader name", "name", "full name", "first name last name"].includes(normalizedName)) return true;
+  const first = normalizeHeader(pick(row, ["first name"]));
+  const last = normalizeHeader(pick(row, ["last name"]));
+  if (first === "first name" && last === "last name") return true;
+  const team = normalizeHeader(pick(row, ["team", "team name", "team color", "color", "team assignment"]));
+  return Boolean(normalizedName && team === "team");
 }
 
 function sanitizeProfilePhotoUrl(value: string): string | undefined {

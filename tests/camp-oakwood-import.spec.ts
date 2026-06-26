@@ -72,8 +72,9 @@ test.describe("Camp Oakwood restricted import boundaries", () => {
     await expect(page.getByText("Partner Cabin")).toBeVisible();
 
     await page.goto("/camp/teams/team-blue");
-    await expect(page.getByText(camperName)).toBeVisible();
-    await expect(page.getByText(`Partner Church: ${sourceChurch}`)).toBeVisible();
+    const teamRoster = page.getByRole("region", { name: "Team roster" });
+    await expect(teamRoster.getByText(camperName)).toBeVisible();
+    await expect(teamRoster.getByText(`Partner Church: ${sourceChurch}`)).toBeVisible();
   });
 
   test("Andrew can find and edit imported leader staff details", async ({ page }) => {

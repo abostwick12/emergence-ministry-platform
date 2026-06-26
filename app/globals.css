@@ -3020,6 +3020,14 @@ textarea:focus-visible {
   border-style: dashed;
   background: rgba(125, 211, 252, 0.08);
 }
+.camp-leader-profile-row.partner-leader {
+  border-color: color-mix(in srgb, #d97706 42%, var(--camp-border));
+  box-shadow: inset 0 0 0 1px rgba(217, 119, 6, 0.12), inset 0 1px 0 rgba(245, 252, 255, 0.20);
+}
+.camp-leader-profile-row.partner-leader .camp-leader-avatar {
+  outline: 2px solid rgba(217, 119, 6, 0.34);
+  outline-offset: 2px;
+}
 .camp-leader-avatar {
   flex: 0 0 auto;
   display: grid;
@@ -3067,6 +3075,17 @@ textarea:focus-visible {
   line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.camp-leader-partner-meta {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+.camp-leader-partner-meta .camp-cc-tag {
+  padding: 1px 6px;
+  font-size: 10px;
 }
 .camp-team-room-chip {
   display: inline-flex;
@@ -3124,6 +3143,14 @@ textarea:focus-visible {
     rgba(125, 211, 252, 0.10);
   box-shadow: inset 0 1px 0 rgba(245, 252, 255, 0.20), 0 0 20px color-mix(in srgb, var(--camp-leader-accent) 12%, transparent);
 }
+.camp-available-leader-tile.partner-leader {
+  border-color: color-mix(in srgb, #d97706 36%, var(--camp-border));
+  box-shadow: inset 0 0 0 1px rgba(217, 119, 6, 0.12), inset 0 1px 0 rgba(245, 252, 255, 0.20), 0 0 20px color-mix(in srgb, var(--camp-leader-accent) 12%, transparent);
+}
+.camp-available-leader-tile.partner-leader .camp-leader-avatar {
+  outline: 2px solid rgba(217, 119, 6, 0.34);
+  outline-offset: 2px;
+}
 .camp-available-leader-tile .camp-leader-avatar {
   border-color: color-mix(in srgb, var(--camp-leader-accent) 42%, rgba(224, 242, 254, 0.30));
   background:
@@ -3149,6 +3176,17 @@ textarea:focus-visible {
   color: var(--camp-muted);
   font-size: 11px;
   font-weight: 800;
+}
+.camp-available-leader-meta.partner-source {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+.camp-available-leader-meta.partner-source .camp-cc-tag {
+  padding: 1px 6px;
+  font-size: 10px;
 }
 .camp-available-leader-status {
   flex: 0 0 auto;
@@ -3270,6 +3308,14 @@ textarea:focus-visible {
   background:
     linear-gradient(150deg, color-mix(in srgb, var(--camp-student-team-accent) 10%, #ffffff), #ffffff 78%);
 }
+.camp-student-row.partner-camper {
+  border-right: 4px solid rgba(217, 119, 6, 0.64);
+  box-shadow: inset 0 0 0 1px rgba(217, 119, 6, 0.14);
+}
+.camp-student-row.partner-camper .camp-student-avatar {
+  outline: 3px solid rgba(217, 119, 6, 0.28);
+  outline-offset: 2px;
+}
 .camp-student-avatar {
   flex: 0 0 auto;
   display: grid;
@@ -3303,6 +3349,11 @@ textarea:focus-visible {
   font-weight: 700;
 }
 .camp-cc-tag.subtle { background: rgba(100, 116, 139, 0.12); color: #475569; }
+.camp-cc-tag.partner {
+  border: 1px solid rgba(217, 119, 6, 0.22);
+  background: rgba(217, 119, 6, 0.14);
+  color: #92400e;
+}
 
 /* Roster search */
 .camp-cc-search {
@@ -6419,6 +6470,7 @@ html:has(.app-shell-camp) body {
     inset 0 1px 0 rgba(245, 252, 255, 0.42);
   backdrop-filter: blur(24px) saturate(1.2);
   -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  min-height: 0;
 }
 
 .camp-dialog-head,
@@ -6501,6 +6553,12 @@ html:has(.app-shell-camp) body {
   color: #04243f;
 }
 
+.camp-dialog-body {
+  min-height: 0;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
 .camp-dialog .camp-team-assignment-manager,
 .camp-dialog .camp-team-assignment-manager .camp-team-assignment-head strong,
 .camp-dialog .camp-team-assignment-manager .field span,
@@ -6523,6 +6581,10 @@ html:has(.app-shell-camp) body {
   border-color: rgba(248, 113, 113, 0.44);
   background: rgba(127, 29, 29, 0.42);
   color: #fecaca;
+}
+
+.camp-dialog .camp-checkbox-line input:disabled + span {
+  color: color-mix(in srgb, var(--camp-muted) 88%, #ffffff);
 }
 
 .camp-cc .camp-schedule-item {
@@ -6617,7 +6679,7 @@ html:has(.app-shell-camp) body {
   }
 
   .camp-dialog {
-    max-height: calc(100dvh - 18px - env(safe-area-inset-top, 0px));
+    max-height: calc(100dvh - 18px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
   }
 
   .camp-dialog-head {
