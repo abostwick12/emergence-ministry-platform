@@ -774,8 +774,8 @@ describe("camp repository mock fallback", () => {
     const general = resolveCampAccessContext(mockSession, "general_leader");
     const restricted = resolveCampAccessContext(mockSession, "andrew");
     const csv = [
-      "Registration ID,Name,Selection,Grade,Room Number,T-Shirt Size,Team,Quick Filter,Emergency Contact",
-      "70000041,Fixture Staff Leader,,,Cabin L,Adult XL,Blue Team,No Concern,"
+      "Registration ID,Name,Selection,Grade,Room Number,T-Shirt Size,Team,Quick Filter,Emergency Contact,Leader Photo,Source Church",
+      "70000041,Fixture Staff Leader,,,Cabin L,Adult XL,Blue Team,No Concern,,https://photos.example.test/fixture-leader.jpg,Partner Chapel"
     ].join("\n");
 
     const preview = await getOakwoodUploadImportPreview(mockSession, restricted, {
@@ -802,11 +802,78 @@ describe("camp repository mock fallback", () => {
     const overview = await getCampOverview(mockSession, general);
     expect(overview.staff.find((staff) => staff.name === "Fixture Staff Leader")).toMatchObject({
       role: "adult_volunteer",
+      profilePhotoUrl: "https://photos.example.test/fixture-leader.jpg",
       shirtSize: "Adult XL",
-      registrationExternalId: "70000041"
+      registrationExternalId: "70000041",
+      sourceChurch: "Partner Chapel",
+      teamId: "team-blue"
     });
     expect(overview.students.some((student) => student.name === "Fixture Staff Leader")).toBe(false);
     expect(JSON.stringify(overview)).not.toContain("Emergency Contact");
+  });
+
+  it("previews and commits minimal staff-only leader workbooks without granting app access", async () => {
+    const mockSession = session();
+    const general = resolveCampAccessContext(mockSession, "general_leader");
+    const restricted = resolveCampAccessContext(mockSession, "andrew");
+    const preview = await getOakwoodUploadImportPreview(mockSession, restricted, {
+      sourceName: "Partner Leader Minimal Fixture",
+      sources: [{
+        scope: "staff_only",
+        csv: [
+          "Leader Name,Team,Source Church",
+          "Minimal Partner Leader,Blue,Grace Chapel"
+        ].join("\n"),
+        fileName: "Partner_Leaders.csv",
+        checksumSha256: "minimal-leader-fixture"
+      }]
+    });
+    expect(preview.allowed).toBe(true);
+    if (!preview.allowed) throw new Error("expected staff preview success");
+    expect(preview.preview.summary).toMatchObject({ adults: 1, staffRows: 1, restrictedRecordRows: 0 });
+    expect(preview.preview.rows[0]).toMatchObject({
+      personType: "adult",
+      matchStatus: "new",
+      person: { name: "Minimal Partner Leader", teamName: "Blue", sourceChurch: "Grace Chapel" }
+    });
+
+    const commit = await commitOakwoodImport(mockSession, restricted, { preview: preview.preview, confirmed: true });
+    expect(commit.allowed).toBe(true);
+    if (!commit.allowed || "error" in commit) throw new Error("expected staff commit success");
+
+    const overview = await getCampOverview(mockSession, general);
+    expect(overview.staff.find((staff) => staff.name === "Minimal Partner Leader")).toMatchObject({
+      role: "adult_volunteer",
+      teamId: "team-blue",
+      sourceChurch: "Grace Chapel"
+    });
+    expect(overview.students.some((student) => student.name === "Minimal Partner Leader")).toBe(false);
+  });
+
+  it("warns about unknown leader teams without blocking staff-only preview", async () => {
+    const mockSession = session();
+    const restricted = resolveCampAccessContext(mockSession, "andrew");
+    const preview = await getOakwoodUploadImportPreview(mockSession, restricted, {
+      sourceName: "Partner Leader Unknown Team Fixture",
+      sources: [{
+        scope: "staff_only",
+        csv: [
+          "First Name,Last Name,Team",
+          "Unknown,Team Leader,Silver"
+        ].join("\n"),
+        fileName: "Partner_Leaders.csv",
+        checksumSha256: "unknown-team-leader-fixture"
+      }]
+    });
+    expect(preview.allowed).toBe(true);
+    if (!preview.allowed) throw new Error("expected staff preview success");
+    expect(preview.preview.rows[0]).toMatchObject({
+      personType: "adult",
+      matchStatus: "new",
+      person: { name: "Unknown Team Leader", teamName: "Silver" }
+    });
+    expect(preview.preview.rows[0].warnings).toContain("Team not matched; person will import without assigned team.");
+    expect(preview.preview.summary).toMatchObject({ staffRows: 1, invalidCount: 0, ambiguousCount: 0 });
   });
 
   it("lets Camp Admin edit imported staff details without duplicating staff or exposing restricted data", async () => {
@@ -851,8 +918,10 @@ describe("camp repository mock fallback", () => {
     const updated = await updateCampStaffMember(mockSession, restricted, {
       id: staff.id,
       name: "Editable Staff Leader Updated",
+      profilePhotoUrl: "https://photos.example.test/editable-updated.jpg",
       role: "leader",
       shirtSize: "Adult Medium",
+      sourceChurch: "Updated Church",
       teamId: team.id
     });
     expect(updated.allowed).toBe(true);
@@ -860,8 +929,10 @@ describe("camp repository mock fallback", () => {
     expect(updated.staff).toMatchObject({
       id: staff.id,
       name: "Editable Staff Leader Updated",
+      profilePhotoUrl: "https://photos.example.test/editable-updated.jpg",
       role: "leader",
       shirtSize: "Adult Medium",
+      sourceChurch: "Updated Church",
       teamId: team.id
     });
 

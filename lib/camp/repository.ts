@@ -535,8 +535,21 @@ export async function getOakwoodUploadImportPreview(
     uploadSources,
     importScope
   });
+  const teams = shouldUseMock(session) ? campTeams : (await ensureCampBasics(session)).teams;
+  addOakwoodTeamWarnings(preview, teams);
 
   return { allowed: true as const, status: 200, preview };
+}
+
+function addOakwoodTeamWarnings(preview: CampOakwoodImportPreview, teams: CampTeam[]) {
+  for (const row of preview.rows) {
+    if (row.matchStatus !== "new" && row.matchStatus !== "matched") continue;
+    if (!row.person.teamName.trim()) continue;
+    if (resolveTeamId(row.person.teamName, teams)) continue;
+    if (!row.warnings.includes("Team not matched; person will import without assigned team.")) {
+      row.warnings.push("Team not matched; person will import without assigned team.");
+    }
+  }
 }
 
 async function loadOakwoodExistingPeople(session: AuthSession): Promise<{ campers: OakwoodExistingPerson[]; staff: OakwoodExistingPerson[] }> {
@@ -2205,8 +2218,12 @@ function scheduleInputToRow(input: CampScheduleInput) {
 
 function resolveTeamId(name: string, teams: CampTeam[]): string {
   if (!name.trim()) return "";
-  const normalized = name.trim().toLowerCase();
-  return teams.find((team) => team.name.toLowerCase() === normalized)?.id ?? "";
+  const normalized = normalizeTeamLookup(name);
+  return teams.find((team) => normalizeTeamLookup(team.name) === normalized || normalizeTeamLookup(team.color) === normalized)?.id ?? "";
+}
+
+function normalizeTeamLookup(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, " ").replace(/\s+team$/, "");
 }
 
 function resolveVehicleId(name: string, vehicles: CampVehicle[]): string {

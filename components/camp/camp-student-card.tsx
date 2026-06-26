@@ -32,6 +32,7 @@ function safeTags(student: CampVisibleStudent): SafeTag[] {
 export function CampStudentCard({ student }: { student: CampVisibleStudent }) {
   const tags = safeTags(student);
   const hasTeamColor = Boolean(student.teamName && student.teamName !== "Unassigned");
+  const isPartner = student.rosterType === "partner";
   const teamStyle = hasTeamColor
     ? ({ "--camp-student-team-accent": teamAccent(student.teamName ?? "") } as CSSProperties)
     : undefined;
@@ -45,7 +46,7 @@ export function CampStudentCard({ student }: { student: CampVisibleStudent }) {
   ].filter((entry): entry is [string, string] => Boolean(entry[1]?.trim()));
 
   return (
-    <div className={hasTeamColor ? "camp-student-row has-team-color" : "camp-student-row"} style={teamStyle} data-testid={`camp-student-card-${student.id}`}>
+    <div className={["camp-student-row", hasTeamColor ? "has-team-color" : "", isPartner ? "partner-camper" : ""].filter(Boolean).join(" ")} style={teamStyle} data-testid={`camp-student-card-${student.id}`}>
       <CampStudentAvatar student={student} />
       <div className="camp-student-info">
         <strong>{student.name}</strong>

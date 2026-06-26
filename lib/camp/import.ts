@@ -64,7 +64,7 @@ function normalizeRegistrationRow(row: CsvRow, rowNumber: number, options: Impor
   const name = pick(row, ["student name", "camper name", "name", "student"]);
   const partnerChurch = pick(row, ["partner church", "source church", "church/source", "church", "home church", "sending church", "source"]);
   const profilePhotoUrl = sanitizeProfilePhotoUrl(pick(row, ["photo", "photo url", "profile photo", "student photo", "image"]));
-  const teamName = pick(row, ["team", "team name"]);
+  const teamName = pick(row, ["team", "team name", "team color", "color", "team assignment"]);
   const vehicleName = pick(row, ["vehicle", "car", "van", "transportation"]);
   const team = findTeam(options.teams, teamName);
   const vehicle = findVehicle(options.vehicles, vehicleName);

@@ -33,8 +33,20 @@ describe("oakwood-import engine", () => {
   });
 
   it("imports safe operational fields where present", () => {
-    const preview = buildOakwoodImportPreview([student({ grade: "10th", "room number": "Room 4", "t-shirt size": "Youth Large" })]);
-    expect(preview.rows[0].person).toMatchObject({ grade: "10th", cabin: "Room 4", shirtSize: "Youth Large" });
+    const preview = buildOakwoodImportPreview([student({
+      grade: "10th",
+      "room number": "Room 4",
+      "t-shirt size": "Youth Large",
+      "photo url": "https://photos.example.test/oakwood-camper.jpg",
+      "source church": "Grace Chapel"
+    })]);
+    expect(preview.rows[0].person).toMatchObject({
+      grade: "10th",
+      cabin: "Room 4",
+      shirtSize: "Youth Large",
+      profilePhotoUrl: "https://photos.example.test/oakwood-camper.jpg",
+      sourceChurch: "Grace Chapel"
+    });
   });
 
   it("derives indicators ONLY from Quick Filter category + restricted-note presence", () => {
@@ -99,9 +111,19 @@ describe("oakwood-import engine", () => {
   });
 
   it("classifies adults as staff with no restricted payload", () => {
-    const row = buildOakwoodImportPreview([student({ name: "Adult Helper", selection: "Adult Volunteer", grade: "" })]).rows[0];
+    const row = buildOakwoodImportPreview([student({
+      name: "Adult Helper",
+      selection: "Adult Volunteer",
+      grade: "",
+      "leader photo": "https://photos.example.test/adult-helper.jpg",
+      "partner church": "Hope Church"
+    })]).rows[0];
     expect(row.personType).toBe("adult");
     expect(row.restricted).toBeUndefined();
+    expect(row.person).toMatchObject({
+      profilePhotoUrl: "https://photos.example.test/adult-helper.jpg",
+      sourceChurch: "Hope Church"
+    });
   });
 
   it("uses the explicit staff-only upload slot as the leader/staff type selection", () => {
@@ -134,6 +156,74 @@ describe("oakwood-import engine", () => {
     expect(preview.summary).toMatchObject({ adults: 1, students: 0, staffRows: 1, restrictedRecordRows: 0 });
   });
 
+  it("imports a minimal leader sheet with Leader Name and Team", () => {
+    const preview = buildOakwoodImportPreviewFromCsv(
+      [
+        "Leader Name,Team,Source Church",
+        "Partner Leader,Blue,Grace Chapel"
+      ].join("\n"),
+      { importScope: "staff_only", sourceKind: "upload" }
+    );
+
+    expect(preview.rows[0]).toMatchObject({
+      personType: "adult",
+      matchStatus: "new",
+      person: {
+        name: "Partner Leader",
+        teamName: "Blue",
+        sourceChurch: "Grace Chapel",
+        registrationExternalId: ""
+      }
+    });
+    expect(preview.rows[0].restricted).toBeUndefined();
+    expect(preview.summary).toMatchObject({ adults: 1, staffRows: 1, restrictedRecordRows: 0 });
+  });
+
+  it("imports a minimal leader sheet with First Name and Last Name", () => {
+    const preview = buildOakwoodImportPreviewFromCsv(
+      [
+        "First Name,Last Name,Team Color",
+        "First,Leader, purple "
+      ].join("\n"),
+      { importScope: "staff_only", sourceKind: "upload" }
+    );
+
+    expect(preview.rows[0]).toMatchObject({
+      personType: "adult",
+      matchStatus: "new",
+      person: { name: "First Leader", teamName: "purple" }
+    });
+    expect(preview.summary.staffRows).toBe(1);
+  });
+
+  it("skips header-like rows in minimal leader sheets", () => {
+    const preview = buildOakwoodImportPreviewFromCsv(
+      [
+        "Leader Name,Team",
+        "Leader Name,Team",
+        "Real Leader,Orange"
+      ].join("\n"),
+      { importScope: "staff_only", sourceKind: "upload" }
+    );
+
+    expect(preview.rows[0]).toMatchObject({ matchStatus: "skipped" });
+    expect(preview.rows[1]).toMatchObject({ matchStatus: "new", person: { name: "Real Leader", teamName: "Orange" } });
+    expect(preview.summary).toMatchObject({ totalSourceRows: 2, staffRows: 1, skippedCount: 1 });
+  });
+
+  it("keeps leaders with unknown teams saveable with a warning", () => {
+    const preview = buildOakwoodImportPreviewFromCsv(
+      [
+        "Leader Name,Team",
+        "Unknown Team Leader,Silver"
+      ].join("\n"),
+      { importScope: "staff_only", sourceKind: "upload" }
+    );
+
+    expect(preview.rows[0]).toMatchObject({ matchStatus: "new", personType: "adult", person: { teamName: "Silver" } });
+    expect(preview.summary).toMatchObject({ staffRows: 1, invalidCount: 0, ambiguousCount: 0 });
+  });
+
   it("skips non-person section rows (no numeric Registration ID)", () => {
     const rows: OakwoodSourceRow[] = [
       student(),
@@ -145,6 +235,23 @@ describe("oakwood-import engine", () => {
     expect(preview.summary.totalSourceRows).toBe(3);
     expect(preview.summary.skippedCount).toBe(2);
     expect(preview.rows.filter((row) => row.matchStatus === "skipped")).toHaveLength(2);
+  });
+
+  it("keeps Oakwood registration import strict by requiring a numeric Registration ID", () => {
+    const rows: OakwoodSourceRow[] = [
+      student({ name: "No Registration Id Camper", "registration id": "" }),
+      student({ name: "Non Numeric Registration Id Camper", "registration id": "Pending" })
+    ];
+
+    const preview = buildOakwoodImportPreview(rows);
+
+    expect(preview.summary).toMatchObject({
+      totalSourceRows: 2,
+      personRows: 0,
+      skippedCount: 2
+    });
+    expect(preview.rows).toHaveLength(2);
+    expect(preview.rows.every((row) => row.matchStatus === "skipped")).toBe(true);
   });
 
   it("produces accurate summary counts for a mixed batch", () => {

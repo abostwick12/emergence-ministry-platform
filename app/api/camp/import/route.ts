@@ -60,10 +60,13 @@ export async function POST(request: Request) {
 
   if (body.action === "commit") {
     if (!body.preview) return NextResponse.json({ error: "Import preview is required before commit." }, { status: 400 });
+    const saveableRows = body.preview.rows.filter((row) => row.status !== "Blocked");
+    if (saveableRows.length === 0) {
+      return NextResponse.json({ error: "At least one camper row with a student name is required before saving." }, { status: 400 });
+    }
     const committed = [];
 
-    for (const row of body.preview.rows) {
-      if (row.status === "Blocked") continue;
+    for (const row of saveableRows) {
       const studentPayload = await upsertCampStudent(session, context, row.camper);
       if (!studentPayload.allowed) return NextResponse.json({ error: studentPayload.error }, { status: studentPayload.status });
 

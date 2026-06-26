@@ -55,10 +55,12 @@ export function CampLeaderProfileRow({ name, roleLabel, staff = [], compact = fa
   const trimmedName = name?.trim() ?? "";
   const member = findStaffByName(staff, trimmedName);
   const isAssigned = Boolean(trimmedName);
+  const isPartner = Boolean(member?.sourceChurch);
   const className = [
     "camp-leader-profile-row",
     compact ? "compact" : "",
-    isAssigned ? "assigned" : "empty"
+    isAssigned ? "assigned" : "empty",
+    isPartner ? "partner-leader" : ""
   ].filter(Boolean).join(" ");
 
   if (!isAssigned) {
@@ -88,6 +90,12 @@ export function CampLeaderProfileRow({ name, roleLabel, staff = [], compact = fa
       <span className="camp-leader-profile-text">
         <span className="camp-leader-role">{roleLabel}</span>
         <span className="camp-leader-name">{member?.name ?? trimmedName}</span>
+        {member?.sourceChurch ? (
+          <span className="camp-leader-partner-meta">
+            <span className="camp-cc-tag partner">Partner Church</span>
+            <span className="camp-leader-role">{member.sourceChurch}</span>
+          </span>
+        ) : null}
       </span>
     </span>
   );

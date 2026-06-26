@@ -47,6 +47,11 @@ describe("Camp operations CRUD mock store", () => {
     expect(student.teamId).toBe(team.id);
     expect(student.vehicleId).toBe(vehicle.id);
 
+    const unassignedStudent = assignCampStudent({ studentId: "stu-1", teamId: "", vehicleId: "" });
+    expect(unassignedStudent.teamId).toBe("");
+    expect(unassignedStudent.vehicleId).toBe("");
+    assignCampStudent({ studentId: "stu-1", vehicleId: vehicle.id });
+
     const archivedVehicle = archiveCampVehicle({ id: vehicle.id });
     expect(archivedVehicle.status).toBe(200);
     const overview = getCampOverview("general_leader");

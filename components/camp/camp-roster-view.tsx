@@ -60,6 +60,7 @@ export function CampRosterView({ mode = "emerge" }: { mode?: RosterViewMode }) {
   const { overview, loading, refresh, updateStudentProfilePhoto, capabilities } = useCamp();
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<CampStudentInput | null>(null);
+  const [editingHasMedicationPlan, setEditingHasMedicationPlan] = useState(false);
   const [editingProfilePhotoUrl, setEditingProfilePhotoUrl] = useState("");
   const [profilePhotoFile, setProfilePhotoFile] = useState<File | null>(null);
   const [profilePhotoPreviewUrl, setProfilePhotoPreviewUrl] = useState("");
@@ -103,6 +104,7 @@ export function CampRosterView({ mode = "emerge" }: { mode?: RosterViewMode }) {
 
   function startEditing(student?: CampVisibleStudent) {
     setEditing(studentToInput(student, mode === "partner" ? "partner" : "emerge"));
+    setEditingHasMedicationPlan(Boolean(student?.hasMedicationPlan));
     setEditingProfilePhotoUrl(student?.profilePhotoUrl ?? "");
     setProfilePhotoFile(null);
     setRemoveProfilePhoto(false);
@@ -111,6 +113,7 @@ export function CampRosterView({ mode = "emerge" }: { mode?: RosterViewMode }) {
 
   function closeEditor() {
     setEditing(null);
+    setEditingHasMedicationPlan(false);
     setEditingProfilePhotoUrl("");
     setProfilePhotoFile(null);
     setRemoveProfilePhoto(false);
@@ -355,8 +358,9 @@ export function CampRosterView({ mode = "emerge" }: { mode?: RosterViewMode }) {
           <section className="camp-editor-card" aria-label="Safe care indicators">
             <strong>Safe operational indicators</strong>
             <label className="camp-checkbox-line"><input type="checkbox" checked={Boolean(editing.emergencyContactOnFile)} onChange={(event) => setEditing({ ...editing, emergencyContactOnFile: event.target.checked })} /><span>Emergency contact presence confirmed</span></label>
-            <label className="camp-checkbox-line"><input type="checkbox" checked={Boolean(editing.hasMedicalAlert)} onChange={(event) => setEditing({ ...editing, hasMedicalAlert: event.target.checked })} /><span>Care plan on file</span></label>
-            <label className="camp-checkbox-line"><input type="checkbox" checked={Boolean(editing.hasDietaryAlert)} onChange={(event) => setEditing({ ...editing, hasDietaryAlert: event.target.checked })} /><span>Dietary plan on file</span></label>
+            <label className="camp-checkbox-line"><input type="checkbox" checked={Boolean(editing.hasDietaryAlert)} onChange={(event) => setEditing({ ...editing, hasDietaryAlert: event.target.checked })} /><span>Food allergy indicator</span></label>
+            <label className="camp-checkbox-line"><input type="checkbox" checked={Boolean(editing.hasMedicalAlert)} onChange={(event) => setEditing({ ...editing, hasMedicalAlert: event.target.checked })} /><span>Medical concern indicator</span></label>
+            <label className="camp-checkbox-line"><input type="checkbox" checked={editingHasMedicationPlan} disabled readOnly /><span>Medication-on-file indicator</span></label>
             <label className="field">
               <span>Leader-safe notes</span>
               <textarea

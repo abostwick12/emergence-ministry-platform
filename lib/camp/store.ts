@@ -418,8 +418,8 @@ export function commitOakwoodImportPreview(role: CampAccessRole, preview: CampOa
 
 export function assignCampStudent(input: { studentId: string; teamId?: string; vehicleId?: string; cabin?: string }): CampStudentPublic {
   const student = requireActiveStudent(input.studentId);
-  if (input.teamId) student.teamId = input.teamId;
-  if (input.vehicleId) student.vehicleId = input.vehicleId;
+  if (input.teamId !== undefined) student.teamId = input.teamId;
+  if (input.vehicleId !== undefined) student.vehicleId = input.vehicleId;
   if (input.cabin !== undefined) student.cabin = input.cabin;
   return withDerivedStudentFlags(student);
 }
@@ -921,8 +921,12 @@ function ensureReturnChecklist(record: CampMedicationRecord) {
 
 function teamIdForName(name: string): string {
   if (!name.trim()) return "";
-  const normalized = name.trim().toLowerCase();
-  return store.teams.find((team) => team.name.toLowerCase() === normalized)?.id ?? "";
+  const normalized = normalizeTeamLookup(name);
+  return store.teams.find((team) => normalizeTeamLookup(team.name) === normalized || normalizeTeamLookup(team.color) === normalized)?.id ?? "";
+}
+
+function normalizeTeamLookup(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, " ").replace(/\s+team$/, "");
 }
 
 function teamNameForId(id: string): string | undefined {
