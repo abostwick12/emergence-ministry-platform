@@ -418,8 +418,8 @@ export function commitOakwoodImportPreview(role: CampAccessRole, preview: CampOa
 
 export function assignCampStudent(input: { studentId: string; teamId?: string; vehicleId?: string; cabin?: string }): CampStudentPublic {
   const student = requireActiveStudent(input.studentId);
-  if (input.teamId) student.teamId = input.teamId;
-  if (input.vehicleId) student.vehicleId = input.vehicleId;
+  if (input.teamId !== undefined) student.teamId = input.teamId;
+  if (input.vehicleId !== undefined) student.vehicleId = input.vehicleId;
   if (input.cabin !== undefined) student.cabin = input.cabin;
   return withDerivedStudentFlags(student);
 }

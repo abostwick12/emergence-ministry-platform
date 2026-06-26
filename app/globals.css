@@ -3171,6 +3171,86 @@ textarea:focus-visible {
 .camp-team-detail-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 0; padding: 14px; border-radius: 14px; background: rgba(255, 255, 255, 0.7); border: 1px solid rgba(13, 71, 109, 0.14); }
 .camp-team-detail-meta dt { font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--camp-muted); }
 .camp-team-detail-meta dd { margin: 2px 0 0; font-weight: 700; color: var(--camp-ink); }
+.camp-team-assignment-manager {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--camp-team-accent, #0ea5e9) 20%, rgba(13, 71, 109, 0.12));
+  border-radius: 14px;
+  background:
+    linear-gradient(150deg, color-mix(in srgb, var(--camp-team-accent, #0ea5e9) 8%, #ffffff), rgba(255, 255, 255, 0.86) 72%);
+  color: #0f172a;
+}
+.camp-team-assignment-manager .camp-cc-muted { color: #475569; }
+.camp-team-assignment-manager .field span { color: #334155; }
+.camp-team-assignment-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.camp-team-assignment-head strong { color: var(--camp-ink); }
+.camp-team-assignment-head span {
+  display: grid;
+  min-width: 32px;
+  height: 28px;
+  place-items: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--camp-team-accent, #0ea5e9) 14%, rgba(255, 255, 255, 0.86));
+  color: color-mix(in srgb, var(--camp-team-accent, #0ea5e9) 44%, #0f172a);
+  font-size: 12px;
+  font-weight: 900;
+}
+.camp-team-assignment-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 10px;
+}
+.camp-team-assignment-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.camp-team-assignment-list li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 9px;
+  border: 1px solid rgba(13, 71, 109, 0.10);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.68);
+}
+.camp-team-assignment-list span {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+.camp-team-assignment-list strong {
+  overflow: hidden;
+  color: var(--camp-ink);
+  font-size: 13.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.camp-team-assignment-list small {
+  overflow: hidden;
+  color: var(--camp-muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 640px) {
+  .camp-team-assignment-controls { grid-template-columns: 1fr; }
+  .camp-team-assignment-controls .button { width: 100%; }
+}
 
 /* Student rows */
 .camp-student-list { display: flex; flex-direction: column; gap: 8px; }
@@ -5469,6 +5549,10 @@ html:has(.app-shell-camp) body {
   font-size: 18px;
 }
 
+.camp-profile-photo-row .camp-leader-avatar {
+  flex: 0 0 auto;
+}
+
 .camp-confirm-row {
   display: flex;
   align-items: flex-start;
@@ -6415,6 +6499,24 @@ html:has(.app-shell-camp) body {
   border-color: rgba(125, 211, 252, 0.48);
   background: var(--camp-liquid-cyan);
   color: #04243f;
+}
+
+.camp-dialog .camp-team-assignment-manager,
+.camp-dialog .camp-team-assignment-manager .camp-team-assignment-head strong,
+.camp-dialog .camp-team-assignment-manager .field span,
+.camp-dialog .camp-team-assignment-manager .camp-team-assignment-list strong {
+  color: #0f172a;
+}
+
+.camp-dialog .camp-team-assignment-manager .camp-cc-muted,
+.camp-dialog .camp-team-assignment-manager .camp-team-assignment-list small {
+  color: #475569;
+}
+
+.camp-dialog .camp-team-assignment-manager .button:not(.primary) {
+  border-color: rgba(14, 165, 233, 0.24);
+  background: rgba(224, 242, 254, 0.86);
+  color: #0f172a;
 }
 
 .camp-dialog .button.danger {

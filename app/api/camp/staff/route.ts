@@ -29,8 +29,10 @@ export async function PATCH(request: Request) {
     const payload = await updateCampStaffMember(session, context, {
       id: body.id,
       name: body.name,
+      profilePhotoUrl: body.profilePhotoUrl,
       role: body.role,
       shirtSize: body.shirtSize,
+      sourceChurch: body.sourceChurch,
       teamId: body.teamId
     });
     if (!payload.allowed) return NextResponse.json({ error: payload.error }, { status: payload.status });

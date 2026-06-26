@@ -137,6 +137,8 @@ function normalizePersonRow(
   // Blank source Room stays blank - no fabrication.
   const cabin = pick(row, ["room number", "cabin", "room"]);
   const shirtSize = pick(row, ["t-shirt size", "t shirt size", "shirt size"]);
+  const profilePhotoUrl = sanitizeProfilePhotoUrl(pick(row, ["photo", "photo url", "profile photo", "student photo", "leader photo", "staff photo", "image"]));
+  const sourceChurch = pick(row, ["partner church", "source church", "church/source", "church", "home church", "sending church", "source"]);
   const teamName = pick(row, ["team", "team name"]);
   const vehicleName = pick(row, ["vehicle", "vehicle name", "transportation", "van"]);
 
@@ -146,7 +148,7 @@ function normalizePersonRow(
       matchStatus: "skipped",
       personType,
       warnings: ["No numeric Registration ID - skipped as a non-person workbook row."],
-      person: { name, grade, cabin, shirtSize, registrationExternalId, teamName, vehicleName },
+      person: { name, profilePhotoUrl, grade, cabin, shirtSize, registrationExternalId, sourceChurch, teamName, vehicleName },
       safeIndicators: { emergencyContactOnFile: false, hasMedicalAlert: false, hasDietaryAlert: false }
     };
   }
@@ -157,7 +159,7 @@ function normalizePersonRow(
       matchStatus: "skipped",
       personType,
       warnings: ["Student row skipped on the staff tab; campers are imported from the approved camper tab."],
-      person: { name, grade, cabin, shirtSize, registrationExternalId, teamName, vehicleName },
+      person: { name, profilePhotoUrl, grade, cabin, shirtSize, registrationExternalId, sourceChurch, teamName, vehicleName },
       safeIndicators: { emergencyContactOnFile: false, hasMedicalAlert: false, hasDietaryAlert: false }
     };
   }
@@ -168,7 +170,7 @@ function normalizePersonRow(
       matchStatus: "skipped",
       personType,
       warnings: ["Adult/staff row skipped on the camper tab; staff are imported from the approved staff tab."],
-      person: { name, grade, cabin, shirtSize, registrationExternalId, teamName, vehicleName },
+      person: { name, profilePhotoUrl, grade, cabin, shirtSize, registrationExternalId, sourceChurch, teamName, vehicleName },
       safeIndicators: { emergencyContactOnFile: false, hasMedicalAlert: false, hasDietaryAlert: false }
     };
   }
@@ -187,7 +189,7 @@ function normalizePersonRow(
     rowNumber,
     personType,
     warnings,
-    person: { name, grade, cabin, shirtSize, registrationExternalId, teamName, vehicleName },
+    person: { name, profilePhotoUrl, grade, cabin, shirtSize, registrationExternalId, sourceChurch, teamName, vehicleName },
     safeIndicators,
     restricted
   };
@@ -314,6 +316,18 @@ function isMeaningful(value: string): boolean {
 function cleanNote(value: string): string {
   const trimmed = value.trim();
   return NA_VALUES.has(trimmed.toLowerCase()) ? "" : trimmed;
+}
+
+function sanitizeProfilePhotoUrl(value: string): string | undefined {
+  const trimmed = value.trim();
+  if (!trimmed || NA_VALUES.has(trimmed.toLowerCase())) return undefined;
+  try {
+    const url = new URL(trimmed);
+    if (url.protocol === "https:" || url.protocol === "http:") return url.toString();
+  } catch {
+    return undefined;
+  }
+  return undefined;
 }
 
 // Storage-only parse of "Name - (phone)" into restricted fields. This is data

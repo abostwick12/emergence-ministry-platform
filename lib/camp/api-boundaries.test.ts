@@ -442,7 +442,7 @@ describe("camp API restricted data boundaries", () => {
 
     const before = await staffGET(new Request("http://localhost/api/camp/staff?role=andrew"));
     const beforePayload = await before.json() as {
-      staff: Array<{ id: string; name: string; role: string; shirtSize?: string; teamId?: string; registrationExternalId?: string }>;
+      staff: Array<{ id: string; name: string; profilePhotoUrl?: string; role: string; shirtSize?: string; sourceChurch?: string; teamId?: string; registrationExternalId?: string }>;
       teams: Array<{ id: string; name: string }>;
     };
     const imported = beforePayload.staff.find((staff) => staff.name === "API Imported Staff Leader");
@@ -455,11 +455,13 @@ describe("camp API restricted data boundaries", () => {
     const update = await staffPATCH(jsonRequest("http://localhost/api/camp/staff?role=andrew", {
       id: imported?.id,
       name: "API Imported Staff Leader Edited",
+      profilePhotoUrl: "https://photos.example.test/api-staff.jpg",
       role: "leader",
       shirtSize: "Adult Medium",
+      sourceChurch: "API Partner Church",
       teamId: team.id
     }, "PATCH"));
-    const updatePayload = await update.json() as { staff: { id: string; name: string; role: string; shirtSize?: string; teamId?: string } };
+    const updatePayload = await update.json() as { staff: { id: string; name: string; profilePhotoUrl?: string; role: string; shirtSize?: string; sourceChurch?: string; teamId?: string } };
     const after = await staffGET(new Request("http://localhost/api/camp/staff?role=andrew"));
     const afterPayload = await after.json() as { staff: Array<{ id: string; name: string }> };
     const overview = await campGET(new Request("http://localhost/api/camp?role=andrew"));
@@ -469,8 +471,10 @@ describe("camp API restricted data boundaries", () => {
     expect(updatePayload.staff).toMatchObject({
       id: imported?.id,
       name: "API Imported Staff Leader Edited",
+      profilePhotoUrl: "https://photos.example.test/api-staff.jpg",
       role: "leader",
       shirtSize: "Adult Medium",
+      sourceChurch: "API Partner Church",
       teamId: team.id
     });
     expect(afterPayload.staff.filter((staff) => staff.id === imported?.id)).toHaveLength(1);
@@ -809,6 +813,56 @@ describe("camp API restricted data boundaries", () => {
     expect(previewResponse.status).toBe(200);
     expect(commitResponse.status).toBe(200);
     expect(commitPayload.committed).toHaveLength(1);
+  });
+
+  it("allows Andrew to save valid partner church rows with warnings while skipping blocked rows", async () => {
+    getServerSessionMock.mockResolvedValue(andrewSession());
+
+    const previewResponse = await importPOST(jsonRequest("http://localhost/api/camp/import?role=andrew", {
+      action: "preview",
+      sourceType: "partnerChurch",
+      sourceName: "Partner Church Upload",
+      csv: [
+        "Student Name,Team,Partner Church,Medication On File,Emergency Contact Name,Emergency Contact Phone",
+        "Partner Minimal Camper,Silver,Grace Chapel,Yes,Private Parent,555-777-8888",
+        ",Blue,Grace Chapel,No,Missing Name Parent,555-000-0000"
+      ].join("\n")
+    }));
+    const previewPayload = await previewResponse.json() as {
+      preview: {
+        rows: Array<{ status: string; camper: { name: string; teamId: string; sourceChurch?: string; rosterType?: string }; restrictedMedical?: unknown; medication?: unknown }>;
+        summary: { warningRows?: number; blockedRows: number };
+      };
+    };
+
+    expect(previewResponse.status).toBe(200);
+    expect(previewPayload.preview.summary).toMatchObject({ warningRows: 1, blockedRows: 1 });
+    expect(previewPayload.preview.rows[0]).toMatchObject({
+      status: "Warning",
+      camper: { name: "Partner Minimal Camper", teamId: "", sourceChurch: "Grace Chapel", rosterType: "partner" }
+    });
+    expect(previewPayload.preview.rows[0].restrictedMedical).toBeUndefined();
+    expect(JSON.stringify(previewPayload)).not.toContain("Private Parent");
+    expect(JSON.stringify(previewPayload)).not.toContain("555-777-8888");
+
+    const commitResponse = await importPOST(jsonRequest("http://localhost/api/camp/import?role=andrew", {
+      action: "commit",
+      preview: previewPayload.preview
+    }));
+    const commitPayload = await commitResponse.json() as { committed: Array<{ studentName: string }> };
+
+    expect(commitResponse.status).toBe(200);
+    expect(commitPayload.committed).toEqual([{ rowNumber: 2, studentId: expect.any(String), studentName: "Partner Minimal Camper" }]);
+
+    const generalLeaderOverview = await campGET(new Request("http://localhost/api/camp?role=general_leader"));
+    const overviewPayload = await generalLeaderOverview.json() as { students: Array<{ name: string; teamId?: string; sourceChurch?: string; rosterType?: string }> };
+    expect(generalLeaderOverview.status).toBe(200);
+    expect(overviewPayload.students).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: "Partner Minimal Camper", teamId: "", sourceChurch: "Grace Chapel", rosterType: "partner" })
+    ]));
+    expectNoRestrictedPayloadDetails(overviewPayload);
+    expect(JSON.stringify(overviewPayload)).not.toContain("Private Parent");
+    expect(JSON.stringify(overviewPayload)).not.toContain("555-777-8888");
   });
 
   it("keeps Camp Finder safe for General Leaders and blocks EMMA modes", async () => {

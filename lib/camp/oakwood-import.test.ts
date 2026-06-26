@@ -33,8 +33,20 @@ describe("oakwood-import engine", () => {
   });
 
   it("imports safe operational fields where present", () => {
-    const preview = buildOakwoodImportPreview([student({ grade: "10th", "room number": "Room 4", "t-shirt size": "Youth Large" })]);
-    expect(preview.rows[0].person).toMatchObject({ grade: "10th", cabin: "Room 4", shirtSize: "Youth Large" });
+    const preview = buildOakwoodImportPreview([student({
+      grade: "10th",
+      "room number": "Room 4",
+      "t-shirt size": "Youth Large",
+      "photo url": "https://photos.example.test/oakwood-camper.jpg",
+      "source church": "Grace Chapel"
+    })]);
+    expect(preview.rows[0].person).toMatchObject({
+      grade: "10th",
+      cabin: "Room 4",
+      shirtSize: "Youth Large",
+      profilePhotoUrl: "https://photos.example.test/oakwood-camper.jpg",
+      sourceChurch: "Grace Chapel"
+    });
   });
 
   it("derives indicators ONLY from Quick Filter category + restricted-note presence", () => {
@@ -99,9 +111,19 @@ describe("oakwood-import engine", () => {
   });
 
   it("classifies adults as staff with no restricted payload", () => {
-    const row = buildOakwoodImportPreview([student({ name: "Adult Helper", selection: "Adult Volunteer", grade: "" })]).rows[0];
+    const row = buildOakwoodImportPreview([student({
+      name: "Adult Helper",
+      selection: "Adult Volunteer",
+      grade: "",
+      "leader photo": "https://photos.example.test/adult-helper.jpg",
+      "partner church": "Hope Church"
+    })]).rows[0];
     expect(row.personType).toBe("adult");
     expect(row.restricted).toBeUndefined();
+    expect(row.person).toMatchObject({
+      profilePhotoUrl: "https://photos.example.test/adult-helper.jpg",
+      sourceChurch: "Hope Church"
+    });
   });
 
   it("uses the explicit staff-only upload slot as the leader/staff type selection", () => {
@@ -145,6 +167,23 @@ describe("oakwood-import engine", () => {
     expect(preview.summary.totalSourceRows).toBe(3);
     expect(preview.summary.skippedCount).toBe(2);
     expect(preview.rows.filter((row) => row.matchStatus === "skipped")).toHaveLength(2);
+  });
+
+  it("keeps Oakwood registration import strict by requiring a numeric Registration ID", () => {
+    const rows: OakwoodSourceRow[] = [
+      student({ name: "No Registration Id Camper", "registration id": "" }),
+      student({ name: "Non Numeric Registration Id Camper", "registration id": "Pending" })
+    ];
+
+    const preview = buildOakwoodImportPreview(rows);
+
+    expect(preview.summary).toMatchObject({
+      totalSourceRows: 2,
+      personRows: 0,
+      skippedCount: 2
+    });
+    expect(preview.rows).toHaveLength(2);
+    expect(preview.rows.every((row) => row.matchStatus === "skipped")).toBe(true);
   });
 
   it("produces accurate summary counts for a mixed batch", () => {

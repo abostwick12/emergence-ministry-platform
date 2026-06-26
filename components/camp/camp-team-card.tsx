@@ -88,6 +88,7 @@ export function CampLeaderProfileRow({ name, roleLabel, staff = [], compact = fa
       <span className="camp-leader-profile-text">
         <span className="camp-leader-role">{roleLabel}</span>
         <span className="camp-leader-name">{member?.name ?? trimmedName}</span>
+        {member?.sourceChurch ? <span className="camp-leader-role">{member.sourceChurch}</span> : null}
       </span>
     </span>
   );

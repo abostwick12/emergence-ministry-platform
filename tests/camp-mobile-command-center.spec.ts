@@ -389,6 +389,40 @@ test.describe("Camp mobile Command Center", () => {
     await teamEditor.getByRole("button", { name: "Save" }).click();
     await expect(page.getByText("Team saved and counts refreshed.")).toBeVisible();
   });
+
+  test("teams page assigns and removes campers without opening the full roster editor", async ({ page }) => {
+    await login(page);
+    const camperName = `Playwright Team Assign Camper ${Date.now()}`;
+    const create = await page.request.post("/api/camp/students?role=andrew", {
+      data: {
+        name: camperName,
+        grade: "",
+        teamId: "",
+        vehicleId: "",
+        cabin: "",
+        limitedSafetyFlags: []
+      }
+    });
+    expect(create.ok()).toBe(true);
+    const created = await create.json() as { student: { id: string } };
+
+    await page.goto("/camp/teams");
+    await page.getByRole("button", { name: /Open Blue team menu/ }).click();
+    const blueDialog = page.getByRole("dialog", { name: /Blue Team/ });
+    await expect(blueDialog.getByRole("region", { name: "Blue camper assignments" })).toBeVisible();
+    await blueDialog.getByLabel("Camper to assign").selectOption(created.student.id);
+    await blueDialog.getByRole("button", { name: "Assign to Blue" }).click();
+    await expect(blueDialog.getByText(`${camperName} assigned to Blue.`)).toBeVisible();
+
+    await page.goto("/camp/teams/team-blue");
+    const assignments = page.getByRole("region", { name: "Blue camper assignments" });
+    await expect(assignments.locator("li").filter({ hasText: camperName })).toHaveCount(1);
+    await expect(page.getByRole("region", { name: "Team roster" }).getByText(camperName)).toBeVisible();
+
+    await assignments.locator("li").filter({ hasText: camperName }).getByRole("button", { name: "Remove" }).click();
+    await expect(assignments.getByText(`${camperName} removed from Blue.`)).toBeVisible();
+    await expect(assignments.locator("li").filter({ hasText: camperName })).toHaveCount(0);
+  });
 });
 
 async function login(page: Page) {

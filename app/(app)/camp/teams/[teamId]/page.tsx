@@ -4,13 +4,14 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMemo } from "react";
 import { useCamp } from "@/components/camp/camp-provider";
+import { CampTeamAssignmentManager } from "@/components/camp/camp-team-assignment-manager";
 import { CampStudentCard } from "@/components/camp/camp-student-card";
 import { CampLeaderProfileRow, teamAccent } from "@/components/camp/camp-team-card";
 import type { CSSProperties } from "react";
 
 export default function CampTeamDetailPage() {
   const params = useParams<{ teamId: string }>();
-  const { overview, loading } = useCamp();
+  const { overview, loading, refresh } = useCamp();
   const teamId = params?.teamId;
 
   const team = overview.teams.find((candidate) => candidate.id === teamId);
@@ -54,6 +55,8 @@ export default function CampTeamDetailPage() {
           <dd>{team.room?.trim() ? team.room : <span className="camp-cc-placeholder">Add room</span>}</dd>
         </div>
       </dl>
+
+      <CampTeamAssignmentManager teamId={team.id} teamName={team.name} students={overview.students} onSaved={refresh} />
 
       <section aria-label="Team roster">
         <div className="camp-cc-section-head"><h2>Roster</h2></div>

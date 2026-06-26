@@ -5,6 +5,7 @@ import type { CSSProperties } from "react";
 import { useState } from "react";
 import { CampOperationDialog } from "@/components/camp/camp-operation-dialog";
 import { useCamp } from "@/components/camp/camp-provider";
+import { CampTeamAssignmentManager } from "@/components/camp/camp-team-assignment-manager";
 import { CampLeaderProfileRow, initialsForName, CampTeamCard, teamAccent } from "@/components/camp/camp-team-card";
 import { useTeamMissingAssignmentCounts, useTeamStudentCounts } from "@/components/camp/camp-team-carousel";
 import type { CampStaffMember, CampTeam, CampTeamInput } from "@/lib/camp/types";
@@ -49,6 +50,7 @@ function AvailableLeaderTile({ member, teams }: { member: CampStaffMember; teams
       <span className="camp-available-leader-body">
         <strong>{member.name}</strong>
         <span className="camp-available-leader-meta">{staffRoleLabel(member.role)}</span>
+        {member.sourceChurch ? <span className="camp-available-leader-meta">{member.sourceChurch}</span> : null}
       </span>
       <span className="camp-available-leader-status">
         {assignedTeam ? `${assignedTeam.name} team` : "Unassigned"}
@@ -216,6 +218,13 @@ export default function CampTeamsPage() {
               <p>{selectedTeam.notes}</p>
             </section>
           ) : null}
+          <CampTeamAssignmentManager
+            teamId={selectedTeam.id}
+            teamName={selectedTeam.name}
+            accentColor={teamAccent(selectedTeam.color)}
+            students={overview.students}
+            onSaved={refresh}
+          />
         </CampOperationDialog>
       ) : null}
       {editing ? (

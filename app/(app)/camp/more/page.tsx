@@ -15,6 +15,7 @@ const SAFE_TOOLS: MoreTile[] = [
   { href: "/camp/vehicles", label: "Transportation / Vehicles", description: "Vehicles, drivers, and visible riders.", marker: "TR" },
   { href: "/camp/forms", label: "Forms & Documents", description: "Leader packet and document status.", marker: "FD" },
   { href: "/camp/announcements", label: "Camp Announcements", description: "Current leader-facing schedule signals.", marker: "CA" },
+  { href: "/camp/partner-campers", label: "Partner Church Campers", description: "Separate view for partner roster participants.", marker: "PC" },
   { href: "/camp/checkout", label: "Checkout / Return Home", description: "Return-home planning status.", marker: "CO" },
   { href: "/camp/my-team", label: "My Team / My Assignments", description: "Assignments visible to this access view.", marker: "MT" },
   { href: "/camp/safety", label: "Leader Safety", description: "Safe indicators and contact guidance.", marker: "LS" }
@@ -30,6 +31,7 @@ const RESTRICTED_TOOLS: MoreTile[] = [
 const MEDICAL_COMMAND_TOOLS: MoreTile[] = [
   { href: "/camp/medical-command", label: "Medical Dashboard", description: "Andrew-only Medical Command summary.", marker: "MD" },
   { href: "/camp/medical-command/administer", label: "Administer Medicine", description: "Andrew-only administration queue.", marker: "AM" },
+  { href: "/camp/all-campers", label: "All Campers", description: "Combined Emerge and partner camper oversight.", marker: "AC" },
   { href: "/camp/settings/import?mode=partner", label: "Partner Church Upload", description: "Admin import flow for reviewed partner rosters.", marker: "PU" },
   { href: "/camp/settings/staff", label: "Leader / Staff Details", description: "Edit imported leader and staff operational fields.", marker: "LD" },
   { href: "/camp/settings", label: "Camp Settings", description: "Camp access and settings entry point.", marker: "CS" }

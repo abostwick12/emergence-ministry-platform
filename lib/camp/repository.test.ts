@@ -774,8 +774,8 @@ describe("camp repository mock fallback", () => {
     const general = resolveCampAccessContext(mockSession, "general_leader");
     const restricted = resolveCampAccessContext(mockSession, "andrew");
     const csv = [
-      "Registration ID,Name,Selection,Grade,Room Number,T-Shirt Size,Team,Quick Filter,Emergency Contact",
-      "70000041,Fixture Staff Leader,,,Cabin L,Adult XL,Blue Team,No Concern,"
+      "Registration ID,Name,Selection,Grade,Room Number,T-Shirt Size,Team,Quick Filter,Emergency Contact,Leader Photo,Source Church",
+      "70000041,Fixture Staff Leader,,,Cabin L,Adult XL,Blue Team,No Concern,,https://photos.example.test/fixture-leader.jpg,Partner Chapel"
     ].join("\n");
 
     const preview = await getOakwoodUploadImportPreview(mockSession, restricted, {
@@ -802,8 +802,10 @@ describe("camp repository mock fallback", () => {
     const overview = await getCampOverview(mockSession, general);
     expect(overview.staff.find((staff) => staff.name === "Fixture Staff Leader")).toMatchObject({
       role: "adult_volunteer",
+      profilePhotoUrl: "https://photos.example.test/fixture-leader.jpg",
       shirtSize: "Adult XL",
-      registrationExternalId: "70000041"
+      registrationExternalId: "70000041",
+      sourceChurch: "Partner Chapel"
     });
     expect(overview.students.some((student) => student.name === "Fixture Staff Leader")).toBe(false);
     expect(JSON.stringify(overview)).not.toContain("Emergency Contact");
@@ -851,8 +853,10 @@ describe("camp repository mock fallback", () => {
     const updated = await updateCampStaffMember(mockSession, restricted, {
       id: staff.id,
       name: "Editable Staff Leader Updated",
+      profilePhotoUrl: "https://photos.example.test/editable-updated.jpg",
       role: "leader",
       shirtSize: "Adult Medium",
+      sourceChurch: "Updated Church",
       teamId: team.id
     });
     expect(updated.allowed).toBe(true);
@@ -860,8 +864,10 @@ describe("camp repository mock fallback", () => {
     expect(updated.staff).toMatchObject({
       id: staff.id,
       name: "Editable Staff Leader Updated",
+      profilePhotoUrl: "https://photos.example.test/editable-updated.jpg",
       role: "leader",
       shirtSize: "Adult Medium",
+      sourceChurch: "Updated Church",
       teamId: team.id
     });
 
