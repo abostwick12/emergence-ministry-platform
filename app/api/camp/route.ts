@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession, unauthorizedResponse } from "@/lib/auth/server";
 import { getDefaultCampAccessScope } from "@/lib/camp/access";
-import { canAccessCampEmmaOperationsCommand, canAccessCampMedicalCommand } from "@/lib/camp/permissions";
+import { canAccessCampMedicalCommand } from "@/lib/camp/permissions";
 import { resolveCampAccessForRequest } from "@/lib/camp/access-control";
 import { getCampOverview } from "@/lib/camp/repository";
 
@@ -23,10 +23,11 @@ export async function GET(request: Request) {
     capabilities: {
       restrictedMedical: context.canAccessRestricted,
       medicalCommand: canAccessCampMedicalCommand(context),
-      operationsCommand: canAccessCampEmmaOperationsCommand(context),
+      operationsCommand: context.campEditScope !== "read_only",
       campEditScope: context.campEditScope,
       appAreaScope: context.appAreaScope,
       canPostTeamBulletin: context.canPostTeamBulletin
-    }
+    },
+    leaderName: session.user.fullName
   });
 }

@@ -12,10 +12,12 @@ import {
 import type {
   CampAccessRole,
   CampAccessScope,
+  CampEmmaActionAuditRecord,
   CampAuditStatus,
   CampCamperProfilePhotoRecord,
   CampDocument,
   CampEmmaActionAudit,
+  CampEmmaPendingAction,
   CampMedicationAdministrationLog,
   CampMedicationArchiveInput,
   CampArchiveInput,
@@ -63,6 +65,8 @@ type CampStoreState = {
   staff: CampStaffMember[];
   importBatches: CampImportAuditBatch[];
   emmaActions: CampEmmaActionAudit[];
+  emmaActionAudit: CampEmmaActionAuditRecord[];
+  emmaPendingActions: CampEmmaPendingAction[];
   deniedMutationAttempts: CampDeniedMutationAttempt[];
   teamBulletins: CampTeamBulletinPost[];
 };
@@ -85,7 +89,7 @@ function cloneArray<T>(items: T[]): T[] {
 
 function createInitialState(): CampStoreState {
   return {
-    version: 1,
+    version: 2,
     students: cloneArray(campStudents),
     teams: cloneArray(campTeams),
     vehicles: cloneArray(campVehicles),
@@ -102,13 +106,15 @@ function createInitialState(): CampStoreState {
     staff: [],
     importBatches: [],
     emmaActions: [],
+    emmaActionAudit: [],
+    emmaPendingActions: [],
     deniedMutationAttempts: [],
     teamBulletins: []
   };
 }
 
 const campGlobal = globalThis as CampGlobal;
-const store = campGlobal.__leadEmergenceCampStore?.version === 1
+const store = campGlobal.__leadEmergenceCampStore?.version === 2
   ? campGlobal.__leadEmergenceCampStore
   : createInitialState();
 campGlobal.__leadEmergenceCampStore = store;
@@ -454,6 +460,32 @@ export function recordCampEmmaAction(action: CampEmmaActionAudit): CampEmmaActio
 
 export function listCampEmmaActions(): CampEmmaActionAudit[] {
   return cloneArray(store.emmaActions);
+}
+
+export function createCampEmmaPendingAction(action: CampEmmaPendingAction): CampEmmaPendingAction {
+  store.emmaPendingActions.unshift(action);
+  return { ...action };
+}
+
+export function getCampEmmaPendingAction(id: string): CampEmmaPendingAction | undefined {
+  const action = store.emmaPendingActions.find((item) => item.id === id);
+  return action ? { ...action } : undefined;
+}
+
+export function updateCampEmmaPendingAction(id: string, patch: Partial<CampEmmaPendingAction>): CampEmmaPendingAction | undefined {
+  const action = store.emmaPendingActions.find((item) => item.id === id);
+  if (!action) return undefined;
+  Object.assign(action, patch);
+  return { ...action };
+}
+
+export function recordCampEmmaActionAudit(action: CampEmmaActionAuditRecord): CampEmmaActionAuditRecord {
+  store.emmaActionAudit.unshift(action);
+  return { ...action };
+}
+
+export function listCampEmmaActionAudit(): CampEmmaActionAuditRecord[] {
+  return cloneArray(store.emmaActionAudit);
 }
 
 export function recordDeniedMutationAttempt(input: Omit<CampDeniedMutationAttempt, "createdAt">): CampDeniedMutationAttempt {

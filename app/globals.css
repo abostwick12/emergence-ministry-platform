@@ -3820,42 +3820,34 @@ html:has(.app-shell-camp) body {
 }
 
 .emma-wave-orb {
+  position: relative;
   display: grid;
   place-items: center;
   width: 58px;
   height: 58px;
   border-radius: 50%;
-  background: radial-gradient(circle at 32% 26%, rgba(224, 250, 255, 0.55), rgba(56, 189, 248, 0.20) 46%, rgba(8, 47, 73, 0.32));
-  border: 1px solid rgba(186, 230, 253, 0.55);
+  overflow: hidden;
+  background: #e0faff;
+  border: 2px solid rgba(186, 230, 253, 0.86);
   box-shadow:
     0 16px 30px rgba(8, 47, 73, 0.5),
     0 0 0 4px rgba(56, 189, 248, 0.12),
-    inset 0 2px 3px rgba(255, 255, 255, 0.6),
-    inset 0 -7px 13px rgba(2, 47, 73, 0.42);
+    inset 0 2px 3px rgba(255, 255, 255, 0.6);
   transition: transform 180ms ease;
 }
 
-.emma-wave-orb-swell {
-  animation: emma-orb-drift 4.6s ease-in-out infinite;
-  transform-box: fill-box;
-  transform-origin: center;
-}
-
-.emma-wave-orb-svg {
-  width: 56px;
-  height: 56px;
+.emma-wave-orb-image {
+  width: 100%;
+  height: 100%;
   display: block;
-  filter: drop-shadow(0 10px 18px rgba(2, 132, 199, 0.24));
+  object-fit: cover;
+  object-position: 50% 50%;
+  transform: scale(1.08);
 }
 
 .camp-nav-emma:active .emma-wave-orb,
 .emma-wave-orb.active {
   transform: scale(1.04);
-}
-
-.camp-nav-emma:active .emma-wave-orb-crest,
-.emma-wave-orb.active .emma-wave-orb-crest {
-  animation: emma-wave-pulse 360ms ease-out;
 }
 
 .camp-emma-backdrop {
@@ -4201,12 +4193,8 @@ html:has(.app-shell-camp) body {
     height: 46px;
     margin-top: -13px;
   }
-  .camp-nav-emma .emma-wave-orb-svg {
-    width: 46px;
-    height: 46px;
-  }
   .camp-cc-main { padding-bottom: calc(116px + env(safe-area-inset-bottom, 0px)); }
-  .camp-emma-backdrop { padding: 12px 12px calc(100px + env(safe-area-inset-bottom, 0px)); }
+  .camp-emma-backdrop { padding: 12px 12px calc(144px + env(safe-area-inset-bottom, 0px)); }
   .camp-emma-sheet { border-radius: 22px; max-height: 68vh; }
   .camp-more-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -4226,18 +4214,6 @@ html:has(.app-shell-camp) body {
     margin: 0;
   }
 
-  .camp-nav-emma .emma-wave-orb-svg {
-    width: 34px;
-    height: 34px;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .camp-nav-emma:active .emma-wave-orb-crest,
-  .emma-wave-orb.active .emma-wave-orb-crest,
-  .emma-wave-orb-swell {
-    animation: none;
-  }
 }
 
 /* ── Deep-blue liquid-glass surface layer (overrides legacy light treatment) ── */
@@ -6395,14 +6371,14 @@ html:has(.app-shell-camp) body {
 }
 
 .camp-emma-backdrop {
-  z-index: var(--camp-layer-popover);
+  z-index: calc(var(--camp-layer-photo-modal) + 10);
   pointer-events: auto;
   isolation: isolate;
 }
 
 .camp-emma-sheet {
   position: relative;
-  z-index: calc(var(--camp-layer-popover) + 1);
+  z-index: calc(var(--camp-layer-photo-modal) + 11);
 }
 
 .camp-dialog-backdrop {
