@@ -1019,6 +1019,48 @@ describe("camp repository mock fallback", () => {
     expect(JSON.stringify(overview.staff)).not.toContain("Parent medical note");
   });
 
+  it("lets Camp Admin update staff with name only and preserves optional details", async () => {
+    const mockSession = session();
+    const restricted = resolveCampAccessContext(mockSession, "andrew");
+    const preview = await getOakwoodUploadImportPreview(mockSession, restricted, {
+      sourceName: "Oakwood Name Only Staff Fixture",
+      sources: [{
+        scope: "staff_only",
+        csv: [
+          "Registration ID,Name,Selection,Grade,Room Number,T-Shirt Size,Team,Quick Filter,Emergency Contact",
+          "70000043,Name Only Staff Fixture,,,Cabin L,Adult Large,Blue Team,No Concern,"
+        ].join("\n"),
+        fileName: "Oakwood_Leaders.csv",
+        checksumSha256: "name-only-staff-fixture"
+      }]
+    });
+    if (!preview.allowed) throw new Error("expected staff preview success");
+    const commit = await commitOakwoodImport(mockSession, restricted, { preview: preview.preview, confirmed: true });
+    if (!commit.allowed || "error" in commit) throw new Error("expected staff commit success");
+
+    const before = await getCampStaffManagementPayload(mockSession, restricted);
+    expect(before.allowed).toBe(true);
+    if (!before.allowed) throw new Error("expected staff management payload");
+    const staff = before.staff.find((member) => member.name === "Name Only Staff Fixture");
+    expect(staff).toBeDefined();
+    if (!staff) throw new Error("expected staff");
+
+    const updated = await updateCampStaffMember(mockSession, restricted, {
+      id: staff.id,
+      name: "Name Only Staff Update"
+    });
+    expect(updated.allowed).toBe(true);
+    if (!updated.allowed || "error" in updated) throw new Error("expected staff update success");
+    expect(updated.staff).toMatchObject({
+      id: staff.id,
+      name: "Name Only Staff Update",
+      role: staff.role,
+      teamId: staff.teamId,
+      shirtSize: staff.shirtSize,
+      sourceChurch: staff.sourceChurch
+    });
+  });
+
   it("blocks Oakwood ambiguous rows and never matches household id alone", async () => {
     const mockSession = session();
     const restricted = resolveCampAccessContext(mockSession, "andrew");

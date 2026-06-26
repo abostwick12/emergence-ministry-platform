@@ -596,6 +596,35 @@ describe("camp API restricted data boundaries", () => {
     expectNoRestrictedPayloadDetails(overviewPayload.staff);
   });
 
+  it("allows Camp Admin to save existing leader/staff details with only a name change", async () => {
+    getServerSessionMock.mockResolvedValue(andrewSession());
+    await seedImportedStaff();
+
+    const before = await staffGET(new Request("http://localhost/api/camp/staff?role=andrew"));
+    const beforePayload = await before.json() as {
+      staff: Array<{ id: string; name: string; role: string; shirtSize?: string; sourceChurch?: string; teamId?: string; registrationExternalId?: string }>;
+    };
+    const imported = beforePayload.staff.find((staff) => staff.name === "API Imported Staff Leader");
+    expect(imported).toMatchObject({ registrationExternalId: "70000994" });
+    if (!imported) throw new Error("expected imported staff");
+
+    const update = await staffPATCH(jsonRequest("http://localhost/api/camp/staff?role=andrew", {
+      id: imported.id,
+      name: "API Name Only Staff Edit"
+    }, "PATCH"));
+    const updatePayload = await update.json() as { staff: { id: string; name: string; role: string; shirtSize?: string; sourceChurch?: string; teamId?: string } };
+
+    expect(update.status).toBe(200);
+    expect(updatePayload.staff).toMatchObject({
+      id: imported.id,
+      name: "API Name Only Staff Edit",
+      role: imported.role,
+      shirtSize: imported.shirtSize,
+      sourceChurch: imported.sourceChurch,
+      teamId: imported.teamId
+    });
+  });
+
   it("allows restricted users to archive, restore, upload, and retrieve medication photos", async () => {
     getServerSessionMock.mockResolvedValue(andrewSession());
 

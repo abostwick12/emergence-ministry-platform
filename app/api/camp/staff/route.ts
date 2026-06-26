@@ -37,7 +37,11 @@ export async function PATCH(request: Request) {
     });
     if (!payload.allowed) return NextResponse.json({ error: payload.error }, { status: payload.status });
     if ("error" in payload) return NextResponse.json({ error: payload.error }, { status: payload.status });
-    return NextResponse.json({ staff: payload.staff }, { status: payload.status });
+    return NextResponse.json({
+      staff: payload.staff,
+      warning: "warning" in payload ? payload.warning : undefined,
+      optionalFieldsDropped: "optionalFieldsDropped" in payload ? payload.optionalFieldsDropped : undefined
+    }, { status: payload.status });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to update Camp staff details." }, { status: 400 });
   }

@@ -540,20 +540,31 @@ export function CampStaffManagementToolPage() {
   const [editing, setEditing] = useState<(CampStaffInput & { id: string }) | null>(null);
   const [saving, setSaving] = useState(false);
   const [photoStatus, setPhotoStatus] = useState<"idle" | "preparing" | "ready" | "failed">("idle");
-  const [message, setMessage] = useState<{ tone: "error" | "success"; text: string } | null>(null);
+  const [message, setMessage] = useState<{ tone: "error" | "success" | "warning"; text: string } | null>(null);
   const activeStaff = overview.staff.filter((staff) => !staff.archivedAt);
   const teamsById = useMemo(() => new Map(overview.teams.map((team) => [team.id, team])), [overview.teams]);
 
   async function saveStaff() {
     if (!editing) return;
+    const savedStaff = activeStaff.find((staff) => staff.id === editing.id);
+    const payload: CampStaffInput & { id: string } = {
+      id: editing.id,
+      name: editing.name
+    };
+    if (editing.role !== savedStaff?.role) payload.role = editing.role;
+    if ((editing.teamId ?? "") !== (savedStaff?.teamId ?? "")) payload.teamId = editing.teamId ?? "";
+    if ((editing.shirtSize ?? "") !== (savedStaff?.shirtSize ?? "")) payload.shirtSize = editing.shirtSize ?? "";
+    if ((editing.sourceChurch ?? "") !== (savedStaff?.sourceChurch ?? "")) payload.sourceChurch = editing.sourceChurch ?? "";
+    if ((editing.profilePhotoUrl ?? "") !== (savedStaff?.profilePhotoUrl ?? "")) payload.profilePhotoUrl = editing.profilePhotoUrl ?? "";
+
     setSaving(true);
     setMessage(null);
     const response = await fetch("/api/camp/staff", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(editing)
+      body: JSON.stringify(payload)
     });
-    const body = await response.json().catch(() => ({})) as { error?: string };
+    const body = await response.json().catch(() => ({})) as { error?: string; warning?: string; optionalFieldsDropped?: boolean };
     setSaving(false);
     if (!response.ok) {
       setMessage({ tone: "error", text: body.error ?? "Staff details could not be saved." });
@@ -562,7 +573,12 @@ export function CampStaffManagementToolPage() {
     await refresh();
     setEditing(null);
     setPhotoStatus("idle");
-    setMessage({ tone: "success", text: "Staff details saved." });
+    setMessage(body.warning || body.optionalFieldsDropped
+      ? {
+          tone: "warning",
+          text: body.warning ?? "Basic staff details saved, but one or more optional fields could not be saved because the production schema is missing a column."
+        }
+      : { tone: "success", text: "Staff details saved." });
   }
 
   async function selectStaffPhoto(file: File | null) {
@@ -591,7 +607,7 @@ export function CampStaffManagementToolPage() {
 
   return (
     <ToolPageShell title="Leader / Staff Details" subtitle="Safe operational details for imported Oakwood leaders and staff.">
-      {message ? <p className={message.tone === "error" ? "camp-save-message error" : "camp-save-message success"} role="status">{message.text}</p> : null}
+      {message ? <p className={`camp-save-message ${message.tone}`} role="status">{message.text}</p> : null}
       {loading && !activeStaff.length ? (
         <EmptyState>Loading Camp staff...</EmptyState>
       ) : activeStaff.length ? (
