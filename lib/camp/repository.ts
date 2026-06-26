@@ -1317,34 +1317,56 @@ export async function updateCampStaffMember(session: AuthSession, context: CampA
   const access = assertCampAdminAccess(context);
   if (!access.allowed) return access;
   if (!input.name.trim()) return { allowed: true as const, status: 400, error: "Staff display name is required." };
-  if (!isCampStaffRole(input.role)) return { allowed: true as const, status: 400, error: "Choose a valid staff role." };
+  if (input.role !== undefined && !isCampStaffRole(input.role)) return { allowed: true as const, status: 400, error: "Choose a valid staff role." };
   if (shouldUseMock(session)) return mockStore.updateCampStaffMember(input);
 
   const supabase = getSupabaseAuthClient(session.accessToken);
   const basics = await ensureCampBasics(session);
-  const teamId = input.teamId?.trim() || null;
-  if (teamId && !basics.teams.some((team) => team.id === teamId)) {
+  const teamId = input.teamId !== undefined ? input.teamId.trim() || null : undefined;
+  if (teamId !== undefined && teamId && !basics.teams.some((team) => team.id === teamId)) {
     return { allowed: true as const, status: 400, error: "Choose an active Camp team for this staff member." };
   }
 
-  const { data, error } = await supabase
+  const coreUpdate: Partial<CampStaffRow> = {
+    name: input.name.trim(),
+    ...(input.role !== undefined ? { role: input.role } : {}),
+    ...(teamId !== undefined ? { team_id: teamId } : {})
+  };
+  const optionalUpdate: Partial<CampStaffRow> = {
+    ...(input.shirtSize !== undefined ? { shirt_size: input.shirtSize.trim() } : {}),
+    ...(input.profilePhotoUrl !== undefined ? { profile_photo_url: sanitizeProfilePhotoUrl(input.profilePhotoUrl) ?? "" } : {}),
+    ...(input.sourceChurch !== undefined ? { source_church: input.sourceChurch.trim() } : {})
+  };
+
+  const firstUpdate = await supabase
     .from("camp_staff")
-    .update({
-      name: input.name.trim(),
-      role: input.role,
-      shirt_size: input.shirtSize?.trim() || null,
-      ...(input.profilePhotoUrl !== undefined ? { profile_photo_url: sanitizeProfilePhotoUrl(input.profilePhotoUrl) ?? "" } : {}),
-      ...(input.sourceChurch !== undefined ? { source_church: input.sourceChurch.trim() } : {}),
-      team_id: teamId
-    })
+    .update({ ...coreUpdate, ...optionalUpdate })
     .eq("camp_id", basics.camp.id)
     .eq("id", input.id)
     .is("archived_at", null)
     .select("*")
     .maybeSingle<CampStaffRow>();
-  throwIfSupabaseError(error);
+
+  let data = firstUpdate.data;
+  let warning: string | undefined;
+  if (isMissingOptionalStaffColumnError(firstUpdate.error)) {
+    const fallbackUpdate = await supabase
+      .from("camp_staff")
+      .update(coreUpdate)
+      .eq("camp_id", basics.camp.id)
+      .eq("id", input.id)
+      .is("archived_at", null)
+      .select("*")
+      .maybeSingle<CampStaffRow>();
+    throwIfSupabaseError(fallbackUpdate.error);
+    data = fallbackUpdate.data;
+    warning = "Basic staff details saved, but one or more optional fields could not be saved because the production schema is missing a column. Apply migration 020 or reload the Supabase schema cache to restore optional staff fields.";
+  } else {
+    throwIfSupabaseError(firstUpdate.error);
+  }
+
   if (!data) return { allowed: true as const, status: 404, error: "Active Camp staff member not found." };
-  return { allowed: true as const, status: 200, staff: toCampStaff(data, basics.teams) };
+  return { allowed: true as const, status: 200, staff: toCampStaff(data, basics.teams), warning, optionalFieldsDropped: Boolean(warning) };
 }
 
 export function buildRestrictedCampMedicationPayloadFromRows(input: {
@@ -2522,6 +2544,10 @@ function isMissingTableError(error: { message: string } | null, tableName: strin
 
 function isMissingColumnError(error: { message: string } | null, columnName: string) {
   return Boolean(error?.message.toLowerCase().includes(columnName.toLowerCase()) && error.message.toLowerCase().includes("column"));
+}
+
+function isMissingOptionalStaffColumnError(error: { message: string } | null) {
+  return ["profile_photo_url", "source_church", "shirt_size"].some((columnName) => isMissingColumnError(error, columnName));
 }
 
 function assertSignature(signature: CampMedicationIntakeInput["guardianSignatureData"]) {
