@@ -8,9 +8,14 @@ import { sanitizePublicSafetyFlags } from "@/lib/camp/public-safety";
 import { isVehicleAssignableCamper } from "@/lib/camp/transportation-roster";
 import {
   assertCampAdminAccess,
+  assertAllCampersOperationalWriteAccess,
+  assertCampBulletinPostAccess,
   assertCampEmmaOperationsAccess,
   assertCampMedicalCommandAccess,
   assertCampRestrictedAccess,
+  canEditAllCampers,
+  canEditPartnerChurchCampers,
+  normalizeScopeId,
   type CampAccessContext
 } from "@/lib/camp/permissions";
 import * as mockStore from "@/lib/camp/store";
@@ -42,6 +47,7 @@ import type {
   CampStudentInput,
   CampStudentPublic,
   CampTeam,
+  CampTeamBulletinPost,
   CampTeamInput,
   CampVehicleInput,
   CampVehicle
@@ -743,11 +749,19 @@ export async function getArchivedCampStudents(session: AuthSession, context: Cam
 }
 
 export async function upsertCampStudent(session: AuthSession, context: CampAccessContext, input: CampStudentInput) {
-  if (context.isDriver) return { allowed: false as const, status: 403, error: "Camp roster editing is not available for this role." };
-  if (shouldUseMock(session)) return { allowed: true as const, status: input.id ? 200 : 201, student: mockStore.upsertCampStudent(input) };
+  if (context.isDriver) return deniedCampMutation(session, context, "camper.write", "camp_campers", input.id, "Camp roster editing is not available for this role.");
+  if (shouldUseMock(session)) {
+    const existing = input.id ? mockStore.getActiveCampStudentById(input.id) : undefined;
+    const access = assertCampCamperWriteAccess(context, input, existing);
+    if (!access.allowed) return deniedCampMutation(session, context, "camper.write", "camp_campers", input.id, access.error);
+    return { allowed: true as const, status: input.id ? 200 : 201, student: mockStore.upsertCampStudent(input) };
+  }
 
   const supabase = getSupabaseAuthClient(session.accessToken);
   const basics = await ensureCampBasics(session);
+  const existing = input.id ? await loadActiveCamperForAccess(session, input.id) : null;
+  const access = assertCampCamperWriteAccess(context, input, existing ? toCampStudentPublic(existing) : undefined);
+  if (!access.allowed) return deniedCampMutation(session, context, "camper.write", "camp_campers", input.id, access.error);
   const sourceChurch = input.sourceChurch?.trim() ?? "";
   const rosterType = input.rosterType ?? rosterTypeFromFlags(input.limitedSafetyFlags ?? []);
   const row = {
@@ -783,13 +797,16 @@ export async function saveCampCamperProfilePhoto(
   context: CampAccessContext,
   input: { studentId: string; file: File }
 ) {
-  if (context.isDriver) return { allowed: false as const, status: 403, error: "Camper photo editing is not available for this role." };
+  if (context.isDriver) return deniedCampMutation(session, context, "camper_photo.write", "camp_camper_profile_photo_records", input.studentId, "Camper photo editing is not available for this role.");
 
   const contentType = input.file.type || "application/octet-stream";
   const fileSize = input.file.size;
   assertCamperProfilePhotoFile(contentType, fileSize);
 
   if (shouldUseMock(session)) {
+    const existing = mockStore.getActiveCampStudentById(input.studentId);
+    const access = assertCampCamperWriteAccess(context, { id: input.studentId, name: existing?.name ?? "", grade: existing?.grade ?? "", teamId: existing?.teamId ?? "", vehicleId: existing?.vehicleId ?? "", cabin: existing?.cabin ?? "", sourceChurch: existing?.sourceChurch, rosterType: existing?.rosterType }, existing);
+    if (!access.allowed) return deniedCampMutation(session, context, "camper_photo.write", "camp_camper_profile_photo_records", input.studentId, access.error);
     const buffer = Buffer.from(await input.file.arrayBuffer());
     return mockStore.saveCampCamperProfilePhoto({
       studentId: input.studentId,
@@ -802,6 +819,17 @@ export async function saveCampCamperProfilePhoto(
   const supabase = getSupabaseAuthClient(session.accessToken);
   const basics = await ensureCampBasics(session);
   const camper = await requireActiveCamper(session, input.studentId);
+  const access = assertCampCamperWriteAccess(context, {
+    id: camper.id,
+    name: camper.name,
+    grade: camper.grade ?? "",
+    teamId: camper.team_id ?? "",
+    vehicleId: camper.vehicle_id ?? "",
+    cabin: camper.cabin ?? "",
+    sourceChurch: camper.source_church ?? undefined,
+    rosterType: camper.roster_type ?? undefined
+  }, toCampStudentPublic(camper));
+  if (!access.allowed) return deniedCampMutation(session, context, "camper_photo.write", "camp_camper_profile_photo_records", input.studentId, access.error);
   const photoId = randomUUID();
   const extension = extensionForContentType(contentType);
   const objectPath = `ministry/${camper.ministry_id}/camp/${basics.camp.id}/camper/${camper.id}/profile/${photoId}.${extension}`;
@@ -854,12 +882,28 @@ export async function saveCampCamperProfilePhoto(
 }
 
 export async function removeCampCamperProfilePhoto(session: AuthSession, context: CampAccessContext, input: { studentId: string }) {
-  if (context.isDriver) return { allowed: false as const, status: 403, error: "Camper photo editing is not available for this role." };
-  if (shouldUseMock(session)) return mockStore.removeCampCamperProfilePhoto(input);
+  if (context.isDriver) return deniedCampMutation(session, context, "camper_photo.remove", "camp_camper_profile_photo_records", input.studentId, "Camper photo editing is not available for this role.");
+  if (shouldUseMock(session)) {
+    const existing = mockStore.getActiveCampStudentById(input.studentId);
+    const access = assertCampCamperWriteAccess(context, { id: input.studentId, name: existing?.name ?? "", grade: existing?.grade ?? "", teamId: existing?.teamId ?? "", vehicleId: existing?.vehicleId ?? "", cabin: existing?.cabin ?? "", sourceChurch: existing?.sourceChurch, rosterType: existing?.rosterType }, existing);
+    if (!access.allowed) return deniedCampMutation(session, context, "camper_photo.remove", "camp_camper_profile_photo_records", input.studentId, access.error);
+    return mockStore.removeCampCamperProfilePhoto(input);
+  }
 
   const supabase = getSupabaseAuthClient(session.accessToken);
   const basics = await ensureCampBasics(session);
   const camper = await requireActiveCamper(session, input.studentId);
+  const access = assertCampCamperWriteAccess(context, {
+    id: camper.id,
+    name: camper.name,
+    grade: camper.grade ?? "",
+    teamId: camper.team_id ?? "",
+    vehicleId: camper.vehicle_id ?? "",
+    cabin: camper.cabin ?? "",
+    sourceChurch: camper.source_church ?? undefined,
+    rosterType: camper.roster_type ?? undefined
+  }, toCampStudentPublic(camper));
+  if (!access.allowed) return deniedCampMutation(session, context, "camper_photo.remove", "camp_camper_profile_photo_records", input.studentId, access.error);
   const { error } = await supabase
     .from("camp_camper_profile_photo_records")
     .update({ removed_at: new Date().toISOString() })
@@ -875,7 +919,8 @@ export async function removeCampCamperProfilePhoto(session: AuthSession, context
 }
 
 export async function upsertCampScheduleItem(session: AuthSession, context: CampAccessContext, input: CampScheduleInput) {
-  if (context.isDriver) return { allowed: false as const, status: 403, error: "Camp schedule editing is not available for this role." };
+  const access = assertAllCampersOperationalWriteAccess(context, "Camp schedule editing");
+  if (!access.allowed) return deniedCampMutation(session, context, "schedule.write", "camp_schedule_items", input.id, context.isDriver ? "Camp schedule editing is not available for this role." : access.error);
   if (shouldUseMock(session)) return { allowed: true as const, status: input.id ? 200 : 201, item: mockStore.upsertCampScheduleItem(input) };
 
   const supabase = getSupabaseAuthClient(session.accessToken);
@@ -896,7 +941,8 @@ export async function upsertCampScheduleItem(session: AuthSession, context: Camp
 }
 
 export async function archiveCampScheduleItem(session: AuthSession, context: CampAccessContext, input: { id: string }) {
-  if (context.isDriver) return { allowed: false as const, status: 403, error: "Camp schedule editing is not available for this role." };
+  const access = assertAllCampersOperationalWriteAccess(context, "Camp schedule editing");
+  if (!access.allowed) return deniedCampMutation(session, context, "schedule.archive", "camp_schedule_items", input.id, context.isDriver ? "Camp schedule editing is not available for this role." : access.error);
   if (shouldUseMock(session)) return mockStore.archiveCampScheduleItem(input);
 
   const supabase = getSupabaseAuthClient(session.accessToken);
@@ -913,7 +959,8 @@ export async function archiveCampScheduleItem(session: AuthSession, context: Cam
 }
 
 export async function upsertCampTeam(session: AuthSession, context: CampAccessContext, input: CampTeamInput) {
-  if (context.isDriver) return { allowed: false as const, status: 403, error: "Camp team editing is not available for this role." };
+  const access = assertAllCampersOperationalWriteAccess(context, "Camp team editing");
+  if (!access.allowed) return deniedCampMutation(session, context, "team.write", "camp_teams", input.id, context.isDriver ? "Camp team editing is not available for this role." : access.error);
   if (shouldUseMock(session)) return { allowed: true as const, status: input.id ? 200 : 201, team: mockStore.upsertCampTeam(input) };
 
   const supabase = getSupabaseAuthClient(session.accessToken);
@@ -940,7 +987,8 @@ export async function upsertCampTeam(session: AuthSession, context: CampAccessCo
 }
 
 export async function archiveCampTeam(session: AuthSession, context: CampAccessContext, input: { id: string }) {
-  if (context.isDriver) return { allowed: false as const, status: 403, error: "Camp team editing is not available for this role." };
+  const access = assertAllCampersOperationalWriteAccess(context, "Camp team editing");
+  if (!access.allowed) return deniedCampMutation(session, context, "team.archive", "camp_teams", input.id, context.isDriver ? "Camp team editing is not available for this role." : access.error);
   if (shouldUseMock(session)) return mockStore.archiveCampTeam(input);
 
   const supabase = getSupabaseAuthClient(session.accessToken);
@@ -960,7 +1008,8 @@ export async function archiveCampTeam(session: AuthSession, context: CampAccessC
 }
 
 export async function upsertCampVehicle(session: AuthSession, context: CampAccessContext, input: CampVehicleInput) {
-  if (context.isDriver) return { allowed: false as const, status: 403, error: "Camp vehicle editing is not available for this role." };
+  const access = assertAllCampersOperationalWriteAccess(context, "Camp vehicle editing");
+  if (!access.allowed) return deniedCampMutation(session, context, "vehicle.write", "camp_vehicles", input.id, context.isDriver ? "Camp vehicle editing is not available for this role." : access.error);
   if (shouldUseMock(session)) return { allowed: true as const, status: input.id ? 200 : 201, vehicle: mockStore.upsertCampVehicle(input) };
 
   const supabase = getSupabaseAuthClient(session.accessToken);
@@ -987,7 +1036,8 @@ export async function upsertCampVehicle(session: AuthSession, context: CampAcces
 }
 
 export async function archiveCampVehicle(session: AuthSession, context: CampAccessContext, input: { id: string }) {
-  if (context.isDriver) return { allowed: false as const, status: 403, error: "Camp vehicle editing is not available for this role." };
+  const access = assertAllCampersOperationalWriteAccess(context, "Camp vehicle editing");
+  if (!access.allowed) return deniedCampMutation(session, context, "vehicle.archive", "camp_vehicles", input.id, context.isDriver ? "Camp vehicle editing is not available for this role." : access.error);
   if (shouldUseMock(session)) return mockStore.archiveCampVehicle(input);
 
   const supabase = getSupabaseAuthClient(session.accessToken);
@@ -1010,10 +1060,12 @@ export async function assignCampStudent(
   context: CampAccessContext,
   input: { studentId: string; teamId?: string; vehicleId?: string; cabin?: string }
 ) {
-  if (context.isDriver) return { allowed: false as const, status: 403, error: "Camp roster editing is not available for this role." };
+  if (context.isDriver) return deniedCampMutation(session, context, "camper.assign", "camp_campers", input.studentId, "Camp roster editing is not available for this role.");
   if (shouldUseMock(session)) {
     const existing = mockStore.getActiveCampStudentById(input.studentId);
     if (!existing) throw new Error("Active camper not found.");
+    const access = assertCampCamperWriteAccess(context, { id: input.studentId, name: existing.name, grade: existing.grade ?? "", teamId: existing.teamId ?? "", vehicleId: existing.vehicleId ?? "", cabin: existing.cabin ?? "", sourceChurch: existing.sourceChurch, rosterType: existing.rosterType }, existing);
+    if (!access.allowed) return deniedCampMutation(session, context, "camper.assign", "camp_campers", input.studentId, access.error);
     if (input.vehicleId && !isVehicleAssignableCamper(existing)) {
       return { allowed: false as const, status: 403, error: "Vehicle assignment is limited to CLC/emergency roster campers." };
     }
@@ -1026,6 +1078,18 @@ export async function assignCampStudent(
   if (input.cabin !== undefined) update.cabin = input.cabin;
 
   const supabase = getSupabaseAuthClient(session.accessToken);
+  const existingForAccess = await loadActiveCamperForAccess(session, input.studentId);
+  const access = assertCampCamperWriteAccess(context, {
+    id: existingForAccess?.id,
+    name: existingForAccess?.name ?? "",
+    grade: existingForAccess?.grade ?? "",
+    teamId: existingForAccess?.team_id ?? "",
+    vehicleId: existingForAccess?.vehicle_id ?? "",
+    cabin: existingForAccess?.cabin ?? "",
+    sourceChurch: existingForAccess?.source_church ?? undefined,
+    rosterType: existingForAccess?.roster_type ?? undefined
+  }, existingForAccess ? toCampStudentPublic(existingForAccess) : undefined);
+  if (!access.allowed) return deniedCampMutation(session, context, "camper.assign", "camp_campers", input.studentId, access.error);
   if (input.vehicleId) {
     const { data: existing, error: existingError } = await supabase
       .from("camp_campers")
@@ -1047,6 +1111,67 @@ export async function assignCampStudent(
   throwIfSupabaseError(error);
   if (!data) throw new Error("Camp assignment update returned no row.");
   return { allowed: true as const, status: 200, student: toCampStudentPublic(data) };
+}
+
+export async function postCampTeamBulletin(
+  session: AuthSession,
+  context: CampAccessContext,
+  input: { teamId: string; message: string }
+): Promise<{ allowed: true; status: number; bulletin: CampTeamBulletinPost } | { allowed: true; status: number; error: string } | { allowed: false; status: number; error: string }> {
+  if (!input.teamId.trim()) return { allowed: true as const, status: 400, error: "Team is required." };
+  if (!input.message.trim()) return { allowed: true as const, status: 400, error: "Bulletin message is required." };
+
+  const access = assertCampBulletinPostAccess(context, input.teamId);
+  if (!access.allowed) return deniedCampMutation(session, context, "team_bulletin.post", "camp_team_bulletins", input.teamId, access.error);
+
+  if (shouldUseMock(session)) {
+    return mockStore.postTeamBulletin({
+      teamId: input.teamId,
+      message: input.message,
+      partnerChurchId: access.partnerChurchId,
+      postedByName: session.user.fullName
+    });
+  }
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const basics = await ensureCampBasics(session);
+  if (!basics.teams.some((team) => team.id === input.teamId)) {
+    return { allowed: true as const, status: 404, error: "Active team not found." };
+  }
+  const { data, error } = await supabase
+    .from("camp_team_bulletins")
+    .insert({
+      ...ministryScopeColumns(await resolveMinistryScope(session)),
+      camp_id: basics.camp.id,
+      team_id: input.teamId,
+      partner_church_id: access.partnerChurchId,
+      message: input.message.trim(),
+      posted_by_user_id: session.user.id,
+      posted_by_name: session.user.fullName
+    })
+    .select("id,team_id,partner_church_id,message,posted_by_name,created_at")
+    .single<{
+      id: string;
+      team_id: string;
+      partner_church_id: string | null;
+      message: string;
+      posted_by_name: string;
+      created_at: string;
+    }>();
+  throwIfSupabaseError(error);
+  if (!data) throw new Error("Team bulletin write returned no row.");
+  return {
+    allowed: true,
+    status: 201,
+    bulletin: {
+      id: data.id,
+      teamId: data.team_id,
+      partnerChurchId: data.partner_church_id,
+      message: data.message,
+      postedByName: data.posted_by_name,
+      postedAt: data.created_at
+    }
+  };
 }
 
 // Non-throwing active-student lookup. Used by the EMMA room-change confirm
@@ -1302,7 +1427,7 @@ export async function getRestrictedCampMedicationPayload(session: AuthSession, c
 }
 
 export async function getCampStaffManagementPayload(session: AuthSession, context: CampAccessContext) {
-  const access = assertCampAdminAccess(context);
+  const access = assertAllCampersOperationalWriteAccess(context, "Camp leader detail management");
   if (!access.allowed) return access;
   const overview = await getCampOverview(session, context);
   return {
@@ -1314,8 +1439,8 @@ export async function getCampStaffManagementPayload(session: AuthSession, contex
 }
 
 export async function updateCampStaffMember(session: AuthSession, context: CampAccessContext, input: CampStaffInput & { id: string }) {
-  const access = assertCampAdminAccess(context);
-  if (!access.allowed) return access;
+  const access = assertAllCampersOperationalWriteAccess(context, "Camp leader detail management");
+  if (!access.allowed) return deniedCampMutation(session, context, "staff.write", "camp_staff", input.id, access.error);
   if (!input.name.trim()) return { allowed: true as const, status: 400, error: "Staff display name is required." };
   if (!isCampStaffRole(input.role)) return { allowed: true as const, status: 400, error: "Choose a valid staff role." };
   if (shouldUseMock(session)) return mockStore.updateCampStaffMember(input);
@@ -2488,6 +2613,107 @@ function filterDocumentsForRole(context: CampAccessContext): CampDocument[] {
     .filter((doc) => context.canAccessRestricted || doc.audience !== "Restricted Medical")
     .filter((doc) => context.effectiveRole !== "driver" || doc.audience === "Drivers")
     .map((doc) => ({ ...doc }));
+}
+
+function assertCampCamperWriteAccess(
+  context: CampAccessContext,
+  input: Partial<CampStudentInput>,
+  existing?: CampStudentPublic
+) {
+  if (canEditAllCampers(context)) return { allowed: true as const };
+
+  if (!canEditPartnerChurchCampers(context)) {
+    return {
+      allowed: false as const,
+      status: 403,
+      error: "Camp roster editing requires assigned edit rights."
+    };
+  }
+
+  const scopedChurch = normalizeScopeId(context.partnerChurchId);
+  const existingChurch = normalizeScopeId(existing?.sourceChurch);
+  const incomingChurch = normalizeScopeId(input.sourceChurch);
+  const targetChurch = existingChurch || incomingChurch;
+  const targetRosterType = existing?.rosterType ?? input.rosterType;
+
+  if (!targetChurch || targetChurch !== scopedChurch || targetRosterType !== "partner") {
+    return {
+      allowed: false as const,
+      status: 403,
+      error: "Partner Church Only edit rights are limited to campers from the assigned partner church."
+    };
+  }
+
+  if (existing && incomingChurch && incomingChurch !== scopedChurch) {
+    return {
+      allowed: false as const,
+      status: 403,
+      error: "Partner Church Only users cannot move campers to another source church."
+    };
+  }
+
+  return { allowed: true as const };
+}
+
+async function loadActiveCamperForAccess(session: AuthSession, camperId?: string): Promise<CampCamperRow | null> {
+  if (!camperId) return null;
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const { data, error } = await supabase
+    .from("camp_campers")
+    .select("*")
+    .eq("id", camperId)
+    .is("archived_at", null)
+    .maybeSingle<CampCamperRow>();
+  throwIfSupabaseError(error);
+  return data ?? null;
+}
+
+async function deniedCampMutation(
+  session: AuthSession,
+  context: CampAccessContext,
+  action: string,
+  targetTable: string,
+  targetId: string | undefined,
+  error: string
+) {
+  await logDeniedMutationAttempt(session, context, { action, targetTable, targetId, reason: error });
+  return { allowed: false as const, status: 403, error };
+}
+
+async function logDeniedMutationAttempt(
+  session: AuthSession,
+  context: CampAccessContext,
+  input: { action: string; targetTable: string; targetId?: string; reason: string }
+) {
+  if (shouldUseMock(session)) {
+    mockStore.recordDeniedMutationAttempt({
+      actorUserId: session.user.id,
+      actorEmail: session.user.email,
+      action: input.action,
+      targetTable: input.targetTable,
+      targetId: input.targetId,
+      reason: input.reason
+    });
+    return;
+  }
+
+  try {
+    const supabase = getSupabaseAuthClient(session.accessToken);
+    await supabase.from("camp_denied_mutation_audit").insert({
+      ...ministryScopeColumns(await resolveMinistryScope(session)),
+      actor_user_id: session.user.id,
+      actor_email: session.user.email.toLowerCase(),
+      camp_role: context.effectiveRole,
+      camp_edit_scope: context.campEditScope,
+      app_area_scope: context.appAreaScope,
+      action: input.action,
+      target_table: input.targetTable,
+      target_id: input.targetId ?? null,
+      reason: input.reason
+    });
+  } catch {
+    // Denial logging should never turn a safe 403 into a 500.
+  }
 }
 
 function initialsForName(name: string): string {

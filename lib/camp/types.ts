@@ -31,6 +31,15 @@ export type CampTeam = {
   archivedAt?: string;
 };
 
+export type CampTeamBulletinPost = {
+  id: string;
+  teamId: string;
+  partnerChurchId?: string | null;
+  message: string;
+  postedByName: string;
+  postedAt: string;
+};
+
 export type CampVehicle = {
   id: string;
   name: string;

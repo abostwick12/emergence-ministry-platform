@@ -23,7 +23,10 @@ export async function GET(request: Request) {
     capabilities: {
       restrictedMedical: context.canAccessRestricted,
       medicalCommand: canAccessCampMedicalCommand(context),
-      operationsCommand: canAccessCampEmmaOperationsCommand(context)
+      operationsCommand: canAccessCampEmmaOperationsCommand(context),
+      campEditScope: context.campEditScope,
+      appAreaScope: context.appAreaScope,
+      canPostTeamBulletin: context.canPostTeamBulletin
     }
   });
 }

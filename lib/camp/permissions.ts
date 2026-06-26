@@ -1,5 +1,6 @@
 import type { AuthSession } from "@/lib/auth/server";
 import { campAccessLabels, parseCampAccessRole } from "@/lib/camp/access";
+import type { CampAppAreaScope, CampEditScope } from "@/lib/camp/access-roles";
 import type { CampAccessRole } from "@/lib/camp/types";
 
 const restrictedCampNames = ["andrew", "jaci", "joel"] as const;
@@ -12,6 +13,11 @@ export type CampAccessContext = {
   canAccessRestricted: boolean;
   restrictedActor?: CampRestrictedActor;
   isDriver: boolean;
+  campEditScope: CampEditScope;
+  appAreaScope: CampAppAreaScope;
+  canPostTeamBulletin: boolean;
+  partnerChurchId?: string | null;
+  assignedTeamIds: string[];
 };
 
 export function resolveCampAccessContext(session: AuthSession, requestedRole: string | null): CampAccessContext {
@@ -23,7 +29,11 @@ export function resolveCampAccessContext(session: AuthSession, requestedRole: st
       effectiveRole: parsed,
       canAccessRestricted: parsed === "andrew" || parsed === "jaci" || parsed === "joel",
       restrictedActor: parsed === "andrew" || parsed === "jaci" || parsed === "joel" ? campAccessLabels[parsed] as CampRestrictedActor : undefined,
-      isDriver: parsed === "driver"
+      isDriver: parsed === "driver",
+      campEditScope: parsed === "driver" ? "read_only" : "all_campers",
+      appAreaScope: parsed === "andrew" ? "admin" : "camp_only",
+      canPostTeamBulletin: parsed !== "driver",
+      assignedTeamIds: []
     };
   }
 
@@ -42,7 +52,11 @@ export function resolveCampAccessContext(session: AuthSession, requestedRole: st
     effectiveRole,
     canAccessRestricted: Boolean(restrictedActor),
     restrictedActor,
-    isDriver
+    isDriver,
+    campEditScope: restrictedActor === "Andrew" ? "all_campers" : "read_only",
+    appAreaScope: restrictedActor === "Andrew" ? "admin" : "camp_only",
+    canPostTeamBulletin: restrictedActor === "Andrew",
+    assignedTeamIds: []
   };
 }
 
@@ -112,6 +126,65 @@ export function assertCampAdminAccess(context: CampAccessContext) {
   }
 
   return { allowed: true as const, actor: "Andrew" as const };
+}
+
+export function canAccessEmergeOperations(context: Pick<CampAccessContext, "appAreaScope">): boolean {
+  return context.appAreaScope === "emerge_operations" || context.appAreaScope === "admin";
+}
+
+export function canEditAllCampers(context: Pick<CampAccessContext, "campEditScope">): boolean {
+  return context.campEditScope === "all_campers";
+}
+
+export function canEditPartnerChurchCampers(context: Pick<CampAccessContext, "campEditScope" | "partnerChurchId">): boolean {
+  return context.campEditScope === "partner_church_only" && Boolean(context.partnerChurchId?.trim());
+}
+
+export function assertAllCampersOperationalWriteAccess(context: CampAccessContext, label = "Camp operational editing") {
+  if (!canEditAllCampers(context)) {
+    return {
+      allowed: false as const,
+      status: 403,
+      error: `${label} requires All Campers edit rights.`
+    };
+  }
+
+  return { allowed: true as const };
+}
+
+export function assertCampBulletinPostAccess(context: CampAccessContext, teamId?: string) {
+  if (!context.canPostTeamBulletin) {
+    return {
+      allowed: false as const,
+      status: 403,
+      error: "Team Bulletin posting is not enabled for this Camp leader."
+    };
+  }
+
+  const assignedTeams = context.assignedTeamIds.filter(Boolean);
+  const canPostBroadly = canEditAllCampers(context);
+  if (!canPostBroadly && (!teamId || !assignedTeams.includes(teamId))) {
+    return {
+      allowed: false as const,
+      status: 403,
+      error: "Team Bulletin posting is limited to assigned teams."
+    };
+  }
+
+  const normalizedContextChurch = normalizeScopeId(context.partnerChurchId);
+  if (context.campEditScope === "partner_church_only" && !normalizedContextChurch) {
+    return {
+      allowed: false as const,
+      status: 403,
+      error: "Team Bulletin posting requires an assigned partner church scope."
+    };
+  }
+
+  return { allowed: true as const, partnerChurchId: normalizedContextChurch || null };
+}
+
+export function normalizeScopeId(value?: string | null): string {
+  return (value ?? "").trim().toLowerCase().replace(/\s+/g, "-");
 }
 
 function restrictedActorForSession(session: AuthSession): CampRestrictedActor | undefined {

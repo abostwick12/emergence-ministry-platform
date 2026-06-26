@@ -60,10 +60,12 @@ function LeaderSelect({
 
 export default function CampTeamDetailPage() {
   const params = useParams<{ teamId: string }>();
-  const { overview, loading, refresh } = useCamp();
+  const { overview, loading, refresh, capabilities } = useCamp();
   const teamId = params?.teamId;
   const [editing, setEditing] = useState<CampTeamInput | null>(null);
   const [saving, setSaving] = useState(false);
+  const [bulletinText, setBulletinText] = useState("");
+  const [postingBulletin, setPostingBulletin] = useState(false);
   const [message, setMessage] = useState<{ tone: "error" | "success"; text: string } | null>(null);
 
   const team = overview.teams.find((candidate) => candidate.id === teamId);
@@ -93,6 +95,25 @@ export default function CampTeamDetailPage() {
     setMessage({ tone: "success", text: "Team saved and roster refreshed." });
   }
 
+  async function postBulletin() {
+    if (!teamId || !bulletinText.trim()) return;
+    setMessage(null);
+    setPostingBulletin(true);
+    const response = await fetch("/api/camp/bulletins", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ teamId, message: bulletinText })
+    });
+    const body = await response.json().catch(() => ({})) as { error?: string };
+    setPostingBulletin(false);
+    if (!response.ok) {
+      setMessage({ tone: "error", text: body.error ?? "Team Bulletin could not be posted." });
+      return;
+    }
+    setBulletinText("");
+    setMessage({ tone: "success", text: "Team Bulletin posted." });
+  }
+
   if (!team) {
     return (
       <div className="camp-cc-page">
@@ -103,6 +124,7 @@ export default function CampTeamDetailPage() {
   }
 
   const accentStyle = { "--camp-team-accent": teamAccent(team.color) } as CSSProperties;
+  const canManageTeam = capabilities.campEditScope === "all_campers";
 
   return (
     <div className="camp-cc-page" style={accentStyle}>
@@ -112,7 +134,7 @@ export default function CampTeamDetailPage() {
           <h1>{team.name}</h1>
           <p className="camp-cc-muted">{roster.length} {roster.length === 1 ? "camper" : "campers"}</p>
         </div>
-        <button className="button primary compact-button" type="button" onClick={() => setEditing(teamToInput(team))}>Manage Team</button>
+        {canManageTeam ? <button className="button primary compact-button" type="button" onClick={() => setEditing(teamToInput(team))}>Manage Team</button> : null}
       </header>
       {message ? <p className={message.tone === "error" ? "camp-save-message error" : "camp-save-message success"} role="status">{message.text}</p> : null}
 
@@ -143,6 +165,17 @@ export default function CampTeamDetailPage() {
         ) : (
           <p className="camp-cc-muted">No team notes yet.</p>
         )}
+        {capabilities.canPostTeamBulletin ? (
+          <div className="camp-team-bulletin-composer">
+            <label className="field">
+              <span>Post update</span>
+              <textarea className="input" rows={2} value={bulletinText} onChange={(event) => setBulletinText(event.target.value)} />
+            </label>
+            <button className="button compact-button" type="button" disabled={postingBulletin || !bulletinText.trim()} onClick={() => void postBulletin()}>
+              {postingBulletin ? "Posting..." : "Post"}
+            </button>
+          </div>
+        ) : null}
       </section>
 
       <section aria-label="Team roster">

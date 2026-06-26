@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { getServerSession, unauthorizedResponse } from "@/lib/auth/server";
+import { requireEmergeOperationsAccess } from "@/lib/app-area-access";
 import { getEventWorkspace } from "@/lib/data/ministry-repository";
 import { runEmmaCommand } from "@/lib/emma/commands/run-emma-command";
 import { buildSafeEventEmmaContext } from "@/lib/emma/context/event-context";
@@ -12,8 +12,9 @@ type EventEmmaSummaryBody = {
 };
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
-  const session = await getServerSession();
-  if (!session) return unauthorizedResponse();
+  const access = await requireEmergeOperationsAccess();
+  if (!access.allowed) return access.response;
+  const { session } = access;
 
   if (session.user.role !== "admin") {
     return NextResponse.json({ error: "You do not have permission to perform this action." }, { status: 403 });

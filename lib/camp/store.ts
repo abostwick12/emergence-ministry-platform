@@ -38,6 +38,7 @@ import type {
   CampOakwoodImportPreview,
   CampOakwoodImportCommitResult,
   CampTeam,
+  CampTeamBulletinPost,
   CampTeamInput,
   CampVehicleInput,
   CampVehicle
@@ -62,6 +63,18 @@ type CampStoreState = {
   staff: CampStaffMember[];
   importBatches: CampImportAuditBatch[];
   emmaActions: CampEmmaActionAudit[];
+  deniedMutationAttempts: CampDeniedMutationAttempt[];
+  teamBulletins: CampTeamBulletinPost[];
+};
+
+export type CampDeniedMutationAttempt = {
+  actorUserId: string;
+  actorEmail: string;
+  action: string;
+  targetTable: string;
+  targetId?: string;
+  reason: string;
+  createdAt: string;
 };
 
 type CampGlobal = typeof globalThis & { __leadEmergenceCampStore?: CampStoreState };
@@ -88,7 +101,9 @@ function createInitialState(): CampStoreState {
     camperProfilePhotoRecords: [],
     staff: [],
     importBatches: [],
-    emmaActions: []
+    emmaActions: [],
+    deniedMutationAttempts: [],
+    teamBulletins: []
   };
 }
 
@@ -439,6 +454,35 @@ export function recordCampEmmaAction(action: CampEmmaActionAudit): CampEmmaActio
 
 export function listCampEmmaActions(): CampEmmaActionAudit[] {
   return cloneArray(store.emmaActions);
+}
+
+export function recordDeniedMutationAttempt(input: Omit<CampDeniedMutationAttempt, "createdAt">): CampDeniedMutationAttempt {
+  const attempt = { ...input, createdAt: new Date().toISOString() };
+  store.deniedMutationAttempts.unshift(attempt);
+  return { ...attempt };
+}
+
+export function listDeniedMutationAttempts(): CampDeniedMutationAttempt[] {
+  return cloneArray(store.deniedMutationAttempts);
+}
+
+export function postTeamBulletin(input: { teamId: string; partnerChurchId?: string | null; message: string; postedByName: string }) {
+  const team = store.teams.find((candidate) => candidate.id === input.teamId && !candidate.archivedAt);
+  if (!team) return { allowed: true as const, status: 404, error: "Active team not found." };
+  const bulletin: CampTeamBulletinPost = {
+    id: uid("campbulletin"),
+    teamId: input.teamId,
+    partnerChurchId: input.partnerChurchId ?? null,
+    message: input.message.trim(),
+    postedByName: input.postedByName.trim() || "Camp Leader",
+    postedAt: new Date().toISOString()
+  };
+  store.teamBulletins.unshift(bulletin);
+  return { allowed: true as const, status: 201, bulletin };
+}
+
+export function listTeamBulletins(teamId: string): CampTeamBulletinPost[] {
+  return store.teamBulletins.filter((post) => post.teamId === teamId).map((post) => ({ ...post }));
 }
 
 export function archiveCampStudent(role: CampAccessRole, input: CampArchiveInput) {

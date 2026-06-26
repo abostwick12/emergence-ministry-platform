@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { CampSignatureTouchBridge } from "@/components/camp/camp-signature-touch-bridge";
 import { deriveCampDays, scheduleForDay, type CampDay } from "@/lib/camp/days";
 import type { CampOverviewPayload, CampScheduleBlock } from "@/lib/camp/types";
+import type { CampAppAreaScope, CampEditScope } from "@/lib/camp/access-roles";
 
 export type CampHomeMode = "operations" | "medical";
 
@@ -14,6 +15,9 @@ export type CampCapabilities = {
   // room-change command UI. General leaders and Jaci do not get this even
   // though they may have restrictedMedical/medicalCommand-adjacent access.
   operationsCommand: boolean;
+  campEditScope: CampEditScope;
+  appAreaScope: CampAppAreaScope;
+  canPostTeamBulletin: boolean;
 };
 
 export type { CampDay };
@@ -31,7 +35,14 @@ const emptyOverview: CampOverviewPayload = {
   staff: []
 };
 
-const emptyCapabilities: CampCapabilities = { restrictedMedical: false, medicalCommand: false, operationsCommand: false };
+const emptyCapabilities: CampCapabilities = {
+  restrictedMedical: false,
+  medicalCommand: false,
+  operationsCommand: false,
+  campEditScope: "read_only",
+  appAreaScope: "camp_only",
+  canPostTeamBulletin: false
+};
 
 type CampContextValue = {
   overview: CampOverviewPayload;

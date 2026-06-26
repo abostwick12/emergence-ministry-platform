@@ -1,18 +1,18 @@
 import { NextResponse } from "next/server";
-import { getServerSession, unauthorizedResponse } from "@/lib/auth/server";
+import { requireEmergeOperationsAccess } from "@/lib/app-area-access";
 import { createMinistryTask, listMinistryTasks } from "@/lib/data/ministry-repository";
 import type { TaskStatus } from "@/lib/types";
 
 export async function GET() {
-  const session = await getServerSession();
-  if (!session) return unauthorizedResponse();
+  const access = await requireEmergeOperationsAccess();
+  if (!access.allowed) return access.response;
 
-  return NextResponse.json({ tasks: await listMinistryTasks(session) });
+  return NextResponse.json({ tasks: await listMinistryTasks(access.session) });
 }
 
 export async function POST(request: Request) {
-  const session = await getServerSession();
-  if (!session) return unauthorizedResponse();
+  const access = await requireEmergeOperationsAccess();
+  if (!access.allowed) return access.response;
 
   const body = (await request.json()) as {
     eventId?: string;
@@ -26,7 +26,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "eventId, taskTitle, dueDate, and assignedUserId are required" }, { status: 400 });
   }
 
-  const task = await createMinistryTask(session, {
+  const task = await createMinistryTask(access.session, {
     eventId: body.eventId,
     taskTitle: body.taskTitle,
     dueDate: body.dueDate,

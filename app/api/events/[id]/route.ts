@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { getServerSession, unauthorizedResponse } from "@/lib/auth/server";
+import { requireEmergeOperationsAccess } from "@/lib/app-area-access";
 import { getEventWorkspace, updateMinistryEvent } from "@/lib/data/ministry-repository";
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
-  const session = await getServerSession();
-  if (!session) return unauthorizedResponse();
+  const access = await requireEmergeOperationsAccess();
+  if (!access.allowed) return access.response;
 
-  const workspace = await getEventWorkspace(session, params.id);
+  const workspace = await getEventWorkspace(access.session, params.id);
 
   if (!workspace) {
     return NextResponse.json({ error: "Event not found" }, { status: 404 });
@@ -16,13 +16,13 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
 }
 
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
-  const session = await getServerSession();
-  if (!session) return unauthorizedResponse();
+  const access = await requireEmergeOperationsAccess();
+  if (!access.allowed) return access.response;
 
   const body = await request.json();
 
   try {
-    const workspace = await updateMinistryEvent(session, params.id, body);
+    const workspace = await updateMinistryEvent(access.session, params.id, body);
 
     if (!workspace) {
       return NextResponse.json({ error: "Event not found" }, { status: 404 });

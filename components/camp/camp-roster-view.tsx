@@ -243,6 +243,7 @@ export function CampRosterView({ mode = "emerge" }: { mode?: RosterViewMode }) {
       ? `${studentsInView.length} total ${studentsInView.length === 1 ? "camper" : "campers"} in view`
       : `${studentsInView.length} Emerge/CLC ${studentsInView.length === 1 ? "camper" : "campers"} in view`;
   const emptyText = mode === "partner" ? "No partner church campers match this search." : "No campers match this search.";
+  const canEditRoster = capabilities.campEditScope === "all_campers" || capabilities.campEditScope === "partner_church_only";
 
   if (mode === "all" && !capabilities.medicalCommand) {
     return (
@@ -267,9 +268,11 @@ export function CampRosterView({ mode = "emerge" }: { mode?: RosterViewMode }) {
         <Link className={mode === "partner" ? "button primary compact-button" : "button compact-button"} href="/camp/partner-campers">Partner Church only</Link>
         {capabilities.medicalCommand ? <Link className={mode === "all" ? "button primary compact-button" : "button compact-button"} href="/camp/all-campers">All Campers</Link> : null}
       </nav>
-      <div className="camp-row-actions">
-        <button className="button primary" type="button" onClick={() => startEditing()}>{mode === "partner" ? "Add Partner Camper" : "Add Camper"}</button>
-      </div>
+      {canEditRoster ? (
+        <div className="camp-row-actions">
+          <button className="button primary" type="button" onClick={() => startEditing()}>{mode === "partner" ? "Add Partner Camper" : "Add Camper"}</button>
+        </div>
+      ) : null}
       {message ? <p className={message.tone === "error" ? "camp-save-message error" : "camp-save-message success"} role="status">{message.text}</p> : null}
       {photoUpload.status === "failed" ? (
         <div className="camp-save-message error" role="status">
@@ -292,9 +295,13 @@ export function CampRosterView({ mode = "emerge" }: { mode?: RosterViewMode }) {
       ) : (
         <div className="camp-student-list">
           {filtered.map((student) => (
-            <button className="camp-inline-button" type="button" key={student.id} onClick={() => startEditing(student)}>
-              <CampStudentCard student={student} />
-            </button>
+            canEditRoster ? (
+              <button className="camp-inline-button" type="button" key={student.id} onClick={() => startEditing(student)}>
+                <CampStudentCard student={student} />
+              </button>
+            ) : (
+              <CampStudentCard key={student.id} student={student} />
+            )
           ))}
         </div>
       )}

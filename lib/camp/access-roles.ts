@@ -8,6 +8,9 @@ export type CampStoredRole =
   | "leader"
   | "driver";
 
+export type CampEditScope = "read_only" | "partner_church_only" | "all_campers";
+export type CampAppAreaScope = "camp_only" | "emerge_operations" | "admin";
+
 export const CAMP_STORED_ROLES: CampStoredRole[] = [
   "camp_admin",
   "medical_coordinator",
@@ -23,4 +26,19 @@ export const campStoredRoleLabels: Record<CampStoredRole, string> = {
   restricted_assistant: "Restricted Assistant",
   leader: "Leader",
   driver: "Driver"
+};
+
+export const CAMP_EDIT_SCOPES: CampEditScope[] = ["read_only", "partner_church_only", "all_campers"];
+export const CAMP_APP_AREA_SCOPES: CampAppAreaScope[] = ["camp_only", "emerge_operations", "admin"];
+
+export const campEditScopeLabels: Record<CampEditScope, string> = {
+  read_only: "Read Only",
+  partner_church_only: "Partner Church Only",
+  all_campers: "All Campers"
+};
+
+export const campAppAreaScopeLabels: Record<CampAppAreaScope, string> = {
+  camp_only: "Camp Only",
+  emerge_operations: "EMERGE Operations",
+  admin: "Admin"
 };
