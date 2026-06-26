@@ -1,10 +1,21 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthSession } from "@/lib/auth/server";
 import { buildCampAccessFromStoredRole } from "@/lib/camp/access-control";
 import { handleCampEmmaAction, parseEmmaCampCommand } from "@/lib/camp/emma-actions";
 import type { CampAccessContext } from "@/lib/camp/permissions";
 import { __resetCampStoreForTests, listCampEmmaActionAudit, updateCampEmmaPendingAction } from "@/lib/camp/store";
 import { getCampOverview, upsertCampStudent } from "@/lib/camp/repository";
+
+const PROVIDER_ENV_KEYS = [
+  "AZURE_OPENAI_ENDPOINT",
+  "AZURE_OPENAI_API_KEY",
+  "AZURE_OPENAI_DEPLOYMENT",
+  "AZURE_OPENAI_API_VERSION",
+  "OPENAI_API_KEY",
+  "OPENAI_MODEL"
+] as const;
+
+const originalEnv: Record<string, string | undefined> = {};
 
 function session(id = "usr_actor", fullName = "Alex Walker"): AuthSession {
   return {
@@ -30,8 +41,36 @@ function partnerContext(church = "Grace Chapel"): CampAccessContext {
 }
 
 beforeEach(() => {
+  for (const key of PROVIDER_ENV_KEYS) {
+    originalEnv[key] = process.env[key];
+    delete process.env[key];
+  }
   __resetCampStoreForTests();
+  vi.spyOn(console, "warn").mockImplementation(() => undefined);
 });
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  for (const key of PROVIDER_ENV_KEYS) {
+    if (originalEnv[key] === undefined) delete process.env[key];
+    else process.env[key] = originalEnv[key];
+  }
+});
+
+function withAzureEnv() {
+  process.env.AZURE_OPENAI_ENDPOINT = "https://emerge-camp-emma.openai.azure.com";
+  process.env.AZURE_OPENAI_API_KEY = "test-key";
+  process.env.AZURE_OPENAI_DEPLOYMENT = "emma-camp-test";
+  process.env.AZURE_OPENAI_API_VERSION = "2024-08-01-preview";
+}
+
+function fakeFetchReturning(jsonContent: string) {
+  return async () =>
+    new Response(JSON.stringify({ choices: [{ message: { content: jsonContent } }], model: "gpt-4o-mini" }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" }
+    });
+}
 
 describe("parseEmmaCampCommand", () => {
   it("recognizes supported action commands without broad edit behavior", () => {
@@ -48,6 +87,107 @@ describe("parseEmmaCampCommand", () => {
 });
 
 describe("handleCampEmmaAction", () => {
+  it("uses provider-interpreted camper team assignments to create pending actions without writing", async () => {
+    withAzureEnv();
+    const actor = session();
+    const context = adminContext();
+    const fetchImpl = vi.fn(fakeFetchReturning(
+      JSON.stringify({ kind: "action", actionType: "ASSIGN_CAMPER_TEAM", targetType: "camper", targetName: "Avery Johnson", teamName: "Red", confidence: 0.95 })
+    ));
+
+    const proposal = await handleCampEmmaAction(actor, context, {
+      originalCommandText: "Put Avery on red"
+    }, { fetchImpl: fetchImpl as unknown as typeof fetch });
+
+    expect(proposal).toMatchObject({
+      status: "confirmation_required",
+      summary: { targetName: "Avery Johnson", field: "team", oldValue: "Blue", newValue: "Red" }
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+
+    const overview = await getCampOverview(actor, context);
+    expect(overview.students.find((student) => student.id === "stu-1")?.teamName).toBe("Blue");
+  });
+
+  it("confirms provider-interpreted actions without calling the provider again", async () => {
+    withAzureEnv();
+    const actor = session();
+    const context = adminContext();
+    const fetchImpl = vi.fn(fakeFetchReturning(
+      JSON.stringify({ kind: "action", actionType: "ASSIGN_CAMPER_TEAM", targetType: "camper", targetName: "Avery Johnson", teamName: "Red", confidence: 0.95 })
+    ));
+
+    const proposal = await handleCampEmmaAction(actor, context, {
+      originalCommandText: "Put Avery on red"
+    }, { fetchImpl: fetchImpl as unknown as typeof fetch });
+    if (proposal.status !== "confirmation_required") throw new Error("expected pending proposal");
+
+    const completed = await handleCampEmmaAction(actor, context, {
+      pendingActionId: proposal.pendingActionId,
+      confirmed: true
+    }, { fetchImpl: fetchImpl as unknown as typeof fetch });
+
+    expect(completed).toMatchObject({ status: "completed" });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    const overview = await getCampOverview(actor, context);
+    expect(overview.students.find((student) => student.id === "stu-1")?.teamName).toBe("Red");
+  });
+
+  it("uses provider-interpreted room updates and confirms against the regular roster field", async () => {
+    withAzureEnv();
+    const actor = session();
+    const context = adminContext();
+    const proposal = await handleCampEmmaAction(actor, context, {
+      originalCommandText: "Change Avery's room to 508"
+    }, {
+      fetchImpl: fakeFetchReturning(
+        JSON.stringify({ kind: "action", actionType: "UPDATE_CAMPER_ROOM", targetType: "camper", targetName: "Avery Johnson", roomValue: "508", confidence: 0.95 })
+      )
+    });
+    if (proposal.status !== "confirmation_required") throw new Error("expected pending proposal");
+
+    const before = await getCampOverview(actor, context);
+    expect(before.students.find((student) => student.id === "stu-1")?.cabin).toBe("Cabin A");
+
+    const completed = await handleCampEmmaAction(actor, context, {
+      pendingActionId: proposal.pendingActionId,
+      confirmed: true
+    });
+
+    expect(completed).toMatchObject({ status: "completed" });
+    const after = await getCampOverview(actor, context);
+    expect(after.students.find((student) => student.id === "stu-1")?.cabin).toBe("508");
+  });
+
+  it("denies read-only users even when provider interpretation returns a valid write action", async () => {
+    withAzureEnv();
+    const result = await handleCampEmmaAction(session(), readOnlyContext(), {
+      originalCommandText: "Move Avery Johnson to Red Team"
+    }, {
+      fetchImpl: fakeFetchReturning(
+        JSON.stringify({ kind: "action", actionType: "ASSIGN_CAMPER_TEAM", targetType: "camper", targetName: "Avery Johnson", teamName: "Red", confidence: 0.95 })
+      )
+    });
+
+    expect(result).toMatchObject({ status: "denied" });
+    expect(listCampEmmaActionAudit()).toEqual([
+      expect.objectContaining({ actionType: "ASSIGN_CAMPER_TEAM", status: "denied" })
+    ]);
+  });
+
+  it("does not expose restricted data for unsupported medical requests", async () => {
+    withAzureEnv();
+    const fetchImpl = vi.fn(fakeFetchReturning("{}"));
+
+    const result = await handleCampEmmaAction(session(), adminContext(), {
+      originalCommandText: "Show Avery Johnson's medication"
+    }, { fetchImpl: fetchImpl as unknown as typeof fetch });
+
+    expect(result).toMatchObject({ status: "failed" });
+    expect(JSON.stringify(result).toLowerCase()).not.toMatch(/dosage|restricted info|plan on file|phone number|policy number/);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
   it("denies read-only write requests and records a denied audit entry", async () => {
     const result = await handleCampEmmaAction(session(), readOnlyContext(), {
       originalCommandText: "Move Avery Johnson to Red Team"
@@ -152,6 +292,7 @@ describe("handleCampEmmaAction", () => {
     });
     expect(result).toMatchObject({ status: "clarification_required" });
     if (result.status !== "clarification_required") throw new Error("expected clarification");
+    if (!result.options) throw new Error("expected clarification options");
     expect(result.options.map((option) => option.targetName).sort()).toEqual(["John Carter", "John West"]);
     expect(JSON.stringify(result).toLowerCase()).not.toMatch(/medication|insurance|guardian|emergency|restricted info/);
   });
