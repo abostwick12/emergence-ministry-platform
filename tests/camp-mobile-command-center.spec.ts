@@ -477,11 +477,25 @@ test.describe("Camp mobile Command Center", () => {
     await page.goto("/camp/roster");
     await page.getByRole("button", { name: new RegExp(camperName) }).click();
     const dialog = page.getByRole("dialog", { name: "Edit Camper" });
+    const dialogBody = dialog.locator(".camp-dialog-body-camper-editor");
     await expect(dialog).toBeVisible();
-    await expect(dialog.locator(".camp-dialog-body")).toHaveCSS("overflow-y", "auto");
+    await expect(dialog).toHaveClass(/camp-dialog-camper-editor/);
+    await expect(dialogBody).toHaveCSS("overflow-y", "auto");
+    const initialScrollState = await dialogBody.evaluate((element) => ({
+      clientHeight: element.clientHeight,
+      scrollHeight: element.scrollHeight,
+      scrollTop: element.scrollTop
+    }));
+    expect(initialScrollState.scrollHeight).toBeGreaterThan(initialScrollState.clientHeight);
     await expect(dialog.getByLabel("Team")).toBeVisible();
     await dialog.getByLabel("Team").selectOption("team-red");
-    await dialog.locator(".camp-dialog-body").evaluate((element) => { element.scrollTop = element.scrollHeight; });
+    await dialogBody.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+    const scrolledState = await dialogBody.evaluate((element) => ({
+      clientHeight: element.clientHeight,
+      scrollHeight: element.scrollHeight,
+      scrollTop: element.scrollTop
+    }));
+    expect(scrolledState.scrollTop).toBeGreaterThan(initialScrollState.scrollTop);
     await expect(dialog.getByLabel("Food allergy indicator")).toBeVisible();
     await dialog.getByLabel("Food allergy indicator").check();
     await dialog.getByLabel("Medical concern indicator").check();
@@ -489,16 +503,18 @@ test.describe("Camp mobile Command Center", () => {
     await expect(dialog.getByText("Do not enter medication names")).toBeVisible();
     const footerClearance = await dialog.evaluate((element) => {
       const footer = element.querySelector<HTMLElement>(".camp-dialog-foot");
-      const body = element.querySelector<HTMLElement>(".camp-dialog-body");
+      const body = element.querySelector<HTMLElement>(".camp-dialog-body-camper-editor");
       const save = Array.from(element.querySelectorAll<HTMLButtonElement>("button")).find((button) => button.textContent?.trim() === "Save");
       return {
         bodyPaddingBottom: body ? getComputedStyle(body).paddingBottom : "",
+        bodyOverflowY: body ? getComputedStyle(body).overflowY : "",
         footerBottom: footer?.getBoundingClientRect().bottom ?? 0,
         saveBottom: save?.getBoundingClientRect().bottom ?? 0,
         viewportBottom: window.innerHeight
       };
     });
-    expect(parseFloat(footerClearance.bodyPaddingBottom)).toBeGreaterThanOrEqual(28);
+    expect(footerClearance.bodyOverflowY).toBe("auto");
+    expect(parseFloat(footerClearance.bodyPaddingBottom)).toBeGreaterThanOrEqual(120);
     expect(footerClearance.footerBottom).toBeLessThanOrEqual(footerClearance.viewportBottom);
     expect(footerClearance.saveBottom).toBeLessThanOrEqual(footerClearance.viewportBottom);
     await dialog.getByRole("button", { name: "Save" }).click();
