@@ -216,8 +216,8 @@ test.describe("Camp mobile Command Center", () => {
 
     await page.getByRole("button", { name: /Open Blue team menu/ }).click();
     await expect(page.getByRole("dialog", { name: /Blue Team/ })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Edit", exact: true })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Open Team" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Manage Team", exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "View Team" })).toBeVisible();
 
     const body = (await page.locator("body").textContent()) ?? "";
     for (const needle of ["Parent-labeled medication", "Insurance card", "dosage", "guardianSignature", "allergyNotes"]) {
@@ -381,13 +381,44 @@ test.describe("Camp mobile Command Center", () => {
 
     await page.goto("/camp/teams");
     await page.getByRole("button", { name: /Open Blue team menu/ }).click();
-    await page.getByRole("dialog", { name: /Blue Team/ }).getByRole("button", { name: "Edit", exact: true }).click();
-    const teamEditor = page.getByRole("dialog", { name: "Edit Team" });
-    await expect(teamEditor).toContainText("Team");
+    await page.getByRole("dialog", { name: /Blue Team/ }).getByRole("button", { name: "Manage Team", exact: true }).click();
+    const teamEditor = page.getByRole("dialog", { name: "Manage Team" });
     await expect(teamEditor).toContainText("Leaders");
     await teamEditor.getByRole("textbox", { name: "Notes" }).fill("Playwright team note");
-    await teamEditor.getByRole("button", { name: "Save" }).click();
+    await teamEditor.getByRole("button", { name: "Save Changes" }).click();
     await expect(page.getByText("Team saved and counts refreshed.")).toBeVisible();
+  });
+
+  test("vehicle assignment dropdown uses the CLC emergency roster boundary", async ({ page }) => {
+    await login(page);
+    const overview = await page.request.get("/api/camp?role=andrew");
+    expect(overview.ok()).toBe(true);
+    const payload = await overview.json();
+    const baseStudent = payload.students[0];
+    const runId = Date.now();
+    await page.route("**/api/camp", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        json: {
+          ...payload,
+          students: [
+            ...payload.students,
+            { ...baseStudent, id: `vehicle-clc-${runId}`, name: "Playwright CLC Vehicle Camper", rosterType: "emerge", sourceChurch: "", vehicleId: "", vehicleName: "Unassigned", limitedSafetyFlags: [] },
+            { ...baseStudent, id: `vehicle-partner-${runId}`, name: "Playwright Partner Vehicle Camper", rosterType: "partner", sourceChurch: "Grace Chapel", vehicleId: "", vehicleName: "Unassigned", limitedSafetyFlags: [] },
+            { ...baseStudent, id: `vehicle-source-only-${runId}`, name: "Playwright Source Only Vehicle Camper", rosterType: undefined, sourceChurch: "Partner Only Church", vehicleId: "", vehicleName: "Unassigned", limitedSafetyFlags: [] }
+          ]
+        }
+      });
+    });
+
+    await page.goto("/camp/vehicles");
+    await page.getByRole("button", { name: "Edit Vehicle" }).first().click();
+    const editor = page.getByRole("dialog", { name: "Edit Vehicle" });
+    const optionText = await editor.getByLabel("Camper to assign").locator("option").allTextContents();
+    expect(optionText.join("\n")).toContain("Playwright CLC Vehicle Camper");
+    expect(optionText.join("\n")).not.toContain("Playwright Partner Vehicle Camper");
+    expect(optionText.join("\n")).not.toContain("Playwright Source Only Vehicle Camper");
   });
 
   test("teams page assigns and removes campers without opening the full roster editor", async ({ page }) => {
@@ -408,17 +439,21 @@ test.describe("Camp mobile Command Center", () => {
 
     await page.goto("/camp/teams");
     await page.getByRole("button", { name: /Open Blue team menu/ }).click();
-    const blueDialog = page.getByRole("dialog", { name: /Blue Team/ });
+    await page.getByRole("dialog", { name: /Blue Team/ }).getByRole("button", { name: "Manage Team", exact: true }).click();
+    const blueDialog = page.getByRole("dialog", { name: "Manage Team" });
     await expect(blueDialog.getByRole("region", { name: "Blue camper assignments" })).toBeVisible();
     await blueDialog.getByLabel("Camper to assign").selectOption(created.student.id);
     await blueDialog.getByRole("button", { name: "Assign to Blue" }).click();
     await expect(blueDialog.getByText(`${camperName} assigned to Blue.`)).toBeVisible();
 
     await page.goto("/camp/teams/team-blue");
-    const assignments = page.getByRole("region", { name: "Blue camper assignments" });
-    await expect(assignments.locator("li").filter({ hasText: camperName })).toHaveCount(1);
+    await expect(page.getByRole("region", { name: "Team Bulletin" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Blue camper assignments" })).toHaveCount(0);
     await expect(page.getByRole("region", { name: "Team roster" }).getByText(camperName)).toBeVisible();
 
+    await page.getByRole("button", { name: "Manage Team" }).click();
+    const assignments = page.getByRole("dialog", { name: "Manage Team" }).getByRole("region", { name: "Blue camper assignments" });
+    await expect(assignments.locator("li").filter({ hasText: camperName })).toHaveCount(1);
     await assignments.locator("li").filter({ hasText: camperName }).getByRole("button", { name: "Remove" }).click();
     await expect(assignments.getByText(`${camperName} removed from Blue.`)).toBeVisible();
     await expect(assignments.locator("li").filter({ hasText: camperName })).toHaveCount(0);
@@ -443,6 +478,7 @@ test.describe("Camp mobile Command Center", () => {
     await page.getByRole("button", { name: new RegExp(camperName) }).click();
     const dialog = page.getByRole("dialog", { name: "Edit Camper" });
     await expect(dialog).toBeVisible();
+    await expect(dialog.locator(".camp-dialog-body")).toHaveCSS("overflow-y", "auto");
     await expect(dialog.getByLabel("Team")).toBeVisible();
     await dialog.getByLabel("Team").selectOption("team-red");
     await dialog.locator(".camp-dialog-body").evaluate((element) => { element.scrollTop = element.scrollHeight; });
@@ -451,6 +487,20 @@ test.describe("Camp mobile Command Center", () => {
     await dialog.getByLabel("Medical concern indicator").check();
     await expect(dialog.getByLabel("Medication-on-file indicator")).toBeVisible();
     await expect(dialog.getByText("Do not enter medication names")).toBeVisible();
+    const footerClearance = await dialog.evaluate((element) => {
+      const footer = element.querySelector<HTMLElement>(".camp-dialog-foot");
+      const body = element.querySelector<HTMLElement>(".camp-dialog-body");
+      const save = Array.from(element.querySelectorAll<HTMLButtonElement>("button")).find((button) => button.textContent?.trim() === "Save");
+      return {
+        bodyPaddingBottom: body ? getComputedStyle(body).paddingBottom : "",
+        footerBottom: footer?.getBoundingClientRect().bottom ?? 0,
+        saveBottom: save?.getBoundingClientRect().bottom ?? 0,
+        viewportBottom: window.innerHeight
+      };
+    });
+    expect(parseFloat(footerClearance.bodyPaddingBottom)).toBeGreaterThanOrEqual(28);
+    expect(footerClearance.footerBottom).toBeLessThanOrEqual(footerClearance.viewportBottom);
+    expect(footerClearance.saveBottom).toBeLessThanOrEqual(footerClearance.viewportBottom);
     await dialog.getByRole("button", { name: "Save" }).click();
     await expect(page.getByText("Camper saved. Team and transportation views are refreshed.")).toBeVisible();
 

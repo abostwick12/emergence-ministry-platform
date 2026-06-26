@@ -190,13 +190,13 @@ export default function CampTeamsPage() {
       {selectedTeam ? (
         <CampOperationDialog
           title={`${selectedTeam.name} Team`}
-          description="Open team details or update safe team assignment fields."
+          description="View the team page or open the full manage flow."
           onClose={() => setSelectedTeam(null)}
           footer={
             <>
               <button className="button" type="button" onClick={() => setSelectedTeam(null)}>Close</button>
-              <Link className="button compact-button" href={`/camp/teams/${selectedTeam.id}`}>Open Team</Link>
-              <button className="button primary" type="button" onClick={() => { setEditing(teamToInput(selectedTeam)); setSelectedTeam(null); }}>Edit</button>
+              <Link className="button compact-button" href={`/camp/teams/${selectedTeam.id}`}>View Team</Link>
+              <button className="button primary" type="button" onClick={() => { setEditing(teamToInput(selectedTeam)); setSelectedTeam(null); }}>Manage Team</button>
             </>
           }
         >
@@ -224,25 +224,18 @@ export default function CampTeamsPage() {
               <p>{selectedTeam.notes}</p>
             </section>
           ) : null}
-          <CampTeamAssignmentManager
-            teamId={selectedTeam.id}
-            teamName={selectedTeam.name}
-            accentColor={teamAccent(selectedTeam.color)}
-            students={overview.students}
-            onSaved={refresh}
-          />
         </CampOperationDialog>
       ) : null}
       {editing ? (
         <CampOperationDialog
-          title={editing.id ? "Edit Team" : "Add Team"}
-          description="Team changes refresh team cards, roster, and assignments."
+          title={editing.id ? "Manage Team" : "Add Team"}
+          description="Update leaders, room, notes, and safe camper assignments."
           onClose={() => setEditing(null)}
           footer={
             <>
               {editing.id ? <button className="button compact-button danger" type="button" disabled={saving} onClick={() => void archiveTeam()}>Archive</button> : null}
               <button className="button" type="button" disabled={saving} onClick={() => setEditing(null)}>Cancel</button>
-              <button className="button primary" type="button" disabled={saving} onClick={() => void saveTeam()}>{saving ? "Saving..." : "Save"}</button>
+              <button className="button primary" type="button" disabled={saving} onClick={() => void saveTeam()}>{saving ? "Saving..." : "Save Changes"}</button>
             </>
           }
         >
@@ -264,6 +257,15 @@ export default function CampTeamsPage() {
           <section className="camp-editor-card camp-modal-section" aria-label="Team notes">
             <label className="field"><span>Notes</span><textarea className="input" rows={3} value={editing.notes ?? ""} onChange={(event) => setEditing({ ...editing, notes: event.target.value })} /></label>
           </section>
+          {editing.id ? (
+            <CampTeamAssignmentManager
+              teamId={editing.id}
+              teamName={editing.name || "Team"}
+              accentColor={teamAccent(editing.color || editing.name)}
+              students={overview.students}
+              onSaved={refresh}
+            />
+          ) : null}
         </CampOperationDialog>
       ) : null}
     </div>

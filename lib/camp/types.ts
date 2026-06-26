@@ -508,6 +508,7 @@ export type CampOakwoodImportRow = {
     vehicleName: string;
   };
   safeIndicators: CampOakwoodSafeIndicators;
+  safeOperationalFlags?: string[];
   // Present only for students; held in restricted storage on commit.
   restricted?: CampOakwoodRestrictedPayload;
   matchedExistingId?: string;

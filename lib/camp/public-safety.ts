@@ -7,6 +7,17 @@ const safeFlagLabels = new Set([
   "check in with leader"
 ]);
 
+const safeDetailPrefixes = [
+  "allergy",
+  "diet",
+  "dietary",
+  "medical",
+  "supervision",
+  "physical"
+];
+
+const restrictedDetailPattern = /\b(dose|dosage|mg|ml|tablet|capsule|prescription|rx|insurance|policy|signature|ssn|social security|birthdate|dob|phone|email|address)\b/i;
+
 export function sanitizePublicSafetyFlags(flags: string[]): string[] {
   const safeFlags: string[] = [];
   let sawRestrictedOrUnknownDetail = false;
@@ -21,6 +32,11 @@ export function sanitizePublicSafetyFlags(flags: string[]): string[] {
     }
     if (safeFlagLabels.has(normalized)) {
       safeFlags.push(toCanonicalSafeFlag(normalized, trimmed));
+      continue;
+    }
+    const safeDetail = toSafeDetailFlag(trimmed);
+    if (safeDetail) {
+      safeFlags.push(safeDetail);
       continue;
     }
     sawRestrictedOrUnknownDetail = true;
@@ -38,4 +54,21 @@ function toCanonicalSafeFlag(normalized: string, fallback: string): string {
   if (normalized === "leader awareness") return "Leader awareness";
   if (normalized === "check in with leader") return "Check in with leader";
   return fallback;
+}
+
+function toSafeDetailFlag(value: string): string | undefined {
+  const match = value.match(/^([A-Za-z /-]{3,24})\s*:\s*(.+)$/);
+  if (!match) return undefined;
+  const prefix = match[1].trim().toLowerCase();
+  const detail = match[2].trim().replace(/\s+/g, " ");
+  if (!detail || detail.length > 80 || restrictedDetailPattern.test(detail)) return undefined;
+  const allowedPrefix = safeDetailPrefixes.find((candidate) => prefix === candidate || prefix.startsWith(`${candidate} `));
+  if (!allowedPrefix) return undefined;
+  if (allowedPrefix === "dietary") return `Diet: ${detail}`;
+  if (allowedPrefix === "physical") return `Medical: ${detail}`;
+  return `${capitalize(allowedPrefix)}: ${detail}`;
+}
+
+function capitalize(value: string) {
+  return value.charAt(0).toUpperCase() + value.slice(1);
 }

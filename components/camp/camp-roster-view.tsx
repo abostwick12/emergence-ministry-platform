@@ -368,10 +368,10 @@ export function CampRosterView({ mode = "emerge" }: { mode?: RosterViewMode }) {
                 rows={3}
                 value={visibleOperationalFlags(editing.limitedSafetyFlags ?? []).join("\n")}
                 onChange={(event) => setEditing(withOperationalFlags(editing, event.target.value))}
-                placeholder="Public operational notes only"
+                placeholder="Allergy: Peanuts&#10;Diet: Gluten-free&#10;Medical: Asthma"
               />
             </label>
-            <p className="camp-cc-muted">Do not enter medication names, doses, allergy details, diagnoses, guardian details, or restricted medical notes here.</p>
+            <p className="camp-cc-muted">Use short leader-safe labels such as Allergy, Diet, Medical, Supervision, or Physical. Do not enter medication names, doses, insurance, guardian contact details, or private notes here.</p>
           </section>
         </CampOperationDialog>
       ) : null}

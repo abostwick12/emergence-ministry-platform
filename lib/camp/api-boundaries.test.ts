@@ -29,6 +29,7 @@ import { GET as medicalGET, POST as medicalPOST } from "@/app/api/camp/restricte
 import { GET as staffGET, PATCH as staffPATCH } from "@/app/api/camp/staff/route";
 import { DELETE as studentPhotoDELETE, POST as studentPhotoPOST } from "@/app/api/camp/students/photo/route";
 import { GET as studentsGET, PATCH as studentsPATCH, POST as studentsPOST } from "@/app/api/camp/students/route";
+import { PATCH as teamsPATCH } from "@/app/api/camp/teams/route";
 
 const restrictedNeedles = [
   "Parent-labeled medication A",
@@ -395,6 +396,7 @@ describe("camp API restricted data boundaries", () => {
     const update = await staffPATCH(jsonRequest("http://localhost/api/camp/staff?role=general_leader", {
       id: "campstaff-missing",
       name: "Should Not Edit",
+      profilePhotoUrl: "https://photos.example.test/blocked-leader-photo.jpg",
       role: "leader"
     }, "PATCH"));
 
@@ -402,6 +404,117 @@ describe("camp API restricted data boundaries", () => {
     expect(update.status).toBe(403);
     expectNoRestrictedPayloadDetails(await json(list));
     expectNoRestrictedPayloadDetails(await json(update));
+  });
+
+  it("blocks unauthenticated vehicle and team management mutations", async () => {
+    getServerSessionMock.mockResolvedValue(null);
+
+    const vehicleAssignment = await studentsPATCH(jsonRequest("http://localhost/api/camp/students", {
+      studentId: "stu-1",
+      assignmentOnly: true,
+      vehicleId: "van-1"
+    }, "PATCH"));
+    const teamAssignment = await studentsPATCH(jsonRequest("http://localhost/api/camp/students", {
+      studentId: "stu-1",
+      assignmentOnly: true,
+      teamId: "team-red"
+    }, "PATCH"));
+    const teamUpdate = await teamsPATCH(jsonRequest("http://localhost/api/camp/teams", {
+      id: "team-blue",
+      name: "Blue",
+      color: "Blue",
+      leader: "Blocked Driver",
+      room: "Blocked Room"
+    }, "PATCH"));
+
+    expect(vehicleAssignment.status).toBe(401);
+    expect(teamAssignment.status).toBe(401);
+    expect(teamUpdate.status).toBe(401);
+    expectNoRestrictedPayloadDetails(await json(vehicleAssignment));
+    expectNoRestrictedPayloadDetails(await json(teamAssignment));
+    expectNoRestrictedPayloadDetails(await json(teamUpdate));
+  });
+
+  it("keeps vehicle assignment to CLC emergency roster campers and preserves unrelated fields", async () => {
+    getServerSessionMock.mockResolvedValue(andrewSession());
+
+    const clcCreate = await studentsPOST(jsonRequest("http://localhost/api/camp/students?role=andrew", {
+      name: "API CLC Vehicle Camper",
+      grade: "10th",
+      teamId: "team-blue",
+      vehicleId: "",
+      cabin: "Cabin API",
+      shirtSize: "Adult Small",
+      registrationExternalId: "API-CLC-TRANSPORT",
+      rosterType: "emerge",
+      hasMedicalAlert: true,
+      hasDietaryAlert: true,
+      limitedSafetyFlags: ["Allergy: Peanuts"]
+    }));
+    expect(clcCreate.status).toBe(201);
+    const clcPayload = await clcCreate.json() as { student: { id: string } };
+
+    const restricted = await medicalPOST(jsonRequest("http://localhost/api/camp/restricted-medical?role=andrew", {
+      studentId: clcPayload.student.id,
+      studentName: "API CLC Vehicle Camper",
+      medicalFormStatus: "Received",
+      restrictedNotes: "Private API restricted note",
+      allergyNotes: "Private API allergy detail",
+      insuranceStatus: "Private API insurance status",
+      parentMedicalNotes: "Private API parent note"
+    }));
+    expect(restricted.status).toBe(200);
+
+    const assign = await studentsPATCH(jsonRequest("http://localhost/api/camp/students?role=andrew", {
+      studentId: clcPayload.student.id,
+      assignmentOnly: true,
+      vehicleId: "van-1"
+    }, "PATCH"));
+    expect(assign.status).toBe(200);
+    const assignPayload = await assign.json() as { student: { teamId: string; vehicleId: string; cabin: string; registrationExternalId?: string; hasMedicalAlert?: boolean; hasDietaryAlert?: boolean; limitedSafetyFlags?: string[] } };
+    expect(assignPayload.student).toMatchObject({
+      teamId: "team-blue",
+      vehicleId: "van-1",
+      cabin: "Cabin API",
+      registrationExternalId: "API-CLC-TRANSPORT",
+      hasMedicalAlert: true,
+      hasDietaryAlert: true
+    });
+    expect(assignPayload.student.limitedSafetyFlags).toContain("Allergy: Peanuts");
+
+    const restrictedAfter = await medicalGET(new Request("http://localhost/api/camp/restricted-medical?role=andrew"));
+    const restrictedAfterPayload = await restrictedAfter.json() as { records: Array<{ studentId: string; restrictedNotes: string; insuranceStatus: string }> };
+    expect(restrictedAfterPayload.records.find((record) => record.studentId === clcPayload.student.id)).toMatchObject({
+      restrictedNotes: "Private API restricted note",
+      insuranceStatus: "Private API insurance status"
+    });
+
+    const partnerCreate = await studentsPOST(jsonRequest("http://localhost/api/camp/students?role=andrew", {
+      name: "API Partner Vehicle Camper",
+      grade: "10th",
+      teamId: "",
+      vehicleId: "",
+      cabin: "Partner Cabin",
+      rosterType: "partner",
+      sourceChurch: "Grace Chapel",
+      limitedSafetyFlags: []
+    }));
+    expect(partnerCreate.status).toBe(201);
+    const partnerPayload = await partnerCreate.json() as { student: { id: string } };
+
+    const blockedPartnerVehicle = await studentsPATCH(jsonRequest("http://localhost/api/camp/students?role=andrew", {
+      studentId: partnerPayload.student.id,
+      assignmentOnly: true,
+      vehicleId: "van-1"
+    }, "PATCH"));
+    const allowedPartnerTeam = await studentsPATCH(jsonRequest("http://localhost/api/camp/students?role=andrew", {
+      studentId: partnerPayload.student.id,
+      assignmentOnly: true,
+      teamId: "team-red"
+    }, "PATCH"));
+
+    expect(blockedPartnerVehicle.status).toBe(403);
+    expect(allowedPartnerTeam.status).toBe(200);
   });
 
   it("returns active campers for restricted medication intake selection without requiring existing medication records", async () => {

@@ -371,7 +371,7 @@ export function commitOakwoodImportPreview(role: CampAccessRole, preview: CampOa
       emergencyContactOnFile: row.safeIndicators.emergencyContactOnFile,
       hasMedicalAlert: row.safeIndicators.hasMedicalAlert,
       hasDietaryAlert: row.safeIndicators.hasDietaryAlert,
-      limitedSafetyFlags: existing?.limitedSafetyFlags ?? []
+      limitedSafetyFlags: row.safeOperationalFlags?.length ? row.safeOperationalFlags : existing?.limitedSafetyFlags ?? []
     });
 
     if (row.restricted) {

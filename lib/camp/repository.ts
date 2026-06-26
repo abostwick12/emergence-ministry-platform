@@ -5,6 +5,7 @@ import { parseMedicationScheduleText } from "@/lib/camp/medication-schedule-text
 import { rosterTypeFromFlags, sourceChurchFromFlags, withRosterMetadataFlags } from "@/lib/camp/partner-roster";
 import { campDocuments, campSchedule, campStartsOn, campTeams, campVehicles } from "@/lib/camp/public-data";
 import { sanitizePublicSafetyFlags } from "@/lib/camp/public-safety";
+import { isVehicleAssignableCamper } from "@/lib/camp/transportation-roster";
 import {
   assertCampAdminAccess,
   assertCampEmmaOperationsAccess,
@@ -639,7 +640,7 @@ export async function commitOakwoodImport(
       emergencyContactOnFile: row.safeIndicators.emergencyContactOnFile,
       hasMedicalAlert: row.safeIndicators.hasMedicalAlert,
       hasDietaryAlert: row.safeIndicators.hasDietaryAlert,
-      limitedSafetyFlags: []
+      limitedSafetyFlags: row.safeOperationalFlags ?? []
     });
     if (!studentPayload.allowed) return studentPayload;
 
@@ -1010,7 +1011,14 @@ export async function assignCampStudent(
   input: { studentId: string; teamId?: string; vehicleId?: string; cabin?: string }
 ) {
   if (context.isDriver) return { allowed: false as const, status: 403, error: "Camp roster editing is not available for this role." };
-  if (shouldUseMock(session)) return { allowed: true as const, status: 200, student: mockStore.assignCampStudent(input) };
+  if (shouldUseMock(session)) {
+    const existing = mockStore.getActiveCampStudentById(input.studentId);
+    if (!existing) throw new Error("Active camper not found.");
+    if (input.vehicleId && !isVehicleAssignableCamper(existing)) {
+      return { allowed: false as const, status: 403, error: "Vehicle assignment is limited to CLC/emergency roster campers." };
+    }
+    return { allowed: true as const, status: 200, student: mockStore.assignCampStudent(input) };
+  }
 
   const update: Record<string, string | null> = {};
   if (input.teamId !== undefined) update.team_id = input.teamId || null;
@@ -1018,6 +1026,23 @@ export async function assignCampStudent(
   if (input.cabin !== undefined) update.cabin = input.cabin;
 
   const supabase = getSupabaseAuthClient(session.accessToken);
+  if (input.vehicleId) {
+    const { data: existing, error: existingError } = await supabase
+      .from("camp_campers")
+      .select("*")
+      .eq("id", input.studentId)
+      .is("archived_at", null)
+      .maybeSingle<CampCamperRow>();
+    throwIfSupabaseError(existingError);
+    if (!existing) throw new Error("Active camper not found.");
+    if (!isVehicleAssignableCamper({
+      rosterType: existing.roster_type ?? undefined,
+      sourceChurch: existing.source_church ?? sourceChurchFromFlags(existing.limited_safety_flags ?? []),
+      limitedSafetyFlags: existing.limited_safety_flags ?? []
+    })) {
+      return { allowed: false as const, status: 403, error: "Vehicle assignment is limited to CLC/emergency roster campers." };
+    }
+  }
   const { data, error } = await supabase.from("camp_campers").update(update).eq("id", input.studentId).is("archived_at", null).select("*").single<CampCamperRow>();
   throwIfSupabaseError(error);
   if (!data) throw new Error("Camp assignment update returned no row.");
