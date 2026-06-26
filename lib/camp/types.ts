@@ -628,6 +628,96 @@ export type CampEmmaCommandResult =
   | CampEmmaCommandUnavailable
   | CampEmmaCommandError;
 
+export type CampEmmaActionType =
+  | "ASSIGN_CAMPER_TEAM"
+  | "ASSIGN_LEADER_TEAM"
+  | "UPDATE_CAMPER_ROOM"
+  | "LIST_UNASSIGNED_CAMPERS"
+  | "LIST_UNASSIGNED_LEADERS";
+
+export type CampEmmaActionTargetType = "camper" | "leader";
+export type CampEmmaActionStatus = "proposed" | "completed" | "denied" | "failed" | "cancelled";
+export type CampEmmaPendingActionStatus = "pending" | "completed" | "cancelled" | "expired";
+export type CampEmmaEditableField = "team" | "room";
+
+export type CampEmmaSafeTargetOption = {
+  targetId: string;
+  targetName: string;
+  targetType: CampEmmaActionTargetType;
+  grade?: string;
+  currentTeam?: string;
+  currentRoom?: string;
+};
+
+export type CampEmmaPendingAction = {
+  id: string;
+  campId: string;
+  actorUserId: string;
+  targetType: CampEmmaActionTargetType;
+  targetId: string;
+  targetName: string;
+  actionType: CampEmmaActionType;
+  fieldName: CampEmmaEditableField;
+  oldValue: string;
+  newValue: string;
+  originalCommandText: string;
+  expiresAt: string;
+  createdAt: string;
+  confirmedAt?: string;
+  cancelledAt?: string;
+  status: CampEmmaPendingActionStatus;
+};
+
+export type CampEmmaActionAuditStatus = CampEmmaActionStatus;
+
+export type CampEmmaActionAuditRecord = {
+  id: string;
+  campId: string;
+  actorUserId: string;
+  actorName: string;
+  targetType?: CampEmmaActionTargetType;
+  targetId?: string;
+  targetName?: string;
+  actionType?: CampEmmaActionType;
+  fieldName?: CampEmmaEditableField;
+  oldValue?: string;
+  newValue?: string;
+  originalCommandText: string;
+  confirmationRequired: boolean;
+  pendingActionId?: string;
+  confirmedAt?: string;
+  status: CampEmmaActionAuditStatus;
+  errorMessage?: string;
+  createdAt: string;
+};
+
+export type CampEmmaActionResponse =
+  | {
+      status: "confirmation_required";
+      pendingActionId: string;
+      message: string;
+      summary: {
+        targetName: string;
+        targetType: CampEmmaActionTargetType;
+        field: CampEmmaEditableField;
+        oldValue: string;
+        newValue: string;
+      };
+    }
+  | {
+      status: "clarification_required";
+      message: string;
+      options: CampEmmaSafeTargetOption[];
+      actionType: CampEmmaActionType;
+      targetType: CampEmmaActionTargetType;
+      proposedChange: { fieldName: CampEmmaEditableField; newValue: string };
+      originalCommandText: string;
+    }
+  | { status: "completed"; message: string; items?: CampEmmaSafeTargetOption[] }
+  | { status: "cancelled"; message: string }
+  | { status: "denied"; message: string }
+  | { status: "failed"; message: string };
+
 export type CampEmmaConfirmInput = {
   studentId: string;
   proposedRoom: string;

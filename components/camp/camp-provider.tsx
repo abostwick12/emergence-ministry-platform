@@ -11,9 +11,8 @@ export type CampHomeMode = "operations" | "medical";
 export type CampCapabilities = {
   restrictedMedical: boolean;
   medicalCommand: boolean;
-  // Andrew-only, for this first EMMA slice: lets the EMMA sheet show the
-  // room-change command UI. General leaders and Jaci do not get this even
-  // though they may have restrictedMedical/medicalCommand-adjacent access.
+  // Server-authoritative broad EMMA action capability. Individual action
+  // permissions are still enforced by the action route on every request.
   operationsCommand: boolean;
   campEditScope: CampEditScope;
   appAreaScope: CampAppAreaScope;
@@ -22,7 +21,7 @@ export type CampCapabilities = {
 
 export type { CampDay };
 
-type CampOverviewResponse = CampOverviewPayload & { capabilities?: CampCapabilities };
+type CampOverviewResponse = CampOverviewPayload & { capabilities?: CampCapabilities; leaderName?: string };
 
 const emptyOverview: CampOverviewPayload = {
   campName: "",
@@ -54,6 +53,7 @@ type CampContextValue = {
   scheduleForSelectedDay: CampScheduleBlock[];
   homeMode: CampHomeMode;
   setHomeMode: (mode: CampHomeMode) => void;
+  leaderName?: string;
   refresh: () => Promise<void>;
   updateStudentProfilePhoto: (studentId: string, profilePhotoUrl?: string) => void;
 };
@@ -63,6 +63,7 @@ const CampContext = createContext<CampContextValue | null>(null);
 export function CampProvider({ children }: { children: React.ReactNode }) {
   const [overview, setOverview] = useState<CampOverviewPayload>(emptyOverview);
   const [capabilities, setCapabilities] = useState<CampCapabilities>(emptyCapabilities);
+  const [leaderName, setLeaderName] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
   const [selectedDay, setSelectedDay] = useState("");
   const [homeMode, setHomeMode] = useState<CampHomeMode>("operations");
@@ -75,6 +76,7 @@ export function CampProvider({ children }: { children: React.ReactNode }) {
         const payload = (await response.json()) as CampOverviewResponse;
         setOverview(payload);
         setCapabilities(payload.capabilities ?? emptyCapabilities);
+        setLeaderName(payload.leaderName);
       }
     } finally {
       setLoading(false);
@@ -124,10 +126,11 @@ export function CampProvider({ children }: { children: React.ReactNode }) {
       scheduleForSelectedDay,
       homeMode,
       setHomeMode,
+      leaderName,
       refresh,
       updateStudentProfilePhoto
     }),
-    [overview, capabilities, loading, days, selectedDay, scheduleForSelectedDay, homeMode, refresh, updateStudentProfilePhoto]
+    [overview, capabilities, loading, days, selectedDay, scheduleForSelectedDay, homeMode, leaderName, refresh, updateStudentProfilePhoto]
   );
 
   return (
