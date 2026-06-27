@@ -19,6 +19,13 @@ export async function POST(request: Request) {
   }
 
   const result = await handleCampEmmaAction(session, context, body);
-  const status = result.status === "denied" ? 403 : result.status === "failed" ? 400 : 200;
+  const status = responseStatus(result);
   return NextResponse.json(result, { status });
+}
+
+function responseStatus(result: Awaited<ReturnType<typeof handleCampEmmaAction>>): number {
+  if (result.status === "denied") return 403;
+  if (result.status !== "failed") return 200;
+  if (result.code === "emma_provider_not_configured" || result.code === "emma_action_table_unavailable" || result.code === "emma_audit_table_unavailable") return 503;
+  return 400;
 }

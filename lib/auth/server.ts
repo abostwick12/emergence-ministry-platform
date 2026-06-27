@@ -95,8 +95,19 @@ export async function getServerSession(): Promise<AuthSession | null> {
     return null;
   }
 
-  const supabase = getSupabaseAuthClient();
-  const { data, error } = await supabase.auth.getUser(accessToken);
+  let userResult: Awaited<ReturnType<ReturnType<typeof getSupabaseAuthClient>["auth"]["getUser"]>>;
+  try {
+    const supabase = getSupabaseAuthClient();
+    userResult = await supabase.auth.getUser(accessToken);
+  } catch (error) {
+    console.warn("[auth] Supabase session lookup failed", {
+      timestamp: new Date().toISOString(),
+      reason: error instanceof Error ? error.name : "unknown"
+    });
+    return null;
+  }
+
+  const { data, error } = userResult;
 
   if (error || !data.user?.email) {
     return null;

@@ -706,6 +706,7 @@ export type CampEmmaActionResponse =
     }
   | {
       status: "clarification_required";
+      code?: string;
       message: string;
       options?: CampEmmaSafeTargetOption[];
       actionType?: CampEmmaActionType;
@@ -715,8 +716,8 @@ export type CampEmmaActionResponse =
     }
   | { status: "completed"; message: string; items?: CampEmmaSafeTargetOption[] }
   | { status: "cancelled"; message: string }
-  | { status: "denied"; message: string }
-  | { status: "failed"; message: string };
+  | { status: "denied"; code?: string; message: string }
+  | { status: "failed"; code?: string; message: string };
 
 export type CampEmmaConfirmInput = {
   studentId: string;
