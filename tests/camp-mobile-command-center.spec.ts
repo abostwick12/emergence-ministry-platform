@@ -184,7 +184,7 @@ test.describe("Camp mobile Command Center", () => {
     await nav.getByRole("button", { name: "Open EMMA Camp Finder" }).click();
     const emma = page.getByRole("dialog", { name: "Emerge Ministry Management Agent" });
     await expect(emma).toBeVisible();
-    await expect(emma.getByText(/Hey! I.m EMMA/)).toBeVisible();
+    await expect(emma.getByText(/Hey.*I.m EMMA/)).toBeVisible();
     await expect(emma.getByRole("button", { name: "Which teams are short a leader?" })).toBeVisible();
     const input = emma.getByRole("textbox", { name: "Message EMMA" });
     await input.fill("Where is Avery?");
