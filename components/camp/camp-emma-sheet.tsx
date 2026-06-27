@@ -95,7 +95,7 @@ export function CampEmmaSheet({ open, onClose }: CampEmmaSheetProps) {
         appendMessage({
           role: "emma",
           tone: "muted",
-          text: "I can help you find that information, but making changes requires elevated access."
+          text: "I can help you find camp information, but I can't make that change from your account."
         });
         return;
       }
