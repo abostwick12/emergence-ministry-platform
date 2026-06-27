@@ -5,7 +5,11 @@ export async function resolvesToCampOnlyShell(session: AuthSession): Promise<boo
   try {
     return (await resolveCampAccessForRequest(session, null)).appAreaScope === "camp_only";
   } catch (error) {
-    if (isCampAccessResolutionError(error)) return false;
+    // Fail restrictive: when Camp access cannot be resolved (mock auth in launch
+    // mode, missing Supabase, missing camp_access_members, no active access row),
+    // confine the user to the Camp-only shell rather than exposing the full Emerge
+    // ministry side. Protected data stays gated by the API guard either way.
+    if (isCampAccessResolutionError(error)) return true;
     throw error;
   }
 }

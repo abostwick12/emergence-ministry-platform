@@ -49,13 +49,13 @@ beforeEach(() => {
 });
 
 describe("Camp shell access state", () => {
-  it("does not crash the whole app when launch Camp access resolution returns a readiness error", async () => {
+  it("fails restrictive to the Camp-only shell when launch Camp access resolution returns a readiness error", async () => {
     resolveCampAccessForRequestMock.mockRejectedValue(new CampAccessResolutionError(
       "Camp launch testing requires a real authenticated Supabase session, not development auth.",
       { status: 403, code: "camp_mock_auth_blocked" }
     ));
 
-    await expect(resolvesToCampOnlyShell(session())).resolves.toBe(false);
+    await expect(resolvesToCampOnlyShell(session())).resolves.toBe(true);
   });
 
   it("still resolves true for authenticated Camp-only users", async () => {

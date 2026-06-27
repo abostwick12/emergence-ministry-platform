@@ -96,22 +96,29 @@ export async function getServerSession(): Promise<AuthSession | null> {
   }
 
   const supabase = getSupabaseAuthClient();
-  const { data, error } = await supabase.auth.getUser(accessToken);
 
-  if (error || !data.user?.email) {
+  // Treat a thrown auth call (network/timeout) the same as an invalid session so
+  // server components fall back to the login redirect instead of crashing render.
+  try {
+    const { data, error } = await supabase.auth.getUser(accessToken);
+
+    if (error || !data.user?.email) {
+      return null;
+    }
+
+    return {
+      user: {
+        id: data.user.id,
+        email: data.user.email,
+        fullName: data.user.user_metadata?.full_name ?? data.user.email,
+        role: data.user.user_metadata?.role ?? "staff"
+      },
+      accessToken,
+      isMock: false
+    };
+  } catch {
     return null;
   }
-
-  return {
-    user: {
-      id: data.user.id,
-      email: data.user.email,
-      fullName: data.user.user_metadata?.full_name ?? data.user.email,
-      role: data.user.user_metadata?.role ?? "staff"
-    },
-    accessToken,
-    isMock: false
-  };
 }
 
 export function unauthorizedResponse() {
