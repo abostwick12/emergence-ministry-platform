@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useCamp } from "@/components/camp/camp-provider";
-import { buildCampEmmaWelcomeGreeting } from "@/lib/camp/emma-greeting";
+import { buildCampEmmaWelcomeGreeting, getCampEmmaSuggestions } from "@/lib/camp/emma-greeting";
 import type { CampEmmaAnswer, CampEmmaMode } from "@/lib/camp/emma";
 import type { CampEmmaActionResponse, CampEmmaActionType, CampEmmaSafeTargetOption } from "@/lib/camp/types";
 
@@ -46,24 +46,6 @@ type CampEmmaClarificationState = {
   originalCommandText?: string;
 };
 
-const leaderExamples = [
-  "What team is Isaac on?",
-  "Who is in my team?",
-  "What room is Avery in?",
-  "When is dinner tonight?",
-  "Who is riding in Carver SUV?",
-  "What's next on the schedule?"
-];
-
-const adminExamples = [
-  "Which teams are short a leader?",
-  "Move Isaac Carver to purple team",
-  "Who has no room assignment?",
-  "Show campers without vehicles",
-  "Who is assigned to Carver SUV?"
-];
-
-const adminMedicalExamples = ["What medication windows are coming up?"];
 const actionIntentPattern = /\b(move|assign|change|put|set|switch|transfer|update)\b/i;
 const medicationQuestionPattern = /\b(medication|medicine|meds|dose|doses|intake)\b/i;
 
@@ -71,23 +53,26 @@ export function CampEmmaSheet({ open, onClose }: CampEmmaSheetProps) {
   const { capabilities, selectedDay, homeMode, leaderName, refresh } = useCamp();
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<CampEmmaChatMessage[]>([]);
-  const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const [activeProposal, setActiveProposal] = useState<CampEmmaActiveProposal | null>(null);
   const [clarification, setClarification] = useState<CampEmmaClarificationState | null>(null);
   const [confirmLoading, setConfirmLoading] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const threadRef = useRef<HTMLDivElement | null>(null);
 
-  const examples = useMemo(() => {
-    if (!capabilities.operationsCommand) return leaderExamples;
-    return capabilities.medicalCommand ? [...adminExamples, ...adminMedicalExamples] : adminExamples;
-  }, [capabilities.operationsCommand, capabilities.medicalCommand]);
+  const suggestions = useMemo(
+    () => getCampEmmaSuggestions(capabilities.operationsCommand),
+    [capabilities.operationsCommand]
+  );
 
+  const hasUserMessage = messages.some((m) => m.role === "user");
   const searchMode: CampEmmaMode = capabilities.restrictedMedical ? "smart_search" : "finder";
   const welcome = buildCampEmmaWelcomeGreeting(leaderName);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ block: "end" });
-  }, [messages, loadingMessage, activeProposal, clarification]);
+    if (threadRef.current) {
+      threadRef.current.scrollTop = threadRef.current.scrollHeight;
+    }
+  }, [messages, loading, activeProposal, clarification]);
 
   function resetActionFlow() {
     setActiveProposal(null);
@@ -100,12 +85,20 @@ export function CampEmmaSheet({ open, onClose }: CampEmmaSheetProps) {
 
   async function submitPrompt(rawPrompt = input) {
     const prompt = rawPrompt.trim();
-    if (!prompt || loadingMessage) return;
+    if (!prompt || loading) return;
     setInput("");
     resetActionFlow();
     appendMessage({ role: "user", text: prompt });
 
     if (looksLikeActionPrompt(prompt)) {
+      if (!capabilities.operationsCommand) {
+        appendMessage({
+          role: "emma",
+          tone: "muted",
+          text: "I can help you find that information, but making changes requires elevated access."
+        });
+        return;
+      }
       await runAction(prompt);
       return;
     }
@@ -114,7 +107,7 @@ export function CampEmmaSheet({ open, onClose }: CampEmmaSheetProps) {
   }
 
   async function runSearch(prompt: string) {
-    setLoadingMessage("EMMA is checking the camp data...");
+    setLoading(true);
     try {
       const response = await fetch("/api/camp/emma", {
         method: "POST",
@@ -143,12 +136,12 @@ export function CampEmmaSheet({ open, onClose }: CampEmmaSheetProps) {
         text: "I couldn't reach the Camp data service. Please try again in a moment."
       });
     } finally {
-      setLoadingMessage(null);
+      setLoading(false);
     }
   }
 
   async function runAction(prompt: string) {
-    setLoadingMessage("EMMA is checking permissions and preparing a safe next step...");
+    setLoading(true);
     try {
       const response = await fetch("/api/camp/emma/actions", {
         method: "POST",
@@ -168,7 +161,7 @@ export function CampEmmaSheet({ open, onClose }: CampEmmaSheetProps) {
         text: "I couldn't reach the Camp action service. Please try again in a moment."
       });
     } finally {
-      setLoadingMessage(null);
+      setLoading(false);
     }
   }
 
@@ -221,7 +214,7 @@ export function CampEmmaSheet({ open, onClose }: CampEmmaSheetProps) {
 
   async function chooseClarificationCandidate(candidate: CampEmmaSafeTargetOption) {
     if (!clarification?.actionType || !clarification.targetType || !clarification.proposedChange || !clarification.originalCommandText) return;
-    setLoadingMessage("EMMA is preparing that change for review...");
+    setLoading(true);
     appendMessage({ role: "user", text: candidate.targetName });
     try {
       const response = await fetch("/api/camp/emma/actions", {
@@ -241,14 +234,14 @@ export function CampEmmaSheet({ open, onClose }: CampEmmaSheetProps) {
     } catch {
       appendMessage({ role: "emma", tone: "error", text: "I couldn't prepare that change. Please try again or use the roster directly." });
     } finally {
-      setLoadingMessage(null);
+      setLoading(false);
     }
   }
 
   async function confirmProposal() {
     if (!activeProposal) return;
     setConfirmLoading(true);
-    setLoadingMessage("EMMA is saving the confirmed change...");
+    setLoading(true);
     try {
       const response = await fetch("/api/camp/emma/actions", {
         method: "POST",
@@ -267,14 +260,14 @@ export function CampEmmaSheet({ open, onClose }: CampEmmaSheetProps) {
       appendMessage({ role: "emma", tone: "error", text: "I couldn't save that change. Please try again or use the roster directly." });
     } finally {
       setConfirmLoading(false);
-      setLoadingMessage(null);
+      setLoading(false);
     }
   }
 
   async function cancelProposal() {
     if (!activeProposal) return;
     setConfirmLoading(true);
-    setLoadingMessage("EMMA is cancelling that proposed change...");
+    setLoading(true);
     try {
       const response = await fetch("/api/camp/emma/actions", {
         method: "POST",
@@ -286,10 +279,10 @@ export function CampEmmaSheet({ open, onClose }: CampEmmaSheetProps) {
       applyActionResult(payload);
     } catch {
       setActiveProposal(null);
-      appendMessage({ role: "emma", tone: "muted", text: "No problem - I cancelled that change." });
+      appendMessage({ role: "emma", tone: "muted", text: "No problem — I cancelled that change." });
     } finally {
       setConfirmLoading(false);
-      setLoadingMessage(null);
+      setLoading(false);
     }
   }
 
@@ -303,9 +296,14 @@ export function CampEmmaSheet({ open, onClose }: CampEmmaSheetProps) {
     <div className="camp-emma-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
       <section className="camp-emma-sheet" role="dialog" aria-modal="true" aria-labelledby="camp-emma-title">
         <header className="camp-emma-head">
-          <div>
-            <p className="camp-cc-eyebrow">Camp Oakwood Assistant</p>
-            <h2 id="camp-emma-title">EMMA Camp Assistant</h2>
+          <div style={{ position: "relative", flexShrink: 0 }}>
+            <div className="camp-emma-avatar">E</div>
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p className="camp-cc-eyebrow" style={{ marginBottom: 1 }}>EMMA</p>
+            <h2 id="camp-emma-title" style={{ fontSize: 15, margin: 0 }}>
+              Emerge Ministry Management Agent
+            </h2>
           </div>
           <button className="camp-emma-close" type="button" onClick={onClose} aria-label="Close EMMA">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -314,21 +312,21 @@ export function CampEmmaSheet({ open, onClose }: CampEmmaSheetProps) {
           </button>
         </header>
 
-        <div className="camp-emma-messages" aria-live="polite">
+        <div className="camp-emma-messages" ref={threadRef} aria-live="polite">
           <article className="camp-emma-bubble emma">
             {welcome.split("\n\n").map((paragraph) => (
               <p key={paragraph}>{paragraph}</p>
             ))}
-            <p className="camp-cc-muted">Try asking something like:</p>
+            {!hasUserMessage && (
+              <div className="camp-emma-examples" aria-label="Example Camp questions">
+                {suggestions.map((suggestion) => (
+                  <button key={suggestion} type="button" onClick={() => void submitPrompt(suggestion)}>
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
+            )}
           </article>
-
-          <div className="camp-emma-examples" aria-label="Example Camp questions">
-            {examples.map((example) => (
-              <button key={example} type="button" onClick={() => void submitPrompt(example)}>
-                {example}
-              </button>
-            ))}
-          </div>
 
           {messages.map((message) => (
             <ChatBubble key={message.id} message={message} onClose={onClose} />
@@ -363,7 +361,7 @@ export function CampEmmaSheet({ open, onClose }: CampEmmaSheetProps) {
               <p className="camp-cc-muted">Nothing changes until you confirm.</p>
               <div className="camp-emma-proposal-actions">
                 <button type="button" disabled={confirmLoading} onClick={() => void confirmProposal()}>
-                  {confirmLoading ? "Saving" : "Confirm Change"}
+                  {confirmLoading ? "Saving…" : "Confirm Change"}
                 </button>
                 <button type="button" disabled={confirmLoading} onClick={() => void cancelProposal()}>
                   Cancel
@@ -372,12 +370,11 @@ export function CampEmmaSheet({ open, onClose }: CampEmmaSheetProps) {
             </div>
           ) : null}
 
-          {loadingMessage ? (
-            <article className="camp-emma-bubble emma muted" aria-label="EMMA loading">
-              <p>{loadingMessage}</p>
-            </article>
+          {loading ? (
+            <div className="camp-emma-typing" aria-label="EMMA is thinking">
+              <span /><span /><span />
+            </div>
           ) : null}
-          <div ref={messagesEndRef} />
         </div>
 
         <form
@@ -394,7 +391,7 @@ export function CampEmmaSheet({ open, onClose }: CampEmmaSheetProps) {
             placeholder={capabilities.operationsCommand ? "Ask EMMA or request a safe Camp action" : "Ask EMMA about Camp information"}
             aria-label="Message EMMA"
           />
-          <button type="submit" disabled={Boolean(loadingMessage) || !input.trim()}>
+          <button type="submit" disabled={loading || !input.trim()}>
             Send
           </button>
         </form>

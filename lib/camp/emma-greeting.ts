@@ -1,8 +1,14 @@
 export function buildCampEmmaWelcomeGreeting(fullName?: string | null): string {
+  const firstName = firstNameFrom(fullName);
+  const greeting = firstName
+    ? `Hey, ${firstName}! I'm EMMA, the Emerge Ministry Management Agent.`
+    : "Hey there! I'm EMMA, the Emerge Ministry Management Agent.";
   return [
-    "Hey! I\u2019m EMMA \u2014 your Camp Oakwood assistant.",
+    greeting,
     "",
-    `${leaderLine(fullName)}I can help you quickly find the camp information you\u2019re allowed to see, like teams, rooms, schedules, transportation, and leader details.`
+    'I, too, am running on "camp mode," so not all of my reasoning skills are available right now. I\'m sure you understand what that\'s like.',
+    "",
+    "But I'm here for it, and I can still help you find what you need fast."
   ].join("\n");
 }
 
@@ -11,7 +17,23 @@ function firstNameFrom(fullName?: string | null): string | null {
   return first || null;
 }
 
-function leaderLine(fullName?: string | null): string {
-  const firstName = firstNameFrom(fullName);
-  return firstName ? `${firstName}, ` : "";
+export function getCampEmmaSuggestions(canRunActions: boolean): string[] {
+  if (canRunActions) {
+    return [
+      "Which campers don't have a team yet?",
+      "Which teams are short a leader?",
+      "Move Isaac Carver to Orange Team",
+      "Give me a briefing for tonight",
+      "What rooms still need assignments?",
+      "Who's in Cabin 5?"
+    ];
+  }
+  return [
+    "Who's on Purple Team?",
+    "Where is Avery?",
+    "What time is dinner tonight?",
+    "Who's driving Van 2?",
+    "Show me today's schedule",
+    "Who are the team leaders?"
+  ];
 }
