@@ -123,7 +123,7 @@ create policy camp_team_bulletins_insert on public.camp_team_bulletins
     and (
       public.current_user_camp_edit_scope() = 'all_campers'
       or (
-        team_id = any(public.current_user_assigned_team_ids())
+        team_id::text = any(public.current_user_assigned_team_ids())
         and (
           (public.current_user_partner_church_id() is null and partner_church_id is null)
           or (

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthSession } from "@/lib/auth/server";
 import { buildCampAccessFromStoredRole } from "@/lib/camp/access-control";
 import { handleCampEmmaAction, parseEmmaCampCommand } from "@/lib/camp/emma-actions";
-import { getCampEmmaActionReadiness } from "@/lib/camp/emma-readiness";
+import { getCampEmmaActionReadiness, getLegacyCampEmmaCommandReadiness } from "@/lib/camp/emma-readiness";
 import type { CampAccessContext } from "@/lib/camp/permissions";
 import { __resetCampStoreForTests, listCampEmmaActionAudit, updateCampEmmaPendingAction } from "@/lib/camp/store";
 import { getCampOverview, upsertCampStudent } from "@/lib/camp/repository";
@@ -129,6 +129,13 @@ describe("handleCampEmmaAction", () => {
       code: "emma_provider_not_configured",
       message: expect.stringMatching(/provider is not configured/i)
     });
+    expect(result.message).toContain("AZURE_OPENAI_ENDPOINT");
+    expect(result.message).toContain("AZURE_OPENAI_API_KEY");
+    expect(result.message).toContain("AZURE_OPENAI_DEPLOYMENT");
+    expect(result.message).toContain("AZURE_OPENAI_API_VERSION");
+    expect(result.message).toContain("OPENAI_API_KEY");
+    expect(result.message).toContain("OPENAI_MODEL");
+    expect(result.message).toContain("Do not prefix these with NEXT_PUBLIC_");
   });
 
   it("returns typed EMMA readiness errors when launch tables are unavailable", async () => {
@@ -151,6 +158,17 @@ describe("handleCampEmmaAction", () => {
       ok: false,
       code: "emma_audit_table_unavailable",
       message: expect.stringMatching(/audit table/i)
+    });
+  });
+
+  it("keeps the legacy command route honest about its Azure-only provider dependency", () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("OPENAI_API_KEY", "test-openai-key");
+
+    expect(getLegacyCampEmmaCommandReadiness()).toMatchObject({
+      ok: false,
+      code: "emma_provider_not_configured",
+      message: expect.stringContaining("Legacy Camp EMMA command route requires Azure OpenAI")
     });
   });
 

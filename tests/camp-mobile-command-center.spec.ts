@@ -182,11 +182,19 @@ test.describe("Camp mobile Command Center", () => {
 
     await suppressNextDevPortal(page);
     await nav.getByRole("button", { name: "Open EMMA Camp Finder" }).click();
-    await expect(page.getByRole("dialog", { name: "Find anything fast" })).toBeVisible();
-    await page.getByRole("searchbox", { name: "Smart Camp Search" }).fill("Where is Avery?");
-    await page.getByRole("button", { name: "Search" }).click();
+    const emma = page.getByRole("dialog", { name: "EMMA Camp Assistant" });
+    await expect(emma).toBeVisible();
+    await expect(emma.getByText(/Hey! I.m EMMA/)).toBeVisible();
+    await expect(emma.getByRole("button", { name: "Which teams are short a leader?" })).toBeVisible();
+    const input = emma.getByRole("textbox", { name: "Message EMMA" });
+    await input.fill("Where is Avery?");
+    await emma.getByRole("button", { name: "Send" }).click();
     await expect(page.getByText(/Avery Johnson/)).toBeVisible();
     await expect(page.locator("body")).not.toContainText("Parent-labeled medication");
+    await expect(input).toBeVisible();
+    const inputBox = await input.boundingBox();
+    expect(inputBox).not.toBeNull();
+    if (inputBox) expect(inputBox.y + inputBox.height).toBeLessThanOrEqual(812);
 
     await page.getByRole("button", { name: "Close EMMA" }).click();
     await suppressNextDevPortal(page);
@@ -341,14 +349,92 @@ test.describe("Camp mobile Command Center", () => {
     await page.goto("/camp");
 
     await page.getByRole("button", { name: "Open EMMA Camp Finder" }).click();
-    const sheet = page.getByRole("dialog", { name: "Find anything fast" });
+    const sheet = page.getByRole("dialog", { name: "EMMA Camp Assistant" });
     await expect(sheet).toBeVisible();
     // Smart Search and Ask EMMA are collapsed into one search - no separate tab inside the sheet.
     await expect(sheet.getByRole("tab")).toHaveCount(0);
-    await page.getByRole("searchbox", { name: "Smart Camp Search" }).fill("What medication dose does Avery need?");
-    await page.getByRole("button", { name: "Search" }).click();
-    await expect(page.getByText(/restricted medical details are not available/i)).toBeVisible();
+    await sheet.getByRole("textbox", { name: "Message EMMA" }).fill("What medication dose does Avery need?");
+    await sheet.getByRole("button", { name: "Send" }).click();
+    await expect(page.getByText(/medication .* scheduled|No medication blocks are scheduled|restricted medical details are not available/i)).toBeVisible();
     await expect(page.locator("body")).not.toContainText("Parent-labeled medication");
+  });
+
+  test("EMMA action prompts use chat confirmation before a write", async ({ page }) => {
+    await login(page);
+    await page.goto("/camp");
+
+    await page.getByRole("button", { name: "Open EMMA Camp Finder" }).click();
+    const sheet = page.getByRole("dialog", { name: "EMMA Camp Assistant" });
+    await sheet.getByRole("textbox", { name: "Message EMMA" }).fill("Move Avery Johnson to Red Team");
+    await sheet.getByRole("button", { name: "Send" }).click();
+
+    await expect(sheet.getByText(/Review this before anything changes/)).toBeVisible();
+    await expect(sheet.getByRole("group", { name: "EMMA proposed Camp change" })).toBeVisible();
+    await expect(sheet.getByRole("button", { name: "Confirm Change" })).toBeVisible();
+    await sheet.getByRole("button", { name: "Cancel" }).click();
+    await expect(sheet.getByText(/cancelled that change/i)).toBeVisible();
+  });
+
+  test("EMMA keeps leader action denial and provider readiness conversational", async ({ page }) => {
+    await login(page);
+    const overview = await page.request.get("/api/camp");
+    expect(overview.ok()).toBe(true);
+    const payload = await overview.json();
+
+    await page.route("**/api/camp", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        json: {
+          ...payload,
+          capabilities: { restrictedMedical: false, medicalCommand: false, operationsCommand: false }
+        }
+      });
+    });
+    await page.route("**/api/camp/emma/actions", async (route) => {
+      await route.fulfill({
+        status: 403,
+        contentType: "application/json",
+        json: { status: "denied", code: "permission_denied", message: "server denied" }
+      });
+    });
+
+    await page.goto("/camp");
+    await page.getByRole("button", { name: "Open EMMA Camp Finder" }).click();
+    const sheet = page.getByRole("dialog", { name: "EMMA Camp Assistant" });
+    await expect(sheet.getByRole("button", { name: "Who is in my team?" })).toBeVisible();
+    await expect(sheet.getByRole("button", { name: "Move Isaac Carver to purple team" })).toHaveCount(0);
+    await sheet.getByRole("textbox", { name: "Message EMMA" }).fill("Move Avery Johnson to Red Team");
+    await sheet.getByRole("button", { name: "Send" }).click();
+    await expect(sheet.getByText("I can help you find camp information, but I can't make that change from your account.")).toBeVisible();
+    await expect(sheet).not.toContainText("read_only");
+
+    await page.unroute("**/api/camp/emma/actions");
+    await page.route("**/api/camp/emma/actions", async (route) => {
+      await route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        json: { status: "failed", code: "emma_provider_not_configured", message: "raw provider setup message" }
+      });
+    });
+    await page.unroute("**/api/camp");
+    await page.route("**/api/camp", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        json: {
+          ...payload,
+          capabilities: { restrictedMedical: true, medicalCommand: true, operationsCommand: true }
+        }
+      });
+    });
+    await page.getByRole("button", { name: "Close EMMA" }).click();
+    await page.reload();
+    await page.getByRole("button", { name: "Open EMMA Camp Finder" }).click();
+    const adminSheet = page.getByRole("dialog", { name: "EMMA Camp Assistant" });
+    await adminSheet.getByRole("textbox", { name: "Message EMMA" }).fill("Move Avery Johnson to Red Team");
+    await adminSheet.getByRole("button", { name: "Send" }).click();
+    await expect(adminSheet.getByText(/EMMA actions need the AI provider to be connected/i)).toBeVisible();
   });
 
   test("More separates Andrew medication workflows", async ({ page }) => {

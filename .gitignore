@@ -11,3 +11,8 @@ test-results/
 playwright-report/
 
 .claude/settings.local.json
+
+.trash/
+.worktrees/
+artifacts/*.png
+artifacts/*.log

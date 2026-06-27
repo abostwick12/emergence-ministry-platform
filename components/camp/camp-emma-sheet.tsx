@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useCamp } from "@/components/camp/camp-provider";
 import { buildCampEmmaWelcomeGreeting } from "@/lib/camp/emma-greeting";
 import type { CampEmmaAnswer, CampEmmaMode } from "@/lib/camp/emma";
@@ -20,11 +20,13 @@ type CampEmmaResponse = {
   error?: string;
 };
 
-type SheetState =
-  | { status: "idle"; answer: CampEmmaAnswer | null; error: null }
-  | { status: "loading"; answer: CampEmmaAnswer | null; error: null }
-  | { status: "ready"; answer: CampEmmaAnswer; error: null }
-  | { status: "error"; answer: CampEmmaAnswer | null; error: string };
+type CampEmmaChatMessage = {
+  id: string;
+  role: "emma" | "user";
+  text?: string;
+  answer?: CampEmmaAnswer;
+  tone?: "default" | "error" | "success" | "muted";
+};
 
 type CampEmmaActiveProposal = {
   pendingActionId: string;
@@ -44,81 +46,129 @@ type CampEmmaClarificationState = {
   originalCommandText?: string;
 };
 
-const leaderExamples = ["Where is Avery?", "Who is on Blue Team?", "Who is in Van 2?", "What time is dinner?"];
-const smartSearchExamples = ["What room is Avery in?", "Which teams are short a leader?", "Which students are missing rooms?", "Give me a leader briefing for tonight"];
+const leaderExamples = [
+  "What team is Isaac on?",
+  "Who is in my team?",
+  "What room is Avery in?",
+  "When is dinner tonight?",
+  "Who is riding in Carver SUV?",
+  "What's next on the schedule?"
+];
+
+const adminExamples = [
+  "Which teams are short a leader?",
+  "Move Isaac Carver to purple team",
+  "Who has no room assignment?",
+  "Show campers without vehicles",
+  "Who is assigned to Carver SUV?"
+];
+
+const adminMedicalExamples = ["What medication windows are coming up?"];
+const actionIntentPattern = /\b(move|assign|change|put|set|switch|transfer|update)\b/i;
+const medicationQuestionPattern = /\b(medication|medicine|meds|dose|doses|intake)\b/i;
 
 export function CampEmmaSheet({ open, onClose }: CampEmmaSheetProps) {
   const { capabilities, selectedDay, homeMode, leaderName, refresh } = useCamp();
-  const isEmmaUser = capabilities.restrictedMedical;
-  const [query, setQuery] = useState("");
-  const [state, setState] = useState<SheetState>({ status: "idle", answer: null, error: null });
-  const [commandText, setCommandText] = useState("");
-  const [commandLoading, setCommandLoading] = useState(false);
-  const [commandMessage, setCommandMessage] = useState<string | null>(null);
+  const [input, setInput] = useState("");
+  const [messages, setMessages] = useState<CampEmmaChatMessage[]>([]);
+  const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
   const [activeProposal, setActiveProposal] = useState<CampEmmaActiveProposal | null>(null);
   const [clarification, setClarification] = useState<CampEmmaClarificationState | null>(null);
   const [confirmLoading, setConfirmLoading] = useState(false);
-  const [confirmedNotice, setConfirmedNotice] = useState<string | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
-  const examples = useMemo(() => (isEmmaUser ? smartSearchExamples : leaderExamples), [isEmmaUser]);
-  const searchMode: CampEmmaMode = isEmmaUser ? "smart_search" : "finder";
+  const examples = useMemo(() => {
+    if (!capabilities.operationsCommand) return leaderExamples;
+    return capabilities.medicalCommand ? [...adminExamples, ...adminMedicalExamples] : adminExamples;
+  }, [capabilities.operationsCommand, capabilities.medicalCommand]);
 
-  function resetCommandFlow() {
+  const searchMode: CampEmmaMode = capabilities.restrictedMedical ? "smart_search" : "finder";
+  const welcome = buildCampEmmaWelcomeGreeting(leaderName);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ block: "end" });
+  }, [messages, loadingMessage, activeProposal, clarification]);
+
+  function resetActionFlow() {
     setActiveProposal(null);
     setClarification(null);
-    setCommandMessage(null);
-    setConfirmedNotice(null);
   }
 
-  async function runSearch(nextQuery = query) {
-    const trimmed = nextQuery.trim();
-    if (!trimmed) return;
-    setQuery(trimmed);
-    setState((current) => ({ status: "loading", answer: current.answer, error: null }));
+  function appendMessage(message: Omit<CampEmmaChatMessage, "id">) {
+    setMessages((current) => [...current, { id: nextMessageId(), ...message }]);
+  }
 
+  async function submitPrompt(rawPrompt = input) {
+    const prompt = rawPrompt.trim();
+    if (!prompt || loadingMessage) return;
+    setInput("");
+    resetActionFlow();
+    appendMessage({ role: "user", text: prompt });
+
+    if (looksLikeActionPrompt(prompt)) {
+      await runAction(prompt);
+      return;
+    }
+
+    await runSearch(prompt);
+  }
+
+  async function runSearch(prompt: string) {
+    setLoadingMessage("EMMA is checking the camp data...");
     try {
       const response = await fetch("/api/camp/emma", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          query: trimmed,
+          query: prompt,
           mode: searchMode,
           selectedDay,
-          medicalCommandActive: homeMode === "medical"
+          medicalCommandActive: shouldUseMedicalCommandContext(prompt)
         })
       });
       const payload = (await response.json()) as CampEmmaResponse;
       if (!response.ok || payload.ok !== true || !payload.answer) {
-        setState((current) => ({
-          status: "error",
-          answer: current.answer,
-          error: payload.error ?? "EMMA could not answer safely."
-        }));
+        appendMessage({
+          role: "emma",
+          tone: "error",
+          text: payload.error ?? "I couldn't answer that from your current Camp access. Try asking for a camper, team, room, vehicle, or schedule item."
+        });
         return;
       }
-      setState({ status: "ready", answer: payload.answer, error: null });
+      appendMessage({ role: "emma", answer: payload.answer });
     } catch {
-      setState((current) => ({ status: "error", answer: current.answer, error: "EMMA could not answer safely." }));
+      appendMessage({
+        role: "emma",
+        tone: "error",
+        text: "I couldn't reach the Camp data service. Please try again in a moment."
+      });
+    } finally {
+      setLoadingMessage(null);
     }
   }
 
-  async function runCommand() {
-    const text = commandText.trim();
-    if (!text) return;
-    resetCommandFlow();
-    setCommandLoading(true);
+  async function runAction(prompt: string) {
+    setLoadingMessage("EMMA is checking permissions and preparing a safe next step...");
     try {
       const response = await fetch("/api/camp/emma/actions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ originalCommandText: text })
+        body: JSON.stringify({ originalCommandText: prompt })
       });
       const payload = (await response.json()) as CampEmmaActionResponse;
+      if (!response.ok && !("status" in payload)) {
+        appendMessage({ role: "emma", tone: "error", text: "I couldn't process that action safely. Please try again or use the roster directly." });
+        return;
+      }
       applyActionResult(payload);
     } catch {
-      setCommandMessage("EMMA could not process that command. Please try again.");
+      appendMessage({
+        role: "emma",
+        tone: "error",
+        text: "I couldn't reach the Camp action service. Please try again in a moment."
+      });
     } finally {
-      setCommandLoading(false);
+      setLoadingMessage(null);
     }
   }
 
@@ -132,8 +182,10 @@ export function CampEmmaSheet({ open, onClose }: CampEmmaSheetProps) {
         oldValue: result.summary.oldValue,
         newValue: result.summary.newValue
       });
+      appendMessage({ role: "emma", text: `${result.message} Review this before anything changes.` });
       return;
     }
+
     if (result.status === "clarification_required") {
       setClarification({
         message: result.message,
@@ -143,23 +195,34 @@ export function CampEmmaSheet({ open, onClose }: CampEmmaSheetProps) {
         ...(result.proposedChange ? { proposedChange: result.proposedChange } : {}),
         ...(result.originalCommandText ? { originalCommandText: result.originalCommandText } : {})
       });
+      appendMessage({ role: "emma", text: result.message });
       return;
     }
+
     if (result.status === "completed" && result.items?.length) {
-      setCommandMessage(`${result.message} ${result.items.map((item) => item.targetName).join(", ")}`);
+      appendMessage({
+        role: "emma",
+        text: [result.message, ...result.items.map((item) => item.targetName)].join("\n")
+      });
       return;
     }
+
     if (result.status === "completed" || result.status === "cancelled") {
-      setConfirmedNotice(result.message);
-      setCommandText("");
+      appendMessage({ role: "emma", tone: result.status === "completed" ? "success" : "muted", text: result.message });
       return;
     }
-    setCommandMessage(result.message);
+
+    appendMessage({
+      role: "emma",
+      tone: result.status === "denied" ? "muted" : "error",
+      text: userFacingActionMessage(result)
+    });
   }
 
   async function chooseClarificationCandidate(candidate: CampEmmaSafeTargetOption) {
     if (!clarification?.actionType || !clarification.targetType || !clarification.proposedChange || !clarification.originalCommandText) return;
-    setCommandLoading(true);
+    setLoadingMessage("EMMA is preparing that change for review...");
+    appendMessage({ role: "user", text: candidate.targetName });
     try {
       const response = await fetch("/api/camp/emma/actions", {
         method: "POST",
@@ -176,15 +239,16 @@ export function CampEmmaSheet({ open, onClose }: CampEmmaSheetProps) {
       setClarification(null);
       applyActionResult(payload);
     } catch {
-      setCommandMessage("EMMA could not prepare that change. Please try again.");
+      appendMessage({ role: "emma", tone: "error", text: "I couldn't prepare that change. Please try again or use the roster directly." });
     } finally {
-      setCommandLoading(false);
+      setLoadingMessage(null);
     }
   }
 
   async function confirmProposal() {
     if (!activeProposal) return;
     setConfirmLoading(true);
+    setLoadingMessage("EMMA is saving the confirmed change...");
     try {
       const response = await fetch("/api/camp/emma/actions", {
         method: "POST",
@@ -193,23 +257,24 @@ export function CampEmmaSheet({ open, onClose }: CampEmmaSheetProps) {
       });
       const payload = (await response.json()) as CampEmmaActionResponse;
       if (!response.ok || payload.status !== "completed") {
-        setCommandMessage(payload.message ?? "EMMA could not save that change.");
+        appendMessage({ role: "emma", tone: "error", text: userFacingActionMessage(payload) });
         return;
       }
       setActiveProposal(null);
-      setCommandText("");
-      setConfirmedNotice(payload.message);
+      appendMessage({ role: "emma", tone: "success", text: payload.message });
       await refresh();
     } catch {
-      setCommandMessage("EMMA could not save that change. Please try again.");
+      appendMessage({ role: "emma", tone: "error", text: "I couldn't save that change. Please try again or use the roster directly." });
     } finally {
       setConfirmLoading(false);
+      setLoadingMessage(null);
     }
   }
 
   async function cancelProposal() {
     if (!activeProposal) return;
     setConfirmLoading(true);
+    setLoadingMessage("EMMA is cancelling that proposed change...");
     try {
       const response = await fetch("/api/camp/emma/actions", {
         method: "POST",
@@ -221,26 +286,26 @@ export function CampEmmaSheet({ open, onClose }: CampEmmaSheetProps) {
       applyActionResult(payload);
     } catch {
       setActiveProposal(null);
-      setConfirmedNotice("No problem - I cancelled that change.");
+      appendMessage({ role: "emma", tone: "muted", text: "No problem - I cancelled that change." });
     } finally {
       setConfirmLoading(false);
+      setLoadingMessage(null);
     }
   }
 
-  if (!open) return null;
+  function shouldUseMedicalCommandContext(prompt: string): boolean {
+    return homeMode === "medical" || (capabilities.medicalCommand && medicationQuestionPattern.test(prompt));
+  }
 
-  const answer = state.answer;
-  const loading = state.status === "loading";
-  const showGreeting = !answer && !commandMessage && !confirmedNotice && !activeProposal && !clarification;
-  const greeting = buildCampEmmaWelcomeGreeting(leaderName);
+  if (!open) return null;
 
   return (
     <div className="camp-emma-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
       <section className="camp-emma-sheet" role="dialog" aria-modal="true" aria-labelledby="camp-emma-title">
         <header className="camp-emma-head">
           <div>
-            <p className="camp-cc-eyebrow">{isEmmaUser ? "Smart Camp Search" : "Camp Finder"}</p>
-            <h2 id="camp-emma-title">Find anything fast</h2>
+            <p className="camp-cc-eyebrow">Camp Oakwood Assistant</p>
+            <h2 id="camp-emma-title">EMMA Camp Assistant</h2>
           </div>
           <button className="camp-emma-close" type="button" onClick={onClose} aria-label="Close EMMA">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -249,80 +314,43 @@ export function CampEmmaSheet({ open, onClose }: CampEmmaSheetProps) {
           </button>
         </header>
 
-        {showGreeting ? (
-          <article className="camp-emma-answer" aria-live="polite">
-            {greeting.split("\n\n").map((paragraph) => (
+        <div className="camp-emma-messages" aria-live="polite">
+          <article className="camp-emma-bubble emma">
+            {welcome.split("\n\n").map((paragraph) => (
               <p key={paragraph}>{paragraph}</p>
             ))}
+            <p className="camp-cc-muted">Try asking something like:</p>
           </article>
-        ) : null}
 
-        <form
-          className="camp-emma-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void runSearch();
-          }}
-        >
-          <input
-            type="search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder={isEmmaUser ? "Search campers, teams, rooms, vehicles, schedule, and safe status" : "Search camper, team, room, van, or schedule"}
-            aria-label={isEmmaUser ? "Smart Camp Search" : "Search Camp Finder"}
-          />
-          <button type="submit" disabled={loading}>
-            {loading ? "Searching" : "Search"}
-          </button>
-        </form>
+          <div className="camp-emma-examples" aria-label="Example Camp questions">
+            {examples.map((example) => (
+              <button key={example} type="button" onClick={() => void submitPrompt(example)}>
+                {example}
+              </button>
+            ))}
+          </div>
 
-        <section className="camp-emma-command" aria-label="EMMA controlled camp action">
-          <p className="camp-cc-eyebrow">EMMA Actions</p>
-          <form
-            className="camp-emma-form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void runCommand();
-            }}
-          >
-            <input
-              type="text"
-              value={commandText}
-              onChange={(event) => setCommandText(event.target.value)}
-              placeholder='Try "Move John West to Blue Team"'
-              aria-label="EMMA camp action command"
-            />
-            <button type="submit" disabled={commandLoading}>
-              {commandLoading ? "Asking EMMA" : "Send to EMMA"}
-            </button>
-          </form>
+          {messages.map((message) => (
+            <ChatBubble key={message.id} message={message} onClose={onClose} />
+          ))}
 
-          {!capabilities.operationsCommand ? (
-            <p className="camp-cc-muted">Write actions require assigned Camp edit access. Search still follows your current access.</p>
-          ) : null}
-          {commandMessage ? <p className="camp-cc-error" role="alert">{commandMessage}</p> : null}
-          {confirmedNotice ? <p className="camp-cc-success" role="status">{confirmedNotice}</p> : null}
-
-          {clarification ? (
-            <div className="camp-emma-clarify" role="alert">
-              <p>{clarification.message}</p>
-              {clarification.options?.length ? (
-                <div className="camp-emma-clarify-options">
-                  {clarification.options.map((candidate) => (
-                    <button key={candidate.targetId} type="button" onClick={() => void chooseClarificationCandidate(candidate)}>
-                      {candidate.targetName}
-                      {candidate.grade ? ` - ${candidate.grade}` : ""}
-                      {candidate.currentTeam ? ` - currently ${candidate.currentTeam} Team` : ""}
-                      {candidate.currentRoom && clarification.proposedChange?.fieldName === "room" ? ` - room ${candidate.currentRoom}` : ""}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
+          {clarification?.options?.length ? (
+            <div className="camp-emma-bubble emma">
+              <div className="camp-emma-clarify-options">
+                {clarification.options.map((candidate) => (
+                  <button key={candidate.targetId} type="button" onClick={() => void chooseClarificationCandidate(candidate)}>
+                    {candidate.targetName}
+                    {candidate.grade ? ` - ${candidate.grade}` : ""}
+                    {candidate.currentTeam ? ` - currently ${candidate.currentTeam} Team` : ""}
+                    {candidate.currentRoom && clarification.proposedChange?.fieldName === "room" ? ` - room ${candidate.currentRoom}` : ""}
+                  </button>
+                ))}
+              </div>
             </div>
           ) : null}
 
           {activeProposal ? (
-            <div className="camp-emma-proposal" role="alert">
+            <div className="camp-emma-proposal camp-emma-bubble emma" role="group" aria-label="EMMA proposed Camp change">
               <p>{activeProposal.field === "team" ? `Change ${activeProposal.targetType} team?` : "Change camper room?"}</p>
               <dl>
                 <dt>{activeProposal.targetType === "leader" ? "Leader" : "Camper"}</dt>
@@ -332,7 +360,7 @@ export function CampEmmaSheet({ open, onClose }: CampEmmaSheetProps) {
                 <dt>New {activeProposal.field}</dt>
                 <dd>{activeProposal.newValue}</dd>
               </dl>
-              <p className="camp-cc-muted">Nothing changes until you press Confirm Change.</p>
+              <p className="camp-cc-muted">Nothing changes until you confirm.</p>
               <div className="camp-emma-proposal-actions">
                 <button type="button" disabled={confirmLoading} onClick={() => void confirmProposal()}>
                   {confirmLoading ? "Saving" : "Confirm Change"}
@@ -343,43 +371,87 @@ export function CampEmmaSheet({ open, onClose }: CampEmmaSheetProps) {
               </div>
             </div>
           ) : null}
-        </section>
 
-        <div className="camp-emma-examples" aria-label="Example Camp questions">
-          {examples.map((example) => (
-            <button key={example} type="button" onClick={() => void runSearch(example)}>
-              {example}
-            </button>
-          ))}
+          {loadingMessage ? (
+            <article className="camp-emma-bubble emma muted" aria-label="EMMA loading">
+              <p>{loadingMessage}</p>
+            </article>
+          ) : null}
+          <div ref={messagesEndRef} />
         </div>
 
-        {state.status === "error" ? <p className="camp-cc-error" role="alert">{state.error}</p> : null}
-
-        {answer ? (
-          <article className="camp-emma-answer" aria-live="polite">
-            <strong>{answer.answer}</strong>
-            {answer.details.length ? (
-              <ul>
-                {answer.details.map((detail) => (
-                  <li key={detail}>{detail}</li>
-                ))}
-              </ul>
-            ) : null}
-            {answer.uncertainty ? <p className="camp-cc-muted">{answer.uncertainty}</p> : null}
-            {answer.actions.length ? (
-              <div className="camp-emma-actions">
-                {answer.actions.map((action) => (
-                  <Link key={`${action.href}-${action.label}`} href={action.href} onClick={onClose}>
-                    {action.label}
-                  </Link>
-                ))}
-              </div>
-            ) : null}
-          </article>
-        ) : (
-          <p className="camp-cc-muted">Answers are limited to the Camp data this access view is allowed to see.</p>
-        )}
+        <form
+          className="camp-emma-composer"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void submitPrompt();
+          }}
+        >
+          <input
+            type="text"
+            value={input}
+            onChange={(event) => setInput(event.target.value)}
+            placeholder={capabilities.operationsCommand ? "Ask EMMA or request a safe Camp action" : "Ask EMMA about Camp information"}
+            aria-label="Message EMMA"
+          />
+          <button type="submit" disabled={Boolean(loadingMessage) || !input.trim()}>
+            Send
+          </button>
+        </form>
       </section>
     </div>
   );
+}
+
+function ChatBubble({ message, onClose }: { message: CampEmmaChatMessage; onClose: () => void }) {
+  const className = ["camp-emma-bubble", message.role, message.tone && message.tone !== "default" ? message.tone : ""].filter(Boolean).join(" ");
+  return (
+    <article className={className}>
+      {message.answer ? (
+        <>
+          <p>{message.answer.answer}</p>
+          {message.answer.details.length ? (
+            <ul>
+              {message.answer.details.map((detail) => (
+                <li key={detail}>{detail}</li>
+              ))}
+            </ul>
+          ) : null}
+          {message.answer.uncertainty ? <p className="camp-cc-muted">{message.answer.uncertainty}</p> : null}
+          {message.answer.actions.length ? (
+            <div className="camp-emma-actions">
+              {message.answer.actions.map((action) => (
+                <Link key={`${action.href}-${action.label}`} href={action.href} onClick={onClose}>
+                  {action.label}
+                </Link>
+              ))}
+            </div>
+          ) : null}
+        </>
+      ) : (
+        message.text?.split("\n").filter(Boolean).map((line) => <p key={line}>{line}</p>)
+      )}
+    </article>
+  );
+}
+
+function looksLikeActionPrompt(prompt: string): boolean {
+  return actionIntentPattern.test(prompt);
+}
+
+function userFacingActionMessage(result: CampEmmaActionResponse): string {
+  if (result.status === "denied") {
+    return "I can help you find camp information, but I can't make that change from your account.";
+  }
+  if (result.status === "failed" && result.code === "emma_provider_not_configured") {
+    return "I can still help with Camp search questions, but EMMA actions need the AI provider to be connected in this environment.";
+  }
+  if (result.status === "failed" && (result.code === "emma_action_table_unavailable" || result.code === "emma_audit_table_unavailable")) {
+    return "I can still help with Camp search questions, but EMMA actions are not ready because the action audit tables could not be verified.";
+  }
+  return "message" in result ? result.message : "I couldn't process that safely. Please try again or use the roster directly.";
+}
+
+function nextMessageId(): string {
+  return `emma-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
