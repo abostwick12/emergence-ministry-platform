@@ -182,9 +182,9 @@ test.describe("Camp mobile Command Center", () => {
 
     await suppressNextDevPortal(page);
     await nav.getByRole("button", { name: "Open EMMA Camp Finder" }).click();
-    const emma = page.getByRole("dialog", { name: "EMMA Camp Assistant" });
+    const emma = page.getByRole("dialog", { name: "Emerge Ministry Management Agent" });
     await expect(emma).toBeVisible();
-    await expect(emma.getByText(/Hey! I.m EMMA/)).toBeVisible();
+    await expect(emma.getByText(/Hey.*I.m EMMA/)).toBeVisible();
     await expect(emma.getByRole("button", { name: "Which teams are short a leader?" })).toBeVisible();
     const input = emma.getByRole("textbox", { name: "Message EMMA" });
     await input.fill("Where is Avery?");
@@ -349,7 +349,7 @@ test.describe("Camp mobile Command Center", () => {
     await page.goto("/camp");
 
     await page.getByRole("button", { name: "Open EMMA Camp Finder" }).click();
-    const sheet = page.getByRole("dialog", { name: "EMMA Camp Assistant" });
+    const sheet = page.getByRole("dialog", { name: "Emerge Ministry Management Agent" });
     await expect(sheet).toBeVisible();
     // Smart Search and Ask EMMA are collapsed into one search - no separate tab inside the sheet.
     await expect(sheet.getByRole("tab")).toHaveCount(0);
@@ -364,7 +364,7 @@ test.describe("Camp mobile Command Center", () => {
     await page.goto("/camp");
 
     await page.getByRole("button", { name: "Open EMMA Camp Finder" }).click();
-    const sheet = page.getByRole("dialog", { name: "EMMA Camp Assistant" });
+    const sheet = page.getByRole("dialog", { name: "Emerge Ministry Management Agent" });
     await sheet.getByRole("textbox", { name: "Message EMMA" }).fill("Move Avery Johnson to Red Team");
     await sheet.getByRole("button", { name: "Send" }).click();
 
@@ -401,8 +401,8 @@ test.describe("Camp mobile Command Center", () => {
 
     await page.goto("/camp");
     await page.getByRole("button", { name: "Open EMMA Camp Finder" }).click();
-    const sheet = page.getByRole("dialog", { name: "EMMA Camp Assistant" });
-    await expect(sheet.getByRole("button", { name: "Who is in my team?" })).toBeVisible();
+    const sheet = page.getByRole("dialog", { name: "Emerge Ministry Management Agent" });
+    await expect(sheet.getByRole("button", { name: "Who's on Purple Team?" })).toBeVisible();
     await expect(sheet.getByRole("button", { name: "Move Isaac Carver to purple team" })).toHaveCount(0);
     await sheet.getByRole("textbox", { name: "Message EMMA" }).fill("Move Avery Johnson to Red Team");
     await sheet.getByRole("button", { name: "Send" }).click();
@@ -431,7 +431,7 @@ test.describe("Camp mobile Command Center", () => {
     await page.getByRole("button", { name: "Close EMMA" }).click();
     await page.reload();
     await page.getByRole("button", { name: "Open EMMA Camp Finder" }).click();
-    const adminSheet = page.getByRole("dialog", { name: "EMMA Camp Assistant" });
+    const adminSheet = page.getByRole("dialog", { name: "Emerge Ministry Management Agent" });
     await adminSheet.getByRole("textbox", { name: "Message EMMA" }).fill("Move Avery Johnson to Red Team");
     await adminSheet.getByRole("button", { name: "Send" }).click();
     await expect(adminSheet.getByText(/EMMA actions need the AI provider to be connected/i)).toBeVisible();
