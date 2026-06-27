@@ -2,6 +2,7 @@ import { isSupabaseConfigured } from "@/lib/auth/config";
 import { getSupabaseAuthClient, type AuthSession } from "@/lib/auth/server";
 import { getStoredCampRoleState } from "@/lib/camp/access-control";
 import { readCampEmmaAzureConfig } from "@/lib/camp/emma-azure-provider";
+import { CAMP_EMMA_PROVIDER_CONFIGURATION_MESSAGE } from "@/lib/camp/emma-readiness";
 import { canUseCampStubMode, campRuntimeMode, isCampLaunchRuntime } from "@/lib/camp/runtime";
 import { getOakwoodLiveImportReadiness } from "@/lib/camp/repository";
 
@@ -53,7 +54,7 @@ export async function getCampLaunchReadiness(session: AuthSession): Promise<Camp
     },
     emmaProviderConfigured: {
       ok: emmaProviderConfigured,
-      message: emmaProviderConfigured ? undefined : "No Camp EMMA Azure/OpenAI provider environment variables are configured."
+      message: emmaProviderConfigured ? undefined : CAMP_EMMA_PROVIDER_CONFIGURATION_MESSAGE
     },
     emmaActionsAuditAvailable: emmaTables,
     importCommitEnabled: importReadiness.ready

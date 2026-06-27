@@ -3,7 +3,7 @@ import { getServerSession, unauthorizedResponse } from "@/lib/auth/server";
 import { getDefaultCampAccessScope } from "@/lib/camp/access";
 import { requireCampAccessForRequest } from "@/lib/camp/api-guard";
 import { interpretCampEmmaCommand } from "@/lib/camp/emma-command";
-import { getCampEmmaProviderReadiness } from "@/lib/camp/emma-readiness";
+import { getLegacyCampEmmaCommandReadiness } from "@/lib/camp/emma-readiness";
 import { assertCampEmmaOperationsAccess } from "@/lib/camp/permissions";
 import { getCampOverview } from "@/lib/camp/repository";
 
@@ -31,7 +31,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: access.error }, { status: access.status });
   }
 
-  const readiness = getCampEmmaProviderReadiness();
+  const readiness = getLegacyCampEmmaCommandReadiness();
   if (!readiness.ok) {
     return NextResponse.json({ ok: false, code: readiness.code, error: readiness.message }, { status: readiness.status });
   }
