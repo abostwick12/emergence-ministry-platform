@@ -1,11 +1,6 @@
 "use client";
 
-// Error boundary for the authenticated app segment. Catches errors thrown by the
-// authenticated layout/pages (including server components like getServerSession
-// and Camp access resolution) and renders a recoverable card instead of letting
-// the failure blank the whole app.
-
-export default function AppError({ reset }: { error: Error & { digest?: string }; reset: () => void }) {
+export default function AppRouteError({ reset }: { error: Error & { digest?: string }; reset: () => void }) {
   return (
     <div
       style={{
@@ -18,6 +13,7 @@ export default function AppError({ reset }: { error: Error & { digest?: string }
       }}
     >
       <main
+        role="alert"
         style={{
           maxWidth: "28rem",
           width: "100%",
@@ -29,9 +25,12 @@ export default function AppError({ reset }: { error: Error & { digest?: string }
           color: "#e2e8f0"
         }}
       >
+        <p style={{ margin: "0 0 0.5rem", color: "#38bdf8", fontSize: "0.78rem", fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+          Application Recovery
+        </p>
         <h1 style={{ fontSize: "1.25rem", margin: "0 0 0.5rem" }}>Something went wrong</h1>
         <p style={{ color: "rgba(226,232,240,0.75)", margin: "0 0 1.25rem", lineHeight: 1.5 }}>
-          We couldn&apos;t load this page. Try again, or sign out and sign back in if it keeps happening.
+          This page hit an unexpected problem. Retry the page or sign back in.
         </p>
         <div style={{ display: "flex", gap: "0.75rem", justifyContent: "center", flexWrap: "wrap" }}>
           <button
@@ -62,6 +61,20 @@ export default function AppError({ reset }: { error: Error & { digest?: string }
             }}
           >
             Log out
+          </a>
+          <a
+            href="/login"
+            style={{
+              borderRadius: "0.6rem",
+              padding: "0.6rem 1.1rem",
+              background: "transparent",
+              color: "#e2e8f0",
+              border: "1px solid rgba(148,163,184,0.4)",
+              textDecoration: "none",
+              fontWeight: 600
+            }}
+          >
+            Login
           </a>
         </div>
       </main>

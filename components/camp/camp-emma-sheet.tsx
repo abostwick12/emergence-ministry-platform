@@ -113,13 +113,7 @@ export function CampEmmaSheet({ open, onClose }: CampEmmaSheetProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ originalCommandText: text })
       });
-      const payload = (await response.json().catch(() => ({}))) as CampEmmaActionResponse & { error?: string };
-      if (!response.ok) {
-        // Surface the server's specific reason (e.g. a Camp access readiness error
-        // or a permission denial) instead of a generic "could not process" message.
-        setCommandMessage(payload.error ?? payload.message ?? "EMMA could not process that command. Please try again.");
-        return;
-      }
+      const payload = (await response.json()) as CampEmmaActionResponse;
       applyActionResult(payload);
     } catch {
       setCommandMessage("EMMA could not process that command. Please try again.");

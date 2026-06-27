@@ -1,11 +1,5 @@
 "use client";
 
-// Root error boundary. App Router renders this in place of the whole document
-// when an error escapes the root layout (server or client). It must provide its
-// own <html>/<body> and cannot rely on globals.css being available, so styles
-// are inlined to stay bulletproof. Without this boundary, any uncaught error
-// blanks the app with the raw "Application error" screen.
-
 export default function GlobalError({ reset }: { error: Error & { digest?: string }; reset: () => void }) {
   return (
     <html lang="en">
@@ -23,6 +17,7 @@ export default function GlobalError({ reset }: { error: Error & { digest?: strin
         }}
       >
         <main
+          role="alert"
           style={{
             maxWidth: "28rem",
             width: "100%",
@@ -33,10 +28,28 @@ export default function GlobalError({ reset }: { error: Error & { digest?: strin
             textAlign: "center"
           }}
         >
+          <div
+            aria-hidden="true"
+            style={{
+              display: "inline-grid",
+              placeItems: "center",
+              width: "2.75rem",
+              height: "2.75rem",
+              borderRadius: "0.85rem",
+              marginBottom: "1rem",
+              background: "#38bdf8",
+              color: "#0b1220",
+              fontWeight: 900
+            }}
+          >
+            LE
+          </div>
+          <p style={{ margin: "0 0 0.5rem", color: "#38bdf8", fontSize: "0.78rem", fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+            Application Recovery
+          </p>
           <h1 style={{ fontSize: "1.25rem", margin: "0 0 0.5rem" }}>Something went wrong</h1>
           <p style={{ color: "rgba(226,232,240,0.75)", margin: "0 0 1.25rem", lineHeight: 1.5 }}>
-            The app hit an unexpected error and could not finish loading. You can try again, or sign out
-            and sign back in if the problem continues.
+            The app hit an unexpected problem. You can retry, sign back in, or return to login.
           </p>
           <div style={{ display: "flex", gap: "0.75rem", justifyContent: "center", flexWrap: "wrap" }}>
             <button
@@ -67,6 +80,20 @@ export default function GlobalError({ reset }: { error: Error & { digest?: strin
               }}
             >
               Log out
+            </a>
+            <a
+              href="/login"
+              style={{
+                borderRadius: "0.6rem",
+                padding: "0.6rem 1.1rem",
+                background: "transparent",
+                color: "#e2e8f0",
+                border: "1px solid rgba(148,163,184,0.4)",
+                textDecoration: "none",
+                fontWeight: 600
+              }}
+            >
+              Login
             </a>
           </div>
         </main>

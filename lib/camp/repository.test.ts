@@ -1100,6 +1100,42 @@ describe("camp repository mock fallback", () => {
     expect(overview.students.some((student) => student.name === "Minimal Partner Leader")).toBe(false);
   });
 
+  it("commits non-ambiguous staff-only leader rows with blank registration ID and blank room as unassigned", async () => {
+    const mockSession = session();
+    const general = resolveCampAccessContext(mockSession, "general_leader");
+    const restricted = resolveCampAccessContext(mockSession, "andrew");
+    const preview = await getOakwoodUploadImportPreview(mockSession, restricted, {
+      sourceName: "Blank Staff Fields Fixture",
+      sources: [{
+        scope: "staff_only",
+        csv: [
+          "Leader Name,Registration ID,Room Number,Team,Source Church",
+          "Blank Field Leader,,,,Grace Chapel"
+        ].join("\n"),
+        fileName: "Blank_Staff_Fields.csv",
+        checksumSha256: "blank-staff-fields"
+      }]
+    });
+    expect(preview.allowed).toBe(true);
+    if (!preview.allowed) throw new Error("expected staff preview success");
+    expect(preview.preview.rows[0]).toMatchObject({
+      personType: "adult",
+      matchStatus: "new",
+      person: { name: "Blank Field Leader", registrationExternalId: "", teamName: "" }
+    });
+
+    const commit = await commitOakwoodImport(mockSession, restricted, { preview: preview.preview, confirmed: true });
+    expect(commit.allowed).toBe(true);
+    if (!commit.allowed || "error" in commit) throw new Error("expected staff commit success");
+
+    const overview = await getCampOverview(mockSession, general);
+    expect(overview.staff.find((staff) => staff.name === "Blank Field Leader")).toMatchObject({
+      registrationExternalId: "",
+      sourceChurch: "Grace Chapel",
+      teamId: ""
+    });
+  });
+
   it("warns about unknown leader teams without blocking staff-only preview", async () => {
     const mockSession = session();
     const restricted = resolveCampAccessContext(mockSession, "andrew");

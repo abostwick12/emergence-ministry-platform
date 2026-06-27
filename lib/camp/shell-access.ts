@@ -1,15 +1,24 @@
 import type { AuthSession } from "@/lib/auth/server";
 import { isCampAccessResolutionError, resolveCampAccessForRequest } from "@/lib/camp/access-control";
 
-export async function resolvesToCampOnlyShell(session: AuthSession): Promise<boolean> {
+export type AppShellAccessState =
+  | { kind: "full" }
+  | { kind: "camp_only" }
+  | { kind: "unresolved"; code: string; message: string; status: number };
+
+export async function resolveAppShellAccess(session: AuthSession): Promise<AppShellAccessState> {
   try {
-    return (await resolveCampAccessForRequest(session, null)).appAreaScope === "camp_only";
+    const context = await resolveCampAccessForRequest(session, null);
+    return context.appAreaScope === "camp_only" ? { kind: "camp_only" } : { kind: "full" };
   } catch (error) {
-    // Fail restrictive: when Camp access cannot be resolved (mock auth in launch
-    // mode, missing Supabase, missing camp_access_members, no active access row),
-    // confine the user to the Camp-only shell rather than exposing the full Emerge
-    // ministry side. Protected data stays gated by the API guard either way.
-    if (isCampAccessResolutionError(error)) return true;
+    if (isCampAccessResolutionError(error)) {
+      return { kind: "unresolved", code: error.code, message: error.message, status: error.status };
+    }
     throw error;
   }
+}
+
+export async function resolvesToCampOnlyShell(session: AuthSession): Promise<boolean> {
+  const access = await resolveAppShellAccess(session);
+  return access.kind !== "full";
 }

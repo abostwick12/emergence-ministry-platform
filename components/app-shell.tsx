@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useRole } from "@/components/role-context";
 import { useEventCard } from "@/components/event-card-context";
 import { UnifiedDashboardBrandArt } from "@/components/unified-dashboard-brand-art";
+import type { AppShellAccessState } from "@/lib/camp/shell-access";
 import type { Role } from "@/lib/types";
 
 const roleLabels: Record<Role, string> = {
@@ -131,16 +132,28 @@ const pageTitles: Record<string, string> = {
   "/settings": "Settings"
 };
 
-export function AppShell({ children, devAuth = false, campOnly = false }: { children: React.ReactNode; devAuth?: boolean; campOnly?: boolean }) {
+export function AppShell({
+  children,
+  devAuth = false,
+  shellAccess = { kind: "full" }
+}: {
+  children: React.ReactNode;
+  devAuth?: boolean;
+  shellAccess?: AppShellAccessState;
+}) {
   const pathname = usePathname();
   const { activeRole, setActiveRole } = useRole();
   const { openCreate } = useEventCard();
   const isCampRoute = pathname.startsWith("/camp");
+  const canUseEmergeShell = shellAccess.kind === "full";
+  const campOnly = !canUseEmergeShell;
   const visiblePrimaryLinks = campOnly ? primaryLinks.filter((link) => link.href === "/camp") : primaryLinks;
   const visibleMobileLinks = campOnly ? [{ href: "/camp", label: "Camp" }] : mobileLinks;
   const visibleMobileMoreLinks = campOnly ? [] : mobileMoreLinks;
   const title = isCampRoute ? "Camp Command Center" : pageTitles[pathname] ?? "Dashboard";
   const isDashboard = pathname === "/dashboard";
+  const shouldBlockEmergeChildren = !isCampRoute && !canUseEmergeShell;
+  const shellAccessIssue = shellAccess.kind === "full" ? null : shellAccess;
 
   return (
     <div className={isCampRoute ? "app-shell app-shell-camp" : "app-shell"}>
@@ -169,27 +182,31 @@ export function AppShell({ children, devAuth = false, campOnly = false }: { chil
               ))}
             </nav>
 
-            <div className="role-control" role="group" aria-label="Switch active role">
-              {(["admin", "leader"] as Role[]).map((role) => (
-                <button
-                  className={activeRole === role ? "role-pill active" : "role-pill"}
-                  key={role}
-                  type="button"
-                  onClick={() => setActiveRole(role)}
-                >
-                  {roleLabels[role]}
-                </button>
-              ))}
-            </div>
+            {canUseEmergeShell ? (
+              <>
+                <div className="role-control" role="group" aria-label="Switch active role">
+                  {(["admin", "leader"] as Role[]).map((role) => (
+                    <button
+                      className={activeRole === role ? "role-pill active" : "role-pill"}
+                      key={role}
+                      type="button"
+                      onClick={() => setActiveRole(role)}
+                    >
+                      {roleLabels[role]}
+                    </button>
+                  ))}
+                </div>
 
-            <button
-              className="button primary sidebar-add-event"
-              type="button"
-              aria-label="Add new event"
-              onClick={openCreate}
-            >
-              + Add Event
-            </button>
+                <button
+                  className="button primary sidebar-add-event"
+                  type="button"
+                  aria-label="Add new event"
+                  onClick={openCreate}
+                >
+                  + Add Event
+                </button>
+              </>
+            ) : null}
 
             <div className="sidebar-profile">
               <span className="sidebar-avatar" aria-hidden="true">AW</span>
@@ -232,12 +249,14 @@ export function AppShell({ children, devAuth = false, campOnly = false }: { chil
           </header>
         ) : null}
 
-        <div className="app-content app-scroll-region">{children}</div>
+        <div className="app-content app-scroll-region">
+          {shouldBlockEmergeChildren && shellAccessIssue ? <ShellAccessStatePanel shellAccess={shellAccessIssue} /> : children}
+        </div>
       </main>
 
       {!isCampRoute ? (
         <nav className="mobile-bottom-nav" aria-label="Mobile navigation">
-              {visibleMobileLinks.map((link) => (
+          {visibleMobileLinks.map((link) => (
             <Link className={pathname === link.href ? "mobile-nav-link active" : "mobile-nav-link"} href={link.href} key={link.href}>
               {link.label}
             </Link>
@@ -245,13 +264,15 @@ export function AppShell({ children, devAuth = false, campOnly = false }: { chil
           <details className="mobile-more-menu">
             <summary className="mobile-nav-link">More</summary>
             <div className="mobile-more-panel" aria-label="More navigation">
-              <button
-                className="button primary mobile-add-event-btn"
-                type="button"
-                onClick={openCreate}
-              >
-                + Add Event
-              </button>
+              {canUseEmergeShell ? (
+                <button
+                  className="button primary mobile-add-event-btn"
+                  type="button"
+                  onClick={openCreate}
+                >
+                  + Add Event
+                </button>
+              ) : null}
               {visibleMobileMoreLinks.map((link) => (
                 <Link className="app-nav-link" href={link.href} key={link.href}>
                   {link.label}
@@ -261,6 +282,33 @@ export function AppShell({ children, devAuth = false, campOnly = false }: { chil
           </details>
         </nav>
       ) : null}
+    </div>
+  );
+}
+
+function ShellAccessStatePanel({ shellAccess }: { shellAccess: Exclude<AppShellAccessState, { kind: "full" }> }) {
+  const isUnresolved = shellAccess.kind === "unresolved";
+  return (
+    <div className="grid workspace-page">
+      <section className="panel">
+        <p className="eyebrow">{isUnresolved ? "Camp Readiness" : "Camp Access"}</p>
+        <h2 className="section-title" style={{ marginTop: 0 }}>
+          {isUnresolved ? "Camp access needs attention" : "Camp-only access"}
+        </h2>
+        <p className="muted">
+          {isUnresolved
+            ? shellAccess.message
+            : "This account is limited to Camp. General ministry management tools are not available for this session."}
+        </p>
+        <div className="toolbar">
+          <Link className="button primary" href="/camp">
+            Open Camp
+          </Link>
+          <a className="button" href="/api/auth/logout">
+            Log out
+          </a>
+        </div>
+      </section>
     </div>
   );
 }

@@ -16,7 +16,7 @@ vi.mock("@/lib/camp/access-control", async () => {
 });
 
 import { CampAccessResolutionError } from "@/lib/camp/access-control";
-import { resolvesToCampOnlyShell } from "@/lib/camp/shell-access";
+import { resolveAppShellAccess, resolvesToCampOnlyShell } from "@/lib/camp/shell-access";
 
 function session(): AuthSession {
   return {
@@ -49,12 +49,45 @@ beforeEach(() => {
 });
 
 describe("Camp shell access state", () => {
-  it("fails restrictive to the Camp-only shell when launch Camp access resolution returns a readiness error", async () => {
+  it("fails restrictive when launch Camp access resolution returns a readiness error", async () => {
     resolveCampAccessForRequestMock.mockRejectedValue(new CampAccessResolutionError(
       "Camp launch testing requires a real authenticated Supabase session, not development auth.",
       { status: 403, code: "camp_mock_auth_blocked" }
     ));
 
+    await expect(resolveAppShellAccess(session())).resolves.toMatchObject({
+      kind: "unresolved",
+      code: "camp_mock_auth_blocked",
+      status: 403
+    });
+    await expect(resolvesToCampOnlyShell(session())).resolves.toBe(true);
+  });
+
+  it("does not grant the full ministry shell when camp_access_members is unavailable", async () => {
+    resolveCampAccessForRequestMock.mockRejectedValue(new CampAccessResolutionError(
+      "Camp access readiness error: camp_access_members is unavailable.",
+      { status: 503, code: "camp_access_table_unavailable" }
+    ));
+
+    await expect(resolveAppShellAccess(session())).resolves.toMatchObject({
+      kind: "unresolved",
+      code: "camp_access_table_unavailable",
+      status: 503
+    });
+    await expect(resolvesToCampOnlyShell(session())).resolves.toBe(true);
+  });
+
+  it("does not grant the full ministry shell when no active Camp access row exists", async () => {
+    resolveCampAccessForRequestMock.mockRejectedValue(new CampAccessResolutionError(
+      "No active Camp access row found for this authenticated user.",
+      { status: 403, code: "camp_access_missing" }
+    ));
+
+    await expect(resolveAppShellAccess(session())).resolves.toMatchObject({
+      kind: "unresolved",
+      code: "camp_access_missing",
+      status: 403
+    });
     await expect(resolvesToCampOnlyShell(session())).resolves.toBe(true);
   });
 
@@ -62,6 +95,13 @@ describe("Camp shell access state", () => {
     resolveCampAccessForRequestMock.mockResolvedValue(context("camp_only"));
 
     await expect(resolvesToCampOnlyShell(session())).resolves.toBe(true);
+  });
+
+  it("resolves false only for users with full ministry shell access", async () => {
+    resolveCampAccessForRequestMock.mockResolvedValue(context("emerge_operations"));
+
+    await expect(resolveAppShellAccess(session())).resolves.toEqual({ kind: "full" });
+    await expect(resolvesToCampOnlyShell(session())).resolves.toBe(false);
   });
 
   it("does not hide unexpected layout errors", async () => {
