@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession, unauthorizedResponse } from "@/lib/auth/server";
 import { assertCampAdminAccess } from "@/lib/camp/permissions";
-import { resolveCampAccessForRequest } from "@/lib/camp/access-control";
+import { requireCampAccessForRequest } from "@/lib/camp/api-guard";
 import { mergeCampRegistrationImportPreviews, parseCampRegistrationImport } from "@/lib/camp/import";
 import { getCampOverview, getOakwoodUploadImportPreview } from "@/lib/camp/repository";
 import { detectOakwoodWorkbook, extractOakwoodCsv, sha256Hex, MAX_OAKWOOD_UPLOAD_BYTES } from "@/lib/camp/oakwood-upload-source";
@@ -37,12 +37,13 @@ export async function POST(request: Request) {
   const session = await getServerSession();
   if (!session) return unauthorizedResponse();
 
-  const { searchParams } = new URL(request.url);
   // Camp Admin access resolves from authenticated identity, never from query/body,
   // local storage, or a client selector.
-  const context = await resolveCampAccessForRequest(session, searchParams.get("role"));
-  const access = assertCampAdminAccess(context);
-  if (!access.allowed) return NextResponse.json({ error: access.error }, { status: access.status });
+  const campAccess = await requireCampAccessForRequest(session, request);
+  if (!campAccess.allowed) return campAccess.response;
+  const context = campAccess.context;
+  const adminAccess = assertCampAdminAccess(context);
+  if (!adminAccess.allowed) return NextResponse.json({ error: adminAccess.error }, { status: adminAccess.status });
 
   let form: FormData;
   try {

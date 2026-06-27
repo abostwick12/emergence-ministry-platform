@@ -3,7 +3,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthSession } from "@/lib/auth/server";
 import type { CampAccessContext } from "@/lib/camp/permissions";
 
-const { getServerSessionMock, resolveCampAccessForRequestMock } = vi.hoisted(() => ({
+const { CampAccessResolutionErrorMock, getServerSessionMock, resolveCampAccessForRequestMock } = vi.hoisted(() => ({
+  CampAccessResolutionErrorMock: class CampAccessResolutionError extends Error {
+    status: number;
+    code: string;
+
+    constructor(message: string, options: { status: number; code: string }) {
+      super(message);
+      this.name = "CampAccessResolutionError";
+      this.status = options.status;
+      this.code = options.code;
+    }
+  },
   getServerSessionMock: vi.fn<() => Promise<AuthSession | null>>(),
   resolveCampAccessForRequestMock: vi.fn<() => Promise<CampAccessContext>>()
 }));
@@ -18,6 +29,8 @@ vi.mock("@/lib/auth/server", async () => {
 });
 
 vi.mock("@/lib/camp/access-control", () => ({
+  CampAccessResolutionError: CampAccessResolutionErrorMock,
+  isCampAccessResolutionError: (error: unknown) => error instanceof CampAccessResolutionErrorMock,
   resolveCampAccessForRequest: resolveCampAccessForRequestMock
 }));
 
@@ -126,5 +139,23 @@ describe("EMERGE app-area API access", () => {
     }));
 
     expect(response.status).toBe(401);
+  });
+
+  it("returns a typed readiness error instead of throwing when launch Camp access cannot resolve", async () => {
+    getServerSessionMock.mockResolvedValue(session("admin", false));
+    resolveCampAccessForRequestMock.mockRejectedValue(new CampAccessResolutionErrorMock(
+      "Camp launch testing requires a real authenticated Supabase session, not development auth.",
+      { status: 403, code: "camp_mock_auth_blocked" }
+    ));
+
+    const access = await requireEmergeOperationsAccess();
+
+    expect(access.allowed).toBe(false);
+    if (access.allowed) return;
+    expect(access.response.status).toBe(403);
+    await expect(access.response.json()).resolves.toMatchObject({
+      code: "camp_mock_auth_blocked",
+      error: expect.stringMatching(/real authenticated Supabase session/i)
+    });
   });
 });

@@ -46,6 +46,7 @@ type WorkspaceView = "dashboard" | "events" | "tasks";
 
 export default function MinistryWorkspace({ view }: { view: WorkspaceView }) {
   const [overview, setOverview] = useState<Overview | null>(null);
+  const [loadError, setLoadError] = useState("");
   const { activeRole } = useRole();
   const { openCreate, openEdit, state: cardState } = useEventCard();
   const [isLoading, setIsLoading] = useState(true);
@@ -53,12 +54,19 @@ export default function MinistryWorkspace({ view }: { view: WorkspaceView }) {
   const [expandedEventIds, setExpandedEventIds] = useState<string[]>(["evt_winter_retreat"]);
 
   async function loadOverview() {
+    setLoadError("");
     const response = await fetch("/api/events", { cache: "no-store" });
     if (response.status === 401) {
       window.location.assign("/login");
       return;
     }
-    const data = (await response.json()) as Overview;
+    const data = (await response.json().catch(() => ({}))) as Partial<Overview> & { error?: string };
+    if (!response.ok || !isOverview(data)) {
+      setOverview(null);
+      setLoadError(data.error ?? "Ministry workspace access could not be verified.");
+      setIsLoading(false);
+      return;
+    }
     setOverview(data);
     setIsLoading(false);
   }
@@ -139,7 +147,23 @@ export default function MinistryWorkspace({ view }: { view: WorkspaceView }) {
         </div>
       )}
 
-      {isLoading || !overview ? (
+      {loadError ? (
+        <section className="panel">
+          <p className="eyebrow">Access Readiness</p>
+          <h2 className="section-title" style={{ marginTop: 0 }}>
+            Ministry workspace unavailable
+          </h2>
+          <p className="muted">{loadError}</p>
+          <div className="toolbar">
+            <Link className="button primary" href="/camp">
+              Open Camp
+            </Link>
+            <a className="button" href="/api/auth/logout">
+              Log out
+            </a>
+          </div>
+        </section>
+      ) : isLoading || !overview ? (
         <section className="panel">Loading ministry workspace...</section>
       ) : view === "dashboard" ? (
         <DashboardWorkspace overview={overview} totalTasks={totalTasks} doneTasks={doneTasks} blockedTasks={blockedTasks} />
@@ -188,6 +212,16 @@ export default function MinistryWorkspace({ view }: { view: WorkspaceView }) {
         <TasksWorkspace tasks={visibleTasks} events={overview.events} users={activeUsers} onUpdate={updateTask} />
       )}
     </div>
+  );
+}
+
+function isOverview(value: Partial<Overview>): value is Overview {
+  return (
+    Array.isArray(value.events)
+    && Array.isArray(value.tasks)
+    && Array.isArray(value.users)
+    && Array.isArray(value.expenses)
+    && Array.isArray(value.activity)
   );
 }
 

@@ -5458,6 +5458,48 @@ html:has(.app-shell-camp) body {
   line-height: 1.4;
 }
 
+.camp-access-panel {
+  display: grid;
+  gap: 1rem;
+  width: 100%;
+}
+
+.camp-access-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.camp-readiness-grid {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.camp-readiness-row {
+  display: grid;
+  grid-template-columns: minmax(10rem, 0.75fr) minmax(0, 1.25fr);
+  gap: 0.75rem;
+  align-items: baseline;
+  color: rgba(226, 232, 240, 0.76);
+}
+
+.camp-readiness-row strong {
+  color: #f8fafc;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.camp-readiness-errors {
+  margin: 0;
+  padding-left: 1.2rem;
+  color: #fecaca;
+}
+
+.camp-readiness-errors li + li {
+  margin-top: 0.35rem;
+}
+
 .camp-inline-button {
   border: 0;
   background: transparent;

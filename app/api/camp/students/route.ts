@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServerSession, unauthorizedResponse } from "@/lib/auth/server";
-import { resolveCampAccessForRequest } from "@/lib/camp/access-control";
+import { requireCampAccessForRequest } from "@/lib/camp/api-guard";
 import { archiveCampStudent, assignCampStudent, getArchivedCampStudents, restoreCampStudent, upsertCampStudent } from "@/lib/camp/repository";
 import type { CampStudentInput } from "@/lib/camp/types";
 
@@ -8,8 +8,9 @@ export async function GET(request: Request) {
   const session = await getServerSession();
   if (!session) return unauthorizedResponse();
 
-  const { searchParams } = new URL(request.url);
-  const context = await resolveCampAccessForRequest(session, searchParams.get("role"));
+  const access = await requireCampAccessForRequest(session, request);
+  if (!access.allowed) return access.response;
+  const context = access.context;
 
   const payload = await getArchivedCampStudents(session, context);
   if (!payload.allowed) return NextResponse.json({ error: payload.error }, { status: payload.status });
@@ -20,8 +21,9 @@ export async function POST(request: Request) {
   const session = await getServerSession();
   if (!session) return unauthorizedResponse();
 
-  const { searchParams } = new URL(request.url);
-  const context = await resolveCampAccessForRequest(session, searchParams.get("role"));
+  const access = await requireCampAccessForRequest(session, request);
+  if (!access.allowed) return access.response;
+  const context = access.context;
   if (context.effectiveRole === "driver") {
     return NextResponse.json({ error: "Camp roster editing is not available for this role." }, { status: 403 });
   }
@@ -44,8 +46,9 @@ export async function PATCH(request: Request) {
   const session = await getServerSession();
   if (!session) return unauthorizedResponse();
 
-  const { searchParams } = new URL(request.url);
-  const context = await resolveCampAccessForRequest(session, searchParams.get("role"));
+  const access = await requireCampAccessForRequest(session, request);
+  if (!access.allowed) return access.response;
+  const context = access.context;
   if (context.effectiveRole === "driver") {
     return NextResponse.json({ error: "Camp roster editing is not available for this role." }, { status: 403 });
   }

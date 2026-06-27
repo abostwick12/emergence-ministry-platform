@@ -1,14 +1,15 @@
 import { NextResponse } from "next/server";
 import { getServerSession, unauthorizedResponse } from "@/lib/auth/server";
-import { resolveCampAccessForRequest } from "@/lib/camp/access-control";
+import { requireCampAccessForRequest } from "@/lib/camp/api-guard";
 import { removeCampCamperProfilePhoto, saveCampCamperProfilePhoto } from "@/lib/camp/repository";
 
 export async function POST(request: Request) {
   const session = await getServerSession();
   if (!session) return unauthorizedResponse();
 
-  const { searchParams } = new URL(request.url);
-  const context = await resolveCampAccessForRequest(session, searchParams.get("role"));
+  const access = await requireCampAccessForRequest(session, request);
+  if (!access.allowed) return access.response;
+  const context = access.context;
 
   try {
     const formData = await request.formData();
@@ -30,7 +31,9 @@ export async function DELETE(request: Request) {
   if (!session) return unauthorizedResponse();
 
   const { searchParams } = new URL(request.url);
-  const context = await resolveCampAccessForRequest(session, searchParams.get("role"));
+  const access = await requireCampAccessForRequest(session, request);
+  if (!access.allowed) return access.response;
+  const context = access.context;
 
   try {
     const studentId = searchParams.get("studentId") ?? "";

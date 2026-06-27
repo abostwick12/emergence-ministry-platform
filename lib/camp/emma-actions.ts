@@ -4,6 +4,8 @@ import { isSupabaseConfigured } from "@/lib/auth/config";
 import { interpretEmmaCampCommand, type InterpretedEmmaCampCommand } from "@/lib/camp/emma-command-interpreter";
 import { parseEmmaCampCommand, type ParsedAction, type ParsedWriteAction } from "@/lib/camp/emma-command-parser";
 import { buildCampEmmaWelcomeGreeting } from "@/lib/camp/emma-greeting";
+import { getCampEmmaActionReadiness, type CampEmmaReadinessResult } from "@/lib/camp/emma-readiness";
+import { isCampLaunchRuntime } from "@/lib/camp/runtime";
 import {
   assertAllCampersOperationalWriteAccess,
   canEditAllCampers,
@@ -54,6 +56,17 @@ export async function handleCampEmmaAction(
   request: CampEmmaActionRequest,
   options: { fetchImpl?: typeof fetch } = {}
 ): Promise<CampEmmaActionResponse> {
+  const originalCommandText = (request.originalCommandText ?? "").trim().slice(0, 500);
+  const earlyParsed = request.actionType && request.targetId && request.proposedChange?.fieldName
+    ? parsedFromExplicitRequest(request)
+    : parseEmmaCampCommand(originalCommandText);
+  if (isCampLaunchRuntime() && context.campEditScope === "read_only" && isWriteParsedAction(earlyParsed)) {
+    return { status: "denied", code: "permission_denied", message: DENIED_MESSAGE };
+  }
+
+  const readiness = await getCampEmmaActionReadiness(session);
+  if (!readiness.ok) return readinessFailure(readiness);
+
   if (request.pendingActionId && request.confirmed === true) {
     return confirmPendingAction(session, context, request.pendingActionId);
   }
@@ -63,7 +76,6 @@ export async function handleCampEmmaAction(
 
   const overview = await getCampOverview(session, context);
   const campId = request.campId?.trim() || await resolveCampId(session);
-  const originalCommandText = (request.originalCommandText ?? "").trim().slice(0, 500);
   const interpreted = request.actionType && request.targetId && request.proposedChange?.fieldName
     ? null
     : await interpretEmmaCampCommand({
@@ -84,7 +96,7 @@ export async function handleCampEmmaAction(
       status: "failed",
       errorMessage: parsed.message
     });
-    return { status: "clarification_required", message: parsed.message };
+    return { status: "clarification_required", code: "clarification_required", message: parsed.message };
   }
 
   if (parsed.actionType === "UNSUPPORTED") {
@@ -98,7 +110,7 @@ export async function handleCampEmmaAction(
       status: "failed",
       errorMessage: message
     });
-    return { status: "failed", message };
+    return { status: "failed", code: "unsupported_action", message };
   }
 
   if (parsed.actionType === "LIST_UNASSIGNED_CAMPERS") {
@@ -135,7 +147,7 @@ export async function handleCampEmmaAction(
       status: "failed",
       errorMessage: validation.message
     });
-    return { status: "failed", message: validation.message };
+    return { status: "failed", code: validation.code, message: validation.message };
   }
 
   const scopedTargets = scopedTargetOptions(writeAction.targetType, overview, context);
@@ -152,12 +164,13 @@ export async function handleCampEmmaAction(
       status: "failed",
       errorMessage: "Target not found."
     });
-    return { status: "failed", message: `I couldn't find ${writeAction.targetNameQuery} in the Camp records you can access.` };
+    return { status: "failed", code: "person_not_found", message: `I couldn't find ${writeAction.targetNameQuery} in the Camp records you can access.` };
   }
 
   if (matches.length > 1) {
     return {
       status: "clarification_required",
+      code: "ambiguous_person",
       message: `I found more than one ${writeAction.targetNameQuery}. Which one do you mean?`,
       options: matches,
       actionType: writeAction.actionType,
@@ -184,7 +197,7 @@ export async function handleCampEmmaAction(
       status: "denied",
       errorMessage: permission.message
     });
-    return { status: "denied", message: DENIED_MESSAGE };
+    return { status: "denied", code: "permission_denied", message: DENIED_MESSAGE };
   }
 
   const oldValue = currentFieldValue(target, writeAction.fieldName);
@@ -271,7 +284,7 @@ async function confirmPendingAction(
       status: "denied",
       errorMessage: permission.message
     });
-    return { status: "denied", message: DENIED_MESSAGE };
+    return { status: "denied", code: "permission_denied", message: DENIED_MESSAGE };
   }
 
   if (currentFieldValue(target, pending.fieldName) !== pending.oldValue) {
@@ -289,7 +302,7 @@ async function confirmPendingAction(
         status: write.status === 403 ? "denied" : "failed",
         errorMessage: write.error
       });
-      return write.status === 403 ? { status: "denied", message: DENIED_MESSAGE } : { status: "failed", message: FAILURE_MESSAGE };
+      return write.status === 403 ? { status: "denied", code: "permission_denied", message: DENIED_MESSAGE } : { status: "failed", message: FAILURE_MESSAGE };
     }
 
     const confirmedAt = new Date().toISOString();
@@ -419,20 +432,30 @@ function parsedFromExplicitRequest(request: CampEmmaActionRequest): ParsedAction
   };
 }
 
-function validateProposedValue(parsed: ParsedWriteAction, overview: CampOverviewPayload): { allowed: true; newValue: string } | { allowed: false; message: string } {
+function validateProposedValue(parsed: ParsedWriteAction, overview: CampOverviewPayload): { allowed: true; newValue: string } | { allowed: false; code: string; message: string } {
   if (parsed.fieldName === "team") {
     const team = findTeam(overview, parsed.newValue);
-    if (!team) return { allowed: false, message: "I couldn't find that team. Please choose one of the active camp teams." };
+    if (!team) return { allowed: false, code: "invalid_team", message: "I couldn't find that team. Please choose one of the active camp teams." };
     return { allowed: true, newValue: team.name || team.color };
   }
 
   const room = parsed.newValue.trim();
-  if (!room) return { allowed: false, message: "A room or cabin value is required." };
-  if (room.length > 50) return { allowed: false, message: "Room value is too long." };
+  if (!room) return { allowed: false, code: "invalid_room", message: "A room or cabin value is required." };
+  if (room.length > 50) return { allowed: false, code: "invalid_room", message: "Room value is too long." };
   if (/<\/?[a-z][\s\S]*>|javascript:|script\b/i.test(room)) {
-    return { allowed: false, message: "That room value is not allowed." };
+    return { allowed: false, code: "invalid_room", message: "That room value is not allowed." };
   }
   return { allowed: true, newValue: room };
+}
+
+function isWriteParsedAction(action: ParsedAction): action is ParsedWriteAction {
+  return action.actionType === "ASSIGN_CAMPER_TEAM"
+    || action.actionType === "ASSIGN_LEADER_TEAM"
+    || action.actionType === "UPDATE_CAMPER_ROOM";
+}
+
+function readinessFailure(readiness: Extract<CampEmmaReadinessResult, { ok: false }>): CampEmmaActionResponse {
+  return { status: "failed", code: readiness.code, message: readiness.message };
 }
 
 function validateEmmaActionPermission(

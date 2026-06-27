@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServerSession, unauthorizedResponse } from "@/lib/auth/server";
-import { resolveCampAccessForRequest } from "@/lib/camp/access-control";
+import { requireCampAccessForRequest } from "@/lib/camp/api-guard";
 import { getRestrictedCampMedicalPayload, upsertRestrictedMedicalRecord } from "@/lib/camp/repository";
 import type { CampRestrictedMedicalRecord } from "@/lib/camp/types";
 
@@ -8,8 +8,9 @@ export async function GET(request: Request) {
   const session = await getServerSession();
   if (!session) return unauthorizedResponse();
 
-  const { searchParams } = new URL(request.url);
-  const context = await resolveCampAccessForRequest(session, searchParams.get("role"));
+  const access = await requireCampAccessForRequest(session, request);
+  if (!access.allowed) return access.response;
+  const context = access.context;
 
   const payload = await getRestrictedCampMedicalPayload(session, context);
   if (!payload.allowed) {
@@ -23,8 +24,9 @@ export async function PATCH(request: Request) {
   const session = await getServerSession();
   if (!session) return unauthorizedResponse();
 
-  const { searchParams } = new URL(request.url);
-  const context = await resolveCampAccessForRequest(session, searchParams.get("role"));
+  const access = await requireCampAccessForRequest(session, request);
+  if (!access.allowed) return access.response;
+  const context = access.context;
 
   const body = (await request.json()) as CampRestrictedMedicalRecord;
   if (!body.studentId) {

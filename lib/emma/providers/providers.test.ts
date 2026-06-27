@@ -13,6 +13,7 @@ import {
 import { createGeminiProvider } from "./gemini-provider";
 import { createMockEmmaProvider } from "./mock-provider";
 import { internalEventSummarySchema, internalEventSummarySystemPrompt } from "./internal-event-summary";
+import { resolveProviderSelection } from "./registry";
 import { runEmmaProviderForRequest } from "./run-provider";
 
 type TestSession = AuthSession & { testMinistryId: string };
@@ -30,6 +31,7 @@ function clearProviderEnv() {
   delete process.env.EMMA_PROVIDER_MODE;
   delete process.env.EMMA_DEFAULT_PROVIDER;
   delete process.env.EMMA_DEFAULT_MODEL;
+  delete process.env.VERCEL_ENV;
 }
 
 beforeEach(() => {
@@ -269,5 +271,14 @@ describe("audited provider execution", () => {
       outputSchema: internalEventSummarySchema
     });
     expect(result.ok).toBe(true);
+  });
+
+  it("does not allow launch runtime to select the mock EMMA provider", async () => {
+    process.env.VERCEL_ENV = "preview";
+
+    await expect(resolveProviderSelection(session(), { provider: "mock" })).rejects.toMatchObject({
+      code: "PROVIDER_ERROR",
+      message: "EMMA launch mode requires a real provider configuration."
+    });
   });
 });

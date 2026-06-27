@@ -1,14 +1,15 @@
 import { NextResponse } from "next/server";
 import { getServerSession, unauthorizedResponse } from "@/lib/auth/server";
-import { resolveCampAccessForRequest } from "@/lib/camp/access-control";
+import { requireCampAccessForRequest } from "@/lib/camp/api-guard";
 import { handleCampEmmaAction, type CampEmmaActionRequest } from "@/lib/camp/emma-actions";
 
 export async function POST(request: Request) {
   const session = await getServerSession();
   if (!session) return unauthorizedResponse();
 
-  const { searchParams } = new URL(request.url);
-  const context = await resolveCampAccessForRequest(session, searchParams.get("role"));
+  const access = await requireCampAccessForRequest(session, request);
+  if (!access.allowed) return access.response;
+  const context = access.context;
 
   let body: CampEmmaActionRequest = {};
   try {
@@ -18,6 +19,13 @@ export async function POST(request: Request) {
   }
 
   const result = await handleCampEmmaAction(session, context, body);
-  const status = result.status === "denied" ? 403 : result.status === "failed" ? 400 : 200;
+  const status = responseStatus(result);
   return NextResponse.json(result, { status });
+}
+
+function responseStatus(result: Awaited<ReturnType<typeof handleCampEmmaAction>>): number {
+  if (result.status === "denied") return 403;
+  if (result.status !== "failed") return 200;
+  if (result.code === "emma_provider_not_configured" || result.code === "emma_action_table_unavailable" || result.code === "emma_audit_table_unavailable") return 503;
+  return 400;
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireEmergeOperationsAccess } from "@/lib/app-area-access";
+import { canUseCampStubMode } from "@/lib/camp/runtime";
 import { runEmmaCommand } from "@/lib/emma/commands/run-emma-command";
 import { internalEventSummarySchema } from "@/lib/emma/providers/internal-event-summary";
 
@@ -9,6 +10,10 @@ type TestSummaryRequestBody = {
 };
 
 export async function POST(request: Request) {
+  if (!canUseCampStubMode()) {
+    return NextResponse.json({ error: "EMMA mock test actions are disabled in launch mode." }, { status: 404 });
+  }
+
   const access = await requireEmergeOperationsAccess();
   if (!access.allowed) return access.response;
   const { session } = access;

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServerSession, unauthorizedResponse } from "@/lib/auth/server";
-import { resolveCampAccessForRequest } from "@/lib/camp/access-control";
+import { requireCampAccessForRequest } from "@/lib/camp/api-guard";
 import {
   archiveMedicationWorkflowItem,
   getRestrictedCampMedicationPayload,
@@ -18,7 +18,9 @@ export async function GET(request: Request) {
   if (!session) return unauthorizedResponse();
 
   const { searchParams } = new URL(request.url);
-  const context = await resolveCampAccessForRequest(session, searchParams.get("role"));
+  const access = await requireCampAccessForRequest(session, request);
+  if (!access.allowed) return access.response;
+  const context = access.context;
 
   const payload = await getRestrictedCampMedicationPayload(session, context, { includeArchived: searchParams.get("includeArchived") === "true" });
   if (!payload.allowed) {
@@ -39,8 +41,9 @@ export async function POST(request: Request) {
   const session = await getServerSession();
   if (!session) return unauthorizedResponse();
 
-  const { searchParams } = new URL(request.url);
-  const context = await resolveCampAccessForRequest(session, searchParams.get("role"));
+  const access = await requireCampAccessForRequest(session, request);
+  if (!access.allowed) return access.response;
+  const context = access.context;
 
   const body = (await request.json()) as { target?: string; voidTarget?: CampMedicationVoidInput["target"]; voidReason?: string; voidedByName?: string; archiveTarget?: CampMedicationArchiveInput["target"]; archiveReason?: string; archivedByName?: string; id?: string } & Partial<CampMedicationRecord> & Partial<CampMedicationScheduleItem> & Partial<CampMedicationAdministrationLog> & Partial<CampMedicationIntakeInput> & Partial<CampMedicationReturnItem>;
 
@@ -146,8 +149,9 @@ export async function PATCH(request: Request) {
   const session = await getServerSession();
   if (!session) return unauthorizedResponse();
 
-  const { searchParams } = new URL(request.url);
-  const context = await resolveCampAccessForRequest(session, searchParams.get("role"));
+  const access = await requireCampAccessForRequest(session, request);
+  if (!access.allowed) return access.response;
+  const context = access.context;
 
   const body = (await request.json()) as { target?: string; id?: string } & Partial<CampMedicationRecord> & Partial<CampMedicationReturnItem> & Partial<CampMedicationScheduleItem>;
 

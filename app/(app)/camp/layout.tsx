@@ -1,9 +1,11 @@
 import { CampShell } from "@/components/camp/camp-shell";
 import { getServerSession } from "@/lib/auth/server";
-import { resolveCampAccessForRequest } from "@/lib/camp/access-control";
+import { resolvesToCampOnlyShell } from "@/lib/camp/shell-access";
+import { redirect } from "next/navigation";
 
 export default async function CampLayout({ children }: { children: React.ReactNode }) {
   const session = await getServerSession();
-  const campOnly = session ? (await resolveCampAccessForRequest(session, null)).appAreaScope === "camp_only" : false;
+  if (!session) redirect("/login");
+  const campOnly = await resolvesToCampOnlyShell(session);
   return <CampShell campOnly={campOnly}>{children}</CampShell>;
 }

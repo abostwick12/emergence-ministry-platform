@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthSession } from "@/lib/auth/server";
 import { buildCampAccessFromStoredRole } from "@/lib/camp/access-control";
 import { handleCampEmmaAction, parseEmmaCampCommand } from "@/lib/camp/emma-actions";
+import { getCampEmmaActionReadiness } from "@/lib/camp/emma-readiness";
 import type { CampAccessContext } from "@/lib/camp/permissions";
 import { __resetCampStoreForTests, listCampEmmaActionAudit, updateCampEmmaPendingAction } from "@/lib/camp/store";
 import { getCampOverview, upsertCampStudent } from "@/lib/camp/repository";
@@ -51,6 +52,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
   for (const key of PROVIDER_ENV_KEYS) {
     if (originalEnv[key] === undefined) delete process.env[key];
     else process.env[key] = originalEnv[key];
@@ -72,6 +74,34 @@ function fakeFetchReturning(jsonContent: string) {
     });
 }
 
+function liveSession(): AuthSession {
+  return {
+    isMock: false,
+    accessToken: "live-token",
+    user: { id: "usr_live", email: "live@example.test", fullName: "Live User", role: "staff" }
+  };
+}
+
+function emmaReadinessClient(errors: Record<string, string> = {}) {
+  return {
+    from(table: string) {
+      return {
+        select() {
+          const query = {
+            limit() {
+              return query;
+            },
+            async returns() {
+              return { data: [], error: errors[table] ? { message: errors[table] } : null };
+            }
+          };
+          return query;
+        }
+      };
+    }
+  };
+}
+
 describe("parseEmmaCampCommand", () => {
   it("recognizes supported action commands without broad edit behavior", () => {
     expect(parseEmmaCampCommand("Move John West to Blue Team")).toMatchObject({ actionType: "ASSIGN_CAMPER_TEAM", targetNameQuery: "John West", newValue: "Blue" });
@@ -87,6 +117,56 @@ describe("parseEmmaCampCommand", () => {
 });
 
 describe("handleCampEmmaAction", () => {
+  it("returns a typed provider-readiness error when launch mode has no EMMA provider", async () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+
+    const result = await handleCampEmmaAction(session(), adminContext(), {
+      originalCommandText: "Move Avery Johnson to Red Team"
+    });
+
+    expect(result).toMatchObject({
+      status: "failed",
+      code: "emma_provider_not_configured",
+      message: expect.stringMatching(/provider is not configured/i)
+    });
+  });
+
+  it("returns typed EMMA readiness errors when launch tables are unavailable", async () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://supabase.example.test");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "anon-key");
+    withAzureEnv();
+
+    await expect(getCampEmmaActionReadiness(liveSession(), {
+      supabase: emmaReadinessClient({ camp_emma_pending_actions: "relation does not exist" })
+    })).resolves.toMatchObject({
+      ok: false,
+      code: "emma_action_table_unavailable",
+      message: expect.stringMatching(/pending action table/i)
+    });
+
+    await expect(getCampEmmaActionReadiness(liveSession(), {
+      supabase: emmaReadinessClient({ camp_emma_actions_audit: "relation does not exist" })
+    })).resolves.toMatchObject({
+      ok: false,
+      code: "emma_audit_table_unavailable",
+      message: expect.stringMatching(/audit table/i)
+    });
+  });
+
+  it("keeps launch-mode read-only write requests as permission denied even when provider readiness is missing", async () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+
+    const result = await handleCampEmmaAction(session(), readOnlyContext(), {
+      originalCommandText: "Move Avery Johnson to Red Team"
+    });
+
+    expect(result).toMatchObject({
+      status: "denied",
+      code: "permission_denied"
+    });
+  });
+
   it("uses provider-interpreted camper team assignments to create pending actions without writing", async () => {
     withAzureEnv();
     const actor = session();
