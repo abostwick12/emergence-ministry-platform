@@ -53,9 +53,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     ministryId,
     createProposal: body.createProposal === true,
     proposalType: body.createProposal === true ? "event_summary_recommendation" : undefined,
-    source: "event_card",
-    provider: "mock",
-    model: "mock-emma-model"
+    source: "event_card"
   });
 
   if (!result.ok) {

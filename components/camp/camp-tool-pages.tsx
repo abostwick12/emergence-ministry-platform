@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CampAccessAdminPanel } from "@/components/camp/camp-access-admin";
+import { CampLaunchReadinessPanel } from "@/components/camp/camp-launch-readiness-panel";
 import { CampOperationDialog } from "@/components/camp/camp-operation-dialog";
 import { useCamp } from "@/components/camp/camp-provider";
 import { initialsForName } from "@/components/camp/camp-team-card";
@@ -513,6 +514,7 @@ export function CampSettingsToolPage() {
             </span>
             <span className="camp-cc-entry-arrow" aria-hidden="true">&gt;</span>
           </Link>
+          <CampLaunchReadinessPanel />
           <CampAccessAdminPanel />
         </div>
       ) : (

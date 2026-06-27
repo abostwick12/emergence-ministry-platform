@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession, unauthorizedResponse } from "@/lib/auth/server";
 import { getDefaultCampAccessScope } from "@/lib/camp/access";
-import { resolveCampAccessForRequest } from "@/lib/camp/access-control";
+import { requireCampAccessForRequest } from "@/lib/camp/api-guard";
 import { interpretCampEmmaCommand } from "@/lib/camp/emma-command";
 import { assertCampEmmaOperationsAccess } from "@/lib/camp/permissions";
 import { getCampOverview } from "@/lib/camp/repository";
@@ -21,8 +21,9 @@ export async function POST(request: Request) {
   const session = await getServerSession();
   if (!session) return unauthorizedResponse();
 
-  const { searchParams } = new URL(request.url);
-  const context = await resolveCampAccessForRequest(session, searchParams.get("role"));
+  const campAccess = await requireCampAccessForRequest(session, request);
+  if (!campAccess.allowed) return campAccess.response;
+  const context = campAccess.context;
 
   const access = assertCampEmmaOperationsAccess(context);
   if (!access.allowed) {

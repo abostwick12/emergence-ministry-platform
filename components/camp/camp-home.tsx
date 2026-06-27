@@ -8,10 +8,19 @@ import { CampTeamCarousel } from "@/components/camp/camp-team-carousel";
 import { CampMedicalCommand } from "@/components/camp/camp-medical-command";
 
 export function CampHome() {
-  const { capabilities, loading, homeMode, setHomeMode } = useCamp();
+  const { capabilities, loading, error, homeMode, setHomeMode } = useCamp();
 
   return (
     <div className="camp-cc-home">
+      {error ? (
+        <section className="camp-list-row align-start">
+          <div>
+            <strong>Camp launch readiness error</strong>
+            <p className="camp-cc-error">{error}</p>
+          </div>
+        </section>
+      ) : null}
+
       {capabilities.medicalCommand ? (
         <div className="camp-cc-mode" role="group" aria-label="Camp Home mode">
           <button

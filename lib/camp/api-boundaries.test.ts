@@ -21,6 +21,7 @@ import { POST as importPOST } from "@/app/api/camp/import/route";
 import { POST as uploadImportPOST } from "@/app/api/camp/import/upload/route";
 import { GET as accessGET, PATCH as accessPATCH, POST as accessPOST } from "@/app/api/camp/access/route";
 import { POST as campEmmaPOST } from "@/app/api/camp/emma/route";
+import { POST as bulletinPOST } from "@/app/api/camp/bulletins/route";
 import { GET as campGET } from "@/app/api/camp/route";
 import { GET as medicalCommandGET } from "@/app/api/camp/medical-command/route";
 import { GET as photoGET, POST as photoPOST } from "@/app/api/camp/medication/photos/route";
@@ -135,6 +136,62 @@ beforeEach(() => {
   getServerSessionMock.mockReset();
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
+});
+
+describe("Camp launch readiness guards", () => {
+  it("blocks preview/production Camp access stubs with a readiness error", async () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    getServerSessionMock.mockResolvedValue(andrewSession());
+
+    const response = await campGET(new Request("http://localhost/api/camp?role=andrew"));
+    const payload = await response.json() as { error?: string; code?: string };
+
+    expect(response.status).toBe(403);
+    expect(payload.code).toBe("camp_mock_auth_blocked");
+    expect(payload.error).toMatch(/real authenticated Supabase session/i);
+  });
+
+  it("blocks launch-mode EMMA actions before mock pending actions or audit can succeed", async () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    getServerSessionMock.mockResolvedValue(andrewSession());
+
+    const response = await campEmmaPOST(jsonRequest("http://localhost/api/camp/emma/actions?role=andrew", {
+      originalCommandText: "Move Avery Johnson to Red Team"
+    }));
+    const payload = await response.json() as { code?: string };
+
+    expect(response.status).toBe(403);
+    expect(payload.code).toBe("camp_mock_auth_blocked");
+  });
+
+  it("blocks launch-mode import commits before mock commits can succeed", async () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    getServerSessionMock.mockResolvedValue(andrewSession());
+
+    const response = await importPOST(jsonRequest("http://localhost/api/camp/import?role=andrew", {
+      action: "oakwoodCommit",
+      oakwoodPreview: oakwoodCommitPreview(),
+      confirmed: true
+    }));
+    const payload = await response.json() as { code?: string };
+
+    expect(response.status).toBe(403);
+    expect(payload.code).toBe("camp_mock_auth_blocked");
+  });
+
+  it("blocks launch-mode Team Bulletin posts before mock store writes can succeed", async () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    getServerSessionMock.mockResolvedValue(andrewSession());
+
+    const response = await bulletinPOST(jsonRequest("http://localhost/api/camp/bulletins?role=andrew", {
+      teamId: "team-blue",
+      message: "Launch check"
+    }));
+    const payload = await response.json() as { code?: string };
+
+    expect(response.status).toBe(403);
+    expect(payload.code).toBe("camp_mock_auth_blocked");
+  });
 });
 
 function oakwoodUploadRequest(url: string, file: File, options: { field?: "combinedFile" | "camperFile" | "staffFile"; sourceName?: string; mode?: "inspect" | "preview"; sheetName?: string } = {}) {

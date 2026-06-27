@@ -2,6 +2,7 @@ import type { AuthSession } from "@/lib/auth/server";
 import { isSupabaseConfigured } from "@/lib/auth/config";
 import { getAiFeatureConfig } from "@/lib/emma/repository";
 import { emmaErrors } from "@/lib/emma/errors";
+import { canUseCampStubMode } from "@/lib/camp/runtime";
 import { createGeminiProvider } from "./gemini-provider";
 import { createMockEmmaProvider } from "./mock-provider";
 import type { EmmaProvider, EmmaProviderId } from "./types";
@@ -51,6 +52,10 @@ export async function resolveProviderSelection(
     input?.provider ??
     normalizeProviderId(featureConfig?.primaryProvider) ??
     (mode === "gemini" ? normalizeProviderId(process.env.EMMA_DEFAULT_PROVIDER) ?? "gemini" : "mock");
+
+  if (!canUseCampStubMode() && providerId === "mock") {
+    throw emmaErrors.provider("EMMA launch mode requires a real provider configuration.");
+  }
 
   const model =
     input?.model ??

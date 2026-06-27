@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession, unauthorizedResponse } from "@/lib/auth/server";
 import { assertCampAdminAccess } from "@/lib/camp/permissions";
-import { resolveCampAccessForRequest } from "@/lib/camp/access-control";
+import { requireCampAccessForRequest } from "@/lib/camp/api-guard";
 import { parseCampRegistrationImport } from "@/lib/camp/import";
 import {
   commitOakwoodImport,
@@ -18,9 +18,10 @@ export async function POST(request: Request) {
   const session = await getServerSession();
   if (!session) return unauthorizedResponse();
 
-  const { searchParams } = new URL(request.url);
   // Camp Admin access resolves from authenticated identity, never from query/body.
-  const context = await resolveCampAccessForRequest(session, searchParams.get("role"));
+  const campAccess = await requireCampAccessForRequest(session, request);
+  if (!campAccess.allowed) return campAccess.response;
+  const context = campAccess.context;
   const adminAccess = assertCampAdminAccess(context);
   if (!adminAccess.allowed) {
     return NextResponse.json({ error: adminAccess.error }, { status: adminAccess.status });

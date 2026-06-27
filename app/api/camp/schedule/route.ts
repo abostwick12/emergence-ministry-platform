@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServerSession, unauthorizedResponse } from "@/lib/auth/server";
-import { resolveCampAccessForRequest } from "@/lib/camp/access-control";
+import { requireCampAccessForRequest } from "@/lib/camp/api-guard";
 import { archiveCampScheduleItem, upsertCampScheduleItem } from "@/lib/camp/repository";
 import type { CampScheduleInput } from "@/lib/camp/types";
 
@@ -8,8 +8,9 @@ export async function POST(request: Request) {
   const session = await getServerSession();
   if (!session) return unauthorizedResponse();
 
-  const { searchParams } = new URL(request.url);
-  const context = await resolveCampAccessForRequest(session, searchParams.get("role"));
+  const access = await requireCampAccessForRequest(session, request);
+  if (!access.allowed) return access.response;
+  const context = access.context;
   const body = (await request.json()) as CampScheduleInput;
   if (!body.title?.trim() || !body.day?.trim() || !body.time?.trim()) {
     return NextResponse.json({ error: "Title, day, and time are required." }, { status: 400 });
@@ -28,8 +29,9 @@ export async function PATCH(request: Request) {
   const session = await getServerSession();
   if (!session) return unauthorizedResponse();
 
-  const { searchParams } = new URL(request.url);
-  const context = await resolveCampAccessForRequest(session, searchParams.get("role"));
+  const access = await requireCampAccessForRequest(session, request);
+  if (!access.allowed) return access.response;
+  const context = access.context;
   const body = (await request.json()) as Partial<CampScheduleInput> & { action?: "archive"; id?: string };
   if (!body.id) return NextResponse.json({ error: "Schedule item id is required." }, { status: 400 });
 

@@ -207,4 +207,39 @@ describe("camp access-control", () => {
     );
     expect(ctx).toMatchObject({ restrictedActor: "Andrew", canAccessRestricted: true });
   });
+
+  it("blocks mock Camp access in launch runtime", async () => {
+    process.env.VERCEL_ENV = "preview";
+
+    await expect(resolveCampAccessForRequest(
+      session({ isMock: true, user: { id: "mock", email: BOOTSTRAP_CAMP_ADMIN_EMAIL, fullName: "Andrew", role: "admin" } }),
+      "andrew"
+    )).rejects.toMatchObject({
+      code: "camp_mock_auth_blocked",
+      status: 403
+    });
+  });
+
+  it("requires camp_access_members availability in launch runtime", async () => {
+    process.env.VERCEL_ENV = "preview";
+    mockStoredRole(null, { message: "relation camp_access_members does not exist" });
+
+    await expect(resolveCampAccessForRequest(session(), "andrew")).rejects.toMatchObject({
+      code: "camp_access_table_unavailable",
+      status: 503
+    });
+  });
+
+  it("does not use bootstrap or URL role fallback when launch runtime has no active access row", async () => {
+    process.env.VERCEL_ENV = "preview";
+    mockStoredRole(null);
+
+    await expect(resolveCampAccessForRequest(
+      session({ user: { id: "u1", email: BOOTSTRAP_CAMP_ADMIN_EMAIL, fullName: "Andrew", role: "staff" } }),
+      "andrew"
+    )).rejects.toMatchObject({
+      code: "camp_access_missing",
+      status: 403
+    });
+  });
 });

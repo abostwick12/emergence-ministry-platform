@@ -8,6 +8,7 @@
 import { isSupabaseConfigured } from "@/lib/auth/config";
 import { getSupabaseAuthClient, type AuthSession } from "@/lib/auth/server";
 import type { CampAccessContext } from "@/lib/camp/permissions";
+import { canUseCampStubMode } from "@/lib/camp/runtime";
 import {
   CAMP_STORED_ROLES,
   campStoredRoleLabels,
@@ -25,12 +26,25 @@ export type { CampStoredRole };
 export type CampStoredRoleState = {
   available: boolean;
   role: CampStoredRole | null;
+  error?: string;
   campEditScope?: CampEditScope;
   appAreaScope?: CampAppAreaScope;
   canPostTeamBulletin?: boolean;
   partnerChurchId?: string | null;
   assignedTeamIds?: string[];
 };
+
+export class CampAccessResolutionError extends Error {
+  status: number;
+  code: string;
+
+  constructor(message: string, options: { status: number; code: string }) {
+    super(message);
+    this.name = "CampAccessResolutionError";
+    this.status = options.status;
+    this.code = options.code;
+  }
+}
 
 // Historical export retained for existing callers. Manual Camp role preview is
 // intentionally disabled: URL params, local storage, and client controls must
@@ -73,7 +87,8 @@ export async function getStoredCampRole(session: AuthSession): Promise<CampStore
 }
 
 export async function getStoredCampRoleState(session: AuthSession): Promise<CampStoredRoleState> {
-  if (session.isMock || !isSupabaseConfigured()) return { available: false, role: null };
+  if (session.isMock) return { available: false, role: null, error: "Current session is using development auth." };
+  if (!isSupabaseConfigured()) return { available: false, role: null, error: "Supabase environment variables are not configured." };
   try {
     const activatedRole = await activatePendingCampInviteForSession(session);
     if (activatedRole) return { available: true, role: activatedRole };
@@ -92,7 +107,7 @@ export async function getStoredCampRoleState(session: AuthSession): Promise<Camp
         partner_church_id?: string | null;
         assigned_team_ids?: string[] | null;
       }>();
-    if (error) return { available: false, role: null };
+    if (error) return { available: false, role: null, error: error.message };
     return {
       available: true,
       role: data?.camp_role ?? null,
@@ -102,8 +117,8 @@ export async function getStoredCampRoleState(session: AuthSession): Promise<Camp
       partnerChurchId: data?.partner_church_id ?? null,
       assignedTeamIds: data?.assigned_team_ids ?? []
     };
-  } catch {
-    return { available: false, role: null };
+  } catch (error) {
+    return { available: false, role: null, error: error instanceof Error ? error.message : "Camp access could not be verified." };
   }
 }
 
@@ -112,6 +127,35 @@ export function isBootstrapCampAdmin(session: Pick<AuthSession, "user">): boolea
 }
 
 export async function resolveCampAccessForRequest(session: AuthSession, _requestedRole: string | null): Promise<CampAccessContext> {
+  if (!canUseCampStubMode()) {
+    if (session.isMock) {
+      throw new CampAccessResolutionError("Camp launch testing requires a real authenticated Supabase session, not development auth.", {
+        status: 403,
+        code: "camp_mock_auth_blocked"
+      });
+    }
+    if (!isSupabaseConfigured()) {
+      throw new CampAccessResolutionError("Camp launch testing requires Supabase configuration before protected Camp data can load.", {
+        status: 503,
+        code: "camp_supabase_missing"
+      });
+    }
+    const stored = await getStoredCampRoleState(session);
+    if (!stored.available) {
+      throw new CampAccessResolutionError(`Camp access readiness error: ${stored.error ?? "camp_access_members is unavailable."}`, {
+        status: 503,
+        code: "camp_access_table_unavailable"
+      });
+    }
+    if (!stored.role) {
+      throw new CampAccessResolutionError("No active Camp access row was found for this authenticated user.", {
+        status: 403,
+        code: "camp_access_missing"
+      });
+    }
+    return buildCampAccessFromStoredRoleState(stored);
+  }
+
   if (!session.isMock) {
     const stored = await getStoredCampRoleState(session);
     if (stored.role) return buildCampAccessFromStoredRoleState(stored);

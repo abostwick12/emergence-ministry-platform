@@ -31,6 +31,7 @@ import {
   type CampEditScope
 } from "@/lib/camp/access-roles";
 import { normalizeScopeId } from "@/lib/camp/permissions";
+import { canUseCampStubMode } from "@/lib/camp/runtime";
 
 export type CampAccessMemberStatus = "active" | "pending_invite" | "inactive" | "bootstrap";
 
@@ -132,6 +133,7 @@ export async function isCampAccessAdmin(session: AuthSession): Promise<boolean> 
   const stored = await getStoredCampRoleState(session);
   if (stored.role === "camp_admin") return true;
   if (stored.available) return false;
+  if (!canUseCampStubMode()) return false;
   return isBootstrapCampAdmin(session);
 }
 
@@ -148,7 +150,7 @@ export async function listCampAccess(session: AuthSession): Promise<ListOk | Den
     appAreaScopes: CAMP_APP_AREA_SCOPES,
     partnerChurches: [],
     teams: [],
-    bootstrapActive: isBootstrapCampAdmin(session)
+    bootstrapActive: canUseCampStubMode() && isBootstrapCampAdmin(session)
   };
 
   if (session.isMock || !isSupabaseConfigured()) {

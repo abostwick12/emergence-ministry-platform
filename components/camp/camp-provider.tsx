@@ -47,6 +47,7 @@ type CampContextValue = {
   overview: CampOverviewPayload;
   capabilities: CampCapabilities;
   loading: boolean;
+  error?: string;
   days: CampDay[];
   selectedDay: string;
   setSelectedDay: (key: string) => void;
@@ -64,6 +65,7 @@ export function CampProvider({ children }: { children: React.ReactNode }) {
   const [overview, setOverview] = useState<CampOverviewPayload>(emptyOverview);
   const [capabilities, setCapabilities] = useState<CampCapabilities>(emptyCapabilities);
   const [leaderName, setLeaderName] = useState<string | undefined>();
+  const [error, setError] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
   const [selectedDay, setSelectedDay] = useState("");
   const [homeMode, setHomeMode] = useState<CampHomeMode>("operations");
@@ -77,7 +79,19 @@ export function CampProvider({ children }: { children: React.ReactNode }) {
         setOverview(payload);
         setCapabilities(payload.capabilities ?? emptyCapabilities);
         setLeaderName(payload.leaderName);
+        setError(undefined);
+      } else {
+        const payload = await response.json().catch(() => ({})) as { error?: string };
+        setError(payload.error ?? "Camp launch readiness could not be verified.");
+        setOverview(emptyOverview);
+        setCapabilities(emptyCapabilities);
+        setLeaderName(undefined);
       }
+    } catch {
+      setError("Camp launch readiness could not be verified.");
+      setOverview(emptyOverview);
+      setCapabilities(emptyCapabilities);
+      setLeaderName(undefined);
     } finally {
       setLoading(false);
     }
@@ -120,6 +134,7 @@ export function CampProvider({ children }: { children: React.ReactNode }) {
       overview,
       capabilities,
       loading,
+      error,
       days,
       selectedDay,
       setSelectedDay,
@@ -130,7 +145,7 @@ export function CampProvider({ children }: { children: React.ReactNode }) {
       refresh,
       updateStudentProfilePhoto
     }),
-    [overview, capabilities, loading, days, selectedDay, scheduleForSelectedDay, homeMode, leaderName, refresh, updateStudentProfilePhoto]
+    [overview, capabilities, loading, error, days, selectedDay, scheduleForSelectedDay, homeMode, leaderName, refresh, updateStudentProfilePhoto]
   );
 
   return (
