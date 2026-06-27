@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServerSession, unauthorizedResponse, type AuthSession } from "@/lib/auth/server";
-import { resolveCampAccessForRequest } from "@/lib/camp/access-control";
+import { isCampAccessResolutionError, resolveCampAccessForRequest } from "@/lib/camp/access-control";
 import { canAccessEmergeOperations, type CampAccessContext } from "@/lib/camp/permissions";
 
 export type EmergeOperationsAccess =
@@ -11,7 +11,9 @@ export async function requireEmergeOperationsAccess(): Promise<EmergeOperationsA
   const session = await getServerSession();
   if (!session) return { allowed: false, response: unauthorizedResponse() };
 
-  const context = await resolveCampAccessForRequest(session, null);
+  const resolved = await resolveEmergeOperationsContext(session);
+  if (!resolved.allowed) return { allowed: false, response: resolved.response };
+  const { context } = resolved;
   if (!canAccessEmergeOperations(context)) {
     if (session.isMock) {
       return { allowed: true, session, context };
@@ -23,4 +25,19 @@ export async function requireEmergeOperationsAccess(): Promise<EmergeOperationsA
   }
 
   return { allowed: true, session, context };
+}
+
+async function resolveEmergeOperationsContext(session: AuthSession): Promise<
+  | { allowed: true; context: CampAccessContext }
+  | { allowed: false; response: Response }
+> {
+  try {
+    return { allowed: true, context: await resolveCampAccessForRequest(session, null) };
+  } catch (error) {
+    if (!isCampAccessResolutionError(error)) throw error;
+    return {
+      allowed: false,
+      response: NextResponse.json({ error: error.message, code: error.code }, { status: error.status })
+    };
+  }
 }

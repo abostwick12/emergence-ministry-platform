@@ -46,6 +46,10 @@ export class CampAccessResolutionError extends Error {
   }
 }
 
+export function isCampAccessResolutionError(error: unknown): error is CampAccessResolutionError {
+  return error instanceof CampAccessResolutionError;
+}
+
 // Historical export retained for existing callers. Manual Camp role preview is
 // intentionally disabled: URL params, local storage, and client controls must
 // never determine actual Camp access.
