@@ -19,10 +19,15 @@ import type {
   CampEmmaActionAudit,
   CampEmmaPendingAction,
   CampMedicationAdministrationLog,
+  CampMedicationAdministrationEvent,
+  CampMedicationAdministrationItem,
   CampMedicationArchiveInput,
+  CampMedicationGroupedAdministrationInput,
   CampArchiveInput,
   CampMedicationIntakeInput,
   CampMedicationIntakeRecord,
+  CampMedicationIntakeSession,
+  CampMedicationIntakeSessionInput,
   CampMedicationPhotoRecord,
   CampMedicationRecord,
   CampMedicationReturnItem,
@@ -59,7 +64,10 @@ type CampStoreState = {
   medicationSchedule: CampMedicationScheduleItem[];
   medicationReturnChecklist: CampMedicationReturnItem[];
   medicationAdministrationLog: CampMedicationAdministrationLog[];
+  medicationAdministrationEvents: CampMedicationAdministrationEvent[];
+  medicationAdministrationItems: CampMedicationAdministrationItem[];
   medicationIntakeRecords: CampMedicationIntakeRecord[];
+  medicationIntakeSessions: CampMedicationIntakeSession[];
   medicationPhotoRecords: Array<CampMedicationPhotoRecord & { mockSignedUrl?: string }>;
   camperProfilePhotoRecords: Array<CampCamperProfilePhotoRecord & { mockSignedUrl?: string }>;
   staff: CampStaffMember[];
@@ -100,7 +108,10 @@ function createInitialState(): CampStoreState {
     medicationSchedule: cloneArray(medicationSchedule),
     medicationReturnChecklist: cloneArray(medicationReturnChecklist),
     medicationAdministrationLog: [],
+    medicationAdministrationEvents: [],
+    medicationAdministrationItems: [],
     medicationIntakeRecords: [],
+    medicationIntakeSessions: [],
     medicationPhotoRecords: [],
     camperProfilePhotoRecords: [],
     staff: [],
@@ -583,6 +594,7 @@ export function getRestrictedCampMedicationPayload(role: CampAccessRole, options
   const activeStudentIds = new Set(store.students.filter((student) => !student.archivedAt).map((student) => student.id));
   const visibleIntakeRows = visibleMedicationHistoryItems(store.medicationIntakeRecords, options.includeArchived);
   const visibleLogRows = visibleMedicationHistoryItems(store.medicationAdministrationLog, options.includeArchived);
+  const visibleIntakeSessions = visibleMedicationHistoryItems(store.medicationIntakeSessions, options.includeArchived);
   const operationalIntakeRows = activeAuditItems(store.medicationIntakeRecords, "supersedesIntakeId").filter((item) => !item.archivedAt);
   const operationalMedicationRows = store.medicationRecords.filter((record) => activeStudentIds.has(record.studentId));
   const operationalScheduleRows = store.medicationSchedule.filter((item) => activeStudentIds.has(item.studentId));
@@ -601,9 +613,12 @@ export function getRestrictedCampMedicationPayload(role: CampAccessRole, options
     administrationLog: visibleLogRows
       .filter((log) => activeStudentIds.has(log.studentId))
       .map((log) => withAuditStatus(log, store.medicationAdministrationLog, "supersedesAdministrationLogId")),
+    administrationEvents: store.medicationAdministrationEvents.filter((event) => activeStudentIds.has(event.studentId)),
+    administrationItems: store.medicationAdministrationItems.filter((item) => activeStudentIds.has(item.studentId)),
     returnChecklist: activeAuditItems(operationalReturnRows, "supersedesReturnItemId")
       .map((item) => withAuditStatus(item, store.medicationReturnChecklist, "supersedesReturnItemId")),
-    intakeHistory
+    intakeHistory,
+    intakeSessions: visibleIntakeSessions.filter((session) => activeStudentIds.has(session.studentId))
   };
 }
 
@@ -620,6 +635,9 @@ export function saveMedicationIntake(role: CampAccessRole, input: CampMedication
     medicationName: input.medicationName,
     parentProvidedInstructions: input.parentInstructions,
     checkInStatus: clarificationStatus === "Needs Parent Clarification" ? "Needs Parent Clarification" : "Checked In",
+    quantityRemaining: input.quantityReceived,
+    scheduleType: medicationScheduleType(input.scheduleText),
+    isPrn: medicationScheduleType(input.scheduleText) === "prn",
     receivedBy: input.receivedByName,
     receivedAt: input.receivedAt,
     clarificationStatus
@@ -656,6 +674,94 @@ export function saveMedicationIntake(role: CampAccessRole, input: CampMedication
   return { allowed: true as const, status: 201, intake: record, record: withLatestIntakeSummary(medication.record), scheduleItems };
 }
 
+export function saveMedicationIntakeSession(role: CampAccessRole, input: CampMedicationIntakeSessionInput) {
+  if (!isRestrictedCampMedicalRole(role)) return restrictedMedicationDenied();
+  assertSignature(input.guardianSignatureData);
+  if (!input.confirmationAcknowledged) throw new Error("Medication intake confirmation is required.");
+  if (!input.medications.length) throw new Error("Add at least one medication before completing intake.");
+  const medicationValidationError = medicationIntakeSessionValidationError(input.medications);
+  if (medicationValidationError) throw new Error(medicationValidationError);
+
+  const student = findActiveStudent(input.studentId);
+  if (!student) return { allowed: true as const, status: 404, error: "Camper not found." };
+  const receivedAt = input.receivedAt || new Date().toISOString();
+  const now = new Date().toISOString();
+  const session: CampMedicationIntakeSession = {
+    id: uid("campintakesession"),
+    studentId: student.id,
+    studentName: student.name,
+    receivedByName: input.receivedByName.trim() || roleLabel(role),
+    receivedAt,
+    guardianName: input.guardianName.trim(),
+    guardianRelationship: input.guardianRelationship.trim(),
+    guardianSignatureData: input.guardianSignatureData,
+    status: "completed",
+    notes: input.notes?.trim() || "",
+    medicationCount: input.medications.length,
+    createdAt: now,
+    updatedAt: now
+  };
+
+  const intakes: CampMedicationIntakeRecord[] = [];
+  const records: CampMedicationRecord[] = [];
+  const scheduleItems: CampMedicationScheduleItem[] = [];
+
+  for (const medicationInput of input.medications) {
+    if (!medicationInput.medicationName.trim() || !medicationInput.dose.trim() || !medicationInput.quantityReceived.trim() || !medicationInput.parentInstructions.trim()) {
+      throw new Error("Each medication row needs name, dose, quantity, and instructions before completing intake.");
+    }
+    const scheduleType = medicationInput.scheduleType ?? medicationScheduleType(medicationInput.scheduleText);
+    const clarificationStatus = normalizeClarification(medicationInput.clarificationStatus, medicationInput.parentInstructions);
+    const medication = upsertMedicationRecord(role, {
+      id: medicationInput.medicationRecordId,
+      studentId: student.id,
+      medicationName: medicationInput.medicationName,
+      parentProvidedInstructions: medicationInput.parentInstructions,
+      checkInStatus: clarificationStatus === "Needs Parent Clarification" ? "Needs Parent Clarification" : "Checked In",
+      quantityRemaining: medicationInput.quantityReceived,
+      scheduleType,
+      isPrn: medicationInput.isPrn ?? scheduleType === "prn",
+      receivedBy: session.receivedByName,
+      receivedAt,
+      clarificationStatus,
+      correctionNote: medicationInput.correctionNote
+    });
+    if (!medication.allowed) return medication;
+
+    const intakeRecord: CampMedicationIntakeRecord = {
+      id: uid("campintake"),
+      medicationRecordId: medication.record.id,
+      studentId: student.id,
+      studentName: student.name,
+      medicationName: medication.record.medicationName,
+      dose: medicationInput.dose.trim(),
+      scheduleText: medicationInput.scheduleText.trim(),
+      parentInstructions: medicationInput.parentInstructions.trim(),
+      staffNotes: medicationInput.staffNotes?.trim() || "",
+      quantityReceived: medicationInput.quantityReceived.trim(),
+      containerStatus: medicationInput.containerStatus.trim() || "Original labeled container received",
+      receivedByName: session.receivedByName,
+      receivedAt,
+      guardianName: session.guardianName,
+      guardianRelationship: session.guardianRelationship,
+      guardianSignatureData: session.guardianSignatureData,
+      clarificationStatus,
+      confirmationAcknowledged: true,
+      correctionNote: medicationInput.correctionNote?.trim(),
+      createdAt: now
+    };
+    store.medicationIntakeRecords.unshift(intakeRecord);
+    intakes.push(intakeRecord);
+    records.push(withLatestIntakeSummary(medication.record));
+    if (scheduleType !== "prn") {
+      scheduleItems.push(...ensureMedicationScheduleItemsForIntake(role, medication.record.id, medicationInput.scheduleText, medicationInput.parentInstructions));
+    }
+  }
+
+  store.medicationIntakeSessions.unshift(session);
+  return { allowed: true as const, status: 201, session, intakes, records, scheduleItems };
+}
+
 export function upsertMedicationRecord(role: CampAccessRole, input: Partial<CampMedicationRecord> & { studentId: string }) {
   if (!isRestrictedCampMedicalRole(role)) return restrictedMedicationDenied();
   const student = requireActiveStudent(input.studentId);
@@ -671,6 +777,9 @@ export function upsertMedicationRecord(role: CampAccessRole, input: Partial<Camp
     medicinePhotoStatus,
     parentProvidedInstructions: input.parentProvidedInstructions?.trim() || existing?.parentProvidedInstructions || "Needs Parent Clarification.",
     checkInStatus,
+    quantityRemaining: input.quantityRemaining?.trim() || existing?.quantityRemaining,
+    scheduleType: input.scheduleType ?? existing?.scheduleType ?? medicationScheduleType(input.parentProvidedInstructions),
+    isPrn: input.isPrn ?? existing?.isPrn ?? medicationScheduleType(input.parentProvidedInstructions) === "prn",
     receivedBy: checkInStatus === "Checked In" ? input.receivedBy || existing?.receivedBy || "Andrew" : input.receivedBy,
     receivedAt: checkInStatus === "Checked In" ? input.receivedAt || existing?.receivedAt || new Date().toISOString() : input.receivedAt,
     clarificationStatus,
@@ -822,6 +931,116 @@ export function logMedicationAdministration(
   scheduleItem.lastLoggedAt = loggedAt;
   scheduleItem.lastLoggedBy = log.loggedBy;
   return { allowed: true as const, status: 200, log };
+}
+
+export function logGroupedMedicationAdministration(role: CampAccessRole, input: CampMedicationGroupedAdministrationInput) {
+  if (role !== "andrew") return restrictedMedicationDenied();
+  if (!input.items.length) throw new Error("Select at least one medication before submitting a med pass.");
+  const timeWindow = input.timeWindow.trim();
+  if (!timeWindow) throw new Error("Medication time block is required.");
+  for (const item of input.items) {
+    if (!isAdministrationItemStatus(item.status)) throw new Error("Medication item status is required.");
+  }
+  const student = findActiveStudent(input.studentId);
+  if (!student) return { allowed: true as const, status: 404, error: "Camper not found." };
+  const acknowledgement = normalizeStudentAcknowledgement(input);
+  const administeredAt = input.administeredAt || new Date().toISOString();
+  const validatedItems: Array<{
+    input: CampMedicationGroupedAdministrationInput["items"][number];
+    scheduleItem: CampMedicationScheduleItem;
+    medication: CampMedicationRecord;
+    legacyStatus: CampMedicationAdministrationLog["status"];
+    notes: string;
+  }> = [];
+  const seenScheduleItems = new Set<string>();
+
+  for (const itemInput of input.items) {
+    if (seenScheduleItems.has(itemInput.scheduleItemId)) {
+      return { allowed: true as const, status: 400, error: "Medication item appears more than once in this med pass." };
+    }
+    seenScheduleItems.add(itemInput.scheduleItemId);
+
+    const scheduleItem = store.medicationSchedule.find((item) => item.id === itemInput.scheduleItemId);
+    if (!scheduleItem) return { allowed: true as const, status: 404, error: "Medication schedule item not found." };
+    const medication = store.medicationRecords.find((record) => record.id === itemInput.medicationRecordId);
+    if (!medication) return { allowed: true as const, status: 404, error: "Medication item not found." };
+    if (scheduleItem.studentId !== student.id || scheduleItem.medicationRecordId !== medication.id || scheduleItem.timeWindow !== timeWindow || medication.studentId !== student.id) {
+      return { allowed: true as const, status: 400, error: "Medication item does not belong to this grouped med pass." };
+    }
+
+    const itemStatus = itemInput.status;
+    validatedItems.push({
+      input: itemInput,
+      scheduleItem,
+      medication,
+      legacyStatus: administrationItemStatusToLegacy(itemStatus),
+      notes: itemInput.notes?.trim() || input.notes?.trim() || defaultAdministrationItemNote(itemStatus)
+    });
+  }
+
+  const event: CampMedicationAdministrationEvent = {
+    id: uid("campadminevent"),
+    studentId: student.id,
+    studentName: student.name,
+    timeWindow,
+    administeredAt,
+    administeredBy: input.administeredBy.trim() || "Andrew",
+    studentAcknowledgementInitials: acknowledgement.initials,
+    studentAcknowledgementUnavailable: acknowledgement.unavailable,
+    studentAcknowledgementUnavailableReason: acknowledgement.unavailableReason,
+    notes: input.notes?.trim() || "",
+    itemCount: input.items.length,
+    createdAt: administeredAt
+  };
+  const items: CampMedicationAdministrationItem[] = [];
+  const logs: CampMedicationAdministrationLog[] = [];
+
+  for (const { input: itemInput, scheduleItem, medication, legacyStatus, notes } of validatedItems) {
+    const log: CampMedicationAdministrationLog = {
+      id: uid("camplog"),
+      medicationRecordId: scheduleItem.medicationRecordId,
+      scheduleItemId: scheduleItem.id,
+      studentId: scheduleItem.studentId,
+      studentName: scheduleItem.studentName,
+      timeWindow: scheduleItem.timeWindow,
+      loggedAt: administeredAt,
+      loggedBy: event.administeredBy,
+      status: legacyStatus,
+      notes,
+      studentAcknowledgementInitials: acknowledgement.initials,
+      studentAcknowledgementUnavailable: acknowledgement.unavailable,
+      studentAcknowledgementUnavailableReason: acknowledgement.unavailableReason
+    };
+    const administrationItem: CampMedicationAdministrationItem = {
+      id: uid("campadminitem"),
+      administrationEventId: event.id,
+      medicationRecordId: medication.id,
+      scheduleItemId: scheduleItem.id,
+      studentId: student.id,
+      studentName: student.name,
+      medicationName: medication.medicationName,
+      timeWindow: scheduleItem.timeWindow,
+      status: itemInput.status,
+      doseGiven: itemInput.doseGiven?.trim() || "",
+      administeredAt,
+      notes,
+      createdAt: administeredAt
+    };
+
+    store.medicationAdministrationLog.unshift(log);
+    logs.push(log);
+    items.push(administrationItem);
+    scheduleItem.status = legacyStatus === "Logged" ? "Logged" : legacyStatus === "Needs Parent Clarification" ? "Needs Parent Clarification" : "Pending";
+    scheduleItem.lastLoggedAt = administeredAt;
+    scheduleItem.lastLoggedBy = event.administeredBy;
+    if (itemInput.status === "administered") {
+      medication.quantityRemaining = decrementQuantityText(medication.quantityRemaining);
+    }
+  }
+
+  store.medicationAdministrationEvents.unshift(event);
+  store.medicationAdministrationItems.unshift(...items);
+  return { allowed: true as const, status: 200, event, items, logs };
 }
 
 function normalizeStudentAcknowledgement(input: {
@@ -978,6 +1197,12 @@ function requireActiveStudent(studentId: string): CampStudentPublic {
   return requireStudent(studentId);
 }
 
+function findActiveStudent(studentId: string): CampStudentPublic | undefined {
+  const student = store.students.find((item) => item.id === studentId);
+  if (!student || student.archivedAt) return undefined;
+  return student;
+}
+
 function requireMedication(medicationRecordId: string): CampMedicationRecord {
   const medication = store.medicationRecords.find((record) => record.id === medicationRecordId);
   if (!medication) throw new Error("Medication record not found.");
@@ -1090,6 +1315,15 @@ function syncStudentName(studentId: string, studentName: string) {
   for (const item of store.medicationIntakeRecords) {
     if (item.studentId === studentId) item.studentName = studentName;
   }
+  for (const item of store.medicationIntakeSessions) {
+    if (item.studentId === studentId) item.studentName = studentName;
+  }
+  for (const item of store.medicationAdministrationEvents) {
+    if (item.studentId === studentId) item.studentName = studentName;
+  }
+  for (const item of store.medicationAdministrationItems) {
+    if (item.studentId === studentId) item.studentName = studentName;
+  }
 }
 
 function initialsForName(name: string): string {
@@ -1116,6 +1350,50 @@ function sanitizeProfilePhotoUrl(value?: string | null): string | undefined {
 function needsClarification(value?: string): boolean {
   if (!value?.trim()) return true;
   return /needs parent clarification|unclear|clarify|conflict/i.test(value);
+}
+
+function medicationScheduleType(value?: string): CampMedicationRecord["scheduleType"] {
+  const normalized = value?.trim() ?? "";
+  if (!normalized) return "needs_review";
+  if (/\bprn\b|as needed/i.test(normalized)) return "prn";
+  return "scheduled";
+}
+
+function administrationItemStatusToLegacy(status: CampMedicationAdministrationItem["status"]): CampMedicationAdministrationLog["status"] {
+  if (status === "administered") return "Logged";
+  if (status === "held") return "Needs Parent Clarification";
+  return "Skipped";
+}
+
+function isAdministrationItemStatus(value: unknown): value is CampMedicationAdministrationItem["status"] {
+  return value === "administered" || value === "skipped" || value === "refused" || value === "held" || value === "not_present";
+}
+
+function medicationIntakeSessionValidationError(medications: CampMedicationIntakeSessionInput["medications"]) {
+  for (const medicationInput of medications) {
+    if (!medicationInput.medicationName.trim() || !medicationInput.dose.trim() || !medicationInput.quantityReceived.trim() || !medicationInput.parentInstructions.trim()) {
+      return "Each medication row needs name, dose, quantity, and instructions before completing intake.";
+    }
+  }
+  return "";
+}
+
+function defaultAdministrationItemNote(status: CampMedicationAdministrationItem["status"]) {
+  if (status === "administered") return "Logged per parent-provided instructions.";
+  if (status === "refused") return "Medication refused during grouped med pass.";
+  if (status === "held") return "Medication held for review.";
+  if (status === "not_present") return "Medication not present during grouped med pass.";
+  return "Medication skipped during grouped med pass.";
+}
+
+function decrementQuantityText(value?: string): string | undefined {
+  if (!value) return value;
+  const match = value.match(/(\d+(?:\.\d+)?)/);
+  if (!match) return value;
+  const current = Number(match[1]);
+  if (!Number.isFinite(current)) return value;
+  const next = Math.max(0, current - 1);
+  return value.replace(match[1], Number.isInteger(current) ? String(next) : String(Number(next.toFixed(2))));
 }
 
 function restrictedMedicationDenied() {

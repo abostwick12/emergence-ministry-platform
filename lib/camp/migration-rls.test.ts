@@ -10,6 +10,7 @@ const correctionAuditMigration = readFileSync(join(process.cwd(), "supabase/migr
 const oakwoodMigration = readFileSync(join(process.cwd(), "supabase/migrations/013_camp_oakwood_operational_data.sql"), "utf8");
 const intakeCamperPhotoMigration = readFileSync(join(process.cwd(), "supabase/migrations/018_camp_intake_and_camper_profile_photos.sql"), "utf8");
 const medicalHistoryArchiveMigration = readFileSync(join(process.cwd(), "supabase/migrations/019_camp_medical_history_archive.sql"), "utf8");
+const groupedMedicationMigration = readFileSync(join(process.cwd(), "supabase/migrations/023_camp_grouped_medication_workflow.sql"), "utf8");
 
 describe("camp persistence RLS migration shape", () => {
   it("keeps restricted medical and medication tables behind the restricted access helper", () => {
@@ -151,6 +152,43 @@ describe("camp persistence RLS migration shape", () => {
     expect(medicalHistoryArchiveMigration).toContain("where archived_at is not null");
     expect(medicalHistoryArchiveMigration).not.toContain("for delete");
     expect(medicalHistoryArchiveMigration).not.toContain("general_leader");
+  });
+
+  it("adds grouped medication workflow tables without weakening restricted history controls", () => {
+    for (const table of [
+      "camp_medication_intake_sessions",
+      "camp_medication_administration_events",
+      "camp_medication_administration_items"
+    ]) {
+      expect(groupedMedicationMigration).toContain(`create table if not exists public.${table}`);
+      expect(groupedMedicationMigration).toContain(`alter table public.${table} enable row level security;`);
+      expect(groupedMedicationMigration).toContain(`on public.${table}`);
+    }
+
+    expect(groupedMedicationMigration).toContain("public.current_user_can_access_camp_restricted()");
+    expect(groupedMedicationMigration).toContain("grant select, insert, update on table public.camp_medication_intake_sessions to authenticated;");
+    expect(groupedMedicationMigration).toContain("grant select, insert on table public.camp_medication_administration_events to authenticated;");
+    expect(groupedMedicationMigration).toContain("grant select, insert on table public.camp_medication_administration_items to authenticated;");
+    expect(groupedMedicationMigration).toContain("revoke all on table public.camp_medication_intake_sessions from anon, public;");
+    expect(groupedMedicationMigration).not.toContain("on delete cascade");
+    expect(groupedMedicationMigration).not.toContain("for delete");
+    expect(groupedMedicationMigration).not.toContain("general_leader");
+  });
+
+  it("adds grouped medication lookup indexes for intake, schedule, event, item, and medication paths", () => {
+    for (const indexName of [
+      "idx_camp_medication_intake_sessions_camper",
+      "idx_camp_medication_intake_session_link",
+      "idx_camp_medication_schedule_time_status",
+      "idx_camp_medication_admin_events_camper_time",
+      "idx_camp_medication_admin_items_event",
+      "idx_camp_medication_admin_items_medication",
+      "idx_camp_medication_admin_items_camper_time",
+      "idx_camp_medication_admin_log_event",
+      "idx_camp_medication_admin_log_item"
+    ]) {
+      expect(groupedMedicationMigration).toContain(indexName);
+    }
   });
 
   it("adds Oakwood operational fields without moving restricted detail into public camper rows", () => {

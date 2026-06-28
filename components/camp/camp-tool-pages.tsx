@@ -13,9 +13,14 @@ import { prepareCampImageFile } from "@/lib/camp/client-image";
 import { getMedicineIntakeReturnVisibility } from "@/lib/camp/medication-workflow-visibility";
 import type {
   CampDocument,
+  CampMedicationAdministrationEvent,
+  CampMedicationAdministrationItem,
+  CampMedicationAdministrationItemStatus,
   CampMedicationAdministrationLog,
   CampMedicationArchiveInput,
   CampMedicationIntakeRecord,
+  CampMedicationIntakeSession,
+  CampMedicationIntakeSessionMedicationInput,
   CampMedicationRecord,
   CampMedicationReturnItem,
   CampMedicationScheduleItem,
@@ -34,14 +39,21 @@ type MedicationPayload = {
   checkIn: CampMedicationRecord[];
   schedule: CampMedicationScheduleItem[];
   administrationLog: CampMedicationAdministrationLog[];
+  administrationEvents?: CampMedicationAdministrationEvent[];
+  administrationItems?: CampMedicationAdministrationItem[];
   returnChecklist: CampMedicationReturnItem[];
   intakeHistory: CampMedicationIntakeRecord[];
+  intakeSessions?: CampMedicationIntakeSession[];
 };
 
 type MedicationState =
   | { status: "idle" | "forbidden" | "loading" }
   | { status: "ready"; data: MedicationPayload }
   | { status: "error"; message: string };
+
+type IntakeDraftMedication = CampMedicationIntakeSessionMedicationInput & {
+  clientId: string;
+};
 
 function BackToMore() {
   return (
@@ -94,6 +106,41 @@ function medicationDetailsForSchedule(data: MedicationPayload, item?: CampMedica
     instructions: item?.parentProvidedInstructions || medication?.parentProvidedInstructions || intake?.parentInstructions || "No instructions recorded.",
     staffNotes: intake?.staffNotes?.trim() || ""
   };
+}
+
+type MedicationPassItem = {
+  schedule: CampMedicationScheduleItem;
+  medication: CampMedicationRecord | undefined;
+  details: ReturnType<typeof medicationDetailsForSchedule>;
+};
+
+type MedicationPassGroup = {
+  id: string;
+  studentId: string;
+  studentName: string;
+  timeWindow: string;
+  items: MedicationPassItem[];
+};
+
+function medicationPassGroups(data: MedicationPayload, scheduleItems: CampMedicationScheduleItem[]): MedicationPassGroup[] {
+  const groups = new Map<string, MedicationPassGroup>();
+  const openItems = scheduleItems.filter((item) => item.status !== "Logged");
+  const sourceItems = openItems.length ? openItems : scheduleItems;
+  for (const schedule of sourceItems) {
+    const medication = medicationRecordForSchedule(data, schedule);
+    if (medication?.isPrn || medication?.scheduleType === "prn") continue;
+    const key = `${schedule.studentId}::${schedule.timeWindow.trim().toLowerCase()}`;
+    const group = groups.get(key) ?? {
+      id: schedule.id,
+      studentId: schedule.studentId,
+      studentName: schedule.studentName,
+      timeWindow: schedule.timeWindow,
+      items: []
+    };
+    group.items.push({ schedule, medication, details: medicationDetailsForSchedule(data, schedule) });
+    groups.set(key, group);
+  }
+  return Array.from(groups.values());
 }
 
 function useRestrictedMedicationData(required: "restricted" | "medicalCommand" = "restricted", includeArchived = false): MedicationState {
@@ -1110,13 +1157,294 @@ export function CampAdministerMedicineToolPage() {
       <MedicationDataGate required="medicalCommand">
         {(data) => {
           return data.schedule.length ? (
-            <MedicationAdministrationForm data={data} requestedScheduleItemId={searchParams.get("scheduleItemId")} />
+            <GroupedMedicationAdministrationForm data={data} requestedScheduleItemId={searchParams.get("scheduleItemId")} />
           ) : (
             <EmptyState>No open medication administration items are on file.</EmptyState>
           );
         }}
       </MedicationDataGate>
     </ToolPageShell>
+  );
+}
+
+function GroupedMedicationAdministrationForm({
+  data,
+  requestedScheduleItemId
+}: {
+  data: MedicationPayload;
+  requestedScheduleItemId: string | null;
+}) {
+  const [scheduleItems, setScheduleItems] = useState(data.schedule);
+  const groups = useMemo(() => medicationPassGroups(data, scheduleItems), [data, scheduleItems]);
+  const initialGroupId = groups.find((group) => group.items.some((item) => item.schedule.id === requestedScheduleItemId))?.id ?? groups[0]?.id ?? "";
+  const [groupId, setGroupId] = useState(initialGroupId);
+  const selectedGroup = groups.find((group) => group.id === groupId) ?? groups[0];
+  const [itemStatuses, setItemStatuses] = useState<Record<string, CampMedicationAdministrationItemStatus>>({});
+  const [itemNotes, setItemNotes] = useState<Record<string, string>>({});
+  const [administeredBy, setAdministeredBy] = useState("Andrew");
+  const [notes, setNotes] = useState("");
+  const [ackSignature, setAckSignature] = useState<CampSignatureData>(() => emptySignatureData());
+  const [lastAckSignature, setLastAckSignature] = useState<CampSignatureData | null>(null);
+  const [ackUnavailable, setAckUnavailable] = useState(false);
+  const [ackReason, setAckReason] = useState("");
+  const [administrationLog, setAdministrationLog] = useState(data.administrationLog);
+  const [message, setMessage] = useState<{ tone: "error" | "success"; text: string } | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setScheduleItems(data.schedule);
+  }, [data.schedule]);
+
+  useEffect(() => {
+    if (groups.some((group) => group.id === groupId)) return;
+    setGroupId(groups[0]?.id ?? "");
+  }, [groupId, groups]);
+
+  useEffect(() => {
+    if (!selectedGroup) return;
+    setItemStatuses((current) => {
+      const next = { ...current };
+      for (const item of selectedGroup.items) {
+        if (!next[item.schedule.id]) next[item.schedule.id] = "administered";
+      }
+      return next;
+    });
+  }, [selectedGroup]);
+
+  const selectedItems = selectedGroup?.items.filter((item) => itemStatuses[item.schedule.id]) ?? [];
+  const acknowledgementReady = ackUnavailable ? Boolean(ackReason.trim()) : hasSignature(ackSignature);
+  const canSubmit = Boolean(selectedGroup) && selectedItems.length > 0 && Boolean(administeredBy.trim()) && acknowledgementReady && !saving;
+  const groupHistory = selectedGroup
+    ? administrationLog.filter((log) => log.studentId === selectedGroup.studentId && log.timeWindow === selectedGroup.timeWindow && !log.archivedAt)
+    : [];
+
+  function updateItemStatus(scheduleItemId: string, checked: boolean, status?: CampMedicationAdministrationItemStatus) {
+    setItemStatuses((current) => {
+      const next = { ...current };
+      if (!checked) delete next[scheduleItemId];
+      else next[scheduleItemId] = status ?? next[scheduleItemId] ?? "administered";
+      return next;
+    });
+  }
+
+  async function submitGroupedPass() {
+    if (!selectedGroup) return;
+    setMessage(null);
+    if (!selectedItems.length) {
+      setMessage({ tone: "error", text: "Select at least one medication before submitting a med pass." });
+      return;
+    }
+    if (ackUnavailable && !ackReason.trim()) {
+      setMessage({ tone: "error", text: "Reason is required when the student is unavailable or declined to initial." });
+      return;
+    }
+    if (!ackUnavailable && !hasSignature(ackSignature)) {
+      setMessage({ tone: "error", text: "Student acknowledgement signature is required, or mark unavailable/declined with a reason." });
+      return;
+    }
+
+    setSaving(true);
+    const response = await fetch("/api/camp/medication", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        target: "groupedAdministration",
+        studentId: selectedGroup.studentId,
+        timeWindow: selectedGroup.timeWindow,
+        administeredBy,
+        notes,
+        studentAcknowledgementInitials: ackUnavailable ? "" : serializeStudentAcknowledgement(ackSignature),
+        studentAcknowledgementUnavailable: ackUnavailable,
+        studentAcknowledgementUnavailableReason: ackReason,
+        items: selectedItems.map((item) => ({
+          medicationRecordId: item.schedule.medicationRecordId,
+          scheduleItemId: item.schedule.id,
+          status: itemStatuses[item.schedule.id],
+          doseGiven: item.details.dose,
+          notes: itemNotes[item.schedule.id] ?? ""
+        }))
+      })
+    });
+    const body = await response.json().catch(() => ({})) as { error?: string; logs?: CampMedicationAdministrationLog[] };
+    setSaving(false);
+    if (!response.ok) {
+      setMessage({ tone: "error", text: body.error ?? "Medication administration could not be logged." });
+      return;
+    }
+    const logs = body.logs ?? [];
+    setLastAckSignature(ackUnavailable ? null : ackSignature);
+    setAdministrationLog((current) => [...logs, ...current.filter((log) => !logs.some((saved) => saved.id === log.id))]);
+    setScheduleItems((current) => current.map((item) => {
+      const savedLog = logs.find((log) => log.scheduleItemId === item.id);
+      return savedLog ? { ...item, status: savedLog.status === "Logged" ? "Logged" : savedLog.status === "Needs Parent Clarification" ? "Needs Parent Clarification" : "Pending", lastLoggedAt: savedLog.loggedAt, lastLoggedBy: savedLog.loggedBy } : item;
+    }));
+    setMessage({ tone: "success", text: `Medication administration logged. ${selectedItems.length} medication item${selectedItems.length === 1 ? "" : "s"} recorded under one student acknowledgement.` });
+    setNotes("");
+    setItemNotes({});
+    setAckSignature(emptySignatureData());
+    setAckUnavailable(false);
+    setAckReason("");
+  }
+
+  return (
+    <div className="camp-admin-form" aria-label="Grouped medication administration form">
+      <div className="camp-list-row align-start">
+        <div>
+          <strong>Meds Due Now</strong>
+          <p className="camp-cc-muted">Grouped by camper and time block. One student acknowledgement covers only the selected medications in this med pass.</p>
+        </div>
+        <StatusPill tone={groups.length ? "ready" : "locked"}>{groups.length ? `${groups.length} pass${groups.length === 1 ? "" : "es"}` : "No due meds"}</StatusPill>
+      </div>
+
+      {groups.length ? (
+        <>
+          {selectedGroup ? (
+            <p className="camp-cc-muted">{selectedGroup.studentName} - {selectedGroup.timeWindow}</p>
+          ) : null}
+          <label className="field">
+            <span>Medication time block</span>
+            <select className="input" value={selectedGroup?.id ?? ""} onChange={(event) => { setGroupId(event.target.value); setMessage(null); }}>
+              {groups.map((group) => (
+                <option key={group.id} value={group.id}>{group.studentName} - {group.timeWindow}: {group.items.length} med{group.items.length === 1 ? "" : "s"} due</option>
+              ))}
+            </select>
+          </label>
+
+          {selectedGroup ? (
+            <section className="camp-editor-card camp-medication-admin-card" aria-label={`Grouped med pass for ${selectedGroup.studentName}`} data-testid={`camp-medication-pass-${selectedGroup.studentId}-${selectedGroup.timeWindow}`}>
+              <div className="camp-medication-admin-card-head">
+                <div>
+                  <strong>{selectedGroup.studentName} - {selectedGroup.timeWindow}</strong>
+                  <p className="camp-cc-muted">{selectedGroup.items.length} medication{selectedGroup.items.length === 1 ? "" : "s"} in this med pass</p>
+                </div>
+                <StatusPill tone="warn">Due</StatusPill>
+              </div>
+              <div className="camp-list">
+                {selectedGroup.items.map((item) => {
+                  const status = itemStatuses[item.schedule.id] ?? "administered";
+                  const checked = Boolean(itemStatuses[item.schedule.id]);
+                  return (
+                    <div className="camp-list-row align-start" key={item.schedule.id} data-testid={`camp-medication-admin-card-${item.schedule.id}`}>
+                      <label className="camp-checkbox-line">
+                        <input type="checkbox" checked={checked} onChange={(event) => updateItemStatus(item.schedule.id, event.target.checked)} />
+                        <span>{item.details.medicationName}</span>
+                      </label>
+                      <dl className="camp-medication-admin-details">
+                        <div>
+                          <dt>Dose</dt>
+                          <dd>{item.details.dose}</dd>
+                        </div>
+                        <div>
+                          <dt>Scheduled time</dt>
+                          <dd>{item.schedule.timeWindow}</dd>
+                        </div>
+                        <div className="wide">
+                          <dt>Instructions</dt>
+                          <dd>{item.details.instructions}{item.details.staffNotes ? ` ${item.details.staffNotes}` : ""}</dd>
+                        </div>
+                      </dl>
+                      <div className="camp-form-grid">
+                        <label className="field">
+                          <span>Status</span>
+                          <select className="input" value={status} disabled={!checked} onChange={(event) => updateItemStatus(item.schedule.id, true, event.target.value as CampMedicationAdministrationItemStatus)}>
+                            <option value="administered">Administered</option>
+                            <option value="skipped">Skipped</option>
+                            <option value="refused">Refused</option>
+                            <option value="held">Held</option>
+                            <option value="not_present">Not present</option>
+                          </select>
+                        </label>
+                        <label className="field">
+                          <span>Item notes</span>
+                          <input className="input" value={itemNotes[item.schedule.id] ?? ""} disabled={!checked} onChange={(event) => setItemNotes((current) => ({ ...current, [item.schedule.id]: event.target.value }))} />
+                        </label>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          ) : null}
+
+          <div className="camp-form-grid">
+            <label className="field">
+              <span>Administered by staff member</span>
+              <input className="input" value={administeredBy} onChange={(event) => setAdministeredBy(event.target.value)} />
+            </label>
+            <label className="field">
+              <span>Staff notes</span>
+              <input className="input" value={notes} onChange={(event) => setNotes(event.target.value)} />
+            </label>
+          </div>
+
+          <section className="camp-ack-box" aria-label="Student acknowledgement only">
+            <div>
+              <strong>Student acknowledgement for selected meds</strong>
+              <p className="camp-cc-muted">This acknowledgement applies only to this camper and time block.</p>
+            </div>
+            <SignaturePad
+              value={ackSignature}
+              onChange={setAckSignature}
+              label="Student acknowledgement signature pad"
+              description="Have the student draw their initials with a finger, mouse, or stylus when available."
+              clearLabel="Clear and Re-sign"
+              disabled={ackUnavailable}
+            />
+            <label className="camp-checkbox-line">
+              <input
+                type="checkbox"
+                checked={ackUnavailable}
+                onChange={(event) => {
+                  setAckUnavailable(event.target.checked);
+                  if (event.target.checked) setAckSignature(emptySignatureData());
+                }}
+              />
+              <span>Unavailable or declined to initial</span>
+            </label>
+            {ackUnavailable ? (
+              <label className="field">
+                <span>Reason required</span>
+                <input className="input" value={ackReason} onChange={(event) => setAckReason(event.target.value)} />
+              </label>
+            ) : null}
+          </section>
+
+          {message ? <p className={message.tone === "error" ? "camp-cc-error" : "camp-save-message success"} role="status">{message.text}</p> : null}
+          {lastAckSignature ? (
+            <SignaturePreview value={lastAckSignature} label="Student acknowledgement preview" />
+          ) : null}
+
+          <button className="button primary" type="button" disabled={!canSubmit} onClick={() => void submitGroupedPass()}>
+            {saving ? "Logging med pass..." : "Administer Selected"}<span className="sr-only"> Confirm Administration</span>
+          </button>
+
+          <section aria-label="Administration history">
+            <h2 className="camp-tool-group-title">Recent records for this pass</h2>
+            {groupHistory.length ? (
+              <div className="camp-list">
+                {groupHistory.slice(0, 6).map((log) => (
+                  <div className={archiveClassName(log)} key={log.id}>
+                    <div>
+                      <strong>{log.status} - {new Date(log.loggedAt).toLocaleString()}</strong>
+                      <p className="camp-cc-muted">{log.notes}</p>
+                      <p className="camp-cc-muted">Acknowledgement: {formatStudentAcknowledgement(log)}</p>
+                      {parseStoredSignatureData(log.studentAcknowledgementInitials) ? (
+                        <SignaturePreview value={parseStoredSignatureData(log.studentAcknowledgementInitials) as CampSignatureData} label={`Student acknowledgement preview for ${log.studentName}`} />
+                      ) : null}
+                    </div>
+                    <StatusPill tone={statusTone(log.status)}>{log.status}</StatusPill>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <EmptyState>No administration history is on file for this grouped med pass yet.</EmptyState>
+            )}
+          </section>
+        </>
+      ) : (
+        <EmptyState>No scheduled medications are due. PRN/as-needed medications are not shown automatically.</EmptyState>
+      )}
+    </div>
   );
 }
 
@@ -1492,6 +1820,8 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
   const [guardianRelationship, setGuardianRelationship] = useState("Parent/Guardian");
   const [guardianSignature, setGuardianSignature] = useState<CampSignatureData>(() => emptySignatureData());
   const [clarificationStatus, setClarificationStatus] = useState<CampMedicationIntakeRecord["clarificationStatus"]>("Clear");
+  const [draftMedications, setDraftMedications] = useState<IntakeDraftMedication[]>([]);
+  const [editingDraftId, setEditingDraftId] = useState("");
   const [confirmationAcknowledged, setConfirmationAcknowledged] = useState(false);
   const [intakePhotoFile, setIntakePhotoFile] = useState<File | null>(null);
   const [intakePhotoPreviewUrl, setIntakePhotoPreviewUrl] = useState("");
@@ -1556,6 +1886,62 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
     setPhotoMessage(file ? "Medication photo selected. It will save with this parent handoff." : "Medication photo capture cancelled. Intake can still be saved without a photo.");
   }
 
+  function currentDraftMedication(): IntakeDraftMedication {
+    return {
+      clientId: editingDraftId || `draft-${Date.now()}`,
+      medicationRecordId: selectedMedication?.id,
+      medicationName,
+      dose,
+      scheduleText,
+      parentInstructions,
+      staffNotes,
+      quantityReceived,
+      containerStatus,
+      clarificationStatus,
+      scheduleType: /\bprn\b|as needed/i.test(scheduleText) ? "prn" : scheduleText.trim() ? "scheduled" : "needs_review",
+      isPrn: /\bprn\b|as needed/i.test(scheduleText)
+    };
+  }
+
+  function addOrUpdateMedicationRow() {
+    setMessage(null);
+    if (!validMedicationRow) {
+      setMessage({ tone: "error", text: "Complete the medication row fields before adding it to this intake session." });
+      return;
+    }
+    const row = currentDraftMedication();
+    setDraftMedications((current) => editingDraftId
+      ? current.map((item) => item.clientId === editingDraftId ? row : item)
+      : [...current, row]);
+    setEditingDraftId("");
+    setMedicationRecordId("");
+    clearNewMedicationFields();
+    setDose("");
+    setQuantityReceived("");
+    setStaffNotes("");
+    setContainerStatus("Original labeled container received");
+    setClarificationStatus("Clear");
+  }
+
+  function editMedicationRow(row: IntakeDraftMedication) {
+    setEditingDraftId(row.clientId);
+    setMedicationRecordId(row.medicationRecordId ?? "");
+    setMedicationName(row.medicationName);
+    setDose(row.dose);
+    setScheduleText(row.scheduleText);
+    setParentInstructions(row.parentInstructions);
+    setStaffNotes(row.staffNotes ?? "");
+    setQuantityReceived(row.quantityReceived);
+    setContainerStatus(row.containerStatus);
+    setClarificationStatus(row.clarificationStatus ?? "Clear");
+    setMessage(null);
+  }
+
+  function removeMedicationRow(clientId: string) {
+    setDraftMedications((current) => current.filter((item) => item.clientId !== clientId));
+    if (editingDraftId === clientId) setEditingDraftId("");
+  }
+
   async function openMedicationPhoto(medicationId: string, title: string) {
     setPhotoMessage("");
     const response = await fetch(`/api/camp/medication/photos?medicationRecordId=${encodeURIComponent(medicationId)}`, { cache: "no-store" });
@@ -1567,19 +1953,42 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
     setPhotoModal({ url: body.signedUrl, title });
   }
 
-  const validIntakeFields = Boolean(
+  const validMedicationRow = Boolean(
     selectedCamper &&
     medicationName.trim() &&
     dose.trim() &&
     scheduleText.trim() &&
     quantityReceived.trim() &&
     parentInstructions.trim() &&
-    containerStatus.trim() &&
+    containerStatus.trim()
+  );
+  const validSessionFields = Boolean(
+    selectedCamper &&
     receivedByName.trim() &&
     guardianName.trim() &&
     guardianRelationship.trim()
   );
-  const canSaveIntake = validIntakeFields && hasSignature(guardianSignature) && confirmationAcknowledged && saving === null;
+  const medicationRowsForCompletion = useMemo(() => {
+    const rows = [...draftMedications];
+    if (validMedicationRow && !editingDraftId) {
+      rows.push({
+        clientId: "current",
+        medicationRecordId: selectedMedication?.id,
+        medicationName,
+        dose,
+        scheduleText,
+        parentInstructions,
+        staffNotes,
+        quantityReceived,
+        containerStatus,
+        clarificationStatus,
+        scheduleType: /\bprn\b|as needed/i.test(scheduleText) ? "prn" : scheduleText.trim() ? "scheduled" : "needs_review",
+        isPrn: /\bprn\b|as needed/i.test(scheduleText)
+      });
+    }
+    return rows;
+  }, [clarificationStatus, containerStatus, dose, draftMedications, editingDraftId, medicationName, parentInstructions, quantityReceived, scheduleText, selectedMedication?.id, staffNotes, validMedicationRow]);
+  const canSaveIntake = validSessionFields && medicationRowsForCompletion.length > 0 && hasSignature(guardianSignature) && confirmationAcknowledged && saving === null;
 
   async function saveIntake() {
     setMessage(null);
@@ -1596,8 +2005,13 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
       return;
     }
 
-    if (!validIntakeFields) {
-      setMessage({ tone: "error", text: "Complete the visible medication intake fields before saving." });
+    if (!validSessionFields) {
+      setMessage({ tone: "error", text: "Complete the camper, staff, and guardian fields before completing intake." });
+      return;
+    }
+
+    if (!medicationRowsForCompletion.length) {
+      setMessage({ tone: "error", text: "Add at least one medication before completing intake." });
       return;
     }
 
@@ -1606,16 +2020,22 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        target: "intake",
-        medicationRecordId: selectedMedication?.id,
+        target: "intakeSession",
         studentId: selectedCamper.id,
-        medicationName,
-        dose,
-        scheduleText,
-        parentInstructions,
-        staffNotes,
-        quantityReceived,
-        containerStatus,
+        medications: medicationRowsForCompletion.map((row) => ({
+          medicationRecordId: row.medicationRecordId,
+          medicationName: row.medicationName,
+          dose: row.dose,
+          scheduleText: row.scheduleText,
+          parentInstructions: row.parentInstructions,
+          staffNotes: row.staffNotes,
+          quantityReceived: row.quantityReceived,
+          containerStatus: row.containerStatus,
+          clarificationStatus: row.clarificationStatus,
+          scheduleType: row.scheduleType,
+          isPrn: row.isPrn,
+          correctionNote: row.correctionNote
+        })),
         receivedByName,
         guardianName,
         guardianRelationship,
@@ -1624,26 +2044,32 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
         confirmationAcknowledged
       })
     });
-    const body = await response.json().catch(() => ({})) as { error?: string; intake?: CampMedicationIntakeRecord; record?: CampMedicationRecord };
+    const body = await response.json().catch(() => ({})) as { error?: string; intakes?: CampMedicationIntakeRecord[]; records?: CampMedicationRecord[] };
     setSaving(null);
-    if (!response.ok || !body.intake) {
+    if (!response.ok || !body.intakes?.length) {
       setMessage({ tone: "error", text: body.error ?? "Medication intake could not be saved." });
       return;
     }
 
     const selectedPhotoFile = intakePhotoFile;
 
-    setIntakeHistory((current) => [body.intake as CampMedicationIntakeRecord, ...current]);
-    if (body.record) {
+    setIntakeHistory((current) => [...(body.intakes as CampMedicationIntakeRecord[]), ...current]);
+    if (body.records?.length) {
       setCheckInRecords((current) => {
-        const existing = current.some((record) => record.id === body.record?.id);
-        return existing
-          ? current.map((record) => record.id === body.record?.id ? body.record as CampMedicationRecord : record)
-          : [body.record as CampMedicationRecord, ...current];
+        let next = [...current];
+        for (const record of body.records as CampMedicationRecord[]) {
+          const existing = next.some((item) => item.id === record.id);
+          next = existing ? next.map((item) => item.id === record.id ? record : item) : [record, ...next];
+        }
+        return next;
       });
-      setMedicationRecordId(body.record.id);
+      setMedicationRecordId(body.records[0].id);
     }
-    setMessage({ tone: "success", text: "Saved. Medication intake recorded with parent/guardian acknowledgement." });
+    setMessage({ tone: "success", text: `Saved. Medication intake recorded with parent/guardian acknowledgement. ${body.intakes.length} medication row${body.intakes.length === 1 ? "" : "s"} completed in this intake session.` });
+    setDraftMedications([]);
+    setEditingDraftId("");
+    clearNewMedicationFields();
+    setDose("");
     setQuantityReceived("");
     setStaffNotes("");
     setGuardianName("");
@@ -1651,8 +2077,8 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
     setGuardianSignature(emptySignatureData());
     setIntakePhotoFile(null);
     setConfirmationAcknowledged(false);
-    if (selectedPhotoFile && body.intake.medicationRecordId) {
-      void uploadIntakePhotoInBackground(body.intake.medicationRecordId, body.intake.id, selectedPhotoFile);
+    if (selectedPhotoFile && body.intakes[0]?.medicationRecordId) {
+      void uploadIntakePhotoInBackground(body.intakes[0].medicationRecordId, body.intakes[0].id, selectedPhotoFile);
     }
   }
 
@@ -1759,13 +2185,13 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
   return (
     <div className="camp-tool-workflow">
       <section className="camp-admin-form" aria-label="Medication intake handoff">
-        <h2 className="camp-tool-group-title">Record medication handoff / intake</h2>
-        <p className="camp-cc-muted">Document original labeled containers, parent-provided dose/time/instructions, quantity, staff receipt, and parent/guardian handoff acknowledgement.</p>
+        <h2 className="camp-tool-group-title">{selectedCamper ? `Medication Intake for ${selectedCamper.name}` : "Medication Intake"}</h2>
+        <p className="camp-cc-muted">Add every medication for this camper, review the list, then complete intake once with one parent/guardian acknowledgement.</p>
         {data.campers.length ? (
           <>
             <label className="field">
               <span>Camper</span>
-              <select className="input" value={selectedCamperId} onChange={(event) => { setSelectedCamperId(event.target.value); setMedicationRecordId(""); clearNewMedicationFields(); }} aria-label="Camper">
+              <select className="input" value={selectedCamperId} onChange={(event) => { setSelectedCamperId(event.target.value); setMedicationRecordId(""); setDraftMedications([]); setEditingDraftId(""); clearNewMedicationFields(); }} aria-label="Camper">
                 {data.campers.map((camper) => (
                   <option key={camper.id} value={camper.id}>{camper.name}</option>
                 ))}
@@ -1831,6 +2257,34 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
                 <option value="Needs Parent Clarification">Needs Parent Clarification</option>
               </select>
             </label>
+            <div className="camp-row-actions">
+              <button className="button compact-button" type="button" onClick={addOrUpdateMedicationRow}>
+                {editingDraftId ? "Update Medication Row" : "Add Medication Manually"}
+              </button>
+              <button className="button compact-button" type="button" disabled title="OCR scan-to-fill is planned for a future pass.">Scan Bottle</button>
+            </div>
+            <section aria-label="Current medications for intake">
+              <h3 className="camp-tool-group-title">Current Medications</h3>
+              {medicationRowsForCompletion.length ? (
+                <div className="camp-list">
+                  {medicationRowsForCompletion.map((row) => (
+                    <div className="camp-list-row align-start" key={row.clientId}>
+                      <div>
+                        <strong>{row.medicationName}</strong>
+                        <p className="camp-cc-muted">{row.dose} | {row.scheduleText || "Needs schedule review"} | {row.quantityReceived}</p>
+                      </div>
+                      <div className="camp-row-actions">
+                        {row.clientId !== "current" ? <button className="button compact-button" type="button" onClick={() => editMedicationRow(row)}>Edit</button> : null}
+                        {row.clientId !== "current" ? <button className="button compact-button" type="button" onClick={() => removeMedicationRow(row.clientId)}>Remove</button> : null}
+                        {row.isPrn ? <StatusPill tone="locked">PRN</StatusPill> : row.scheduleType === "needs_review" ? <StatusPill tone="warn">Needs schedule</StatusPill> : <StatusPill tone="ready">Scheduled</StatusPill>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <EmptyState>No medications added to this intake session yet.</EmptyState>
+              )}
+            </section>
             <section className="camp-intake-photo-section" aria-labelledby="intake-medication-photo">
               <div>
                 <h3 id="intake-medication-photo">Medication label / container photo (optional)</h3>
@@ -1876,7 +2330,7 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
               <span>Parent/guardian handoff details reviewed with staff.</span>
             </label>
             <button className="button primary" type="button" disabled={!canSaveIntake} onClick={() => void saveIntake()}>
-              {saving === "intake" ? "Saving intake..." : "Save medication intake"}
+              {saving === "intake" ? "Completing intake..." : "Complete Intake"}<span className="sr-only"> Save medication intake</span>
             </button>
           </>
         ) : (

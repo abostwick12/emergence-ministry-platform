@@ -849,6 +849,126 @@ describe("camp API restricted data boundaries", () => {
     expect(medicationPayload.schedule).toContainEqual(expect.objectContaining({ timeWindow: "Breakfast" }));
   });
 
+  it("allows restricted users to complete one intake session with multiple medication rows", async () => {
+    getServerSessionMock.mockResolvedValue(andrewSession());
+
+    const response = await medicationPOST(jsonRequest("http://localhost/api/camp/medication?role=andrew", {
+      target: "intakeSession",
+      studentId: "stu-3",
+      receivedByName: "Andrew",
+      guardianName: "Pat Parent",
+      guardianRelationship: "Parent",
+      guardianSignatureData: { width: 640, height: 220, strokes: [[{ x: 4, y: 4 }, { x: 18, y: 18 }]] },
+      confirmationAcknowledged: true,
+      medications: [
+        {
+          medicationName: "API breakfast med",
+          dose: "1 tablet",
+          scheduleText: "Breakfast",
+          parentInstructions: "Take with breakfast.",
+          quantityReceived: "10 tablets",
+          containerStatus: "Original bottle"
+        },
+        {
+          medicationName: "API dinner med",
+          dose: "1 capsule",
+          scheduleText: "Dinner",
+          parentInstructions: "Take after dinner.",
+          quantityReceived: "5 capsules",
+          containerStatus: "Original bottle"
+        }
+      ]
+    }));
+    const payload = await response.json() as { session: Record<string, unknown>; intakes: Array<Record<string, unknown>>; records: Array<Record<string, unknown>> };
+
+    expect(response.status).toBe(201);
+    expect(payload.session).toMatchObject({ studentName: "Riley Brooks", medicationCount: 2, guardianName: "Pat Parent" });
+    expect(payload.intakes).toHaveLength(2);
+    expect(payload.records.map((record) => record.medicationName)).toEqual(expect.arrayContaining(["API breakfast med", "API dinner med"]));
+
+    const medicationResponse = await medicationGET(new Request("http://localhost/api/camp/medication?role=andrew"));
+    const medicationPayload = await medicationResponse.json() as { intakeSessions: Array<Record<string, unknown>>; intakeHistory: Array<Record<string, unknown>> };
+    expect(medicationPayload.intakeSessions[0]).toMatchObject({ medicationCount: 2 });
+    expect(medicationPayload.intakeHistory.map((item) => item.medicationName)).toEqual(expect.arrayContaining(["API breakfast med", "API dinner med"]));
+  });
+
+  it("blocks grouped intake sessions for general leaders without leaking request details", async () => {
+    getServerSessionMock.mockResolvedValue(session());
+
+    const response = await medicationPOST(jsonRequest("http://localhost/api/camp/medication?role=general_leader", {
+      target: "intakeSession",
+      studentId: "stu-3",
+      receivedByName: "Leader",
+      guardianName: "Sensitive Guardian",
+      guardianRelationship: "Parent",
+      guardianSignatureData: { width: 640, height: 220, strokes: [[{ x: 4, y: 4 }, { x: 18, y: 18 }]] },
+      confirmationAcknowledged: true,
+      medications: [
+        {
+          medicationName: "Sensitive grouped intake med",
+          dose: "Sensitive dose",
+          scheduleText: "Breakfast",
+          parentInstructions: "Sensitive parent instructions.",
+          quantityReceived: "10 tablets",
+          containerStatus: "Original bottle"
+        }
+      ]
+    }));
+    const payload = await response.json();
+
+    expect(response.status).toBe(403);
+    expectNoRestrictedPayloadDetails(payload);
+    expect(JSON.stringify(payload)).not.toContain("Sensitive grouped intake med");
+    expect(JSON.stringify(payload)).not.toContain("Sensitive Guardian");
+  });
+
+  it("returns safe 404s for missing grouped intake camper and grouped med-pass schedule", async () => {
+    getServerSessionMock.mockResolvedValue(andrewSession());
+
+    const missingCamper = await medicationPOST(jsonRequest("http://localhost/api/camp/medication?role=andrew", {
+      target: "intakeSession",
+      studentId: "missing-camper",
+      receivedByName: "Andrew",
+      guardianName: "Sensitive Guardian",
+      guardianRelationship: "Parent",
+      guardianSignatureData: { width: 640, height: 220, strokes: [[{ x: 4, y: 4 }, { x: 18, y: 18 }]] },
+      confirmationAcknowledged: true,
+      medications: [
+        {
+          medicationName: "Sensitive missing camper med",
+          dose: "Sensitive dose",
+          scheduleText: "Breakfast",
+          parentInstructions: "Sensitive parent instructions.",
+          quantityReceived: "10 tablets",
+          containerStatus: "Original bottle"
+        }
+      ]
+    }));
+    const missingCamperPayload = await missingCamper.json();
+
+    expect(missingCamper.status).toBe(404);
+    expect(missingCamperPayload).toEqual({ error: "Camper not found." });
+    expect(JSON.stringify(missingCamperPayload)).not.toContain("Sensitive missing camper med");
+    expect(JSON.stringify(missingCamperPayload)).not.toContain("Sensitive Guardian");
+
+    const missingSchedule = await medicationPOST(jsonRequest("http://localhost/api/camp/medication?role=andrew", {
+      target: "groupedAdministration",
+      studentId: "stu-1",
+      timeWindow: "Breakfast",
+      administeredBy: "Andrew",
+      studentAcknowledgementInitials: "AJ",
+      items: [
+        { medicationRecordId: "sensitive-medication-id", scheduleItemId: "missing-schedule", status: "administered", doseGiven: "Sensitive dose" }
+      ]
+    }));
+    const missingSchedulePayload = await missingSchedule.json();
+
+    expect(missingSchedule.status).toBe(404);
+    expect(missingSchedulePayload).toEqual({ error: "Medication schedule item not found." });
+    expect(JSON.stringify(missingSchedulePayload)).not.toContain("sensitive-medication-id");
+    expect(JSON.stringify(missingSchedulePayload)).not.toContain("Sensitive dose");
+  });
+
   it("blocks Medical Command for General Leaders and Drivers (no payload)", async () => {
     getServerSessionMock.mockResolvedValue(session());
 
@@ -961,6 +1081,74 @@ describe("camp API restricted data boundaries", () => {
       studentAcknowledgementInitials: "AJ",
       studentAcknowledgementUnavailable: false
     });
+  });
+
+  it("allows Andrew to submit one grouped med pass with itemized statuses", async () => {
+    getServerSessionMock.mockResolvedValue(andrewSession());
+
+    const first = await medicationPOST(jsonRequest("http://localhost/api/camp/medication?role=andrew", {
+      target: "intakeSession",
+      studentId: "stu-3",
+      receivedByName: "Andrew",
+      guardianName: "Pat Parent",
+      guardianRelationship: "Parent",
+      guardianSignatureData: { width: 640, height: 220, strokes: [[{ x: 4, y: 4 }, { x: 18, y: 18 }]] },
+      confirmationAcknowledged: true,
+      medications: [
+        { medicationName: "Grouped med A", dose: "1 tablet", scheduleText: "Breakfast", parentInstructions: "Take with food.", quantityReceived: "10 tablets", containerStatus: "Original bottle" },
+        { medicationName: "Grouped med B", dose: "1 capsule", scheduleText: "Breakfast", parentInstructions: "Take with water.", quantityReceived: "5 capsules", containerStatus: "Original bottle" }
+      ]
+    }));
+    const firstPayload = await first.json() as { records: Array<{ id: string; medicationName: string }>; scheduleItems: Array<{ id: string; medicationRecordId: string; timeWindow: string }> };
+    expect(first.status).toBe(201);
+    const medA = firstPayload.records.find((record) => record.medicationName === "Grouped med A");
+    const medB = firstPayload.records.find((record) => record.medicationName === "Grouped med B");
+    const schedA = firstPayload.scheduleItems.find((item) => item.medicationRecordId === medA?.id && item.timeWindow === "Breakfast");
+    const schedB = firstPayload.scheduleItems.find((item) => item.medicationRecordId === medB?.id && item.timeWindow === "Breakfast");
+    expect(medA && medB && schedA && schedB).toBeTruthy();
+    if (!medA || !medB || !schedA || !schedB) throw new Error("expected grouped medication records and schedules");
+
+    const grouped = await medicationPOST(jsonRequest("http://localhost/api/camp/medication?role=andrew", {
+      target: "groupedAdministration",
+      studentId: "stu-3",
+      timeWindow: "Breakfast",
+      administeredBy: "Andrew",
+      studentAcknowledgementInitials: "RB",
+      items: [
+        { medicationRecordId: medA.id, scheduleItemId: schedA.id, status: "administered", doseGiven: "1 tablet" },
+        { medicationRecordId: medB.id, scheduleItemId: schedB.id, status: "refused", doseGiven: "1 capsule", notes: "Student refused." }
+      ]
+    }));
+    const groupedPayload = await grouped.json() as { event: Record<string, unknown>; items: Array<Record<string, unknown>>; logs: Array<Record<string, unknown>> };
+
+    expect(grouped.status).toBe(200);
+    expect(groupedPayload.event).toMatchObject({ studentName: "Riley Brooks", itemCount: 2 });
+    expect(groupedPayload.items.map((item) => item.status)).toEqual(expect.arrayContaining(["administered", "refused"]));
+    expect(groupedPayload.logs).toHaveLength(2);
+  });
+
+  it("blocks grouped med-pass writes outside Andrew without leaking request details", async () => {
+    getServerSessionMock.mockResolvedValue(session());
+
+    for (const role of ["jaci", "joel", "general_leader", "driver"]) {
+      const response = await medicationPOST(jsonRequest(`http://localhost/api/camp/medication?role=${role}`, {
+        target: "groupedAdministration",
+        studentId: "stu-1",
+        timeWindow: "Breakfast",
+        administeredBy: role,
+        studentAcknowledgementInitials: "AJ",
+        notes: "Sensitive med-pass note",
+        items: [
+          { medicationRecordId: "med-1", scheduleItemId: "med-sched-1", status: "administered", doseGiven: "Sensitive dose" }
+        ]
+      }));
+      const payload = await response.json();
+
+      expect(response.status).toBe(403);
+      expectNoRestrictedPayloadDetails(payload);
+      expect(JSON.stringify(payload)).not.toContain("Sensitive med-pass note");
+      expect(JSON.stringify(payload)).not.toContain("Sensitive dose");
+    }
   });
 
   it("does not advertise Medical Command capability to General Leaders or Drivers", async () => {

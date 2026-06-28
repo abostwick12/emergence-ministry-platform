@@ -241,6 +241,9 @@ export type CampMedicationRecord = {
   medicinePhotoStatus: "Photo Needed" | "Photo On File";
   parentProvidedInstructions: string;
   checkInStatus: "Not Checked In" | "Checked In" | "Needs Parent Clarification";
+  quantityRemaining?: string;
+  scheduleType?: "scheduled" | "prn" | "needs_review";
+  isPrn?: boolean;
   receivedBy?: string;
   receivedAt?: string;
   clarificationStatus: "Clear" | "Needs Parent Clarification";
@@ -253,6 +256,25 @@ export type CampMedicationRecord = {
   voidedAt?: string;
   voidedByName?: string;
   voidReason?: string;
+  archivedAt?: string;
+  archivedByName?: string;
+  archiveReason?: string;
+};
+
+export type CampMedicationIntakeSession = {
+  id: string;
+  studentId: string;
+  studentName: string;
+  receivedByName: string;
+  receivedAt: string;
+  guardianName: string;
+  guardianRelationship: string;
+  guardianSignatureData: CampSignatureData;
+  status: "draft" | "completed" | "archived";
+  notes: string;
+  medicationCount: number;
+  createdAt: string;
+  updatedAt: string;
   archivedAt?: string;
   archivedByName?: string;
   archiveReason?: string;
@@ -342,6 +364,33 @@ export type CampMedicationIntakeInput = {
   correctionNote?: string;
 };
 
+export type CampMedicationIntakeSessionMedicationInput = {
+  medicationRecordId?: string;
+  medicationName: string;
+  dose: string;
+  scheduleText: string;
+  parentInstructions: string;
+  staffNotes?: string;
+  quantityReceived: string;
+  containerStatus: string;
+  clarificationStatus?: "Clear" | "Needs Parent Clarification";
+  scheduleType?: "scheduled" | "prn" | "needs_review";
+  isPrn?: boolean;
+  correctionNote?: string;
+};
+
+export type CampMedicationIntakeSessionInput = {
+  studentId: string;
+  medications: CampMedicationIntakeSessionMedicationInput[];
+  receivedByName: string;
+  receivedAt?: string;
+  guardianName: string;
+  guardianRelationship: string;
+  guardianSignatureData: CampSignatureData;
+  confirmationAcknowledged: boolean;
+  notes?: string;
+};
+
 export type CampMedicationScheduleItem = {
   id: string;
   medicationRecordId: string;
@@ -386,6 +435,57 @@ export type CampMedicationAdministrationLog = {
   archivedAt?: string;
   archivedByName?: string;
   archiveReason?: string;
+};
+
+export type CampMedicationAdministrationItemStatus = "administered" | "skipped" | "refused" | "held" | "not_present";
+
+export type CampMedicationAdministrationEvent = {
+  id: string;
+  studentId: string;
+  studentName: string;
+  timeWindow: string;
+  administeredAt: string;
+  administeredBy: string;
+  studentAcknowledgementInitials?: string;
+  studentAcknowledgementUnavailable?: boolean;
+  studentAcknowledgementUnavailableReason?: string;
+  notes: string;
+  itemCount: number;
+  createdAt: string;
+};
+
+export type CampMedicationAdministrationItem = {
+  id: string;
+  administrationEventId: string;
+  medicationRecordId: string;
+  scheduleItemId?: string;
+  studentId: string;
+  studentName: string;
+  medicationName: string;
+  timeWindow: string;
+  status: CampMedicationAdministrationItemStatus;
+  doseGiven: string;
+  administeredAt: string;
+  notes: string;
+  createdAt: string;
+};
+
+export type CampMedicationGroupedAdministrationInput = {
+  studentId: string;
+  timeWindow: string;
+  administeredBy: string;
+  administeredAt?: string;
+  studentAcknowledgementInitials?: string;
+  studentAcknowledgementUnavailable?: boolean;
+  studentAcknowledgementUnavailableReason?: string;
+  notes?: string;
+  items: Array<{
+    medicationRecordId: string;
+    scheduleItemId: string;
+    status: CampMedicationAdministrationItemStatus;
+    doseGiven?: string;
+    notes?: string;
+  }>;
 };
 
 export type CampMedicationReturnItem = {

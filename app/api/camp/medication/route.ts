@@ -4,14 +4,16 @@ import { requireCampAccessForRequest } from "@/lib/camp/api-guard";
 import {
   archiveMedicationWorkflowItem,
   getRestrictedCampMedicationPayload,
+  logGroupedMedicationAdministration,
   logMedicationAdministration,
   saveMedicationIntake,
+  saveMedicationIntakeSession,
   updateMedicationReturnItem,
   upsertMedicationRecord,
   upsertMedicationScheduleItem,
   voidMedicationWorkflowItem
 } from "@/lib/camp/repository";
-import type { CampMedicationAdministrationLog, CampMedicationArchiveInput, CampMedicationIntakeInput, CampMedicationRecord, CampMedicationReturnItem, CampMedicationScheduleItem, CampMedicationVoidInput } from "@/lib/camp/types";
+import type { CampMedicationAdministrationLog, CampMedicationArchiveInput, CampMedicationGroupedAdministrationInput, CampMedicationIntakeInput, CampMedicationIntakeSessionInput, CampMedicationRecord, CampMedicationReturnItem, CampMedicationScheduleItem, CampMedicationVoidInput } from "@/lib/camp/types";
 
 export async function GET(request: Request) {
   const session = await getServerSession();
@@ -32,8 +34,11 @@ export async function GET(request: Request) {
     checkIn: payload.checkIn,
     schedule: payload.schedule,
     administrationLog: payload.administrationLog,
+    administrationEvents: payload.administrationEvents ?? [],
+    administrationItems: payload.administrationItems ?? [],
     returnChecklist: payload.returnChecklist,
-    intakeHistory: payload.intakeHistory
+    intakeHistory: payload.intakeHistory,
+    intakeSessions: payload.intakeSessions ?? []
   });
 }
 
@@ -45,7 +50,7 @@ export async function POST(request: Request) {
   if (!access.allowed) return access.response;
   const context = access.context;
 
-  const body = (await request.json()) as { target?: string; voidTarget?: CampMedicationVoidInput["target"]; voidReason?: string; voidedByName?: string; archiveTarget?: CampMedicationArchiveInput["target"]; archiveReason?: string; archivedByName?: string; id?: string } & Partial<CampMedicationRecord> & Partial<CampMedicationScheduleItem> & Partial<CampMedicationAdministrationLog> & Partial<CampMedicationIntakeInput> & Partial<CampMedicationReturnItem>;
+  const body = (await request.json()) as { target?: string; voidTarget?: CampMedicationVoidInput["target"]; voidReason?: string; voidedByName?: string; archiveTarget?: CampMedicationArchiveInput["target"]; archiveReason?: string; archivedByName?: string; id?: string } & Partial<CampMedicationRecord> & Partial<CampMedicationScheduleItem> & Partial<CampMedicationAdministrationLog> & Partial<CampMedicationIntakeInput> & Partial<CampMedicationIntakeSessionInput> & Partial<CampMedicationGroupedAdministrationInput> & Partial<CampMedicationReturnItem>;
 
   try {
     if (body.target === "void") {
@@ -97,6 +102,23 @@ export async function POST(request: Request) {
       return NextResponse.json({ intake: payload.intake, record: payload.record, scheduleItems: payload.scheduleItems ?? [] }, { status: payload.status });
     }
 
+    if (body.target === "intakeSession") {
+      const payload = await saveMedicationIntakeSession(session, context, {
+        studentId: body.studentId ?? "",
+        medications: (body.medications as CampMedicationIntakeSessionInput["medications"] | undefined) ?? [],
+        receivedByName: body.receivedByName ?? body.receivedBy ?? "",
+        receivedAt: body.receivedAt,
+        guardianName: body.guardianName ?? "",
+        guardianRelationship: body.guardianRelationship ?? "",
+        guardianSignatureData: body.guardianSignatureData ?? { width: 0, height: 0, strokes: [] },
+        confirmationAcknowledged: Boolean(body.confirmationAcknowledged),
+        notes: body.notes
+      });
+      if (!payload.allowed) return NextResponse.json({ error: payload.error }, { status: payload.status });
+      if ("error" in payload) return NextResponse.json({ error: payload.error }, { status: payload.status });
+      return NextResponse.json({ session: payload.session, intakes: payload.intakes, records: payload.records, scheduleItems: payload.scheduleItems ?? [] }, { status: payload.status });
+    }
+
     if (body.target === "schedule") {
       const payload = await upsertMedicationScheduleItem(session, context, {
         medicationRecordId: body.medicationRecordId ?? "",
@@ -125,6 +147,23 @@ export async function POST(request: Request) {
       if (!payload.allowed) return NextResponse.json({ error: payload.error }, { status: payload.status });
       if ("error" in payload) return NextResponse.json({ error: payload.error }, { status: payload.status });
       return NextResponse.json({ log: payload.log }, { status: payload.status });
+    }
+
+    if (body.target === "groupedAdministration") {
+      const payload = await logGroupedMedicationAdministration(session, context, {
+        studentId: body.studentId ?? "",
+        timeWindow: body.timeWindow ?? "",
+        administeredBy: body.administeredBy ?? body.loggedBy ?? "",
+        administeredAt: body.administeredAt,
+        studentAcknowledgementInitials: body.studentAcknowledgementInitials,
+        studentAcknowledgementUnavailable: body.studentAcknowledgementUnavailable,
+        studentAcknowledgementUnavailableReason: body.studentAcknowledgementUnavailableReason,
+        notes: body.notes,
+        items: (body.items as CampMedicationGroupedAdministrationInput["items"] | undefined) ?? []
+      });
+      if (!payload.allowed) return NextResponse.json({ error: payload.error }, { status: payload.status });
+      if ("error" in payload) return NextResponse.json({ error: payload.error }, { status: payload.status });
+      return NextResponse.json({ event: payload.event, items: payload.items, logs: payload.logs }, { status: payload.status });
     }
 
     const payload = await upsertMedicationRecord(session, context, {

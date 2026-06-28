@@ -3,12 +3,14 @@ import {
   __resetCampStoreForTests,
   archiveMedicationWorkflowItem,
   getRestrictedCampMedicationPayload,
+  logGroupedMedicationAdministration,
   logMedicationAdministration,
   normalizeAdministrationStatus,
   normalizeCheckInStatus,
   normalizeClarification,
   normalizeScheduleStatus,
   saveMedicationIntake,
+  saveMedicationIntakeSession,
   updateMedicationReturnItem,
   upsertMedicationRecord,
   upsertMedicationScheduleItem,
@@ -109,6 +111,216 @@ describe("camp medication workflow", () => {
     expect(payload.administrationLog).toHaveLength(0);
   });
 
+  it("creates one intake session with multiple medication rows for one camper", () => {
+    const intake = saveMedicationIntakeSession("andrew", {
+      studentId: "stu-3",
+      receivedByName: "Andrew",
+      guardianName: "Pat Parent",
+      guardianRelationship: "Parent",
+      guardianSignatureData: { width: 640, height: 220, strokes: [[{ x: 10, y: 20 }, { x: 30, y: 40 }]] },
+      confirmationAcknowledged: true,
+      medications: [
+        {
+          medicationName: "Morning tablet",
+          dose: "1 tablet",
+          scheduleText: "Breakfast",
+          parentInstructions: "Take with food.",
+          quantityReceived: "10 tablets",
+          containerStatus: "Original bottle"
+        },
+        {
+          medicationName: "Evening capsule",
+          dose: "1 capsule",
+          scheduleText: "Dinner",
+          parentInstructions: "Take after dinner.",
+          quantityReceived: "5 capsules",
+          containerStatus: "Original bottle"
+        }
+      ]
+    });
+
+    expect(intake.allowed).toBe(true);
+    if (!intake.allowed || "error" in intake) throw new Error("expected grouped intake success");
+    expect(intake.session).toMatchObject({ studentName: "Riley Brooks", medicationCount: 2, status: "completed" });
+    expect(intake.intakes).toHaveLength(2);
+    expect(intake.records.map((record) => record.medicationName)).toEqual(expect.arrayContaining(["Morning tablet", "Evening capsule"]));
+
+    const payload = getRestrictedCampMedicationPayload("andrew");
+    expect(payload.allowed).toBe(true);
+    if (!payload.allowed) throw new Error("expected restricted payload");
+    expect(payload.intakeSessions?.[0]).toMatchObject({ medicationCount: 2, guardianName: "Pat Parent" });
+  });
+
+  it("keeps PRN medications out of automatic scheduled med-pass groups", () => {
+    const intake = saveMedicationIntakeSession("andrew", {
+      studentId: "stu-3",
+      receivedByName: "Andrew",
+      guardianName: "Pat Parent",
+      guardianRelationship: "Parent",
+      guardianSignatureData: { width: 640, height: 220, strokes: [[{ x: 10, y: 20 }, { x: 30, y: 40 }]] },
+      confirmationAcknowledged: true,
+      medications: [
+        {
+          medicationName: "Scheduled medication",
+          dose: "1 tablet",
+          scheduleText: "Breakfast",
+          parentInstructions: "Take with food.",
+          quantityReceived: "10",
+          containerStatus: "Original bottle"
+        },
+        {
+          medicationName: "PRN medication",
+          dose: "As needed",
+          scheduleText: "PRN as needed",
+          parentInstructions: "Use only when intentionally selected.",
+          quantityReceived: "3",
+          containerStatus: "Original bottle"
+        }
+      ]
+    });
+    expect(intake.allowed).toBe(true);
+
+    const payload = getRestrictedCampMedicationPayload("andrew");
+    expect(payload.allowed).toBe(true);
+    if (!payload.allowed) throw new Error("expected restricted payload");
+    const prnRecord = payload.checkIn.find((record) => record.medicationName === "PRN medication");
+    expect(prnRecord).toMatchObject({ isPrn: true });
+    expect(payload.schedule.some((item) => item.medicationRecordId === prnRecord?.id)).toBe(false);
+    expect(payload.schedule.filter((item) => item.studentId === "stu-3").some((item) => item.timeWindow === "PRN as needed")).toBe(false);
+  });
+
+  it("submits one grouped med pass with separate item statuses and quantity updates", () => {
+    const first = upsertMedicationRecord("andrew", {
+      studentId: "stu-3",
+      medicationName: "Med A",
+      parentProvidedInstructions: "Take with food.",
+      quantityRemaining: "10 tablets",
+      checkInStatus: "Checked In",
+      clarificationStatus: "Clear"
+    });
+    const second = upsertMedicationRecord("andrew", {
+      studentId: "stu-3",
+      medicationName: "Med B",
+      parentProvidedInstructions: "Take with water.",
+      quantityRemaining: "4 tablets",
+      checkInStatus: "Checked In",
+      clarificationStatus: "Clear"
+    });
+    expect(first.allowed).toBe(true);
+    expect(second.allowed).toBe(true);
+    if (!first.allowed || !second.allowed) throw new Error("expected med records");
+
+    const breakfastA = upsertMedicationScheduleItem("andrew", { medicationRecordId: first.record.id, timeWindow: "Breakfast", parentProvidedInstructions: "Take with food." });
+    const breakfastB = upsertMedicationScheduleItem("andrew", { medicationRecordId: second.record.id, timeWindow: "Breakfast", parentProvidedInstructions: "Take with water." });
+    expect(breakfastA.allowed).toBe(true);
+    expect(breakfastB.allowed).toBe(true);
+    if (!breakfastA.allowed || !breakfastB.allowed) throw new Error("expected schedules");
+
+    const grouped = logGroupedMedicationAdministration("andrew", {
+      studentId: "stu-3",
+      timeWindow: "Breakfast",
+      administeredBy: "Andrew",
+      studentAcknowledgementInitials: "RB",
+      items: [
+        { medicationRecordId: first.record.id, scheduleItemId: breakfastA.item.id, status: "administered", doseGiven: "1 tablet" },
+        { medicationRecordId: second.record.id, scheduleItemId: breakfastB.item.id, status: "refused", doseGiven: "1 tablet", notes: "Student refused." }
+      ]
+    });
+
+    expect(grouped.allowed).toBe(true);
+    if (!grouped.allowed || "error" in grouped) throw new Error("expected grouped administration");
+    expect(grouped.event).toMatchObject({ studentName: "Riley Brooks", itemCount: 2 });
+    expect(grouped.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({ medicationRecordId: first.record.id, status: "administered" }),
+      expect.objectContaining({ medicationRecordId: second.record.id, status: "refused" })
+    ]));
+    expect(grouped.logs).toHaveLength(2);
+
+    const payload = getRestrictedCampMedicationPayload("andrew");
+    expect(payload.allowed).toBe(true);
+    if (!payload.allowed) throw new Error("expected restricted payload");
+    expect(payload.administrationEvents?.[0]).toMatchObject({ itemCount: 2 });
+    expect(payload.administrationItems?.map((item) => item.status)).toEqual(expect.arrayContaining(["administered", "refused"]));
+    expect(payload.checkIn.find((record) => record.id === first.record.id)?.quantityRemaining).toBe("9 tablets");
+    expect(payload.checkIn.find((record) => record.id === second.record.id)?.quantityRemaining).toBe("4 tablets");
+  });
+
+  it("does not create partial intake session rows when a medication row is incomplete", () => {
+    expect(() => saveMedicationIntakeSession("andrew", {
+      studentId: "stu-3",
+      receivedByName: "Andrew",
+      guardianName: "Pat Parent",
+      guardianRelationship: "Parent",
+      guardianSignatureData: { width: 640, height: 220, strokes: [[{ x: 10, y: 20 }, { x: 30, y: 40 }]] },
+      confirmationAcknowledged: true,
+      medications: [
+        {
+          medicationName: "Complete med row",
+          dose: "1 tablet",
+          scheduleText: "Breakfast",
+          parentInstructions: "Take with food.",
+          quantityReceived: "10 tablets",
+          containerStatus: "Original bottle"
+        },
+        {
+          medicationName: "Incomplete med row",
+          dose: "1 capsule",
+          scheduleText: "Dinner",
+          parentInstructions: "Take after dinner.",
+          quantityReceived: "",
+          containerStatus: "Original bottle"
+        }
+      ]
+    })).toThrow(/each medication row needs/i);
+
+    const payload = getRestrictedCampMedicationPayload("andrew");
+    expect(payload.allowed).toBe(true);
+    if (!payload.allowed) throw new Error("expected restricted payload");
+    expect(payload.intakeSessions ?? []).toHaveLength(0);
+    expect(payload.intakeHistory.map((item) => item.medicationName)).not.toContain("Complete med row");
+    expect(payload.checkIn.map((record) => record.medicationName)).not.toContain("Complete med row");
+  });
+
+  it("does not leave partial grouped administration audit rows when one selected item is invalid", () => {
+    const first = upsertMedicationRecord("andrew", {
+      studentId: "stu-3",
+      medicationName: "Partial Guard Med A",
+      parentProvidedInstructions: "Take with food.",
+      quantityRemaining: "10 tablets",
+      checkInStatus: "Checked In",
+      clarificationStatus: "Clear"
+    });
+    expect(first.allowed).toBe(true);
+    if (!first.allowed) throw new Error("expected med record");
+
+    const breakfastA = upsertMedicationScheduleItem("andrew", { medicationRecordId: first.record.id, timeWindow: "Breakfast", parentProvidedInstructions: "Take with food." });
+    expect(breakfastA.allowed).toBe(true);
+    if (!breakfastA.allowed) throw new Error("expected schedule");
+
+    const grouped = logGroupedMedicationAdministration("andrew", {
+      studentId: "stu-3",
+      timeWindow: "Breakfast",
+      administeredBy: "Andrew",
+      studentAcknowledgementInitials: "RB",
+      items: [
+        { medicationRecordId: first.record.id, scheduleItemId: breakfastA.item.id, status: "administered", doseGiven: "1 tablet" },
+        { medicationRecordId: first.record.id, scheduleItemId: "missing-schedule", status: "refused", doseGiven: "1 tablet" }
+      ]
+    });
+
+    expect(grouped.allowed).toBe(true);
+    expect("error" in grouped ? grouped.status : 200).toBe(404);
+
+    const payload = getRestrictedCampMedicationPayload("andrew");
+    expect(payload.allowed).toBe(true);
+    if (!payload.allowed) throw new Error("expected restricted payload");
+    expect(payload.administrationEvents ?? []).toHaveLength(0);
+    expect(payload.administrationItems ?? []).toHaveLength(0);
+    expect(payload.administrationLog).toHaveLength(0);
+    expect(payload.schedule.find((item) => item.id === breakfastA.item.id)?.status).toBe("Pending");
+    expect(payload.checkIn.find((record) => record.id === first.record.id)?.quantityRemaining).toBe("10 tablets");
+  });
+
   it("blocks medication mutations for general leaders and drivers", () => {
     expect(upsertMedicationRecord("general_leader", { studentId: "stu-1" }).allowed).toBe(false);
     expect(saveMedicationIntake("general_leader", {
@@ -126,9 +338,19 @@ describe("camp medication workflow", () => {
       guardianSignatureData: { width: 640, height: 220, strokes: [[{ x: 10, y: 10 }, { x: 20, y: 20 }]] },
       confirmationAcknowledged: true
     }).allowed).toBe(false);
+    expect(saveMedicationIntakeSession("general_leader", {
+      studentId: "stu-1",
+      receivedByName: "Leader",
+      guardianName: "Parent",
+      guardianRelationship: "Parent",
+      guardianSignatureData: { width: 640, height: 220, strokes: [[{ x: 10, y: 10 }, { x: 20, y: 20 }]] },
+      confirmationAcknowledged: true,
+      medications: [{ medicationName: "Blocked", dose: "1", scheduleText: "Breakfast", parentInstructions: "Follow parent instructions.", quantityReceived: "1", containerStatus: "Original bottle" }]
+    }).allowed).toBe(false);
     expect(logMedicationAdministration("jaci", { scheduleItemId: "med-sched-1", loggedBy: "Jaci", status: "Logged", studentAcknowledgementInitials: "AJ" }).allowed).toBe(false);
     expect(logMedicationAdministration("joel", { scheduleItemId: "med-sched-1", loggedBy: "Joel", status: "Logged", studentAcknowledgementInitials: "AJ" }).allowed).toBe(false);
     expect(logMedicationAdministration("driver", { scheduleItemId: "med-sched-1", loggedBy: "Driver", status: "Logged", studentAcknowledgementInitials: "AJ" }).allowed).toBe(false);
+    expect(logGroupedMedicationAdministration("driver", { studentId: "stu-1", timeWindow: "Breakfast", administeredBy: "Driver", studentAcknowledgementInitials: "AJ", items: [] }).allowed).toBe(false);
     expect(voidMedicationWorkflowItem("driver", { target: "medication", id: "med-1", voidReason: "Blocked" }).allowed).toBe(false);
     expect(archiveMedicationWorkflowItem("general_leader", { target: "intake", id: "blocked" }).allowed).toBe(false);
   });
