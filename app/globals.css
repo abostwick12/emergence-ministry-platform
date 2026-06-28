@@ -4109,6 +4109,8 @@ html:has(.app-shell-camp) body {
 .camp-emma-bubble p {
   margin: 0;
   line-height: 1.58;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .camp-emma-bubble ul {
@@ -4386,8 +4388,22 @@ html:has(.app-shell-camp) body {
     margin-top: -13px;
   }
   .camp-cc-main { padding-bottom: calc(116px + env(safe-area-inset-bottom, 0px)); }
-  .camp-emma-backdrop { padding: 12px 12px calc(76px + env(safe-area-inset-bottom, 0px)); }
-  .camp-emma-sheet { border-radius: 22px; height: min(72vh, 680px); }
+  .camp-emma-backdrop {
+    padding: 0;
+    align-items: stretch;
+    justify-content: stretch;
+  }
+  .camp-emma-sheet {
+    width: 100%;
+    max-width: 100%;
+    height: 100%;
+    max-height: none;
+    border-radius: 0;
+    border-width: 0;
+  }
+  .camp-emma-messages { overflow-x: hidden; }
+  .camp-emma-head { padding-top: max(16px, calc(env(safe-area-inset-top, 0px) + 8px)); }
+  .camp-emma-composer { padding-bottom: max(14px, calc(env(safe-area-inset-bottom, 0px) + 10px)); }
   .camp-more-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
