@@ -2,16 +2,18 @@ import { describe, expect, it } from "vitest";
 import { buildCampEmmaWelcomeGreeting } from "@/lib/camp/emma-greeting";
 
 describe("Camp EMMA greeting", () => {
-  it("opens with a polished Camp Oakwood assistant introduction", () => {
-    expect(buildCampEmmaWelcomeGreeting("Alex Walker")).toContain("Hey! I\u2019m EMMA \u2014 your Camp Oakwood assistant.");
+  it("opens with the EMMA agent introduction", () => {
+    expect(buildCampEmmaWelcomeGreeting("Alex Walker")).toContain("I'm EMMA, the Emerge Ministry Management Agent.");
   });
 
-  it("uses the leader's first name in the helper copy when available", () => {
-    expect(buildCampEmmaWelcomeGreeting("Alex Walker")).toContain("Alex, I can help you quickly find");
+  it("uses the leader's first name in the greeting when available", () => {
+    expect(buildCampEmmaWelcomeGreeting("Alex Walker")).toContain("Hey, Alex!");
   });
 
   it("falls back cleanly when no first name is available", () => {
-    expect(buildCampEmmaWelcomeGreeting("")).toContain("I can help you quickly find");
+    const greeting = buildCampEmmaWelcomeGreeting("");
+    expect(greeting).toContain("Hey there!");
+    expect(greeting).toContain("help you find what you need fast");
   });
 
   it("does not advertise restricted medical capabilities to general users", () => {
