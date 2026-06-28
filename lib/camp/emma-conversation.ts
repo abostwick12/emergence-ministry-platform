@@ -18,6 +18,7 @@
 
 import { z } from "zod";
 import { callCampEmmaAzureModel, readCampEmmaAzureConfig } from "@/lib/camp/emma-azure-provider";
+import { callCampEmmaOpenAIModel, readCampEmmaOpenAIConfig } from "@/lib/camp/emma-openai-provider";
 import type { CampEmmaAccess, CampEmmaAnswer } from "@/lib/camp/emma";
 import type { CampOverviewPayload } from "@/lib/camp/types";
 
@@ -69,8 +70,15 @@ export async function answerCampEmmaConversation(input: {
   if (!question) return null;
   if (!isCampEmmaConversationalAccess(input.access)) return null;
 
-  const config = readCampEmmaAzureConfig();
-  if (!config) return null;
+  // Accept either configured provider, matching the action-parsing path: Azure
+  // OpenAI first, then a direct OpenAI key. Conversational answers stay available
+  // whichever one the environment has.
+  const azureConfig = readCampEmmaAzureConfig();
+  const openAIConfig = azureConfig ? null : readCampEmmaOpenAIConfig();
+  if (!azureConfig && !openAIConfig) {
+    logConversationFallback("provider_unavailable");
+    return null;
+  }
 
   const snapshot = toOperationalSnapshot(input.overview);
   const userPrompt = JSON.stringify({
@@ -79,14 +87,23 @@ export async function answerCampEmmaConversation(input: {
     camp: snapshot
   });
 
-  const result = await callCampEmmaAzureModel({
-    config,
-    systemPrompt: SYSTEM_PROMPT,
-    userPrompt,
-    fetchImpl: input.fetchImpl,
-    timeoutMs: CONVERSATION_TIMEOUT_MS,
-    maxTokens: CONVERSATION_MAX_TOKENS
-  });
+  const result = azureConfig
+    ? await callCampEmmaAzureModel({
+        config: azureConfig,
+        systemPrompt: SYSTEM_PROMPT,
+        userPrompt,
+        fetchImpl: input.fetchImpl,
+        timeoutMs: CONVERSATION_TIMEOUT_MS,
+        maxTokens: CONVERSATION_MAX_TOKENS
+      })
+    : await callCampEmmaOpenAIModel({
+        config: openAIConfig,
+        systemPrompt: SYSTEM_PROMPT,
+        userPrompt,
+        fetchImpl: input.fetchImpl,
+        timeoutMs: CONVERSATION_TIMEOUT_MS,
+        maxTokens: CONVERSATION_MAX_TOKENS
+      });
 
   if (!result.ok) {
     logConversationFallback(result.reason);

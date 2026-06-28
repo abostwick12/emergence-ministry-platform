@@ -7,14 +7,23 @@ const PROVIDER_ENV_KEYS = [
   "AZURE_OPENAI_ENDPOINT",
   "AZURE_OPENAI_API_KEY",
   "AZURE_OPENAI_DEPLOYMENT",
-  "AZURE_OPENAI_API_VERSION"
+  "AZURE_OPENAI_API_VERSION",
+  "OPENAI_API_KEY",
+  "OPENAI_MODEL"
 ] as const;
 
 function withAzureEnv() {
+  clearProviderEnv();
   process.env.AZURE_OPENAI_ENDPOINT = "https://emerge-camp-emma.openai.azure.com";
   process.env.AZURE_OPENAI_API_KEY = "test-key";
   process.env.AZURE_OPENAI_DEPLOYMENT = "emma-camp-test";
   process.env.AZURE_OPENAI_API_VERSION = "2024-08-01-preview";
+}
+
+function withOpenAIEnv() {
+  clearProviderEnv();
+  process.env.OPENAI_API_KEY = "sk-test-key";
+  process.env.OPENAI_MODEL = "gpt-4o-mini";
 }
 
 function clearProviderEnv() {
@@ -125,6 +134,21 @@ describe("answerCampEmmaConversation", () => {
     ]) {
       expect(sent).not.toContain(forbidden);
     }
+  });
+
+  it("works with a direct OpenAI key when Azure is not configured", async () => {
+    withOpenAIEnv();
+    const capture: { body?: string } = {};
+    const result = await answerCampEmmaConversation({
+      question: "How many campers are on Blue Team?",
+      overview: overviewWithMedicalCamper(),
+      access: "andrew_operations",
+      fetchImpl: fakeFetchCapturing(capture, JSON.stringify({ answer: "Blue Team has 1 camper." }))
+    });
+    expect(result).not.toBeNull();
+    expect(result?.answer).toContain("Blue Team");
+    // Same operational-only boundary must hold on the OpenAI path.
+    expect(capture.body ?? "").not.toContain("EpiPen");
   });
 
   it("maps a valid model response into a CampEmmaAnswer", async () => {
