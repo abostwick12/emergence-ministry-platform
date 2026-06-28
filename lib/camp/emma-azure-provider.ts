@@ -52,6 +52,7 @@ export async function callCampEmmaAzureModel(input: {
   config?: CampEmmaAzureConfig | null;
   fetchImpl?: typeof fetch;
   timeoutMs?: number;
+  maxTokens?: number;
 }): Promise<CampEmmaAzureCallResult> {
   const config = input.config ?? readCampEmmaAzureConfig();
   const startedAt = Date.now();
@@ -62,6 +63,7 @@ export async function callCampEmmaAzureModel(input: {
 
   const fetchImpl = input.fetchImpl ?? fetch;
   const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const maxTokens = input.maxTokens ?? 400;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -81,7 +83,7 @@ export async function callCampEmmaAzureModel(input: {
           { role: "user", content: input.userPrompt }
         ],
         temperature: 0,
-        max_tokens: 400,
+        max_tokens: maxTokens,
         response_format: { type: "json_object" }
       })
     });

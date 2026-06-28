@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession, unauthorizedResponse } from "@/lib/auth/server";
 import { getDefaultCampAccessScope } from "@/lib/camp/access";
 import { buildCampEmmaAnswer, buildMedicalCommandBlocks, type CampEmmaAccess, type CampEmmaMode } from "@/lib/camp/emma";
+import { answerCampEmmaConversation, isCampEmmaConversationalAccess } from "@/lib/camp/emma-conversation";
 import { canAccessCampMedicalCommand } from "@/lib/camp/permissions";
 import { requireCampAccessForRequest } from "@/lib/camp/api-guard";
 import { getCampOverview, getRestrictedCampMedicationPayload } from "@/lib/camp/repository";
@@ -62,14 +63,29 @@ export async function POST(request: Request) {
     });
   }
 
-  const answer = buildCampEmmaAnswer({
+  const query = body.query ?? "";
+  let answer = buildCampEmmaAnswer({
     overview,
-    query: body.query ?? "",
+    query,
     mode,
     selectedDay: body.selectedDay,
     access,
     medicalBlocks
   });
+
+  // Conversational AI for Andrew and Jaci: ground the configured model in the
+  // operational overview for free-form questions, falling back to the
+  // deterministic answer above if the provider is unavailable. Medical command
+  // queries stay on the deterministic medical path and never reach the model.
+  if (!medicalCommandActive && query.trim() && isCampEmmaConversationalAccess(access)) {
+    const conversational = await answerCampEmmaConversation({
+      question: query,
+      overview,
+      access,
+      selectedDay: body.selectedDay
+    });
+    if (conversational) answer = conversational;
+  }
 
   return NextResponse.json({
     ok: true,
