@@ -703,7 +703,7 @@ async function resolveCampId(session: AuthSession): Promise<string> {
   const { data, error } = await supabase
     .from("camp_sessions")
     .select("id")
-    .eq("slug", "oakwood-2026")
+    .eq("slug", "summer-camp-2026")
     .maybeSingle<{ id: string }>();
   if (error || !data) throw error ?? new Error("Active Camp session not found.");
   return data.id;
