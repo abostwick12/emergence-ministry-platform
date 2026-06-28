@@ -1174,6 +1174,52 @@ export async function postCampTeamBulletin(
   };
 }
 
+export async function listCampTeamBulletins(
+  session: AuthSession,
+  context: CampAccessContext,
+  teamId: string
+): Promise<{ allowed: true; status: number; bulletins: CampTeamBulletinPost[] } | { allowed: false; status: number; error: string }> {
+  const access = assertCampRestrictedAccess(context);
+  if (!access.allowed) return access;
+  if (!teamId.trim()) return { allowed: true as const, status: 200, bulletins: [] };
+
+  if (shouldUseMock(session)) {
+    return { allowed: true as const, status: 200, bulletins: mockStore.listTeamBulletins(teamId) };
+  }
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const basics = await ensureCampBasics(session);
+  const { data, error } = await supabase
+    .from("camp_team_bulletins")
+    .select("id,team_id,partner_church_id,message,posted_by_name,created_at")
+    .eq("camp_id", basics.camp.id)
+    .eq("team_id", teamId)
+    .order("created_at", { ascending: false })
+    .limit(20)
+    .returns<{
+      id: string;
+      team_id: string;
+      partner_church_id: string | null;
+      message: string;
+      posted_by_name: string;
+      created_at: string;
+    }[]>();
+
+  throwIfSupabaseError(error);
+  return {
+    allowed: true as const,
+    status: 200,
+    bulletins: (data ?? []).map((row) => ({
+      id: row.id,
+      teamId: row.team_id,
+      partnerChurchId: row.partner_church_id,
+      message: row.message,
+      postedByName: row.posted_by_name,
+      postedAt: row.created_at
+    }))
+  };
+}
+
 // Non-throwing active-student lookup. Used by the EMMA room-change confirm
 // path to read the current room before writing, without needing the caller
 // to catch a "not found" exception.

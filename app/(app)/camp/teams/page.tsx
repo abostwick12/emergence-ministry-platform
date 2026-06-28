@@ -7,7 +7,7 @@ import { CampOperationDialog } from "@/components/camp/camp-operation-dialog";
 import { useCamp } from "@/components/camp/camp-provider";
 import { CampTeamAssignmentManager } from "@/components/camp/camp-team-assignment-manager";
 import { CampLeaderProfileRow, initialsForName, CampTeamCard, teamAccent } from "@/components/camp/camp-team-card";
-import { useTeamMissingAssignmentCounts, useTeamStudentCounts } from "@/components/camp/camp-team-carousel";
+import { useTeamStudentCounts } from "@/components/camp/camp-team-carousel";
 import type { CampStaffMember, CampTeam, CampTeamInput } from "@/lib/camp/types";
 
 function teamToInput(team?: CampTeam): CampTeamInput {
@@ -97,7 +97,6 @@ function LeaderSelect({
 export default function CampTeamsPage() {
   const { overview, loading, refresh } = useCamp();
   const counts = useTeamStudentCounts();
-  const missingCounts = useTeamMissingAssignmentCounts();
   const [editing, setEditing] = useState<CampTeamInput | null>(null);
   const [selectedTeam, setSelectedTeam] = useState<CampTeam | null>(null);
   const [message, setMessage] = useState<{ tone: "error" | "success"; text: string } | null>(null);
@@ -180,7 +179,6 @@ export default function CampTeamsPage() {
               team={team}
               staff={activeStaff}
               studentCount={counts.get(team.id) ?? 0}
-              missingAssignmentCount={missingCounts.get(team.id) ?? 0}
               variant="list"
               onSelect={() => setSelectedTeam(team)}
             />

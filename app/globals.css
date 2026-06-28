@@ -3761,16 +3761,6 @@ html:has(.app-shell-camp) body {
   -webkit-backdrop-filter: none;
 }
 
-.camp-team-card-alert {
-  align-self: flex-start;
-  border-radius: 999px;
-  background: rgba(217, 119, 6, 0.15);
-  color: #92400e;
-  padding: 3px 9px;
-  font-size: 11.5px;
-  font-weight: 800;
-}
-
 .camp-cc-entry,
 .camp-cc-search {
   background: var(--camp-glass-strong);
@@ -3987,6 +3977,7 @@ html:has(.app-shell-camp) body {
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.88);
   padding: 0 13px;
+  font-size: 16px;
 }
 
 .camp-emma-form button,
@@ -4022,7 +4013,7 @@ html:has(.app-shell-camp) body {
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.88);
   padding: 0 14px;
-  font-size: 14px;
+  font-size: 16px;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
@@ -6398,12 +6389,6 @@ html:has(.app-shell-camp) body {
 
 .camp-team-count {
   background: color-mix(in srgb, var(--camp-team-accent) 24%, rgba(255, 255, 255, 0.08));
-}
-
-.camp-team-card-alert {
-  border: 1px solid rgba(251, 191, 36, 0.34);
-  background: rgba(245, 158, 11, 0.18);
-  color: #fde68a;
 }
 
 .camp-student-row.has-team-color {

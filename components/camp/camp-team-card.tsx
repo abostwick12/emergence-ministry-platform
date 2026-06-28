@@ -39,7 +39,6 @@ type CampTeamCardProps = {
   team: CampTeam;
   staff?: CampStaffMember[];
   studentCount: number;
-  missingAssignmentCount?: number;
   variant?: "carousel" | "list";
   onSelect?: () => void;
 };
@@ -104,13 +103,11 @@ export function CampLeaderProfileRow({ name, roleLabel, staff = [], compact = fa
 function CampTeamCardContents({
   team,
   staff,
-  studentCount,
-  missingAssignmentCount
+  studentCount
 }: {
   team: CampTeam;
   staff: CampStaffMember[];
   studentCount: number;
-  missingAssignmentCount: number;
 }) {
   return (
     <>
@@ -126,15 +123,12 @@ function CampTeamCardContents({
           <span className="camp-team-room-chip">Room {team.room}</span>
         ) : null}
       </div>
-      {missingAssignmentCount > 0 ? (
-        <span className="camp-team-card-alert">{missingAssignmentCount} missing assignment{missingAssignmentCount === 1 ? "" : "s"}</span>
-      ) : null}
       <span className="camp-team-card-cta">Open team menu</span>
     </>
   );
 }
 
-export function CampTeamCard({ team, staff = [], studentCount, missingAssignmentCount = 0, variant = "list", onSelect }: CampTeamCardProps) {
+export function CampTeamCard({ team, staff = [], studentCount, variant = "list", onSelect }: CampTeamCardProps) {
   const accentStyle = { "--camp-team-accent": teamAccent(team.color) } as CSSProperties;
   const className = `camp-team-card camp-team-card-${variant}`;
   const testId = `camp-team-card-${team.id}`;
@@ -149,7 +143,7 @@ export function CampTeamCard({ team, staff = [], studentCount, missingAssignment
         aria-label={`Open ${team.name} team menu`}
         onClick={onSelect}
       >
-        <CampTeamCardContents team={team} staff={staff} studentCount={studentCount} missingAssignmentCount={missingAssignmentCount} />
+        <CampTeamCardContents team={team} staff={staff} studentCount={studentCount} />
       </button>
     );
   }
@@ -162,7 +156,7 @@ export function CampTeamCard({ team, staff = [], studentCount, missingAssignment
       data-testid={testId}
       aria-label={`Open ${team.name} team`}
     >
-      <CampTeamCardContents team={team} staff={staff} studentCount={studentCount} missingAssignmentCount={missingAssignmentCount} />
+      <CampTeamCardContents team={team} staff={staff} studentCount={studentCount} />
     </Link>
   );
 }

@@ -1,7 +1,26 @@
 import { NextResponse } from "next/server";
 import { getServerSession, unauthorizedResponse } from "@/lib/auth/server";
 import { requireCampAccessForRequest } from "@/lib/camp/api-guard";
-import { postCampTeamBulletin } from "@/lib/camp/repository";
+import { listCampTeamBulletins, postCampTeamBulletin } from "@/lib/camp/repository";
+
+export async function GET(request: Request) {
+  const session = await getServerSession();
+  if (!session) return unauthorizedResponse();
+
+  const access = await requireCampAccessForRequest(session, request);
+  if (!access.allowed) return access.response;
+  const context = access.context;
+
+  const teamId = new URL(request.url).searchParams.get("teamId") ?? "";
+
+  try {
+    const payload = await listCampTeamBulletins(session, context, teamId);
+    if (!payload.allowed) return NextResponse.json({ error: payload.error }, { status: payload.status });
+    return NextResponse.json({ bulletins: payload.bulletins }, { status: payload.status });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to load Team Bulletin posts." }, { status: 400 });
+  }
+}
 
 export async function POST(request: Request) {
   const session = await getServerSession();
