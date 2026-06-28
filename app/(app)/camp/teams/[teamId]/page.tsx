@@ -2,14 +2,28 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { CampOperationDialog } from "@/components/camp/camp-operation-dialog";
 import { useCamp } from "@/components/camp/camp-provider";
 import { CampTeamAssignmentManager } from "@/components/camp/camp-team-assignment-manager";
 import { CampStudentCard } from "@/components/camp/camp-student-card";
 import { CampLeaderProfileRow, teamAccent } from "@/components/camp/camp-team-card";
-import type { CampStaffMember, CampTeam, CampTeamInput } from "@/lib/camp/types";
+import type { CampStaffMember, CampTeam, CampTeamBulletinPost, CampTeamInput } from "@/lib/camp/types";
 import type { CSSProperties } from "react";
+
+function formatRelativeTime(iso: string): string {
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return "";
+  const diffMs = Date.now() - then;
+  const diffMin = Math.round(diffMs / 60000);
+  if (diffMin < 1) return "Just now";
+  if (diffMin < 60) return `${diffMin} min ago`;
+  const diffHr = Math.round(diffMin / 60);
+  if (diffHr < 24) return `${diffHr} hr ago`;
+  const diffDay = Math.round(diffHr / 24);
+  if (diffDay < 7) return `${diffDay} day${diffDay === 1 ? "" : "s"} ago`;
+  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
 
 function teamToInput(team?: CampTeam): CampTeamInput {
   return {
@@ -66,7 +80,20 @@ export default function CampTeamDetailPage() {
   const [saving, setSaving] = useState(false);
   const [bulletinText, setBulletinText] = useState("");
   const [postingBulletin, setPostingBulletin] = useState(false);
+  const [bulletins, setBulletins] = useState<CampTeamBulletinPost[]>([]);
   const [message, setMessage] = useState<{ tone: "error" | "success"; text: string } | null>(null);
+
+  const loadBulletins = useCallback(async () => {
+    if (!teamId) return;
+    const response = await fetch(`/api/camp/bulletins?teamId=${encodeURIComponent(teamId)}`);
+    if (!response.ok) return;
+    const body = await response.json().catch(() => ({})) as { bulletins?: CampTeamBulletinPost[] };
+    setBulletins(body.bulletins ?? []);
+  }, [teamId]);
+
+  useEffect(() => {
+    void loadBulletins();
+  }, [loadBulletins]);
 
   const team = overview.teams.find((candidate) => candidate.id === teamId);
   const activeStaff = overview.staff.filter((member) => !member.archivedAt);
@@ -112,6 +139,7 @@ export default function CampTeamDetailPage() {
     }
     setBulletinText("");
     setMessage({ tone: "success", text: "Team Bulletin posted." });
+    await loadBulletins();
   }
 
   if (!team) {
@@ -153,23 +181,46 @@ export default function CampTeamDetailPage() {
         </div>
       </dl>
 
+      {team.notes?.trim() ? (
+        <section className="camp-editor-card" aria-label="Team note">
+          <div className="camp-cc-section-head">
+            <h2>Team note</h2>
+          </div>
+          <article className="camp-team-bulletin-note">
+            <p>{team.notes}</p>
+          </article>
+        </section>
+      ) : null}
+
       <section className="camp-editor-card camp-team-bulletin-board" aria-label="Team Bulletin">
         <div className="camp-cc-section-head">
           <h2>Team Bulletin</h2>
         </div>
-        {team.notes?.trim() ? (
-          <article className="camp-team-bulletin-note">
-            <p>{team.notes}</p>
-            <small>Team note</small>
-          </article>
+        {bulletins.length ? (
+          <div className="camp-list camp-team-bulletin-feed">
+            {bulletins.map((post) => (
+              <article className="camp-list-row align-start" key={post.id}>
+                <div>
+                  <p>{post.message}</p>
+                  <p className="camp-cc-muted">{post.postedByName || "Team leader"} · {formatRelativeTime(post.postedAt)}</p>
+                </div>
+              </article>
+            ))}
+          </div>
         ) : (
-          <p className="camp-cc-muted">No team notes yet.</p>
+          <p className="camp-cc-muted">No bulletin posts yet.</p>
         )}
         {capabilities.canPostTeamBulletin ? (
           <div className="camp-team-bulletin-composer">
             <label className="field">
               <span>Post update</span>
-              <textarea className="input" rows={2} value={bulletinText} onChange={(event) => setBulletinText(event.target.value)} />
+              <textarea
+                className="input"
+                rows={2}
+                value={bulletinText}
+                placeholder="Share a quick update with your team…"
+                onChange={(event) => setBulletinText(event.target.value)}
+              />
             </label>
             <button className="button compact-button" type="button" disabled={postingBulletin || !bulletinText.trim()} onClick={() => void postBulletin()}>
               {postingBulletin ? "Posting..." : "Post"}

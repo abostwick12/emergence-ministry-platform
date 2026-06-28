@@ -36,6 +36,21 @@ const mobileLinks = [
 
 const mobileMoreLinks = primaryLinks.filter((link) => !mobileLinks.some((mobileLink) => mobileLink.href === link.href));
 
+function resolveDisplayName(user?: { name?: string; email?: string }): string {
+  const name = user?.name?.trim();
+  if (name) return name;
+  const email = user?.email?.trim();
+  if (email) return email.split("@")[0];
+  return "Team Member";
+}
+
+function initialsForUser(displayName: string): string {
+  const parts = displayName.split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  const initials = parts.map((part) => part[0]).join("").slice(0, 2);
+  return initials.toUpperCase();
+}
+
 function BellIcon() {
   return (
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true">
@@ -135,13 +150,17 @@ const pageTitles: Record<string, string> = {
 export function AppShell({
   children,
   devAuth = false,
-  shellAccess = { kind: "full" }
+  shellAccess = { kind: "full" },
+  user
 }: {
   children: React.ReactNode;
   devAuth?: boolean;
   shellAccess?: AppShellAccessState;
+  user?: { name?: string; email?: string };
 }) {
   const pathname = usePathname();
+  const displayName = resolveDisplayName(user);
+  const userInitials = initialsForUser(displayName);
   const { activeRole, setActiveRole } = useRole();
   const { openCreate } = useEventCard();
   const isCampRoute = pathname.startsWith("/camp");
@@ -209,9 +228,9 @@ export function AppShell({
             ) : null}
 
             <div className="sidebar-profile">
-              <span className="sidebar-avatar" aria-hidden="true">AW</span>
+              <span className="sidebar-avatar" aria-hidden="true">{userInitials}</span>
               <span className="sidebar-profile-text">
-                <strong>Alex Walker</strong>
+                <strong>{displayName}</strong>
                 <span className="muted">{roleLabels[activeRole]}</span>
               </span>
               <a className="sidebar-profile-logout" href="/api/auth/logout">
@@ -231,7 +250,7 @@ export function AppShell({
               {isDashboard ? (
                 <>
                   <h1 className="app-header-title">Dashboard</h1>
-                  <p className="app-header-welcome">Welcome back, Alex! Here&apos;s what&apos;s going on across the ministry.</p>
+                  <p className="app-header-welcome">Welcome back, {displayName.split(" ")[0]}! Here&apos;s what&apos;s going on across the ministry.</p>
                 </>
               ) : (
                 <h1 className="app-header-title app-header-title-compact">{title}</h1>
@@ -239,8 +258,12 @@ export function AppShell({
             </div>
 
             <div className="app-header-right">
-              <span className="pill stub">Stub Mode</span>
-              {devAuth ? <span className="pill dev-auth">DEV AUTH</span> : null}
+              {process.env.NODE_ENV === "development" ? (
+                <>
+                  <span className="pill stub">Stub Mode</span>
+                  {devAuth ? <span className="pill dev-auth">DEV AUTH</span> : null}
+                </>
+              ) : null}
               <span className="hub-bell" role="img" aria-label="2 notifications">
                 <BellIcon />
                 <span className="hub-bell-badge">2</span>

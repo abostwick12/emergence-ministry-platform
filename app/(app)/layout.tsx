@@ -18,7 +18,13 @@ export default async function AuthenticatedLayout({ children }: { children: Reac
   return (
     <RoleProvider>
       <EventCardProvider>
-        <AppShell devAuth={devAuth} shellAccess={shellAccess}>{children}</AppShell>
+        <AppShell
+          devAuth={devAuth}
+          shellAccess={shellAccess}
+          user={{ name: session.user.fullName, email: session.user.email }}
+        >
+          {children}
+        </AppShell>
         <MasterEventCard />
       </EventCardProvider>
     </RoleProvider>

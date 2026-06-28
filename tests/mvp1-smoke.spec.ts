@@ -73,7 +73,7 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await login(page);
 
     await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible();
-    await expect(page.getByText("Welcome back, Alex!", { exact: false })).toBeVisible();
+    await expect(page.getByText("Welcome back,", { exact: false })).toBeVisible();
     // No visible "Emerge" wording outside the "Lead Emergence" brand mark.
     await expect(page.getByText("Emerge Ministry Hub")).toHaveCount(0);
 
