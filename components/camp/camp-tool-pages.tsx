@@ -1997,17 +1997,14 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
     }
     setMessage(null);
     setScanDialogOpen(true);
-    setScanStage("camera");
     setScanBusy(false);
-    setScanMessage("");
-    setScanResult(null);
-    setScanReview(emptyMedicationScanReview());
+    resetScanReviewState();
   }
 
   function closeScanDialog() {
     setScanDialogOpen(false);
     setScanBusy(false);
-    setScanMessage("");
+    resetScanReviewState();
   }
 
   async function readLabelFromCamera() {
@@ -2092,13 +2089,7 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
       }
     ]);
     setEditingDraftId("");
-    setMedicationRecordId("");
-    clearNewMedicationFields();
-    setDose("");
-    setQuantityReceived("");
-    setStaffNotes("");
-    setContainerStatus("Original labeled container received");
-    setClarificationStatus("Clear");
+    resetMedicationEntryFields();
     setMessage({ tone: "success", text: "Reviewed scan row added to this intake session. Complete Intake saves the grouped medication record." });
     closeScanDialog();
   }
@@ -2131,13 +2122,7 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
       ? current.map((item) => item.clientId === editingDraftId ? row : item)
       : [...current, row]);
     setEditingDraftId("");
-    setMedicationRecordId("");
-    clearNewMedicationFields();
-    setDose("");
-    setQuantityReceived("");
-    setStaffNotes("");
-    setContainerStatus("Original labeled container received");
-    setClarificationStatus("Clear");
+    resetMedicationEntryFields();
   }
 
   function editMedicationRow(row: IntakeDraftMedication) {
@@ -2280,20 +2265,19 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
         }
         return next;
       });
-      setMedicationRecordId(body.records[0].id);
     }
     setMessage({ tone: "success", text: `Saved. Medication intake recorded with parent/guardian acknowledgement. ${body.intakes.length} medication row${body.intakes.length === 1 ? "" : "s"} completed in this intake session.` });
     setDraftMedications([]);
     setEditingDraftId("");
-    clearNewMedicationFields();
-    setDose("");
-    setQuantityReceived("");
-    setStaffNotes("");
+    resetMedicationEntryFields();
     setGuardianName("");
     setGuardianRelationship("Parent/Guardian");
     setGuardianSignature(emptySignatureData());
     setIntakePhotoFile(null);
+    setPhotoMessage("");
+    setPhotoUpload({ status: "idle" });
     setConfirmationAcknowledged(false);
+    closeScanDialog();
     if (selectedPhotoFile && body.intakes[0]?.medicationRecordId) {
       void uploadIntakePhotoInBackground(body.intakes[0].medicationRecordId, body.intakes[0].id, selectedPhotoFile);
     }
@@ -2380,6 +2364,23 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
     setScheduleText("");
   }
 
+  function resetMedicationEntryFields() {
+    setMedicationRecordId("");
+    clearNewMedicationFields();
+    setDose("");
+    setQuantityReceived("");
+    setStaffNotes("");
+    setContainerStatus("Original labeled container received");
+    setClarificationStatus("Clear");
+  }
+
+  function resetScanReviewState() {
+    setScanStage("camera");
+    setScanMessage("");
+    setScanResult(null);
+    setScanReview(emptyMedicationScanReview());
+  }
+
   async function archiveWorkflowHistory(target: "intake" | "return", id: string) {
     if (!window.confirm("Hide this item from the active view? Archived items remain in the medical audit history.")) return;
     setMessage(null);
@@ -2408,7 +2409,7 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
           <>
             <label className="field">
               <span>Camper</span>
-              <select className="input" value={selectedCamperId} onChange={(event) => { setSelectedCamperId(event.target.value); setMedicationRecordId(""); setDraftMedications([]); setEditingDraftId(""); clearNewMedicationFields(); }} aria-label="Camper">
+              <select className="input" value={selectedCamperId} onChange={(event) => { setSelectedCamperId(event.target.value); setDraftMedications([]); setEditingDraftId(""); resetMedicationEntryFields(); resetScanReviewState(); }} aria-label="Camper">
                 {data.campers.map((camper) => (
                   <option key={camper.id} value={camper.id}>{camper.name}</option>
                 ))}
@@ -2416,7 +2417,7 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
             </label>
             <label className="field">
               <span>Camper medication record</span>
-              <select className="input" value={medicationRecordId} onChange={(event) => { setMedicationRecordId(event.target.value); if (!event.target.value) clearNewMedicationFields(); }} aria-label="Camper medication record">
+              <select className="input" value={medicationRecordId} onChange={(event) => { setMedicationRecordId(event.target.value); if (!event.target.value) resetMedicationEntryFields(); }} aria-label="Camper medication record">
                 <option value="">New medication for selected camper</option>
                 {workflowVisibility.operationalMedicationRecords.map((record) => (
                   <option key={record.id} value={record.id}>{record.studentName} - {record.medicationName}</option>

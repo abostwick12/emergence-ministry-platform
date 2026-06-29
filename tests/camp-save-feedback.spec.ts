@@ -187,7 +187,20 @@ test.describe("Camp dedicated medication tool pages", () => {
 
     await page.getByRole("button", { name: "Save Medication Row" }).click();
     await expect(page.getByText("Reviewed scan row added to this intake session. Complete Intake saves the grouped medication record.")).toBeVisible();
+    await expect(reviewDialog).toBeHidden();
+    await expect(page.locator("select[aria-label='Camper'] option:checked")).toHaveText("Riley Brooks");
+    await expect(page.getByLabel("Camper medication record")).toHaveValue("");
+    await expect(page.getByLabel("Medication name/type")).toHaveValue("");
+    await expect(page.getByLabel("Dose")).toHaveValue("");
+    await expect(page.getByLabel("Scheduled time(s)")).toHaveValue("");
+    await expect(page.getByLabel("Quantity received")).toHaveValue("");
+    await expect(page.getByLabel("Parent/guardian instructions")).toHaveValue("");
+    await expect(page.getByLabel("Staff notes")).toHaveValue("");
     await expect(page.getByRole("region", { name: "Current medications for intake" }).getByText("Scanned Camp Med")).toBeVisible();
+    await page.getByRole("button", { name: "Scan Label" }).click();
+    await expect(page.getByRole("heading", { name: "Scan Prescription Label" })).toBeVisible();
+    await expect(page.getByText("Verify quantity against bottle.")).toHaveCount(0);
+    await page.getByRole("button", { name: "Cancel" }).click();
     expect(medicationPostCount).toBe(0);
 
     await page.getByLabel("Parent/guardian name").fill("Pat Parent");
@@ -196,6 +209,54 @@ test.describe("Camp dedicated medication tool pages", () => {
     await page.getByRole("button", { name: "Save medication intake" }).click();
     await expect(page.getByText("Saved. Medication intake recorded with parent/guardian acknowledgement.")).toBeVisible();
     expect(medicationPostCount).toBe(1);
+  });
+
+  test("Medicine Intake clears manual medication fields without clearing the active camper draft list", async ({ page }) => {
+    await login(page);
+    await page.goto("/camp/medicine-intake");
+
+    await page.getByLabel("Camper", { exact: true }).selectOption({ label: "Riley Brooks" });
+    await page.getByLabel("Medication name/type").fill("Manual Reset Med");
+    await page.getByLabel("Dose").fill("1 tablet");
+    await page.getByLabel("Scheduled time(s)").fill("Breakfast");
+    await page.getByLabel("Quantity received").fill("12 tablets");
+    await page.getByLabel("Parent/guardian instructions").fill("Take with food.");
+    await page.getByLabel("Staff notes").fill("Bottle verified.");
+
+    await page.getByRole("button", { name: "Add Medication Manually" }).click();
+
+    await expect(page.locator("select[aria-label='Camper'] option:checked")).toHaveText("Riley Brooks");
+    await expect(page.getByLabel("Camper medication record")).toHaveValue("");
+    await expect(page.getByLabel("Medication name/type")).toHaveValue("");
+    await expect(page.getByLabel("Dose")).toHaveValue("");
+    await expect(page.getByLabel("Scheduled time(s)")).toHaveValue("");
+    await expect(page.getByLabel("Quantity received")).toHaveValue("");
+    await expect(page.getByLabel("Parent/guardian instructions")).toHaveValue("");
+    await expect(page.getByLabel("Staff notes")).toHaveValue("");
+    await expect(page.getByRole("region", { name: "Current medications for intake" }).getByText("Manual Reset Med")).toBeVisible();
+
+    await page.getByLabel("Parent/guardian name").fill("Pat Parent");
+    await signPadWithWindowTouch(page.getByRole("img", { name: "Parent or guardian signature", exact: true }));
+    await page.getByLabel("Parent/guardian handoff details reviewed with staff.").check();
+    await page.getByRole("button", { name: "Save medication intake" }).click();
+
+    await expect(page.getByText("Saved. Medication intake recorded with parent/guardian acknowledgement.")).toBeVisible();
+    await expect(page.getByRole("region", { name: "Current medications for intake" }).getByText("Manual Reset Med")).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "Current medications for intake" }).getByText("No medications added to this intake session yet.")).toBeVisible();
+    await expect(page.getByLabel("Medication name/type")).toHaveValue("");
+    await expect(page.getByLabel("Dose")).toHaveValue("");
+    await expect(page.getByLabel("Scheduled time(s)")).toHaveValue("");
+    await expect(page.getByLabel("Quantity received")).toHaveValue("");
+    await expect(page.getByLabel("Parent/guardian instructions")).toHaveValue("");
+    await expect(page.getByLabel("Staff notes")).toHaveValue("");
+    await expect(page.getByLabel("Parent/guardian name")).toHaveValue("");
+    await expect(page.getByLabel("Parent/guardian handoff details reviewed with staff.")).not.toBeChecked();
+
+    await page.getByLabel("Camper", { exact: true }).selectOption({ label: "Avery Johnson" });
+    await expect(page.getByLabel("Medication name/type")).toHaveValue("");
+    await expect(page.getByLabel("Dose")).toHaveValue("");
+    await expect(page.getByLabel("Quantity received")).toHaveValue("");
+    await expect(page.getByRole("region", { name: "Current medications for intake" }).getByText("No medications added to this intake session yet.")).toBeVisible();
   });
 
   test("Medicine Intake saves the record even when background photo upload fails, then retries", async ({ page }) => {
