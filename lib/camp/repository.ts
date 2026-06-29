@@ -27,10 +27,15 @@ import type {
   CampDocument,
   CampEmmaActionAudit,
   CampEmmaConfirmInput,
+  CampMedicationAdministrationEvent,
+  CampMedicationAdministrationItem,
   CampMedicationAdministrationLog,
   CampMedicationArchiveInput,
+  CampMedicationGroupedAdministrationInput,
   CampMedicationIntakeInput,
   CampMedicationIntakeRecord,
+  CampMedicationIntakeSession,
+  CampMedicationIntakeSessionInput,
   CampMedicationPhotoRecord,
   CampMedicationRecord,
   CampMedicationReturnItem,
@@ -169,6 +174,9 @@ type CampMedicationRow = {
   medicine_photo_status: CampMedicationRecord["medicinePhotoStatus"];
   parent_provided_instructions: string | null;
   check_in_status: CampMedicationRecord["checkInStatus"];
+  quantity_remaining?: string | null;
+  schedule_type?: CampMedicationRecord["scheduleType"] | null;
+  is_prn?: boolean | null;
   received_by: string | null;
   received_at: string | null;
   clarification_status: CampMedicationRecord["clarificationStatus"];
@@ -227,6 +235,35 @@ type CampMedicationLogRow = {
   archive_reason?: string | null;
 };
 
+type CampMedicationAdministrationEventRow = {
+  id: string;
+  camper_id: string;
+  time_window: string;
+  administered_at: string;
+  administered_by: string;
+  student_acknowledgement_initials?: string | null;
+  student_acknowledgement_unavailable?: boolean | null;
+  student_acknowledgement_unavailable_reason?: string | null;
+  notes: string | null;
+  item_count: number;
+  created_at: string;
+};
+
+type CampMedicationAdministrationItemRow = {
+  id: string;
+  administration_event_id: string;
+  medication_record_id: string;
+  schedule_item_id: string | null;
+  camper_id: string;
+  medication_name: string;
+  time_window: string;
+  status: CampMedicationAdministrationItem["status"];
+  dose_given: string | null;
+  administered_at: string;
+  notes: string | null;
+  created_at: string;
+};
+
 type CampMedicationReturnRow = {
   id: string;
   medication_record_id: string;
@@ -276,6 +313,24 @@ type CampMedicationIntakeRow = {
   archived_by_name?: string | null;
   archive_reason?: string | null;
   created_at: string;
+};
+
+type CampMedicationIntakeSessionRow = {
+  id: string;
+  camper_id: string;
+  received_by_name: string;
+  received_at: string;
+  guardian_name: string;
+  guardian_relationship: string;
+  guardian_signature_data: CampMedicationIntakeSession["guardianSignatureData"];
+  status: CampMedicationIntakeSession["status"];
+  notes: string | null;
+  medication_count: number;
+  archived_at?: string | null;
+  archived_by_name?: string | null;
+  archive_reason?: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 type CampMedicationPhotoRow = {
@@ -1424,13 +1479,16 @@ export async function getRestrictedCampMedicationPayload(session: AuthSession, c
   const supabase = getSupabaseAuthClient(session.accessToken);
   const basics = await ensureCampBasics(session);
   const campers = await getCampersById(session, basics.camp.id);
-  const [checkIn, schedule, logs, returns, intake, photos] = await Promise.all([
+  const [checkIn, schedule, logs, returns, intake, photos, intakeSessions, administrationEvents, administrationItems] = await Promise.all([
     supabase.from("camp_medication_records").select("*").eq("camp_id", basics.camp.id).order("updated_at", { ascending: false }).returns<CampMedicationRow[]>(),
     supabase.from("camp_medication_schedule_items").select("*").eq("camp_id", basics.camp.id).order("created_at", { ascending: false }).returns<CampMedicationScheduleRow[]>(),
     supabase.from("camp_medication_administration_logs").select("*").eq("camp_id", basics.camp.id).order("logged_at", { ascending: false }).returns<CampMedicationLogRow[]>(),
     supabase.from("camp_medication_return_items").select("*").eq("camp_id", basics.camp.id).order("updated_at", { ascending: false }).returns<CampMedicationReturnRow[]>(),
     supabase.from("camp_medication_intake_records").select("*").eq("camp_id", basics.camp.id).order("received_at", { ascending: false }).returns<CampMedicationIntakeRow[]>(),
-    supabase.from("camp_medication_photo_records").select("medication_record_id").eq("camp_id", basics.camp.id).returns<Array<{ medication_record_id: string }>>()
+    supabase.from("camp_medication_photo_records").select("medication_record_id").eq("camp_id", basics.camp.id).returns<Array<{ medication_record_id: string }>>(),
+    supabase.from("camp_medication_intake_sessions").select("*").eq("camp_id", basics.camp.id).order("received_at", { ascending: false }).returns<CampMedicationIntakeSessionRow[]>(),
+    supabase.from("camp_medication_administration_events").select("*").eq("camp_id", basics.camp.id).order("administered_at", { ascending: false }).returns<CampMedicationAdministrationEventRow[]>(),
+    supabase.from("camp_medication_administration_items").select("*").eq("camp_id", basics.camp.id).order("created_at", { ascending: false }).returns<CampMedicationAdministrationItemRow[]>()
   ]);
 
   throwIfSupabaseError(checkIn.error);
@@ -1439,6 +1497,13 @@ export async function getRestrictedCampMedicationPayload(session: AuthSession, c
   throwIfSupabaseError(returns.error);
   throwIfSupabaseError(intake.error);
   throwIfSupabaseError(photos.error);
+  const groupedSchemaErrors = [intakeSessions.error, administrationEvents.error, administrationItems.error];
+  const missingGroupedSchema = groupedSchemaErrors.every(isMissingMedicationWorkflowTableError);
+  if (!missingGroupedSchema) {
+    throwIfSupabaseError(intakeSessions.error);
+    throwIfSupabaseError(administrationEvents.error);
+    throwIfSupabaseError(administrationItems.error);
+  }
 
   const medication = buildRestrictedCampMedicationPayloadFromRows({
     campers,
@@ -1448,6 +1513,9 @@ export async function getRestrictedCampMedicationPayload(session: AuthSession, c
     returnRows: returns.data ?? [],
     intakeRows: intake.data ?? [],
     photoRows: photos.data ?? [],
+    intakeSessionRows: missingGroupedSchema ? [] : intakeSessions.data ?? [],
+    administrationEventRows: missingGroupedSchema ? [] : administrationEvents.data ?? [],
+    administrationItemRows: missingGroupedSchema ? [] : administrationItems.data ?? [],
     includeArchived: options.includeArchived
   });
   logEmptyRestrictedMedicationPayloadDiagnostic({
@@ -1548,6 +1616,9 @@ export function buildRestrictedCampMedicationPayloadFromRows(input: {
   returnRows: CampMedicationReturnRow[];
   intakeRows: CampMedicationIntakeRow[];
   photoRows: Array<{ medication_record_id: string }>;
+  intakeSessionRows?: CampMedicationIntakeSessionRow[];
+  administrationEventRows?: CampMedicationAdministrationEventRow[];
+  administrationItemRows?: CampMedicationAdministrationItemRow[];
   includeArchived?: boolean;
 }) {
   const activeCamperIds = new Set(input.campers.keys());
@@ -1556,7 +1627,11 @@ export function buildRestrictedCampMedicationPayloadFromRows(input: {
   const allScheduleRows = retainWorkflowRowsWhenCamperLookupIsEmpty(input.scheduleRows, activeCamperIds);
   const allLogRows = retainWorkflowRowsWhenCamperLookupIsEmpty(input.logRows, activeCamperIds);
   const allReturnRows = retainWorkflowRowsWhenCamperLookupIsEmpty(input.returnRows, activeCamperIds);
+  const allIntakeSessionRows = retainWorkflowRowsWhenCamperLookupIsEmpty(input.intakeSessionRows ?? [], activeCamperIds);
+  const allAdministrationEventRows = retainWorkflowRowsWhenCamperLookupIsEmpty(input.administrationEventRows ?? [], activeCamperIds);
+  const allAdministrationItemRows = retainWorkflowRowsWhenCamperLookupIsEmpty(input.administrationItemRows ?? [], activeCamperIds);
   const intakeRows = visibleMedicationHistoryRows(allIntakeRows, input.includeArchived);
+  const intakeSessionRows = visibleMedicationHistoryRows(allIntakeSessionRows, input.includeArchived);
   const logRows = visibleMedicationHistoryRows(allLogRows, input.includeArchived);
   const activeIntakeRows = activeAuditRows(allIntakeRows, "supersedes_intake_id").filter((row) => !row.archived_at);
   const activeIntakeHistory = activeIntakeRows.map((item) => toMedicationIntakeRecord(item, input.campers));
@@ -1570,9 +1645,12 @@ export function buildRestrictedCampMedicationPayloadFromRows(input: {
     schedule: activeAuditRows(allScheduleRows, "supersedes_schedule_item_id")
       .map((row) => toScheduleItem(row, input.campers, auditStatusFor(row, allScheduleRows, "supersedes_schedule_item_id"))),
     administrationLog: logRows.map((row) => toAdministrationLog(row, input.campers, auditStatusFor(row, logRows, "supersedes_administration_log_id"))),
+    administrationEvents: allAdministrationEventRows.map((row) => toAdministrationEvent(row, input.campers)),
+    administrationItems: allAdministrationItemRows.map((row) => toAdministrationItem(row, input.campers)),
     returnChecklist: activeAuditRows(allReturnRows, "supersedes_return_item_id")
       .map((row) => toReturnItem(row, input.campers, auditStatusFor(row, allReturnRows, "supersedes_return_item_id"))),
-    intakeHistory
+    intakeHistory,
+    intakeSessions: intakeSessionRows.map((row) => toMedicationIntakeSession(row, input.campers))
   };
 }
 
@@ -1620,6 +1698,9 @@ export async function saveMedicationIntake(session: AuthSession, context: CampAc
     medicationName: input.medicationName,
     parentProvidedInstructions: input.parentInstructions,
     checkInStatus: clarificationStatus === "Needs Parent Clarification" ? "Needs Parent Clarification" : "Checked In",
+    quantityRemaining: input.quantityReceived,
+    scheduleType: medicationScheduleType(input.scheduleText),
+    isPrn: medicationScheduleType(input.scheduleText) === "prn",
     receivedBy: input.receivedByName || access.actor,
     receivedAt: input.receivedAt,
     clarificationStatus
@@ -1674,6 +1755,112 @@ export async function saveMedicationIntake(session: AuthSession, context: CampAc
   };
 }
 
+export async function saveMedicationIntakeSession(session: AuthSession, context: CampAccessContext, input: CampMedicationIntakeSessionInput) {
+  const access = assertCampRestrictedAccess(context);
+  if (!access.allowed) return access;
+  assertSignature(input.guardianSignatureData);
+  if (!input.confirmationAcknowledged) throw new Error("Medication intake confirmation is required.");
+  if (!input.medications.length) throw new Error("Add at least one medication before completing intake.");
+  const medicationValidationError = medicationIntakeSessionValidationError(input.medications);
+  if (medicationValidationError) throw new Error(medicationValidationError);
+  if (shouldUseMock(session)) return mockStore.saveMedicationIntakeSession(context.effectiveRole, { ...input, receivedByName: input.receivedByName || access.actor });
+
+  const camper = await findActiveCamper(session, input.studentId);
+  if (!camper) return { allowed: true as const, status: 404, error: "Camper not found." };
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const basics = await ensureCampBasics(session);
+  const receivedAt = input.receivedAt || new Date().toISOString();
+  const { data: sessionRow, error: sessionError } = await supabase
+    .from("camp_medication_intake_sessions")
+    .insert({
+      ...ministryScopeColumns(await resolveMinistryScope(session)),
+      camp_id: basics.camp.id,
+      camper_id: camper.id,
+      received_by_user_id: session.user.id,
+      received_by_name: input.receivedByName.trim() || access.actor,
+      received_at: receivedAt,
+      guardian_name: input.guardianName.trim(),
+      guardian_relationship: input.guardianRelationship.trim(),
+      guardian_signature_data: input.guardianSignatureData,
+      signature_format: "json_strokes_v1",
+      status: "completed",
+      notes: input.notes?.trim() || "",
+      medication_count: input.medications.length
+    })
+    .select("*")
+    .single<CampMedicationIntakeSessionRow>();
+  throwIfSupabaseError(sessionError);
+  if (!sessionRow) throw new Error("Medication intake session write returned no row.");
+
+  const intakes: CampMedicationIntakeRecord[] = [];
+  const records: CampMedicationRecord[] = [];
+  const scheduleItems: CampMedicationScheduleItem[] = [];
+  const campers = await getCampersById(session, basics.camp.id);
+
+  for (const medicationInput of input.medications) {
+    if (!medicationInput.medicationName.trim() || !medicationInput.dose.trim() || !medicationInput.quantityReceived.trim() || !medicationInput.parentInstructions.trim()) {
+      throw new Error("Each medication row needs name, dose, quantity, and instructions before completing intake.");
+    }
+    const scheduleType = medicationInput.scheduleType ?? medicationScheduleType(medicationInput.scheduleText);
+    const clarificationStatus = mockStore.normalizeClarification(medicationInput.clarificationStatus, medicationInput.parentInstructions);
+    const medicationPayload = await upsertMedicationRecord(session, context, {
+      id: medicationInput.medicationRecordId,
+      studentId: camper.id,
+      medicationName: medicationInput.medicationName,
+      parentProvidedInstructions: medicationInput.parentInstructions,
+      checkInStatus: clarificationStatus === "Needs Parent Clarification" ? "Needs Parent Clarification" : "Checked In",
+      quantityRemaining: medicationInput.quantityReceived,
+      scheduleType,
+      isPrn: medicationInput.isPrn ?? scheduleType === "prn",
+      receivedBy: sessionRow.received_by_name,
+      receivedAt,
+      clarificationStatus,
+      correctionNote: medicationInput.correctionNote
+    });
+    if (!medicationPayload.allowed) return medicationPayload;
+
+    const { data, error } = await supabase
+      .from("camp_medication_intake_records")
+      .insert({
+        ...ministryScopeColumns(await resolveMinistryScope(session)),
+        camp_id: basics.camp.id,
+        camper_id: camper.id,
+        medication_record_id: medicationPayload.record.id,
+        intake_session_id: sessionRow.id,
+        medication_name: medicationPayload.record.medicationName,
+        dose: medicationInput.dose.trim(),
+        schedule_text: medicationInput.scheduleText.trim(),
+        parent_instructions: medicationInput.parentInstructions.trim(),
+        staff_notes: medicationInput.staffNotes?.trim() || "",
+        quantity_received: medicationInput.quantityReceived.trim(),
+        container_status: medicationInput.containerStatus.trim() || "Original labeled container received",
+        received_by_user_id: session.user.id,
+        received_by_name: sessionRow.received_by_name,
+        received_at: receivedAt,
+        guardian_name: sessionRow.guardian_name,
+        guardian_relationship: sessionRow.guardian_relationship,
+        guardian_signature_data: sessionRow.guardian_signature_data,
+        signature_format: "json_strokes_v1",
+        clarification_status: clarificationStatus,
+        confirmation_acknowledged: true,
+        correction_note: medicationInput.correctionNote?.trim() || ""
+      })
+      .select("*")
+      .single<CampMedicationIntakeRow>();
+    throwIfSupabaseError(error);
+    if (!data) throw new Error("Medication intake write returned no row.");
+    await refreshCamperRestrictedFlags(session, camper.id);
+    const intake = toMedicationIntakeRecord(data, campers);
+    intakes.push(intake);
+    records.push({ ...medicationPayload.record, latestQuantityReceived: intake.quantityReceived, latestIntakeAt: intake.receivedAt });
+    if (scheduleType !== "prn") {
+      scheduleItems.push(...await ensureMedicationScheduleItemsForIntake(session, context, medicationPayload.record.id, medicationInput.scheduleText, medicationInput.parentInstructions));
+    }
+  }
+
+  return { allowed: true as const, status: 201, session: toMedicationIntakeSession(sessionRow, campers), intakes, records, scheduleItems };
+}
+
 export async function upsertMedicationRecord(
   session: AuthSession,
   context: CampAccessContext,
@@ -1685,8 +1872,10 @@ export async function upsertMedicationRecord(
 
   const supabase = getSupabaseAuthClient(session.accessToken);
   const basics = await ensureCampBasics(session);
+  let existingMedication: CampMedicationRow | undefined;
   if (input.id && !input.supersedesMedicationRecordId) {
     const existing = await requireMedication(session, input.id);
+    existingMedication = existing;
     await requireActiveCamper(session, existing.camper_id);
   }
   if (!input.id || input.supersedesMedicationRecordId) await requireActiveCamper(session, input.studentId);
@@ -1696,8 +1885,11 @@ export async function upsertMedicationRecord(
   const row = {
     medication_name: input.medicationName?.trim() || "Parent-labeled medication",
     medicine_photo_status: medicinePhotoStatus,
-    parent_provided_instructions: input.parentProvidedInstructions?.trim() || "Needs Parent Clarification.",
+    parent_provided_instructions: input.parentProvidedInstructions?.trim() || existingMedication?.parent_provided_instructions || "Needs Parent Clarification.",
     check_in_status: checkInStatus,
+    ...(input.quantityRemaining !== undefined || !existingMedication ? { quantity_remaining: input.quantityRemaining?.trim() || existingMedication?.quantity_remaining || null } : {}),
+    ...(input.scheduleType !== undefined || input.parentProvidedInstructions !== undefined || !existingMedication ? { schedule_type: input.scheduleType ?? existingMedication?.schedule_type ?? medicationScheduleType(input.parentProvidedInstructions) } : {}),
+    ...(input.isPrn !== undefined || input.scheduleType !== undefined || input.parentProvidedInstructions !== undefined || !existingMedication ? { is_prn: input.isPrn ?? existingMedication?.is_prn ?? medicationScheduleType(input.parentProvidedInstructions) === "prn" } : {}),
     received_by: checkInStatus === "Checked In" ? input.receivedBy ?? access.actor : input.receivedBy ?? null,
     received_at: checkInStatus === "Checked In" ? input.receivedAt ?? new Date().toISOString() : input.receivedAt ?? null,
     clarification_status: clarificationStatus,
@@ -1973,6 +2165,157 @@ export async function logMedicationAdministration(
   throwIfSupabaseError(updateResult.error);
   await refreshCamperRestrictedFlags(session, data.camper_id);
   return { allowed: true as const, status: 200, log: toAdministrationLog(data, await getCampersById(session, basics.camp.id)) };
+}
+
+export async function logGroupedMedicationAdministration(session: AuthSession, context: CampAccessContext, input: CampMedicationGroupedAdministrationInput) {
+  const access = assertCampMedicalCommandAccess(context);
+  if (!access.allowed) return access;
+  if (!input.items.length) throw new Error("Select at least one medication before submitting a med pass.");
+  const timeWindow = input.timeWindow.trim();
+  if (!timeWindow) throw new Error("Medication time block is required.");
+  for (const item of input.items) {
+    if (!isAdministrationItemStatus(item.status)) throw new Error("Medication item status is required.");
+  }
+  if (shouldUseMock(session)) return mockStore.logGroupedMedicationAdministration(context.effectiveRole, { ...input, timeWindow });
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const basics = await ensureCampBasics(session);
+  const camper = await findActiveCamper(session, input.studentId);
+  if (!camper) return { allowed: true as const, status: 404, error: "Camper not found." };
+  const acknowledgement = normalizeStudentAcknowledgement(input);
+  const administeredAt = input.administeredAt || new Date().toISOString();
+  const administeredBy = input.administeredBy.trim() || access.actor;
+  const validatedItems: Array<{
+    input: CampMedicationGroupedAdministrationInput["items"][number];
+    scheduleItem: CampMedicationScheduleRow;
+    medication: CampMedicationRow;
+    legacyStatus: CampMedicationAdministrationLog["status"];
+    notes: string;
+  }> = [];
+  const seenScheduleItems = new Set<string>();
+
+  for (const itemInput of input.items) {
+    if (seenScheduleItems.has(itemInput.scheduleItemId)) {
+      return { allowed: true as const, status: 400, error: "Medication item appears more than once in this med pass." };
+    }
+    seenScheduleItems.add(itemInput.scheduleItemId);
+
+    const { data: scheduleItem, error: scheduleError } = await supabase
+      .from("camp_medication_schedule_items")
+      .select("*")
+      .eq("id", itemInput.scheduleItemId)
+      .maybeSingle<CampMedicationScheduleRow>();
+    throwIfSupabaseError(scheduleError);
+    if (!scheduleItem) return { allowed: true as const, status: 404, error: "Medication schedule item not found." };
+
+    const medication = await findMedication(session, itemInput.medicationRecordId);
+    if (!medication) return { allowed: true as const, status: 404, error: "Medication item not found." };
+
+    if (scheduleItem.camper_id !== camper.id || scheduleItem.medication_record_id !== medication.id || scheduleItem.time_window !== timeWindow || medication.camper_id !== camper.id) {
+      return { allowed: true as const, status: 400, error: "Medication item does not belong to this grouped med pass." };
+    }
+
+    validatedItems.push({
+      input: itemInput,
+      scheduleItem,
+      medication,
+      legacyStatus: administrationItemStatusToLegacy(itemInput.status),
+      notes: itemInput.notes?.trim() || input.notes?.trim() || defaultAdministrationItemNote(itemInput.status)
+    });
+  }
+
+  const { data: eventRow, error: eventError } = await supabase
+    .from("camp_medication_administration_events")
+    .insert({
+      ...ministryScopeColumns(await resolveMinistryScope(session)),
+      camp_id: basics.camp.id,
+      camper_id: camper.id,
+      administered_by_user_id: session.user.id,
+      administered_by: administeredBy,
+      administered_at: administeredAt,
+      time_window: timeWindow,
+      student_acknowledgement_initials: acknowledgement.initials,
+      student_acknowledgement_unavailable: acknowledgement.unavailable,
+      student_acknowledgement_unavailable_reason: acknowledgement.unavailableReason,
+      notes: input.notes?.trim() || "",
+      item_count: input.items.length
+    })
+    .select("*")
+    .single<CampMedicationAdministrationEventRow>();
+  throwIfSupabaseError(eventError);
+  if (!eventRow) throw new Error("Medication administration event write returned no row.");
+
+  const campers = await getCampersById(session, basics.camp.id);
+  const items: CampMedicationAdministrationItem[] = [];
+  const logs: CampMedicationAdministrationLog[] = [];
+
+  for (const { input: itemInput, scheduleItem, medication, legacyStatus, notes } of validatedItems) {
+    const { data: itemRow, error: itemError } = await supabase
+      .from("camp_medication_administration_items")
+      .insert({
+        ...ministryScopeColumns(await resolveMinistryScope(session)),
+        camp_id: basics.camp.id,
+        administration_event_id: eventRow.id,
+        medication_record_id: medication.id,
+        schedule_item_id: scheduleItem.id,
+        camper_id: camper.id,
+        medication_name: medication.medication_name ?? "Parent-labeled medication",
+        time_window: scheduleItem.time_window,
+        status: itemInput.status,
+        dose_given: itemInput.doseGiven?.trim() || "",
+        administered_at: administeredAt,
+        notes
+      })
+      .select("*")
+      .single<CampMedicationAdministrationItemRow>();
+    throwIfSupabaseError(itemError);
+    if (!itemRow) throw new Error("Medication administration item write returned no row.");
+
+    const { data: logRow, error: logError } = await supabase
+      .from("camp_medication_administration_logs")
+      .insert({
+        ...ministryScopeColumns(await resolveMinistryScope(session)),
+        camp_id: basics.camp.id,
+        medication_record_id: scheduleItem.medication_record_id,
+        schedule_item_id: scheduleItem.id,
+        camper_id: scheduleItem.camper_id,
+        administration_event_id: eventRow.id,
+        administration_item_id: itemRow.id,
+        time_window: scheduleItem.time_window,
+        logged_at: administeredAt,
+        logged_by: administeredBy,
+        status: legacyStatus,
+        notes,
+        student_acknowledgement_initials: acknowledgement.initials,
+        student_acknowledgement_unavailable: acknowledgement.unavailable,
+        student_acknowledgement_unavailable_reason: acknowledgement.unavailableReason
+      })
+      .select("*")
+      .single<CampMedicationLogRow>();
+    throwIfSupabaseError(logError);
+    if (!logRow) throw new Error("Medication log write returned no row.");
+
+    const scheduleStatus = legacyStatus === "Logged" ? "Logged" : legacyStatus === "Needs Parent Clarification" ? "Needs Parent Clarification" : "Pending";
+    const updateSchedule = await supabase.from("camp_medication_schedule_items").update({
+      status: scheduleStatus,
+      last_logged_at: administeredAt,
+      last_logged_by: administeredBy
+    }).eq("id", scheduleItem.id);
+    throwIfSupabaseError(updateSchedule.error);
+
+    if (itemInput.status === "administered") {
+      const updateMedication = await supabase.from("camp_medication_records").update({
+        quantity_remaining: decrementQuantityText(medication.quantity_remaining ?? undefined)
+      }).eq("id", medication.id);
+      throwIfSupabaseError(updateMedication.error);
+    }
+
+    items.push(toAdministrationItem(itemRow, campers));
+    logs.push(toAdministrationLog(logRow, campers));
+  }
+
+  await refreshCamperRestrictedFlags(session, camper.id);
+  return { allowed: true as const, status: 200, event: toAdministrationEvent(eventRow, campers), items, logs };
 }
 
 function normalizeStudentAcknowledgement(input: {
@@ -2262,18 +2605,28 @@ async function loadCamperProfilePhotoUrls(session: AuthSession, campId: string):
 }
 
 async function requireActiveCamper(session: AuthSession, camperId: string): Promise<CampCamperRow> {
-  const supabase = getSupabaseAuthClient(session.accessToken);
-  const { data, error } = await supabase.from("camp_campers").select("*").eq("id", camperId).is("archived_at", null).single<CampCamperRow>();
-  throwIfSupabaseError(error);
+  const data = await findActiveCamper(session, camperId);
   if (!data) throw new Error("Active camper not found.");
   return data;
 }
 
-async function requireMedication(session: AuthSession, medicationRecordId: string): Promise<CampMedicationRow> {
+async function findActiveCamper(session: AuthSession, camperId: string): Promise<CampCamperRow | null> {
   const supabase = getSupabaseAuthClient(session.accessToken);
-  const { data, error } = await supabase.from("camp_medication_records").select("*").eq("id", medicationRecordId).single<CampMedicationRow>();
+  const { data, error } = await supabase.from("camp_campers").select("*").eq("id", camperId).is("archived_at", null).maybeSingle<CampCamperRow>();
   throwIfSupabaseError(error);
+  return data;
+}
+
+async function requireMedication(session: AuthSession, medicationRecordId: string): Promise<CampMedicationRow> {
+  const data = await findMedication(session, medicationRecordId);
   if (!data) throw new Error("Medication record not found.");
+  return data;
+}
+
+async function findMedication(session: AuthSession, medicationRecordId: string): Promise<CampMedicationRow | null> {
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const { data, error } = await supabase.from("camp_medication_records").select("*").eq("id", medicationRecordId).maybeSingle<CampMedicationRow>();
+  throwIfSupabaseError(error);
   return data;
 }
 
@@ -2526,6 +2879,9 @@ function toMedicationRecord(row: CampMedicationRow, campers: Map<string, CampStu
     medicinePhotoStatus: row.medicine_photo_status,
     parentProvidedInstructions: row.parent_provided_instructions ?? "Needs Parent Clarification.",
     checkInStatus: row.check_in_status,
+    quantityRemaining: row.quantity_remaining ?? undefined,
+    scheduleType: row.schedule_type ?? undefined,
+    isPrn: row.is_prn ?? undefined,
     receivedBy: row.received_by ?? undefined,
     receivedAt: row.received_at ?? undefined,
     clarificationStatus: row.clarification_status,
@@ -2602,6 +2958,27 @@ function toMedicationIntakeRecord(row: CampMedicationIntakeRow, campers: Map<str
   };
 }
 
+function toMedicationIntakeSession(row: CampMedicationIntakeSessionRow, campers: Map<string, CampStudentPublic>): CampMedicationIntakeSession {
+  return {
+    id: row.id,
+    studentId: row.camper_id,
+    studentName: campers.get(row.camper_id)?.name ?? "Camper",
+    receivedByName: row.received_by_name,
+    receivedAt: row.received_at,
+    guardianName: row.guardian_name,
+    guardianRelationship: row.guardian_relationship,
+    guardianSignatureData: row.guardian_signature_data,
+    status: row.status,
+    notes: row.notes ?? "",
+    medicationCount: row.medication_count,
+    archivedAt: row.archived_at ?? undefined,
+    archivedByName: row.archived_by_name || undefined,
+    archiveReason: row.archive_reason || undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
 function toScheduleItem(row: CampMedicationScheduleRow, campers: Map<string, CampStudentPublic>, auditStatus?: CampAuditStatus): CampMedicationScheduleItem {
   return {
     id: row.id,
@@ -2649,6 +3026,41 @@ medicationRecordId: row.medication_record_id,
     archivedAt: row.archived_at ?? undefined,
     archivedByName: row.archived_by_name || undefined,
     archiveReason: row.archive_reason || undefined
+  };
+}
+
+function toAdministrationEvent(row: CampMedicationAdministrationEventRow, campers: Map<string, CampStudentPublic>): CampMedicationAdministrationEvent {
+  return {
+    id: row.id,
+    studentId: row.camper_id,
+    studentName: campers.get(row.camper_id)?.name ?? "Camper",
+    timeWindow: row.time_window,
+    administeredAt: row.administered_at,
+    administeredBy: row.administered_by,
+    studentAcknowledgementInitials: row.student_acknowledgement_initials ?? undefined,
+    studentAcknowledgementUnavailable: row.student_acknowledgement_unavailable ?? undefined,
+    studentAcknowledgementUnavailableReason: row.student_acknowledgement_unavailable_reason ?? undefined,
+    notes: row.notes ?? "",
+    itemCount: row.item_count,
+    createdAt: row.created_at
+  };
+}
+
+function toAdministrationItem(row: CampMedicationAdministrationItemRow, campers: Map<string, CampStudentPublic>): CampMedicationAdministrationItem {
+  return {
+    id: row.id,
+    administrationEventId: row.administration_event_id,
+    medicationRecordId: row.medication_record_id,
+    scheduleItemId: row.schedule_item_id ?? undefined,
+    studentId: row.camper_id,
+    studentName: campers.get(row.camper_id)?.name ?? "Camper",
+    medicationName: row.medication_name,
+    timeWindow: row.time_window,
+    status: row.status,
+    doseGiven: row.dose_given ?? "",
+    administeredAt: row.administered_at,
+    notes: row.notes ?? "",
+    createdAt: row.created_at
   };
 }
 
@@ -2820,6 +3232,58 @@ function isMissingColumnError(error: { message: string } | null, columnName: str
 
 function isMissingOptionalStaffColumnError(error: { message: string } | null) {
   return ["profile_photo_url", "source_church", "shirt_size"].some((columnName) => isMissingColumnError(error, columnName));
+}
+
+function isMissingMedicationWorkflowTableError(error: { message: string } | null) {
+  return (
+    isMissingTableError(error, "camp_medication_intake_sessions") ||
+    isMissingTableError(error, "camp_medication_administration_events") ||
+    isMissingTableError(error, "camp_medication_administration_items")
+  );
+}
+
+function medicationScheduleType(value?: string): CampMedicationRecord["scheduleType"] {
+  const normalized = value?.trim() ?? "";
+  if (!normalized) return "needs_review";
+  if (/\bprn\b|as needed/i.test(normalized)) return "prn";
+  return "scheduled";
+}
+
+function administrationItemStatusToLegacy(status: CampMedicationAdministrationItem["status"]): CampMedicationAdministrationLog["status"] {
+  if (status === "administered") return "Logged";
+  if (status === "held") return "Needs Parent Clarification";
+  return "Skipped";
+}
+
+function isAdministrationItemStatus(value: unknown): value is CampMedicationAdministrationItem["status"] {
+  return value === "administered" || value === "skipped" || value === "refused" || value === "held" || value === "not_present";
+}
+
+function medicationIntakeSessionValidationError(medications: CampMedicationIntakeSessionInput["medications"]) {
+  for (const medicationInput of medications) {
+    if (!medicationInput.medicationName.trim() || !medicationInput.dose.trim() || !medicationInput.quantityReceived.trim() || !medicationInput.parentInstructions.trim()) {
+      return "Each medication row needs name, dose, quantity, and instructions before completing intake.";
+    }
+  }
+  return "";
+}
+
+function defaultAdministrationItemNote(status: CampMedicationAdministrationItem["status"]) {
+  if (status === "administered") return "Logged per parent-provided instructions.";
+  if (status === "refused") return "Medication refused during grouped med pass.";
+  if (status === "held") return "Medication held for review.";
+  if (status === "not_present") return "Medication not present during grouped med pass.";
+  return "Medication skipped during grouped med pass.";
+}
+
+function decrementQuantityText(value?: string): string | undefined {
+  if (!value) return value;
+  const match = value.match(/(\d+(?:\.\d+)?)/);
+  if (!match) return value;
+  const current = Number(match[1]);
+  if (!Number.isFinite(current)) return value;
+  const next = Math.max(0, current - 1);
+  return value.replace(match[1], Number.isInteger(current) ? String(next) : String(Number(next.toFixed(2))));
 }
 
 function assertSignature(signature: CampMedicationIntakeInput["guardianSignatureData"]) {
