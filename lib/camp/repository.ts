@@ -1789,6 +1789,7 @@ export async function saveMedicationIntakeSession(session: AuthSession, context:
     })
     .select("*")
     .single<CampMedicationIntakeSessionRow>();
+  if (isMissingMedicationWorkflowTableError(sessionError)) return groupedMedicationWorkflowUnavailable();
   throwIfSupabaseError(sessionError);
   if (!sessionRow) throw new Error("Medication intake session write returned no row.");
 
@@ -1896,7 +1897,7 @@ export async function upsertMedicationRecord(
     supersedes_medication_record_id: input.supersedesMedicationRecordId || null,
     correction_note: input.correctionNote?.trim() || ""
   };
-  const result = input.id && !input.supersedesMedicationRecordId
+  let result = input.id && !input.supersedesMedicationRecordId
     ? await supabase.from("camp_medication_records").update(row).eq("id", input.id).select("*").single<CampMedicationRow>()
     : await supabase.from("camp_medication_records").insert({
         ...ministryScopeColumns(await resolveMinistryScope(session)),
@@ -1904,6 +1905,18 @@ export async function upsertMedicationRecord(
         camper_id: input.studentId,
         ...row
       }).select("*").single<CampMedicationRow>();
+
+  if (isMissingGroupedMedicationColumnError(result.error)) {
+    const { quantity_remaining: _quantityRemaining, schedule_type: _scheduleType, is_prn: _isPrn, ...legacyRow } = row;
+    result = input.id && !input.supersedesMedicationRecordId
+      ? await supabase.from("camp_medication_records").update(legacyRow).eq("id", input.id).select("*").single<CampMedicationRow>()
+      : await supabase.from("camp_medication_records").insert({
+          ...ministryScopeColumns(await resolveMinistryScope(session)),
+          camp_id: basics.camp.id,
+          camper_id: input.studentId,
+          ...legacyRow
+        }).select("*").single<CampMedicationRow>();
+  }
 
   throwIfSupabaseError(result.error);
   if (!result.data) throw new Error("Medication write returned no row.");
@@ -2242,6 +2255,7 @@ export async function logGroupedMedicationAdministration(session: AuthSession, c
     })
     .select("*")
     .single<CampMedicationAdministrationEventRow>();
+  if (isMissingMedicationWorkflowTableError(eventError)) return groupedMedicationWorkflowUnavailable();
   throwIfSupabaseError(eventError);
   if (!eventRow) throw new Error("Medication administration event write returned no row.");
 
@@ -2268,6 +2282,7 @@ export async function logGroupedMedicationAdministration(session: AuthSession, c
       })
       .select("*")
       .single<CampMedicationAdministrationItemRow>();
+    if (isMissingMedicationWorkflowTableError(itemError)) return groupedMedicationWorkflowUnavailable();
     throwIfSupabaseError(itemError);
     if (!itemRow) throw new Error("Medication administration item write returned no row.");
 
@@ -3240,6 +3255,18 @@ function isMissingMedicationWorkflowTableError(error: { message: string } | null
     isMissingTableError(error, "camp_medication_administration_events") ||
     isMissingTableError(error, "camp_medication_administration_items")
   );
+}
+
+function isMissingGroupedMedicationColumnError(error: { message: string } | null) {
+  return ["quantity_remaining", "schedule_type", "is_prn"].some((columnName) => isMissingColumnError(error, columnName));
+}
+
+function groupedMedicationWorkflowUnavailable() {
+  return {
+    allowed: true as const,
+    status: 503,
+    error: "Grouped medication workflow is not available until migration 023 is applied."
+  };
 }
 
 function medicationScheduleType(value?: string): CampMedicationRecord["scheduleType"] {
