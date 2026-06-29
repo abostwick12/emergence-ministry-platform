@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession, unauthorizedResponse } from "@/lib/auth/server";
 import { getDefaultCampAccessScope } from "@/lib/camp/access";
-import { buildCampEmmaAnswer, buildMedicalCommandBlocks, type CampEmmaAccess, type CampEmmaMode } from "@/lib/camp/emma";
+import { buildCampEmmaAnswer, buildMedicalCommandBlocks, restrictedNeedles, type CampEmmaAccess, type CampEmmaMode } from "@/lib/camp/emma";
 import { answerCampEmmaConversation, isCampEmmaConversationalAccess } from "@/lib/camp/emma-conversation";
 import { canAccessCampMedicalCommand } from "@/lib/camp/permissions";
 import { requireCampAccessForRequest } from "@/lib/camp/api-guard";
@@ -64,6 +64,16 @@ export async function POST(request: Request) {
   }
 
   const query = body.query ?? "";
+  const conversationalAllowed = isCampEmmaConversationalAccess(access);
+  let conversationDiagnostic = {
+    providerSelected: "none" as "azure" | "openai" | "none",
+    azureEndpointPresent: Boolean(process.env.AZURE_OPENAI_ENDPOINT?.trim()),
+    azureDeploymentPresent: Boolean(process.env.AZURE_OPENAI_DEPLOYMENT?.trim()),
+    azureApiVersionPresent: Boolean(process.env.AZURE_OPENAI_API_VERSION?.trim()),
+    providerFailureReason: undefined as string | undefined,
+    providerErrorStatus: undefined as number | undefined,
+    providerErrorCode: undefined as string | undefined
+  };
   let answer = buildCampEmmaAnswer({
     overview,
     query,
@@ -77,15 +87,37 @@ export async function POST(request: Request) {
   // operational overview for free-form questions, falling back to the
   // deterministic answer above if the provider is unavailable. Medical command
   // queries stay on the deterministic medical path and never reach the model.
-  if (!medicalCommandActive && query.trim() && isCampEmmaConversationalAccess(access)) {
+  if (!medicalCommandActive && query.trim() && conversationalAllowed && !isRestrictedTopicQuestion(query)) {
     const conversational = await answerCampEmmaConversation({
       question: query,
       overview,
       access,
-      selectedDay: body.selectedDay
+      selectedDay: body.selectedDay,
+      onDiagnostic: (diagnostic) => {
+        conversationDiagnostic = {
+          providerSelected: diagnostic.providerSelected,
+          azureEndpointPresent: diagnostic.azureEndpointPresent,
+          azureDeploymentPresent: diagnostic.azureDeploymentPresent,
+          azureApiVersionPresent: diagnostic.azureApiVersionPresent,
+          providerFailureReason: diagnostic.providerFailureReason,
+          providerErrorStatus: diagnostic.providerErrorStatus,
+          providerErrorCode: diagnostic.providerErrorCode
+        };
+      }
     });
     if (conversational) answer = conversational;
   }
+
+  logCampEmmaDiagnostic({
+    requestedMode,
+    normalizedMode: mode,
+    restrictedActor: context.restrictedActor ?? "none",
+    resolvedAccess: access,
+    medicalCommandActive,
+    conversationalAccess: conversationalAllowed,
+    queryPresent: Boolean(query.trim()),
+    ...conversationDiagnostic
+  });
 
   return NextResponse.json({
     ok: true,
@@ -108,4 +140,45 @@ function resolveEmmaAccess(actor: string | undefined, medicalCommandActive: bool
   if (actor === "Andrew") return medicalCommandActive ? "andrew_medical" : "andrew_operations";
   if (actor === "Jaci") return "jaci";
   return "leader";
+}
+
+function isRestrictedTopicQuestion(query: string) {
+  const normalized = query.toLowerCase();
+  return restrictedNeedles.some((needle) => normalized.includes(needle));
+}
+
+function logCampEmmaDiagnostic(details: {
+  requestedMode: CampEmmaMode;
+  normalizedMode: CampEmmaMode;
+  restrictedActor: string;
+  resolvedAccess: CampEmmaAccess;
+  medicalCommandActive: boolean;
+  conversationalAccess: boolean;
+  queryPresent: boolean;
+  providerSelected: "azure" | "openai" | "none";
+  providerFailureReason?: string;
+  providerErrorStatus?: number;
+  providerErrorCode?: string;
+  azureEndpointPresent: boolean;
+  azureDeploymentPresent: boolean;
+  azureApiVersionPresent: boolean;
+}) {
+  console.warn("[camp-emma] request diagnostics", {
+    timestamp: new Date().toISOString(),
+    route: "/api/camp/emma",
+    requestedMode: details.requestedMode,
+    normalizedMode: details.normalizedMode,
+    restrictedActor: details.restrictedActor,
+    resolvedAccess: details.resolvedAccess,
+    medicalCommandActive: details.medicalCommandActive,
+    conversationalAccess: details.conversationalAccess,
+    queryPresent: details.queryPresent,
+    providerSelected: details.providerSelected,
+    providerFailureReason: details.providerFailureReason,
+    providerErrorStatus: details.providerErrorStatus,
+    providerErrorCode: details.providerErrorCode,
+    azureEndpointPresent: details.azureEndpointPresent,
+    azureDeploymentPresent: details.azureDeploymentPresent,
+    azureApiVersionPresent: details.azureApiVersionPresent
+  });
 }

@@ -21,12 +21,14 @@ function clearAzureEnv() {
   for (const key of AZURE_ENV_KEYS) delete process.env[key];
 }
 
-function fakeFetchReturning(jsonContent: string) {
-  return async () =>
-    new Response(JSON.stringify({ choices: [{ message: { content: jsonContent } }], model: "gpt-4o-mini" }), {
+function fakeFetchReturning(jsonContent: string, capture?: { url?: string }) {
+  return async (input: RequestInfo | URL) => {
+    if (capture) capture.url = String(input);
+    return new Response(JSON.stringify({ output_text: jsonContent, model: "gpt-4o-mini" }), {
       status: 200,
       headers: { "Content-Type": "application/json" }
     });
+  };
 }
 
 describe("interpretCampEmmaCommand", () => {
@@ -45,8 +47,10 @@ describe("interpretCampEmmaCommand", () => {
 
   it("returns a confirmable proposal for an authorized, unambiguous room-change request", async () => {
     withAzureEnv();
+    const capture: { url?: string } = {};
     const fetchImpl = fakeFetchReturning(
-      JSON.stringify({ intent: "update_room", studentNameQuery: "Avery Johnson", proposedRoom: "Cabin Z" })
+      JSON.stringify({ intent: "update_room", studentNameQuery: "Avery Johnson", proposedRoom: "Cabin Z" }),
+      capture
     );
 
     const { result, log } = await interpretCampEmmaCommand({
@@ -62,6 +66,7 @@ describe("interpretCampEmmaCommand", () => {
     expect(result.proposedRoom).toBe("Cabin Z");
     expect(log.success).toBe(true);
     expect(log.outcomeKind).toBe("proposal");
+    expect(capture.url).toBe("https://emerge-camp-emma.openai.azure.com/openai/v1/responses");
   });
 
   it("asks for clarification when a name matches more than one active student", async () => {
@@ -84,7 +89,7 @@ describe("interpretCampEmmaCommand", () => {
     let fetchCalled = false;
     const fetchImpl = async () => {
       fetchCalled = true;
-      return fakeFetchReturning("{}")();
+      return fakeFetchReturning("{}")("");
     };
 
     const { result } = await interpretCampEmmaCommand({

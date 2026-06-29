@@ -65,14 +65,37 @@ function overviewWithMedicalCamper(): CampOverviewPayload {
   };
 }
 
-function fakeFetchCapturing(capture: { body?: string }, jsonContent: string) {
-  return (async (_url: string, init?: RequestInit) => {
+function fakeFetchCapturing(capture: { body?: string; url?: string; calls?: number }, jsonContent: string) {
+  return (async (url: string, init?: RequestInit) => {
+    capture.calls = (capture.calls ?? 0) + 1;
+    capture.url = url;
     capture.body = typeof init?.body === "string" ? init.body : undefined;
-    return new Response(JSON.stringify({ choices: [{ message: { content: jsonContent } }], model: "gpt-4o" }), {
+    const responseBody = url.includes("/responses")
+      ? { output_text: jsonContent, model: "gpt-4o-mini" }
+      : { choices: [{ message: { content: jsonContent } }], model: "gpt-4o" };
+    return new Response(JSON.stringify(responseBody), {
       status: 200,
       headers: { "Content-Type": "application/json" }
     });
   }) as unknown as typeof fetch;
+}
+
+function aggregateOverview(): CampOverviewPayload {
+  const base = overviewWithMedicalCamper();
+  return {
+    ...base,
+    teams: [
+      { id: "blue", name: "Blue", color: "Blue", leader: "Gabe Kale" },
+      { id: "red", name: "Red", color: "Red", leader: "Casey Lee" },
+      { id: "green", name: "Green", color: "Green", leader: "Dana Fox" }
+    ],
+    students: [
+      { id: "s1", name: "Avery Blue", photoInitials: "AB", grade: "6", teamId: "blue", teamName: "Blue", vehicleId: "v1", vehicleName: "Van 2" },
+      { id: "s2", name: "Blair Blue", photoInitials: "BB", grade: "6", teamId: "blue", teamName: "Blue", vehicleId: "v1", vehicleName: "Van 2" },
+      { id: "s3", name: "Riley Red", photoInitials: "RR", grade: "6", teamId: "red", teamName: "Red", vehicleId: "v1", vehicleName: "Van 2" },
+      { id: "s4", name: "Jordan Green", photoInitials: "JG", grade: "7", teamId: "green", teamName: "Green", vehicleId: "v1", vehicleName: "Van 2" }
+    ]
+  };
 }
 
 describe("isCampEmmaConversationalAccess", () => {
@@ -89,7 +112,7 @@ describe("answerCampEmmaConversation", () => {
   afterEach(() => clearProviderEnv());
 
   it("returns null for non-conversational access without calling the model", async () => {
-    const capture: { body?: string } = {};
+    const capture: { body?: string; calls?: number } = {};
     const result = await answerCampEmmaConversation({
       question: "Who is on Blue Team?",
       overview: overviewWithMedicalCamper(),
@@ -98,6 +121,7 @@ describe("answerCampEmmaConversation", () => {
     });
     expect(result).toBeNull();
     expect(capture.body).toBeUndefined();
+    expect(capture.calls ?? 0).toBe(0);
   });
 
   it("returns null (fallback) when the provider is not configured", async () => {
@@ -176,5 +200,57 @@ describe("answerCampEmmaConversation", () => {
       fetchImpl: fakeFetchCapturing(capture, "not json at all")
     });
     expect(result).toBeNull();
+  });
+
+  it("uses Azure Responses API for Andrew/Jaci aggregate questions", async () => {
+    for (const access of ["andrew_operations", "jaci"] as const) {
+      withAzureEnv();
+      const capture: { body?: string; url?: string; calls?: number } = {};
+      const result = await answerCampEmmaConversation({
+        question: "which team has the most 6th graders",
+        overview: aggregateOverview(),
+        access,
+        fetchImpl: fakeFetchCapturing(
+          capture,
+          JSON.stringify({
+            answer: "Blue Team has the most 6th graders with 2.",
+            details: ["Blue: 2 sixth graders", "Red: 1 sixth grader", "Green: 0 sixth graders"]
+          })
+        )
+      });
+
+      expect(capture.calls).toBe(1);
+      expect(capture.url).toBe("https://emerge-camp-emma.openai.azure.com/openai/v1/responses");
+      expect(capture.url).not.toContain("/chat/completions");
+      expect(capture.body).toContain("\"model\":\"emma-camp-test\"");
+      expect(capture.body).toContain("\"type\":\"input_text\"");
+      const requestBody = JSON.parse(capture.body ?? "{}") as { input?: Array<{ content?: Array<{ text?: string }> }> };
+      const prompt = JSON.parse(requestBody.input?.[0]?.content?.[0]?.text ?? "{}") as {
+        question?: string;
+        camp?: { campers?: Array<{ grade?: string; team?: string }> };
+      };
+      expect(prompt.question).toBe("which team has the most 6th graders");
+      expect(prompt.camp?.campers).toEqual(expect.arrayContaining([
+        expect.objectContaining({ grade: "6", team: "Blue" })
+      ]));
+      expect(result?.answer).toContain("Blue Team");
+      expect(result?.answer).not.toMatch(/couldn't find a camper/i);
+      expect(result?.details.join(" ")).toContain("Blue: 2");
+    }
+  });
+
+  it("does not treat aggregate team questions as camper names when the model is unavailable", async () => {
+    clearProviderEnv();
+    const capture: { body?: string; calls?: number } = {};
+    const result = await answerCampEmmaConversation({
+      question: "which team has the most 6th graders",
+      overview: aggregateOverview(),
+      access: "andrew_operations",
+      fetchImpl: fakeFetchCapturing(capture, "{}")
+    });
+
+    expect(capture.calls ?? 0).toBe(0);
+    expect(result?.answer).toBe("EMMA's conversational mode is temporarily unavailable, but I can still help search campers, teams, rooms, and schedule details.");
+    expect(result?.answer).not.toMatch(/couldn't find a camper/i);
   });
 });

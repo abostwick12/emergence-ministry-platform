@@ -23,9 +23,9 @@ export type CampEmmaAzureConfig = {
 };
 
 export type CampEmmaAzureCallResult =
-  | { ok: true; text: string; durationMs: number; model: string; deployment: string }
+  | { ok: true; text: string; durationMs: number; model: string; deployment?: string }
   | { ok: false; reason: "unavailable"; durationMs: number }
-  | { ok: false; reason: "provider_error"; durationMs: number; status?: number }
+  | { ok: false; reason: "provider_error"; durationMs: number; status?: number; code?: string }
   | { ok: false; reason: "invalid_output"; durationMs: number }
   | { ok: false; reason: "timeout"; durationMs: number };
 
@@ -42,9 +42,9 @@ export function readCampEmmaAzureConfig(): CampEmmaAzureConfig | null {
 }
 
 /**
- * Calls Azure OpenAI's chat completions endpoint with a system + user prompt
- * and requests structured JSON output. Returns a discriminated result instead
- * of throwing so callers always have a safe path (including "unavailable").
+ * Calls Azure OpenAI's Responses API with a system + user prompt. Returns a
+ * discriminated result instead of throwing so callers always have a safe path
+ * (including "unavailable").
  */
 export async function callCampEmmaAzureModel(input: {
   systemPrompt: string;
@@ -67,7 +67,7 @@ export async function callCampEmmaAzureModel(input: {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
-  const url = `${trimTrailingSlash(config.endpoint)}/openai/deployments/${encodeURIComponent(config.deployment)}/chat/completions?api-version=${encodeURIComponent(config.apiVersion)}`;
+  const url = azureResponsesUrl(config.endpoint);
 
   try {
     const response = await fetchImpl(url, {
@@ -78,27 +78,32 @@ export async function callCampEmmaAzureModel(input: {
         "api-key": config.apiKey
       },
       body: JSON.stringify({
-        messages: [
-          { role: "system", content: input.systemPrompt },
-          { role: "user", content: input.userPrompt }
+        model: config.deployment,
+        instructions: input.systemPrompt,
+        input: [
+          {
+            role: "user",
+            content: [{ type: "input_text", text: input.userPrompt }]
+          }
         ],
         temperature: 0,
-        max_tokens: maxTokens,
-        response_format: { type: "json_object" }
+        max_output_tokens: maxTokens
       })
     });
 
     const durationMs = Date.now() - startedAt;
 
     if (!response.ok) {
-      return { ok: false, reason: "provider_error", durationMs, status: response.status };
+      const code = await readProviderErrorCode(response);
+      return { ok: false, reason: "provider_error", durationMs, status: response.status, code };
     }
 
     const json = (await response.json()) as {
-      choices?: Array<{ message?: { content?: string } }>;
+      output_text?: string;
+      output?: Array<{ content?: Array<{ text?: string; type?: string }> }>;
       model?: string;
     };
-    const text = json.choices?.[0]?.message?.content?.trim();
+    const text = extractResponsesOutputText(json);
     if (!text) {
       return { ok: false, reason: "invalid_output", durationMs };
     }
@@ -119,6 +124,48 @@ export async function callCampEmmaAzureModel(input: {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+function azureResponsesUrl(endpoint: string) {
+  const trimmed = trimTrailingSlash(endpoint);
+  if (trimmed.endsWith("/openai/v1")) return `${trimmed}/responses`;
+  if (trimmed.endsWith("/openai")) return `${trimmed}/v1/responses`;
+  return `${trimmed}/openai/v1/responses`;
+}
+
+function extractResponsesOutputText(json: {
+  output_text?: string;
+  output?: Array<{ content?: Array<{ text?: string; type?: string }> }>;
+}) {
+  if (typeof json.output_text === "string" && json.output_text.trim()) return json.output_text.trim();
+  const text = json.output
+    ?.flatMap((item) => item.content ?? [])
+    .map((content) => content.text)
+    .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+    .join("\n")
+    .trim();
+  return text || undefined;
+}
+
+async function readProviderErrorCode(response: Response) {
+  try {
+    const payload = await response.json() as unknown;
+    return cleanProviderErrorCode(extractProviderErrorCode(payload));
+  } catch {
+    return undefined;
+  }
+}
+
+function extractProviderErrorCode(value: unknown): unknown {
+  if (!value || typeof value !== "object") return undefined;
+  const source = value as { code?: unknown; error?: { code?: unknown } };
+  return source.error?.code ?? source.code;
+}
+
+function cleanProviderErrorCode(value: unknown) {
+  if (typeof value !== "string") return undefined;
+  const cleaned = value.trim();
+  return /^[A-Za-z0-9_.:-]{1,80}$/.test(cleaned) ? cleaned : "unrecognized_error_code";
 }
 
 function trimTrailingSlash(value: string): string {

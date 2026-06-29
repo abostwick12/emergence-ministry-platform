@@ -99,7 +99,7 @@ export async function interpretCampEmmaCommand(input: CampEmmaInterpretInput): P
     return finish(startedAt, { kind: "error", message: "EMMA couldn't understand that command. Try rephrasing, e.g. \"Change John West to room 508.\"" });
   }
 
-  return finish(startedAt, buildResultFromIntent(parsed.data, rawText, input.students, callResult.model, callResult.deployment));
+  return finish(startedAt, buildResultFromIntent(parsed.data, rawText, input.students, callResult.model, callResult.deployment ?? callResult.model));
 }
 
 function buildResultFromIntent(
