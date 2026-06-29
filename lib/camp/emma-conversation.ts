@@ -38,6 +38,16 @@ export function isCampEmmaConversationalAccess(access: CampEmmaAccess): boolean 
   return conversationalAccess.has(access);
 }
 
+export type CampEmmaConversationDiagnostic = {
+  providerSelected: "azure" | "openai" | "none";
+  providerFailureReason?: string;
+  providerErrorStatus?: number;
+  providerErrorCode?: string;
+  azureEndpointPresent: boolean;
+  azureDeploymentPresent: boolean;
+  azureApiVersionPresent: boolean;
+};
+
 const answerSchema = z.object({
   answer: z.string().trim().min(1).max(1500),
   details: z.array(z.string().trim().min(1).max(300)).max(20).optional(),
@@ -65,6 +75,7 @@ export async function answerCampEmmaConversation(input: {
   access: CampEmmaAccess;
   selectedDay?: string;
   fetchImpl?: typeof fetch;
+  onDiagnostic?: (diagnostic: CampEmmaConversationDiagnostic) => void;
 }): Promise<CampEmmaAnswer | null> {
   const question = input.question.trim().slice(0, 600);
   if (!question) return null;
@@ -73,11 +84,22 @@ export async function answerCampEmmaConversation(input: {
   // Accept either configured provider, matching the action-parsing path: Azure
   // OpenAI first, then a direct OpenAI key. Conversational answers stay available
   // whichever one the environment has.
+  const azurePresence = readAzureDiagnosticPresence();
   const azureConfig = readCampEmmaAzureConfig();
   const openAIConfig = azureConfig ? null : readCampEmmaOpenAIConfig();
+  const providerSelected = azureConfig ? "azure" : openAIConfig ? "openai" : "none";
+  input.onDiagnostic?.({
+    providerSelected,
+    ...azurePresence
+  });
   if (!azureConfig && !openAIConfig) {
     logConversationFallback("provider_unavailable");
-    return null;
+    input.onDiagnostic?.({
+      providerSelected,
+      ...azurePresence,
+      providerFailureReason: "provider_unavailable"
+    });
+    return fallbackForUnavailableConversation(question);
   }
 
   const snapshot = toOperationalSnapshot(input.overview);
@@ -107,7 +129,14 @@ export async function answerCampEmmaConversation(input: {
 
   if (!result.ok) {
     logConversationFallback(result.reason);
-    return null;
+    input.onDiagnostic?.({
+      providerSelected,
+      ...azurePresence,
+      providerFailureReason: result.reason,
+      providerErrorStatus: "status" in result ? result.status : undefined,
+      providerErrorCode: "code" in result ? result.code : undefined
+    });
+    return fallbackForUnavailableConversation(question);
   }
 
   let parsedJson: unknown;
@@ -115,13 +144,23 @@ export async function answerCampEmmaConversation(input: {
     parsedJson = JSON.parse(result.text);
   } catch {
     logConversationFallback("invalid_json");
-    return null;
+    input.onDiagnostic?.({
+      providerSelected,
+      ...azurePresence,
+      providerFailureReason: "invalid_json"
+    });
+    return fallbackForUnavailableConversation(question);
   }
 
   const parsed = answerSchema.safeParse(parsedJson);
   if (!parsed.success) {
     logConversationFallback("unsupported_output");
-    return null;
+    input.onDiagnostic?.({
+      providerSelected,
+      ...azurePresence,
+      providerFailureReason: "unsupported_output"
+    });
+    return fallbackForUnavailableConversation(question);
   }
 
   return {
@@ -130,6 +169,20 @@ export async function answerCampEmmaConversation(input: {
     actions: [{ label: "Open roster", href: "/camp/roster" }],
     ...(parsed.data.uncertainty ? { uncertainty: parsed.data.uncertainty } : {})
   };
+}
+
+function fallbackForUnavailableConversation(question: string): CampEmmaAnswer | null {
+  if (!isTeamAggregateQuestion(question)) return null;
+  return {
+    answer: "EMMA's conversational mode is temporarily unavailable, but I can still help search campers, teams, rooms, and schedule details.",
+    details: [],
+    actions: [{ label: "Open roster", href: "/camp/roster" }],
+    uncertainty: "Conversational aggregation is unavailable."
+  };
+}
+
+function isTeamAggregateQuestion(question: string) {
+  return /^which team has\b/i.test(question.trim());
 }
 
 // Build the operational-only snapshot sent to the model. Medical, safety, and
@@ -200,4 +253,12 @@ function logConversationFallback(reason: string) {
     route: "/api/camp/emma",
     reason
   });
+}
+
+function readAzureDiagnosticPresence() {
+  return {
+    azureEndpointPresent: Boolean(process.env.AZURE_OPENAI_ENDPOINT?.trim()),
+    azureDeploymentPresent: Boolean(process.env.AZURE_OPENAI_DEPLOYMENT?.trim()),
+    azureApiVersionPresent: Boolean(process.env.AZURE_OPENAI_API_VERSION?.trim())
+  };
 }

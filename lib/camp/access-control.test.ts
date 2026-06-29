@@ -182,14 +182,13 @@ describe("camp access-control", () => {
     expect(ctx).toMatchObject({ restrictedActor: "Andrew", canAccessRestricted: true });
   });
 
-  it("does not use bootstrap after the durable table is available without an active row", async () => {
+  it("keeps Andrew's exact bootstrap identity at admin access even when the durable table has no active row", async () => {
     mockStoredRole(null);
     const ctx = await resolveCampAccessForRequest(
       session({ user: { id: "u1", email: BOOTSTRAP_CAMP_ADMIN_EMAIL, fullName: "Andrew", role: "staff" } }),
       "andrew"
     );
-    expect(ctx.canAccessRestricted).toBe(false);
-    expect(ctx.restrictedActor).toBeUndefined();
+    expect(ctx).toMatchObject({ restrictedActor: "Andrew", canAccessRestricted: true });
   });
 
   it("defaults an unknown user to safe general-leader access and ignores role params", async () => {
@@ -230,16 +229,13 @@ describe("camp access-control", () => {
     });
   });
 
-  it("does not use bootstrap or URL role fallback when launch runtime has no active access row", async () => {
+  it("keeps Andrew's exact bootstrap identity at admin access in launch runtime", async () => {
     process.env.VERCEL_ENV = "preview";
     mockStoredRole(null);
 
     await expect(resolveCampAccessForRequest(
       session({ user: { id: "u1", email: BOOTSTRAP_CAMP_ADMIN_EMAIL, fullName: "Andrew", role: "staff" } }),
       "andrew"
-    )).rejects.toMatchObject({
-      code: "camp_access_missing",
-      status: 403
-    });
+    )).resolves.toMatchObject({ restrictedActor: "Andrew", canAccessRestricted: true });
   });
 });

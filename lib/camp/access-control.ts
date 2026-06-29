@@ -131,6 +131,8 @@ export function isBootstrapCampAdmin(session: Pick<AuthSession, "user">): boolea
 }
 
 export async function resolveCampAccessForRequest(session: AuthSession, _requestedRole: string | null): Promise<CampAccessContext> {
+  if (!session.isMock && isBootstrapCampAdmin(session)) return buildCampAccessFromStoredRole("camp_admin");
+
   if (!canUseCampStubMode()) {
     if (session.isMock) {
       throw new CampAccessResolutionError("Camp launch testing requires a real authenticated Supabase session, not development auth.", {

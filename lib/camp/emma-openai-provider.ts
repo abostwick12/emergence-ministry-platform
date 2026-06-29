@@ -22,9 +22,9 @@ export type CampEmmaOpenAIConfig = {
 };
 
 export type CampEmmaOpenAICallResult =
-  | { ok: true; text: string; durationMs: number; model: string }
+  | { ok: true; text: string; durationMs: number; model: string; deployment?: string }
   | { ok: false; reason: "unavailable"; durationMs: number }
-  | { ok: false; reason: "provider_error"; durationMs: number; status?: number }
+  | { ok: false; reason: "provider_error"; durationMs: number; status?: number; code?: string }
   | { ok: false; reason: "invalid_output"; durationMs: number }
   | { ok: false; reason: "timeout"; durationMs: number };
 
@@ -78,7 +78,8 @@ export async function callCampEmmaOpenAIModel(input: {
     const durationMs = Date.now() - startedAt;
 
     if (!response.ok) {
-      return { ok: false, reason: "provider_error", durationMs, status: response.status };
+      const code = await readProviderErrorCode(response);
+      return { ok: false, reason: "provider_error", durationMs, status: response.status, code };
     }
 
     const json = (await response.json()) as {
@@ -100,4 +101,25 @@ export async function callCampEmmaOpenAIModel(input: {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+async function readProviderErrorCode(response: Response) {
+  try {
+    const payload = await response.json() as unknown;
+    return cleanProviderErrorCode(extractProviderErrorCode(payload));
+  } catch {
+    return undefined;
+  }
+}
+
+function extractProviderErrorCode(value: unknown): unknown {
+  if (!value || typeof value !== "object") return undefined;
+  const source = value as { code?: unknown; error?: { code?: unknown } };
+  return source.error?.code ?? source.code;
+}
+
+function cleanProviderErrorCode(value: unknown) {
+  if (typeof value !== "string") return undefined;
+  const cleaned = value.trim();
+  return /^[A-Za-z0-9_.:-]{1,80}$/.test(cleaned) ? cleaned : "unrecognized_error_code";
 }
