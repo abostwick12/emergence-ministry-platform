@@ -1460,6 +1460,26 @@ describe("camp API restricted data boundaries", () => {
     expectNoRestrictedPayloadDetails(payload);
   });
 
+  it("does not let a stale Medical Command flag force operational aggregate questions out of conversational EMMA", async () => {
+    getServerSessionMock.mockResolvedValue(andrewSession());
+
+    const response = await campEmmaPOST(jsonRequest("http://localhost/api/camp/emma?role=andrew", {
+      mode: "smart_search",
+      query: "Which team has the fewest high school students",
+      selectedDay: "Mon, Jun 29",
+      medicalCommandActive: true
+    }));
+    const payload = await response.json();
+    const serialized = JSON.stringify(payload);
+
+    expect(response.status).toBe(200);
+    expect(serialized).toContain("andrew_operations");
+    expect(serialized).toContain("EMMA's conversational mode is temporarily unavailable");
+    expect(serialized).not.toContain("medication blocks");
+    expect(serialized).not.toContain("I couldn't find a camper matching that name");
+    expectNoRestrictedPayloadDetails(payload);
+  });
+
   it("requires Camp Admin access and confirmation for Oakwood upload preview and commit", async () => {
     getServerSessionMock.mockResolvedValue(session());
 

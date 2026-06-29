@@ -6,6 +6,7 @@ import { answerCampEmmaConversation, isCampEmmaConversationalAccess } from "@/li
 import { canAccessCampMedicalCommand } from "@/lib/camp/permissions";
 import { requireCampAccessForRequest } from "@/lib/camp/api-guard";
 import { getCampOverview, getRestrictedCampMedicationPayload } from "@/lib/camp/repository";
+import { shouldUseMedicalCommandContext } from "@/lib/camp/emma-medical-context";
 
 type CampEmmaRequestBody = {
   query?: string;
@@ -39,8 +40,9 @@ export async function POST(request: Request) {
   }
   const mode = normalizeMode(requestedMode, context.canAccessRestricted);
 
+  const query = body.query ?? "";
   const overview = await getCampOverview(session, context, vehicleId ? { vehicleId } : {});
-  const medicalCommandActive = body.medicalCommandActive === true && canAccessCampMedicalCommand(context);
+  const medicalCommandActive = body.medicalCommandActive === true && shouldUseMedicalCommandContext(canAccessCampMedicalCommand(context), query);
   const access = resolveEmmaAccess(context.restrictedActor, medicalCommandActive);
   let medicalBlocks;
 
@@ -63,7 +65,6 @@ export async function POST(request: Request) {
     });
   }
 
-  const query = body.query ?? "";
   const conversationalAllowed = isCampEmmaConversationalAccess(access);
   let conversationDiagnostic = {
     providerSelected: "none" as "azure" | "openai" | "none",

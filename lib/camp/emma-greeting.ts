@@ -13,7 +13,12 @@ export function buildCampEmmaWelcomeGreeting(fullName?: string | null): string {
 }
 
 function firstNameFrom(fullName?: string | null): string | null {
-  const first = fullName?.trim().split(/\s+/)[0];
+  const value = fullName?.trim();
+  if (!value) return null;
+  const source = value.includes("@") ? value.split("@")[0] : value;
+  const first = source.split(/[\s._-]+/)[0];
+  if (!first) return null;
+  if (/^[a-z]+$/i.test(first)) return first.charAt(0).toUpperCase() + first.slice(1).toLowerCase();
   return first || null;
 }
 
