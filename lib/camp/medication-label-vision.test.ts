@@ -72,19 +72,82 @@ describe("Camp medication label vision extraction", () => {
     vi.stubEnv("OPENAI_API_KEY", "test-openai-key");
     const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => Response.json({
       model: "camp-vision",
-      choices: [{ message: { content: JSON.stringify({ medicationName: "Label Med", confidence: "high", warnings: [] }) } }]
+      output_text: JSON.stringify({ medicationName: "Label Med", confidence: "high", warnings: [] })
     }));
 
     const result = await scanMedicationLabelFrame({
       dataUrl: "data:image/png;base64,ZmFrZQ==",
       fetchImpl: fetchMock as unknown as typeof fetch
     });
-    const body = JSON.parse(fetchMock.mock.calls[0][1]?.body as string) as { model?: string };
+    const body = JSON.parse(fetchMock.mock.calls[0][1]?.body as string) as {
+      model?: string;
+      instructions?: string;
+      input?: Array<{ role: string; content: Array<{ type: string; text?: string; image_url?: string }> }>;
+      max_output_tokens?: number;
+    };
 
     expect(result).toMatchObject({ ok: true, provider: "azure", scan: { medicationName: "Label Med", confidence: "high" } });
-    expect(fetchMock.mock.calls[0][0]).toBe("https://camp-openai.example.azure.com/openai/deployments/camp-vision/chat/completions?api-version=2024-08-01-preview");
+    expect(fetchMock.mock.calls[0][0]).toBe("https://camp-openai.example.azure.com/openai/v1/responses");
     expect(fetchMock.mock.calls[0][1]?.headers).toMatchObject({ "api-key": "test-azure-key" });
-    expect(body.model).toBeUndefined();
+    expect(body.model).toBe("camp-vision");
+    expect(body.instructions).toContain("Do not provide medical advice");
+    expect(body.max_output_tokens).toBe(700);
+    expect(body.input?.[0]?.content).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: "input_text", text: expect.stringContaining("Extract likely fields") }),
+      expect.objectContaining({ type: "input_image", image_url: "data:image/png;base64,ZmFrZQ==" })
+    ]));
+    expect(JSON.stringify(body)).not.toContain("/chat/completions");
+  });
+
+  it("accepts an Azure endpoint already scoped to the OpenAI v1 base URL", async () => {
+    vi.stubEnv("AZURE_OPENAI_ENDPOINT", "https://camp-openai.example.azure.com/openai/v1/");
+    vi.stubEnv("AZURE_OPENAI_API_KEY", "test-azure-key");
+    vi.stubEnv("AZURE_OPENAI_DEPLOYMENT", "emma-camp-test");
+    vi.stubEnv("AZURE_OPENAI_API_VERSION", "2024-08-01-preview");
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => Response.json({
+      output: [
+        { content: [{ type: "output_text", text: JSON.stringify({ medicationName: "Label Med", confidence: "medium", warnings: [] }) }] }
+      ]
+    }));
+
+    const result = await scanMedicationLabelFrame({
+      dataUrl: "data:image/png;base64,ZmFrZQ==",
+      fetchImpl: fetchMock as unknown as typeof fetch
+    });
+
+    expect(result).toMatchObject({ ok: true, provider: "azure" });
+    expect(fetchMock.mock.calls[0][0]).toBe("https://camp-openai.example.azure.com/openai/v1/responses");
+  });
+
+  it("logs only safe Azure diagnostics when the provider returns an error", async () => {
+    vi.stubEnv("AZURE_OPENAI_ENDPOINT", "https://camp-openai.example.azure.com/");
+    vi.stubEnv("AZURE_OPENAI_API_KEY", "test-azure-key");
+    vi.stubEnv("AZURE_OPENAI_DEPLOYMENT", "emma-camp-test");
+    vi.stubEnv("AZURE_OPENAI_API_VERSION", "2024-08-01-preview");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => Response.json(
+      { error: { code: "DeploymentNotFound", message: "deployment missing" } },
+      { status: 404 }
+    ));
+
+    const result = await scanMedicationLabelFrame({
+      dataUrl: "data:image/png;base64,PRIVATE_IMAGE_CONTENT",
+      fetchImpl: fetchMock as unknown as typeof fetch
+    });
+    const serializedLogs = JSON.stringify(warn.mock.calls);
+
+    expect(result).toMatchObject({ ok: false, reason: "provider_error", status: 404, code: "DeploymentNotFound" });
+    expect(warn).toHaveBeenCalledWith("[camp-medication-label-scan]", expect.objectContaining({
+      event: "provider_error",
+      providerSelected: "azure",
+      azureEndpointPresent: true,
+      azureDeploymentPresent: true,
+      azureApiVersionPresent: true,
+      providerErrorStatus: 404,
+      providerErrorCode: "DeploymentNotFound"
+    }));
+    expect(serializedLogs).not.toContain("PRIVATE_IMAGE_CONTENT");
+    expect(serializedLogs).not.toContain("deployment missing");
   });
 
   it("normalizes uncertain output without inventing missing fields", () => {

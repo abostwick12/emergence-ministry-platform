@@ -19,12 +19,18 @@ export type MedicationLabelScanResponse = {
 export type MedicationLabelVisionResult =
   | { ok: true; scan: MedicationLabelScanResponse; provider: "azure" | "openai"; durationMs: number; model: string }
   | { ok: false; reason: "unavailable"; durationMs: number }
-  | { ok: false; reason: "provider_error"; durationMs: number; status?: number }
+  | { ok: false; reason: "provider_error"; durationMs: number; status?: number; code?: string }
   | { ok: false; reason: "invalid_output"; durationMs: number }
   | { ok: false; reason: "timeout"; durationMs: number };
 
 type ChatCompletionJson = {
   choices?: Array<{ message?: { content?: string } }>;
+  model?: string;
+};
+
+type ResponsesCompletionJson = {
+  output_text?: string;
+  output?: Array<{ content?: Array<{ text?: string; type?: string }> }>;
   model?: string;
 };
 
@@ -55,17 +61,19 @@ export async function scanMedicationLabelFrame(input: {
   timeoutMs?: number;
   maxTokens?: number;
 }): Promise<MedicationLabelVisionResult> {
+  const diagnostics = readAzureDiagnosticPresence();
   const azureConfig = readCampEmmaAzureConfig();
   if (azureConfig) {
-    return callVisionChatCompletion({
+    return callAzureVisionResponses({
       provider: "azure",
-      url: `${trimTrailingSlash(azureConfig.endpoint)}/openai/deployments/${encodeURIComponent(azureConfig.deployment)}/chat/completions?api-version=${encodeURIComponent(azureConfig.apiVersion)}`,
+      url: azureResponsesUrl(azureConfig.endpoint),
       headers: { "api-key": azureConfig.apiKey },
       model: azureConfig.deployment,
       dataUrl: input.dataUrl,
       fetchImpl: input.fetchImpl,
       timeoutMs: input.timeoutMs,
-      maxTokens: input.maxTokens
+      maxTokens: input.maxTokens,
+      diagnostics
     });
   }
 
@@ -79,11 +87,114 @@ export async function scanMedicationLabelFrame(input: {
       dataUrl: input.dataUrl,
       fetchImpl: input.fetchImpl,
       timeoutMs: input.timeoutMs,
-      maxTokens: input.maxTokens
+      maxTokens: input.maxTokens,
+      diagnostics
     });
   }
 
+  logMedicationLabelScanDiagnostic("provider_unavailable", {
+    providerSelected: "none",
+    ...diagnostics
+  });
   return { ok: false, reason: "unavailable", durationMs: 0 };
+}
+
+async function callAzureVisionResponses(input: {
+  provider: "azure";
+  url: string;
+  headers: Record<string, string>;
+  model: string;
+  dataUrl: string;
+  fetchImpl?: typeof fetch;
+  timeoutMs?: number;
+  maxTokens?: number;
+  diagnostics: MedicationLabelScanDiagnostics;
+}): Promise<MedicationLabelVisionResult> {
+  const startedAt = Date.now();
+  const fetchImpl = input.fetchImpl ?? fetch;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), input.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+
+  try {
+    const response = await fetchImpl(input.url, {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        ...input.headers
+      },
+      body: JSON.stringify({
+        model: input.model,
+        instructions: SYSTEM_PROMPT,
+        input: [
+          {
+            role: "user",
+            content: [
+              { type: "input_text", text: USER_PROMPT },
+              { type: "input_image", image_url: input.dataUrl }
+            ]
+          }
+        ],
+        temperature: 0,
+        max_output_tokens: input.maxTokens ?? DEFAULT_MAX_TOKENS
+      })
+    });
+
+    const durationMs = Date.now() - startedAt;
+    if (!response.ok) {
+      const code = await readProviderErrorCode(response);
+      logMedicationLabelScanDiagnostic("provider_error", {
+        providerSelected: input.provider,
+        ...input.diagnostics,
+        providerErrorStatus: response.status,
+        providerErrorCode: code
+      });
+      return { ok: false, reason: "provider_error", durationMs, status: response.status, code };
+    }
+
+    const json = await response.json() as ResponsesCompletionJson;
+    const text = extractResponsesOutputText(json);
+    if (!text) {
+      logMedicationLabelScanDiagnostic("invalid_output", {
+        providerSelected: input.provider,
+        ...input.diagnostics
+      });
+      return { ok: false, reason: "invalid_output", durationMs };
+    }
+
+    const scan = parseMedicationLabelScanJson(text);
+    if (!scan) {
+      logMedicationLabelScanDiagnostic("invalid_output", {
+        providerSelected: input.provider,
+        ...input.diagnostics
+      });
+      return { ok: false, reason: "invalid_output", durationMs };
+    }
+
+    return {
+      ok: true,
+      scan,
+      provider: input.provider,
+      durationMs,
+      model: json.model ?? input.model
+    };
+  } catch (error) {
+    const durationMs = Date.now() - startedAt;
+    if (error instanceof DOMException && error.name === "AbortError") {
+      logMedicationLabelScanDiagnostic("timeout", {
+        providerSelected: input.provider,
+        ...input.diagnostics
+      });
+      return { ok: false, reason: "timeout", durationMs };
+    }
+    logMedicationLabelScanDiagnostic("provider_error", {
+      providerSelected: input.provider,
+      ...input.diagnostics
+    });
+    return { ok: false, reason: "provider_error", durationMs };
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function callVisionChatCompletion(input: {
@@ -95,6 +206,7 @@ async function callVisionChatCompletion(input: {
   fetchImpl?: typeof fetch;
   timeoutMs?: number;
   maxTokens?: number;
+  diagnostics: MedicationLabelScanDiagnostics;
 }): Promise<MedicationLabelVisionResult> {
   const startedAt = Date.now();
   const fetchImpl = input.fetchImpl ?? fetch;
@@ -129,15 +241,34 @@ async function callVisionChatCompletion(input: {
 
     const durationMs = Date.now() - startedAt;
     if (!response.ok) {
-      return { ok: false, reason: "provider_error", durationMs, status: response.status };
+      const code = await readProviderErrorCode(response);
+      logMedicationLabelScanDiagnostic("provider_error", {
+        providerSelected: input.provider,
+        ...input.diagnostics,
+        providerErrorStatus: response.status,
+        providerErrorCode: code
+      });
+      return { ok: false, reason: "provider_error", durationMs, status: response.status, code };
     }
 
     const json = await response.json() as ChatCompletionJson;
     const text = json.choices?.[0]?.message?.content?.trim();
-    if (!text) return { ok: false, reason: "invalid_output", durationMs };
+    if (!text) {
+      logMedicationLabelScanDiagnostic("invalid_output", {
+        providerSelected: input.provider,
+        ...input.diagnostics
+      });
+      return { ok: false, reason: "invalid_output", durationMs };
+    }
 
     const scan = parseMedicationLabelScanJson(text);
-    if (!scan) return { ok: false, reason: "invalid_output", durationMs };
+    if (!scan) {
+      logMedicationLabelScanDiagnostic("invalid_output", {
+        providerSelected: input.provider,
+        ...input.diagnostics
+      });
+      return { ok: false, reason: "invalid_output", durationMs };
+    }
 
     return {
       ok: true,
@@ -149,8 +280,16 @@ async function callVisionChatCompletion(input: {
   } catch (error) {
     const durationMs = Date.now() - startedAt;
     if (error instanceof DOMException && error.name === "AbortError") {
+      logMedicationLabelScanDiagnostic("timeout", {
+        providerSelected: input.provider,
+        ...input.diagnostics
+      });
       return { ok: false, reason: "timeout", durationMs };
     }
+    logMedicationLabelScanDiagnostic("provider_error", {
+      providerSelected: input.provider,
+      ...input.diagnostics
+    });
     return { ok: false, reason: "provider_error", durationMs };
   } finally {
     clearTimeout(timeout);
@@ -214,6 +353,75 @@ function normalizeConfidence(value: unknown): MedicationLabelScanConfidence {
 
 function uniqueWarnings(warnings: string[]) {
   return Array.from(new Set(warnings.map((warning) => warning.trim()).filter(Boolean))).slice(0, 8);
+}
+
+type MedicationLabelScanDiagnostics = {
+  azureEndpointPresent: boolean;
+  azureDeploymentPresent: boolean;
+  azureApiVersionPresent: boolean;
+};
+
+function readAzureDiagnosticPresence(): MedicationLabelScanDiagnostics {
+  return {
+    azureEndpointPresent: Boolean(process.env.AZURE_OPENAI_ENDPOINT?.trim()),
+    azureDeploymentPresent: Boolean(process.env.AZURE_OPENAI_DEPLOYMENT?.trim()),
+    azureApiVersionPresent: Boolean(process.env.AZURE_OPENAI_API_VERSION?.trim())
+  };
+}
+
+function logMedicationLabelScanDiagnostic(event: "provider_unavailable" | "provider_error" | "invalid_output" | "timeout", details: MedicationLabelScanDiagnostics & {
+  providerSelected: "azure" | "openai" | "none";
+  providerErrorStatus?: number;
+  providerErrorCode?: string;
+}) {
+  console.warn("[camp-medication-label-scan]", {
+    event,
+    providerSelected: details.providerSelected,
+    azureEndpointPresent: details.azureEndpointPresent,
+    azureDeploymentPresent: details.azureDeploymentPresent,
+    azureApiVersionPresent: details.azureApiVersionPresent,
+    providerErrorStatus: details.providerErrorStatus,
+    providerErrorCode: details.providerErrorCode
+  });
+}
+
+async function readProviderErrorCode(response: Response) {
+  try {
+    const payload = await response.json() as unknown;
+    return cleanProviderErrorCode(extractProviderErrorCode(payload));
+  } catch {
+    return undefined;
+  }
+}
+
+function extractProviderErrorCode(value: unknown): unknown {
+  if (!value || typeof value !== "object") return undefined;
+  const source = value as { code?: unknown; error?: { code?: unknown } };
+  return source.error?.code ?? source.code;
+}
+
+function cleanProviderErrorCode(value: unknown) {
+  if (typeof value !== "string") return undefined;
+  const cleaned = value.trim();
+  return /^[A-Za-z0-9_.:-]{1,80}$/.test(cleaned) ? cleaned : "unrecognized_error_code";
+}
+
+function extractResponsesOutputText(json: ResponsesCompletionJson) {
+  if (typeof json.output_text === "string" && json.output_text.trim()) return json.output_text.trim();
+  const text = json.output
+    ?.flatMap((item) => item.content ?? [])
+    .map((content) => content.text)
+    .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+    .join("\n")
+    .trim();
+  return text || undefined;
+}
+
+function azureResponsesUrl(endpoint: string) {
+  const trimmed = trimTrailingSlash(endpoint);
+  if (trimmed.endsWith("/openai/v1")) return `${trimmed}/responses`;
+  if (trimmed.endsWith("/openai")) return `${trimmed}/v1/responses`;
+  return `${trimmed}/openai/v1/responses`;
 }
 
 function trimTrailingSlash(value: string): string {
