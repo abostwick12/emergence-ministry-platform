@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession, unauthorizedResponse } from "@/lib/auth/server";
 import { requireCampAccessForRequest } from "@/lib/camp/api-guard";
+import { isCampMedicationScanEnabled } from "@/lib/camp/medication-scan-config";
 import {
   archiveMedicationWorkflowItem,
   getRestrictedCampMedicationPayload,
@@ -38,7 +39,8 @@ export async function GET(request: Request) {
     administrationItems: payload.administrationItems ?? [],
     returnChecklist: payload.returnChecklist,
     intakeHistory: payload.intakeHistory,
-    intakeSessions: payload.intakeSessions ?? []
+    intakeSessions: payload.intakeSessions ?? [],
+    scanEnabled: isCampMedicationScanEnabled()
   });
 }
 

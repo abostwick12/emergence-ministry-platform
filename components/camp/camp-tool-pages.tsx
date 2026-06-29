@@ -44,6 +44,7 @@ type MedicationPayload = {
   returnChecklist: CampMedicationReturnItem[];
   intakeHistory: CampMedicationIntakeRecord[];
   intakeSessions?: CampMedicationIntakeSession[];
+  scanEnabled?: boolean;
 };
 
 type MedicationState =
@@ -54,6 +55,58 @@ type MedicationState =
 type IntakeDraftMedication = CampMedicationIntakeSessionMedicationInput & {
   clientId: string;
 };
+
+type MedicationLabelScanResponse = {
+  studentNameOnLabel?: string;
+  medicationName?: string;
+  dose?: string;
+  directions?: string;
+  suggestedTimes?: string[];
+  quantityReceived?: string;
+  instructions?: string;
+  rawText?: string;
+  confidence: "low" | "medium" | "high";
+  warnings: string[];
+  error?: string;
+  processingPath?: string;
+};
+
+type MedicationLabelScanReview = {
+  studentNameOnLabel: string;
+  medicationName: string;
+  dose: string;
+  directions: string;
+  suggestedTimesText: string;
+  quantityReceived: string;
+  instructions: string;
+};
+
+const MEDICATION_SCAN_WARNING = "AI/OCR may misread medication labels. Verify every field against the original bottle before saving.";
+const MEDICATION_SCAN_DISABLED_MESSAGE = "Medication label scanning is disabled.";
+
+function emptyMedicationScanReview(): MedicationLabelScanReview {
+  return {
+    studentNameOnLabel: "",
+    medicationName: "",
+    dose: "",
+    directions: "",
+    suggestedTimesText: "",
+    quantityReceived: "",
+    instructions: ""
+  };
+}
+
+function reviewFromMedicationScan(scan: MedicationLabelScanResponse): MedicationLabelScanReview {
+  return {
+    studentNameOnLabel: scan.studentNameOnLabel ?? "",
+    medicationName: scan.medicationName ?? "",
+    dose: scan.dose ?? "",
+    directions: scan.directions ?? "",
+    suggestedTimesText: scan.suggestedTimes?.join(", ") ?? "",
+    quantityReceived: scan.quantityReceived ?? "",
+    instructions: scan.instructions ?? ""
+  };
+}
 
 function BackToMore() {
   return (
@@ -1793,6 +1846,7 @@ export function CampMedicineIntakeToolPage() {
 }
 
 function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
+  const scanEnabled = data.scanEnabled === true;
   const [checkInRecords, setCheckInRecords] = useState(data.checkIn);
   const [intakeHistory, setIntakeHistory] = useState(data.intakeHistory);
   const [returnChecklist, setReturnChecklist] = useState(data.returnChecklist);
@@ -1843,6 +1897,15 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
   const [returnNotes, setReturnNotes] = useState(selectedReturn?.returnNotes ?? "");
   const [message, setMessage] = useState<{ tone: "error" | "success"; text: string } | null>(null);
   const [saving, setSaving] = useState<"intake" | "return" | null>(null);
+  const scanVideoRef = useRef<HTMLVideoElement | null>(null);
+  const scanCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const scanStreamRef = useRef<MediaStream | null>(null);
+  const [scanDialogOpen, setScanDialogOpen] = useState(false);
+  const [scanStage, setScanStage] = useState<"camera" | "review">("camera");
+  const [scanBusy, setScanBusy] = useState(false);
+  const [scanMessage, setScanMessage] = useState("");
+  const [scanResult, setScanResult] = useState<MedicationLabelScanResponse | null>(null);
+  const [scanReview, setScanReview] = useState<MedicationLabelScanReview>(() => emptyMedicationScanReview());
 
   useEffect(() => {
     if (!intakePhotoFile) {
@@ -1853,6 +1916,47 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
     setIntakePhotoPreviewUrl(nextUrl);
     return () => URL.revokeObjectURL(nextUrl);
   }, [intakePhotoFile]);
+
+  useEffect(() => {
+    if (!scanDialogOpen || scanStage !== "camera") return;
+    let cancelled = false;
+    const videoElement = scanVideoRef.current;
+
+    async function startCamera() {
+      setScanBusy(true);
+      setScanMessage("Starting camera...");
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setScanBusy(false);
+        setScanMessage("Camera is unavailable in this browser. Continue with manual entry.");
+        return;
+      }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
+        if (cancelled) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+        scanStreamRef.current = stream;
+        if (videoElement) {
+          videoElement.srcObject = stream;
+          await videoElement.play().catch(() => undefined);
+        }
+        setScanMessage("");
+      } catch {
+        setScanMessage("Camera could not be opened. Continue with manual entry.");
+      } finally {
+        if (!cancelled) setScanBusy(false);
+      }
+    }
+
+    void startCamera();
+    return () => {
+      cancelled = true;
+      scanStreamRef.current?.getTracks().forEach((track) => track.stop());
+      scanStreamRef.current = null;
+      if (videoElement) videoElement.srcObject = null;
+    };
+  }, [scanDialogOpen, scanStage]);
 
   useEffect(() => {
     if (!selectedMedication) return;
@@ -1884,6 +1988,119 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
     setIntakePhotoFile(file);
     if (file) setPhotoUpload({ status: "idle" });
     setPhotoMessage(file ? "Medication photo selected. It will save with this parent handoff." : "Medication photo capture cancelled. Intake can still be saved without a photo.");
+  }
+
+  function openScanDialog() {
+    if (!scanEnabled) {
+      setMessage({ tone: "error", text: MEDICATION_SCAN_DISABLED_MESSAGE });
+      return;
+    }
+    setMessage(null);
+    setScanDialogOpen(true);
+    setScanStage("camera");
+    setScanBusy(false);
+    setScanMessage("");
+    setScanResult(null);
+    setScanReview(emptyMedicationScanReview());
+  }
+
+  function closeScanDialog() {
+    setScanDialogOpen(false);
+    setScanBusy(false);
+    setScanMessage("");
+  }
+
+  async function readLabelFromCamera() {
+    const video = scanVideoRef.current;
+    const canvas = scanCanvasRef.current;
+    if (!video || !canvas || !video.videoWidth || !video.videoHeight) {
+      setScanMessage("Camera frame is not ready yet. Try again, or continue with manual entry.");
+      return;
+    }
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const context = canvas.getContext("2d");
+    if (!context) {
+      setScanMessage("Camera frame could not be prepared. Continue with manual entry.");
+      return;
+    }
+
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.86));
+    if (!blob) {
+      setScanMessage("Camera frame could not be read. Continue with manual entry.");
+      return;
+    }
+
+    await submitMedicationLabelFrame(new File([blob], "medication-label-frame.jpg", { type: "image/jpeg" }));
+  }
+
+  async function submitMedicationLabelFrame(file: File) {
+    setScanBusy(true);
+    setScanMessage("Reading label...");
+    setScanResult(null);
+    try {
+      const formData = new FormData();
+      formData.set("frame", file);
+      const response = await fetch("/api/camp/medication/scan-label", { method: "POST", body: formData });
+      const body = await response.json().catch(() => ({})) as MedicationLabelScanResponse;
+      if (!response.ok) {
+        setScanMessage(body.error ?? "Scan Label failed. Continue with manual entry.");
+        setScanResult(body);
+        return;
+      }
+
+      setScanResult(body);
+      setScanReview(reviewFromMedicationScan(body));
+      setScanStage("review");
+      setScanMessage("");
+    } catch {
+      setScanMessage("Scan Label failed. Continue with manual entry.");
+    } finally {
+      setScanBusy(false);
+    }
+  }
+
+  function saveReviewedMedicationRow() {
+    const reviewedInstructions = [scanReview.directions, scanReview.instructions].map((value) => value.trim()).filter(Boolean).join("\n");
+    const reviewedMedicationName = scanReview.medicationName.trim();
+    const reviewedDose = scanReview.dose.trim();
+    const reviewedSchedule = scanReview.suggestedTimesText.trim();
+    const reviewedQuantity = scanReview.quantityReceived.trim();
+
+    if (!selectedCamper || !reviewedMedicationName || !reviewedDose || !reviewedSchedule || !reviewedQuantity || !reviewedInstructions) {
+      setScanMessage("Complete medication name, dose, suggested times, quantity, and instructions before saving this row.");
+      return;
+    }
+
+    setDraftMedications((current) => [
+      ...current,
+      {
+        clientId: `scan-${Date.now()}`,
+        medicationRecordId: selectedMedication?.id,
+        medicationName: reviewedMedicationName,
+        dose: reviewedDose,
+        scheduleText: reviewedSchedule,
+        parentInstructions: reviewedInstructions,
+        staffNotes,
+        quantityReceived: reviewedQuantity,
+        containerStatus,
+        clarificationStatus,
+        scheduleType: /\bprn\b|as needed/i.test(reviewedSchedule) ? "prn" : reviewedSchedule ? "scheduled" : "needs_review",
+        isPrn: /\bprn\b|as needed/i.test(reviewedSchedule)
+      }
+    ]);
+    setEditingDraftId("");
+    setMedicationRecordId("");
+    clearNewMedicationFields();
+    setDose("");
+    setQuantityReceived("");
+    setStaffNotes("");
+    setContainerStatus("Original labeled container received");
+    setClarificationStatus("Clear");
+    setMessage({ tone: "success", text: "Reviewed scan row added to this intake session. Complete Intake saves the grouped medication record." });
+    closeScanDialog();
   }
 
   function currentDraftMedication(): IntakeDraftMedication {
@@ -2261,8 +2478,28 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
               <button className="button compact-button" type="button" onClick={addOrUpdateMedicationRow}>
                 {editingDraftId ? "Update Medication Row" : "Add Medication Manually"}
               </button>
-              <button className="button compact-button" type="button" disabled title="OCR scan-to-fill is planned for a future pass.">Scan Bottle</button>
+              <button
+                className="button compact-button"
+                type="button"
+                disabled={!scanEnabled}
+                title={scanEnabled ? "Open live prescription label scanner" : MEDICATION_SCAN_DISABLED_MESSAGE}
+                onClick={openScanDialog}
+              >
+                Scan Label
+              </button>
             </div>
+            <section aria-label="Live label scan">
+              <h3 className="camp-tool-group-title">Live Label Scan</h3>
+              {scanEnabled ? (
+                <>
+                  <p className="camp-cc-muted">Optional camera helper for reducing typing. Manual medication entry remains available if scanning fails.</p>
+                  <p className="camp-cc-muted">The scanner uses server-side transient frame processing with no permanent image storage.</p>
+                  <p className="camp-cc-muted">{MEDICATION_SCAN_WARNING}</p>
+                </>
+              ) : (
+                <p className="camp-cc-muted">{MEDICATION_SCAN_DISABLED_MESSAGE} Manual medication entry remains available.</p>
+              )}
+            </section>
             <section aria-label="Current medications for intake">
               <h3 className="camp-tool-group-title">Current Medications</h3>
               {medicationRowsForCompletion.length ? (
@@ -2337,6 +2574,93 @@ function MedicineIntakeReturnWorkflow({ data }: { data: MedicationPayload }) {
           <EmptyState>No medication intake records are available to continue intake.</EmptyState>
         )}
       </section>
+
+      {scanDialogOpen ? (
+        <CampOperationDialog
+          title={scanStage === "review" ? "Review Scanned Medication" : "Scan Prescription Label"}
+          description={scanStage === "review" ? "Edit every field against the physical bottle before saving this medication row." : "Point the camera at the prescription label. No photo will be saved."}
+          onClose={closeScanDialog}
+        >
+          {scanStage === "camera" ? (
+            <section className="camp-label-scan" aria-label="Scan Prescription Label">
+              <p className="camp-cc-muted">Point the camera at the prescription label. No photo will be saved.</p>
+              <div className="camp-label-scan-viewfinder">
+                {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+                <video ref={scanVideoRef} autoPlay muted playsInline />
+              </div>
+              <canvas ref={scanCanvasRef} hidden />
+              {scanMessage ? <p className={scanResult?.error ? "camp-save-message error" : "camp-save-message"} role={scanResult?.error ? "alert" : "status"}>{scanMessage}</p> : null}
+              <div className="camp-row-actions">
+                <button className="button primary" type="button" disabled={scanBusy} onClick={() => void readLabelFromCamera()}>
+                  {scanBusy ? "Reading Label..." : "Read Label"}
+                </button>
+                <label className="button compact-button">
+                  <span>Use Temporary Image</span>
+                  <input
+                    className="sr-only"
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    disabled={scanBusy}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0] ?? null;
+                      event.target.value = "";
+                      if (file) void submitMedicationLabelFrame(file);
+                    }}
+                  />
+                </label>
+                <button className="button compact-button" type="button" onClick={closeScanDialog}>Cancel</button>
+              </div>
+            </section>
+          ) : (
+            <section className="camp-label-scan-review" aria-label="Review Scanned Medication">
+              <div className="camp-form-grid">
+                <label className="field">
+                  <span>Student name on label</span>
+                  <input className="input" value={scanReview.studentNameOnLabel} onChange={(event) => setScanReview((current) => ({ ...current, studentNameOnLabel: event.target.value }))} />
+                </label>
+                <label className="field">
+                  <span>Medication name</span>
+                  <input className="input" value={scanReview.medicationName} onChange={(event) => setScanReview((current) => ({ ...current, medicationName: event.target.value }))} />
+                </label>
+                <label className="field">
+                  <span>Dose / strength</span>
+                  <input className="input" value={scanReview.dose} onChange={(event) => setScanReview((current) => ({ ...current, dose: event.target.value }))} />
+                </label>
+                <label className="field">
+                  <span>Suggested time(s)</span>
+                  <input className="input" value={scanReview.suggestedTimesText} onChange={(event) => setScanReview((current) => ({ ...current, suggestedTimesText: event.target.value }))} />
+                </label>
+                <label className="field">
+                  <span>Quantity received</span>
+                  <input className="input" value={scanReview.quantityReceived} onChange={(event) => setScanReview((current) => ({ ...current, quantityReceived: event.target.value }))} />
+                </label>
+              </div>
+              <label className="field">
+                <span>Directions</span>
+                <textarea className="input" rows={3} value={scanReview.directions} onChange={(event) => setScanReview((current) => ({ ...current, directions: event.target.value }))} />
+              </label>
+              <label className="field">
+                <span>Instructions / notes</span>
+                <textarea className="input" rows={3} value={scanReview.instructions} onChange={(event) => setScanReview((current) => ({ ...current, instructions: event.target.value }))} />
+              </label>
+              <p className="camp-cc-muted">Confidence: <strong>{scanResult?.confidence ?? "low"}</strong></p>
+              {scanResult?.warnings?.length ? (
+                <ul className="camp-label-scan-warnings">
+                  {scanResult.warnings.map((warning) => <li key={warning}>{warning}</li>)}
+                </ul>
+              ) : null}
+              <p className="camp-save-message warning" role="status">{MEDICATION_SCAN_WARNING}</p>
+              {scanMessage ? <p className="camp-save-message error" role="alert">{scanMessage}</p> : null}
+              <div className="camp-row-actions">
+                <button className="button primary" type="button" onClick={saveReviewedMedicationRow}>Save Medication Row</button>
+                <button className="button compact-button" type="button" onClick={() => { setScanStage("camera"); setScanResult(null); setScanReview(emptyMedicationScanReview()); setScanMessage(""); }}>Scan Again</button>
+                <button className="button compact-button" type="button" onClick={closeScanDialog}>Cancel</button>
+              </div>
+              <p className="camp-cc-muted">Saving this row only adds it to the current intake session list. Complete Intake saves the grouped medication record.</p>
+            </section>
+          )}
+        </CampOperationDialog>
+      ) : null}
 
       <section className="camp-admin-form" aria-label="Medication return checkout">
         <h2 className="camp-tool-group-title">Record medication return / checkout</h2>

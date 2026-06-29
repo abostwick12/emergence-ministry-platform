@@ -25,6 +25,7 @@ import { POST as bulletinPOST } from "@/app/api/camp/bulletins/route";
 import { GET as campGET } from "@/app/api/camp/route";
 import { GET as medicalCommandGET } from "@/app/api/camp/medical-command/route";
 import { GET as photoGET, POST as photoPOST } from "@/app/api/camp/medication/photos/route";
+import { POST as scanLabelPOST } from "@/app/api/camp/medication/scan-label/route";
 import { GET as medicationGET, POST as medicationPOST } from "@/app/api/camp/medication/route";
 import { GET as medicalGET, POST as medicalPOST } from "@/app/api/camp/restricted-medical/route";
 import { GET as staffGET, PATCH as staffPATCH } from "@/app/api/camp/staff/route";
@@ -110,6 +111,12 @@ function medicationPhotoRequest(url: string, medicationRecordId: string, intakeR
   formData.set("medicationRecordId", medicationRecordId);
   if (intakeRecordId) formData.set("intakeRecordId", intakeRecordId);
   formData.set("photo", new File(["fake image"], "medicine.jpg", { type: "image/jpeg" }));
+  return new Request(url, { method: "POST", body: formData });
+}
+
+function medicationScanRequest(url: string, file = new File(["fake image"], "medicine-label.jpg", { type: "image/jpeg" })) {
+  const formData = new FormData();
+  formData.set("frame", file);
   return new Request(url, { method: "POST", body: formData });
 }
 
@@ -402,6 +409,7 @@ describe("camp API restricted data boundaries", () => {
 
   it("blocks General Leaders and Drivers from archive, restore, archived list, and medication photo routes", async () => {
     getServerSessionMock.mockResolvedValue(session());
+    vi.stubEnv("CAMP_MEDICATION_SCAN_ENABLED", "true");
 
     for (const role of ["general_leader", "driver"]) {
       const archivedList = await studentsGET(new Request(`http://localhost/api/camp/students?role=${role}`));
@@ -422,6 +430,7 @@ describe("camp API restricted data boundaries", () => {
       }));
       const upload = await photoPOST(photoRequest(`http://localhost/api/camp/medication/photos?role=${role}`));
       const getPhoto = await photoGET(new Request(`http://localhost/api/camp/medication/photos?role=${role}&medicationRecordId=med-1`));
+      const scanLabel = await scanLabelPOST(medicationScanRequest(`http://localhost/api/camp/medication/scan-label?role=${role}`));
 
       expect(archivedList.status).toBe(403);
       expect(archive.status).toBe(403);
@@ -429,7 +438,138 @@ describe("camp API restricted data boundaries", () => {
       expect(archiveHistory.status).toBe(403);
       expect(upload.status).toBe(403);
       expect(getPhoto.status).toBe(403);
+      expect(scanLabel.status).toBe(403);
     }
+  });
+
+  it("keeps label scanning disabled safely when the feature flag is missing", async () => {
+    getServerSessionMock.mockResolvedValue(andrewSession());
+
+    const before = await medicationGET(new Request("http://localhost/api/camp/medication?role=andrew"));
+    const beforePayload = await before.json() as { checkIn: unknown[]; intakeHistory: unknown[]; scanEnabled?: boolean };
+    const response = await scanLabelPOST(medicationScanRequest("http://localhost/api/camp/medication/scan-label?role=andrew"));
+    const payload = await response.json() as { error?: string; confidence?: string; warnings?: string[]; rawText?: string; signedUrl?: string; storageObjectPath?: string; processingPath?: string };
+    const after = await medicationGET(new Request("http://localhost/api/camp/medication?role=andrew"));
+    const afterPayload = await after.json() as { checkIn: unknown[]; intakeHistory: unknown[] };
+
+    expect(response.status).toBe(503);
+    expect(payload).toMatchObject({
+      error: "Medication label scanning is disabled.",
+      confidence: "low",
+      warnings: ["Medication label scanning is disabled."],
+      processingPath: "server-side transient frame processing, no permanent image storage"
+    });
+    expect(beforePayload.scanEnabled).toBe(false);
+    expect(payload.rawText).toBeUndefined();
+    expect(payload.signedUrl).toBeUndefined();
+    expect(payload.storageObjectPath).toBeUndefined();
+    expect(afterPayload.checkIn).toHaveLength(beforePayload.checkIn.length);
+    expect(afterPayload.intakeHistory).toHaveLength(beforePayload.intakeHistory.length);
+  });
+
+  it("keeps label scanning disabled safely when the feature flag is false", async () => {
+    getServerSessionMock.mockResolvedValue(andrewSession());
+    vi.stubEnv("CAMP_MEDICATION_SCAN_ENABLED", "false");
+    vi.stubEnv("OPENAI_API_KEY", "test-openai-key");
+    const fetchMock = vi.fn<typeof fetch>();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await scanLabelPOST(medicationScanRequest("http://localhost/api/camp/medication/scan-label?role=andrew"));
+    const payload = await response.json() as { error?: string; warnings?: string[] };
+
+    expect(response.status).toBe(503);
+    expect(payload).toMatchObject({
+      error: "Medication label scanning is disabled.",
+      warnings: ["Medication label scanning is disabled."]
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("requires authentication before label scanning", async () => {
+    getServerSessionMock.mockResolvedValue(null);
+
+    const response = await scanLabelPOST(medicationScanRequest("http://localhost/api/camp/medication/scan-label"));
+
+    expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({ error: "Authentication required" });
+  });
+
+  it("returns extracted label fields without creating medication rows directly", async () => {
+    getServerSessionMock.mockResolvedValue(andrewSession());
+    vi.stubEnv("CAMP_MEDICATION_SCAN_ENABLED", "true");
+    vi.stubEnv("OPENAI_API_KEY", "test-openai-key");
+    vi.stubEnv("OPENAI_MODEL", "gpt-4o-mini");
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => Response.json({
+      model: "gpt-4o-mini",
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              studentNameOnLabel: "Riley Brooks",
+              medicationName: "Camp label med",
+              dose: "5 mg",
+              directions: "Take one tablet by mouth every morning.",
+              suggestedTimes: ["Morning"],
+              quantityReceived: "10 tablets",
+              instructions: "Original prescription label text only.",
+              rawText: "Riley Brooks Camp label med 5 mg",
+              confidence: "medium",
+              warnings: ["Verify quantity against bottle."]
+            })
+          }
+        }
+      ]
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const before = await medicationGET(new Request("http://localhost/api/camp/medication?role=andrew"));
+    const beforePayload = await before.json() as { checkIn: unknown[]; intakeHistory: unknown[] };
+    const response = await scanLabelPOST(medicationScanRequest("http://localhost/api/camp/medication/scan-label?role=andrew"));
+    const payload = await response.json() as { medicationName?: string; dose?: string; suggestedTimes?: string[]; confidence?: string; warnings?: string[]; rawText?: string; signedUrl?: string; storageObjectPath?: string; processingPath?: string };
+    const after = await medicationGET(new Request("http://localhost/api/camp/medication?role=andrew"));
+    const afterPayload = await after.json() as { checkIn: unknown[]; intakeHistory: unknown[] };
+    const providerBody = JSON.parse(fetchMock.mock.calls[0][1]?.body as string);
+
+    expect(response.status).toBe(200);
+    expect(payload).toMatchObject({
+      medicationName: "Camp label med",
+      dose: "5 mg",
+      suggestedTimes: ["Morning"],
+      confidence: "medium",
+      rawText: "Riley Brooks Camp label med 5 mg",
+      processingPath: "server-side transient frame processing, no permanent image storage"
+    });
+    expect(payload.warnings).toEqual(expect.arrayContaining([
+      "Verify quantity against bottle.",
+      "AI/OCR may misread medication labels. Verify every field against the original bottle before saving."
+    ]));
+    expect(payload.signedUrl).toBeUndefined();
+    expect(payload.storageObjectPath).toBeUndefined();
+    expect(JSON.stringify(providerBody)).toContain("data:image/jpeg;base64");
+    expect(afterPayload.checkIn).toHaveLength(beforePayload.checkIn.length);
+    expect(afterPayload.intakeHistory).toHaveLength(beforePayload.intakeHistory.length);
+  });
+
+  it("validates temporary label scan uploads before the OCR response", async () => {
+    getServerSessionMock.mockResolvedValue(andrewSession());
+    vi.stubEnv("CAMP_MEDICATION_SCAN_ENABLED", "true");
+
+    const wrongType = await scanLabelPOST(medicationScanRequest(
+      "http://localhost/api/camp/medication/scan-label?role=andrew",
+      new File(["not image"], "medicine.txt", { type: "text/plain" })
+    ));
+    const largeImage = await scanLabelPOST(medicationScanRequest(
+      "http://localhost/api/camp/medication/scan-label?role=andrew",
+      new File([new Uint8Array((4 * 1024 * 1024) + 1)], "large-medicine-label.jpg", { type: "image/jpeg" })
+    ));
+    const missingImage = await scanLabelPOST(new Request("http://localhost/api/camp/medication/scan-label?role=andrew", { method: "POST", body: new FormData() }));
+
+    expect(wrongType.status).toBe(400);
+    expect(await wrongType.json()).toEqual({ error: "Prescription label scan must be a JPEG, PNG, or WebP image." });
+    expect(largeImage.status).toBe(413);
+    expect(await largeImage.json()).toEqual({ error: "Prescription label scan image must be 4 MB or smaller." });
+    expect(missingImage.status).toBe(400);
+    expect(await missingImage.json()).toEqual({ error: "A temporary prescription label image is required." });
   });
 
   it("allows Andrew's authenticated bootstrap identity to reach restricted medical and medication routes", async () => {
@@ -851,6 +991,7 @@ describe("camp API restricted data boundaries", () => {
 
   it("allows restricted users to complete one intake session with multiple medication rows", async () => {
     getServerSessionMock.mockResolvedValue(andrewSession());
+    vi.stubEnv("CAMP_MEDICATION_SCAN_ENABLED", "false");
 
     const response = await medicationPOST(jsonRequest("http://localhost/api/camp/medication?role=andrew", {
       target: "intakeSession",
@@ -887,7 +1028,8 @@ describe("camp API restricted data boundaries", () => {
     expect(payload.records.map((record) => record.medicationName)).toEqual(expect.arrayContaining(["API breakfast med", "API dinner med"]));
 
     const medicationResponse = await medicationGET(new Request("http://localhost/api/camp/medication?role=andrew"));
-    const medicationPayload = await medicationResponse.json() as { intakeSessions: Array<Record<string, unknown>>; intakeHistory: Array<Record<string, unknown>> };
+    const medicationPayload = await medicationResponse.json() as { intakeSessions: Array<Record<string, unknown>>; intakeHistory: Array<Record<string, unknown>>; scanEnabled?: boolean };
+    expect(medicationPayload.scanEnabled).toBe(false);
     expect(medicationPayload.intakeSessions[0]).toMatchObject({ medicationCount: 2 });
     expect(medicationPayload.intakeHistory.map((item) => item.medicationName)).toEqual(expect.arrayContaining(["API breakfast med", "API dinner med"]));
   });

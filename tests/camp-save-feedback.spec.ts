@@ -29,6 +29,8 @@ test.describe("Camp dedicated medication tool pages", () => {
     await expect(page.getByRole("heading", { name: "Medicine Intake / Return" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Save medication intake" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Save return status" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Scan Label" })).toBeDisabled();
+    await expect(page.getByText("Medication label scanning is disabled. Manual medication entry remains available.")).toBeVisible();
 
     await page.goto("/camp/medical-command/administer");
     await expect(page.getByRole("heading", { name: "Administer Medicine" })).toBeVisible();
@@ -141,6 +143,59 @@ test.describe("Camp dedicated medication tool pages", () => {
     await page.goto("/camp/medical-command/administer");
     await expect(page.getByLabel("Medication time block")).toContainText("Riley Brooks - 8:00 AM");
     await expect(page.getByLabel("Medication time block")).toContainText("Riley Brooks - 12:00 PM");
+  });
+
+  test("Scan Label adds a reviewed draft row and falls back to the existing grouped intake save", async ({ page }) => {
+    await login(page);
+    await enableMedicationScanForPage(page);
+    let medicationPostCount = 0;
+    page.on("request", (request) => {
+      const url = new URL(request.url());
+      if (url.pathname === "/api/camp/medication" && request.method() === "POST") medicationPostCount += 1;
+    });
+    await page.route(/\/api\/camp\/medication\/scan-label$/, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          studentNameOnLabel: "Riley Brooks",
+          medicationName: "Scanned Camp Med",
+          dose: "5 mg",
+          directions: "Take one tablet by mouth every morning.",
+          suggestedTimes: ["Morning"],
+          quantityReceived: "10 tablets",
+          instructions: "Original label instructions.",
+          confidence: "medium",
+          warnings: ["Verify quantity against bottle."],
+          processingPath: "server-side transient frame processing, no permanent image storage"
+        })
+      });
+    });
+
+    await page.goto("/camp/medicine-intake");
+    await page.getByLabel("Camper", { exact: true }).selectOption({ label: "Riley Brooks" });
+    await page.getByRole("button", { name: "Scan Label" }).click();
+    await expect(page.getByRole("heading", { name: "Scan Prescription Label" })).toBeVisible();
+    await page.getByLabel("Use Temporary Image").setInputFiles(pngFile("scan-label.png"));
+    const reviewDialog = page.getByRole("dialog", { name: "Review Scanned Medication" });
+    await expect(reviewDialog).toBeVisible();
+    await expect(reviewDialog.getByLabel("Medication name", { exact: true })).toHaveValue("Scanned Camp Med");
+    await expect(reviewDialog.getByLabel("Dose / strength")).toHaveValue("5 mg");
+    await expect(reviewDialog.getByLabel("Suggested time(s)")).toHaveValue("Morning");
+    await expect(reviewDialog.getByLabel("Quantity received")).toHaveValue("10 tablets");
+    await expect(reviewDialog.getByText("Verify quantity against bottle.")).toBeVisible();
+
+    await page.getByRole("button", { name: "Save Medication Row" }).click();
+    await expect(page.getByText("Reviewed scan row added to this intake session. Complete Intake saves the grouped medication record.")).toBeVisible();
+    await expect(page.getByRole("region", { name: "Current medications for intake" }).getByText("Scanned Camp Med")).toBeVisible();
+    expect(medicationPostCount).toBe(0);
+
+    await page.getByLabel("Parent/guardian name").fill("Pat Parent");
+    await signPadWithWindowTouch(page.getByRole("img", { name: "Parent or guardian signature", exact: true }));
+    await page.getByLabel("Parent/guardian handoff details reviewed with staff.").check();
+    await page.getByRole("button", { name: "Save medication intake" }).click();
+    await expect(page.getByText("Saved. Medication intake recorded with parent/guardian acknowledgement.")).toBeVisible();
+    expect(medicationPostCount).toBe(1);
   });
 
   test("Medicine Intake saves the record even when background photo upload fails, then retries", async ({ page }) => {
@@ -333,4 +388,17 @@ function pngFile(name: string) {
     mimeType: "image/png",
     buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR42mP8z8BQDwAFgwJ/lwDW0wAAAABJRU5ErkJggg==", "base64")
   };
+}
+
+async function enableMedicationScanForPage(page: Page) {
+  await page.route(/\/api\/camp\/medication(?:\?|$)/, async (route) => {
+    if (route.request().method() !== "GET") {
+      await route.continue();
+      return;
+    }
+
+    const response = await route.fetch();
+    const body = await response.json() as Record<string, unknown>;
+    await route.fulfill({ response, json: { ...body, scanEnabled: true } });
+  });
 }
