@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useCamp } from "@/components/camp/camp-provider";
 import { buildCampEmmaWelcomeGreeting, getCampEmmaSuggestions } from "@/lib/camp/emma-greeting";
+import { shouldUseMedicalCommandContext } from "@/lib/camp/emma-medical-context";
 import type { CampEmmaAnswer, CampEmmaMode } from "@/lib/camp/emma";
 import type { CampEmmaActionResponse, CampEmmaActionType, CampEmmaSafeTargetOption } from "@/lib/camp/types";
 
@@ -47,10 +48,9 @@ type CampEmmaClarificationState = {
 };
 
 const actionIntentPattern = /\b(move|assign|change|put|set|switch|transfer|update)\b/i;
-const medicationQuestionPattern = /\b(medication|medicine|meds|dose|doses|intake)\b/i;
 
 export function CampEmmaSheet({ open, onClose }: CampEmmaSheetProps) {
-  const { capabilities, selectedDay, homeMode, leaderName, refresh } = useCamp();
+  const { capabilities, selectedDay, leaderName, refresh } = useCamp();
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<CampEmmaChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
@@ -116,7 +116,7 @@ export function CampEmmaSheet({ open, onClose }: CampEmmaSheetProps) {
           query: prompt,
           mode: searchMode,
           selectedDay,
-          medicalCommandActive: shouldUseMedicalCommandContext(prompt)
+          medicalCommandActive: shouldUseMedicalCommandContext(capabilities.medicalCommand, prompt)
         })
       });
       const payload = (await response.json()) as CampEmmaResponse;
@@ -284,10 +284,6 @@ export function CampEmmaSheet({ open, onClose }: CampEmmaSheetProps) {
       setConfirmLoading(false);
       setLoading(false);
     }
-  }
-
-  function shouldUseMedicalCommandContext(prompt: string): boolean {
-    return homeMode === "medical" || (capabilities.medicalCommand && medicationQuestionPattern.test(prompt));
   }
 
   if (!open) return null;

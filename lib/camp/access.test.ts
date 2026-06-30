@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { getCampVisibleStudents, isRestrictedCampMedicalRole, parseCampAccessRole } from "@/lib/camp/access";
+import { getCampVisibleStudents, getCampVisibleStudentsForData, isRestrictedCampMedicalRole, parseCampAccessRole } from "@/lib/camp/access";
 import { getRestrictedCampMedicalPayload, getRestrictedCampMedicationPayload } from "@/lib/camp/restricted-access";
 import { __resetCampStoreForTests, getCampOverview } from "@/lib/camp/store";
 
@@ -55,6 +55,63 @@ describe("camp access rules", () => {
     expect(driver.students.length).toBeGreaterThan(0);
     expect(driver.students.every((student) => student.vehicleId === "van-2")).toBe(true);
     expect(driver.students.every((student) => student.teamName === undefined)).toBe(true);
+  });
+
+  it("shows public allergy and dietary fields to general leaders without restricted summaries", () => {
+    const [student] = getCampVisibleStudentsForData("general_leader", {}, {
+      students: [{
+        id: "stu-public",
+        name: "Public Safety Camper",
+        photoInitials: "PS",
+        grade: "7th",
+        teamId: "team-blue",
+        vehicleId: "van-1",
+        cabin: "Cabin A",
+        limitedSafetyFlags: ["Allergy: Peanuts", "Diet: Gluten-free"],
+        allergies: "Peanuts",
+        dietaryRestrictions: "Gluten-free",
+        hasRestrictedMedicalInfo: true,
+        hasRestrictedMedicalBeyondPublicSafety: false,
+        hasMedicationPlan: false,
+        needsParentClarification: false,
+        restrictedMedicalSummary: [{ label: "Medical", value: "Private restricted note" }]
+      }],
+      teams: [{ id: "team-blue", name: "Blue", color: "Blue", leader: "" }],
+      vehicles: [{ id: "van-1", name: "Van 1", driver: "", departureWindow: "", capacity: 7 }]
+    });
+
+    expect(student).toMatchObject({
+      allergies: "Peanuts",
+      dietaryRestrictions: "Gluten-free",
+      hasRestrictedMedicalBeyondPublicSafety: false
+    });
+    expect(student.restrictedMedicalSummary).toBeUndefined();
+    expect(JSON.stringify(student)).not.toContain("Private restricted note");
+  });
+
+  it("keeps restricted medical summaries only on existing restricted roles", () => {
+    for (const role of ["andrew", "jaci", "joel"] as const) {
+      const [student] = getCampVisibleStudentsForData(role, {}, {
+        students: [{
+          id: "stu-restricted",
+          name: "Restricted Camper",
+          photoInitials: "RC",
+          grade: "8th",
+          teamId: "team-blue",
+          vehicleId: "van-1",
+          cabin: "Cabin B",
+          limitedSafetyFlags: [],
+          hasRestrictedMedicalInfo: true,
+          hasRestrictedMedicalBeyondPublicSafety: true,
+          hasMedicationPlan: false,
+          needsParentClarification: false,
+          restrictedMedicalSummary: [{ label: "Medical", value: "Asthma plan with medical lead" }]
+        }],
+        teams: [{ id: "team-blue", name: "Blue", color: "Blue", leader: "" }],
+        vehicles: [{ id: "van-1", name: "Van 1", driver: "", departureWindow: "", capacity: 7 }]
+      });
+      expect(student.restrictedMedicalSummary).toEqual([{ label: "Medical", value: "Asthma plan with medical lead" }]);
+    }
   });
 
   it("rejects unknown camp access roles", () => {

@@ -29,14 +29,23 @@ for (const vp of VIEWPORTS) {
       await expect(page.getByRole("heading", { name: "Leader Safety" })).toBeVisible();
       await expect(page.getByText("Contact Andrew, Jaci, or Joel", { exact: false })).toBeVisible();
       await expect(page.getByRole("searchbox", { name: "Search Leader Safety roster" })).toBeVisible();
-      // Calm presence indicator from seeded general-leader-safe data.
-      await expect(page.getByText("Medication on file", { exact: false }).first()).toBeVisible();
+      const restrictedMedical = await page.evaluate(async () => {
+        const response = await fetch("/api/camp", { cache: "no-store" });
+        const payload = await response.json() as { capabilities?: { restrictedMedical?: boolean } };
+        return Boolean(payload.capabilities?.restrictedMedical);
+      });
+      if (restrictedMedical) {
+        await expect(page.getByText("Medical: Parent-provided form received", { exact: false }).first()).toBeVisible();
+      } else {
+        await expect(page.getByText("Medical support on file", { exact: false }).first()).toBeVisible();
+      }
       await expect(page.getByLabel("Filter Leader Safety by team")).toBeVisible();
       await page.getByLabel("Filter Leader Safety by team").selectOption("Blue");
       await expect(page.getByText("Blue team").first()).toBeVisible();
 
       const body = (await page.locator("body").textContent()) ?? "";
       for (const needle of RESTRICTED_NEEDLES) {
+        if (restrictedMedical && needle === "Food allergy details") continue;
         expect(body).not.toContain(needle);
       }
     });

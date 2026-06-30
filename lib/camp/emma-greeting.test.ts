@@ -10,6 +10,12 @@ describe("Camp EMMA greeting", () => {
     expect(buildCampEmmaWelcomeGreeting("Alex Walker")).toContain("Hey, Alex!");
   });
 
+  it("uses a friendly first name when the profile name falls back to email", () => {
+    expect(buildCampEmmaWelcomeGreeting("andrew.w.bostwick12@gmail.com")).toContain("Hey, Andrew!");
+    expect(buildCampEmmaWelcomeGreeting("jaci@example.test")).toContain("Hey, Jaci!");
+    expect(buildCampEmmaWelcomeGreeting("andrew.w.bostwick12@gmail.com")).not.toContain("@");
+  });
+
   it("falls back cleanly when no first name is available", () => {
     const greeting = buildCampEmmaWelcomeGreeting("");
     expect(greeting).toContain("Hey there!");

@@ -57,7 +57,7 @@ import type {
   CampVehicleInput,
   CampVehicle
 } from "@/lib/camp/types";
-import { getCampVisibleStudentsForData } from "@/lib/camp/access";
+import { getCampVisibleStudentsForData, publicSafetyTextFromFlags } from "@/lib/camp/access";
 import { buildOakwoodImportPreviewFromCsv, mergeOakwoodImportPreviews, type OakwoodExistingPerson } from "@/lib/camp/oakwood-import";
 import { resolveMinistryScope } from "@/lib/ministry/scope";
 
@@ -480,6 +480,7 @@ export async function getCampOverview(
 
   const basics = await ensureCampBasics(session);
   const students = await loadActiveCampStudents(session, basics.camp.id);
+  const studentsWithSafety = await enrichCampStudentsWithRestrictedSafety(session, basics.camp.id, students);
   return {
     campName: basics.camp.name,
     campStartsOn: basics.camp.starts_on,
@@ -488,7 +489,7 @@ export async function getCampOverview(
     schedule: context.effectiveRole === "driver" ? basics.schedule.filter((item) => item.audience === "All Camp") : basics.schedule,
     documents: filterDocumentsForRole(context),
     students: getCampVisibleStudentsForData(context.effectiveRole, scope, {
-      students,
+      students: studentsWithSafety,
       teams: basics.teams,
       vehicles: basics.vehicles
     }),
@@ -2591,6 +2592,35 @@ async function loadActiveCampStudents(session: AuthSession, campId: string): Pro
   return (data ?? []).map((row) => toCampStudentPublic(row, photoUrls.get(row.id)));
 }
 
+async function enrichCampStudentsWithRestrictedSafety(
+  session: AuthSession,
+  campId: string,
+  students: CampStudentPublic[]
+): Promise<CampStudentPublic[]> {
+  if (!students.length) return students;
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const { data, error } = await supabase
+    .from("camp_restricted_medical_records")
+    .select("*")
+    .eq("camp_id", campId)
+    .returns<CampRestrictedMedicalRow[]>();
+
+  if (isMissingTableError(error, "camp_restricted_medical_records")) return students;
+  throwIfSupabaseError(error);
+
+  const byCamperId = new Map((data ?? []).map((row) => [row.camper_id, row]));
+  return students.map((student) => {
+    const record = byCamperId.get(student.id);
+    return {
+      ...student,
+      allergies: student.allergies ?? publicSafetyTextFromFlags(student.limitedSafetyFlags, "allergy"),
+      dietaryRestrictions: student.dietaryRestrictions ?? publicSafetyTextFromFlags(student.limitedSafetyFlags, "diet"),
+      hasRestrictedMedicalBeyondPublicSafety: student.hasMedicationPlan || Boolean(student.hasMedicalAlert) || hasNonPublicRestrictedMedicalDetails(record),
+      restrictedMedicalSummary: record ? restrictedMedicalSummaryForRow(record, student.hasMedicationPlan) : student.hasMedicationPlan ? [{ label: "Medication", value: "Plan on file" }] : undefined
+    };
+  });
+}
+
 async function loadCamperProfilePhotoUrls(session: AuthSession, campId: string): Promise<Map<string, string>> {
   const supabase = getSupabaseAuthClient(session.accessToken);
   const { data, error } = await supabase
@@ -2855,7 +2885,10 @@ function toCampStudentPublic(row: CampCamperRow, profilePhotoUrl?: string): Camp
     rosterType: row.roster_type ?? rosterTypeFromFlags(limitedSafetyFlags),
     registrationExternalId: row.registration_external_id ?? undefined,
     limitedSafetyFlags,
+    allergies: publicSafetyTextFromFlags(limitedSafetyFlags, "allergy"),
+    dietaryRestrictions: publicSafetyTextFromFlags(limitedSafetyFlags, "diet"),
     hasRestrictedMedicalInfo: Boolean(row.has_restricted_medical_info),
+    hasRestrictedMedicalBeyondPublicSafety: Boolean(row.has_medication_plan || row.has_medical_alert || row.has_restricted_medical_info),
     hasMedicationPlan: Boolean(row.has_medication_plan),
     needsParentClarification: Boolean(row.needs_parent_clarification),
     emergencyContactOnFile: Boolean(row.emergency_contact_on_file),
@@ -2864,6 +2897,33 @@ function toCampStudentPublic(row: CampCamperRow, profilePhotoUrl?: string): Camp
     archivedAt: row.archived_at ?? undefined,
     archiveReason: row.archive_reason ?? undefined
   };
+}
+
+function hasNonPublicRestrictedMedicalDetails(row?: CampRestrictedMedicalRow): boolean {
+  if (!row) return false;
+  return [
+    row.restricted_notes,
+    row.parent_medical_notes,
+    row.insurance_status,
+    row.emergency_contact_name,
+    row.emergency_contact_phone,
+    row.emergency_contact_relationship,
+    row.guardian_name,
+    row.guardian_phone,
+    row.medical_form_status === "Needs Parent Clarification" ? row.medical_form_status : ""
+  ].some((value) => Boolean(String(value ?? "").trim()));
+}
+
+function restrictedMedicalSummaryForRow(row: CampRestrictedMedicalRow, hasMedicationPlan: boolean) {
+  const items = [
+    { label: "Allergy", value: row.allergy_notes ?? "" },
+    { label: "Dietary", value: row.dietary_requirements ?? "" },
+    { label: "Medical", value: row.restricted_notes ?? "" },
+    { label: "Parent note", value: row.parent_medical_notes ?? "" },
+    row.medical_form_status === "Needs Parent Clarification" ? { label: "Form", value: row.medical_form_status } : undefined,
+    hasMedicationPlan ? { label: "Medication", value: "Plan on file" } : undefined
+  ].filter((item): item is { label: string; value: string } => Boolean(item?.value.trim()));
+  return items.length ? items : undefined;
 }
 
 function toRestrictedMedicalRecord(row: CampRestrictedMedicalRow, campers: Map<string, CampStudentPublic>): CampRestrictedMedicalRecord {

@@ -127,17 +127,20 @@ export type CampStudentPublic = {
   rosterType?: CampRosterType;
   registrationExternalId?: string;
   limitedSafetyFlags: string[];
+  allergies?: string;
+  dietaryRestrictions?: string;
   hasRestrictedMedicalInfo: boolean;
+  hasRestrictedMedicalBeyondPublicSafety?: boolean;
   hasMedicationPlan: boolean;
   needsParentClarification: boolean;
-  // SAFE leader-facing presence indicators. Derived ONLY from the workbook's
-  // explicit Quick Filter category + whether a restricted note exists — never by
-  // parsing medical/dietary free text. Booleans only; never expose detail.
+  // SAFE leader-facing indicators. Allergy and dietary text are public camp
+  // safety details; other medical/contact/form detail stays restricted.
   emergencyContactOnFile?: boolean;
   hasMedicalAlert?: boolean;
   hasDietaryAlert?: boolean;
   archivedAt?: string;
   archiveReason?: string;
+  restrictedMedicalSummary?: CampRestrictedMedicalSummaryItem[];
 };
 
 export type CampStudentInput = {
@@ -178,7 +181,10 @@ export type CampVisibleStudent = {
   sourceChurch?: string;
   rosterType?: CampRosterType;
   limitedSafetyFlags?: string[];
+  allergies?: string;
+  dietaryRestrictions?: string;
   hasRestrictedMedicalInfo?: boolean;
+  hasRestrictedMedicalBeyondPublicSafety?: boolean;
   hasMedicationPlan?: boolean;
   needsParentClarification?: boolean;
   emergencyContactOnFile?: boolean;
@@ -186,6 +192,12 @@ export type CampVisibleStudent = {
   hasDietaryAlert?: boolean;
   archivedAt?: string;
   archiveReason?: string;
+  restrictedMedicalSummary?: CampRestrictedMedicalSummaryItem[];
+};
+
+export type CampRestrictedMedicalSummaryItem = {
+  label: string;
+  value: string;
 };
 
 export type CampRestrictedMedicalRecord = {

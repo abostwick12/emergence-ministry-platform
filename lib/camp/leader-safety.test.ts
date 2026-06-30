@@ -3,6 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   LEADER_SAFETY_CONTACT_GUIDANCE,
   LEADER_SAFETY_LABELS,
+  canViewRestrictedMedical,
+  getLeaderSafeCamperIndicators,
+  getRestrictedMedicalDisplay,
   toLeaderSafetyRoster,
   toLeaderSafetyStudent
 } from "@/lib/camp/leader-safety";
@@ -21,76 +24,155 @@ function visibleStudent(overrides: Partial<CampVisibleStudent> = {}): CampVisibl
     cabin: "Cabin A",
     limitedSafetyFlags: [],
     hasRestrictedMedicalInfo: false,
+    hasRestrictedMedicalBeyondPublicSafety: false,
     hasMedicationPlan: false,
     needsParentClarification: false,
     ...overrides
   };
 }
 
-// Tokens that would indicate restricted detail leaking into a leader-safe label.
-// "medication" is intentionally excluded because the only allowed occurrence is
-// the calm "Medication on file" presence label (asserted separately). "photo" is
-// excluded because `photoInitials` (safe initials avatar) is an allowed field and
-// is unrelated to restricted medication photos.
 const RESTRICTED_TOKENS = [
+  "parent-labeled medication",
   "dose",
   "dosage",
+  "schedule",
+  "quantity",
   "insurance",
-  "allergy details",
-  "diagnos",
-  "signature",
+  "physician",
   "guardian",
+  "signature",
   "intake",
-  "audit",
-  "void",
+  "administration",
   "phone",
-  "address",
   "email",
-  "parent-labeled"
+  "private restricted note"
 ];
 
 describe("leader-safety mapper", () => {
-  it("renders the medication-on-file presence indicator (no medication detail)", () => {
-    const result = toLeaderSafetyStudent(visibleStudent({ hasMedicationPlan: true }));
-    const labels = result.indicators.map((indicator) => indicator.label);
-    expect(labels).toContain(LEADER_SAFETY_LABELS.medicationOnFile);
-    expect(labels).not.toContain(LEADER_SAFETY_LABELS.medicalSupportOnFile);
+  it("shows actual allergy text to a general leader when present", () => {
+    const result = toLeaderSafetyStudent(visibleStudent({ allergies: "Peanuts" }));
+    expect(result.indicators.map((indicator) => indicator.label)).toContain("Allergy: Peanuts");
   });
 
-  it("renders a generic medical-support indicator when restricted info exists without a medication plan", () => {
-    const result = toLeaderSafetyStudent(visibleStudent({ hasRestrictedMedicalInfo: true }));
-    expect(result.indicators.map((indicator) => indicator.label)).toEqual([
-      LEADER_SAFETY_LABELS.medicalSupportOnFile
-    ]);
+  it("shows actual dietary restriction text to a general leader when present", () => {
+    const result = toLeaderSafetyStudent(visibleStudent({ dietaryRestrictions: "Gluten-free" }));
+    expect(result.indicators.map((indicator) => indicator.label)).toContain("Dietary: Gluten-free");
   });
 
-  it("never shows two medical indicators at once", () => {
-    const result = toLeaderSafetyStudent(
-      visibleStudent({ hasRestrictedMedicalInfo: true, hasMedicationPlan: true })
-    );
-    const medical = result.indicators.filter((indicator) => indicator.tone === "medical");
-    expect(medical).toHaveLength(1);
-    expect(medical[0].label).toBe(LEADER_SAFETY_LABELS.medicationOnFile);
-  });
-
-  it("flags form follow-up from needsParentClarification", () => {
-    const result = toLeaderSafetyStudent(visibleStudent({ needsParentClarification: true }));
-    expect(result.indicators.map((indicator) => indicator.label)).toContain(
-      LEADER_SAFETY_LABELS.formFollowUp
-    );
-  });
-
-  it("keeps extra safe flags but drops the ones already shown as boolean indicators", () => {
+  it("normalizes public allergy and diet flags without showing empty badges", () => {
     const result = toLeaderSafetyStudent(
       visibleStudent({
-        hasMedicationPlan: true,
-        limitedSafetyFlags: ["Medication plan on file", "Hydration reminder", "Restricted info on file"]
+        allergies: "",
+        dietaryRestrictions: "",
+        limitedSafetyFlags: ["Allergy: Tree nuts", "Diet: Dairy-free", "Hydration reminder"]
       })
     );
     const labels = result.indicators.map((indicator) => indicator.label);
     expect(labels).toContain("Hydration reminder");
-    expect(labels).not.toContain("Medication plan on file");
-    expect(labels).not.toContain("Restricted info on file");
+    expect(labels).toContain("Allergy: Tree nuts");
+    expect(labels).toContain("Dietary: Dairy-free");
+  });
+
+  it("renders only the generic medical support badge for non-medical leaders when restricted info exists beyond public allergy or diet", () => {
+    const result = toLeaderSafetyStudent(
+      visibleStudent({
+        allergies: "Peanuts",
+        hasRestrictedMedicalInfo: true,
+        hasRestrictedMedicalBeyondPublicSafety: true
+      })
+    );
+    const labels = result.indicators.map((indicator) => indicator.label);
+    expect(labels).toContain("Allergy: Peanuts");
+    expect(labels).toContain(LEADER_SAFETY_LABELS.medicalSupportOnFile);
+  });
+
+  it("does not show generic restricted support when only public allergy and diet indicators are present", () => {
+    const result = toLeaderSafetyStudent(
+      visibleStudent({
+        allergies: "Peanuts",
+        dietaryRestrictions: "Vegetarian",
+        hasRestrictedMedicalInfo: true,
+        hasRestrictedMedicalBeyondPublicSafety: false
+      })
+    );
+    const labels = result.indicators.map((indicator) => indicator.label);
+    expect(labels).toEqual(["Allergy: Peanuts", "Dietary: Vegetarian"]);
+  });
+
+  it("does not leak medication, contact, insurance, physician, or restricted note details to general leaders", () => {
+    const result = toLeaderSafetyStudent(
+      visibleStudent({
+        allergies: "Peanuts",
+        dietaryRestrictions: "Vegetarian",
+        hasMedicationPlan: true,
+        hasRestrictedMedicalInfo: true,
+        hasRestrictedMedicalBeyondPublicSafety: true,
+        restrictedMedicalSummary: [
+          { label: "Medication", value: "Parent-labeled medication A" },
+          { label: "Dose", value: "10 mg at breakfast" },
+          { label: "Insurance", value: "Private insurance status" },
+          { label: "Guardian", value: "555-0000 parent@example.test" },
+          { label: "Medical", value: "Private restricted note" }
+        ]
+      })
+    );
+    const serialized = JSON.stringify(result).toLowerCase();
+    for (const token of RESTRICTED_TOKENS) {
+      expect(serialized).not.toContain(token);
+    }
+    expect(result.indicators.map((indicator) => indicator.label)).toContain(LEADER_SAFETY_LABELS.medicalSupportOnFile);
+  });
+
+  it("shows Andrew restricted medical details instead of the generic support badge", () => {
+    const result = toLeaderSafetyStudent(
+      visibleStudent({
+        hasRestrictedMedicalInfo: true,
+        hasRestrictedMedicalBeyondPublicSafety: true,
+        restrictedMedicalSummary: [
+          { label: "Medical", value: "Asthma inhaler with medical lead" },
+          { label: "Parent note", value: "Monitor after strenuous activity" }
+        ]
+      }),
+      { restrictedMedical: true }
+    );
+    const labels = result.indicators.map((indicator) => indicator.label);
+    expect(labels).toContain("Medical: Asthma inhaler with medical lead");
+    expect(labels).toContain("Parent note: Monitor after strenuous activity");
+    expect(labels).not.toContain(LEADER_SAFETY_LABELS.medicalSupportOnFile);
+  });
+
+  it("shows Jaci restricted medical details through the same permission helper", () => {
+    expect(canViewRestrictedMedical({ canAccessRestricted: true })).toBe(true);
+    const labels = getRestrictedMedicalDisplay(
+      visibleStudent({
+        restrictedMedicalSummary: [{ label: "Medical", value: "Seizure history noted" }]
+      })
+    ).map((indicator) => indicator.label);
+    expect(labels).toContain("Medical: Seizure history noted");
+    expect(labels).not.toContain(LEADER_SAFETY_LABELS.medicalSupportOnFile);
+  });
+
+  it("preserves Joel's existing restricted role behavior without name checks in the component", () => {
+    expect(canViewRestrictedMedical({ effectiveRole: "joel" })).toBe(true);
+    expect(canViewRestrictedMedical({ effectiveRole: "general_leader" })).toBe(false);
+  });
+
+  it("keeps partner/read-only leaders limited to roster scope plus public indicators", () => {
+    const result = toLeaderSafetyStudent(
+      visibleStudent({
+        rosterType: "partner",
+        sourceChurch: "Grace Chapel",
+        allergies: "Shellfish",
+        hasRestrictedMedicalInfo: true,
+        hasRestrictedMedicalBeyondPublicSafety: true,
+        restrictedMedicalSummary: [{ label: "Medical", value: "Private restricted note" }]
+      })
+    );
+    const labels = result.indicators.map((indicator) => indicator.label);
+    expect(result.teamName).toBe("Blue");
+    expect(labels).toContain("Allergy: Shellfish");
+    expect(labels).toContain(LEADER_SAFETY_LABELS.medicalSupportOnFile);
+    expect(JSON.stringify(result).toLowerCase()).not.toContain("private restricted note");
   });
 
   it("returns no indicators and safe meta for a camper with nothing on file", () => {
@@ -99,47 +181,40 @@ describe("leader-safety mapper", () => {
     expect(result.meta).toBe("8th - Cabin A - Blue team");
   });
 
-  it("never emits restricted detail in any label or meta across a roster", () => {
+  it("keeps extra safe flags but drops the ones already shown as protected booleans", () => {
+    const result = toLeaderSafetyStudent(
+      visibleStudent({
+        hasMedicationPlan: true,
+        hasRestrictedMedicalBeyondPublicSafety: true,
+        limitedSafetyFlags: ["Medication plan on file", "Hydration reminder", "Restricted info on file"]
+      })
+    );
+    const labels = result.indicators.map((indicator) => indicator.label);
+    expect(labels).toContain("Hydration reminder");
+    expect(labels).toContain(LEADER_SAFETY_LABELS.medicalSupportOnFile);
+    expect(labels).not.toContain("Medication plan on file");
+    expect(labels).not.toContain("Restricted info on file");
+  });
+
+  it("keeps roster mapping free of restricted details for general leaders", () => {
     const roster = toLeaderSafetyRoster([
-      visibleStudent({ hasMedicationPlan: true, needsParentClarification: true }),
-      visibleStudent({ id: "stu-y", hasRestrictedMedicalInfo: true }),
-      visibleStudent({ id: "stu-z", limitedSafetyFlags: ["Hydration reminder"] })
+      visibleStudent({ allergies: "Peanuts", hasRestrictedMedicalBeyondPublicSafety: false }),
+      visibleStudent({
+        id: "stu-y",
+        hasRestrictedMedicalInfo: true,
+        hasRestrictedMedicalBeyondPublicSafety: true,
+        restrictedMedicalSummary: [{ label: "Medical", value: "Private restricted note" }]
+      })
     ]);
     const serialized = JSON.stringify(roster).toLowerCase();
-    for (const token of RESTRICTED_TOKENS) {
-      expect(serialized).not.toContain(token);
-    }
-    // The only allowed occurrence of the word "medication" is the presence label.
-    expect(serialized).toContain("medication on file");
+    expect(serialized).toContain("allergy: peanuts");
+    expect(serialized).toContain("medical support on file");
+    expect(serialized).not.toContain("private restricted note");
   });
 
-  it("shows a Medical alert indicator from the imported has_medical_alert boolean", () => {
-    const result = toLeaderSafetyStudent(visibleStudent({ hasMedicalAlert: true }));
-    expect(result.indicators.map((i) => i.label)).toContain(LEADER_SAFETY_LABELS.medicalAlert);
-  });
-
-  it("prefers Medication-on-file over Medical alert when both are set (one medical line)", () => {
-    const result = toLeaderSafetyStudent(visibleStudent({ hasMedicationPlan: true, hasMedicalAlert: true }));
-    const medical = result.indicators.filter((i) => i.tone === "medical");
-    expect(medical).toHaveLength(1);
-    expect(medical[0].label).toBe(LEADER_SAFETY_LABELS.medicationOnFile);
-  });
-
-  it("shows Dietary and Emergency-contact indicators from imported booleans", () => {
-    const result = toLeaderSafetyStudent(visibleStudent({ hasDietaryAlert: true, emergencyContactOnFile: true }));
-    const labels = result.indicators.map((i) => i.label);
-    expect(labels).toContain(LEADER_SAFETY_LABELS.dietaryNote);
-    expect(labels).toContain(LEADER_SAFETY_LABELS.emergencyContact);
-  });
-
-  it("never leaks restricted contact/medical detail even with all new booleans set", () => {
-    const result = toLeaderSafetyStudent(
-      visibleStudent({ hasMedicalAlert: true, hasDietaryAlert: true, emergencyContactOnFile: true })
-    );
-    const serialized = JSON.stringify(result).toLowerCase();
-    for (const token of RESTRICTED_TOKENS) {
-      expect(serialized).not.toContain(token);
-    }
+  it("exposes the public indicator helper for camper cards", () => {
+    const labels = getLeaderSafeCamperIndicators(visibleStudent({ allergies: "Eggs" })).map((indicator) => indicator.label);
+    expect(labels).toEqual(["Allergy: Eggs"]);
   });
 
   it("publishes a calm, explicit contact-the-leads guidance string", () => {

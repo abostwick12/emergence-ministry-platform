@@ -9,23 +9,25 @@ import {
   type LeaderSafetyTone
 } from "@/lib/camp/leader-safety";
 
-// Tone -> chip classes. All reuse the existing .camp-cc-tag base; only the
-// color modifier differs.
 const TONE_CLASS: Record<LeaderSafetyTone, string> = {
+  food: "camp-cc-tag food",
   medical: "camp-cc-tag alert",
   followUp: "camp-cc-tag warn",
   info: "camp-cc-tag subtle"
 };
 
 // Leader Safety View: a mobile-first, supervision-only summary for approved
-// leaders. It reads ONLY the general-leader-safe overview payload (via
-// useCamp) and the pure mapper, so it cannot expose restricted medical data.
+// leaders. Display decisions come from the pure mapper so JSX only renders the
+// already-safe model for the current access tier.
 export function CampLeaderSafetyView() {
-  const { overview, loading } = useCamp();
+  const { overview, capabilities, loading } = useCamp();
   const [query, setQuery] = useState("");
   const [teamFilter, setTeamFilter] = useState("all");
 
-  const roster = useMemo(() => toLeaderSafetyRoster(overview.students), [overview.students]);
+  const roster = useMemo(
+    () => toLeaderSafetyRoster(overview.students, { restrictedMedical: capabilities.restrictedMedical }),
+    [overview.students, capabilities.restrictedMedical]
+  );
   const teamOptions = useMemo(
     () => ["Unassigned", ...overview.teams.map((team) => team.name)].filter((teamName, index, values) => values.indexOf(teamName) === index),
     [overview.teams]
@@ -55,8 +57,7 @@ export function CampLeaderSafetyView() {
         <p className="camp-cc-eyebrow">Safety view</p>
         <h1>Leader Safety</h1>
         <p className="camp-cc-muted">
-          Safety basics for supervising your campers. This is not a medical record — no medications, doses, allergies,
-          contact details, or forms are shown here.
+          Safety basics for supervising your campers. This is not a medical record - no medications, doses, contact details, or forms are shown here.
         </p>
       </header>
 
@@ -84,7 +85,7 @@ export function CampLeaderSafetyView() {
       </label>
 
       {loading && !roster.length ? (
-        <p className="camp-cc-muted">Loading camper safety view…</p>
+        <p className="camp-cc-muted">Loading camper safety view...</p>
       ) : roster.length === 0 ? (
         <p className="camp-cc-muted">No campers in view yet.</p>
       ) : filtered.length === 0 ? (
