@@ -69,7 +69,7 @@ test.describe("Camp mobile Command Center", () => {
     await expect(card).toContainText("Room");
     await expect(card).toContainText("Cabin Z");
     await expect(card).toContainText("Food allergy");
-    await expect(card).toContainText("Medical concern");
+    await expect(card).toContainText("Medical support on file");
 
     const allergyColor = await card.locator(".camp-cc-tag.food").evaluate((element) => getComputedStyle(element).color);
     const medicalColor = await card.locator(".camp-cc-tag.medical").evaluate((element) => getComputedStyle(element).color);
@@ -609,7 +609,7 @@ test.describe("Camp mobile Command Center", () => {
     const card = page.getByRole("button", { name: new RegExp(camperName) });
     await expect(card).toContainText("Red");
     await expect(card).toContainText("Food allergy");
-    await expect(card).toContainText("Medical concern");
+    await expect(card).toContainText("Medical support on file");
     await expect(page.locator("body")).not.toContainText("dosage");
   });
 });

@@ -1,4 +1,4 @@
-import { getCampVisibleStudentsForData, isRestrictedCampMedicalRole } from "@/lib/camp/access";
+import { getCampVisibleStudentsForData, isRestrictedCampMedicalRole, publicSafetyTextFromFlags } from "@/lib/camp/access";
 import { parseMedicationScheduleText } from "@/lib/camp/medication-schedule-text";
 import { rosterTypeFromFlags, sourceChurchFromFlags, withRosterMetadataFlags } from "@/lib/camp/partner-roster";
 import { campDocuments, campName, campSchedule, campStartsOn, campStudents, campTeams, campVehicles } from "@/lib/camp/public-data";
@@ -1156,7 +1156,8 @@ function filterDocumentsForRole(role: CampAccessRole): CampDocument[] {
 }
 
 function withDerivedStudentFlags(student: CampStudentPublic): CampStudentPublic {
-  const hasRestrictedMedicalInfo = store.medicalRecords.some((record) => record.studentId === student.id);
+  const restrictedRecord = store.medicalRecords.find((record) => record.studentId === student.id);
+  const hasRestrictedMedicalInfo = Boolean(restrictedRecord);
   const hasMedicationPlan = store.medicationRecords.some((record) => record.studentId === student.id);
   const needsParentClarification =
     store.medicalRecords.some((record) => record.studentId === student.id && record.medicalFormStatus === "Needs Parent Clarification") ||
@@ -1175,11 +1176,42 @@ function withDerivedStudentFlags(student: CampStudentPublic): CampStudentPublic 
     profilePhotoUrl: activeCamperProfilePhotoUrl(student.id) ?? sanitizeProfilePhotoUrl(student.profilePhotoUrl),
     sourceChurch: student.sourceChurch ?? sourceChurchFromFlags(student.limitedSafetyFlags),
     rosterType: student.rosterType ?? rosterTypeFromFlags(student.limitedSafetyFlags),
+    allergies: student.allergies ?? publicSafetyTextFromFlags(student.limitedSafetyFlags, "allergy"),
+    dietaryRestrictions: student.dietaryRestrictions ?? publicSafetyTextFromFlags(student.limitedSafetyFlags, "diet"),
     hasRestrictedMedicalInfo,
+    hasRestrictedMedicalBeyondPublicSafety: hasMedicationPlan || Boolean(student.hasMedicalAlert) || hasNonPublicRestrictedMedicalDetails(restrictedRecord),
     hasMedicationPlan,
     needsParentClarification,
+    restrictedMedicalSummary: restrictedRecord ? restrictedMedicalSummaryForStudent(restrictedRecord, hasMedicationPlan) : hasMedicationPlan ? [{ label: "Medication", value: "Plan on file" }] : undefined,
     limitedSafetyFlags: normalizeFlags([...student.limitedSafetyFlags, ...derivedFlags])
   };
+}
+
+function hasNonPublicRestrictedMedicalDetails(record?: CampRestrictedMedicalRecord): boolean {
+  if (!record) return false;
+  return [
+    record.restrictedNotes,
+    record.parentMedicalNotes,
+    record.insuranceStatus,
+    record.emergencyContactName,
+    record.emergencyContactPhone,
+    record.emergencyContactRelationship,
+    record.guardianName,
+    record.guardianPhone,
+    record.medicalFormStatus === "Needs Parent Clarification" ? record.medicalFormStatus : ""
+  ].some((value) => Boolean(String(value ?? "").trim()));
+}
+
+function restrictedMedicalSummaryForStudent(record: CampRestrictedMedicalRecord, hasMedicationPlan: boolean) {
+  const items = [
+    { label: "Allergy", value: record.allergyNotes },
+    { label: "Dietary", value: record.dietaryRequirements ?? "" },
+    { label: "Medical", value: record.restrictedNotes },
+    { label: "Parent note", value: record.parentMedicalNotes },
+    record.medicalFormStatus === "Needs Parent Clarification" ? { label: "Form", value: record.medicalFormStatus } : undefined,
+    hasMedicationPlan ? { label: "Medication", value: "Plan on file" } : undefined
+  ].filter((item): item is { label: string; value: string } => Boolean(item?.value.trim()));
+  return items.length ? items : undefined;
 }
 
 function activeCamperProfilePhotoUrl(studentId: string): string | undefined {

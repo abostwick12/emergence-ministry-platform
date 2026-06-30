@@ -2,6 +2,7 @@
 
 import type { CSSProperties } from "react";
 import { teamAccent } from "@/components/camp/camp-team-card";
+import { getLeaderSafeCamperIndicators } from "@/lib/camp/leader-safety";
 import { isRosterTypeFlag } from "@/lib/camp/partner-roster";
 import type { CampVisibleStudent } from "@/lib/camp/types";
 
@@ -13,7 +14,7 @@ type SafeTag = {
 
 function concernTone(label: string): SafeTag["tone"] {
   const normalized = label.toLowerCase();
-  if (normalized.startsWith("allergy:") || normalized.startsWith("diet:")) return "food";
+  if (normalized.startsWith("allergy:") || normalized.startsWith("diet:") || normalized.startsWith("dietary:")) return "food";
   if (normalized.startsWith("medical:") || normalized.startsWith("supervision:") || normalized.startsWith("physical:")) return "medical";
   return "default";
 }
@@ -22,7 +23,7 @@ function concernPriority(label: string): number {
   const normalized = label.toLowerCase();
   if (normalized.includes("epipen") || normalized.includes("epi-pen") || normalized.includes("severe")) return 10;
   if (normalized.startsWith("allergy:")) return 20;
-  if (normalized.startsWith("diet:")) return 30;
+  if (normalized.startsWith("diet:") || normalized.startsWith("dietary:")) return 30;
   if (normalized.startsWith("medical:") || normalized.startsWith("physical:") || normalized.startsWith("supervision:")) return 40;
   return 60;
 }
@@ -30,17 +31,19 @@ function concernPriority(label: string): number {
 // Only safe, operational tags. Derived from already-public payload fields - never
 // from medication names, dosage, insurance, contact details, or private notes.
 function safeTags(student: CampVisibleStudent): SafeTag[] {
-  const tags: SafeTag[] = [];
-  if (student.hasDietaryAlert) tags.push({ label: "Food allergy", tone: "food", priority: 35 });
-  if (student.hasMedicalAlert) tags.push({ label: "Medical concern", tone: "medical", priority: 45 });
-  if (student.hasMedicationPlan) tags.push({ label: "Medication on file", tone: "medication", priority: 50 });
-  if (student.needsParentClarification) tags.push({ label: "Missing form", tone: "warn", priority: 55 });
-  if (student.needsParentClarification) tags.push({ label: "Needs check-in", tone: "warn", priority: 56 });
+  const tags: SafeTag[] = getLeaderSafeCamperIndicators(student).map((indicator) => ({
+    label: indicator.label,
+    tone: indicator.tone === "food" ? "food" : indicator.tone === "medical" ? "medical" : indicator.tone === "followUp" ? "warn" : "default",
+    priority: concernPriority(indicator.label)
+  }));
   if (student.rosterType === "partner") tags.push({ label: student.sourceChurch ? `Partner Church: ${student.sourceChurch}` : "Partner Church", tone: "default", priority: 70 });
   // limitedSafetyFlags are server-scrubbed public strings; render as-is.
   for (const flag of student.limitedSafetyFlags ?? []) {
+    const normalized = flag.trim().toLowerCase();
     if (isRosterTypeFlag(flag)) continue;
-    if (student.rosterType === "partner" && flag.toLowerCase().startsWith("partner church:")) continue;
+    if (["restricted info on file", "medication plan on file", "needs parent clarification"].includes(normalized)) continue;
+    if (normalized.startsWith("allergy:") || normalized.startsWith("diet:") || normalized.startsWith("dietary:")) continue;
+    if (student.rosterType === "partner" && normalized.startsWith("partner church:")) continue;
     if (flag && !tags.some((tag) => tag.label === flag)) {
       tags.push({ label: flag, tone: concernTone(flag), priority: concernPriority(flag) });
     }

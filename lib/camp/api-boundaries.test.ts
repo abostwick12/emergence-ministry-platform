@@ -323,6 +323,46 @@ describe("camp API restricted data boundaries", () => {
     expectNoRestrictedPayloadDetails(payload);
   });
 
+  it("returns public allergy and dietary text to General Leaders without restricted medical summaries", async () => {
+    getServerSessionMock.mockResolvedValue(andrewSession());
+
+    const create = await studentsPOST(jsonRequest("http://localhost/api/camp/students?role=andrew", {
+      name: "Public Allergy Camper",
+      grade: "7th",
+      teamId: "team-blue",
+      vehicleId: "van-1",
+      cabin: "Cabin A",
+      limitedSafetyFlags: ["Allergy: Peanuts", "Diet: Gluten-free"]
+    }));
+    expect(create.status).toBe(201);
+
+    getServerSessionMock.mockResolvedValue(session());
+    const response = await campGET(new Request("http://localhost/api/camp?role=general_leader"));
+    const payload = await response.json() as { students: Array<Record<string, unknown>> };
+    const student = payload.students.find((item) => item.name === "Public Allergy Camper");
+
+    expect(response.status).toBe(200);
+    expect(student).toMatchObject({
+      allergies: "Peanuts",
+      dietaryRestrictions: "Gluten-free"
+    });
+    expect(student).not.toHaveProperty("restrictedMedicalSummary");
+    expectNoRestrictedPayloadDetails(payload);
+  });
+
+  it("returns restricted medical summaries to Andrew through the approved restricted access model", async () => {
+    getServerSessionMock.mockResolvedValue(andrewSession());
+
+    const response = await campGET(new Request("http://localhost/api/camp?role=andrew"));
+    const payload = await response.json() as { students: Array<Record<string, unknown>> };
+    const avery = payload.students.find((student) => student.name === "Avery Johnson");
+
+    expect(response.status).toBe(200);
+    expect(avery?.restrictedMedicalSummary).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: "Medical", value: expect.stringContaining("Parent-provided form received") })
+    ]));
+  });
+
   it("ignores driver role query params when the authenticated user has no driver assignment", async () => {
     getServerSessionMock.mockResolvedValue(session("driver"));
 
@@ -1383,6 +1423,7 @@ describe("camp API restricted data boundaries", () => {
     expect(commitResponse.status).toBe(200);
     expect(commitPayload.committed).toEqual([{ rowNumber: 2, studentId: expect.any(String), studentName: "Partner Minimal Camper" }]);
 
+    getServerSessionMock.mockResolvedValue(session());
     const generalLeaderOverview = await campGET(new Request("http://localhost/api/camp?role=general_leader"));
     const overviewPayload = await generalLeaderOverview.json() as { students: Array<{ name: string; teamId?: string; sourceChurch?: string; rosterType?: string }> };
     expect(generalLeaderOverview.status).toBe(200);
@@ -1520,6 +1561,7 @@ describe("camp API restricted data boundaries", () => {
     expect(commitPayload.result.committed).toHaveLength(2);
     expect(commitPayload.result.auditBatch).toMatchObject({ sourceFile: "Camp Oakwood Upload", staffCount: 1, restrictedCount: 1 });
 
+    getServerSessionMock.mockResolvedValue(session());
     const publicOverview = await campGET(new Request("http://localhost/api/camp?role=general_leader"));
     const publicPayload = await publicOverview.json();
     expect(JSON.stringify(publicPayload)).not.toContain("Private medical note");

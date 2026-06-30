@@ -16,6 +16,17 @@ export function isRestrictedCampMedicalRole(role: CampAccessRole) {
   return role === "andrew" || role === "jaci" || role === "joel";
 }
 
+export function publicSafetyTextFromFlags(flags: string[] | undefined, prefix: "allergy" | "diet"): string {
+  const values = new Set<string>();
+  const pattern = prefix === "allergy" ? /^allerg(?:y|ies)\s*:\s*(.+)$/i : /^diet(?:ary)?\s*:\s*(.+)$/i;
+  for (const flag of flags ?? []) {
+    const match = flag.trim().match(pattern);
+    const value = match?.[1]?.trim().replace(/\s+/g, " ");
+    if (value) values.add(value);
+  }
+  return Array.from(values).join("; ");
+}
+
 export function parseCampAccessRole(value: string | null): CampAccessRole | null {
   if (!value) return null;
   return campAccessRoles.includes(value as CampAccessRole) ? (value as CampAccessRole) : null;
@@ -77,13 +88,17 @@ export function getCampVisibleStudentsForData(
       sourceChurch: student.sourceChurch ?? sourceChurchFromFlags(student.limitedSafetyFlags),
       rosterType: student.rosterType ?? rosterTypeFromFlags(student.limitedSafetyFlags),
       limitedSafetyFlags: student.limitedSafetyFlags,
+      allergies: student.allergies ?? publicSafetyTextFromFlags(student.limitedSafetyFlags, "allergy"),
+      dietaryRestrictions: student.dietaryRestrictions ?? publicSafetyTextFromFlags(student.limitedSafetyFlags, "diet"),
       hasRestrictedMedicalInfo: student.hasRestrictedMedicalInfo,
+      hasRestrictedMedicalBeyondPublicSafety: student.hasRestrictedMedicalBeyondPublicSafety,
       hasMedicationPlan: student.hasMedicationPlan,
       needsParentClarification: student.needsParentClarification,
       // SAFE booleans only — derived at import from Quick Filter + note presence.
       emergencyContactOnFile: student.emergencyContactOnFile,
       hasMedicalAlert: student.hasMedicalAlert,
-      hasDietaryAlert: student.hasDietaryAlert
+      hasDietaryAlert: student.hasDietaryAlert,
+      restrictedMedicalSummary: isRestrictedCampMedicalRole(role) ? student.restrictedMedicalSummary : undefined
     };
   });
 }
