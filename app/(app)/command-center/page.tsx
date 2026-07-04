@@ -37,7 +37,7 @@ export default async function CommandCenterPage() {
         )}
         <div className="toolbar">
           <Link className="button primary" href="/command-center/chat">
-            SAGE Chat (Phase 1B)
+            Ask SAGE
           </Link>
           {overview.jobFollowUpsDueCount > 0 ? (
             <Link className="button" href="/command-center/job-search">

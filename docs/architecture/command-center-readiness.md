@@ -75,5 +75,6 @@ SAGE namespace and data access kept inside the Command Center boundary.
 - `daily_briefing_cache`, `sage_memory`, and `ai_conversations` are schema
   placeholders only in Phase 1A.
 - Integration cards are disconnected placeholders only.
-- The chat page and chat API return explicit Phase 1B placeholders.
+- The chat page is a static Phase 1B placeholder. No chat API exists in Phase
+  1A.
 - No live provider credentials are required for Phase 1A.
