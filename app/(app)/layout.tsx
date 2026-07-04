@@ -4,6 +4,7 @@ import { EventCardProvider } from "@/components/event-card-context";
 import { MasterEventCard } from "@/components/master-event-card";
 import { isDevAuthActive } from "@/lib/auth/config";
 import { getServerSession } from "@/lib/auth/server";
+import { isCommandCenterUser } from "@/lib/command-center/access";
 import { resolveAppShellAccess } from "@/lib/camp/shell-access";
 import { redirect } from "next/navigation";
 
@@ -21,6 +22,7 @@ export default async function AuthenticatedLayout({ children }: { children: Reac
         <AppShell
           devAuth={devAuth}
           shellAccess={shellAccess}
+          showCommandCenter={isCommandCenterUser(session)}
           user={{ name: session.user.fullName, email: session.user.email }}
         >
           {children}

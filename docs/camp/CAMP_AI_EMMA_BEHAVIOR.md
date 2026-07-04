@@ -1,5 +1,9 @@
 # Camp EMMA Behavior
 
+> Platform note: Camp EMMA is part of the broader EMMA assistant family, but it
+> has stricter Camp data boundaries. The cross-platform baseline lives in
+> [`docs/architecture/ai-skill-system.md`](../architecture/ai-skill-system.md).
+
 Verified from codebase inspection on 2026-06-23.
 
 **Source files inspected:**
@@ -210,14 +214,34 @@ The general EMMA audit infrastructure exists in `lib/emma/` and is used for the 
 
 ---
 
-## 13. No Live AI Provider in Current Working Tree
+## 13. Provider and Action Status
+
+**2026-07-04 update:** Camp EMMA now has two behavior paths in this branch.
+`POST /api/camp/emma` remains the safe search and answer route. Its answers are
+built from sanitized Camp overview data and role-aware access tiers.
+`POST /api/camp/emma/actions` supports a controlled action flow for safe Camp
+operations. Provider interpretation can use server-only Azure OpenAI or OpenAI
+configuration, but application code still creates a pending action, requires
+confirmation, validates the target, and writes audit records before any roster
+change is applied.
+
+Restricted medical/contact topics are blocked before provider interpretation in
+the action path. Leader/read-only users are denied write actions even when a
+provider is configured.
+
+The older `app/api/camp/emma/command` and `app/api/camp/emma/confirm` paths
+still exist as legacy command slices and should be reconciled in a focused
+cleanup PR. See `docs/camp/CAMP_KNOWN_GAPS.md` and
+`docs/architecture/ai-skill-system.md` for the cleanup queue.
+
+The following 2026-06-23 note is historical and superseded by the update above.
 
 As of 2026-06-23, the Camp EMMA route that is currently live (`app/api/camp/emma/route.ts`) does not call any external AI provider. `buildCampEmmaAnswer()` in `lib/camp/emma.ts` is entirely deterministic:
 - Keyword/substring matching on the query string
 - Pattern checks for query types (briefing, transportation, teams, rooms, schedule)
 - Returns structured `CampEmmaAnswer` objects (answer string + details array + actions array)
 
-**However**: The uncommitted `.env.example` changes (pre-existing, not caused by this doc scrub) add `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_DEPLOYMENT`, and `AZURE_OPENAI_API_VERSION` variables for a "Camp-scoped EMMA room-change command slice" and reference `lib/camp/emma-command.ts` and `lib/camp/emma-azure-provider.ts`. These files **do not exist in the current working tree**.
+**Historical note**: On 2026-06-23, `.env.example` referenced Azure OpenAI variables before the matching Camp EMMA provider files were present in that inspected tree.
 
 This suggests uncommitted or stashed Camp EMMA Azure provider work. See also memory note: "Camp EMMA uncommitted recovery — Camp mobile+EMMA work NOT committed; recover via `git stash apply stash@{0}` on feat/camp-command-center-mobile-emma."
 

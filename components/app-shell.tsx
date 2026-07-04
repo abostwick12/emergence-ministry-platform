@@ -34,7 +34,9 @@ const mobileLinks = [
   { href: "/communications", label: "Communications" }
 ];
 
-const mobileMoreLinks = primaryLinks.filter((link) => !mobileLinks.some((mobileLink) => mobileLink.href === link.href));
+function mobileMoreLinksFor(links: { href: string; label: string }[]) {
+  return links.filter((link) => !mobileLinks.some((mobileLink) => mobileLink.href === link.href));
+}
 
 function resolveDisplayName(user?: { name?: string; email?: string }): string {
   const name = user?.name?.trim();
@@ -121,6 +123,12 @@ const navIconPaths: Record<string, React.ReactNode> = {
       <circle cx="12" cy="12" r="3" />
       <path d="M12 2.5l1.4 2.3 2.7-.5.6 2.7 2.5 1.1-1 2.6 1 2.6-2.5 1.1-.6 2.7-2.7-.5L12 21.5l-1.4-2.3-2.7.5-.6-2.7L4.8 16l1-2.6-1-2.6 2.5-1.1.6-2.7 2.7.5z" strokeLinejoin="round" />
     </>
+  ),
+  "/command-center": (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M15.5 8.5l-2 5-5 2 2-5z" strokeLinejoin="round" />
+    </>
   )
 };
 
@@ -144,18 +152,21 @@ const pageTitles: Record<string, string> = {
   "/people": "People",
   "/files": "Files",
   "/budget": "Budget",
-  "/settings": "Settings"
+  "/settings": "Settings",
+  "/command-center": "Command Center"
 };
 
 export function AppShell({
   children,
   devAuth = false,
   shellAccess = { kind: "full" },
+  showCommandCenter = false,
   user
 }: {
   children: React.ReactNode;
   devAuth?: boolean;
   shellAccess?: AppShellAccessState;
+  showCommandCenter?: boolean;
   user?: { name?: string; email?: string };
 }) {
   const pathname = usePathname();
@@ -166,10 +177,13 @@ export function AppShell({
   const isCampRoute = pathname.startsWith("/camp");
   const canUseEmergeShell = shellAccess.kind === "full";
   const campOnly = !canUseEmergeShell;
-  const visiblePrimaryLinks = campOnly ? primaryLinks.filter((link) => link.href === "/camp") : primaryLinks;
+  const allPrimaryLinks = showCommandCenter ? [...primaryLinks, { href: "/command-center", label: "Command Center" }] : primaryLinks;
+  const visiblePrimaryLinks = campOnly ? allPrimaryLinks.filter((link) => link.href === "/camp") : allPrimaryLinks;
   const visibleMobileLinks = campOnly ? [{ href: "/camp", label: "Camp" }] : mobileLinks;
-  const visibleMobileMoreLinks = campOnly ? [] : mobileMoreLinks;
-  const title = isCampRoute ? "Camp Command Center" : pageTitles[pathname] ?? "Dashboard";
+  const visibleMobileMoreLinks = campOnly ? [] : mobileMoreLinksFor(allPrimaryLinks);
+  const title = isCampRoute
+    ? "Camp Command Center"
+    : pageTitles[pathname] ?? (pathname.startsWith("/command-center") ? "Command Center" : "Dashboard");
   const isDashboard = pathname === "/dashboard";
   const shouldBlockEmergeChildren = !isCampRoute && !canUseEmergeShell;
   const shellAccessIssue = shellAccess.kind === "full" ? null : shellAccess;
