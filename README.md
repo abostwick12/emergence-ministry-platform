@@ -5,7 +5,9 @@ Lead Emergence is a ministry-operations web application for event planning, task
 The platform is designed to reduce administrative load for a small ministry team while maintaining clear accountability, repeatable workflows, and a usable experience for non-technical staff.
 
 **Production:** [leademergence.com](https://leademergence.com)  
-**Current functionality map:** [docs/current-functionality.md](docs/current-functionality.md)
+**Current functionality map:** [docs/current-functionality.md](docs/current-functionality.md)  
+**Platform architecture baseline:** [docs/architecture/platform-unification-baseline.md](docs/architecture/platform-unification-baseline.md)  
+**AI skill system baseline:** [docs/architecture/ai-skill-system.md](docs/architecture/ai-skill-system.md)
 
 ## Current Product Scope
 

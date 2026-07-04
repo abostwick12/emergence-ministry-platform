@@ -2,6 +2,10 @@
 
 EMMA is the controlled AI orchestration layer for Lead Emergence.
 
+For the cross-platform AI baseline that explains how EMMA, Camp EMMA, SAGE,
+and reusable skills relate, see
+[`docs/architecture/ai-skill-system.md`](../architecture/ai-skill-system.md).
+
 ## Documents
 
 - [Architecture and Workflow Specification](architecture.md) — system boundaries, Mermaid diagrams, request lifecycle, data model, risk rules, provider policy, security requirements, and launch test.

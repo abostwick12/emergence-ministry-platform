@@ -141,7 +141,31 @@ When a gap is resolved by a future task, update this file and add the gap to the
 
 ---
 
-## Gap 10: Uncommitted Camp EMMA Azure Provider Files
+## Gap 10: Camp EMMA Command Route Duplication
+
+**2026-07-04 update:** Provider-backed controlled action files now exist, but
+there are multiple Camp EMMA command paths.
+
+**Current details**:
+- `.env.example` documents server-only Azure/OpenAI variables for Camp EMMA
+  controlled action intent parsing.
+- `lib/camp/emma-azure-provider.ts`, `lib/camp/emma-openai-provider.ts`,
+  `lib/camp/emma-command-interpreter.ts`, and `lib/camp/emma-actions.ts` exist
+  in the current branch.
+- `app/api/camp/emma/actions` is the newer controlled action path with pending
+  actions, confirmation, permission denial, and audit behavior.
+- `app/api/camp/emma/command` and `app/api/camp/emma/confirm` still exist as
+  legacy command/confirm slices.
+
+**Current risk**: Maintaining multiple command paths makes it easier for access,
+provider readiness, audit behavior, or sensitive-data filtering to drift.
+
+**Current resolution path**: In a focused cleanup PR, choose the canonical Camp
+EMMA action path, preserve any behavior still needed from legacy routes, update
+E2E coverage, and deprecate or remove the redundant path only after proving no
+live UI depends on it.
+
+The following 2026-06-23 note is historical and superseded by the update above.
 
 **Status**: `.env.example` has pre-existing uncommitted changes referencing files that do not exist.
 
