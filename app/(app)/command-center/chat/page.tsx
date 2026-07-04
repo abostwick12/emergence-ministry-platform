@@ -3,10 +3,10 @@ export default function CommandCenterChatPage() {
     <div className="grid workspace-page">
       <section className="panel">
         <p className="eyebrow">Phase 1B</p>
-        <h2 className="section-title flush">SAGE Chat Is Coming Later</h2>
+        <h2 className="section-title flush">SAGE is coming in Phase 1B.</h2>
         <p className="muted">
-          Phase 1A only establishes the Andrew-only Command Center foundation: dashboard, tasks, quick capture, and job
-          tracking. SAGE chat, OpenAI streaming, function calling, and persistent memory are intentionally deferred.
+          This foundation is being built first so the assistant has secure, reliable personal task and context data.
+          There is no chat runtime, provider connection, function calling, or automatic memory behavior in Phase 1A.
         </p>
       </section>
     </div>

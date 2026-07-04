@@ -9,12 +9,12 @@ test.describe("Personal Command Center Phase 1A", () => {
 
     await expect(page.getByRole("heading", { name: "Manual Resource Feed" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Planned Tool Connections" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "SAGE Chat (Phase 1B)" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Ask SAGE" })).toBeVisible();
     await expect(page.getByText("All integrations remain disconnected placeholders in Phase 1A.")).toBeVisible();
 
-    await page.getByRole("link", { name: "SAGE Chat (Phase 1B)" }).click();
-    await expect(page.getByRole("heading", { name: "SAGE Chat Is Coming Later" })).toBeVisible();
-    await expect(page.getByText("SAGE chat, OpenAI streaming, function calling, and persistent memory are intentionally deferred.")).toBeVisible();
+    await page.getByRole("link", { name: "Ask SAGE" }).click();
+    await expect(page.getByRole("heading", { name: "SAGE is coming in Phase 1B." })).toBeVisible();
+    await expect(page.getByText("There is no chat runtime, provider connection, function calling, or automatic memory behavior in Phase 1A.")).toBeVisible();
   });
 
   test("supports personal task CRUD, quick capture review, and job tracking", async ({ page }) => {
