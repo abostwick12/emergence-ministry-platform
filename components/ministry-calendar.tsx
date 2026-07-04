@@ -83,7 +83,7 @@ export function MinistryCalendar({ events }: { events: MinistryEvent[] }) {
         </div>
         <div className="calendar-controls">
           <button
-            className="calendar-nav-btn"
+            className="button icon"
             type="button"
             aria-label="Previous month"
             onClick={() => setMonth((current) => addMonths(current, -1))}
@@ -94,7 +94,7 @@ export function MinistryCalendar({ events }: { events: MinistryEvent[] }) {
             {monthLabel}
           </strong>
           <button
-            className="calendar-nav-btn"
+            className="button icon"
             type="button"
             aria-label="Next month"
             onClick={() => setMonth((current) => addMonths(current, 1))}

@@ -4,6 +4,15 @@ Read and follow [`AGENTS.md`](AGENTS.md) before editing this repository. `AGENTS
 
 This file adds Claude Code-specific workflow guidance only.
 
+## Automatic Skills
+
+This repo ships skills in `.claude/skills/`. Treat them as automatic, not optional. See the "Automatic Skills" table in `AGENTS.md` for the full trigger map. In short:
+
+- After editing anything in `app/` or `components/`, run the `design-audit` skill or `npm run design-check`. A PostToolUse hook in `.claude/settings.json` runs `design-check` automatically after Edit/Write when enabled; if you see its output, act on it before moving on.
+- Invoke `new-component` before creating a component, `camp-feature` before touching the Camp subsystem, `pre-push` before pushing, and `upgrade-checklist` before merging an upgrade.
+
+Do not wait for the user to type the slash command — these are part of the standard workflow for this project.
+
 ## Start-of-Session Checklist
 
 Before changing code, run:

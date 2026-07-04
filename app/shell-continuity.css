@@ -1,18 +1,8 @@
 /* Desktop shell material system.
    The shell is built as one painted environment: parchment base, night-sky
-   sidebar field, shared watercolor header art, then translucent UI surfaces. */
-
-:root {
-  --app-sidebar-width: 236px;
-  --app-header-height: 154px;
-  --parchment-ivory: #f3eadb;
-  --parchment-warm: #eee3d1;
-  --parchment-light: #f7f0e5;
-  --parchment-aged: #e8dcc7;
-  --liquid-border: rgba(255, 255, 255, 0.72);
-  --liquid-edge: rgba(125, 211, 252, 0.28);
-  --liquid-shadow: rgba(38, 63, 89, 0.18);
-}
+   sidebar field, shared watercolor header art, then translucent UI surfaces.
+   All :root tokens are defined in globals.css — this file contains only
+   the structural and decorative shell rules. */
 
 body {
   background: var(--parchment-ivory);

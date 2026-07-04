@@ -150,7 +150,7 @@ export default function MinistryWorkspace({ view }: { view: WorkspaceView }) {
       {loadError ? (
         <section className="panel">
           <p className="eyebrow">Access Readiness</p>
-          <h2 className="section-title" style={{ marginTop: 0 }}>
+          <h2 className="section-title flush">
             Ministry workspace unavailable
           </h2>
           <p className="muted">{loadError}</p>
@@ -172,10 +172,10 @@ export default function MinistryWorkspace({ view }: { view: WorkspaceView }) {
           <div className="grid">
             {activeRole === "admin" ? (
               <section className="panel" id="create-event">
-                <div className="toolbar" style={{ justifyContent: "space-between" }}>
+                <div className="toolbar split">
                   <div>
                     <p className="eyebrow">Admin</p>
-                    <h2 className="section-title" style={{ margin: 0 }}>
+                    <h2 className="section-title flush">
                       Create Event
                     </h2>
                   </div>
@@ -376,7 +376,7 @@ function MinistryPulse({
         <span className="pulse-header-glyph" aria-hidden="true">
           <IconPulse />
         </span>
-        <h2 className="section-title" style={{ margin: 0 }}>
+        <h2 className="section-title flush">
           Ministry Pulse
         </h2>
       </div>
@@ -419,7 +419,7 @@ function NextOnCalendar({ events }: { events: MinistryEvent[] }) {
         <span className="next-cal-header-glyph" aria-hidden="true">
           <IconCalendar />
         </span>
-        <h2 className="section-title" style={{ margin: 0 }}>
+        <h2 className="section-title flush">
           Next on the Calendar
         </h2>
       </div>
@@ -562,7 +562,7 @@ function TasksWorkspace({
       <div className="toolbar tasks-header">
         <div>
           <p className="eyebrow">Task Workspace</p>
-          <h2 className="section-title" style={{ margin: 0 }}>
+          <h2 className="section-title flush">
             Tasks
           </h2>
         </div>
@@ -588,7 +588,7 @@ function TasksWorkspace({
         <div className="kanban task-board">
           {statuses.map((status) => (
             <div className="kanban-column task-lane" key={status}>
-              <div className="toolbar" style={{ justifyContent: "space-between" }}>
+              <div className="toolbar split">
                 <strong className="lane-title">{statusLabels[status]}</strong>
                 <span className={status === "done" ? "pill done" : status === "blocked" ? "pill blocked" : "pill"}>
                   {tasks.filter((task) => task.status === status).length}
@@ -894,7 +894,7 @@ function EventIdentitySection({
     >
       <div className="event-row-title">
         <button
-          className="event-title-btn"
+          className="button ghost"
           type="button"
           onClick={(clickEvent) => {
             clickEvent.stopPropagation();
@@ -909,7 +909,7 @@ function EventIdentitySection({
       <div className="event-identity-meta">
         <span className="pill">{eventTypeLabels[event.type]}</span>
         <span className={event.status === "ready" || event.status === "completed" ? "pill done" : "pill"}>{event.status}</span>
-        <span className="progress-chip">{completeTasks}/{tasks.length} tasks</span>
+        <span className="pill blue">{completeTasks}/{tasks.length} tasks</span>
       </div>
     </div>
   );

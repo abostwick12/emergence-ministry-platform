@@ -281,6 +281,7 @@ export function AppShell({
         <nav className="mobile-bottom-nav" aria-label="Mobile navigation">
           {visibleMobileLinks.map((link) => (
             <Link className={pathname === link.href ? "mobile-nav-link active" : "mobile-nav-link"} href={link.href} key={link.href}>
+              <NavIcon href={link.href} />
               {link.label}
             </Link>
           ))}
@@ -315,7 +316,7 @@ function ShellAccessStatePanel({ shellAccess }: { shellAccess: Exclude<AppShellA
     <div className="grid workspace-page">
       <section className="panel">
         <p className="eyebrow">{isUnresolved ? "Camp Readiness" : "Camp Access"}</p>
-        <h2 className="section-title" style={{ marginTop: 0 }}>
+        <h2 className="section-title flush">
           {isUnresolved ? "Camp access needs attention" : "Camp-only access"}
         </h2>
         <p className="muted">

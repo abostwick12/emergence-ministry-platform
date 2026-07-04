@@ -184,6 +184,7 @@ Before marking code complete, run:
 
 ```bash
 npm install
+npm run design-check
 npm run typecheck
 npm run lint
 npm run build
@@ -191,6 +192,8 @@ npm run test:e2e
 ```
 
 If dependencies are already installed and unchanged, `npm install` may be skipped, but the reason should be stated.
+
+`npm run design-check` scans changed `app/` and `components/` files for retired class names, CSS Modules, and inline-style overrides that now have modifier classes. It exits non-zero on a violation. Fix violations before continuing — do not push past them.
 
 Do not claim work is ready when required checks have not run.
 
@@ -202,6 +205,20 @@ If a check fails:
 - rerun the affected checks
 
 Do not weaken tests merely to make them pass. Update tests only when intended behavior changes, and preserve equivalent coverage.
+
+## Automatic Skills
+
+This repository ships reusable skills in `.claude/skills/`. Both Claude Code and Codex must treat the following as automatic triggers — invoke the skill (or run the equivalent command) at each trigger point without waiting to be asked:
+
+| Trigger | Skill / command | Why |
+|---|---|---|
+| After editing any file in `app/` or `components/` | `design-audit` skill, or `npm run design-check` | Catch retired classes, CSS Modules, and inline-style overrides before they spread |
+| Before creating a new React component | `new-component` skill | Reuse existing tokens and classes instead of inventing parallel patterns |
+| Before adding anything under `app/camp/`, `components/camp/`, or `lib/camp/` | `camp-feature` skill | Respect the Camp namespace, EMMA conventions, and access control |
+| Before every push | `pre-push` skill | Run typecheck / lint / build / e2e in order |
+| Before merging a dependency upgrade or shared-infra refactor | `upgrade-checklist` skill | Confirm the token source of truth and stub-mode boundaries survive |
+
+Codex does not read `.claude/settings.json` hooks, so Codex must run `npm run design-check` manually after touching `app/` or `components/`. Claude Code runs it automatically via the PostToolUse hook in `.claude/settings.json` (once enabled) but should still honor the table above.
 
 ## Visual Acceptance Rule
 

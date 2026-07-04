@@ -2,7 +2,21 @@
   "permissions": {
     "allow": [
       "Bash(npm run *)",
+      "Bash(node scripts/design-check.mjs*)",
       "mcp__5c373e6b-ff54-44f0-8519-e82a95aac5ec__*"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/design-check.mjs"
+          }
+        ]
+      }
     ]
   }
 }
