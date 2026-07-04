@@ -1,11 +1,12 @@
 import Link from "next/link";
+import { CaptureInboxPanel } from "@/components/command-center/capture-inbox-panel";
+import { DOMAIN_LABELS, DOMAIN_ORDER, domainClassName } from "@/components/command-center/domain-meta";
 import { getServerSession } from "@/lib/auth/server";
 import { getOverview } from "@/lib/command-center/repository";
-import { DOMAIN_LABELS, DOMAIN_ORDER, domainClassName } from "@/components/command-center/domain-meta";
-import { CaptureInboxPanel } from "@/components/command-center/capture-inbox-panel";
 import { formatDate } from "@/lib/utils";
 
 const INTEGRATION_LABELS: Record<string, string> = {
+  firecrawl: "Firecrawl",
   slack: "Slack",
   google_calendar: "Google Calendar",
   gmail: "Gmail",
@@ -28,15 +29,15 @@ export default async function CommandCenterPage() {
             <h2 className="section-title flush">{overview.todayPriority.title}</h2>
             <p className="muted">
               {DOMAIN_LABELS[overview.todayPriority.domain]}
-              {overview.todayPriority.dueDate ? ` · Due ${formatDate(overview.todayPriority.dueDate)}` : ""}
+              {overview.todayPriority.dueDate ? ` - Due ${formatDate(overview.todayPriority.dueDate)}` : ""}
             </p>
           </>
         ) : (
-          <p className="muted">Nothing urgent right now — a good day to work ahead on SOTF or job search.</p>
+          <p className="muted">Nothing urgent right now. A good day to work ahead on SOTF or job search.</p>
         )}
         <div className="toolbar">
           <Link className="button primary" href="/command-center/chat">
-            Ask SAGE
+            SAGE Chat (Phase 1B)
           </Link>
           {overview.jobFollowUpsDueCount > 0 ? (
             <Link className="button" href="/command-center/job-search">
@@ -70,12 +71,12 @@ export default async function CommandCenterPage() {
 
       <section className="panel">
         <p className="eyebrow">Morning Briefing</p>
-        <h2 className="section-title flush">Fresh Intelligence</h2>
+        <h2 className="section-title flush">Manual Resource Feed</h2>
         {overview.briefingItems.map((item) => (
           <div className="command-center-briefing-item" key={item.id}>
             <strong>{item.title}</strong>
             <p className="muted">
-              {item.summary} — <span>{item.source}</span>
+              {item.summary} - <span>{item.source}</span>
             </p>
           </div>
         ))}
@@ -86,7 +87,8 @@ export default async function CommandCenterPage() {
 
       <section className="panel">
         <p className="eyebrow">Integrations</p>
-        <h2 className="section-title flush">Connected Tools</h2>
+        <h2 className="section-title flush">Planned Tool Connections</h2>
+        <p className="muted">All integrations remain disconnected placeholders in Phase 1A.</p>
         <div className="command-center-integration-row">
           {overview.integrations.map((integration) => (
             <span
@@ -98,7 +100,7 @@ export default async function CommandCenterPage() {
           ))}
         </div>
         <Link className="button ghost" href="/command-center/integrations">
-          Manage integrations
+          View planned integrations
         </Link>
       </section>
     </div>

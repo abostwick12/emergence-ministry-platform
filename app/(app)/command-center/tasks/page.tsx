@@ -18,13 +18,21 @@ export default function CommandCenterTasksPage() {
   const [loading, setLoading] = useState(true);
   const [newTitle, setNewTitle] = useState("");
   const [newDomain, setNewDomain] = useState<PersonalDomain>("military_transition");
+  const [error, setError] = useState<string | null>(null);
 
   async function loadTasks() {
     setLoading(true);
-    const response = await fetch("/api/command-center/tasks");
-    const data = (await response.json()) as { tasks: PersonalTask[] };
-    setTasks(data.tasks);
-    setLoading(false);
+    setError(null);
+    try {
+      const response = await fetch("/api/command-center/tasks");
+      if (!response.ok) throw new Error("Failed to load tasks");
+      const data = (await response.json()) as { tasks: PersonalTask[] };
+      setTasks(data.tasks);
+    } catch {
+      setError("Tasks could not be loaded. Try refreshing the page.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -37,25 +45,47 @@ export default function CommandCenterTasksPage() {
   );
 
   async function updateStatus(id: string, status: PersonalTaskStatus) {
+    const previous = tasks;
     setTasks((current) => current.map((task) => (task.id === id ? { ...task, status } : task)));
-    await fetch(`/api/command-center/tasks/${id}`, {
+    setError(null);
+    const response = await fetch(`/api/command-center/tasks/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status })
     });
+    if (!response.ok) {
+      setTasks(previous);
+      setError("Task status could not be saved.");
+    }
   }
 
   async function addTask() {
     const title = newTitle.trim();
     if (!title) return;
+    setError(null);
     const response = await fetch("/api/command-center/tasks", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ domain: newDomain, title, status: "todo", priority: "medium" as PersonalTaskPriority })
     });
+    if (!response.ok) {
+      setError("Task could not be created.");
+      return;
+    }
     const task = (await response.json()) as PersonalTask;
     setTasks((current) => [task, ...current]);
     setNewTitle("");
+  }
+
+  async function deleteTask(id: string) {
+    const previous = tasks;
+    setTasks((current) => current.filter((task) => task.id !== id));
+    setError(null);
+    const response = await fetch(`/api/command-center/tasks/${id}`, { method: "DELETE" });
+    if (!response.ok) {
+      setTasks(previous);
+      setError("Task could not be deleted.");
+    }
   }
 
   return (
@@ -101,6 +131,11 @@ export default function CommandCenterTasksPage() {
             + Add Task
           </button>
         </div>
+        {error ? (
+          <p className="muted" role="alert">
+            {error}
+          </p>
+        ) : null}
       </section>
 
       {loading ? (
@@ -120,19 +155,25 @@ export default function CommandCenterTasksPage() {
                   <article className={`task-card command-center-task-card ${domainClassName(task.domain)}`} key={task.id}>
                     <strong className="task-card-title">{task.title}</strong>
                     <div className="task-card-event">{DOMAIN_LABELS[task.domain]}</div>
+                    {task.description ? <p className="muted">{task.description}</p> : null}
                     <div className="toolbar split">
                       {task.dueDate ? <span className="task-card-date">Due {formatDate(task.dueDate)}</span> : <span />}
                       <span className={task.priority === "critical" ? "pill red" : task.priority === "high" ? "pill amber" : "pill"}>
                         {task.priority}
                       </span>
                     </div>
-                    <select value={task.status} onChange={(event) => updateStatus(task.id, event.target.value as PersonalTaskStatus)}>
-                      {STATUS_COLUMNS.map((option) => (
-                        <option key={option.status} value={option.status}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="toolbar">
+                      <select value={task.status} onChange={(event) => updateStatus(task.id, event.target.value as PersonalTaskStatus)}>
+                        {STATUS_COLUMNS.map((option) => (
+                          <option key={option.status} value={option.status}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                      <button className="button danger" type="button" onClick={() => deleteTask(task.id)}>
+                        Delete
+                      </button>
+                    </div>
                   </article>
                 ))}
               </div>

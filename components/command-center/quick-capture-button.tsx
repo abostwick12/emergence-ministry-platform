@@ -7,11 +7,13 @@ export function QuickCaptureButton() {
   const [text, setText] = useState("");
   const [saving, setSaving] = useState(false);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleSave() {
     const rawText = text.trim();
     if (!rawText) return;
     setSaving(true);
+    setError(null);
     try {
       const response = await fetch("/api/command-center/capture", {
         method: "POST",
@@ -23,6 +25,8 @@ export function QuickCaptureButton() {
       setSavedMessage("Captured. Review it from the dashboard inbox.");
       setTimeout(() => setSavedMessage(null), 2500);
       setOpen(false);
+    } catch {
+      setError("Capture could not be saved. Try again.");
     } finally {
       setSaving(false);
     }
@@ -36,10 +40,15 @@ export function QuickCaptureButton() {
           <textarea
             autoFocus
             className="command-center-capture-textarea"
-            placeholder="Anything on your mind — SAGE will help triage it later."
+            placeholder="Capture a raw note, task, lead, or reminder."
             value={text}
             onChange={(event) => setText(event.target.value)}
           />
+          {error ? (
+            <p className="muted" role="alert">
+              {error}
+            </p>
+          ) : null}
           <div className="toolbar">
             <button className="button primary" type="button" disabled={saving || !text.trim()} onClick={handleSave}>
               {saving ? "Saving..." : "Save"}

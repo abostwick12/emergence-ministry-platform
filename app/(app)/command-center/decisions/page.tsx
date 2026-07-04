@@ -5,8 +5,8 @@ export default function CommandCenterDecisionsPage() {
         <p className="eyebrow">Decision Journal</p>
         <h2 className="section-title flush">Coming in Phase 3</h2>
         <p className="muted">
-          A structured space to work through major decisions with SAGE — context, options, stakes, and a recorded
-          rationale you can look back on.
+          A structured space for major decisions, options, stakes, and recorded rationale. Future SAGE support can help
+          organize this once the assistant layer is approved.
         </p>
       </section>
     </div>

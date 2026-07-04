@@ -10,7 +10,7 @@ export default async function CommandCenterFeedPage() {
     <div className="grid workspace-page">
       <section className="panel">
         <p className="eyebrow">Daily Feed</p>
-        <h2 className="section-title flush">Fresh Intelligence</h2>
+        <h2 className="section-title flush">Manual Resource Feed</h2>
         <p className="muted">
           Phase 2 will replace this with a live Firecrawl-powered crawl of military transition, job market, and leadership
           sources, refreshed once per day.

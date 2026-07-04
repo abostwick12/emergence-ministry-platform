@@ -6,12 +6,11 @@ import {
   createPersonalTask,
   deletePersonalTask,
   getOverview,
+  listIntegrations,
   listJobApplications,
   listPersonalTasks,
   listUnprocessedCaptures,
   resolveCaptureEntry,
-  saveMemoryRecord,
-  listMemoryRecords,
   updateJobApplication,
   updatePersonalTask
 } from "@/lib/command-center/repository";
@@ -130,6 +129,23 @@ describe("job applications", () => {
   });
 });
 
+describe("integrations", () => {
+  it("returns disconnected planned integrations in mock mode", async () => {
+    const integrations = await listIntegrations(mockSession());
+
+    expect(integrations.map((integration) => integration.service)).toEqual([
+      "firecrawl",
+      "slack",
+      "google_calendar",
+      "gmail",
+      "google_drive",
+      "linkedin",
+      "monday"
+    ]);
+    expect(integrations.every((integration) => integration.status === "disconnected")).toBe(true);
+  });
+});
+
 describe("quick capture", () => {
   it("creates an unprocessed entry and resolves it as processed", async () => {
     const session = mockSession();
@@ -144,15 +160,5 @@ describe("quick capture", () => {
 
     const stillUnprocessed = await listUnprocessedCaptures(session);
     expect(stillUnprocessed.some((item) => item.id === entry.id)).toBe(false);
-  });
-});
-
-describe("sage memory", () => {
-  it("persists a memory and lists it back", async () => {
-    const session = mockSession();
-    await saveMemoryRecord(session, { memoryType: "fact", content: "Andrew's separation date is March 2026", domain: "military_transition" });
-
-    const memories = await listMemoryRecords(session);
-    expect(memories.some((memory) => memory.content.includes("March 2026"))).toBe(true);
   });
 });

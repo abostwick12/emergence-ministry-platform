@@ -55,15 +55,22 @@ create table if not exists public.daily_briefing_cache (
   id uuid primary key default gen_random_uuid(),
   cache_date date not null unique,
   items jsonb not null default '[]',
-  generated_at timestamptz not null default now()
+  generated_at timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
+
+drop trigger if exists set_daily_briefing_cache_updated_at on public.daily_briefing_cache;
+create trigger set_daily_briefing_cache_updated_at
+before update on public.daily_briefing_cache
+for each row execute function public.set_updated_at();
 
 -- 3. ai_conversations -----------------------------------------------------
 
 create table if not exists public.ai_conversations (
   id uuid primary key default gen_random_uuid(),
   session_id text not null,
-  role text not null check (role in ('user', 'assistant', 'system')),
+  role text not null check (role in ('system', 'user', 'assistant', 'tool')),
   content text not null,
   created_at timestamptz not null default now()
 );
@@ -74,10 +81,10 @@ create index if not exists idx_ai_conversations_session on public.ai_conversatio
 
 create table if not exists public.personal_integrations (
   id uuid primary key default gen_random_uuid(),
-  service text not null unique check (service in ('slack', 'google_calendar', 'gmail', 'google_drive', 'linkedin', 'monday')),
-  status text not null default 'disconnected' check (status in ('connected', 'disconnected', 'error')),
+  service text not null unique check (service in ('firecrawl', 'slack', 'google_calendar', 'gmail', 'google_drive', 'monday', 'linkedin')),
+  status text not null default 'disconnected' check (status in ('disconnected', 'connected', 'error')),
   config jsonb not null default '{}',
-  connected_at timestamptz,
+  created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
@@ -88,12 +95,13 @@ for each row execute function public.set_updated_at();
 
 insert into public.personal_integrations (service, status)
 values
+  ('firecrawl', 'disconnected'),
   ('slack', 'disconnected'),
   ('google_calendar', 'disconnected'),
   ('gmail', 'disconnected'),
   ('google_drive', 'disconnected'),
-  ('linkedin', 'disconnected'),
-  ('monday', 'disconnected')
+  ('monday', 'disconnected'),
+  ('linkedin', 'disconnected')
 on conflict (service) do nothing;
 
 -- 5. sage_memory ------------------------------------------------------------
@@ -102,7 +110,7 @@ create table if not exists public.sage_memory (
   id uuid primary key default gen_random_uuid(),
   memory_type text not null check (memory_type in ('fact', 'preference', 'context', 'relationship')),
   content text not null,
-  domain text,
+  domain text check (domain is null or domain in ('military_transition', 'sotf_fellowship', 'job_search', 'life')),
   created_at timestamptz not null default now(),
   last_referenced_at timestamptz
 );
@@ -115,12 +123,19 @@ create table if not exists public.capture_inbox (
   id uuid primary key default gen_random_uuid(),
   raw_text text not null,
   status text not null default 'unprocessed' check (status in ('unprocessed', 'processed', 'discarded')),
-  routed_domain text check (routed_domain in ('military_transition', 'sotf_fellowship', 'job_search', 'life')),
-  routed_task_id uuid references public.personal_tasks(id),
-  created_at timestamptz not null default now()
+  routed_domain text check (routed_domain is null or routed_domain in ('military_transition', 'sotf_fellowship', 'job_search', 'life')),
+  routed_task_id uuid references public.personal_tasks(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 
+drop trigger if exists set_capture_inbox_updated_at on public.capture_inbox;
+create trigger set_capture_inbox_updated_at
+before update on public.capture_inbox
+for each row execute function public.set_updated_at();
+
 create index if not exists idx_capture_inbox_status on public.capture_inbox(status);
+create index if not exists idx_capture_inbox_created_at on public.capture_inbox(created_at);
 
 -- 7. job_applications ------------------------------------------------------------
 
@@ -128,7 +143,7 @@ create table if not exists public.job_applications (
   id uuid primary key default gen_random_uuid(),
   company text not null,
   role text not null,
-  status text not null default 'applied' check (status in ('researching', 'applied', 'phone_screen', 'interview', 'offer', 'rejected', 'withdrawn')),
+  status text not null default 'researching' check (status in ('researching', 'applied', 'phone_screen', 'interview', 'offer', 'rejected', 'withdrawn')),
   applied_date date,
   contact_name text,
   contact_notes text,
@@ -146,6 +161,7 @@ for each row execute function public.set_updated_at();
 
 create index if not exists idx_job_applications_status on public.job_applications(status);
 create index if not exists idx_job_applications_follow_up on public.job_applications(next_follow_up_date);
+create index if not exists idx_job_applications_applied_date on public.job_applications(applied_date);
 
 -- 8. Row Level Security: Andrew-only ----------------------------------------
 -- Every table in this migration is scoped to a single authenticated email.

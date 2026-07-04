@@ -10,10 +10,15 @@ export function CaptureInboxPanel({ initialCount }: { initialCount: number }) {
   const [entries, setEntries] = useState<CaptureWithSuggestion[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, { domain: PersonalDomain; title: string }>>({});
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (initialCount === 0) return;
     fetch("/api/command-center/capture")
+      .then((response) => {
+        if (!response.ok) throw new Error("Failed to load capture inbox");
+        return response;
+      })
       .then((response) => response.json())
       .then((data: { entries: CaptureWithSuggestion[] }) => {
         setEntries(data.entries);
@@ -23,16 +28,30 @@ export function CaptureInboxPanel({ initialCount }: { initialCount: number }) {
           )
         );
         setLoaded(true);
+      })
+      .catch(() => {
+        setError("Quick Capture inbox could not be loaded.");
+        setLoaded(true);
       });
   }, [initialCount]);
 
   async function resolve(id: string, action: "approve" | "discard") {
     const draft = drafts[id];
-    await fetch(`/api/command-center/capture/${id}`, {
+    setError(null);
+    if (action === "approve" && !draft?.title.trim()) {
+      setError("Add a task title before approving this capture.");
+      return;
+    }
+
+    const response = await fetch(`/api/command-center/capture/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(action === "approve" ? { action, domain: draft.domain, title: draft.title } : { action })
     });
+    if (!response.ok) {
+      setError("Quick Capture update failed. Try again.");
+      return;
+    }
     setEntries((current) => current.filter((entry) => entry.id !== id));
   }
 
@@ -44,12 +63,17 @@ export function CaptureInboxPanel({ initialCount }: { initialCount: number }) {
     <section className="panel">
       <p className="eyebrow">Inbox</p>
       <h2 className="section-title flush">Quick Capture ({entries.length})</h2>
-      <p className="muted">SAGE has suggested a domain and task title for each. Review and approve, or discard.</p>
+      <p className="muted">Review each raw note, choose the domain and title, then approve it into a task or discard it.</p>
+      {error ? (
+        <p className="muted" role="alert">
+          {error}
+        </p>
+      ) : null}
       <div className="grid">
         {entries.map((entry) => {
           const draft = drafts[entry.id] ?? { domain: entry.suggestedDomain, title: entry.suggestedTitle };
           return (
-            <div className="panel" key={entry.id}>
+            <article className="task-card" key={entry.id}>
               <p className="muted">{entry.rawText}</p>
               <div className="toolbar">
                 <select
@@ -71,14 +95,14 @@ export function CaptureInboxPanel({ initialCount }: { initialCount: number }) {
                 />
               </div>
               <div className="toolbar">
-                <button className="button primary" type="button" onClick={() => resolve(entry.id, "approve")}>
-                  Approve → Task
+                <button className="button primary" type="button" disabled={!draft.title.trim()} onClick={() => resolve(entry.id, "approve")}>
+                  Approve as task
                 </button>
                 <button className="button ghost" type="button" onClick={() => resolve(entry.id, "discard")}>
                   Discard
                 </button>
               </div>
-            </div>
+            </article>
           );
         })}
       </div>

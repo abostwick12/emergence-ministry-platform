@@ -10,7 +10,7 @@ cohesive platform instead of becoming isolated feature areas.
 | Core ministry operations | Events, tasks, communication previews, budgets, integration activity, and activity logs | `app/(app)`, `components/`, `lib/` |
 | Camp Command Center | Camp Oakwood operational control center | `app/(app)/camp`, `components/camp`, `lib/camp` |
 | EMMA | Ministry and Camp AI command layer | `lib/emma`, `lib/camp/emma*.ts`, `app/api/*/emma*` |
-| Personal Command Center / SAGE | Andrew-only personal executive assistant | `app/(app)/command-center`, `components/command-center`, `lib/command-center` |
+| Personal Command Center / SAGE | Andrew-only personal command center now; future personal executive assistant | `app/(app)/command-center`, `components/command-center`, `lib/command-center` |
 | Reusable AI workflows | Shared skill contracts, prompts, routing, and provider-safe helpers | Target: `lib/ai` |
 
 ## Naming Rules
@@ -132,10 +132,10 @@ work.
 
 | Item | Why it matters | Suggested future PR |
 |---|---|---|
-| Introduce shared `lib/ai` contracts | EMMA and SAGE currently define skill concepts differently | Move only common contracts first |
+| Introduce shared `lib/ai` contracts | Future SAGE work should reuse the shared skill/prompt conventions instead of recreating assistant-local playbooks | Move only common contracts first |
 | Reconcile Camp EMMA command routes | Multiple command/action paths increase maintenance risk | Route audit and deprecation plan |
 | Refresh stale Camp AI docs | Some docs describe old missing-provider state | Focused Camp doc correction |
 | Audit orphaned Camp component | `components/camp-command-center.tsx` is retained as reference | Decide archive/remove path when safe |
-| Align environment docs by assistant owner | `OPENAI_API_KEY` can serve Camp fallback and SAGE | Clarify owner-specific defaults |
+| Align environment docs by assistant owner | Camp fallback can use `OPENAI_API_KEY`; Command Center Phase 1A does not require an AI key | Revisit when SAGE chat is introduced |
 | Add shared access documentation | Access gates are correct but scattered | Create `docs/architecture/access-control.md` if needed |
 | Add AI registry tests for future shared skills | Prevent duplicate skill keys and prompt drift | Add when `lib/ai` contains runtime code |

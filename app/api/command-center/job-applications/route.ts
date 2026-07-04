@@ -13,11 +13,17 @@ const VALID_STATUSES: JobApplicationStatus[] = [
   "withdrawn"
 ];
 
-export async function GET() {
+export async function GET(request: Request) {
   const access = await requireCommandCenterAccess();
   if (!access.allowed) return access.response;
 
-  const applications = await listJobApplications(access.session);
+  const url = new URL(request.url);
+  const statusParam = url.searchParams.get("status");
+  const status = statusParam && VALID_STATUSES.includes(statusParam as JobApplicationStatus)
+    ? (statusParam as JobApplicationStatus)
+    : undefined;
+
+  const applications = await listJobApplications(access.session, { status });
   return NextResponse.json({ applications });
 }
 

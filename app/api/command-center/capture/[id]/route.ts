@@ -5,14 +5,18 @@ import type { PersonalDomain } from "@/lib/command-center/types";
 
 const VALID_DOMAINS: PersonalDomain[] = ["military_transition", "sotf_fellowship", "job_search", "life"];
 
-// Approves or discards a Quick Capture entry. Approving creates a real task
-// from the (possibly edited) suggested domain/title — capture entries never
-// silently become tasks without this explicit step.
+// Approving creates a real task from the edited domain/title. Capture entries
+// never silently become tasks without this explicit step.
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
   const access = await requireCommandCenterAccess();
   if (!access.allowed) return access.response;
 
-  const body = (await request.json()) as { action?: "approve" | "discard"; domain?: string; title?: string };
+  let body: { action?: "approve" | "discard"; domain?: string; title?: string };
+  try {
+    body = (await request.json()) as { action?: "approve" | "discard"; domain?: string; title?: string };
+  } catch {
+    return NextResponse.json({ error: "Valid JSON body is required" }, { status: 400 });
+  }
 
   if (body.action === "discard") {
     const entry = await resolveCaptureEntry(access.session, params.id, { status: "discarded" });

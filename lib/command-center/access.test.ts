@@ -21,4 +21,8 @@ describe("isCommandCenterUser", () => {
   it("returns false for a null session", () => {
     expect(isCommandCenterUser(null)).toBe(false);
   });
+
+  it("returns false when the user email is missing", () => {
+    expect(isCommandCenterUser({ user: {} })).toBe(false);
+  });
 });

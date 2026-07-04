@@ -5,7 +5,6 @@
 // the lifetime of the server process only.
 
 import type {
-  AiConversationMessage,
   BriefingItem,
   CaptureEntry,
   CommandCenterOverview,
@@ -14,7 +13,7 @@ import type {
   PersonalDomain,
   PersonalIntegration,
   PersonalTask,
-  SageMemory
+  UpdateJobApplicationInput
 } from "@/lib/command-center/types";
 
 function uid(prefix: string): string {
@@ -91,6 +90,17 @@ function seedTasks(): PersonalTask[] {
   },
   {
     id: uid("task"),
+    domain: "sotf_fellowship",
+    title: "Draft SOTF reflection outline",
+    status: "in_progress",
+    priority: "medium",
+    dueDate: daysFromNow(7),
+    tags: ["writing"],
+    createdAt: nowIso(),
+    updatedAt: nowIso()
+  },
+  {
+    id: uid("task"),
     domain: "job_search",
     title: "Tailor resume for Director of Operations roles",
     status: "in_progress",
@@ -142,6 +152,17 @@ function seedTasks(): PersonalTask[] {
     tags: ["admin"],
     createdAt: nowIso(),
     updatedAt: nowIso()
+  },
+  {
+    id: uid("task"),
+    domain: "life",
+    title: "Schedule weekly planning block",
+    status: "todo",
+    priority: "high",
+    dueDate: daysFromNow(1),
+    tags: ["planning"],
+    createdAt: nowIso(),
+    updatedAt: nowIso()
   }
   ];
 }
@@ -175,6 +196,7 @@ const briefingItems: BriefingItem[] = [
 
 function seedIntegrations(): PersonalIntegration[] {
   return [
+    { id: uid("int"), service: "firecrawl", status: "disconnected", config: {} },
     { id: uid("int"), service: "slack", status: "disconnected", config: {} },
     { id: uid("int"), service: "google_calendar", status: "disconnected", config: {} },
     { id: uid("int"), service: "gmail", status: "disconnected", config: {} },
@@ -218,6 +240,29 @@ function seedJobApplications(): JobApplication[] {
   ];
 }
 
+function seedCaptures(): CaptureEntry[] {
+  return [
+    {
+      id: uid("cap"),
+      rawText: "Ask TAP counselor which retirement documents need signatures this week",
+      status: "unprocessed",
+      createdAt: nowIso()
+    },
+    {
+      id: uid("cap"),
+      rawText: "Follow up with fellowship mentor about next reflection prompt",
+      status: "unprocessed",
+      createdAt: nowIso()
+    },
+    {
+      id: uid("cap"),
+      rawText: "Add the nonprofit operations role to the job tracker",
+      status: "unprocessed",
+      createdAt: nowIso()
+    }
+  ];
+}
+
 // Next.js dev-mode note:
 // The App Router compiles each route.ts as its own on-demand entry and can
 // recompile/re-instantiate a route's module graph independently of sibling
@@ -230,9 +275,7 @@ type CommandCenterStoreState = {
   tasks: PersonalTask[];
   integrations: PersonalIntegration[];
   jobApplications: JobApplication[];
-  sageMemories: SageMemory[];
   captureInbox: CaptureEntry[];
-  conversations: Map<string, AiConversationMessage[]>;
 };
 
 declare global {
@@ -245,9 +288,7 @@ function createInitialState(): CommandCenterStoreState {
     tasks: seedTasks(),
     integrations: seedIntegrations(),
     jobApplications: seedJobApplications(),
-    sageMemories: [],
-    captureInbox: [],
-    conversations: new Map()
+    captureInbox: seedCaptures()
   };
 }
 
@@ -259,9 +300,7 @@ export function __resetCommandCenterStoreForTests(): void {
   state.tasks = seedTasks();
   state.integrations = seedIntegrations();
   state.jobApplications = seedJobApplications();
-  state.sageMemories = [];
-  state.captureInbox = [];
-  state.conversations = new Map();
+  state.captureInbox = seedCaptures();
 }
 
 export function listTasks(filter?: { domain?: PersonalDomain; status?: string }): PersonalTask[] {
@@ -300,37 +339,6 @@ export function listIntegrations(): PersonalIntegration[] {
   return state.integrations;
 }
 
-export function updateIntegration(service: PersonalIntegration["service"], input: Partial<PersonalIntegration>): PersonalIntegration | null {
-  let updated: PersonalIntegration | null = null;
-  state.integrations = state.integrations.map((integration) => {
-    if (integration.service !== service) return integration;
-    updated = { ...integration, ...input, service: integration.service };
-    return updated;
-  });
-  return updated;
-}
-
-export function saveConversationMessage(message: Omit<AiConversationMessage, "id" | "createdAt">): AiConversationMessage {
-  const record: AiConversationMessage = { ...message, id: uid("msg"), createdAt: nowIso() };
-  const existing = state.conversations.get(message.sessionId) ?? [];
-  state.conversations.set(message.sessionId, [...existing, record]);
-  return record;
-}
-
-export function getConversationHistory(sessionId: string): AiConversationMessage[] {
-  return state.conversations.get(sessionId) ?? [];
-}
-
-export function saveMemory(input: Omit<SageMemory, "id" | "createdAt">): SageMemory {
-  const memory: SageMemory = { ...input, id: uid("mem"), createdAt: nowIso() };
-  state.sageMemories = [memory, ...state.sageMemories];
-  return memory;
-}
-
-export function listMemories(): SageMemory[] {
-  return state.sageMemories;
-}
-
 export function createCaptureEntry(rawText: string): CaptureEntry {
   const entry: CaptureEntry = { id: uid("cap"), rawText, status: "unprocessed", createdAt: nowIso() };
   state.captureInbox = [entry, ...state.captureInbox];
@@ -351,8 +359,11 @@ export function resolveCaptureEntry(id: string, input: Partial<CaptureEntry>): C
   return updated;
 }
 
-export function listJobApplications(): JobApplication[] {
-  return state.jobApplications;
+export function listJobApplications(filter?: { status?: JobApplication["status"] }): JobApplication[] {
+  return state.jobApplications.filter((application) => {
+    if (filter?.status && application.status !== filter.status) return false;
+    return true;
+  });
 }
 
 export function createJobApplication(input: Omit<JobApplication, "id" | "createdAt" | "updatedAt">): JobApplication {
@@ -361,11 +372,39 @@ export function createJobApplication(input: Omit<JobApplication, "id" | "created
   return application;
 }
 
-export function updateJobApplication(id: string, input: Partial<JobApplication>): JobApplication | null {
+export function updateJobApplication(id: string, input: UpdateJobApplicationInput): JobApplication | null {
   let updated: JobApplication | null = null;
   state.jobApplications = state.jobApplications.map((application) => {
     if (application.id !== id) return application;
-    updated = { ...application, ...input, id: application.id, updatedAt: nowIso() };
+    const next: JobApplication = { ...application, id: application.id, updatedAt: nowIso() };
+    if (input.company !== undefined) next.company = input.company;
+    if (input.role !== undefined) next.role = input.role;
+    if (input.status !== undefined) next.status = input.status;
+    if (input.appliedDate !== undefined) {
+      if (input.appliedDate === null) delete next.appliedDate;
+      else next.appliedDate = input.appliedDate;
+    }
+    if (input.contactName !== undefined) {
+      if (input.contactName === null) delete next.contactName;
+      else next.contactName = input.contactName;
+    }
+    if (input.contactNotes !== undefined) {
+      if (input.contactNotes === null) delete next.contactNotes;
+      else next.contactNotes = input.contactNotes;
+    }
+    if (input.nextFollowUpDate !== undefined) {
+      if (input.nextFollowUpDate === null) delete next.nextFollowUpDate;
+      else next.nextFollowUpDate = input.nextFollowUpDate;
+    }
+    if (input.compensationNotes !== undefined) {
+      if (input.compensationNotes === null) delete next.compensationNotes;
+      else next.compensationNotes = input.compensationNotes;
+    }
+    if (input.jobUrl !== undefined) {
+      if (input.jobUrl === null) delete next.jobUrl;
+      else next.jobUrl = input.jobUrl;
+    }
+    updated = next;
     return updated;
   });
   return updated;
@@ -374,17 +413,31 @@ export function updateJobApplication(id: string, input: Partial<JobApplication>)
 const DOMAIN_ORDER: PersonalDomain[] = ["military_transition", "sotf_fellowship", "job_search", "life"];
 
 const PRIORITY_WEIGHT: Record<PersonalTask["priority"], number> = { critical: 3, high: 2, medium: 1, low: 0 };
+const DOMAIN_WEIGHT: Record<PersonalDomain, number> = { military_transition: 3, sotf_fellowship: 2, job_search: 1, life: 0 };
+
+function dueWeight(task: PersonalTask, today: string): number {
+  if (!task.dueDate) return 0;
+  return task.dueDate <= today ? 2 : 1;
+}
 
 export function pickTodayPriorityFromTasks(allTasks: PersonalTask[]): PersonalTask | null {
   const openTasks = allTasks.filter((task) => task.status !== "done");
   if (openTasks.length === 0) return null;
+  const today = nowIso().slice(0, 10);
   const sorted = [...openTasks].sort((a, b) => {
-    const priorityDiff = PRIORITY_WEIGHT[b.priority] - PRIORITY_WEIGHT[a.priority];
-    if (priorityDiff !== 0) return priorityDiff;
-    if (a.dueDate && b.dueDate) return a.dueDate.localeCompare(b.dueDate);
+    const dueDiff = dueWeight(b, today) - dueWeight(a, today);
+    if (dueDiff !== 0) return dueDiff;
+    if (a.dueDate && b.dueDate) {
+      const dueDateDiff = a.dueDate.localeCompare(b.dueDate);
+      if (dueDateDiff !== 0) return dueDateDiff;
+    }
     if (a.dueDate) return -1;
     if (b.dueDate) return 1;
-    return 0;
+    const priorityDiff = PRIORITY_WEIGHT[b.priority] - PRIORITY_WEIGHT[a.priority];
+    if (priorityDiff !== 0) return priorityDiff;
+    const domainDiff = DOMAIN_WEIGHT[b.domain] - DOMAIN_WEIGHT[a.domain];
+    if (domainDiff !== 0) return domainDiff;
+    return a.createdAt.localeCompare(b.createdAt);
   });
   return sorted[0];
 }

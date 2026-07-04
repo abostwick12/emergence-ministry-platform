@@ -13,7 +13,7 @@ The repository currently has four skill-like systems:
 | Repository agent skills | `.claude/skills/`, `.codex/skills/` | Developer workflow guidance for Codex and Claude Code | Not product runtime AI |
 | Core EMMA workflows | `lib/emma/skills/`, `lib/emma/workflows/`, `lib/emma/providers/` | Audited ministry AI workflows for events, tasks, communications, and operations | Typed TypeScript registry |
 | Camp EMMA | `lib/camp/emma*.ts`, `app/api/camp/emma/` | Camp operational search, restricted-safe summaries, and confirmed Camp actions | Camp-specific implementation |
-| SAGE | `lib/command-center/sage.ts`, `lib/command-center/skills/*.md` | Andrew-only Personal Command Center assistant and personal playbooks | Single-user personal assistant |
+| SAGE | Target: `lib/ai/skills/command-center/`, `lib/ai/prompts/sage/`, and gated Command Center routes | Andrew-only Personal Command Center assistant and personal playbooks | Deferred; Phase 1A has no SAGE chat runtime |
 
 These systems are allowed to remain separate while their trust models differ,
 but future work should converge shared concepts into a common `lib/ai` layer.
@@ -208,7 +208,10 @@ For the current repository, that means:
 - core EMMA continues through `lib/emma/skills/registry.ts` and
   `lib/emma/workflows/execute-workflow.ts`
 - Camp EMMA continues through `app/api/camp/emma/` and `lib/camp/emma*.ts`
-- SAGE continues through `lib/command-center/sage.ts`
+- Personal Command Center Phase 1A continues through `lib/command-center`
+  repository, access, and deterministic capture-routing helpers only
+- SAGE chat, SAGE memory behavior, provider calls, function calling, and
+  markdown playbooks are deferred until a later focused PR
 
 New shared helpers should be added under `lib/ai` only when at least two of
 these systems will use them.
@@ -280,8 +283,8 @@ data. Server logs must use sanitized error codes and provider attempt metadata.
 
 Before adding a new AI prompt or skill:
 
-1. Search `lib/ai`, `lib/emma`, `lib/camp`, `lib/command-center/skills`,
-   `docs/emma`, and `docs/camp`.
+1. Search `lib/ai`, `lib/emma`, `lib/camp`, `lib/command-center`, `docs/emma`,
+   and `docs/camp`.
 2. Reuse an existing shared prompt fragment when the rule is assistant-neutral.
 3. Extend a skill registry instead of creating an unregistered one-off helper.
 4. Keep assistant identity in assistant-specific prompts, not shared prompts.
@@ -293,8 +296,8 @@ Before adding a new AI prompt or skill:
 These items should be handled in later focused PRs:
 
 - Move truly reusable EMMA skill contracts into `lib/ai/skills/shared/`.
-- Decide whether SAGE markdown playbooks should remain markdown or become typed
-  skill metadata under `lib/ai/skills/command-center/`.
+- Design SAGE runtime skills under `lib/ai/skills/command-center/` before adding
+  chat, memory, provider calls, or personal integration tool use.
 - Update stale Camp EMMA docs that still describe provider files as missing.
 - Decide whether Camp EMMA search queries should write a lightweight audit
   record.

@@ -2,6 +2,7 @@ import { getServerSession } from "@/lib/auth/server";
 import { listIntegrations } from "@/lib/command-center/repository";
 
 const INTEGRATION_LABELS: Record<string, string> = {
+  firecrawl: "Firecrawl",
   slack: "Slack",
   google_calendar: "Google Calendar",
   gmail: "Gmail",
@@ -11,6 +12,7 @@ const INTEGRATION_LABELS: Record<string, string> = {
 };
 
 const INTEGRATION_DESCRIPTIONS: Record<string, string> = {
+  firecrawl: "Gather a curated daily resource feed.",
   slack: "Send notifications and daily briefings to Slack.",
   google_calendar: "Read your schedule and create events from tasks.",
   gmail: "Triage recent email and draft replies for review.",

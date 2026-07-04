@@ -23,6 +23,12 @@ export interface PersonalTask {
   updatedAt: string;
 }
 
+export type CreatePersonalTaskInput = Omit<PersonalTask, "id" | "createdAt" | "updatedAt">;
+
+export type UpdatePersonalTaskInput = Partial<
+  Pick<PersonalTask, "domain" | "title" | "description" | "status" | "priority" | "dueDate" | "tags">
+>;
+
 export type BriefingCategory = "military_transition" | "job_market" | "leadership" | "sotf";
 
 export interface BriefingItem {
@@ -34,7 +40,7 @@ export interface BriefingItem {
   category: BriefingCategory;
 }
 
-export type ConversationRole = "user" | "assistant" | "system";
+export type ConversationRole = "user" | "assistant" | "system" | "tool";
 
 export interface AiConversationMessage {
   id: string;
@@ -44,7 +50,7 @@ export interface AiConversationMessage {
   createdAt: string;
 }
 
-export type IntegrationService = "slack" | "google_calendar" | "gmail" | "google_drive" | "linkedin" | "monday";
+export type IntegrationService = "firecrawl" | "slack" | "google_calendar" | "gmail" | "google_drive" | "linkedin" | "monday";
 
 export type IntegrationStatus = "connected" | "disconnected" | "error";
 
@@ -53,7 +59,6 @@ export interface PersonalIntegration {
   service: IntegrationService;
   status: IntegrationStatus;
   config: Record<string, unknown>;
-  connectedAt?: string;
 }
 
 export type SageMemoryType = "fact" | "preference" | "context" | "relationship";
@@ -76,6 +81,10 @@ export interface CaptureEntry {
   routedDomain?: PersonalDomain;
   routedTaskId?: string;
   createdAt: string;
+}
+
+export interface CreateCaptureEntryInput {
+  rawText: string;
 }
 
 export type JobApplicationStatus =
@@ -101,6 +110,17 @@ export interface JobApplication {
   createdAt: string;
   updatedAt: string;
 }
+
+export type CreateJobApplicationInput = Omit<JobApplication, "id" | "createdAt" | "updatedAt">;
+
+export type UpdateJobApplicationInput = Partial<Pick<JobApplication, "company" | "role" | "status">> & {
+  appliedDate?: string | null;
+  contactName?: string | null;
+  contactNotes?: string | null;
+  nextFollowUpDate?: string | null;
+  compensationNotes?: string | null;
+  jobUrl?: string | null;
+};
 
 export interface DomainTaskSummary {
   total: number;

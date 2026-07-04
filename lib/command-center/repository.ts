@@ -10,11 +10,11 @@ import { isSupabaseConfigured } from "@/lib/auth/config";
 import { getSupabaseAuthClient, type AuthSession } from "@/lib/auth/server";
 import * as mockStore from "@/lib/command-center/store";
 import type {
-  AiConversationMessage,
   BriefingItem,
   CaptureEntry,
   CommandCenterOverview,
-  ConversationRole,
+  CreateJobApplicationInput,
+  CreatePersonalTaskInput,
   JobApplication,
   JobApplicationStatus,
   PersonalDomain,
@@ -22,9 +22,14 @@ import type {
   PersonalTask,
   PersonalTaskPriority,
   PersonalTaskStatus,
-  SageMemory,
-  SageMemoryType
+  UpdateJobApplicationInput,
+  UpdatePersonalTaskInput
 } from "@/lib/command-center/types";
+
+const TASK_COLUMNS = "id, domain, title, description, status, priority, due_date, tags, created_at, updated_at";
+const CAPTURE_COLUMNS = "id, raw_text, status, routed_domain, routed_task_id, created_at";
+const JOB_APPLICATION_COLUMNS =
+  "id, company, role, status, applied_date, contact_name, contact_notes, next_follow_up_date, compensation_notes, job_url, created_at, updated_at";
 
 function shouldUseMock(session: AuthSession): boolean {
   return session.isMock || !isSupabaseConfigured();
@@ -65,7 +70,6 @@ type IntegrationRow = {
   service: PersonalIntegration["service"];
   status: PersonalIntegration["status"];
   config: Record<string, unknown> | null;
-  connected_at: string | null;
 };
 
 function mapIntegrationRow(row: IntegrationRow): PersonalIntegration {
@@ -73,8 +77,7 @@ function mapIntegrationRow(row: IntegrationRow): PersonalIntegration {
     id: row.id,
     service: row.service,
     status: row.status,
-    config: row.config ?? {},
-    connectedAt: row.connected_at ?? undefined
+    config: row.config ?? {}
   };
 }
 
@@ -130,38 +133,6 @@ function mapCaptureRow(row: CaptureRow): CaptureEntry {
   };
 }
 
-type MemoryRow = {
-  id: string;
-  memory_type: SageMemoryType;
-  content: string;
-  domain: string | null;
-  created_at: string;
-  last_referenced_at: string | null;
-};
-
-function mapMemoryRow(row: MemoryRow): SageMemory {
-  return {
-    id: row.id,
-    memoryType: row.memory_type,
-    content: row.content,
-    domain: row.domain ?? undefined,
-    createdAt: row.created_at,
-    lastReferencedAt: row.last_referenced_at ?? undefined
-  };
-}
-
-type ConversationRow = {
-  id: string;
-  session_id: string;
-  role: ConversationRole;
-  content: string;
-  created_at: string;
-};
-
-function mapConversationRow(row: ConversationRow): AiConversationMessage {
-  return { id: row.id, sessionId: row.session_id, role: row.role, content: row.content, createdAt: row.created_at };
-}
-
 // --- Tasks -------------------------------------------------------------
 
 export async function listPersonalTasks(
@@ -171,7 +142,7 @@ export async function listPersonalTasks(
   if (shouldUseMock(session)) return mockStore.listTasks(filter);
 
   const supabase = getSupabaseAuthClient(session.accessToken);
-  let query = supabase.from("personal_tasks").select("*").order("created_at", { ascending: false });
+  let query = supabase.from("personal_tasks").select(TASK_COLUMNS).order("created_at", { ascending: false });
   if (filter?.domain) query = query.eq("domain", filter.domain);
   if (filter?.status) query = query.eq("status", filter.status);
   const { data, error } = await query.returns<TaskRow[]>();
@@ -181,7 +152,7 @@ export async function listPersonalTasks(
 
 export async function createPersonalTask(
   session: AuthSession,
-  input: Omit<PersonalTask, "id" | "createdAt" | "updatedAt">
+  input: CreatePersonalTaskInput
 ): Promise<PersonalTask> {
   if (shouldUseMock(session)) return mockStore.createTask(input);
 
@@ -197,7 +168,7 @@ export async function createPersonalTask(
       due_date: input.dueDate ?? null,
       tags: input.tags
     })
-    .select("*")
+    .select(TASK_COLUMNS)
     .single<TaskRow>();
   if (error) throw new Error(error.message);
   return mapTaskRow(data);
@@ -206,7 +177,7 @@ export async function createPersonalTask(
 export async function updatePersonalTask(
   session: AuthSession,
   id: string,
-  input: Partial<PersonalTask>
+  input: UpdatePersonalTaskInput
 ): Promise<PersonalTask | null> {
   if (shouldUseMock(session)) return mockStore.updateTask(id, input);
 
@@ -220,7 +191,12 @@ export async function updatePersonalTask(
   if (input.dueDate !== undefined) patch.due_date = input.dueDate;
   if (input.tags !== undefined) patch.tags = input.tags;
 
-  const { data, error } = await supabase.from("personal_tasks").update(patch).eq("id", id).select("*").maybeSingle<TaskRow>();
+  const { data, error } = await supabase
+    .from("personal_tasks")
+    .update(patch)
+    .eq("id", id)
+    .select(TASK_COLUMNS)
+    .maybeSingle<TaskRow>();
   if (error) throw new Error(error.message);
   return data ? mapTaskRow(data) : null;
 }
@@ -248,95 +224,12 @@ export async function listIntegrations(session: AuthSession): Promise<PersonalIn
   if (shouldUseMock(session)) return mockStore.listIntegrations();
 
   const supabase = getSupabaseAuthClient(session.accessToken);
-  const { data, error } = await supabase.from("personal_integrations").select("*").returns<IntegrationRow[]>();
-  if (error) throw new Error(error.message);
-  return (data ?? []).map(mapIntegrationRow);
-}
-
-export async function updateIntegration(
-  session: AuthSession,
-  service: PersonalIntegration["service"],
-  input: Partial<Pick<PersonalIntegration, "status" | "config" | "connectedAt">>
-): Promise<PersonalIntegration | null> {
-  if (shouldUseMock(session)) return mockStore.updateIntegration(service, input);
-
-  const supabase = getSupabaseAuthClient(session.accessToken);
-  const patch: Record<string, unknown> = {};
-  if (input.status !== undefined) patch.status = input.status;
-  if (input.config !== undefined) patch.config = input.config;
-  if (input.connectedAt !== undefined) patch.connected_at = input.connectedAt;
-
   const { data, error } = await supabase
     .from("personal_integrations")
-    .update(patch)
-    .eq("service", service)
-    .select("*")
-    .maybeSingle<IntegrationRow>();
+    .select("id, service, status, config")
+    .returns<IntegrationRow[]>();
   if (error) throw new Error(error.message);
-  return data ? mapIntegrationRow(data) : null;
-}
-
-// --- Conversations ------------------------------------------------------------
-
-export async function saveConversationMessage(
-  session: AuthSession,
-  message: { sessionId: string; role: ConversationRole; content: string }
-): Promise<AiConversationMessage> {
-  if (shouldUseMock(session)) return mockStore.saveConversationMessage(message);
-
-  const supabase = getSupabaseAuthClient(session.accessToken);
-  const { data, error } = await supabase
-    .from("ai_conversations")
-    .insert({ session_id: message.sessionId, role: message.role, content: message.content })
-    .select("*")
-    .single<ConversationRow>();
-  if (error) throw new Error(error.message);
-  return mapConversationRow(data);
-}
-
-export async function getConversationHistory(session: AuthSession, sessionId: string): Promise<AiConversationMessage[]> {
-  if (shouldUseMock(session)) return mockStore.getConversationHistory(sessionId);
-
-  const supabase = getSupabaseAuthClient(session.accessToken);
-  const { data, error } = await supabase
-    .from("ai_conversations")
-    .select("*")
-    .eq("session_id", sessionId)
-    .order("created_at", { ascending: true })
-    .returns<ConversationRow[]>();
-  if (error) throw new Error(error.message);
-  return (data ?? []).map(mapConversationRow);
-}
-
-// --- Memory ------------------------------------------------------------
-
-export async function saveMemoryRecord(
-  session: AuthSession,
-  input: { memoryType: SageMemoryType; content: string; domain?: string }
-): Promise<SageMemory> {
-  if (shouldUseMock(session)) return mockStore.saveMemory(input);
-
-  const supabase = getSupabaseAuthClient(session.accessToken);
-  const { data, error } = await supabase
-    .from("sage_memory")
-    .insert({ memory_type: input.memoryType, content: input.content, domain: input.domain ?? null })
-    .select("*")
-    .single<MemoryRow>();
-  if (error) throw new Error(error.message);
-  return mapMemoryRow(data);
-}
-
-export async function listMemoryRecords(session: AuthSession): Promise<SageMemory[]> {
-  if (shouldUseMock(session)) return mockStore.listMemories();
-
-  const supabase = getSupabaseAuthClient(session.accessToken);
-  const { data, error } = await supabase
-    .from("sage_memory")
-    .select("*")
-    .order("created_at", { ascending: false })
-    .returns<MemoryRow[]>();
-  if (error) throw new Error(error.message);
-  return (data ?? []).map(mapMemoryRow);
+  return (data ?? []).map(mapIntegrationRow);
 }
 
 // --- Quick Capture ------------------------------------------------------------
@@ -348,7 +241,7 @@ export async function createCaptureEntry(session: AuthSession, rawText: string):
   const { data, error } = await supabase
     .from("capture_inbox")
     .insert({ raw_text: rawText })
-    .select("*")
+    .select(CAPTURE_COLUMNS)
     .single<CaptureRow>();
   if (error) throw new Error(error.message);
   return mapCaptureRow(data);
@@ -360,7 +253,7 @@ export async function listUnprocessedCaptures(session: AuthSession): Promise<Cap
   const supabase = getSupabaseAuthClient(session.accessToken);
   const { data, error } = await supabase
     .from("capture_inbox")
-    .select("*")
+    .select(CAPTURE_COLUMNS)
     .eq("status", "unprocessed")
     .order("created_at", { ascending: false })
     .returns<CaptureRow[]>();
@@ -381,7 +274,7 @@ export async function resolveCaptureEntry(
     .from("capture_inbox")
     .update({ status: input.status, routed_domain: input.routedDomain ?? null, routed_task_id: input.routedTaskId ?? null })
     .eq("id", id)
-    .select("*")
+    .select(CAPTURE_COLUMNS)
     .maybeSingle<CaptureRow>();
   if (error) throw new Error(error.message);
   return data ? mapCaptureRow(data) : null;
@@ -389,22 +282,23 @@ export async function resolveCaptureEntry(
 
 // --- Job Applications ------------------------------------------------------------
 
-export async function listJobApplications(session: AuthSession): Promise<JobApplication[]> {
-  if (shouldUseMock(session)) return mockStore.listJobApplications();
+export async function listJobApplications(
+  session: AuthSession,
+  filter?: { status?: JobApplicationStatus }
+): Promise<JobApplication[]> {
+  if (shouldUseMock(session)) return mockStore.listJobApplications(filter);
 
   const supabase = getSupabaseAuthClient(session.accessToken);
-  const { data, error } = await supabase
-    .from("job_applications")
-    .select("*")
-    .order("created_at", { ascending: false })
-    .returns<JobApplicationRow[]>();
+  let query = supabase.from("job_applications").select(JOB_APPLICATION_COLUMNS).order("created_at", { ascending: false });
+  if (filter?.status) query = query.eq("status", filter.status);
+  const { data, error } = await query.returns<JobApplicationRow[]>();
   if (error) throw new Error(error.message);
   return (data ?? []).map(mapJobApplicationRow);
 }
 
 export async function createJobApplication(
   session: AuthSession,
-  input: Omit<JobApplication, "id" | "createdAt" | "updatedAt">
+  input: CreateJobApplicationInput
 ): Promise<JobApplication> {
   if (shouldUseMock(session)) return mockStore.createJobApplication(input);
 
@@ -422,7 +316,7 @@ export async function createJobApplication(
       compensation_notes: input.compensationNotes ?? null,
       job_url: input.jobUrl ?? null
     })
-    .select("*")
+    .select(JOB_APPLICATION_COLUMNS)
     .single<JobApplicationRow>();
   if (error) throw new Error(error.message);
   return mapJobApplicationRow(data);
@@ -431,7 +325,7 @@ export async function createJobApplication(
 export async function updateJobApplication(
   session: AuthSession,
   id: string,
-  input: Partial<JobApplication>
+  input: UpdateJobApplicationInput
 ): Promise<JobApplication | null> {
   if (shouldUseMock(session)) return mockStore.updateJobApplication(id, input);
 
@@ -451,7 +345,7 @@ export async function updateJobApplication(
     .from("job_applications")
     .update(patch)
     .eq("id", id)
-    .select("*")
+    .select(JOB_APPLICATION_COLUMNS)
     .maybeSingle<JobApplicationRow>();
   if (error) throw new Error(error.message);
   return data ? mapJobApplicationRow(data) : null;

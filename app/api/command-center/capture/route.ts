@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireCommandCenterAccess } from "@/lib/command-center/access";
 import { createCaptureEntry, listUnprocessedCaptures } from "@/lib/command-center/repository";
-import { suggestCaptureDomain, suggestCaptureTitle } from "@/lib/command-center/sage";
+import { suggestCaptureDomain, suggestCaptureTitle } from "@/lib/command-center/capture-routing";
 
 export async function GET() {
   const access = await requireCommandCenterAccess();

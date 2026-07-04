@@ -1,7 +1,7 @@
 // Server-only access gate for the Personal Command Center.
 //
 // This feature is Andrew's alone. It intentionally does not reuse the Camp
-// role system (lib/camp/access-control.ts) — there are no other roles, no
+// role system (lib/camp/access-control.ts). There are no other roles, no
 // ministry scope, and no delegation. A single email check is the entire
 // authorization model, enforced on every layout and API route.
 
@@ -10,9 +10,10 @@ import { getServerSession, unauthorizedResponse, type AuthSession } from "@/lib/
 
 export const COMMAND_CENTER_EMAIL = "andrew.w.bostwick12@gmail.com";
 
-export function isCommandCenterUser(session: Pick<AuthSession, "user"> | null): boolean {
+export function isCommandCenterUser(session: { user?: { email?: string | null } } | null | undefined): boolean {
   if (!session) return false;
-  return session.user.email.trim().toLowerCase() === COMMAND_CENTER_EMAIL;
+  const email = session.user?.email?.trim().toLowerCase();
+  return email === COMMAND_CENTER_EMAIL;
 }
 
 export type CommandCenterAccess =
