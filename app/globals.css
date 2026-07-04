@@ -882,18 +882,6 @@ textarea:focus-visible {
   min-width: 0;
 }
 
-.progress-chip {
-  display: inline-flex;
-  align-items: center;
-  min-height: 24px;
-  border-radius: var(--radius-pill);
-  background: var(--primary-soft);
-  color: var(--primary);
-  padding: 3px 9px;
-  font-size: 12px;
-  font-weight: 800;
-}
-
 .event-date-block {
   display: grid;
   align-content: start;
@@ -1054,6 +1042,11 @@ textarea:focus-visible {
   font-size: 18px;
   line-height: 1;
   flex-shrink: 0;
+}
+
+.button.icon:hover {
+  border-color: var(--primary);
+  background: var(--surface-2);
 }
 
 .button.row {
@@ -1767,25 +1760,6 @@ textarea:focus-visible {
 
 /* ── Event title as button ───────────────────────────────────── */
 
-.event-title-btn {
-  background: none;
-  border: none;
-  padding: 0;
-  margin: 0;
-  cursor: pointer;
-  font-size: inherit;
-  font-weight: 700;
-  color: var(--primary);
-  text-align: left;
-  text-decoration: underline;
-  text-decoration-style: dotted;
-  text-underline-offset: 3px;
-}
-
-.event-title-btn:hover {
-  color: #1e40af;
-}
-
 /* ── Dashboard event list button variant ─────────────────────── */
 
 .dashboard-list-item-btn {
@@ -2124,21 +2098,6 @@ textarea:focus-visible {
 .calendar-title { display: flex; align-items: center; gap: 9px; color: #0369a1; }
 .calendar-title-glyph { color: #0ea5e9; }
 .calendar-controls { display: flex; align-items: center; gap: 8px; }
-.calendar-nav-btn {
-  width: 32px;
-  height: 32px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #fff;
-  font-size: 18px;
-  line-height: 1;
-  cursor: pointer;
-  color: #0f2c54;
-}
-.calendar-nav-btn:hover { border-color: #7dd3fc; background: #f0f9ff; }
 .calendar-month { min-width: 116px; text-align: center; color: #0f2c54; font-size: 15px; }
 .calendar-today-btn {
   border: 1px solid #bae6fd;
