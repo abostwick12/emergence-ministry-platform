@@ -488,7 +488,7 @@ function MasterEventCardInner({
         <div className="event-card-header">
           <div>
             <p className="eyebrow">{mode === "create" ? "New Event" : "Edit Event"}</p>
-            <h2 className="section-title" style={{ margin: 0 }}>{title}</h2>
+            <h2 className="section-title flush">{title}</h2>
           </div>
           <button className="button event-card-close" type="button" aria-label="Close modal" onClick={onClose}>✕</button>
         </div>
@@ -873,8 +873,8 @@ function Step2Panel({
   return (
     <div className="event-card-step2">
       <section className="event-card-section">
-        <div className="toolbar" style={{ justifyContent: "space-between" }}>
-          <h3 className="section-title" style={{ margin: 0 }}>Event Tasks</h3>
+        <div className="toolbar split">
+          <h3 className="section-title flush">Event Tasks</h3>
           {mode === "create" && !workspace && (
             <span className="pill">Preview — will generate on save</span>
           )}
@@ -986,8 +986,8 @@ function Step2Panel({
 
       {workspace && workspace.communications.length > 0 && (
         <section className="event-card-section">
-          <div className="toolbar" style={{ justifyContent: "space-between" }}>
-            <h3 className="section-title" style={{ margin: 0 }}>Communication Previews</h3>
+          <div className="toolbar split">
+            <h3 className="section-title flush">Communication Previews</h3>
             <span className="pill">Preview only — not sent</span>
           </div>
           <div className="grid" style={{ marginTop: 8 }}>

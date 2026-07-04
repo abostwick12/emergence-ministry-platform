@@ -4,6 +4,8 @@
 
 :root {
   color-scheme: light;
+
+  /* ── Core semantic colors ──────────────────────────────────── */
   --bg: #f6f7f9;
   --surface: #ffffff;
   --surface-2: #eef2f7;
@@ -15,6 +17,40 @@
   --success: #15803d;
   --warning: #b45309;
   --danger: #b91c1c;
+
+  /* ── Shell material tokens ─────────────────────────────────── */
+  --parchment-ivory: #f3eadb;
+  --parchment-warm: #eee3d1;
+  --parchment-light: #f7f0e5;
+  --parchment-aged: #e8dcc7;
+  --liquid-border: rgba(255, 255, 255, 0.72);
+  --liquid-edge: rgba(125, 211, 252, 0.28);
+  --liquid-shadow: rgba(38, 63, 89, 0.18);
+
+  /* ── Layout dimensions ─────────────────────────────────────── */
+  --app-sidebar-width: 236px;
+  --app-header-height: 154px;
+
+  /* ── Shadow scale ──────────────────────────────────────────── */
+  --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.08);
+  --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.08), 0 2px 4px rgba(15, 23, 42, 0.04);
+  --shadow-lg: 0 12px 30px rgba(15, 23, 42, 0.10), 0 4px 10px rgba(15, 23, 42, 0.06);
+  --shadow-xl: 0 24px 60px rgba(57, 72, 92, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.86);
+
+  /* ── Radius scale ──────────────────────────────────────────── */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-pill: 999px;
+
+  /* ── Type scale ────────────────────────────────────────────── */
+  --text-xs: 11px;
+  --text-sm: 13px;
+  --text-base: 14px;
+  --text-md: 16px;
+  --text-lg: 18px;
+  --text-xl: 22px;
+  --text-2xl: 28px;
 }
 
 * {
@@ -323,6 +359,10 @@ textarea:focus-visible {
   flex-wrap: wrap;
 }
 
+.toolbar.split {
+  justify-content: space-between;
+}
+
 .button {
   display: inline-flex;
   align-items: center;
@@ -394,9 +434,9 @@ textarea:focus-visible {
 .eyebrow {
   margin: 0 0 4px;
   color: var(--primary);
-  font-size: 12px;
+  font-size: var(--text-xs);
   font-weight: 800;
-  letter-spacing: 0;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
@@ -409,6 +449,10 @@ textarea:focus-visible {
 .section-title {
   margin: 0 0 12px;
   font-size: 18px;
+}
+
+.section-title.flush {
+  margin: 0;
 }
 
 .pill {
@@ -442,6 +486,26 @@ textarea:focus-visible {
 .pill.blocked {
   background: #fee2e2;
   color: #991b1b;
+}
+
+.pill.blue {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.pill.green {
+  background: #dcfce7;
+  color: var(--success);
+}
+
+.pill.amber {
+  background: #fef3c7;
+  color: var(--warning);
+}
+
+.pill.red {
+  background: #fee2e2;
+  color: var(--danger);
 }
 
 .kanban {
@@ -822,9 +886,9 @@ textarea:focus-visible {
   display: inline-flex;
   align-items: center;
   min-height: 24px;
-  border-radius: 999px;
-  background: #dbeafe;
-  color: #1e40af;
+  border-radius: var(--radius-pill);
+  background: var(--primary-soft);
+  color: var(--primary);
   padding: 3px 9px;
   font-size: 12px;
   font-weight: 800;
@@ -957,9 +1021,62 @@ textarea:focus-visible {
   align-content: start;
 }
 
-.compact-button {
+.compact-button,
+.button.compact {
   min-height: 34px;
   padding: 6px 9px;
+}
+
+.button.ghost {
+  background: none;
+  border: none;
+  padding: 0;
+  min-height: 0;
+  font-size: inherit;
+  font-weight: 700;
+  color: var(--primary);
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+}
+
+.button.ghost:hover {
+  color: #1e40af;
+}
+
+.button.icon {
+  width: 32px;
+  height: 32px;
+  min-height: 0;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 18px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.button.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  border-radius: 0;
+  min-height: 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.button.row:hover {
+  background: var(--surface-2);
+}
+
+.button.row:last-child {
+  border-bottom: none;
 }
 
 .button.danger {
@@ -1248,23 +1365,27 @@ textarea:focus-visible {
 
   .mobile-nav-link {
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
+    gap: 3px;
     min-height: 42px;
     border: 1px solid transparent;
+    border-top: 2px solid transparent;
     border-radius: 6px;
     background: white;
     color: var(--text);
     padding: 6px 4px;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 800;
     text-decoration: none;
   }
 
   .mobile-nav-link.active {
     background: var(--primary-soft);
-    border-color: #bfdbfe;
-    color: #1e40af;
+    border-color: transparent;
+    border-top-color: var(--primary);
+    color: var(--primary);
   }
 
   .mobile-more-menu {
@@ -1767,8 +1888,8 @@ textarea:focus-visible {
 }
 
 .hub-eyebrow {
-  color: #0ea5e9;
-  letter-spacing: 0.14em;
+  color: var(--primary);
+  letter-spacing: 0.08em;
 }
 
 .hub-title {
@@ -2766,9 +2887,11 @@ textarea:focus-visible {
 
 /* ── Mobile-first Camp Command Center (separate /camp/* routes) ─────────── */
 .camp-cc {
-  --camp-accent: #0369a1;
-  --camp-ink: #0f2c54;
-  --camp-muted: #51637a;
+  /* Light-mode camp tokens. These reference global tokens so brand changes
+     propagate. The aquatic dark-mode block below overrides these. */
+  --camp-accent: var(--primary);
+  --camp-ink: var(--text);
+  --camp-muted: var(--muted);
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -2825,9 +2948,9 @@ textarea:focus-visible {
 .camp-cc-error { color: #b42318; font-size: 13px; margin: 0; }
 .camp-cc-eyebrow {
   margin: 0;
-  font-size: 11px;
+  font-size: var(--text-xs);
   font-weight: 800;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--camp-accent);
 }
@@ -7271,5 +7394,236 @@ html:has(.app-shell-camp) body {
   .camp-vehicle-modal-riders li > span {
     min-width: 0;
     flex: 1 1 auto;
+  }
+}
+
+/* ── Worship Planning Page ─────────────────────────────────────────────────── */
+
+.worship-page {
+  display: grid;
+  gap: 18px;
+  padding: 18px;
+  margin-bottom: 32px;
+}
+
+.worship-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 8px 4px 2px;
+}
+
+.worship-hero .section-title {
+  margin: 0;
+}
+
+.worship-hero .muted {
+  max-width: 680px;
+  margin-top: 6px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.worship-readiness {
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+  min-width: 210px;
+  text-align: right;
+}
+
+.worship-readiness strong {
+  color: var(--text);
+  font-size: var(--text-lg);
+  line-height: 1.15;
+}
+
+.worship-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.worship-mini-card {
+  display: grid;
+  min-height: 92px;
+  gap: 8px;
+  padding: 16px;
+}
+
+.worship-mini-card span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.worship-mini-card strong {
+  color: var(--text);
+  font-size: 30px;
+  line-height: 1;
+}
+
+.worship-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
+  gap: 16px;
+  align-items: start;
+}
+
+.worship-side-stack {
+  display: grid;
+  gap: 16px;
+}
+
+.worship-section {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+
+.worship-section-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.worship-section-header h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 20px;
+  line-height: 1.1;
+}
+
+.worship-roster {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.worship-roster-card,
+.worship-slide-card {
+  display: grid;
+  gap: 11px;
+  padding: 14px;
+}
+
+.worship-roster-card strong,
+.worship-slide-card strong {
+  color: var(--text);
+  font-size: var(--text-md);
+}
+
+.worship-roster-card p,
+.worship-slide-card p {
+  margin: 4px 0 0;
+  color: var(--primary);
+  font-size: var(--text-sm);
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.worship-roster-card .muted {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.worship-roster-card span,
+.worship-slide-card span {
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 650;
+}
+
+.worship-select {
+  display: grid;
+  gap: 6px;
+}
+
+.worship-select span {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 850;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.worship-select select,
+.worship-message-input {
+  width: 100%;
+  border: 1px solid rgba(154, 214, 242, 0.74);
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(circle at 14% 8%, rgba(255, 255, 255, 0.92), transparent 30%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.78), rgba(239, 248, 252, 0.62));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.88),
+    inset 0 -1px 0 rgba(14, 165, 233, 0.08),
+    0 7px 16px rgba(15, 44, 84, 0.05);
+  color: #0f172a;
+  font: inherit;
+}
+
+.worship-select select {
+  min-height: 38px;
+  padding: 8px 10px;
+}
+
+.worship-message-input {
+  min-height: 132px;
+  padding: 11px 12px;
+  resize: vertical;
+  line-height: 1.45;
+}
+
+.worship-set-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 22px;
+}
+
+.worship-set-list li {
+  border: 1px solid rgba(186, 230, 253, 0.42);
+  border-radius: var(--radius-lg);
+  padding: 9px 11px;
+  background:
+    radial-gradient(circle at 10% 0%, rgba(255, 255, 255, 0.88), transparent 34%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.58), rgba(240, 249, 255, 0.42));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78);
+  color: var(--text);
+  font-weight: 750;
+}
+
+.worship-slide-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.worship-action-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.worship-status-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+@media (max-width: 960px) {
+  .worship-layout,
+  .worship-roster,
+  .worship-slide-grid,
+  .worship-kpi-row {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import styles from "./worship-planning-page.module.css";
 
 type AssignmentStatus = "confirmed" | "needs_reply" | "tentative";
 type SlideStatus = "ready" | "needs_update" | "not_started";
@@ -128,8 +127,8 @@ export function WorshipPlanningPage() {
   }
 
   return (
-    <section className={`${styles.page} liquid-page-panel liquid-workspace`} aria-label="Worship Planning">
-      <div className={styles.hero}>
+    <section className="worship-page liquid-page-panel liquid-workspace" aria-label="Worship Planning">
+      <div className="worship-hero">
         <div>
           <p className="eyebrow">Worship Planning</p>
           <h2 className="section-title">Student worship schedule</h2>
@@ -137,45 +136,45 @@ export function WorshipPlanningPage() {
             Plan student vocals, instruments, slides, and GroupMe updates in one rehearsal-ready workspace.
           </p>
         </div>
-        <div className={styles.readiness}>
+        <div className="worship-readiness">
           <span className="pill stub">Preview / Stub Mode</span>
           <strong>{serviceReadiness}</strong>
         </div>
       </div>
 
-      <div className={styles.kpiRow} aria-label="Worship planning metrics">
-        <article className={`${styles.miniCard} liquid-card`}>
+      <div className="worship-kpi-row" aria-label="Worship planning metrics">
+        <article className="worship-mini-card liquid-card">
           <span>Students Confirmed</span>
           <strong>{confirmedCount}/{assignments.length}</strong>
         </article>
-        <article className={`${styles.miniCard} liquid-card`}>
+        <article className="worship-mini-card liquid-card">
           <span>Need Replies</span>
           <strong>{needsReplyCount}</strong>
         </article>
-        <article className={`${styles.miniCard} liquid-card`}>
+        <article className="worship-mini-card liquid-card">
           <span>Slides Ready</span>
           <strong>{readySlides}/{slides.length}</strong>
         </article>
       </div>
 
-      <div className={styles.layout}>
-        <section className={`${styles.section} liquid-card-strong`} aria-label="Student schedule">
-          <div className={styles.sectionHeader}>
+      <div className="worship-layout">
+        <section className="worship-section liquid-card-strong" aria-label="Student schedule">
+          <div className="worship-section-header">
             <div>
               <p className="eyebrow">Students</p>
               <h3>Vocals and instruments</h3>
             </div>
             <span className="pill">{assignments.length} scheduled</span>
           </div>
-          <div className={styles.roster}>
+          <div className="worship-roster">
             {assignments.map((assignment) => (
-              <article className={`${styles.rosterCard} liquid-card`} key={assignment.id}>
+              <article className="worship-roster-card liquid-card" key={assignment.id}>
                 <div>
                   <strong>{assignment.student}</strong>
                   <p>{assignment.role}</p>
                   <span>{assignment.service}</span>
                 </div>
-                <label className={styles.select}>
+                <label className="worship-select">
                   <span>Status</span>
                   <select value={assignment.status} onChange={(event) => updateAssignment(assignment.id, event.target.value as AssignmentStatus)}>
                     {(Object.keys(statusLabels) as AssignmentStatus[]).map((status) => (
@@ -191,23 +190,23 @@ export function WorshipPlanningPage() {
           </div>
         </section>
 
-        <aside className={styles.sideStack}>
-          <section className={`${styles.section} liquid-card-strong`} aria-label="Service set list">
-            <div className={styles.sectionHeader}>
+        <aside className="worship-side-stack">
+          <section className="worship-section liquid-card-strong" aria-label="Service set list">
+            <div className="worship-section-header">
               <div>
                 <p className="eyebrow">Set List</p>
                 <h3>This week</h3>
               </div>
             </div>
-            <ol className={styles.setList}>
+            <ol className="worship-set-list">
               {setList.map((item) => (
                 <li key={item}>{item}</li>
               ))}
             </ol>
           </section>
 
-          <section className={`${styles.section} liquid-card-strong`} aria-label="GroupMe message draft">
-            <div className={styles.sectionHeader}>
+          <section className="worship-section liquid-card-strong" aria-label="GroupMe message draft">
+            <div className="worship-section-header">
               <div>
                 <p className="eyebrow">GroupMe</p>
                 <h3>Team message draft</h3>
@@ -215,12 +214,12 @@ export function WorshipPlanningPage() {
               <span className="pill stub">Preview only</span>
             </div>
             <textarea
-              className={styles.messageInput}
+              className="worship-message-input"
               aria-label="GroupMe draft message"
               value={message}
               onChange={(event) => setMessage(event.target.value)}
             />
-            <div className={styles.actionRow}>
+            <div className="worship-action-row">
               <button
                 className="button compact-button"
                 type="button"
@@ -232,34 +231,34 @@ export function WorshipPlanningPage() {
                 Send Live GroupMe
               </button>
             </div>
-            <p className={styles.statusNote}>{groupMePreview}</p>
+            <p className="worship-status-note">{groupMePreview}</p>
           </section>
         </aside>
       </div>
 
-      <section className={`${styles.section} liquid-card-strong`} aria-label="ProPresenter slide preparation">
-        <div className={styles.sectionHeader}>
+      <section className="worship-section liquid-card-strong" aria-label="ProPresenter slide preparation">
+        <div className="worship-section-header">
           <div>
             <p className="eyebrow">ProPresenter</p>
             <h3>Slides and cues</h3>
           </div>
           <span className="pill stub">Stub adapter</span>
         </div>
-        <div className={styles.actionRow}>
+        <div className="worship-action-row">
           <button className="button compact-button" type="button" onClick={prepareSlideUpdate}>
             Prepare ProPresenter Update
           </button>
-          <p className={styles.statusNote}>{slidePreview}</p>
+          <p className="worship-status-note">{slidePreview}</p>
         </div>
-        <div className={styles.slideGrid}>
+        <div className="worship-slide-grid">
           {slides.map((slide) => (
-            <article className={`${styles.slideCard} liquid-card`} key={slide.id}>
+            <article className="worship-slide-card liquid-card" key={slide.id}>
               <div>
                 <strong>{slide.title}</strong>
                 <p>{slide.detail}</p>
                 <span>Owner: {slide.owner}</span>
               </div>
-              <label className={styles.select}>
+              <label className="worship-select">
                 <span>Slide status</span>
                 <select value={slide.status} onChange={(event) => updateSlide(slide.id, event.target.value as SlideStatus)}>
                   {(Object.keys(slideLabels) as SlideStatus[]).map((status) => (
