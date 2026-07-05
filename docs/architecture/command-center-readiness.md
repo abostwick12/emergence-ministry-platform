@@ -1,7 +1,7 @@
 # Personal Command Center Readiness
 
-This document records the Phase 1A baseline for Andrew's Personal Command
-Center. It is intentionally a foundation PR, not the SAGE assistant launch.
+This document records the Phase 1A foundation and Phase 1B SAGE chat boundary
+for Andrew's Personal Command Center.
 
 ## Phase 1A Scope
 
@@ -18,6 +18,25 @@ Phase 1A includes:
 - planned integration status placeholders
 
 No production migration has been applied by this PR.
+
+## Phase 1B Scope
+
+Phase 1B adds the first SAGE chat runtime:
+
+- `/command-center/chat` remains Andrew-only through the Command Center layout.
+- `/api/command-center/chat` remains Andrew-only through
+  `requireCommandCenterAccess()`.
+- `GET /api/command-center/chat` reports only whether SAGE is configured and
+  which model name is selected.
+- `POST /api/command-center/chat` returns `503` with a safe
+  `SAGE unavailable` response when `OPENAI_API_KEY` is missing.
+- When `OPENAI_API_KEY` is present, the route streams plain text from the
+  OpenAI Responses API.
+- The client receives only streamed assistant text. It never receives provider
+  keys or raw environment values.
+
+SAGE Phase 1B has no memory behavior, no function calling, no personal
+integration tools, and no automatic writes.
 
 ## Security Boundary
 
@@ -54,10 +73,8 @@ is not configured or the session is mock mode.
 
 ## Deferred Work
 
-Phase 1A deliberately does not include:
+Phase 1B still deliberately does not include:
 
-- SAGE chat
-- OpenAI streaming
 - SAGE memory behavior
 - AI function calling
 - Google, Slack, Firecrawl, Monday.com, LinkedIn, Gmail, Calendar, or Drive
@@ -72,8 +89,8 @@ SAGE namespace and data access kept inside the Command Center boundary.
 
 ## Known Gaps
 
-- `daily_briefing_cache`, `sage_memory`, and `ai_conversations` are schema
-  placeholders only in Phase 1A.
+- `daily_briefing_cache`, `sage_memory`, and `ai_conversations` remain schema
+  placeholders. Phase 1B chat does not persist conversation or memory records.
 - Integration cards are disconnected placeholders only.
-- The chat page and chat API return explicit Phase 1B placeholders.
-- No live provider credentials are required for Phase 1A.
+- SAGE chat is unavailable unless `OPENAI_API_KEY` is configured server-side.
+- No live provider credentials are required for the rest of the Command Center.

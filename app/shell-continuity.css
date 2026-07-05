@@ -355,6 +355,11 @@ body {
   z-index: 1;
 }
 
+.app-scroll-region > .command-center-capture {
+  position: fixed;
+  z-index: 40;
+}
+
 .workspace-page,
 .panel,
 .tasks-workspace,

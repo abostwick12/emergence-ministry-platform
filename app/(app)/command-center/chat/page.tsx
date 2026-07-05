@@ -1,14 +1,12 @@
+import { SageChatPanel } from "@/components/command-center/sage-chat-panel";
+import { getSageAvailability } from "@/lib/command-center/sage";
+
 export default function CommandCenterChatPage() {
+  const availability = getSageAvailability();
+
   return (
     <div className="grid workspace-page">
-      <section className="panel">
-        <p className="eyebrow">Phase 1B</p>
-        <h2 className="section-title flush">SAGE Chat Is Coming Later</h2>
-        <p className="muted">
-          Phase 1A only establishes the Andrew-only Command Center foundation: dashboard, tasks, quick capture, and job
-          tracking. SAGE chat, OpenAI streaming, function calling, and persistent memory are intentionally deferred.
-        </p>
-      </section>
+      <SageChatPanel available={availability.available} model={availability.model} />
     </div>
   );
 }

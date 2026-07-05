@@ -1,20 +1,20 @@
 import { expect, type Page, test } from "@playwright/test";
 
-test.describe("Personal Command Center Phase 1A", () => {
+test.describe("Personal Command Center", () => {
   test.describe.configure({ mode: "serial" });
 
-  test("shows the Andrew-only foundation without launching SAGE chat", async ({ page }) => {
+  test("shows the Andrew-only foundation and graceful SAGE unavailable state", async ({ page }) => {
     await login(page);
     await page.goto("/command-center");
 
     await expect(page.getByRole("heading", { name: "Manual Resource Feed" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Planned Tool Connections" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "SAGE Chat (Phase 1B)" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "SAGE Chat" })).toBeVisible();
     await expect(page.getByText("All integrations remain disconnected placeholders in Phase 1A.")).toBeVisible();
 
-    await page.getByRole("link", { name: "SAGE Chat (Phase 1B)" }).click();
-    await expect(page.getByRole("heading", { name: "SAGE Chat Is Coming Later" })).toBeVisible();
-    await expect(page.getByText("SAGE chat, OpenAI streaming, function calling, and persistent memory are intentionally deferred.")).toBeVisible();
+    await page.getByRole("link", { name: "SAGE Chat" }).click();
+    await expect(page.getByRole("heading", { name: "SAGE unavailable" })).toBeVisible();
+    await expect(page.getByText("The Command Center remains available without AI.")).toBeVisible();
   });
 
   test("supports personal task CRUD, quick capture review, and job tracking", async ({ page }) => {

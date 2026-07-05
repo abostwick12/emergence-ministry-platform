@@ -7728,6 +7728,26 @@ html:has(.app-shell-camp) body {
   }
 }
 
+@media (max-width: 720px) {
+  .command-center-capture {
+    position: fixed;
+    right: 16px;
+    bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .command-center-capture-panel {
+    width: calc(100vw - 32px);
+  }
+
+  .command-center-chat-input-row {
+    flex-direction: column;
+  }
+
+  .command-center-chat-input-row .button {
+    align-self: flex-end;
+  }
+}
+
 @media (max-width: 960px) {
   .worship-layout,
   .worship-roster,
