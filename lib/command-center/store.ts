@@ -8,7 +8,9 @@ import type {
   BriefingItem,
   CaptureEntry,
   CommandCenterOverview,
+  CreateAiConversationMessageInput,
   DomainTaskSummary,
+  AiConversationMessage,
   JobApplication,
   PersonalDomain,
   PersonalIntegration,
@@ -276,6 +278,7 @@ type CommandCenterStoreState = {
   integrations: PersonalIntegration[];
   jobApplications: JobApplication[];
   captureInbox: CaptureEntry[];
+  conversations: AiConversationMessage[];
 };
 
 declare global {
@@ -288,7 +291,8 @@ function createInitialState(): CommandCenterStoreState {
     tasks: seedTasks(),
     integrations: seedIntegrations(),
     jobApplications: seedJobApplications(),
-    captureInbox: seedCaptures()
+    captureInbox: seedCaptures(),
+    conversations: []
   };
 }
 
@@ -301,6 +305,7 @@ export function __resetCommandCenterStoreForTests(): void {
   state.integrations = seedIntegrations();
   state.jobApplications = seedJobApplications();
   state.captureInbox = seedCaptures();
+  state.conversations = [];
 }
 
 export function listTasks(filter?: { domain?: PersonalDomain; status?: string }): PersonalTask[] {
@@ -482,4 +487,23 @@ export function buildOverview(): CommandCenterOverview {
     jobApplications: state.jobApplications,
     unprocessedCaptureCount: listUnprocessedCaptures().length
   });
+}
+
+export function appendConversationMessage(input: CreateAiConversationMessageInput): AiConversationMessage {
+  const message: AiConversationMessage = {
+    id: uid("msg"),
+    sessionId: input.sessionId,
+    role: input.role,
+    content: input.content,
+    createdAt: nowIso()
+  };
+  state.conversations = [...state.conversations, message];
+  return message;
+}
+
+export function listConversationMessages(sessionId: string, limit = 40): AiConversationMessage[] {
+  return state.conversations
+    .filter((message) => message.sessionId === sessionId)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    .slice(-limit);
 }

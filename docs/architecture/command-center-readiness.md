@@ -1,7 +1,7 @@
 # Personal Command Center Readiness
 
-This document records the Phase 1A baseline for Andrew's Personal Command
-Center. It is intentionally a foundation PR, not the SAGE assistant launch.
+This document records the Phase 1A baseline and Phase 1B chat runtime for
+Andrew's Personal Command Center.
 
 ## Phase 1A Scope
 
@@ -18,6 +18,22 @@ Phase 1A includes:
 - planned integration status placeholders
 
 No production migration has been applied by this PR.
+
+## Phase 1B Scope
+
+Phase 1B adds:
+
+- `/api/command-center/chat` Andrew-only streaming route
+- real `/command-center/chat` chat UI
+- server-only OpenAI SDK dependency
+- `OPENAI_API_KEY` / `OPENAI_MODEL` environment documentation
+- graceful unavailable state when `OPENAI_API_KEY` is absent
+- user and assistant message persistence through `ai_conversations`
+- task-aware SAGE prompt context built only from open Command Center tasks
+- basic SAGE system prompt and `command_center.task_aware_chat` skill file
+
+SAGE Phase 1B can advise from Command Center task/context data only. It cannot
+take actions outside the Command Center, call integrations, or execute tools.
 
 ## Security Boundary
 
@@ -54,7 +70,7 @@ is not configured or the session is mock mode.
 
 ## Deferred Work
 
-Phase 1A deliberately does not include:
+Phase 1A deliberately did not include:
 
 - SAGE chat
 - OpenAI streaming
@@ -66,15 +82,21 @@ Phase 1A deliberately does not include:
 - production data mutation
 - deployment or merge
 
-Future SAGE skills should be designed under the shared AI conventions in
-`docs/architecture/ai-skill-system.md`, with assistant-specific prompts in the
-SAGE namespace and data access kept inside the Command Center boundary.
+Future SAGE skills beyond chat should continue under the shared AI conventions
+in `docs/architecture/ai-skill-system.md`, with assistant-specific prompts in
+the SAGE namespace and data access kept inside the Command Center boundary.
+
+Phase 1B still deliberately does not include:
+
+- Slack, Google OAuth, Gmail, Calendar, Drive, Firecrawl, Monday.com, or
+  LinkedIn integrations
+- automatic memory saving
+- autonomous actions
+- function/tool calling
+- Vercel cron
 
 ## Known Gaps
 
-- `daily_briefing_cache`, `sage_memory`, and `ai_conversations` are schema
-  placeholders only in Phase 1A.
+- `daily_briefing_cache` and `sage_memory` are schema placeholders only.
 - Integration cards are disconnected placeholders only.
-- The chat page is a static Phase 1B placeholder. No chat API exists in Phase
-  1A.
-- No live provider credentials are required for Phase 1A.
+- No live provider credentials are required for local fallback behavior.

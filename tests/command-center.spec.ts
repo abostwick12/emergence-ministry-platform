@@ -1,9 +1,9 @@
 import { expect, type Page, test } from "@playwright/test";
 
-test.describe("Personal Command Center Phase 1A", () => {
+test.describe("Personal Command Center", () => {
   test.describe.configure({ mode: "serial" });
 
-  test("shows the Andrew-only foundation without launching SAGE chat", async ({ page }) => {
+  test("shows the Andrew-only foundation and SAGE fallback chat", async ({ page }) => {
     await login(page);
     await page.goto("/command-center");
 
@@ -13,8 +13,11 @@ test.describe("Personal Command Center Phase 1A", () => {
     await expect(page.getByText("All integrations remain disconnected placeholders in Phase 1A.")).toBeVisible();
 
     await page.getByRole("link", { name: "Ask SAGE" }).click();
-    await expect(page.getByRole("heading", { name: "SAGE is coming in Phase 1B." })).toBeVisible();
-    await expect(page.getByText("There is no chat runtime, provider connection, function calling, or automatic memory behavior in Phase 1A.")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Personal Command Center Chat" })).toBeVisible();
+    await expect(page.getByText("SAGE can reason over open Command Center tasks.")).toBeVisible();
+    await page.getByLabel("Message SAGE").fill("What should I focus on today?");
+    await page.getByRole("button", { name: "Send" }).click();
+    await expect(page.getByText("SAGE chat is ready, but OpenAI is not configured yet.")).toBeVisible();
   });
 
   test("supports personal task CRUD, quick capture review, and job tracking", async ({ page }) => {

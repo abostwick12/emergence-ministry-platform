@@ -13,8 +13,10 @@ import type {
   BriefingItem,
   CaptureEntry,
   CommandCenterOverview,
+  CreateAiConversationMessageInput,
   CreateJobApplicationInput,
   CreatePersonalTaskInput,
+  AiConversationMessage,
   JobApplication,
   JobApplicationStatus,
   PersonalDomain,
@@ -28,6 +30,7 @@ import type {
 
 const TASK_COLUMNS = "id, domain, title, description, status, priority, due_date, tags, created_at, updated_at";
 const CAPTURE_COLUMNS = "id, raw_text, status, routed_domain, routed_task_id, created_at";
+const AI_CONVERSATION_COLUMNS = "id, session_id, role, content, created_at";
 const JOB_APPLICATION_COLUMNS =
   "id, company, role, status, applied_date, contact_name, contact_notes, next_follow_up_date, compensation_notes, job_url, created_at, updated_at";
 
@@ -133,6 +136,24 @@ function mapCaptureRow(row: CaptureRow): CaptureEntry {
   };
 }
 
+type AiConversationRow = {
+  id: string;
+  session_id: string;
+  role: AiConversationMessage["role"];
+  content: string;
+  created_at: string;
+};
+
+function mapAiConversationRow(row: AiConversationRow): AiConversationMessage {
+  return {
+    id: row.id,
+    sessionId: row.session_id,
+    role: row.role,
+    content: row.content,
+    createdAt: row.created_at
+  };
+}
+
 // --- Tasks -------------------------------------------------------------
 
 export async function listPersonalTasks(
@@ -216,6 +237,47 @@ export async function getDailyBriefing(session: AuthSession): Promise<BriefingIt
   // Firecrawl-backed feed is a Phase 2 addition (see docs/command-center plan).
   if (shouldUseMock(session)) return mockStore.getBriefing();
   return mockStore.getBriefing();
+}
+
+// --- SAGE Conversation ------------------------------------------------------------
+
+export async function appendConversationMessage(
+  session: AuthSession,
+  input: CreateAiConversationMessageInput
+): Promise<AiConversationMessage> {
+  if (shouldUseMock(session)) return mockStore.appendConversationMessage(input);
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const { data, error } = await supabase
+    .from("ai_conversations")
+    .insert({
+      session_id: input.sessionId,
+      role: input.role,
+      content: input.content
+    })
+    .select(AI_CONVERSATION_COLUMNS)
+    .single<AiConversationRow>();
+  if (error) throw new Error(error.message);
+  return mapAiConversationRow(data);
+}
+
+export async function listConversationMessages(
+  session: AuthSession,
+  sessionId: string,
+  limit = 40
+): Promise<AiConversationMessage[]> {
+  if (shouldUseMock(session)) return mockStore.listConversationMessages(sessionId, limit);
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const { data, error } = await supabase
+    .from("ai_conversations")
+    .select(AI_CONVERSATION_COLUMNS)
+    .eq("session_id", sessionId)
+    .order("created_at", { ascending: false })
+    .limit(limit)
+    .returns<AiConversationRow[]>();
+  if (error) throw new Error(error.message);
+  return (data ?? []).map(mapAiConversationRow).reverse();
 }
 
 // --- Integrations ------------------------------------------------------------
