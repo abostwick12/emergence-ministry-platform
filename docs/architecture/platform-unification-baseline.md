@@ -136,6 +136,6 @@ work.
 | Reconcile Camp EMMA command routes | Multiple command/action paths increase maintenance risk | Route audit and deprecation plan |
 | Refresh stale Camp AI docs | Some docs describe old missing-provider state | Focused Camp doc correction |
 | Audit orphaned Camp component | `components/camp-command-center.tsx` is retained as reference | Decide archive/remove path when safe |
-| Align environment docs by assistant owner | Camp fallback can use `OPENAI_API_KEY`; Command Center Phase 1A does not require an AI key | Revisit when SAGE chat is introduced |
+| Align environment docs by assistant owner | Camp fallback and SAGE Phase 1B can use server-only `OPENAI_API_KEY`; Command Center chat degrades gracefully when it is missing | Keep provider keys out of client code |
 | Add shared access documentation | Access gates are correct but scattered | Create `docs/architecture/access-control.md` if needed |
 | Add AI registry tests for future shared skills | Prevent duplicate skill keys and prompt drift | Add when `lib/ai` contains runtime code |

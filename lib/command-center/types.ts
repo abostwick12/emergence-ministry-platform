@@ -50,6 +50,12 @@ export interface AiConversationMessage {
   createdAt: string;
 }
 
+export interface CreateAiConversationMessageInput {
+  sessionId: string;
+  role: ConversationRole;
+  content: string;
+}
+
 export type IntegrationService = "firecrawl" | "slack" | "google_calendar" | "gmail" | "google_drive" | "linkedin" | "monday";
 
 export type IntegrationStatus = "connected" | "disconnected" | "error";

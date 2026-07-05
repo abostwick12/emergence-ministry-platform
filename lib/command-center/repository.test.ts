@@ -6,7 +6,9 @@ import {
   createPersonalTask,
   deletePersonalTask,
   getOverview,
+  appendConversationMessage,
   listIntegrations,
+  listConversationMessages,
   listJobApplications,
   listPersonalTasks,
   listUnprocessedCaptures,
@@ -160,5 +162,17 @@ describe("quick capture", () => {
 
     const stillUnprocessed = await listUnprocessedCaptures(session);
     expect(stillUnprocessed.some((item) => item.id === entry.id)).toBe(false);
+  });
+});
+
+describe("SAGE conversations", () => {
+  it("persists and lists mock conversation messages in order", async () => {
+    const session = mockSession();
+    await appendConversationMessage(session, { sessionId: "sage-test", role: "user", content: "What should I focus on?" });
+    await appendConversationMessage(session, { sessionId: "sage-test", role: "assistant", content: "Start with the highest-risk deadline." });
+
+    const messages = await listConversationMessages(session, "sage-test");
+    expect(messages.map((message) => message.role)).toEqual(["user", "assistant"]);
+    expect(messages[0].content).toContain("focus");
   });
 });
