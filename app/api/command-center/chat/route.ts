@@ -82,25 +82,51 @@ export async function POST(request: Request) {
   const session = access.session;
   await appendConversationMessage(session, { sessionId, role: "user", content: message });
 
+  const requestSignal = request.signal;
+  let clientDisconnected = requestSignal.aborted;
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       let assistantContent = "";
+      const markDisconnected = () => {
+        clientDisconnected = true;
+      };
+
+      function isDisconnected() {
+        return clientDisconnected || requestSignal.aborted;
+      }
+
+      function enqueue(event: string, data: unknown): boolean {
+        if (isDisconnected()) return false;
+        try {
+          controller.enqueue(sse(event, data));
+          return true;
+        } catch {
+          clientDisconnected = true;
+          return false;
+        }
+      }
 
       async function finish(content: string, meta?: Record<string, unknown>) {
+        if (isDisconnected()) return;
         if (content.trim()) {
           await appendConversationMessage(session, { sessionId, role: "assistant", content });
         }
-        controller.enqueue(sse("done", { sessionId, ...meta }));
-        controller.close();
+        if (!enqueue("done", { sessionId, ...meta })) return;
+        try {
+          controller.close();
+        } catch {
+          clientDisconnected = true;
+        }
       }
 
       try {
-        controller.enqueue(sse("session", { sessionId }));
+        requestSignal.addEventListener("abort", markDisconnected, { once: true });
+        if (!enqueue("session", { sessionId })) return;
 
         const config = readSageRuntimeConfig();
         if (!config.configured || !config.apiKey) {
           assistantContent = sageUnavailableMessage();
-          controller.enqueue(sse("unavailable", { message: assistantContent }));
+          enqueue("unavailable", { message: assistantContent });
           await finish(assistantContent, { unavailable: true });
           return;
         }
@@ -119,29 +145,39 @@ export async function POST(request: Request) {
           instructions,
           input,
           stream: true
+        }, {
+          signal: requestSignal
         });
 
         for await (const rawEvent of openAiStream) {
+          if (isDisconnected()) return;
           const event = rawEvent as OpenAIStreamEvent;
           if (event.type === "response.output_text.delta" && event.delta) {
             assistantContent += event.delta;
-            controller.enqueue(sse("delta", { delta: event.delta }));
+            if (!enqueue("delta", { delta: event.delta })) return;
           }
           if (event.type === "response.failed") {
             throw new Error(event.error?.message || "SAGE response failed");
           }
         }
 
+        if (isDisconnected()) return;
         if (!assistantContent.trim()) {
           assistantContent = "SAGE did not return a response. Please try again.";
-          controller.enqueue(sse("delta", { delta: assistantContent }));
+          enqueue("delta", { delta: assistantContent });
         }
         await finish(assistantContent, { model: config.model });
       } catch {
+        if (isDisconnected()) return;
         const fallback = "SAGE is temporarily unavailable. Your message was saved, but no assistant response was generated.";
-        controller.enqueue(sse("error", { message: fallback }));
+        enqueue("error", { message: fallback });
         await finish(fallback, { failed: true });
+      } finally {
+        requestSignal.removeEventListener("abort", markDisconnected);
       }
+    },
+    cancel() {
+      clientDisconnected = true;
     }
   });
 
