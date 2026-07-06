@@ -9,8 +9,12 @@ import {
 import {
   buildSageConversationInput,
   buildSageInstructions,
-  readSageRuntimeConfig,
-  sageUnavailableMessage
+  classifySageProviderError,
+  readSageProviderConfig,
+  sageUnavailableMessage,
+  streamSageResponse,
+  type SageProviderConfig,
+  type SageProviderErrorCategory
 } from "@/lib/command-center/sage";
 
 const MAX_MESSAGE_LENGTH = 4000;
@@ -21,21 +25,7 @@ type ChatRequestBody = {
   message?: string;
 };
 
-type OpenAIStreamEvent = {
-  type?: string;
-  delta?: string;
-  error?: { message?: string };
-};
-
-type SageErrorCategory =
-  | "invalid_api_key"
-  | "model_not_found"
-  | "billing_quota"
-  | "responses_request_shape"
-  | "timeout"
-  | "stream_error"
-  | "database_persistence"
-  | "unknown";
+type SageErrorCategory = SageProviderErrorCategory | "database_persistence";
 
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
@@ -63,30 +53,6 @@ function errorCode(error: unknown): string | undefined {
   const record = errorRecord(error);
   const code = record.code ?? record.type;
   return typeof code === "string" ? code : undefined;
-}
-
-function classifySageProviderError(error: unknown): SageErrorCategory {
-  const status = errorStatus(error);
-  const code = errorCode(error)?.toLowerCase() ?? "";
-  const message = sanitizeErrorMessage(error)?.toLowerCase() ?? "";
-
-  if (status === 401 || code.includes("invalid_api_key") || message.includes("invalid api key")) {
-    return "invalid_api_key";
-  }
-  if (status === 404 || code.includes("model_not_found") || message.includes("model") && message.includes("not found")) {
-    return "model_not_found";
-  }
-  if (status === 429 || code.includes("quota") || code.includes("billing") || message.includes("quota") || message.includes("billing")) {
-    return "billing_quota";
-  }
-  if (status === 400 || code.includes("invalid_request") || message.includes("invalid") || message.includes("unsupported")) {
-    return "responses_request_shape";
-  }
-  if (code.includes("timeout") || message.includes("timeout") || message.includes("timed out")) {
-    return "timeout";
-  }
-  if (message.includes("stream")) return "stream_error";
-  return "unknown";
 }
 
 function logSageError(
@@ -131,11 +97,11 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const sessionId = url.searchParams.get("sessionId")?.trim();
   if (!sessionId || !SESSION_ID_PATTERN.test(sessionId)) {
-    return NextResponse.json({ messages: [], configured: readSageRuntimeConfig().configured });
+    return NextResponse.json({ messages: [], configured: readSageProviderConfig().configured });
   }
 
   const messages = await listConversationMessages(access.session, sessionId, 40);
-  return NextResponse.json({ messages, configured: readSageRuntimeConfig().configured });
+  return NextResponse.json({ messages, configured: readSageProviderConfig().configured });
 }
 
 export async function POST(request: Request) {
@@ -170,6 +136,7 @@ export async function POST(request: Request) {
       let phase = "start";
       let taskCount: number | undefined;
       let conversationCount: number | undefined;
+      let providerConfig: SageProviderConfig | undefined;
       const markDisconnected = () => {
         clientDisconnected = true;
       };
@@ -213,11 +180,11 @@ export async function POST(request: Request) {
         if (!enqueue("session", { sessionId })) return;
 
         phase = "read_config";
-        const config = readSageRuntimeConfig();
-        if (!config.configured || !config.apiKey) {
-          assistantContent = sageUnavailableMessage();
+        providerConfig = readSageProviderConfig();
+        if (!providerConfig.configured) {
+          assistantContent = sageUnavailableMessage(providerConfig);
           enqueue("unavailable", { message: assistantContent });
-          await finish(assistantContent, { unavailable: true });
+          await finish("", { unavailable: true, provider: providerConfig.provider }, false);
           return;
         }
 
@@ -230,41 +197,31 @@ export async function POST(request: Request) {
         conversationCount = messages.length;
         const instructions = await buildSageInstructions(tasks);
         const input = buildSageConversationInput(messages);
-        const { default: OpenAI } = await import("openai");
-        const client = new OpenAI({ apiKey: config.apiKey, timeout: 30_000, maxRetries: 0 });
 
-        phase = "openai_request";
-        const openAiStream = await client.responses.create({
-          model: config.model,
+        phase = `${providerConfig.provider}_stream`;
+        const response = await streamSageResponse({
           instructions,
           input,
-          stream: true
-        }, {
-          signal: requestSignal
+          signal: requestSignal,
+          onDelta(delta) {
+            assistantContent += delta;
+            return enqueue("delta", { delta });
+          }
         });
 
-        phase = "openai_stream";
-        for await (const rawEvent of openAiStream) {
-          if (isDisconnected()) return;
-          const event = rawEvent as OpenAIStreamEvent;
-          if (event.type === "response.output_text.delta" && event.delta) {
-            assistantContent += event.delta;
-            if (!enqueue("delta", { delta: event.delta })) return;
-          }
-          if (event.type === "response.failed") {
-            throw new Error(event.error?.message || "SAGE response failed");
-          }
-        }
-
-        if (isDisconnected()) return;
+        if (isDisconnected() || !response.completed) return;
+        assistantContent = response.content;
         if (!assistantContent.trim()) {
-          assistantContent = "SAGE did not return a response. Please try again.";
-          enqueue("delta", { delta: assistantContent });
+          enqueue("error", { message: "SAGE did not return a response. Please try again." });
+          await finish("", { failed: true, category: response.provider === "azure" ? "azure_stream_error" : "stream_error" }, false);
+          return;
         }
-        await finish(assistantContent, { model: config.model });
+        await finish(assistantContent, { model: response.modelLabel, provider: response.provider });
       } catch (error) {
         if (isDisconnected()) return;
-        const category = phase === "load_context" ? "database_persistence" : classifySageProviderError(error);
+        const category = phase === "load_context"
+          ? "database_persistence"
+          : classifySageProviderError(error, providerConfig?.provider);
         logSageError(category, error, { phase, taskCount, conversationCount });
         const fallback = "SAGE is temporarily unavailable. Your message was saved, but no assistant response was generated.";
         enqueue("error", { message: fallback });
