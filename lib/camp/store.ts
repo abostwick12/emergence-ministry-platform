@@ -4,6 +4,10 @@ import { rosterTypeFromFlags, sourceChurchFromFlags, withRosterMetadataFlags } f
 import { campDocuments, campName, campSchedule, campStartsOn, campStudents, campTeams, campVehicles } from "@/lib/camp/public-data";
 import { sanitizePublicSafetyFlags } from "@/lib/camp/public-safety";
 import {
+  activeAuditItems,
+  withAuditStatus
+} from "@/lib/ministry/audit-lifecycle";
+import {
   medicationRecords,
   medicationReturnChecklist,
   medicationSchedule,
@@ -595,28 +599,28 @@ export function getRestrictedCampMedicationPayload(role: CampAccessRole, options
   const visibleIntakeRows = visibleMedicationHistoryItems(store.medicationIntakeRecords, options.includeArchived);
   const visibleLogRows = visibleMedicationHistoryItems(store.medicationAdministrationLog, options.includeArchived);
   const visibleIntakeSessions = visibleMedicationHistoryItems(store.medicationIntakeSessions, options.includeArchived);
-  const operationalIntakeRows = activeAuditItems(store.medicationIntakeRecords, "supersedesIntakeId").filter((item) => !item.archivedAt);
+  const operationalIntakeRows = activeAuditItems(store.medicationIntakeRecords, "supersedesIntakeId", "voidedAt").filter((item) => !item.archivedAt);
   const operationalMedicationRows = store.medicationRecords.filter((record) => activeStudentIds.has(record.studentId));
   const operationalScheduleRows = store.medicationSchedule.filter((item) => activeStudentIds.has(item.studentId));
   const operationalReturnRows = store.medicationReturnChecklist.filter((item) => activeStudentIds.has(item.studentId));
   const intakeHistory = store.medicationIntakeRecords
     .filter((item) => activeStudentIds.has(item.studentId) && (options.includeArchived || !item.archivedAt))
-    .map((item) => withAuditStatus(item, store.medicationIntakeRecords, "supersedesIntakeId"));
+    .map((item) => withAuditStatus(item, store.medicationIntakeRecords, "supersedesIntakeId", "voidedAt"));
   return {
     allowed: true as const,
     status: 200,
     campers: store.students.filter((student) => !student.archivedAt).map((student) => ({ ...student })),
-    checkIn: activeAuditItems(operationalMedicationRows, "supersedesMedicationRecordId")
-      .map((record) => withLatestIntakeSummary(withAuditStatus(record, store.medicationRecords, "supersedesMedicationRecordId"), operationalIntakeRows)),
-    schedule: activeAuditItems(operationalScheduleRows, "supersedesScheduleItemId")
-      .map((item) => withAuditStatus(item, store.medicationSchedule, "supersedesScheduleItemId")),
+    checkIn: activeAuditItems(operationalMedicationRows, "supersedesMedicationRecordId", "voidedAt")
+      .map((record) => withLatestIntakeSummary(withAuditStatus(record, store.medicationRecords, "supersedesMedicationRecordId", "voidedAt"), operationalIntakeRows)),
+    schedule: activeAuditItems(operationalScheduleRows, "supersedesScheduleItemId", "voidedAt")
+      .map((item) => withAuditStatus(item, store.medicationSchedule, "supersedesScheduleItemId", "voidedAt")),
     administrationLog: visibleLogRows
       .filter((log) => activeStudentIds.has(log.studentId))
-      .map((log) => withAuditStatus(log, store.medicationAdministrationLog, "supersedesAdministrationLogId")),
+      .map((log) => withAuditStatus(log, store.medicationAdministrationLog, "supersedesAdministrationLogId", "voidedAt")),
     administrationEvents: store.medicationAdministrationEvents.filter((event) => activeStudentIds.has(event.studentId)),
     administrationItems: store.medicationAdministrationItems.filter((item) => activeStudentIds.has(item.studentId)),
-    returnChecklist: activeAuditItems(operationalReturnRows, "supersedesReturnItemId")
-      .map((item) => withAuditStatus(item, store.medicationReturnChecklist, "supersedesReturnItemId")),
+    returnChecklist: activeAuditItems(operationalReturnRows, "supersedesReturnItemId", "voidedAt")
+      .map((item) => withAuditStatus(item, store.medicationReturnChecklist, "supersedesReturnItemId", "voidedAt")),
     intakeHistory,
     intakeSessions: visibleIntakeSessions.filter((session) => activeStudentIds.has(session.studentId))
   };
@@ -830,7 +834,7 @@ function ensureMedicationScheduleItemsForIntake(
   const timeWindows = parseMedicationScheduleText(scheduleText);
   if (!timeWindows.length) return [];
 
-  const activeScheduleItems = activeAuditItems(store.medicationSchedule, "supersedesScheduleItemId")
+  const activeScheduleItems = activeAuditItems(store.medicationSchedule, "supersedesScheduleItemId", "voidedAt")
     .filter((item) => item.medicationRecordId === medicationRecordId && !item.archivedAt);
   const existingWindows = new Set(activeScheduleItems.map((item) => item.timeWindow.trim().toLowerCase()));
   const created: CampMedicationScheduleItem[] = [];
@@ -1297,26 +1301,7 @@ function visibleMedicationHistoryItems<T extends { archivedAt?: string }>(items:
   return includeArchived ? items : items.filter((item) => !item.archivedAt);
 }
 
-function activeAuditItems<T extends { id: string; voidedAt?: string }>(items: T[], supersedesKey: keyof T): T[] {
-  const supersededIds = new Set<string>();
-  for (const item of items) {
-    const value = item[supersedesKey];
-    if (typeof value === "string" && value) supersededIds.add(value);
-  }
-  return items.filter((item) => !item.voidedAt && !supersededIds.has(item.id));
-}
-
-function auditStatusFor<T extends { id: string; voidedAt?: string }>(item: T, allItems: T[], supersedesKey: keyof T): CampAuditStatus {
-  if (item.voidedAt) return "Voided";
-  if (item[supersedesKey]) return "Corrected";
-  return allItems.some((candidate) => candidate[supersedesKey] === item.id) ? "Superseded" : "Active";
-}
-
-function withAuditStatus<T extends { id: string; voidedAt?: string }>(item: T, allItems: T[], supersedesKey: keyof T): T & { auditStatus: CampAuditStatus } {
-  return { ...item, auditStatus: auditStatusFor(item, allItems, supersedesKey) };
-}
-
-function withLatestIntakeSummary(record: CampMedicationRecord, intakeRecords = activeAuditItems(store.medicationIntakeRecords, "supersedesIntakeId")): CampMedicationRecord {
+function withLatestIntakeSummary(record: CampMedicationRecord, intakeRecords = activeAuditItems(store.medicationIntakeRecords, "supersedesIntakeId", "voidedAt")): CampMedicationRecord {
   const latest = intakeRecords.find((item) => item.medicationRecordId === record.id);
   const hasMedicationPhoto = store.medicationPhotoRecords.some((item) => item.medicationRecordId === record.id);
   return {
