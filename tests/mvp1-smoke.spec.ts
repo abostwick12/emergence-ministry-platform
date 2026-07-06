@@ -318,12 +318,15 @@ test.describe("MVP event automation navigation smoke tests", () => {
     }
   });
 
-  test("Student route is an inactive placeholder", async ({ page }) => {
+  test("Student route renders the Student Portal landing page", async ({ page }) => {
     await login(page);
     await page.goto("/student");
 
-    await expect(page.getByRole("heading", { name: "Student View" })).toBeVisible();
-    await expect(page.getByText("no working Student screens are exposed in MVP 1")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Practice reading Scripture with context, community, and care." })).toBeVisible();
+    await expect(
+      page.getByRole("navigation", { name: "Student navigation" }).getByRole("link", { name: "Scripture Hub", exact: true })
+    ).toBeVisible();
+    await expect(page.getByText("nothing is saved, submitted, published, or sent")).toBeVisible();
   });
 
   test("Parent route is an inactive placeholder", async ({ page }) => {

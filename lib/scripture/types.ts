@@ -1,0 +1,48 @@
+export const metanarrativeMovements = [
+  "Creation",
+  "Fall",
+  "Covenant",
+  "Exodus / Deliverance",
+  "Law / Formation",
+  "Land / Kingdom",
+  "Wisdom",
+  "Prophets / Exile",
+  "Return / Waiting",
+  "Jesus / Kingdom Fulfilled",
+  "Church / Spirit",
+  "New Creation"
+] as const;
+
+export type MetanarrativeMovement = (typeof metanarrativeMovements)[number];
+
+export type ScripturePlan = {
+  id: string;
+  title: string;
+  audience: string;
+  duration: string;
+  primaryScripture: string;
+  movement: MetanarrativeMovement;
+  summary: string;
+  contextFocus: string;
+  weeklyRhythm: string[];
+  discussionPrompts: string[];
+  guardrailNotes: string[];
+};
+
+export type ScriptureStudySeed = {
+  id: string;
+  title: string;
+  audience: string;
+  primaryScripture: string;
+  movement: MetanarrativeMovement;
+  purpose: string;
+  contextQuestion: string;
+  communityQuestion: string;
+};
+
+export type ScriptureResource = {
+  id: string;
+  title: string;
+  summary: string;
+  studentPractice: string;
+};
