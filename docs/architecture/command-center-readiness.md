@@ -10,6 +10,8 @@ Phase 1A includes:
 - Andrew-only access boundary through `lib/command-center/access.ts`
 - protected `/command-center` route shell
 - additive Supabase schema in `supabase/migrations/023_personal_command_center.sql`
+- production-safe schema repair path in
+  `supabase/migrations/024_personal_command_center_repair.sql`
 - repository plus mock fallback pattern in `lib/command-center/repository.ts`
 - dashboard overview
 - personal task create, update, status move, and delete
@@ -18,6 +20,20 @@ Phase 1A includes:
 - planned integration status placeholders
 
 No production migration has been applied by this PR.
+
+## Production Migration Repair
+
+`supabase/migrations/023_personal_command_center.sql` shares the `023_` prefix
+with `023_camp_grouped_medication_workflow.sql`. Supabase migration history is
+tracked by version prefix, so the Personal Command Center schema should be
+applied through `supabase/migrations/024_personal_command_center_repair.sql`
+instead of applying the duplicate-prefix `023` migration directly.
+
+The `024` repair migration preserves the Personal Command Center schema,
+recreates Andrew-only RLS policies idempotently, seeds disconnected integration
+placeholders with `ON CONFLICT DO NOTHING`, and reloads the PostgREST schema
+cache. It is intended to be safe whether `023_personal_command_center.sql`
+partially ran or never ran.
 
 ## Phase 1B Scope
 
