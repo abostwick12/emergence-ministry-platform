@@ -162,7 +162,13 @@ export function SageChatPanel() {
       );
     }
     if (event === "done") {
-      setStatus(payload.unavailable ? "SAGE is waiting for OPENAI_API_KEY." : "SAGE is ready.");
+      setStatus(
+        payload.unavailable
+          ? "SAGE is waiting for OPENAI_API_KEY."
+          : payload.failed
+            ? "SAGE is temporarily unavailable."
+            : "SAGE is ready."
+      );
       setMessages((current) => current.map((item) => (item.id === assistantId ? { ...item, pending: false } : item)));
     }
   }
