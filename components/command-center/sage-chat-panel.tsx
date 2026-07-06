@@ -66,7 +66,7 @@ export function SageChatPanel() {
           .filter((message) => message.role === "user" || message.role === "assistant")
           .map((message) => ({ id: message.id, role: message.role, content: message.content }));
         setMessages((current) => (current.length === 0 && !hasInteractedRef.current ? loaded : current));
-        setStatus(data.configured ? "SAGE is connected for task-aware reasoning." : "SAGE is waiting for OPENAI_API_KEY.");
+        setStatus(data.configured ? "SAGE is connected for task-aware reasoning." : "SAGE is waiting for AI provider configuration.");
       } catch {
         if (!canceled) setStatus("SAGE chat history could not be loaded.");
       }
@@ -164,7 +164,7 @@ export function SageChatPanel() {
     if (event === "done") {
       setStatus(
         payload.unavailable
-          ? "SAGE is waiting for OPENAI_API_KEY."
+          ? "SAGE is waiting for AI provider configuration."
           : payload.failed
             ? "SAGE is temporarily unavailable."
             : "SAGE is ready."

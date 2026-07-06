@@ -42,8 +42,10 @@ Phase 1B adds:
 - `/api/command-center/chat` Andrew-only streaming route
 - real `/command-center/chat` chat UI
 - server-only OpenAI SDK dependency
+- direct OpenAI and Azure OpenAI provider selection
 - `OPENAI_API_KEY` / `OPENAI_MODEL` environment documentation
-- graceful unavailable state when `OPENAI_API_KEY` is absent
+- Azure OpenAI environment documentation
+- graceful unavailable state when provider config is absent
 - user and assistant message persistence through `ai_conversations`
 - task-aware SAGE prompt context built only from open Command Center tasks
 - basic SAGE system prompt and `command_center.task_aware_chat` skill file
@@ -51,20 +53,41 @@ Phase 1B adds:
 SAGE Phase 1B can advise from Command Center task/context data only. It cannot
 take actions outside the Command Center, call integrations, or execute tools.
 
-## SAGE Provider Preparation
+## SAGE Provider Selection
 
-SAGE has a provider config helper that defaults to direct OpenAI and recognizes
-`SAGE_AI_PROVIDER=azure` for future Azure OpenAI support. This preparation keeps
-provider selection, missing-config detection, and secret-safe config reporting
-isolated in `lib/command-center/sage.ts`.
+SAGE defaults to direct OpenAI. Set `SAGE_AI_PROVIDER=azure` to use Azure OpenAI
+instead. Provider selection, missing-config detection, Azure client setup, and
+secret-safe config reporting are isolated in `lib/command-center/sage.ts`; the
+chat route keeps the same `/api/command-center/chat` streaming contract.
 
-This preparation does not add Azure runtime calls. The production chat route
-continues to use the existing direct OpenAI implementation until an Azure
-streaming adapter is reviewed and merged.
+Direct OpenAI provider setup:
 
-Azure OpenAI is the preferred future provider when Andrew's Azure funding is
-available. Direct OpenAI remains supported as the default provider and fallback
-path.
+```env
+OPENAI_API_KEY=
+OPENAI_MODEL=gpt-4o-mini
+```
+
+Azure OpenAI provider setup:
+
+```env
+SAGE_AI_PROVIDER=azure
+AZURE_OPENAI_API_KEY=
+AZURE_OPENAI_ENDPOINT=
+AZURE_OPENAI_DEPLOYMENT=
+AZURE_OPENAI_API_VERSION=2024-10-21
+```
+
+Azure OpenAI uses a deployment name, not just a model name. If Andrew's Azure
+deployment is named `emma-camp-test`, set
+`AZURE_OPENAI_DEPLOYMENT=emma-camp-test`.
+
+For local development, add the selected provider variables to `.env.local`.
+For Vercel, add the same variables in the project Environment Variables page
+for the intended environment, without pasting secret values into chat, commits,
+GitHub comments, screenshots, or docs.
+
+Azure OpenAI is preferred when Andrew's Azure funding is available. Direct
+OpenAI remains supported as the default provider and fallback path.
 
 ## Security Boundary
 
