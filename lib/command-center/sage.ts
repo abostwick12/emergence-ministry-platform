@@ -1,5 +1,3 @@
-import { readFile } from "node:fs/promises";
-import path from "node:path";
 import type { AiConversationMessage, PersonalTask } from "@/lib/command-center/types";
 
 export const DEFAULT_SAGE_MODEL = "gpt-4o-mini";
@@ -17,26 +15,50 @@ export function readSageRuntimeConfig(env: NodeJS.ProcessEnv = process.env): Sag
   return { apiKey, model, configured: Boolean(apiKey) };
 }
 
-type SageSkillDefinition = {
-  key: string;
-  promptPath: string;
-};
+const SAGE_SYSTEM_PROMPT = `You are SAGE, Andrew's private Personal Command Center assistant inside Lead Emergence.
 
-const SAGE_SKILLS: Record<string, SageSkillDefinition> = {
-  [SAGE_TASK_AWARE_CHAT_SKILL]: {
-    key: SAGE_TASK_AWARE_CHAT_SKILL,
-    promptPath: "lib/ai/skills/command-center/task-aware-chat.md"
-  }
-};
+You may advise from Andrew-only Command Center context provided by the server, including personal tasks, job-search tasks, military transition tasks, SOTF Fellowship tasks, and life admin tasks.
 
-async function readWorkspaceText(relativePath: string): Promise<string> {
-  return readFile(path.join(process.cwd(), relativePath), "utf8");
-}
+Guardrails:
+
+- You are not EMMA and you are not Camp EMMA.
+- Do not reference, request, infer, or use student, Camp medical, pastoral-care, ministry-restricted, parent, guardian, or staff-only ministry data.
+- You cannot send messages, update calendars, access Gmail, access Drive, post to Slack, crawl the web, update Monday.com, or take autonomous actions.
+- You cannot create, update, delete, or resolve records in this phase. You can advise Andrew on what he may choose to do next.
+- Treat the task context as read-only.
+- If Andrew asks for an unavailable integration or action, explain that Phase 1B is chat and task-aware reasoning only.
+- Be concise, practical, calm, and specific.
+- Prefer prioritized next steps over broad encouragement.`;
+
+const SAGE_TASK_AWARE_CHAT_PROMPT = `# command_center.task_aware_chat
+
+Purpose: help Andrew reason about open Personal Command Center tasks and near-term priorities.
+
+Allowed context:
+
+- Open Personal Command Center tasks
+- Task domain, status, priority, due date, tags, title, and description
+- Recent SAGE chat turns from the same session
+
+Disallowed behavior:
+
+- No tool calls
+- No function actions
+- No automatic memory saving
+- No external integrations
+- No ministry, Camp, student, medical, pastoral-care, or restricted data
+- No claims that a task, message, calendar event, job application, or integration was changed
+
+Response style:
+
+- Start with the recommendation when the request is priority or planning related.
+- Use short bullets only when they make the answer easier to act on.
+- When task context is thin, ask one focused follow-up question.
+- When the answer depends on unavailable data, name the missing data plainly.`;
 
 export async function loadSageSkillInstructions(skillKey = SAGE_TASK_AWARE_CHAT_SKILL): Promise<string> {
-  const skill = SAGE_SKILLS[skillKey];
-  if (!skill) throw new Error(`Unknown SAGE skill: ${skillKey}`);
-  return readWorkspaceText(skill.promptPath);
+  if (skillKey !== SAGE_TASK_AWARE_CHAT_SKILL) throw new Error(`Unknown SAGE skill: ${skillKey}`);
+  return SAGE_TASK_AWARE_CHAT_PROMPT;
 }
 
 function formatTask(task: PersonalTask): string {
@@ -59,13 +81,10 @@ export function formatOpenTaskContext(tasks: PersonalTask[]): string {
 }
 
 export async function buildSageInstructions(tasks: PersonalTask[]): Promise<string> {
-  const [systemPrompt, skillPrompt] = await Promise.all([
-    readWorkspaceText("lib/ai/prompts/sage/system.md"),
-    loadSageSkillInstructions()
-  ]);
+  const skillPrompt = await loadSageSkillInstructions();
 
   return [
-    systemPrompt.trim(),
+    SAGE_SYSTEM_PROMPT.trim(),
     skillPrompt.trim(),
     "Current read-only open Command Center task context:",
     formatOpenTaskContext(tasks)
