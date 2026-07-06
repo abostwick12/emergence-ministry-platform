@@ -81,6 +81,11 @@ Azure OpenAI uses a deployment name, not just a model name. If Andrew's Azure
 deployment is named `emma-camp-test`, set
 `AZURE_OPENAI_DEPLOYMENT=emma-camp-test`.
 
+SAGE streaming uses Azure OpenAI's Responses API v1 route by deriving
+`/openai/v1/` from `AZURE_OPENAI_ENDPOINT`. `AZURE_OPENAI_API_VERSION` remains
+documented for compatibility with other Azure OpenAI helpers, but SAGE does not
+send it on Responses API requests.
+
 For local development, add the selected provider variables to `.env.local`.
 For Vercel, add the same variables in the project Environment Variables page
 for the intended environment, without pasting secret values into chat, commits,

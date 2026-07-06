@@ -172,6 +172,13 @@ export function readSageRuntimeConfig(env: NodeJS.ProcessEnv = process.env): Sag
   return { apiKey, model, configured: Boolean(apiKey) };
 }
 
+export function normalizeAzureResponsesBaseUrl(endpoint: string): string {
+  const trimmed = endpoint.trim().replace(/\/+$/, "");
+  if (trimmed.endsWith("/openai/v1")) return `${trimmed}/`;
+  if (trimmed.endsWith("/openai")) return `${trimmed}/v1/`;
+  return `${trimmed}/openai/v1/`;
+}
+
 function errorRecord(error: unknown): Record<string, unknown> {
   return error && typeof error === "object" ? error as Record<string, unknown> : {};
 }
@@ -303,12 +310,10 @@ export async function streamAzureOpenAIResponse({
   if (!config.configured || !config.apiKey || !config.endpoint || !config.deployment) {
     throw new SageProviderConfigError(publicProviderConfig(config));
   }
-  const { AzureOpenAI } = await import("openai");
-  const client = new AzureOpenAI({
+  const { default: OpenAI } = await import("openai");
+  const client = new OpenAI({
     apiKey: config.apiKey,
-    endpoint: config.endpoint,
-    deployment: config.deployment,
-    apiVersion: config.apiVersion,
+    baseURL: normalizeAzureResponsesBaseUrl(config.endpoint),
     timeout: 30_000,
     maxRetries: 0
   });
