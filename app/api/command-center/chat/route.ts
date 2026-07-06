@@ -27,8 +27,83 @@ type OpenAIStreamEvent = {
   error?: { message?: string };
 };
 
+type SageErrorCategory =
+  | "invalid_api_key"
+  | "model_not_found"
+  | "billing_quota"
+  | "responses_request_shape"
+  | "timeout"
+  | "stream_error"
+  | "database_persistence"
+  | "unknown";
+
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
+}
+
+function errorRecord(error: unknown): Record<string, unknown> {
+  return error && typeof error === "object" ? error as Record<string, unknown> : {};
+}
+
+function sanitizeErrorMessage(error: unknown): string | undefined {
+  const message = error instanceof Error ? error.message : undefined;
+  if (!message) return undefined;
+  return message
+    .replace(/sk-[a-zA-Z0-9_-]+/g, "[redacted]")
+    .replace(/Bearer\s+[a-zA-Z0-9._-]+/g, "Bearer [redacted]")
+    .slice(0, 220);
+}
+
+function errorStatus(error: unknown): number | undefined {
+  const status = errorRecord(error).status;
+  return typeof status === "number" ? status : undefined;
+}
+
+function errorCode(error: unknown): string | undefined {
+  const record = errorRecord(error);
+  const code = record.code ?? record.type;
+  return typeof code === "string" ? code : undefined;
+}
+
+function classifySageProviderError(error: unknown): SageErrorCategory {
+  const status = errorStatus(error);
+  const code = errorCode(error)?.toLowerCase() ?? "";
+  const message = sanitizeErrorMessage(error)?.toLowerCase() ?? "";
+
+  if (status === 401 || code.includes("invalid_api_key") || message.includes("invalid api key")) {
+    return "invalid_api_key";
+  }
+  if (status === 404 || code.includes("model_not_found") || message.includes("model") && message.includes("not found")) {
+    return "model_not_found";
+  }
+  if (status === 429 || code.includes("quota") || code.includes("billing") || message.includes("quota") || message.includes("billing")) {
+    return "billing_quota";
+  }
+  if (status === 400 || code.includes("invalid_request") || message.includes("invalid") || message.includes("unsupported")) {
+    return "responses_request_shape";
+  }
+  if (code.includes("timeout") || message.includes("timeout") || message.includes("timed out")) {
+    return "timeout";
+  }
+  if (message.includes("stream")) return "stream_error";
+  return "unknown";
+}
+
+function logSageError(
+  category: SageErrorCategory,
+  error: unknown,
+  context: { phase: string; status?: number; taskCount?: number; conversationCount?: number } = { phase: "unknown" }
+) {
+  console.error("[sage-chat] sanitized runtime failure", {
+    category,
+    phase: context.phase,
+    status: context.status ?? errorStatus(error),
+    code: errorCode(error),
+    name: error instanceof Error ? error.name : undefined,
+    message: sanitizeErrorMessage(error),
+    taskCount: context.taskCount,
+    conversationCount: context.conversationCount
+  });
 }
 
 function normalizeSessionId(input?: string): string {
@@ -80,13 +155,21 @@ export async function POST(request: Request) {
 
   const sessionId = normalizeSessionId(body.sessionId);
   const session = access.session;
-  await appendConversationMessage(session, { sessionId, role: "user", content: message });
+  try {
+    await appendConversationMessage(session, { sessionId, role: "user", content: message });
+  } catch (error) {
+    logSageError("database_persistence", error, { phase: "save_user_message" });
+    return jsonError("SAGE could not save your message. Please try again after Command Center storage is ready.", 503);
+  }
 
   const requestSignal = request.signal;
   let clientDisconnected = requestSignal.aborted;
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       let assistantContent = "";
+      let phase = "start";
+      let taskCount: number | undefined;
+      let conversationCount: number | undefined;
       const markDisconnected = () => {
         clientDisconnected = true;
       };
@@ -106,10 +189,16 @@ export async function POST(request: Request) {
         }
       }
 
-      async function finish(content: string, meta?: Record<string, unknown>) {
+      async function finish(content: string, meta?: Record<string, unknown>, saveAssistantMessage = true) {
         if (isDisconnected()) return;
-        if (content.trim()) {
-          await appendConversationMessage(session, { sessionId, role: "assistant", content });
+        if (saveAssistantMessage && content.trim()) {
+          try {
+            await appendConversationMessage(session, { sessionId, role: "assistant", content });
+          } catch (error) {
+            logSageError("database_persistence", error, { phase: "save_assistant_message" });
+            enqueue("error", { message: "SAGE responded, but the conversation could not be saved." });
+            saveAssistantMessage = false;
+          }
         }
         if (!enqueue("done", { sessionId, ...meta })) return;
         try {
@@ -123,6 +212,7 @@ export async function POST(request: Request) {
         requestSignal.addEventListener("abort", markDisconnected, { once: true });
         if (!enqueue("session", { sessionId })) return;
 
+        phase = "read_config";
         const config = readSageRuntimeConfig();
         if (!config.configured || !config.apiKey) {
           assistantContent = sageUnavailableMessage();
@@ -131,15 +221,19 @@ export async function POST(request: Request) {
           return;
         }
 
+        phase = "load_context";
         const [tasks, messages] = await Promise.all([
           listPersonalTasks(session),
           listConversationMessages(session, sessionId, 12)
         ]);
+        taskCount = tasks.length;
+        conversationCount = messages.length;
         const instructions = await buildSageInstructions(tasks);
         const input = buildSageConversationInput(messages);
         const { default: OpenAI } = await import("openai");
         const client = new OpenAI({ apiKey: config.apiKey, timeout: 30_000, maxRetries: 0 });
 
+        phase = "openai_request";
         const openAiStream = await client.responses.create({
           model: config.model,
           instructions,
@@ -149,6 +243,7 @@ export async function POST(request: Request) {
           signal: requestSignal
         });
 
+        phase = "openai_stream";
         for await (const rawEvent of openAiStream) {
           if (isDisconnected()) return;
           const event = rawEvent as OpenAIStreamEvent;
@@ -167,11 +262,13 @@ export async function POST(request: Request) {
           enqueue("delta", { delta: assistantContent });
         }
         await finish(assistantContent, { model: config.model });
-      } catch {
+      } catch (error) {
         if (isDisconnected()) return;
+        const category = phase === "load_context" ? "database_persistence" : classifySageProviderError(error);
+        logSageError(category, error, { phase, taskCount, conversationCount });
         const fallback = "SAGE is temporarily unavailable. Your message was saved, but no assistant response was generated.";
         enqueue("error", { message: fallback });
-        await finish(fallback, { failed: true });
+        await finish("", { failed: true, category }, false);
       } finally {
         requestSignal.removeEventListener("abort", markDisconnected);
       }
