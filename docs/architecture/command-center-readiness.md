@@ -51,6 +51,21 @@ Phase 1B adds:
 SAGE Phase 1B can advise from Command Center task/context data only. It cannot
 take actions outside the Command Center, call integrations, or execute tools.
 
+## SAGE Provider Preparation
+
+SAGE has a provider config helper that defaults to direct OpenAI and recognizes
+`SAGE_AI_PROVIDER=azure` for future Azure OpenAI support. This preparation keeps
+provider selection, missing-config detection, and secret-safe config reporting
+isolated in `lib/command-center/sage.ts`.
+
+This preparation does not add Azure runtime calls. The production chat route
+continues to use the existing direct OpenAI implementation until an Azure
+streaming adapter is reviewed and merged.
+
+Azure OpenAI is the preferred future provider when Andrew's Azure funding is
+available. Direct OpenAI remains supported as the default provider and fallback
+path.
+
 ## Security Boundary
 
 The Command Center is Andrew-only. Access is granted only when the authenticated
