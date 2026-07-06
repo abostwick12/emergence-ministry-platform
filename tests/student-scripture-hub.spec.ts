@@ -24,24 +24,54 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page.getByRole("heading", { name: "Avoiding forced typology" })).toBeVisible();
   });
 
-  test("builder pages are static and keep draft/review actions disabled", async ({ page }) => {
+  test("builder pages generate local previews without saving or sending", async ({ page }) => {
     await login(page);
 
     await page.goto("/student/scripture/plans/new");
     await expect(page.getByRole("heading", { name: "Build a reading plan draft around context and the whole story." })).toBeVisible();
-    await expect(page.getByLabel("Title")).toBeVisible();
-    await expect(page.getByLabel("Metanarrative movement")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Save Draft" })).toBeDisabled();
-    await expect(page.getByRole("button", { name: "Preview" })).toBeDisabled();
-    await expect(page.getByRole("button", { name: "Send to Leader Review" })).toBeDisabled();
+    await page.getByLabel("Title").fill("Exodus and Formation");
+    await page.getByLabel("Audience").fill("High school small group");
+    await page.getByLabel("Duration").fill("4 weeks");
+    await page.getByLabel("Primary Scripture reference").fill("Exodus 1-20");
+    await page.getByLabel("Metanarrative movement").selectOption("Exodus / Deliverance");
+    await page.getByLabel("Context notes").fill("Read deliverance before application.");
+    await page.getByLabel("Observation question").fill("What repeated words describe rescue?");
+    await page.getByLabel("Interpretation question").fill("What does the passage teach in context?");
+    await page.getByLabel("Application question").fill("How should we respond together?");
+    await page.getByLabel("Discussion question").fill("Where do we see that in the text?");
+    await page.getByLabel("Prayer prompt").fill("Pray from the passage.");
+    await page.getByLabel("Theological guardrail notes").fill("Do not flatten Israel's story.");
+    await page.getByRole("button", { name: "Preview" }).click();
+
+    const planPreview = page.getByLabel("Reading Plan local preview");
+    await expect(planPreview.getByRole("heading", { name: "Exodus and Formation" })).toBeVisible();
+    await expect(planPreview.getByText("High school small group")).toBeVisible();
+    await expect(planPreview.getByText("Exodus / Deliverance")).toBeVisible();
+    await expect(planPreview.getByText("Read deliverance before application.")).toBeVisible();
+    await expect(page.getByRole("status")).toContainText("Preview generated locally");
+    await page.getByRole("button", { name: "Send to Leader Review" }).click();
+    await expect(page.getByRole("status")).toContainText("Leader review workflow coming later");
 
     await page.goto("/student/scripture/studies/new");
     await expect(page.getByRole("heading", { name: "Shape a discussion that starts with the text and stays humble." })).toBeVisible();
-    await expect(page.getByLabel("Primary Scripture reference")).toBeVisible();
-    await expect(page.getByLabel("Theological guardrail notes")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Save Draft" })).toBeDisabled();
-    await expect(page.getByRole("button", { name: "Preview" })).toBeDisabled();
-    await expect(page.getByRole("button", { name: "Send to Leader Review" })).toBeDisabled();
+    await page.getByLabel("Title").fill("What does Jesus mean by kingdom?");
+    await page.getByLabel("Primary Scripture reference").fill("Mark 1:14-20");
+    await page.getByLabel("Metanarrative movement").selectOption("Jesus / Kingdom Fulfilled");
+    await page.getByLabel("Context notes").fill("Start with Mark's opening announcement.");
+    await page.getByLabel("Observation question").fill("What does Jesus announce first?");
+    await page.getByLabel("Interpretation question").fill("How does kingdom fit Mark's context?");
+    await page.getByLabel("Application question").fill("What faithful response fits the text?");
+    await page.getByLabel("Discussion question").fill("What questions should we bring to the group?");
+    await page.getByLabel("Prayer prompt").fill("Pray with humility.");
+    await page.getByLabel("Theological guardrail notes").fill("Name direct teaching before creative connection.");
+    await page.getByRole("button", { name: "Save Draft" }).click();
+
+    const studyPreview = page.getByLabel("Student-Led Study local preview");
+    await expect(studyPreview.getByRole("heading", { name: "What does Jesus mean by kingdom?" })).toBeVisible();
+    await expect(studyPreview.getByText("Student-led study outline")).toBeVisible();
+    await expect(studyPreview.getByText("Start with Mark's opening announcement.")).toBeVisible();
+    await expect(studyPreview.getByText("Name direct teaching before creative connection.")).toBeVisible();
+    await expect(page.getByRole("status")).toContainText("Draft not saved yet");
   });
 });
 
