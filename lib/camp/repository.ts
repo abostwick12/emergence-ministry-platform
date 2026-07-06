@@ -59,6 +59,10 @@ import type {
 } from "@/lib/camp/types";
 import { getCampVisibleStudentsForData, publicSafetyTextFromFlags } from "@/lib/camp/access";
 import { buildOakwoodImportPreviewFromCsv, mergeOakwoodImportPreviews, type OakwoodExistingPerson } from "@/lib/camp/oakwood-import";
+import {
+  activeAuditItems as activeAuditRows,
+  auditStatusFor
+} from "@/lib/ministry/audit-lifecycle";
 import { resolveMinistryScope } from "@/lib/ministry/scope";
 
 type CampSessionRow = {
@@ -1634,22 +1638,22 @@ export function buildRestrictedCampMedicationPayloadFromRows(input: {
   const intakeRows = visibleMedicationHistoryRows(allIntakeRows, input.includeArchived);
   const intakeSessionRows = visibleMedicationHistoryRows(allIntakeSessionRows, input.includeArchived);
   const logRows = visibleMedicationHistoryRows(allLogRows, input.includeArchived);
-  const activeIntakeRows = activeAuditRows(allIntakeRows, "supersedes_intake_id").filter((row) => !row.archived_at);
+  const activeIntakeRows = activeAuditRows(allIntakeRows, "supersedes_intake_id", "voided_at").filter((row) => !row.archived_at);
   const activeIntakeHistory = activeIntakeRows.map((item) => toMedicationIntakeRecord(item, input.campers));
-  const intakeHistory = intakeRows.map((row) => toMedicationIntakeRecord(row, input.campers, auditStatusFor(row, intakeRows, "supersedes_intake_id")));
+  const intakeHistory = intakeRows.map((row) => toMedicationIntakeRecord(row, input.campers, auditStatusFor(row, intakeRows, "supersedes_intake_id", "voided_at")));
   const medicationIdsWithPhotoRecords = new Set(input.photoRows.map((row) => row.medication_record_id));
 
   return {
     campers: Array.from(input.campers.values()),
-    checkIn: activeAuditRows(allCheckInRows, "supersedes_medication_record_id")
-      .map((row) => toMedicationRecord(row, input.campers, activeIntakeHistory, auditStatusFor(row, allCheckInRows, "supersedes_medication_record_id"), medicationIdsWithPhotoRecords.has(row.id))),
-    schedule: activeAuditRows(allScheduleRows, "supersedes_schedule_item_id")
-      .map((row) => toScheduleItem(row, input.campers, auditStatusFor(row, allScheduleRows, "supersedes_schedule_item_id"))),
-    administrationLog: logRows.map((row) => toAdministrationLog(row, input.campers, auditStatusFor(row, logRows, "supersedes_administration_log_id"))),
+    checkIn: activeAuditRows(allCheckInRows, "supersedes_medication_record_id", "voided_at")
+      .map((row) => toMedicationRecord(row, input.campers, activeIntakeHistory, auditStatusFor(row, allCheckInRows, "supersedes_medication_record_id", "voided_at"), medicationIdsWithPhotoRecords.has(row.id))),
+    schedule: activeAuditRows(allScheduleRows, "supersedes_schedule_item_id", "voided_at")
+      .map((row) => toScheduleItem(row, input.campers, auditStatusFor(row, allScheduleRows, "supersedes_schedule_item_id", "voided_at"))),
+    administrationLog: logRows.map((row) => toAdministrationLog(row, input.campers, auditStatusFor(row, logRows, "supersedes_administration_log_id", "voided_at"))),
     administrationEvents: allAdministrationEventRows.map((row) => toAdministrationEvent(row, input.campers)),
     administrationItems: allAdministrationItemRows.map((row) => toAdministrationItem(row, input.campers)),
-    returnChecklist: activeAuditRows(allReturnRows, "supersedes_return_item_id")
-      .map((row) => toReturnItem(row, input.campers, auditStatusFor(row, allReturnRows, "supersedes_return_item_id"))),
+    returnChecklist: activeAuditRows(allReturnRows, "supersedes_return_item_id", "voided_at")
+      .map((row) => toReturnItem(row, input.campers, auditStatusFor(row, allReturnRows, "supersedes_return_item_id", "voided_at"))),
     intakeHistory,
     intakeSessions: intakeSessionRows.map((row) => toMedicationIntakeSession(row, input.campers))
   };
@@ -2754,21 +2758,6 @@ function retainWorkflowRowsWhenCamperLookupIsEmpty<T extends { camper_id: string
   if (!rows.length) return [];
   const rowsForActiveCampers = rows.filter((row) => activeCamperIds.has(row.camper_id));
   return rowsForActiveCampers.length ? rowsForActiveCampers : rows;
-}
-
-function activeAuditRows<T extends { id: string; voided_at?: string | null }>(rows: T[], supersedesKey: keyof T): T[] {
-  const supersededIds = new Set<string>();
-  for (const row of rows) {
-    const value = row[supersedesKey];
-    if (typeof value === "string" && value) supersededIds.add(value);
-  }
-  return rows.filter((row) => !row.voided_at && !supersededIds.has(row.id));
-}
-
-function auditStatusFor<T extends { id: string; voided_at?: string | null }>(row: T, rows: T[], supersedesKey: keyof T): CampAuditStatus {
-  if (row.voided_at) return "Voided";
-  if (row[supersedesKey]) return "Corrected";
-  return rows.some((candidate) => candidate[supersedesKey] === row.id) ? "Superseded" : "Active";
 }
 
 function toCampTeam(row: CampTeamRow): CampTeam {
