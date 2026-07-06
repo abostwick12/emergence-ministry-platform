@@ -4,6 +4,7 @@ import {
   buildSageInstructions,
   classifySageProviderError,
   loadSageSkillInstructions,
+  normalizeAzureResponsesBaseUrl,
   readSageProviderConfig,
   SageProviderConfigError,
   sageUnavailableMessage,
@@ -123,6 +124,17 @@ describe("SAGE provider config", () => {
 
     expect(config.configured).toBe(false);
     expect(sageUnavailableMessage(config)).toContain("Azure OpenAI is not configured yet");
+  });
+
+  it("normalizes Azure endpoints to the Responses API v1 base URL", () => {
+    expect(normalizeAzureResponsesBaseUrl("https://example.openai.azure.com"))
+      .toBe("https://example.openai.azure.com/openai/v1/");
+    expect(normalizeAzureResponsesBaseUrl("https://example.openai.azure.com/"))
+      .toBe("https://example.openai.azure.com/openai/v1/");
+    expect(normalizeAzureResponsesBaseUrl("https://example.openai.azure.com/openai"))
+      .toBe("https://example.openai.azure.com/openai/v1/");
+    expect(normalizeAzureResponsesBaseUrl("https://example.openai.azure.com/openai/v1/"))
+      .toBe("https://example.openai.azure.com/openai/v1/");
   });
 });
 
