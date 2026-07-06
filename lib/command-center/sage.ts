@@ -1,13 +1,61 @@
 import type { AiConversationMessage, PersonalTask } from "@/lib/command-center/types";
 
 export const DEFAULT_SAGE_MODEL = "gpt-4o-mini";
+export const DEFAULT_AZURE_OPENAI_API_VERSION = "2024-10-21";
 export const SAGE_TASK_AWARE_CHAT_SKILL = "command_center.task_aware_chat";
+
+type SageProvider = "openai" | "azure";
+
+type SageProviderConfig = {
+  provider: SageProvider;
+  configured: boolean;
+  modelLabel: string;
+  missing: string[];
+};
 
 type SageRuntimeConfig = {
   apiKey?: string;
   model: string;
   configured: boolean;
 };
+
+type SageEnv = Record<string, string | undefined>;
+
+function cleanEnv(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed || undefined;
+}
+
+export function readSageProviderConfig(env: SageEnv = process.env): SageProviderConfig {
+  const requestedProvider = cleanEnv(env.SAGE_AI_PROVIDER)?.toLowerCase();
+  const provider: SageProvider = requestedProvider === "azure" ? "azure" : "openai";
+
+  if (provider === "azure") {
+    const deployment = cleanEnv(env.AZURE_OPENAI_DEPLOYMENT);
+    const required: Array<[string, string | undefined]> = [
+      ["AZURE_OPENAI_API_KEY", cleanEnv(env.AZURE_OPENAI_API_KEY)],
+      ["AZURE_OPENAI_ENDPOINT", cleanEnv(env.AZURE_OPENAI_ENDPOINT)],
+      ["AZURE_OPENAI_DEPLOYMENT", deployment]
+    ];
+    const missing = required.filter(([, value]) => !value).map(([name]) => name);
+
+    return {
+      provider,
+      configured: missing.length === 0,
+      modelLabel: deployment || "azure-openai",
+      missing
+    };
+  }
+
+  const model = cleanEnv(env.OPENAI_MODEL) || DEFAULT_SAGE_MODEL;
+  const missing = cleanEnv(env.OPENAI_API_KEY) ? [] : ["OPENAI_API_KEY"];
+  return {
+    provider,
+    configured: missing.length === 0,
+    modelLabel: model,
+    missing
+  };
+}
 
 export function readSageRuntimeConfig(env: NodeJS.ProcessEnv = process.env): SageRuntimeConfig {
   const apiKey = env.OPENAI_API_KEY?.trim();
