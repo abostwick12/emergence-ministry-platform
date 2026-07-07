@@ -80,6 +80,51 @@ describe("Gloo model policy", () => {
     ).toBe(true);
   });
 
+  it("treats Gloo AI client credentials as configured", () => {
+    expect(
+      isGlooConfigured({
+        GLOO_AI_CLIENT_SECRET: "secret",
+        GLOO_AI_BASE_URL: "https://platform.ai.gloo.com",
+        GLOO_AI_MODEL: "GPT-5 Nano"
+      })
+    ).toBe(true);
+  });
+
+  it("uses the Gloo AI client secret and base URL aliases for draft generation", async () => {
+    process.env.GLOO_AI_CLIENT_SECRET = "secret";
+    process.env.GLOO_AI_BASE_URL = "https://platform.ai.gloo.com";
+    process.env.GLOO_AI_MODEL = "GPT-5 Nano";
+
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      jsonResponse({
+        discussionPrompt: "Ask a careful question for the group.",
+        safetyLabel: "safe",
+        safetyNotes: "Leader can review before use.",
+        confidence: 0.88,
+        topicTags: ["prayer"],
+        escalationRecommended: false,
+        escalationReason: ""
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await generateGlooDiscussionDraft(baseInput);
+
+    expect(result).toMatchObject({
+      ok: true,
+      model: "GPT-5 Nano",
+      discussionPrompt: "Ask a careful question for the group."
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://platform.ai.gloo.com/chat/completions",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer secret"
+        })
+      })
+    );
+  });
+
   it("reruns on the escalation model when the default pass is low confidence", async () => {
     process.env.GLOO_AI_STUDIO_API_KEY = "key";
     process.env.GLOO_AI_STUDIO_API_BASE_URL = "https://example.test";
