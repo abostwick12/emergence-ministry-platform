@@ -57,9 +57,10 @@ type ParsedDraft = {
 };
 
 export function isGlooConfigured(env: Partial<NodeJS.ProcessEnv> = process.env) {
+  const credentials = getGlooCredentials(env);
   return Boolean(
-    env.GLOO_AI_STUDIO_API_KEY?.trim() &&
-      env.GLOO_AI_STUDIO_API_BASE_URL?.trim() &&
+    credentials.apiKey &&
+      credentials.apiBaseUrl &&
       getPrimaryGlooModel(env)
   );
 }
@@ -106,8 +107,7 @@ export function selectGlooModelPolicy(
 }
 
 export async function generateGlooDiscussionDraft(input: GlooDiscussionDraftInput): Promise<GlooDiscussionDraftResult> {
-  const apiKey = process.env.GLOO_AI_STUDIO_API_KEY?.trim();
-  const apiBaseUrl = process.env.GLOO_AI_STUDIO_API_BASE_URL?.trim();
+  const { apiKey, apiBaseUrl } = getGlooCredentials(process.env);
   const selection = selectGlooModelPolicy(input);
 
   if (!apiKey || !apiBaseUrl || !selection) {
@@ -246,6 +246,13 @@ function limitText(value: string, maxLength: number) {
 
 function getPrimaryGlooModel(env: Partial<NodeJS.ProcessEnv>) {
   return env.GLOO_AI_MODEL?.trim() || env.GLOO_AI_STUDIO_MODEL?.trim() || "";
+}
+
+function getGlooCredentials(env: Partial<NodeJS.ProcessEnv>) {
+  return {
+    apiKey: env.GLOO_AI_STUDIO_API_KEY?.trim() || env.GLOO_AI_CLIENT_SECRET?.trim() || "",
+    apiBaseUrl: env.GLOO_AI_STUDIO_API_BASE_URL?.trim() || env.GLOO_AI_BASE_URL?.trim() || ""
+  };
 }
 
 function normalizeConfidence(value: unknown) {
