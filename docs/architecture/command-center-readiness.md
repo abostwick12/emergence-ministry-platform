@@ -159,3 +159,7 @@ Phase 1B still deliberately does not include:
 - `daily_briefing_cache` and `sage_memory` are schema placeholders only.
 - Integration cards are disconnected placeholders only.
 - No live provider credentials are required for local fallback behavior.
+
+See [`command-center-integrations.md`](./command-center-integrations.md) for
+the integration priority order, required env vars, and approval rules that
+govern how each integration is added once this baseline is in place.
