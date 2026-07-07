@@ -52,6 +52,13 @@ export default function ScriptureHubPage() {
           title="New Student-Led Study"
         />
         <ScriptureCard
+          actionLabel="Open Queue"
+          description="Review mock drafts waiting for leader feedback so student-led study stays faithful and clear."
+          eyebrow="Review"
+          href="/student/scripture/review"
+          title="Review Queue"
+        />
+        <ScriptureCard
           actionLabel="Open Resources"
           description="Use short guides for exegesis habits, better questions, and avoiding forced typology."
           eyebrow="Guide"

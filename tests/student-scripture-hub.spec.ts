@@ -22,6 +22,16 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page.getByRole("heading", { name: "Simple tools for reading carefully together." })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Avoiding proof-texting" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Avoiding forced typology" })).toBeVisible();
+
+    await page.goto("/student/scripture/review");
+    await expect(page.getByRole("heading", { name: "Scripture Review Queue" })).toBeVisible();
+    await expect(page.getByText("Reading plan draft")).toBeVisible();
+    await expect(page.getByText("Student-led study draft")).toBeVisible();
+    await expect(page.getByText("Needs more context")).toBeVisible();
+    await expect(page.getByText("Strong discussion question")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Approve" }).first()).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Request Changes" }).first()).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Archive" }).first()).toBeDisabled();
   });
 
   test("builder pages generate local previews without saving or sending", async ({ page }) => {

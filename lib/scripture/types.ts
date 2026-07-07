@@ -46,3 +46,19 @@ export type ScriptureResource = {
   summary: string;
   studentPractice: string;
 };
+
+export type ScriptureReviewDraftType = "Reading plan draft" | "Student-led study draft";
+
+export type ScriptureReviewItem = {
+  id: string;
+  title: string;
+  type: ScriptureReviewDraftType;
+  submittedBy: string;
+  audience: string;
+  primaryScripture: string;
+  movement: MetanarrativeMovement;
+  status: string;
+  guardrailFlags: string[];
+  leaderNotes: string;
+  suggestedNextAction: string;
+};

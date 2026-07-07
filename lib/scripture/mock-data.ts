@@ -1,4 +1,10 @@
-import { metanarrativeMovements, type ScripturePlan, type ScriptureResource, type ScriptureStudySeed } from "@/lib/scripture/types";
+import {
+  metanarrativeMovements,
+  type ScripturePlan,
+  type ScriptureResource,
+  type ScriptureReviewItem,
+  type ScriptureStudySeed
+} from "@/lib/scripture/types";
 
 export { metanarrativeMovements };
 
@@ -139,5 +145,36 @@ export const scriptureResources: ScriptureResource[] = [
     title: "Asking better questions",
     summary: "Better questions move from context to meaning to faithful response instead of hunting for quick answers.",
     studentPractice: "Try: What is happening? Why does it matter here? What does it reveal? How should we respond together?"
+  }
+];
+
+export const scriptureReviewQueue: ScriptureReviewItem[] = [
+  {
+    id: "review-exodus-formation",
+    title: "Exodus and Formation",
+    type: "Reading plan draft",
+    submittedBy: "Maya Thompson",
+    audience: "High school small group",
+    primaryScripture: "Exodus 1-20 overview",
+    movement: "Exodus / Deliverance",
+    status: "Awaiting leader review",
+    guardrailFlags: ["Needs more context", "Application may be too broad", "Clarify main idea"],
+    leaderNotes:
+      "The reading rhythm is strong. Ask the student to add a little more context on Passover and covenant before moving to personal response.",
+    suggestedNextAction: "Request a short context revision before approving the draft for group use."
+  },
+  {
+    id: "review-mark-kingdom",
+    title: "What does Jesus mean by kingdom?",
+    type: "Student-led study draft",
+    submittedBy: "Eli Carter",
+    audience: "Mixed grade discussion circle",
+    primaryScripture: "Mark 1:14-20",
+    movement: "Jesus / Kingdom Fulfilled",
+    status: "Ready for careful review",
+    guardrailFlags: ["Strong discussion question", "Avoid forced connection", "Clarify main idea"],
+    leaderNotes:
+      "The discussion question invites the group back to the text. Review the kingdom connection so it stays anchored in Mark's opening scene.",
+    suggestedNextAction: "Preview with the student leader and name direct teaching before creative connections."
   }
 ];
