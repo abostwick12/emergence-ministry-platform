@@ -1,6 +1,18 @@
 import { expect, type Page, test } from "@playwright/test";
 
 test.describe("Student Scripture Hub shell", () => {
+  test("authorized app users can discover and open the Student Portal from app navigation", async ({ page }) => {
+    await login(page);
+
+    const sidebar = page.getByRole("navigation", { name: "Desktop navigation" });
+    const portalLink = sidebar.getByRole("link", { name: "Student Portal", exact: true });
+
+    await expect(portalLink).toBeVisible();
+    await portalLink.click();
+    await expect(page).toHaveURL(/\/student$/);
+    await expect(page.getByRole("heading", { name: "Practice reading Scripture with context, community, and care." })).toBeVisible();
+  });
+
   test("authenticated users can browse the static Scripture Hub pages", async ({ page }) => {
     await login(page);
 

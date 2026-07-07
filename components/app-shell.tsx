@@ -20,6 +20,7 @@ const primaryLinks = [
   { href: "/camp", label: "Camp" },
   { href: "/events", label: "Events" },
   { href: "/worship", label: "Worship" },
+  { href: "/student", label: "Student Portal" },
   { href: "/tasks", label: "Tasks" },
   { href: "/communications", label: "Communications" },
   { href: "/people", label: "People" },
@@ -96,6 +97,13 @@ const navIconPaths: Record<string, React.ReactNode> = {
       <path d="M9 8.5l9-1.8" strokeLinecap="round" />
     </>
   ),
+  "/student": (
+    <>
+      <path d="M5 5.5h6.2A3.8 3.8 0 0115 9.3V19H8.8A3.8 3.8 0 015 15.2V5.5z" strokeLinejoin="round" />
+      <path d="M19 5.5h-4a3.8 3.8 0 00-3.8 3.8V19H15a4 4 0 004-4V5.5z" strokeLinejoin="round" />
+      <path d="M8 9h2M8 12h2M14 9h2" strokeLinecap="round" />
+    </>
+  ),
   "/tasks": (
     <>
       <path d="M4 6.5h12M4 12h12M4 17.5h8" strokeLinecap="round" />
@@ -161,12 +169,14 @@ export function AppShell({
   devAuth = false,
   shellAccess = { kind: "full" },
   showCommandCenter = false,
+  showStudentPortal = false,
   user
 }: {
   children: React.ReactNode;
   devAuth?: boolean;
   shellAccess?: AppShellAccessState;
   showCommandCenter?: boolean;
+  showStudentPortal?: boolean;
   user?: { name?: string; email?: string };
 }) {
   const pathname = usePathname();
@@ -177,7 +187,8 @@ export function AppShell({
   const isCampRoute = pathname.startsWith("/camp");
   const canUseEmergeShell = shellAccess.kind === "full";
   const campOnly = !canUseEmergeShell;
-  const allPrimaryLinks = showCommandCenter ? [...primaryLinks, { href: "/command-center", label: "Command Center" }] : primaryLinks;
+  const studentAwareLinks = showStudentPortal ? primaryLinks : primaryLinks.filter((link) => link.href !== "/student");
+  const allPrimaryLinks = showCommandCenter ? [...studentAwareLinks, { href: "/command-center", label: "Command Center" }] : studentAwareLinks;
   const visiblePrimaryLinks = campOnly ? allPrimaryLinks.filter((link) => link.href === "/camp") : allPrimaryLinks;
   const visibleMobileLinks = campOnly ? [{ href: "/camp", label: "Camp" }] : mobileLinks;
   const visibleMobileMoreLinks = campOnly ? [] : mobileMoreLinksFor(allPrimaryLinks);
