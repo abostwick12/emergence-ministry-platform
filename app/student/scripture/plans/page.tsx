@@ -10,7 +10,7 @@ export default function ScripturePlansPage() {
         <div className="toolbar split">
           <div className="grid gap-2">
             <p className="eyebrow">Reading Plans</p>
-            <h1 className="title">Mock reading plans for whole-Scripture familiarity.</h1>
+            <h1 className="title">Example reading plans for whole-Scripture familiarity.</h1>
             <p className="m-0 max-w-3xl text-base font-semibold leading-7 text-slate-600">
               These plans are sample resources only. They do not call a Bible API, assume Bible text licensing, link accounts,
               or save student progress.
@@ -22,7 +22,7 @@ export default function ScripturePlansPage() {
         </div>
       </section>
 
-      <section className="grid gap-4" aria-label="Mock reading plans">
+      <section className="grid gap-4" aria-label="Example reading plans">
         {scripturePlans.map((plan) => (
           <ScriptureCard
             description={plan.summary}

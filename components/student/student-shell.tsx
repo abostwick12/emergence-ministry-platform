@@ -3,6 +3,7 @@ import Link from "next/link";
 const navItems = [
   { href: "/student", label: "Home" },
   { href: "/student/scripture", label: "Scripture Hub" },
+  { href: "/student/scripture/questions", label: "Small Group Questions" },
   { href: "/student/scripture/plans", label: "Reading Plans" },
   { href: "/student/scripture/review", label: "Review Queue" },
   { href: "/student/scripture/resources", label: "Resources" }
@@ -31,7 +32,7 @@ export function StudentShell({ children, user }: StudentShellProps) {
               <span className="font-bold text-slate-700">{user.name}</span>
             </div>
           </div>
-          <nav className="flex gap-2 overflow-x-auto pb-1" aria-label="Student navigation">
+          <nav className="flex flex-wrap gap-2 pb-1" aria-label="Student navigation">
             {navItems.map((item) => (
               <Link
                 className="inline-flex min-h-10 shrink-0 items-center rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm font-extrabold text-slate-700 no-underline hover:border-blue-300 hover:bg-blue-50"

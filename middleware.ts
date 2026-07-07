@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authCookieNames, isMockAuthEnabled, isSupabaseConfigured } from "./lib/auth/config";
 
-const publicPaths = ["/login", "/auth/set-password", "/api/auth/login", "/api/auth/logout", "/api/auth/invite-session"];
+const publicPaths = ["/login", "/auth/set-password", "/hackathon", "/api/auth/login", "/api/auth/logout", "/api/auth/invite-session"];
 const emergeManagementPaths = ["/dashboard", "/events", "/worship", "/tasks", "/communications", "/people", "/files", "/budget", "/settings"];
 
 function hasSessionCookie(request: NextRequest) {

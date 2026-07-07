@@ -326,7 +326,14 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await expect(
       page.getByRole("navigation", { name: "Student navigation" }).getByRole("link", { name: "Scripture Hub", exact: true })
     ).toBeVisible();
-    await expect(page.getByText("nothing is saved, submitted, published, or sent")).toBeVisible();
+    await expect(
+      page.getByRole("navigation", { name: "Student navigation" }).getByRole("link", {
+        name: "Small Group Questions",
+        exact: true
+      })
+    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Small Group Questions" })).toBeVisible();
+    await expect(page.getByText("Submit real small-group questions for leader review.").first()).toBeVisible();
   });
 
   test("Parent route is an inactive placeholder", async ({ page }) => {

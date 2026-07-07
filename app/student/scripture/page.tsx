@@ -25,14 +25,21 @@ export default function ScriptureHubPage() {
         <div className="flex flex-wrap gap-2">
           <span className="pill green">Context before application</span>
           <span className="pill blue">Leader review required</span>
-          <span className="pill amber">Static MVP shell</span>
+          <span className="pill amber">Approval before posting</span>
         </div>
       </section>
 
       <section className="grid gap-4 md:grid-cols-2" aria-label="Scripture Hub actions">
         <ScriptureCard
+          actionLabel="Ask a Question"
+          description="Submit real small-group questions for leader review, Gloo draft generation, and approved channel posting."
+          eyebrow="Live workflow"
+          href="/student/scripture/questions"
+          title="Small Group Questions"
+        />
+        <ScriptureCard
           actionLabel="Browse Plans"
-          description="See mock plans that connect passages to the bigger biblical story without proof-texting."
+          description="See plan examples that connect passages to the bigger biblical story without proof-texting."
           eyebrow="Reading"
           href="/student/scripture/plans"
           title="Reading Plans"
@@ -53,7 +60,7 @@ export default function ScriptureHubPage() {
         />
         <ScriptureCard
           actionLabel="Open Queue"
-          description="Review mock drafts waiting for leader feedback so student-led study stays faithful and clear."
+          description="Review real student questions and generated drafts before a discussion prompt is approved or posted."
           eyebrow="Review"
           href="/student/scripture/review"
           title="Review Queue"

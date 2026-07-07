@@ -13,7 +13,7 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page.getByRole("heading", { name: "Practice reading Scripture with context, community, and care." })).toBeVisible();
   });
 
-  test("authenticated users can browse the static Scripture Hub pages", async ({ page }) => {
+  test("authenticated users can browse the Scripture Hub pages", async ({ page }) => {
     await login(page);
 
     await page.goto("/student");
@@ -24,9 +24,12 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page.getByRole("heading", { name: "Read the Bible as one story before rushing to quick answers." })).toBeVisible();
     await expect(page.getByText("Creation", { exact: true })).toBeVisible();
     await expect(page.getByText("New Creation", { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("navigation", { name: "Student navigation" }).getByRole("link", { name: "Small Group Questions", exact: true })
+    ).toBeVisible();
 
     await page.goto("/student/scripture/plans");
-    await expect(page.getByRole("heading", { name: "Mock reading plans for whole-Scripture familiarity." })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Example reading plans for whole-Scripture familiarity." })).toBeVisible();
     await expect(page.getByText("Beginnings and Covenant")).toBeVisible();
     await expect(page.getByText("No live Bible text or external provider is required")).toHaveCount(0);
 
@@ -40,14 +43,13 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page.getByRole("heading", { name: "Avoiding forced typology" })).toBeVisible();
 
     await page.goto("/student/scripture/review");
-    await expect(page.getByRole("heading", { name: "Scripture Review Queue" })).toBeVisible();
-    await expect(page.getByText("Reading plan draft")).toBeVisible();
-    await expect(page.getByText("Student-led study draft")).toBeVisible();
-    await expect(page.getByText("Needs more context")).toBeVisible();
-    await expect(page.getByText("Strong discussion question")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Approve" }).first()).toBeDisabled();
-    await expect(page.getByRole("button", { name: "Request Changes" }).first()).toBeDisabled();
-    await expect(page.getByRole("button", { name: "Archive" }).first()).toBeDisabled();
+    await expect(page.getByRole("heading", { name: "Ask, review, approve, and discuss with real guardrails." })).toBeVisible();
+    await expect(page.getByText("No real submissions yet.")).toBeVisible();
+    await expect(page.getByRole("status")).toContainText("Real student discussion storage requires Supabase Auth");
+
+    await page.goto("/student/scripture/questions");
+    await expect(page.getByRole("heading", { name: "Ask, review, approve, and discuss with real guardrails." })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Send to Review" })).toBeDisabled();
   });
 
   test("builder pages generate local previews without saving or sending", async ({ page }) => {
@@ -75,8 +77,7 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(planPreview.getByText("Exodus / Deliverance")).toBeVisible();
     await expect(planPreview.getByText("Read deliverance before application.")).toBeVisible();
     await expect(page.getByRole("status")).toContainText("Preview generated locally");
-    await page.getByRole("button", { name: "Send to Leader Review" }).click();
-    await expect(page.getByRole("status")).toContainText("Leader review workflow coming later");
+    await expect(page.getByRole("link", { name: "Open Live Question Workflow" })).toBeVisible();
 
     await page.goto("/student/scripture/studies/new");
     await expect(page.getByRole("heading", { name: "Shape a discussion that starts with the text and stays humble." })).toBeVisible();
@@ -90,14 +91,12 @@ test.describe("Student Scripture Hub shell", () => {
     await page.getByLabel("Discussion question").fill("What questions should we bring to the group?");
     await page.getByLabel("Prayer prompt").fill("Pray with humility.");
     await page.getByLabel("Theological guardrail notes").fill("Name direct teaching before creative connection.");
-    await page.getByRole("button", { name: "Save Draft" }).click();
-
     const studyPreview = page.getByLabel("Student-Led Study local preview");
     await expect(studyPreview.getByRole("heading", { name: "What does Jesus mean by kingdom?" })).toBeVisible();
     await expect(studyPreview.getByText("Student-led study outline")).toBeVisible();
     await expect(studyPreview.getByText("Start with Mark's opening announcement.")).toBeVisible();
     await expect(studyPreview.getByText("Name direct teaching before creative connection.")).toBeVisible();
-    await expect(page.getByRole("status")).toContainText("Draft not saved yet");
+    await expect(page.getByRole("status")).toContainText("Planning worksheet only");
   });
 
   test("scripture lookup renders success and provider error states from the server route", async ({ page }) => {

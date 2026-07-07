@@ -7747,6 +7747,428 @@ html:has(.app-shell-camp) body {
   resize: vertical;
 }
 
+/* --- Student Scripture discussion workflow ------------------------------- */
+
+.scripture-discussion {
+  display: grid;
+  gap: 16px;
+}
+
+.scripture-discussion-intro {
+  display: grid;
+  gap: 16px;
+  background: var(--surface);
+}
+
+.scripture-discussion-readiness {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.scripture-discussion-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.42fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.scripture-discussion-form,
+.scripture-discussion-queue,
+.scripture-discussion-list,
+.scripture-discussion-card,
+.scripture-discussion-actions {
+  display: grid;
+  gap: 14px;
+}
+
+.scripture-discussion-question {
+  min-height: 132px;
+  resize: vertical;
+}
+
+.scripture-discussion-status,
+.scripture-discussion-delivery {
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text);
+  padding: 10px;
+  font-size: var(--text-sm);
+  font-weight: 800;
+  line-height: 1.5;
+}
+
+.scripture-discussion-empty,
+.scripture-discussion-draft {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  padding: 14px;
+}
+
+.scripture-discussion-empty p,
+.scripture-discussion-draft p {
+  margin: 0;
+  line-height: 1.55;
+}
+
+.scripture-discussion-card h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--text-xl);
+  line-height: 1.15;
+}
+
+.scripture-discussion-details {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.scripture-discussion-details div {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  padding: 10px;
+}
+
+.scripture-discussion-details dt {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.scripture-discussion-details dd {
+  margin: 4px 0 0;
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: 850;
+  line-height: 1.35;
+}
+
+.scripture-discussion-model-note {
+  display: grid;
+  gap: 8px;
+}
+
+.scripture-discussion-model-note p {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 750;
+  line-height: 1.45;
+}
+
+.scripture-discussion-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media (max-width: 900px) {
+  .scripture-discussion-layout,
+  .scripture-discussion-details {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* --- Scripture in New Frontiers public demo ----------------------------- */
+
+.hackathon-demo {
+  background:
+    radial-gradient(520px 360px at 30% 22%, rgba(254, 226, 226, 0.24), transparent 72%),
+    radial-gradient(520px 420px at 100% 54%, rgba(226, 232, 240, 0.35), transparent 74%),
+    linear-gradient(115deg, #f7fbff 0%, #fffefe 46%, #f8fbff 100%);
+}
+
+.hackathon-main .app-content {
+  display: grid;
+  gap: 16px;
+  padding-bottom: 32px;
+}
+
+.hackathon-stage,
+.hackathon-step-button,
+.hackathon-phone,
+.hackathon-review-panel,
+.hackathon-slack-card {
+  border: 1px solid rgba(216, 222, 232, 0.86);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.90);
+  box-shadow: var(--shadow-md);
+}
+
+.hackathon-overview {
+  align-items: start;
+  min-height: 256px;
+  overflow: visible;
+}
+
+.hackathon-overview-side {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+
+.hackathon-overview-side .dashboard-actions {
+  justify-content: flex-start;
+}
+
+.hackathon-overview-side .dashboard-list-item {
+  background: var(--surface);
+}
+
+.hackathon-loop,
+.hackathon-proof {
+  display: grid;
+  gap: 18px;
+}
+
+.hackathon-proof h3,
+.hackathon-stage-copy h3,
+.hackathon-phone h4,
+.hackathon-review-panel h4,
+.hackathon-slack-card strong {
+  color: var(--text);
+}
+
+.hackathon-proof p,
+.hackathon-stage-copy p,
+.hackathon-phone p,
+.hackathon-slack-card p,
+.hackathon-prompt-box p {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 650;
+  line-height: 1.55;
+}
+
+.hackathon-section-head {
+  display: grid;
+  gap: 6px;
+}
+
+.hackathon-loop-grid {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 16px;
+  align-items: stretch;
+}
+
+.hackathon-step-list {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+
+.hackathon-step-button {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  min-height: 66px;
+  padding: 12px;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.hackathon-step-button span {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 900;
+}
+
+.hackathon-step-button strong {
+  font-size: var(--text-sm);
+  line-height: 1.2;
+}
+
+.hackathon-step-button.active {
+  border-color: rgba(29, 78, 216, 0.38);
+  background: var(--primary-soft);
+}
+
+.hackathon-step-button.active span {
+  background: var(--primary);
+  color: var(--surface);
+}
+
+.hackathon-stage {
+  display: grid;
+  gap: 18px;
+  padding: 18px;
+}
+
+.hackathon-stage-copy {
+  display: grid;
+  gap: 8px;
+  max-width: 780px;
+}
+
+.hackathon-stage-copy h3 {
+  margin: 0;
+  font-size: var(--text-2xl);
+  line-height: 1.1;
+}
+
+.hackathon-product-shot {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.48fr) minmax(0, 1fr);
+  grid-template-areas:
+    "phone review"
+    "slack review";
+  gap: 14px;
+}
+
+.hackathon-phone,
+.hackathon-review-panel,
+.hackathon-slack-card {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.hackathon-phone {
+  grid-area: phone;
+  align-content: start;
+  min-height: 282px;
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.04), transparent 42%),
+    var(--surface);
+}
+
+.hackathon-phone-bar {
+  width: 68px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+}
+
+.hackathon-phone h4,
+.hackathon-review-panel h4 {
+  margin: 0;
+  font-size: var(--text-lg);
+  line-height: 1.18;
+}
+
+.hackathon-review-panel {
+  grid-area: review;
+}
+
+.hackathon-scripture-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hackathon-scripture-list li {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text);
+  padding: 10px;
+  font-weight: 800;
+}
+
+.hackathon-prompt-box {
+  display: grid;
+  gap: 8px;
+  border-left: 4px solid var(--primary);
+  border-radius: var(--radius-sm);
+  background: var(--primary-soft);
+  padding: 12px;
+}
+
+.hackathon-slack-card {
+  grid-area: slack;
+  align-content: start;
+  background:
+    linear-gradient(135deg, rgba(21, 128, 61, 0.08), rgba(29, 78, 216, 0.08)),
+    var(--surface);
+}
+
+.hackathon-proof-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.hackathon-proof article {
+  gap: 12px;
+  min-height: 224px;
+}
+
+.hackathon-proof h3 {
+  margin: 0;
+  font-size: var(--text-xl);
+  line-height: 1.12;
+}
+
+@media (max-width: 920px) {
+  .hackathon-loop-grid,
+  .hackathon-product-shot,
+  .hackathon-proof-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .hackathon-product-shot {
+    grid-template-areas:
+      "phone"
+      "review"
+      "slack";
+  }
+}
+
+@media (max-width: 720px) {
+  .hackathon-demo .app-top-art-clip {
+    display: none;
+  }
+
+  .hackathon-main .app-header {
+    min-height: 178px;
+    height: auto;
+    padding: 18px 16px 0;
+  }
+
+  .hackathon-main .app-header-text {
+    padding-top: 0;
+    text-align: left;
+  }
+
+  .hackathon-main .app-header-right {
+    position: static;
+    margin-top: 12px;
+    flex-wrap: wrap;
+  }
+
+  .hackathon-step-button {
+    min-height: 58px;
+  }
+
+  .hackathon-stage,
+  .hackathon-phone,
+  .hackathon-review-panel,
+  .hackathon-slack-card {
+    padding: 14px;
+  }
+}
+
 @media (max-width: 960px) {
   .command-center-domain-row {
     grid-template-columns: minmax(0, 1fr);
