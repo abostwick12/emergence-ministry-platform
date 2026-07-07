@@ -32,6 +32,10 @@ test.describe("Student Scripture Hub shell", () => {
 
     await page.goto("/student/scripture/resources");
     await expect(page.getByRole("heading", { name: "Simple tools for reading carefully together." })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Look up a Scripture reference" })).toBeVisible();
+    await page.getByLabel("Scripture reference").fill("John 3:16");
+    await page.getByRole("button", { name: "Look Up" }).click();
+    await expect(page.getByRole("region", { name: "Scripture lookup" }).getByRole("alert")).toContainText("Scripture lookup is not configured yet.");
     await expect(page.getByRole("heading", { name: "Avoiding proof-texting" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Avoiding forced typology" })).toBeVisible();
 
@@ -94,6 +98,45 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(studyPreview.getByText("Start with Mark's opening announcement.")).toBeVisible();
     await expect(studyPreview.getByText("Name direct teaching before creative connection.")).toBeVisible();
     await expect(page.getByRole("status")).toContainText("Draft not saved yet");
+  });
+
+  test("scripture lookup renders success and provider error states from the server route", async ({ page }) => {
+    await login(page);
+
+    await page.route("**/api/student/scripture/lookup", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          ok: true,
+          passageId: "JHN.3.16",
+          passage: {
+            id: "JHN.3.16",
+            reference: "John 3:16",
+            content: "For God so loved the world."
+          }
+        })
+      });
+    });
+
+    await page.goto("/student/scripture/resources");
+    await page.getByLabel("Scripture reference").fill("John 3:16");
+    await page.getByRole("button", { name: "Look Up" }).click();
+    await expect(page.getByRole("status")).toContainText("Scripture lookup loaded.");
+    await expect(page.getByRole("heading", { name: "John 3:16" })).toBeVisible();
+    await expect(page.getByText("For God so loved the world.")).toBeVisible();
+
+    await page.unroute("**/api/student/scripture/lookup");
+    await page.route("**/api/student/scripture/lookup", async (route) => {
+      await route.fulfill({
+        status: 502,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: false, code: "provider_error", error: "Scripture lookup is temporarily unavailable." })
+      });
+    });
+
+    await page.getByRole("button", { name: "Look Up" }).click();
+    await expect(page.getByRole("region", { name: "Scripture lookup" }).getByRole("alert")).toContainText("Scripture lookup is temporarily unavailable.");
   });
 });
 

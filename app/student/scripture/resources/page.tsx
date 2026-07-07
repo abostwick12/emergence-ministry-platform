@@ -1,3 +1,4 @@
+import { ScriptureLookup } from "@/components/student/scripture-lookup";
 import { scriptureResources } from "@/lib/scripture/mock-data";
 
 export default function ScriptureResourcesPage() {
@@ -11,6 +12,8 @@ export default function ScriptureResourcesPage() {
           resources with no account linking, AI, messaging, or persistence.
         </p>
       </section>
+
+      <ScriptureLookup />
 
       <section className="grid gap-4 md:grid-cols-2" aria-label="Scripture study resources">
         {scriptureResources.map((resource) => (
