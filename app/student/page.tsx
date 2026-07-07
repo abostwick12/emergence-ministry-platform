@@ -1,9 +1,9 @@
 import { ScriptureCard } from "@/components/student/scripture-card";
 
 const nextSteps = [
-  "Choose a reading plan that helps you see the passage in the wider story.",
+  "Submit real small-group questions for leader review.",
   "Use the resource guide before leading a discussion.",
-  "Draft plans and studies for leader review before anything is shared."
+  "Keep drafts and discussions under clear leader approval."
 ];
 
 export default function StudentPortalPage() {
@@ -14,8 +14,8 @@ export default function StudentPortalPage() {
           <p className="eyebrow">Student Portal</p>
           <h1 className="title">Practice reading Scripture with context, community, and care.</h1>
           <p className="m-0 max-w-3xl text-base font-semibold leading-7 text-slate-600">
-            This first student space focuses on Scripture reading plans and student-led study tools. It is a static MVP shell:
-            drafts, previews, and leader review language are visible, but nothing is saved, submitted, published, or sent.
+            This student space supports real small-group question submission, leader-reviewed discussion prompts, Scripture
+            resources, and draft tools that keep ministry conversations under human oversight.
           </p>
         </div>
         <div className="grid gap-3 sm:grid-cols-3">
@@ -37,9 +37,16 @@ export default function StudentPortalPage() {
           title="Scripture Hub"
         />
         <ScriptureCard
+          actionLabel="Ask a Question"
+          description="Submit real small-group questions for leader review before anything is shared with students."
+          eyebrow="Tryout workflow"
+          href="/student/scripture/questions"
+          title="Small Group Questions"
+        />
+        <ScriptureCard
           actionLabel="View Plans"
-          description="Browse mock plans built around context, metanarrative movement, discussion, and prayer."
-          eyebrow="Mock data"
+          description="Browse planning examples built around context, metanarrative movement, discussion, and prayer."
+          eyebrow="Planning"
           href="/student/scripture/plans"
           title="Reading Plans"
         />

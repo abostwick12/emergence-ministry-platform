@@ -62,3 +62,39 @@ export type ScriptureReviewItem = {
   leaderNotes: string;
   suggestedNextAction: string;
 };
+
+export type StudentDiscussionStatus = "pending_review" | "approved" | "changes_requested" | "archived" | "posted";
+
+export type StudentDiscussionDeliveryStatus = "not_requested" | "not_configured" | "delivered" | "failed";
+
+export type StudentDiscussionPrompt = {
+  id: string;
+  submittedByUserId: string;
+  submittedByName: string;
+  submittedByEmail: string;
+  question: string;
+  scriptureReference: string;
+  scripturePassageId?: string;
+  metanarrativeMovement: MetanarrativeMovement;
+  aiProvider: "gloo";
+  aiStatus: "not_configured" | "pending" | "generated" | "failed";
+  aiModel: string;
+  aiModelTier: "default" | "escalation" | "long_context";
+  aiModelReason: string;
+  aiConfidence: number | null;
+  topicTags: string[];
+  escalationReason: string;
+  safetyLabel: "safe" | "needs_leader_care" | "pastoral_escalation" | "unreviewed";
+  safetyNotes: string;
+  discussionPrompt: string;
+  leaderNotes: string;
+  status: StudentDiscussionStatus;
+  deliveryChannel?: string;
+  deliveryStatus: StudentDiscussionDeliveryStatus;
+  deliveryMessage: string;
+  approvedByUserId?: string;
+  approvedAt?: string;
+  postedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+};

@@ -111,15 +111,11 @@ const studyPlaceholders: Partial<Record<BuilderFieldKey, string>> = {
   guardrailNotes: "What direct teaching, inference, or creative connection needs to be named carefully?"
 };
 
-const actionMessages = {
-  save: "Draft not saved yet. This builder is local-only in this MVP slice.",
-  preview: "Preview generated locally. Nothing was saved, submitted, or sent.",
-  review: "Leader review workflow coming later. This did not notify a leader."
-} as const;
+const previewMessage = "Preview generated locally. Use Small Group Questions for the live saved review workflow.";
 
 export function ScriptureBuilderForm({ kind }: ScriptureBuilderFormProps) {
   const [values, setValues] = useState<BuilderValues>(initialPlanValues);
-  const [message, setMessage] = useState("Preview only. Draft not saved yet.");
+  const [message, setMessage] = useState("Planning worksheet only. No draft has been saved.");
   const labels = builderLabels(kind);
 
   const visibleFields = useMemo(
@@ -184,15 +180,12 @@ export function ScriptureBuilderForm({ kind }: ScriptureBuilderFormProps) {
         </section>
 
         <div className="toolbar">
-          <button className="button primary" onClick={() => setMessage(actionMessages.save)} type="button">
-            Save Draft
-          </button>
-          <button className="button" onClick={() => setMessage(actionMessages.preview)} type="button">
+          <button className="button primary" onClick={() => setMessage(previewMessage)} type="button">
             Preview
           </button>
-          <button className="button" onClick={() => setMessage(actionMessages.review)} type="button">
-            Send to Leader Review
-          </button>
+          <a className="button" href="/student/scripture/questions">
+            Open Live Question Workflow
+          </a>
         </div>
         <p className="m-0 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm font-bold leading-6 text-blue-900" role="status">
           {message}
@@ -213,7 +206,8 @@ function PreviewPanel({ kind, values }: { kind: ScriptureBuilderKind; values: Bu
         <p className="eyebrow">Preview only</p>
         <h2 className="section-title flush">{previewValue(values.title, labels.fallbackTitle)}</h2>
         <p className="m-0 text-sm font-bold leading-6 text-slate-600">
-          Draft not saved yet. Leader review workflow coming later. Use this preview to check context, questions, and guardrails before asking a leader to review.
+          This planning worksheet does not save. Use the Small Group Questions workflow when a real question needs leader
+          review, Gloo generation, approval, and posting.
         </p>
       </div>
 
@@ -279,7 +273,7 @@ function builderLabels(kind: ScriptureBuilderKind) {
       fallbackTitle: "Untitled student-led study",
       formLabel: "New Student-Led Study builder",
       guardrailBody:
-        "Student-led studies should be clear about what Scripture directly teaches, what the group is inferring, and what connections are creative. Nothing here becomes public or shared without leader review in a future workflow.",
+        "Student-led studies should be clear about what Scripture directly teaches, what the group is inferring, and what connections are creative. Use Small Group Questions when a real discussion needs saved leader review.",
       guardrailClassName: "grid gap-3 rounded-md border border-blue-200 bg-blue-50 p-4",
       guardrailHeadingClassName: "m-0 text-base font-black text-blue-950",
       guardrailLabel: "Leader review reminder",
@@ -293,12 +287,12 @@ function builderLabels(kind: ScriptureBuilderKind) {
     fallbackTitle: "Untitled reading plan",
     formLabel: "New Reading Plan builder",
     guardrailBody:
-      "Draft-only MVP: student-created reading plans are not saved or visible to others. Future submission would require leader review before any sharing.",
+      "Planning worksheet only: reading-plan drafts are not saved here. Use Small Group Questions when a real group discussion needs leader review before sharing.",
     guardrailClassName: "grid gap-3 rounded-md border border-amber-200 bg-amber-50 p-4",
     guardrailHeadingClassName: "m-0 text-base font-black text-amber-950",
     guardrailLabel: "Draft-only reminder",
     guardrailTextClassName: "m-0 text-sm font-bold leading-6 text-amber-900",
-    guardrailTitle: "Draft-only MVP",
+    guardrailTitle: "Planning worksheet",
     previewLabel: "Reading Plan local preview"
   };
 }

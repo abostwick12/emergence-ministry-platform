@@ -89,4 +89,15 @@ describe("middleware Camp-only route protection", () => {
     expect(response.status).toBe(200);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
+
+  it("allows the public hackathon demo without a session", async () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const response = await middleware(new NextRequest("http://localhost/hackathon"));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("location")).toBeNull();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
 });
