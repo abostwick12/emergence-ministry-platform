@@ -6,6 +6,7 @@ import { isDevAuthActive } from "@/lib/auth/config";
 import { getServerSession } from "@/lib/auth/server";
 import { isCommandCenterUser } from "@/lib/command-center/access";
 import { resolveAppShellAccess } from "@/lib/camp/shell-access";
+import { canAccessStudentHub } from "@/lib/student/access";
 import { redirect } from "next/navigation";
 
 export default async function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
@@ -23,6 +24,7 @@ export default async function AuthenticatedLayout({ children }: { children: Reac
           devAuth={devAuth}
           shellAccess={shellAccess}
           showCommandCenter={isCommandCenterUser(session)}
+          showStudentPortal={canAccessStudentHub(session.user.role)}
           user={{ name: session.user.fullName, email: session.user.email }}
         >
           {children}
