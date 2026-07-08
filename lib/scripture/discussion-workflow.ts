@@ -1,9 +1,10 @@
 import { isSupabaseConfigured } from "@/lib/auth/config";
 import type { AuthSession } from "@/lib/auth/server";
-import { getSupabaseAuthClient } from "@/lib/auth/server";
+import { getSupabaseAdminClient, getSupabaseAuthClient, isSupabaseAdminConfigured } from "@/lib/auth/server";
 import { resolveMinistryScope } from "@/lib/ministry/scope";
 import { generateGlooDiscussionDraft, isGlooConfigured } from "@/lib/scripture/gloo";
 import { deliverDiscussionPromptToSlack, isSlackDiscussionDeliveryConfigured } from "@/lib/scripture/slack";
+import type { StudentGroupDiscussionItem } from "@/lib/scripture/student-home";
 import { sanitizeScriptureReference } from "@/lib/scripture/youversion";
 import type {
   MetanarrativeMovement,
@@ -69,6 +70,15 @@ type StudentDiscussionPromptRow = {
   updated_at: string;
 };
 
+type ApprovedStudentDiscussionRow = {
+  id: string;
+  question: string;
+  scripture_reference: string | null;
+  discussion_prompt: string | null;
+  status: Extract<StudentDiscussionStatus, "approved" | "posted">;
+  created_at: string;
+};
+
 const MAX_QUESTION_LENGTH = 1200;
 const MAX_NOTES_LENGTH = 1200;
 const MAX_DISCUSSION_PROMPT_LENGTH = 1800;
@@ -113,6 +123,30 @@ export async function getStudentDiscussionWorkflowState(session: AuthSession): P
     readiness,
     prompts: (result.data ?? []).map(toPrompt)
   };
+}
+
+export async function getApprovedStudentDiscussionFeed(session: AuthSession): Promise<StudentGroupDiscussionItem[]> {
+  const readiness = getStudentDiscussionReadiness(session);
+  if (!readiness.liveStorage || !isSupabaseAdminConfigured()) {
+    return [];
+  }
+
+  const ministryId = await resolveMinistryScope(session);
+  if (!ministryId) return [];
+
+  const supabase = getSupabaseAdminClient();
+  const result = await supabase
+    .from("student_discussion_prompts")
+    .select("id,question,scripture_reference,discussion_prompt,status,created_at")
+    .eq("ministry_id", ministryId)
+    .in("status", ["approved", "posted"])
+    .not("discussion_prompt", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(6)
+    .returns<ApprovedStudentDiscussionRow[]>();
+
+  throwIfSupabaseError(result.error);
+  return (result.data ?? []).map(toGroupDiscussionItem);
 }
 
 export async function createStudentDiscussionPrompt(session: AuthSession, input: CreateStudentDiscussionInput) {
@@ -298,6 +332,17 @@ function toPrompt(row: StudentDiscussionPromptRow): StudentDiscussionPrompt {
     postedAt: row.posted_at ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at
+  };
+}
+
+function toGroupDiscussionItem(row: ApprovedStudentDiscussionRow): StudentGroupDiscussionItem {
+  return {
+    id: row.id,
+    question: row.question,
+    scriptureReference: row.scripture_reference ?? "",
+    discussionPrompt: row.discussion_prompt ?? "",
+    status: row.status,
+    createdAt: row.created_at
   };
 }
 

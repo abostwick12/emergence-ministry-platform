@@ -25,6 +25,7 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page.getByRole("navigation", { name: "Student navigation" }).getByRole("link", { name: "Plans", exact: true })).toBeVisible();
     await expect(page.getByRole("navigation", { name: "Student navigation" }).getByRole("link", { name: "Resources", exact: true })).toBeVisible();
     await expect(page.getByRole("navigation", { name: "Student navigation" }).getByRole("link", { name: "Review Queue", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("navigation", { name: "Student navigation" }).getByRole("link", { name: "Leader Review", exact: true })).toHaveCount(0);
     await expect(page.getByText("Metanarrative movement")).toHaveCount(0);
 
     await page.goto("/student/scripture");

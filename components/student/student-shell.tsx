@@ -7,8 +7,6 @@ const navItems = [
   { href: "/student/scripture/resources", label: "Resources" }
 ] as const;
 
-const leaderNavItem = { href: "/student/scripture/review", label: "Leader Review" } as const;
-
 type StudentShellProps = {
   children: React.ReactNode;
   user: {
@@ -18,8 +16,6 @@ type StudentShellProps = {
 };
 
 export function StudentShell({ children, user }: StudentShellProps) {
-  const items = user.role === "admin" || user.role === "leader" ? [...navItems, leaderNavItem] : navItems;
-
   return (
     <div className="student-shell">
       <header className="student-shell-header">
@@ -35,7 +31,7 @@ export function StudentShell({ children, user }: StudentShellProps) {
             </div>
           </div>
           <nav className="student-shell-nav" aria-label="Student navigation">
-            {items.map((item) => (
+            {navItems.map((item) => (
               <Link
                 className="student-shell-nav-link"
                 href={item.href}
