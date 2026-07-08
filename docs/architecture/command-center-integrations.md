@@ -294,3 +294,34 @@ response, never logged, and this increment does not yet feed Drive search
 results into SAGE's chat context — that remains a distinct, separately
 reviewed change once Andrew confirms this read surface with real
 credentials.
+
+## Increment 4: Slack (manual test push only)
+
+A follow-up PR adds Slack. Unlike Calendar/Gmail/Drive, Slack incoming
+webhooks have no OAuth consent flow — there is nothing to "connect" beyond
+`COMMAND_CENTER_SLACK_WEBHOOK_URL` being present in the server environment.
+
+- `lib/command-center/integrations/slack.ts` — same graceful-degradation
+  pattern (`SlackConfigError`). `sendSlackMessage()` is the only send path
+  in the entire codebase for this webhook — there is intentionally no
+  scheduled job, cron, or other automatic caller anywhere. Wiring an actual
+  automatic daily-briefing push (or any other automatic notification) is a
+  distinct, separately approved change, per the "must never be automatic"
+  rule above.
+- `app/api/command-center/integrations/slack/test/route.ts` — Andrew-only
+  `POST` that sends exactly one fixed, safe test message
+  ("SAGE Command Center test notification...") so Andrew can confirm the
+  webhook works, then marks the integration `connected` on success or
+  `error` on failure.
+- `app/api/command-center/integrations/slack/disable/route.ts` — Andrew-only
+  `POST` that resets the stored status back to `disconnected`. This is an
+  in-app pause only; the webhook URL itself stays set in the environment
+  until Andrew removes it there.
+- `components/command-center/slack-connection.tsx` — shows
+  `Send test notification` (configured, not yet tested) / `Pause`
+  (connected) / `Not active yet` (not configured), instead of the
+  Connect/Disconnect OAuth pattern used by the Google integrations.
+
+Like the others, this increment does not yet wire Slack into any automatic
+briefing or notification flow — only a manual, Andrew-initiated test send
+exists today.
