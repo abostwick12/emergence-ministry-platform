@@ -421,7 +421,7 @@ environment.
 
 This increment is intentionally read-only end to end: no task, board item,
 or column value is ever created, updated, or deleted by any code in this
-PR.
+PR. Board item reading was added in a later PR — see "Increment 12" below.
 
 ## Increment 7: LinkedIn (drafting only, no API)
 
@@ -615,3 +615,27 @@ webhook anywhere in the codebase.
 There is still no scheduled or automatic caller anywhere in the codebase —
 the briefing goes out exactly once, exactly when Andrew clicks the button,
 using whatever task/Calendar/Gmail state exists at that moment.
+
+## Increment 12: Monday.com board item read
+
+Task sync (Increment 6's deferred capability) needs Andrew to pick a
+specific direction — Command Center → Monday, Monday → Command Center, or
+both — before any write can happen; that decision hasn't been made yet.
+In the meantime, this increment adds read depth that doesn't require it:
+reading the items (tasks) inside a board, not just board names.
+
+- `lib/command-center/integrations/monday.ts` — `listMondayBoardItems()`
+  is a second read-only GraphQL query (`{ boards(ids:[...]) { items_page {
+  items { id name column_values { id text } } } } }`), returning each
+  item's name and its column values (status, dates, etc.) as rendered
+  text. **There is still no mutation query anywhere in this module.**
+- `app/api/command-center/integrations/monday/boards/[id]/items/route.ts`
+  — Andrew-only `GET` that lists one board's items.
+- `components/command-center/monday-connection.tsx` — the board list
+  (already fetched on connect) gains a `View items` toggle per board that
+  fetches and displays that board's items inline.
+
+This remains read-only end to end. Writing personal tasks to a Monday
+board, or pulling Monday items into `personal_tasks`, is still the
+distinct, separately approved change Increment 6 described — nothing in
+this increment moves any task data in either direction.
