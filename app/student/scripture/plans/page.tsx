@@ -26,7 +26,7 @@ export default function ScripturePlansPage() {
         {scripturePlans.map((plan) => (
           <ScriptureCard
             description={plan.summary}
-            eyebrow={plan.movement}
+            eyebrow="Reading plan"
             key={plan.id}
             meta={[plan.audience, plan.duration, plan.primaryScripture]}
             title={plan.title}

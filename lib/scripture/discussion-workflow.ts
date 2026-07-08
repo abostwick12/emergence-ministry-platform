@@ -26,13 +26,14 @@ export type DiscussionWorkflowState = {
 
 export type CreateStudentDiscussionInput = {
   question: string;
-  scriptureReference: string;
-  metanarrativeMovement: MetanarrativeMovement;
+  scriptureReference?: string;
+  metanarrativeMovement?: MetanarrativeMovement;
 };
 
 export type DecideStudentDiscussionInput = {
   action: "approve" | "request_changes" | "archive" | "post";
   leaderNotes?: string;
+  discussionPrompt?: string;
 };
 
 type StudentDiscussionPromptRow = {
@@ -44,7 +45,7 @@ type StudentDiscussionPromptRow = {
   question: string;
   scripture_reference: string | null;
   scripture_passage_id: string | null;
-  metanarrative_movement: MetanarrativeMovement;
+  metanarrative_movement: MetanarrativeMovement | null;
   ai_provider: "gloo";
   ai_status: "not_configured" | "pending" | "generated" | "failed";
   ai_model: string | null;
@@ -70,6 +71,7 @@ type StudentDiscussionPromptRow = {
 
 const MAX_QUESTION_LENGTH = 1200;
 const MAX_NOTES_LENGTH = 1200;
+const MAX_DISCUSSION_PROMPT_LENGTH = 1800;
 
 export function getStudentDiscussionReadiness(session: AuthSession): DiscussionReadiness {
   if (session.isMock || !session.accessToken || !isSupabaseConfigured()) {
@@ -120,13 +122,14 @@ export async function createStudentDiscussionPrompt(session: AuthSession, input:
   }
 
   const question = normalizeRequiredText(input.question, "Question", MAX_QUESTION_LENGTH);
-  const scripture = normalizeScriptureReference(input.scriptureReference);
+  const scripture = normalizeScriptureReference(input.scriptureReference ?? "");
+  const metanarrativeMovement = input.metanarrativeMovement ?? inferMetanarrativeMovement(question, scripture.reference);
   const ministryId = await resolveMinistryScope(session);
   const draft = readiness.gloo
     ? await generateGlooDiscussionDraft({
         question,
         scriptureReference: scripture.reference,
-        metanarrativeMovement: input.metanarrativeMovement
+        metanarrativeMovement
       })
     : {
         ok: false as const,
@@ -142,7 +145,7 @@ export async function createStudentDiscussionPrompt(session: AuthSession, input:
     question,
     scripture_reference: scripture.reference || null,
     scripture_passage_id: scripture.passageId ?? null,
-    metanarrative_movement: input.metanarrativeMovement,
+    metanarrative_movement: metanarrativeMovement,
     ai_provider: "gloo",
     ai_status: draft.ok ? "generated" : draft.code === "not_configured" ? "not_configured" : "failed",
     ai_model: draft.ok ? draft.model : null,
@@ -182,16 +185,18 @@ export async function decideStudentDiscussionPrompt(session: AuthSession, id: st
   }
 
   const leaderNotes = normalizeOptionalText(input.leaderNotes, MAX_NOTES_LENGTH);
+  const discussionPrompt = normalizeOptionalText(input.discussionPrompt, MAX_DISCUSSION_PROMPT_LENGTH);
   const now = new Date().toISOString();
   const status = toStatusForAction(input.action);
   const update: Partial<StudentDiscussionPromptRow> = {
     status,
-    leader_notes: leaderNotes || prompt.leaderNotes || null
+    leader_notes: leaderNotes || prompt.leaderNotes || null,
+    discussion_prompt: discussionPrompt || prompt.discussionPrompt || null
   };
 
   if (input.action === "approve") {
-    if (!prompt.discussionPrompt) {
-      throw new DiscussionWorkflowError("A Gloo-generated discussion prompt is required before approval.", 409, "missing_discussion_prompt");
+    if (!discussionPrompt && !prompt.discussionPrompt) {
+      throw new DiscussionWorkflowError("Write a discussion prompt before approving this question.", 409, "missing_discussion_prompt");
     }
     update.approved_by_user_id = session.user.id;
     update.approved_at = now;
@@ -271,7 +276,7 @@ function toPrompt(row: StudentDiscussionPromptRow): StudentDiscussionPrompt {
     question: row.question,
     scriptureReference: row.scripture_reference ?? "",
     scripturePassageId: row.scripture_passage_id ?? undefined,
-    metanarrativeMovement: row.metanarrative_movement,
+    metanarrativeMovement: row.metanarrative_movement ?? undefined,
     aiProvider: row.ai_provider,
     aiStatus: row.ai_status,
     aiModel: row.ai_model ?? "",
@@ -305,6 +310,26 @@ function normalizeScriptureReference(reference: string) {
     throw new DiscussionWorkflowError(sanitized.message, 400, "invalid_scripture_reference");
   }
   return { reference: sanitized.reference, passageId: sanitized.passageId };
+}
+
+function inferMetanarrativeMovement(question: string, reference: string): MetanarrativeMovement {
+  const normalized = `${question} ${reference}`.toLowerCase();
+  const checks: Array<[MetanarrativeMovement, RegExp]> = [
+    ["Creation", /\b(genesis|garden|eden|tree|creation|created|image of god|beginning)\b/],
+    ["Fall", /\b(sin|evil|curse|serpent|rebellion|broken|shame)\b/],
+    ["Covenant", /\b(abraham|isaac|jacob|promise|covenant|blessing|genesis 1[2-9]|genesis 2[0-9]|genesis 3[0-9]|genesis 4[0-9]|genesis 50)\b/],
+    ["Exodus / Deliverance", /\b(exodus|moses|pharaoh|egypt|passover|deliverance|slavery|wilderness|red sea)\b/],
+    ["Law / Formation", /\b(leviticus|numbers|deuteronomy|law|commandments|sinai|torah)\b/],
+    ["Land / Kingdom", /\b(joshua|judges|samuel|kings|chronicles|david|solomon|kingdom|temple)\b/],
+    ["Wisdom", /\b(job|psalm|psalms|proverbs|ecclesiastes|song of songs|wisdom|suffering)\b/],
+    ["Prophets / Exile", /\b(isaiah|jeremiah|lamentations|ezekiel|daniel|hosea|joel|amos|obadiah|jonah|micah|nahum|habakkuk|zephaniah|haggai|zechariah|malachi|exile|prophet)\b/],
+    ["Return / Waiting", /\b(ezra|nehemiah|esther|return|waiting|rebuild)\b/],
+    ["Jesus / Kingdom Fulfilled", /\b(matthew|mark|luke|john|jesus|christ|gospel|cross|resurrection|kingdom of god)\b/],
+    ["Church / Spirit", /\b(acts|romans|corinthians|galatians|ephesians|philippians|colossians|thessalonians|timothy|titus|philemon|hebrews|james|peter|john|jude|church|spirit|pentecost)\b/],
+    ["New Creation", /\b(revelation|new creation|new heaven|new earth|restore|restoration)\b/]
+  ];
+
+  return checks.find(([, pattern]) => pattern.test(normalized))?.[0] ?? "Jesus / Kingdom Fulfilled";
 }
 
 function normalizeRequiredText(value: string, label: string, maxLength: number) {

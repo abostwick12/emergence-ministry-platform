@@ -11,6 +11,7 @@ import { resolveStudentHubAccess } from "@/lib/student/access";
 type DecisionRequestBody = {
   action?: unknown;
   leaderNotes?: unknown;
+  discussionPrompt?: unknown;
 };
 
 const validActions = new Set(["approve", "request_changes", "archive", "post"]);
@@ -37,10 +38,15 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     return NextResponse.json({ ok: false, code: "invalid_notes", error: "Leader notes must be text." }, { status: 400 });
   }
 
+  if (body.discussionPrompt !== undefined && typeof body.discussionPrompt !== "string") {
+    return NextResponse.json({ ok: false, code: "invalid_prompt", error: "Discussion prompt must be text." }, { status: 400 });
+  }
+
   try {
     const prompt = await decideStudentDiscussionPrompt(access.session, params.id, {
       action: body.action as DecideStudentDiscussionInput["action"],
-      leaderNotes: body.leaderNotes
+      leaderNotes: body.leaderNotes,
+      discussionPrompt: body.discussionPrompt
     });
     return NextResponse.json({ ok: true, prompt });
   } catch (error) {

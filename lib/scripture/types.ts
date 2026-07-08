@@ -75,7 +75,7 @@ export type StudentDiscussionPrompt = {
   question: string;
   scriptureReference: string;
   scripturePassageId?: string;
-  metanarrativeMovement: MetanarrativeMovement;
+  metanarrativeMovement?: MetanarrativeMovement;
   aiProvider: "gloo";
   aiStatus: "not_configured" | "pending" | "generated" | "failed";
   aiModel: string;
