@@ -113,16 +113,37 @@ export async function getServerSession(): Promise<AuthSession | null> {
     return null;
   }
 
+  const profile = await getSessionProfile(accessToken, data.user.id);
+
   return {
     user: {
       id: data.user.id,
       email: data.user.email,
-      fullName: data.user.user_metadata?.full_name ?? data.user.email,
-      role: data.user.user_metadata?.role ?? "staff"
+      fullName: profile?.fullName ?? data.user.user_metadata?.full_name ?? data.user.email,
+      role: profile?.role ?? data.user.user_metadata?.role ?? "staff"
     },
     accessToken,
     isMock: false
   };
+}
+
+async function getSessionProfile(accessToken: string, userId: string) {
+  try {
+    const supabase = getSupabaseAuthClient(accessToken);
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("full_name,role")
+      .eq("id", userId)
+      .maybeSingle<{ full_name: string | null; role: string | null }>();
+
+    if (error) return null;
+    return {
+      fullName: data?.full_name?.trim() || undefined,
+      role: data?.role?.trim() || undefined
+    };
+  } catch {
+    return null;
+  }
 }
 
 export function unauthorizedResponse() {

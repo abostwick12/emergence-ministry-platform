@@ -7,13 +7,13 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await page.goto("/dashboard");
 
     await expect(page).toHaveURL(/\/login/);
-    await expect(page.getByRole("heading", { name: "Emerge Ministry Platform" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Lead Emergence Automated Platform" })).toBeVisible();
   });
 
   test("login page renders for internal access", async ({ page }) => {
     await page.goto("/login");
 
-    await expect(page.getByRole("heading", { name: "Emerge Ministry Platform" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Lead Emergence Automated Platform" })).toBeVisible();
     await expect(page.getByLabel("Email")).toBeVisible();
     await expect(page.getByLabel("Password")).toBeVisible();
     await expect(page.getByRole("button", { name: "Log in" })).toBeVisible();

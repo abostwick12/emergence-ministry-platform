@@ -3,6 +3,7 @@ import type { ScripturePlan, ScriptureResource, StudentDiscussionPrompt, Student
 
 export type StudentGroupDiscussionItem = {
   id: string;
+  groupId?: string;
   question: string;
   scriptureReference: string;
   discussionPrompt: string;
@@ -61,6 +62,7 @@ export function toGroupDiscussionItems(prompts: StudentDiscussionPrompt[]): Stud
     .filter((prompt) => (prompt.status === "approved" || prompt.status === "posted") && Boolean(prompt.discussionPrompt))
     .map((prompt) => ({
       id: prompt.id,
+      groupId: prompt.groupId,
       question: prompt.question,
       scriptureReference: prompt.scriptureReference,
       discussionPrompt: prompt.discussionPrompt,

@@ -1,12 +1,15 @@
 "use client";
 
+import type { FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
 
 import type { DiscussionWorkflowState } from "@/lib/scripture/discussion-workflow";
 import type { GlooDiagnosticResult } from "@/lib/scripture/gloo";
 import type { StudentDiscussionPrompt, StudentDiscussionStatus } from "@/lib/scripture/types";
+import type { StudentGroupLeaderState } from "@/lib/student/groups";
 
 type ScriptureLeaderReviewProps = {
+  initialGroupState: StudentGroupLeaderState;
   initialState: DiscussionWorkflowState;
 };
 
@@ -24,6 +27,12 @@ type GlooDiagnosticResponse = {
   diagnostic?: GlooDiagnosticResult;
 };
 
+type StudentInviteResponse = {
+  ok?: boolean;
+  error?: string;
+  state?: StudentGroupLeaderState;
+};
+
 type ReviewTab = {
   id: "needs_review" | "approved" | "changes" | "posted" | "archived" | "all";
   label: string;
@@ -39,11 +48,13 @@ const reviewTabs: ReviewTab[] = [
   { id: "all", label: "All", matches: () => true }
 ];
 
-export function ScriptureLeaderReview({ initialState }: ScriptureLeaderReviewProps) {
+export function ScriptureLeaderReview({ initialGroupState, initialState }: ScriptureLeaderReviewProps) {
   const [prompts, setPrompts] = useState(initialState.prompts);
+  const [groupState, setGroupState] = useState(initialGroupState);
   const [activeTab, setActiveTab] = useState<ReviewTab["id"]>("needs_review");
   const [selectedId, setSelectedId] = useState(initialState.prompts[0]?.id ?? "");
   const [savingAction, setSavingAction] = useState<ReviewAction | "">("");
+  const [isCreatingInvite, setIsCreatingInvite] = useState(false);
   const [diagnostic, setDiagnostic] = useState<GlooDiagnosticResult | undefined>();
   const [isRunningDiagnostic, setIsRunningDiagnostic] = useState(false);
   const [status, setStatus] = useState(initialState.readiness.liveStorage ? "Review student questions before anything is shared." : "Live storage is not ready for review.");
@@ -106,6 +117,30 @@ export function ScriptureLeaderReview({ initialState }: ScriptureLeaderReviewPro
     }
   }
 
+  async function createStudentInvite(input: { groupId?: string; groupName?: string; label?: string; maxUses?: number | null }) {
+    setIsCreatingInvite(true);
+    setStatus("Creating a student join link...");
+    try {
+      const response = await fetch("/api/student/groups/invites", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input)
+      });
+      const payload = (await response.json()) as StudentInviteResponse;
+      if (!response.ok || !payload.ok || !payload.state) {
+        setStatus(payload.error ?? "Student invite could not be created.");
+        return;
+      }
+
+      setGroupState(payload.state);
+      setStatus("Student join link is ready to share.");
+    } catch {
+      setStatus("Student invite could not be created.");
+    } finally {
+      setIsCreatingInvite(false);
+    }
+  }
+
   return (
     <div className="leader-workspace">
       <section className="leader-workspace-hero">
@@ -131,6 +166,8 @@ export function ScriptureLeaderReview({ initialState }: ScriptureLeaderReviewPro
         onRun={runDiagnostic}
         readiness={initialState.readiness}
       />
+
+      <StudentInvitePanel groupState={groupState} isCreating={isCreatingInvite} onCreate={createStudentInvite} />
 
       <div className="leader-workspace-grid">
         <aside className="leader-review-queue" aria-label="Discussion review queue">
@@ -219,6 +256,134 @@ function GlooDiagnosticPanel({
         </button>
       </div>
       {diagnostic ? <GlooDiagnosticResultView diagnostic={diagnostic} /> : null}
+    </section>
+  );
+}
+
+function StudentInvitePanel({
+  groupState,
+  isCreating,
+  onCreate
+}: {
+  groupState: StudentGroupLeaderState;
+  isCreating: boolean;
+  onCreate: (input: { groupId?: string; groupName?: string; label?: string; maxUses?: number | null }) => Promise<void>;
+}) {
+  const [copyStatus, setCopyStatus] = useState("");
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const groupId = String(form.get("groupId") || "");
+    const groupName = String(form.get("groupName") || "");
+    const label = String(form.get("label") || "");
+    const maxUsesValue = Number(form.get("maxUses") || 0);
+
+    await onCreate({
+      groupId: groupId === "new" ? undefined : groupId,
+      groupName,
+      label,
+      maxUses: maxUsesValue > 0 ? maxUsesValue : null
+    });
+  }
+
+  async function copyLink(url: string) {
+    setCopyStatus("");
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopyStatus("Link copied.");
+    } catch {
+      setCopyStatus("Copy is not available in this browser.");
+    }
+  }
+
+  return (
+    <section className="leader-student-invites" aria-label="Student invite links">
+      <div className="leader-student-invites-heading">
+        <div>
+          <p className="eyebrow">Student Access</p>
+          <h2>Invite students without touching Supabase</h2>
+          <p>Create a small-group link students can use to set up their own portal access.</p>
+        </div>
+        <span className={groupState.liveStorage ? "pill green" : "pill amber"}>{groupState.liveStorage ? "Live invites" : "Needs setup"}</span>
+      </div>
+
+      <form className="leader-student-invite-form" onSubmit={submit}>
+        {groupState.groups.length ? (
+          <label className="leader-review-field">
+            <span>Group</span>
+            <select className="input" name="groupId" defaultValue={groupState.groups[0]?.id ?? "new"}>
+              {groupState.groups.map((group) => (
+                <option key={group.id} value={group.id}>
+                  {group.name}
+                </option>
+              ))}
+              <option value="new">Create a new group</option>
+            </select>
+          </label>
+        ) : null}
+
+        <label className="leader-review-field">
+          <span>{groupState.groups.length ? "New group name" : "Group name"}</span>
+          <input className="input" name="groupName" placeholder="Wednesday night high school" required={!groupState.groups.length} />
+        </label>
+
+        <label className="leader-review-field">
+          <span>Invite label</span>
+          <input className="input" name="label" placeholder="Small group tryout" />
+        </label>
+
+        <label className="leader-review-field">
+          <span>Use limit</span>
+          <input className="input" name="maxUses" type="number" min={1} max={500} placeholder="40" />
+        </label>
+
+        <button className="button primary" disabled={!groupState.liveStorage || isCreating} type="submit">
+          {isCreating ? "Creating..." : "Create join link"}
+        </button>
+      </form>
+
+      <div className="leader-student-invite-results">
+        <div className="leader-student-invite-list">
+          <h3>Recent links</h3>
+          {groupState.invites.length ? (
+            groupState.invites.map((invite) => (
+              <article className="leader-student-invite-row" key={invite.id}>
+                <div>
+                  <span>{invite.groupName}</span>
+                  <strong>{invite.label}</strong>
+                  <small>
+                    {invite.useCount}{invite.maxUses ? ` of ${invite.maxUses}` : ""} joined
+                  </small>
+                </div>
+                <div className="leader-student-invite-copy">
+                  <input className="input" readOnly value={invite.joinUrl} aria-label={`Join link for ${invite.groupName}`} />
+                  <button className="button" type="button" onClick={() => void copyLink(invite.joinUrl)}>
+                    Copy
+                  </button>
+                </div>
+              </article>
+            ))
+          ) : (
+            <p className="muted">{groupState.message}</p>
+          )}
+          {copyStatus ? <p className="leader-review-status">{copyStatus}</p> : null}
+        </div>
+
+        <div className="leader-student-member-list">
+          <h3>Joined students</h3>
+          {groupState.members.length ? (
+            groupState.members.slice(0, 8).map((member) => (
+              <div className="leader-student-member-row" key={member.id}>
+                <strong>{member.displayName}</strong>
+                <span>{member.groupName}</span>
+              </div>
+            ))
+          ) : (
+            <p className="muted">Students will appear here after they use a join link.</p>
+          )}
+        </div>
+      </div>
     </section>
   );
 }

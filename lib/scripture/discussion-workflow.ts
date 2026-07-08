@@ -6,6 +6,7 @@ import { generateGlooDiscussionDraft, isGlooConfigured } from "@/lib/scripture/g
 import { deliverDiscussionPromptToSlack, isSlackDiscussionDeliveryConfigured } from "@/lib/scripture/slack";
 import type { StudentGroupDiscussionItem } from "@/lib/scripture/student-home";
 import { sanitizeScriptureReference } from "@/lib/scripture/youversion";
+import { getPrimaryStudentGroupId } from "@/lib/student/groups";
 import type {
   MetanarrativeMovement,
   StudentDiscussionDeliveryStatus,
@@ -40,6 +41,7 @@ export type DecideStudentDiscussionInput = {
 type StudentDiscussionPromptRow = {
   id: string;
   ministry_id: string | null;
+  group_id: string | null;
   submitted_by_user_id: string;
   submitted_by_name: string;
   submitted_by_email: string;
@@ -72,6 +74,7 @@ type StudentDiscussionPromptRow = {
 
 type ApprovedStudentDiscussionRow = {
   id: string;
+  group_id: string | null;
   question: string;
   scripture_reference: string | null;
   discussion_prompt: string | null;
@@ -135,15 +138,21 @@ export async function getApprovedStudentDiscussionFeed(session: AuthSession): Pr
   if (!ministryId) return [];
 
   const supabase = getSupabaseAdminClient();
-  const result = await supabase
+  const groupId = await getPrimaryStudentGroupId(session);
+  let query = supabase
     .from("student_discussion_prompts")
-    .select("id,question,scripture_reference,discussion_prompt,status,created_at")
+    .select("id,group_id,question,scripture_reference,discussion_prompt,status,created_at")
     .eq("ministry_id", ministryId)
     .in("status", ["approved", "posted"])
     .not("discussion_prompt", "is", null)
     .order("created_at", { ascending: false })
-    .limit(6)
-    .returns<ApprovedStudentDiscussionRow[]>();
+    .limit(6);
+
+  if (session.user.role.trim().toLowerCase() === "student") {
+    query = groupId ? query.or(`group_id.eq.${groupId},group_id.is.null`) : query.is("group_id", null);
+  }
+
+  const result = await query.returns<ApprovedStudentDiscussionRow[]>();
 
   throwIfSupabaseError(result.error);
   return (result.data ?? []).map(toGroupDiscussionItem);
@@ -159,6 +168,7 @@ export async function createStudentDiscussionPrompt(session: AuthSession, input:
   const scripture = normalizeScriptureReference(input.scriptureReference ?? "");
   const metanarrativeMovement = input.metanarrativeMovement ?? inferMetanarrativeMovement(question, scripture.reference);
   const ministryId = await resolveMinistryScope(session);
+  const groupId = await getPrimaryStudentGroupId(session);
   const draft = readiness.gloo
     ? await generateGlooDiscussionDraft({
         question,
@@ -173,6 +183,7 @@ export async function createStudentDiscussionPrompt(session: AuthSession, input:
 
   const row = {
     ...ministryScopeColumns(ministryId),
+    group_id: groupId ?? null,
     submitted_by_user_id: session.user.id,
     submitted_by_name: session.user.fullName,
     submitted_by_email: session.user.email,
@@ -349,6 +360,7 @@ async function logPromptEvent(session: AuthSession, promptId: string, action: st
 function toPrompt(row: StudentDiscussionPromptRow): StudentDiscussionPrompt {
   return {
     id: row.id,
+    groupId: row.group_id ?? undefined,
     submittedByUserId: row.submitted_by_user_id,
     submittedByName: row.submitted_by_name,
     submittedByEmail: row.submitted_by_email,
@@ -383,6 +395,7 @@ function toPrompt(row: StudentDiscussionPromptRow): StudentDiscussionPrompt {
 function toGroupDiscussionItem(row: ApprovedStudentDiscussionRow): StudentGroupDiscussionItem {
   return {
     id: row.id,
+    groupId: row.group_id ?? undefined,
     question: row.question,
     scriptureReference: row.scripture_reference ?? "",
     discussionPrompt: row.discussion_prompt ?? "",

@@ -8380,6 +8380,174 @@ html:has(.app-shell-camp) body {
   line-break: anywhere;
 }
 
+.leader-student-invites {
+  display: grid;
+  gap: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  padding: 18px;
+}
+
+.leader-student-invites-heading {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.leader-student-invites-heading h2,
+.leader-student-invite-list h3,
+.leader-student-member-list h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--text-xl);
+  line-height: 1.15;
+}
+
+.leader-student-invites-heading p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 750;
+  line-height: 1.55;
+}
+
+.leader-student-invite-form {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.leader-student-invite-results {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(220px, 0.6fr);
+  gap: 14px;
+}
+
+.leader-student-invite-list,
+.leader-student-member-list {
+  display: grid;
+  gap: 10px;
+}
+
+.leader-student-invite-row,
+.leader-student-member-row {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  padding: 12px;
+}
+
+.leader-student-invite-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.5fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+}
+
+.leader-student-invite-row span,
+.leader-student-member-row span {
+  display: block;
+  color: var(--primary);
+  font-size: var(--text-xs);
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.leader-student-invite-row strong,
+.leader-student-member-row strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: 900;
+}
+
+.leader-student-invite-row small {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 800;
+}
+
+.leader-student-invite-copy {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.leader-student-member-row {
+  display: grid;
+  gap: 4px;
+}
+
+.student-join-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background:
+    linear-gradient(135deg, rgba(11, 87, 208, 0.14), rgba(14, 165, 233, 0.09)),
+    var(--bg);
+  padding: 24px;
+}
+
+.student-join-card {
+  width: min(100%, 520px);
+  display: grid;
+  gap: 22px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  padding: clamp(22px, 5vw, 36px);
+}
+
+.student-join-card h1 {
+  margin: 6px 0 0;
+  color: var(--text);
+  font-size: clamp(2rem, 5vw, 3rem);
+  line-height: 1.05;
+}
+
+.student-join-card p {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-weight: 750;
+  line-height: 1.6;
+}
+
+.student-join-form {
+  display: grid;
+  gap: 14px;
+}
+
+.student-join-context {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  padding: 12px;
+}
+
+.student-join-context strong {
+  color: var(--text);
+  font-weight: 900;
+}
+
+.student-join-context span,
+.student-join-context small {
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 800;
+}
+
 .leader-review-queue,
 .leader-review-detail {
   display: grid;
@@ -8534,11 +8702,15 @@ html:has(.app-shell-camp) body {
 
   .leader-workspace-grid,
   .student-next-step-grid,
-  .leader-review-meta-grid {
+  .leader-review-meta-grid,
+  .leader-student-invite-form,
+  .leader-student-invite-results,
+  .leader-student-invite-row {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .leader-gloo-diagnostics-actions {
+  .leader-gloo-diagnostics-actions,
+  .leader-student-invites-heading {
     align-items: flex-start;
     flex-direction: column;
   }

@@ -69,6 +69,7 @@ export type StudentDiscussionDeliveryStatus = "not_requested" | "not_configured"
 
 export type StudentDiscussionPrompt = {
   id: string;
+  groupId?: string;
   submittedByUserId: string;
   submittedByName: string;
   submittedByEmail: string;

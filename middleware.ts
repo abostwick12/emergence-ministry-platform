@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authCookieNames, isMockAuthEnabled, isSupabaseConfigured } from "./lib/auth/config";
 
-const publicPaths = ["/login", "/auth/set-password", "/hackathon", "/api/auth/login", "/api/auth/logout", "/api/auth/invite-session"];
+const publicPaths = ["/login", "/auth/set-password", "/hackathon", "/api/auth/login", "/api/auth/logout", "/api/auth/invite-session", "/api/student/join"];
+const publicPathPrefixes = ["/join/"];
 const emergeManagementPaths = ["/dashboard", "/events", "/worship", "/tasks", "/communications", "/people", "/files", "/budget", "/settings"];
 
 function hasSessionCookie(request: NextRequest) {
@@ -18,7 +19,8 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon") ||
     pathname.includes(".") ||
-    publicPaths.some((path) => pathname === path)
+    publicPaths.some((path) => pathname === path) ||
+    publicPathPrefixes.some((path) => pathname.startsWith(path))
   ) {
     return NextResponse.next();
   }

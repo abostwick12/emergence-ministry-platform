@@ -6,6 +6,7 @@ const {
   generateGlooDiscussionDraftMock,
   getSupabaseAdminClientMock,
   getSupabaseAuthClientMock,
+  getPrimaryStudentGroupIdMock,
   isGlooConfiguredMock,
   isSupabaseAdminConfiguredMock,
   isSupabaseConfiguredMock,
@@ -14,6 +15,7 @@ const {
   generateGlooDiscussionDraftMock: vi.fn(),
   getSupabaseAdminClientMock: vi.fn(),
   getSupabaseAuthClientMock: vi.fn(),
+  getPrimaryStudentGroupIdMock: vi.fn(),
   isGlooConfiguredMock: vi.fn(),
   isSupabaseAdminConfiguredMock: vi.fn(),
   isSupabaseConfiguredMock: vi.fn(),
@@ -39,6 +41,10 @@ vi.mock("@/lib/scripture/gloo", () => ({
   isGlooConfigured: isGlooConfiguredMock
 }));
 
+vi.mock("@/lib/student/groups", () => ({
+  getPrimaryStudentGroupId: getPrimaryStudentGroupIdMock
+}));
+
 import { decideStudentDiscussionPrompt, getApprovedStudentDiscussionFeed } from "@/lib/scripture/discussion-workflow";
 
 describe("approved student discussion feed", () => {
@@ -47,12 +53,14 @@ describe("approved student discussion feed", () => {
     isSupabaseConfiguredMock.mockReturnValue(true);
     isSupabaseAdminConfiguredMock.mockReturnValue(true);
     resolveMinistryScopeMock.mockResolvedValue("ministry_1");
+    getPrimaryStudentGroupIdMock.mockResolvedValue("group_1");
   });
 
   it("returns only sanitized approved group discussion fields", async () => {
     const admin = approvedFeedClient([
       {
         id: "prompt_1",
+        group_id: "group_1",
         question: "How do we trust God when things are hard?",
         scripture_reference: "Psalm 13",
         discussion_prompt: "Where does this psalm give us language for honest trust?",
@@ -67,6 +75,7 @@ describe("approved student discussion feed", () => {
     expect(feed).toEqual([
       {
         id: "prompt_1",
+        groupId: "group_1",
         question: "How do we trust God when things are hard?",
         scriptureReference: "Psalm 13",
         discussionPrompt: "Where does this psalm give us language for honest trust?",
@@ -74,10 +83,11 @@ describe("approved student discussion feed", () => {
         createdAt: "2026-07-08T00:00:00.000Z"
       }
     ]);
-    expect(admin.select).toHaveBeenCalledWith("id,question,scripture_reference,discussion_prompt,status,created_at");
+    expect(admin.select).toHaveBeenCalledWith("id,group_id,question,scripture_reference,discussion_prompt,status,created_at");
     expect(admin.query.eq).toHaveBeenCalledWith("ministry_id", "ministry_1");
     expect(admin.query.in).toHaveBeenCalledWith("status", ["approved", "posted"]);
     expect(admin.query.not).toHaveBeenCalledWith("discussion_prompt", "is", null);
+    expect(admin.query.or).toHaveBeenCalledWith("group_id.eq.group_1,group_id.is.null");
   });
 
   it("fails closed when the service role is unavailable", async () => {
@@ -163,6 +173,8 @@ function approvedFeedClient(rows: Array<Record<string, unknown>>) {
     eq: vi.fn(() => query),
     in: vi.fn(() => query),
     not: vi.fn(() => query),
+    or: vi.fn(() => query),
+    is: vi.fn(() => query),
     order: vi.fn(() => query),
     limit: vi.fn(() => query),
     returns: vi.fn(async () => ({ data: rows, error: null }))
@@ -204,6 +216,7 @@ function discussionRow(overrides: Record<string, unknown> = {}) {
   return {
     id: "prompt_1",
     ministry_id: "ministry_1",
+    group_id: null,
     submitted_by_user_id: "usr_student",
     submitted_by_name: "Student User",
     submitted_by_email: "student@example.test",
