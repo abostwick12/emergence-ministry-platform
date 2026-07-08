@@ -1,4 +1,5 @@
 import { scripturePlans, scriptureResources } from "@/lib/scripture/mock-data";
+import type { StudentKnowledgeMatch } from "@/lib/scripture/knowledge";
 import type { ScripturePlan, ScriptureResource, StudentDiscussionPrompt, StudentDiscussionStatus } from "@/lib/scripture/types";
 
 export type StudentGroupDiscussionItem = {
@@ -71,19 +72,23 @@ export function toGroupDiscussionItems(prompts: StudentDiscussionPrompt[]): Stud
     }));
 }
 
-export function buildQuestionNextStep(prompt: ReadingSource & { id?: string }): StudentQuestionNextStep {
+export function buildQuestionNextStep(prompt: ReadingSource & { id?: string }, knowledgeMatches: StudentKnowledgeMatch[] = []): StudentQuestionNextStep {
   const plan = planForPrompt(prompt) ?? scripturePlans[0];
   const resource = resourceForPrompt(prompt) ?? scriptureResources.find((item) => item.id === "better-questions") ?? scriptureResources[0];
   const topic = topicLabelForPrompt(prompt);
+  const primaryKnowledge = knowledgeMatches[0];
+  const secondaryKnowledge = knowledgeMatches[1];
 
   return {
     promptId: prompt.id ?? "current-question",
-    label: topic ? `Because you asked about ${topic}` : "Keep exploring",
+    label: primaryKnowledge?.label ?? (topic ? `Because you asked about ${topic}` : "Keep exploring"),
     title: "Start digging before group",
-    summary: "Your leader can still shape this for discussion, but you do not have to wait to start reading carefully.",
-    digQuestions: digQuestionsForPrompt(prompt),
-    readingPlan: planItem(plan, topic ? `Reading for ${topic}` : "Suggested plan"),
-    resource: resourceItem(resource, "Practice this")
+    summary:
+      primaryKnowledge?.description ??
+      "Your leader can still shape this for discussion, but you do not have to wait to start reading carefully.",
+    digQuestions: primaryKnowledge?.digQuestions?.length ? primaryKnowledge.digQuestions : digQuestionsForPrompt(prompt),
+    readingPlan: primaryKnowledge ? knowledgeItem(primaryKnowledge, primaryKnowledge.label) : planItem(plan, topic ? `Reading for ${topic}` : "Suggested plan"),
+    resource: secondaryKnowledge ? knowledgeItem(secondaryKnowledge, "Keep digging") : resourceItem(resource, "Practice this")
   };
 }
 
@@ -163,6 +168,16 @@ function resourceItem(resource: ScriptureResource, label: string): StudentKeepRe
     title: resource.title,
     description: resource.studentPractice,
     href: "/student/scripture/resources"
+  };
+}
+
+function knowledgeItem(match: StudentKnowledgeMatch, label: string): StudentKeepReadingItem {
+  return {
+    id: `knowledge-${match.id}`,
+    label,
+    title: match.title,
+    description: match.description,
+    href: match.href
   };
 }
 

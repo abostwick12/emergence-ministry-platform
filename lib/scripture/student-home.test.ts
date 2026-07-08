@@ -141,6 +141,40 @@ describe("student home feed personalization", () => {
       expect.arrayContaining(["What good things does God give before the command appears?"])
     );
   });
+
+  it("uses knowledge matches before generic next-step recommendations", () => {
+    const nextStep = buildQuestionNextStep(
+      prompt({
+        id: "question_suffering",
+        question: "How do I trust God when suffering feels pointless?",
+        scriptureReference: "Romans 8:18",
+        metanarrativeMovement: undefined,
+        topicTags: []
+      }),
+      [
+        {
+          id: "knowledge-romans-hope",
+          sourceChunkId: "chunk_1",
+          label: "Because you asked about suffering",
+          title: "Romans 8 and patient hope",
+          description: "Hold suffering and hope together without rushing the conversation.",
+          href: "/student/scripture/resources",
+          digQuestions: ["Where does Romans 8 name pain without pretending it is small?"],
+          topicTags: ["suffering", "hope"],
+          scriptureReferences: ["Romans 8:18"]
+        }
+      ]
+    );
+
+    expect(nextStep).toMatchObject({
+      label: "Because you asked about suffering",
+      summary: "Hold suffering and hope together without rushing the conversation.",
+      readingPlan: {
+        title: "Romans 8 and patient hope"
+      }
+    });
+    expect(nextStep.digQuestions).toEqual(["Where does Romans 8 name pain without pretending it is small?"]);
+  });
 });
 
 function prompt(overrides: Partial<StudentDiscussionPrompt>): StudentDiscussionPrompt {
