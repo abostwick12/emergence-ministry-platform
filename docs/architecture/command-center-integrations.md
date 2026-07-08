@@ -262,3 +262,35 @@ Like Calendar, stored Gmail tokens are never included in any API response,
 never logged, and this increment does not yet feed Gmail data into SAGE's
 chat context — that remains a distinct, separately reviewed change once
 Andrew confirms the read/draft surface above with real credentials.
+
+## Increment 3: Google Drive (read-only search)
+
+A follow-up PR adds the third live integration. Same shared
+`GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_REDIRECT_URI` consent
+screen as Calendar and Gmail, its own fully separate OAuth grant and stored
+token under `service = 'google_drive'`.
+
+- `lib/command-center/integrations/google-drive.ts` — same raw-`fetch`,
+  graceful-degradation pattern (`GoogleDriveConfigError`). Requests only
+  `https://www.googleapis.com/auth/drive.metadata.readonly`, not the broader
+  `drive.readonly` scope — this integration only needs to find and name
+  relevant documents, never to download or read file content, so the OAuth
+  grant itself stays minimal on top of the app-level read-only guarantee.
+- `searchGoogleDriveFiles` matches by filename (`name contains '...'`),
+  excludes trashed files, and requests only
+  `id,name,mimeType,webViewLink,modifiedTime` — never file content.
+- `app/api/command-center/integrations/google-drive/connect|callback|disconnect/route.ts`
+  — same Andrew-only, CSRF-state-cookie OAuth flow as Calendar and Gmail, on
+  its own cookie name and its own API path scope.
+- `app/api/command-center/integrations/google-drive/search/route.ts` —
+  Andrew-only `GET ?q=` search returning up to 10 matching files (id, name,
+  mimeType, webViewLink, modifiedTime only).
+- `components/command-center/google-drive-connection.tsx` — same
+  `Connect Google Drive` / `Disconnect` / `Not active yet` pattern, wired
+  into the Google Drive card only.
+
+Like Calendar and Gmail, stored Drive tokens are never included in any API
+response, never logged, and this increment does not yet feed Drive search
+results into SAGE's chat context — that remains a distinct, separately
+reviewed change once Andrew confirms this read surface with real
+credentials.
