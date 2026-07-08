@@ -125,6 +125,65 @@ describe("Gloo model policy", () => {
     );
   });
 
+  it("falls back to the v1 chat-completions endpoint when the base route is not found", async () => {
+    process.env.GLOO_AI_CLIENT_SECRET = "secret";
+    process.env.GLOO_AI_BASE_URL = "https://platform.ai.gloo.com";
+    process.env.GLOO_AI_MODEL = "GPT-5 Nano";
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("not found", { status: 404, statusText: "Not Found" }))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          discussionPrompt: "Ask the group what this reveals about trust.",
+          safetyLabel: "safe",
+          safetyNotes: "Leader can review before use.",
+          confidence: 0.9,
+          topicTags: ["creation"],
+          escalationRecommended: false,
+          escalationReason: ""
+        })
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await generateGlooDiscussionDraft(baseInput);
+
+    expect(result).toMatchObject({
+      ok: true,
+      discussionPrompt: "Ask the group what this reveals about trust."
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][0]).toBe("https://platform.ai.gloo.com/chat/completions");
+    expect(fetchMock.mock.calls[1][0]).toBe("https://platform.ai.gloo.com/v1/chat/completions");
+  });
+
+  it("returns a safe credential diagnostic when Gloo rejects auth", async () => {
+    process.env.GLOO_AI_CLIENT_SECRET = "secret";
+    process.env.GLOO_AI_BASE_URL = "https://platform.ai.gloo.com/v1";
+    process.env.GLOO_AI_MODEL = "GPT-5 Nano";
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response("unauthorized", { status: 401, statusText: "Unauthorized" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await generateGlooDiscussionDraft(baseInput);
+
+    expect(result).toEqual({
+      ok: false,
+      code: "provider_error",
+      message: "Gloo AI Studio rejected the configured credentials."
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe("https://platform.ai.gloo.com/v1/chat/completions");
+    expect(warn).toHaveBeenCalledWith(
+      "[gloo] discussion draft provider failure",
+      expect.objectContaining({
+        status: 401,
+        url: "https://platform.ai.gloo.com/v1/chat/completions"
+      })
+    );
+  });
+
   it("reruns on the escalation model when the default pass is low confidence", async () => {
     process.env.GLOO_AI_STUDIO_API_KEY = "key";
     process.env.GLOO_AI_STUDIO_API_BASE_URL = "https://example.test";
