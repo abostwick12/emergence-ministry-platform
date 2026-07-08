@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildStudentHomeFeed, toGroupDiscussionItems } from "@/lib/scripture/student-home";
+import { buildQuestionNextStep, buildStudentHomeFeed, toGroupDiscussionItems } from "@/lib/scripture/student-home";
 import type { StudentDiscussionPrompt } from "@/lib/scripture/types";
 
 describe("student home feed personalization", () => {
@@ -117,6 +117,29 @@ describe("student home feed personalization", () => {
         createdAt: "2026-07-08T00:00:00.000Z"
       }
     ]);
+  });
+
+  it("builds immediate next steps from a student's submitted question", () => {
+    const nextStep = buildQuestionNextStep(
+      prompt({
+        id: "question_tree",
+        question: "Why did God put the tree of knowledge of good and evil in the garden?",
+        metanarrativeMovement: undefined,
+        topicTags: []
+      })
+    );
+
+    expect(nextStep).toMatchObject({
+      promptId: "question_tree",
+      label: "Because you asked about the garden",
+      title: "Start digging before group",
+      readingPlan: {
+        title: "Beginnings and Covenant"
+      }
+    });
+    expect(nextStep.digQuestions).toEqual(
+      expect.arrayContaining(["What good things does God give before the command appears?"])
+    );
   });
 });
 

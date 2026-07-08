@@ -5,7 +5,12 @@ import { useState } from "react";
 
 import { StudentQuestionComposer } from "@/components/student/student-question-composer";
 import type { DiscussionWorkflowState } from "@/lib/scripture/discussion-workflow";
-import type { StudentGroupDiscussionItem, StudentHomeFeed as StudentHomeFeedData, StudentKeepReadingItem } from "@/lib/scripture/student-home";
+import type {
+  StudentGroupDiscussionItem,
+  StudentHomeFeed as StudentHomeFeedData,
+  StudentKeepReadingItem,
+  StudentQuestionNextStep
+} from "@/lib/scripture/student-home";
 import type { StudentDiscussionPrompt } from "@/lib/scripture/types";
 
 type StudentHomeFeedProps = {
@@ -16,10 +21,14 @@ type StudentHomeFeedProps = {
 
 export function StudentHomeFeed({ initialState, initialFeed, userName }: StudentHomeFeedProps) {
   const [recentQuestions, setRecentQuestions] = useState(initialFeed.recentQuestions);
+  const [keepReading, setKeepReading] = useState(initialFeed.keepReading);
+  const [nextStep, setNextStep] = useState<StudentQuestionNextStep | undefined>();
   const firstName = userName.split(" ")[0] || userName;
 
-  function addPrompt(prompt: StudentDiscussionPrompt) {
+  function addPrompt(prompt: StudentDiscussionPrompt, nextPromptStep: StudentQuestionNextStep) {
     setRecentQuestions((current) => [prompt, ...current].filter((item) => item.submittedByUserId === prompt.submittedByUserId).slice(0, 4));
+    setNextStep(nextPromptStep);
+    setKeepReading((current) => mergeKeepReading(current, [nextPromptStep.readingPlan, nextPromptStep.resource]));
   }
 
   return (
@@ -32,6 +41,8 @@ export function StudentHomeFeed({ initialState, initialFeed, userName }: Student
         </div>
 
         <StudentQuestionComposer readiness={initialState.readiness} onCreated={addPrompt} />
+
+        {nextStep ? <StudentQuestionNextStepCard nextStep={nextStep} /> : null}
 
         <FeedSection title="For your group" emptyTitle="Nothing approved yet." emptyBody="Leader-approved discussion prompts will appear here when they are ready.">
           {initialFeed.forGroup.map((prompt) => (
@@ -52,12 +63,39 @@ export function StudentHomeFeed({ initialState, initialFeed, userName }: Student
           <h2>Picked for where you are</h2>
         </div>
         <div className="student-feed-rail-list">
-          {initialFeed.keepReading.map((item) => (
+          {keepReading.map((item) => (
             <KeepReadingLink item={item} key={item.id} />
           ))}
         </div>
       </aside>
     </div>
+  );
+}
+
+function StudentQuestionNextStepCard({ nextStep }: { nextStep: StudentQuestionNextStep }) {
+  return (
+    <section className="student-next-step" aria-label="Question next steps">
+      <div className="student-next-step-copy">
+        <p className="eyebrow">{nextStep.label}</p>
+        <h2>{nextStep.title}</h2>
+        <p>{nextStep.summary}</p>
+      </div>
+      <div className="student-next-step-grid">
+        <div className="student-next-step-panel">
+          <span>Questions to dig into</span>
+          <ul>
+            {nextStep.digQuestions.map((question) => (
+              <li key={question}>{question}</li>
+            ))}
+          </ul>
+        </div>
+        <div className="student-next-step-panel">
+          <span>Reading direction</span>
+          <KeepReadingLink item={nextStep.readingPlan} />
+          <KeepReadingLink item={nextStep.resource} />
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -118,6 +156,18 @@ function KeepReadingLink({ item }: { item: StudentKeepReadingItem }) {
       <p>{item.description}</p>
     </Link>
   );
+}
+
+function mergeKeepReading(current: StudentKeepReadingItem[], incoming: StudentKeepReadingItem[]) {
+  const merged = [...incoming, ...current];
+  const seen = new Set<string>();
+  return merged
+    .filter((item) => {
+      if (seen.has(item.id)) return false;
+      seen.add(item.id);
+      return true;
+    })
+    .slice(0, 4);
 }
 
 function EmptyFeedState({ title, body }: { title: string; body: string }) {

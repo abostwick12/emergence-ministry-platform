@@ -18,6 +18,16 @@ export type StudentKeepReadingItem = {
   href: string;
 };
 
+export type StudentQuestionNextStep = {
+  promptId: string;
+  label: string;
+  title: string;
+  summary: string;
+  digQuestions: string[];
+  readingPlan: StudentKeepReadingItem;
+  resource: StudentKeepReadingItem;
+};
+
 export type StudentHomeFeed = {
   forGroup: StudentGroupDiscussionItem[];
   recentQuestions: StudentDiscussionPrompt[];
@@ -57,6 +67,22 @@ export function toGroupDiscussionItems(prompts: StudentDiscussionPrompt[]): Stud
       status: prompt.status as Extract<StudentDiscussionStatus, "approved" | "posted">,
       createdAt: prompt.createdAt
     }));
+}
+
+export function buildQuestionNextStep(prompt: ReadingSource & { id?: string }): StudentQuestionNextStep {
+  const plan = planForPrompt(prompt) ?? scripturePlans[0];
+  const resource = resourceForPrompt(prompt) ?? scriptureResources.find((item) => item.id === "better-questions") ?? scriptureResources[0];
+  const topic = topicLabelForPrompt(prompt);
+
+  return {
+    promptId: prompt.id ?? "current-question",
+    label: topic ? `Because you asked about ${topic}` : "Keep exploring",
+    title: "Start digging before group",
+    summary: "Your leader can still shape this for discussion, but you do not have to wait to start reading carefully.",
+    digQuestions: digQuestionsForPrompt(prompt),
+    readingPlan: planItem(plan, topic ? `Reading for ${topic}` : "Suggested plan"),
+    resource: resourceItem(resource, "Practice this")
+  };
 }
 
 function buildKeepReadingItems(recentQuestions: StudentDiscussionPrompt[], forGroup: StudentGroupDiscussionItem[]) {
@@ -145,7 +171,20 @@ function planForPrompt(prompt: ReadingSource) {
   }
 
   const text = promptSearchText(prompt);
+  const patternMatch = planForText(text);
+  if (patternMatch) return patternMatch;
+
   return scripturePlans.find((plan) => promptSearchTextForPlan(plan).split(" ").some((word) => word.length > 5 && text.includes(word)));
+}
+
+function planForText(text: string) {
+  const checks: Array<[string, RegExp]> = [
+    ["creation-covenant", /\b(genesis|beginning|creation|created|garden|tree|eden|evil|fall|covenant|abraham|blessing)\b/],
+    ["exodus-formation", /\b(exodus|deliverance|slavery|wilderness|passover|law|commandments|sinai|rescue)\b/],
+    ["kingdom-waiting", /\b(king|kingdom|david|psalm|prophet|exile|isaiah|waiting|wisdom)\b/]
+  ];
+  const match = checks.find(([, pattern]) => pattern.test(text));
+  return match ? scripturePlans.find((plan) => plan.id === match[0]) : undefined;
 }
 
 function resourceForPrompt(prompt: ReadingSource) {
@@ -167,6 +206,56 @@ function promptLabel(prompt: ReadingSource) {
   if (prompt.scriptureReference) return `Because you asked about ${prompt.scriptureReference}`;
   if (prompt.topicTags?.[0]) return `Because you asked about ${prompt.topicTags[0].replace(/_/g, " ")}`;
   return "Next for your group";
+}
+
+function topicLabelForPrompt(prompt: ReadingSource) {
+  if (prompt.scriptureReference) return prompt.scriptureReference;
+  if (prompt.topicTags?.[0]) return prompt.topicTags[0].replace(/_/g, " ");
+
+  const text = promptSearchText(prompt);
+  const checks: Array<[string, RegExp]> = [
+    ["trust", /\b(trust|faith|believe|prayer|pray|anxiety|worry)\b/],
+    ["suffering", /\b(suffer|pain|grief|death|trauma|hard things)\b/],
+    ["the garden", /\b(garden|eden|tree|evil|genesis|creation)\b/],
+    ["doubt", /\b(doubt|deconstruct|confused|questioning)\b/],
+    ["identity", /\b(identity|belong|purpose|worth)\b/],
+    ["forgiveness", /\b(forgive|forgiveness|mercy|grace)\b/]
+  ];
+  return checks.find(([, pattern]) => pattern.test(text))?.[0] ?? "";
+}
+
+function digQuestionsForPrompt(prompt: ReadingSource) {
+  const text = promptSearchText(prompt);
+
+  if (/\b(garden|eden|tree|evil|genesis|creation)\b/.test(text)) {
+    return [
+      "What good things does God give before the command appears?",
+      "What kind of trust is being tested in the story?",
+      "Where do you see both human choice and God's pursuit after failure?"
+    ];
+  }
+
+  if (/\b(trust|faith|believe|prayer|pray|anxiety|worry)\b/.test(text)) {
+    return [
+      "What does the passage show about God's character before it asks for a response?",
+      "What makes trust hard in this situation?",
+      "What would it look like for your group to practice honest faith together this week?"
+    ];
+  }
+
+  if (/\b(suffer|pain|grief|death|trauma|hard things)\b/.test(text)) {
+    return [
+      "Where does Scripture make room for honest grief or lament?",
+      "What does the passage reveal about God's nearness when life is painful?",
+      "What would be a careful, non-rushed way for the group to respond?"
+    ];
+  }
+
+  return [
+    "What is happening in the passage or story behind this question?",
+    "What does this reveal about God, people, brokenness, or hope?",
+    "How could your group respond together without forcing a quick answer?"
+  ];
 }
 
 function promptSearchText(prompt: ReadingSource) {

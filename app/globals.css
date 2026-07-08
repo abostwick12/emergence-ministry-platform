@@ -7782,7 +7782,12 @@ html:has(.app-shell-camp) body {
   text-decoration: none;
 }
 
-.student-shell-brand span {
+.student-shell-brand a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.student-shell-brand a:first-child {
   color: var(--primary);
   font-size: var(--text-xs);
   font-weight: 900;
@@ -7790,10 +7795,16 @@ html:has(.app-shell-camp) body {
   text-transform: uppercase;
 }
 
-.student-shell-brand strong {
+.student-shell-brand a:last-child {
   color: var(--text);
   font-size: var(--text-2xl);
+  font-weight: 900;
   line-height: 1.1;
+}
+
+.student-shell-brand a:hover,
+.student-shell-brand a:focus-visible {
+  color: var(--primary);
 }
 
 .student-shell-profile {
@@ -7856,6 +7867,7 @@ html:has(.app-shell-camp) body {
 
 .student-feed-welcome,
 .student-question-composer,
+.student-next-step,
 .student-feed-section,
 .student-feed-rail,
 .leader-review-intro,
@@ -7890,6 +7902,69 @@ html:has(.app-shell-camp) body {
 .student-question-composer {
   display: grid;
   gap: 16px;
+}
+
+.student-next-step {
+  display: grid;
+  gap: 16px;
+  border-color: color-mix(in srgb, var(--primary) 28%, var(--line));
+  background:
+    linear-gradient(135deg, rgba(37, 99, 235, 0.08), rgba(255, 255, 255, 0) 46%),
+    var(--surface);
+}
+
+.student-next-step-copy h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--text-xl);
+  line-height: 1.15;
+}
+
+.student-next-step-copy p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: var(--text-base);
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.student-next-step-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(240px, 0.9fr);
+  gap: 14px;
+}
+
+.student-next-step-panel {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  padding: 14px;
+}
+
+.student-next-step-panel > span {
+  display: block;
+  color: var(--primary);
+  font-size: var(--text-xs);
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.student-next-step-panel ul {
+  margin: 10px 0 0;
+  padding-left: 20px;
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: 750;
+  line-height: 1.55;
+}
+
+.student-next-step-panel li + li {
+  margin-top: 8px;
+}
+
+.student-next-step-panel .student-keep-reading-link {
+  margin-top: 12px;
 }
 
 .student-question-composer-copy {
@@ -8373,6 +8448,7 @@ html:has(.app-shell-camp) body {
   }
 
   .leader-workspace-grid,
+  .student-next-step-grid,
   .leader-review-meta-grid {
     grid-template-columns: minmax(0, 1fr);
   }

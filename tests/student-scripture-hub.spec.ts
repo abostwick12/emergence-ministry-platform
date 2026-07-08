@@ -28,6 +28,7 @@ test.describe("Student Scripture Hub shell", () => {
 
     await page.goto("/student");
     await expect(page.getByRole("heading", { name: "Welcome back, Andrew." })).toBeVisible();
+    await expect(page.getByText("Ask honestly, then keep exploring with a few next steps before group.")).toBeVisible();
     await expect(page.getByRole("navigation", { name: "Student navigation" }).getByRole("link", { name: "Home", exact: true })).toBeVisible();
     await expect(page.getByRole("navigation", { name: "Student navigation" }).getByRole("link", { name: "Ask", exact: true })).toBeVisible();
     await expect(page.getByRole("navigation", { name: "Student navigation" }).getByRole("link", { name: "Plans", exact: true })).toBeVisible();
@@ -35,6 +36,8 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page.getByRole("navigation", { name: "Student navigation" }).getByRole("link", { name: "Review Queue", exact: true })).toHaveCount(0);
     await expect(page.getByRole("navigation", { name: "Student navigation" }).getByRole("link", { name: "Leader Review", exact: true })).toHaveCount(0);
     await expect(page.getByText("Metanarrative movement")).toHaveCount(0);
+    await page.getByRole("link", { name: "Lead Emergence", exact: true }).click();
+    await expect(page).toHaveURL(/\/dashboard$/);
 
     await page.goto("/student/scripture");
     await expect(page).toHaveURL(/\/student$/);
@@ -62,9 +65,10 @@ test.describe("Student Scripture Hub shell", () => {
 
     await page.goto("/student/scripture/questions");
     await expect(page.getByRole("heading", { name: "What should we talk about next?" })).toBeVisible();
+    await expect(page.getByText("Ask honestly, then keep exploring with a few next steps before group.")).toBeVisible();
     await expect(page.getByLabel("What are you wondering?")).toBeVisible();
     await expect(page.getByText("Metanarrative movement")).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Send to leader" })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Ask and keep exploring" })).toBeDisabled();
   });
 
   test("builder pages generate local previews without saving or sending", async ({ page }) => {
