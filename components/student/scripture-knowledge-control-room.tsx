@@ -103,6 +103,38 @@ export function ScriptureKnowledgeControlRoom({ initialState }: ScriptureKnowled
     }
   }
 
+  async function updateDetails(sourceId: string, form: HTMLFormElement) {
+    const data = new FormData(form);
+    setUpdatingId(sourceId);
+    setStatus("Saving source details...");
+    try {
+      const response = await fetch(`/api/student/scripture/knowledge-sources/${sourceId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: String(data.get("editTitle") || ""),
+          summary: String(data.get("editSummary") || ""),
+          tags: String(data.get("editTags") || ""),
+          scriptureReferences: String(data.get("editScriptureReferences") || ""),
+          citation: String(data.get("editCitation") || ""),
+          sourceUri: String(data.get("editSourceUri") || "")
+        })
+      });
+      const payload = (await response.json()) as UpdateSourceResponse;
+      if (!response.ok || !payload.ok || !payload.source) {
+        setStatus(payload.error ?? "The source details could not be saved.");
+        return;
+      }
+
+      setSources((current) => current.map((source) => (source.id === payload.source!.id ? payload.source! : source)));
+      setStatus("Source details saved. Rerun the brain test to check the updated retrieval path.");
+    } catch {
+      setStatus("The source details could not be saved.");
+    } finally {
+      setUpdatingId("");
+    }
+  }
+
   async function runTestBench(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -260,6 +292,7 @@ export function ScriptureKnowledgeControlRoom({ initialState }: ScriptureKnowled
                 canWrite={initialState.readiness.liveStorage && !updatingId}
                 isUpdating={updatingId === source.id}
                 key={source.id}
+                onDetailsSave={updateDetails}
                 onVisibilityChange={updateVisibility}
                 source={source}
               />
@@ -331,11 +364,13 @@ function TestBenchPreview({ result }: { result: KnowledgeTestBenchResult | null 
 function SourceCard({
   canWrite,
   isUpdating,
+  onDetailsSave,
   onVisibilityChange,
   source
 }: {
   canWrite: boolean;
   isUpdating: boolean;
+  onDetailsSave: (sourceId: string, form: HTMLFormElement) => Promise<void>;
   onVisibilityChange: (sourceId: string, visibility: KnowledgeVisibility) => Promise<void>;
   source: KnowledgeSourceControlItem;
 }) {
@@ -368,6 +403,60 @@ function SourceCard({
           </details>
         ))}
       </div>
+
+      <details className="knowledge-source-edit">
+        <summary>Curate source details</summary>
+        <form
+          className="knowledge-source-edit-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void onDetailsSave(source.id, event.currentTarget);
+          }}
+        >
+          <label className="leader-review-field">
+            <span>Title</span>
+            <input className="input" defaultValue={source.title} name="editTitle" required />
+          </label>
+
+          <label className="leader-review-field">
+            <span>Student-safe summary</span>
+            <textarea defaultValue={source.summary} name="editSummary" required />
+          </label>
+
+          <div className="knowledge-source-field-grid">
+            <label className="leader-review-field">
+              <span>Topics</span>
+              <input className="input" defaultValue={source.tags.join(", ")} name="editTags" placeholder="trust, suffering, prayer" />
+            </label>
+
+            <label className="leader-review-field">
+              <span>Scripture</span>
+              <input
+                className="input"
+                defaultValue={source.chunks[0]?.scriptureReferences.join(", ") ?? ""}
+                name="editScriptureReferences"
+                placeholder="Romans 8:18, Psalm 13"
+              />
+            </label>
+          </div>
+
+          <div className="knowledge-source-field-grid">
+            <label className="leader-review-field">
+              <span>Citation</span>
+              <input className="input" defaultValue={source.citation} name="editCitation" placeholder="Author, title, page, or sermon date" />
+            </label>
+
+            <label className="leader-review-field">
+              <span>Source link</span>
+              <input className="input" defaultValue={source.sourceUri} name="editSourceUri" placeholder="https://..." />
+            </label>
+          </div>
+
+          <button className="button" disabled={!canWrite || isUpdating} type="submit">
+            {isUpdating ? "Saving..." : "Save Details"}
+          </button>
+        </form>
+      </details>
 
       <div className="knowledge-source-actions">
         {visibilityActions.map((action) => (

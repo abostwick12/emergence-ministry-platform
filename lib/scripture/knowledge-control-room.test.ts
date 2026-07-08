@@ -20,7 +20,12 @@ vi.mock("@/lib/ministry/scope", () => ({
   resolveMinistryScope: resolveMinistryScopeMock
 }));
 
-import { createKnowledgeSource, getKnowledgeControlRoomState, updateKnowledgeSourceVisibility } from "@/lib/scripture/knowledge-control-room";
+import {
+  createKnowledgeSource,
+  getKnowledgeControlRoomState,
+  updateKnowledgeSourceDetails,
+  updateKnowledgeSourceVisibility
+} from "@/lib/scripture/knowledge-control-room";
 
 describe("knowledge source control room", () => {
   beforeEach(() => {
@@ -105,6 +110,51 @@ describe("knowledge source control room", () => {
     expect(client.sourceUpdate).toHaveBeenCalledWith({ visibility: "student_visible" });
     expect(client.chunkUpdate).toHaveBeenCalledWith({ visibility: "student_visible" });
   });
+
+  it("curates source details and keeps chunk retrieval metadata in sync", async () => {
+    const client = updateDetailsClient();
+    getSupabaseAuthClientMock.mockReturnValue(client.client);
+
+    const source = await updateKnowledgeSourceDetails(leaderSession(), "source_1", {
+      title: "Romans 8 and durable hope",
+      summary: "A careful way to hold grief and hope together.",
+      tags: "lament, hope",
+      scriptureReferences: "Psalm 13, Romans 8:18",
+      citation: "Camp lesson notes",
+      sourceUri: "https://example.test/romans-8"
+    });
+
+    expect(source).toMatchObject({
+      title: "Romans 8 and durable hope",
+      summary: "A careful way to hold grief and hope together.",
+      tags: ["lament", "hope"],
+      citation: "Camp lesson notes",
+      sourceUri: "https://example.test/romans-8",
+      chunks: [
+        {
+          title: "Romans 8 and durable hope",
+          studentSummary: "A careful way to hold grief and hope together.",
+          topicTags: ["lament", "hope"],
+          concepts: ["lament", "hope"],
+          scriptureReferences: ["Psalm 13", "Romans 8:18"]
+        }
+      ]
+    });
+    expect(client.sourceUpdate).toHaveBeenCalledWith({
+      title: "Romans 8 and durable hope",
+      summary: "A careful way to hold grief and hope together.",
+      tags: ["lament", "hope"],
+      source_uri: "https://example.test/romans-8",
+      citation: "Camp lesson notes"
+    });
+    expect(client.chunkUpdate).toHaveBeenCalledWith({
+      title: "Romans 8 and durable hope",
+      student_summary: "A careful way to hold grief and hope together.",
+      topic_tags: ["lament", "hope"],
+      concepts: ["lament", "hope"],
+      scripture_references: ["Psalm 13", "Romans 8:18"]
+    });
+  });
 });
 
 function createSourceClient() {
@@ -165,6 +215,53 @@ function updateVisibilityClient() {
       select: () => ({
         returns: async () => ({
           data: [chunkRow({ visibility: "student_visible" })],
+          error: null
+        })
+      })
+    })
+  }));
+
+  const client = {
+    from(table: string) {
+      if (table === "knowledge_sources") return { update: sourceUpdate };
+      if (table === "knowledge_chunks") return { update: chunkUpdate };
+      return {};
+    }
+  };
+
+  return { client, sourceUpdate, chunkUpdate };
+}
+
+function updateDetailsClient() {
+  const updatedSource = sourceRow({
+    title: "Romans 8 and durable hope",
+    summary: "A careful way to hold grief and hope together.",
+    tags: ["lament", "hope"],
+    citation: "Camp lesson notes",
+    source_uri: "https://example.test/romans-8"
+  });
+  const updatedChunk = chunkRow({
+    title: "Romans 8 and durable hope",
+    student_summary: "A careful way to hold grief and hope together.",
+    topic_tags: ["lament", "hope"],
+    concepts: ["lament", "hope"],
+    scripture_references: ["Psalm 13", "Romans 8:18"]
+  });
+  const sourceUpdate = vi.fn(() => ({
+    eq: () => ({
+      select: () => ({
+        single: async () => ({
+          data: updatedSource,
+          error: null
+        })
+      })
+    })
+  }));
+  const chunkUpdate = vi.fn(() => ({
+    eq: () => ({
+      select: () => ({
+        returns: async () => ({
+          data: [updatedChunk],
           error: null
         })
       })
