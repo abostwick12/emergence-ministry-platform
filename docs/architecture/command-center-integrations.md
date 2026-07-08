@@ -221,47 +221,91 @@ separately reviewed change to that guardrail language and its tests, once
 Andrew confirms the read surface above behaves as expected with real
 credentials.
 
-## Increment 2: Gmail (read-only triage + draft-only replies)
+## Increment 2: Gmail (read, organize, and draft-only — never sends)
 
 A follow-up PR adds the second live integration, reusing the same
 `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_REDIRECT_URI` values as
 Google Calendar (one shared consent screen) but a fully separate OAuth grant
 and a fully separate stored token, under `service = 'gmail'`. Connecting
 Gmail does not connect Calendar, and disconnecting one never touches the
-other's row in `personal_integrations`.
+other's row in `personal_integrations`. A second PR expands this to
+"everything an assistant could do without sending": organizing mail into
+labels/folders and staging drafts for messages SAGE judges important.
 
 - `lib/command-center/integrations/gmail.ts` — same raw-`fetch`,
   graceful-degradation pattern as Calendar (`GmailConfigError` instead of a
-  network call when config is missing). Requests
-  `https://www.googleapis.com/auth/gmail.readonly` (triage read) and
-  `https://www.googleapis.com/auth/gmail.compose` (draft creation) together,
-  because Gmail has no scope that grants draft creation without also
-  technically permitting `drafts.send`. **"SAGE never sends email" is
-  enforced at the application layer, not the OAuth layer** — this module
-  implements `listRecentGmailMessages` (read) and `createGmailDraft`
-  (draft-only) and intentionally has no `sendMessage`/`drafts.send` function
-  anywhere in the codebase.
-- `listRecentGmailMessages` reads only `Subject`/`From`/`Date` headers and
-  Gmail's own short snippet (`format=metadata`), never the full message
-  body, to keep triage read exposure minimal.
+  network call when config is missing). Requests three scopes together:
+  `gmail.readonly` (read), `gmail.compose` (draft creation), and
+  `gmail.labels` (organize). Gmail has no scope that grants draft creation
+  without also technically permitting `drafts.send` — **"SAGE never sends
+  email" is enforced at the application layer, not the OAuth layer.** There
+  is no `sendMessage`/`drafts.send` call anywhere in the codebase, at any
+  capability level (read, organize, or draft).
+- **Read:** `listRecentGmailMessages` reads only `Subject`/`From`/`Date`
+  headers, Gmail's own short snippet, and `labelIds` (`format=metadata`) for
+  the triage list. `getGmailMessageBody` is a separate, explicit full-body
+  read (`format=full`, extracting the `text/plain` part or a stripped
+  `text/html` fallback) used only when a message actually needs to be read
+  closely or drafted against — the triage list itself never pulls full body
+  content.
+- **Organize:** uses `gmail.labels` rather than the broader `gmail.modify`,
+  which would additionally allow permanently trashing threads this
+  integration has no need for. `listGmailLabels`/`createGmailLabel` manage
+  labels ("folders"); `findOrCreateGmailLabel` is idempotent by name so
+  "move to a folder that doesn't exist yet" and "create a folder" are the
+  same operation from Andrew's point of view. `moveGmailMessageToLabel`
+  adds the target label and removes `INBOX` — Gmail has no real folders, so
+  this is the same effect as dragging a message onto a label in Gmail's own
+  UI. `modifyGmailMessageLabels` is the one underlying label-mutation
+  primitive; it never deletes a message and never touches send.
+- **Draft + stage for review:** `createGmailDraft` is unchanged (draft-only,
+  no send). Every draft SAGE creates — whether from the manual drafts route
+  or from triage below — is now also labeled under the fixed
+  `GMAIL_DRAFT_REVIEW_LABEL_NAME` ("SAGE/Draft Review") via
+  `stageGmailDraftForReview`, so Andrew can find every SAGE-authored draft
+  in one place in Gmail, distinct from drafts he started himself.
+- **Triage and draft important messages:** `triageAndDraftImportantMessages`
+  reuses SAGE's own AI provider (`lib/command-center/sage.ts`, the same one
+  LinkedIn drafting uses) to read each of the most recent inbox messages in
+  full, judge whether it's important enough for Andrew to personally reply
+  to, and — only for messages judged important — draft a reply, create it
+  as a Gmail draft, and stage it for review. **This is Andrew-triggered
+  only; there is no scheduled or automatic caller anywhere in the
+  codebase.** It never sends.
+- `lib/command-center/integrations/gmail-token.ts` — shared token
+  resolution (load stored tokens, refresh if expired, persist the refresh)
+  used by every Gmail route below, replacing what had been duplicated
+  per-route boilerplate.
 - `app/api/command-center/integrations/gmail/connect|callback|disconnect/route.ts`
   — same Andrew-only, CSRF-state-cookie OAuth flow as Calendar, on its own
   cookie name and its own API path scope.
 - `app/api/command-center/integrations/gmail/messages/route.ts` — Andrew-only
-  read of the 10 most recent inbox messages (id, threadId, subject, from,
-  date, snippet only).
+  read of the 10 most recent inbox messages (metadata + snippet + labelIds
+  only).
+- `app/api/command-center/integrations/gmail/messages/[id]/route.ts` —
+  Andrew-only full read of one message.
+- `app/api/command-center/integrations/gmail/messages/[id]/move/route.ts` —
+  Andrew-only `POST { labelName }` that moves one message to a label/folder
+  (creating it first if needed).
+- `app/api/command-center/integrations/gmail/labels/route.ts` — Andrew-only
+  `GET` (list labels) and `POST { name }` (create a label).
 - `app/api/command-center/integrations/gmail/drafts/route.ts` — Andrew-only
   `POST` that creates exactly one Gmail draft from `{ to, subject, body,
-  inReplyTo?, threadId? }` and returns only the created draft's id. Andrew
-  reviews and sends it himself from Gmail; this route cannot send.
-- `components/command-center/gmail-connection.tsx` — same
-  `Connect Gmail` / `Disconnect` / `Not active yet` pattern as Calendar,
-  wired into the Gmail card only.
+  inReplyTo?, threadId? }`, stages it for review, and returns only the
+  created draft's id. Andrew reviews and sends it himself from Gmail; this
+  route cannot send.
+- `app/api/command-center/integrations/gmail/triage/route.ts` — Andrew-only
+  `POST` that runs `triageAndDraftImportantMessages` over the 5 most recent
+  inbox messages and returns which were judged important and which got a
+  staged draft.
+- `components/command-center/gmail-connection.tsx` — `Connect Gmail` /
+  `Disconnect` / `Not active yet` plus, once connected, a
+  `Triage inbox & draft replies` button showing per-message results.
 
-Like Calendar, stored Gmail tokens are never included in any API response,
-never logged, and this increment does not yet feed Gmail data into SAGE's
-chat context — that remains a distinct, separately reviewed change once
-Andrew confirms the read/draft surface above with real credentials.
+Stored Gmail tokens are never included in any API response, never logged,
+and this integration does not yet feed Gmail data into SAGE's chat
+context — that remains a distinct, separately reviewed change once Andrew
+confirms this read/organize/draft surface with real credentials.
 
 ## Increment 3: Google Drive (read-only search)
 

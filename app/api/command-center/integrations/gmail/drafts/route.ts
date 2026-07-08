@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { requireCommandCenterAccess } from "@/lib/command-center/access";
-import { getIntegration, updateIntegration } from "@/lib/command-center/repository";
+import { updateIntegration } from "@/lib/command-center/repository";
+import { createGmailDraft, stageGmailDraftForReview } from "@/lib/command-center/integrations/gmail";
 import {
-  createGmailDraft,
-  isGmailTokenExpired,
-  parseStoredGmailTokens,
-  refreshGmailAccessToken
-} from "@/lib/command-center/integrations/gmail";
+  GmailConnectionExpiredError,
+  GmailConnectionInvalidError,
+  GmailNotConnectedError,
+  getValidGmailAccessToken
+} from "@/lib/command-center/integrations/gmail-token";
 
 type CreateDraftBody = {
   to?: unknown;
@@ -17,7 +18,9 @@ type CreateDraftBody = {
 };
 
 // Draft-only. This route creates a Gmail draft for Andrew to review and
-// send himself from Gmail — it never calls Gmail's send endpoint.
+// send himself from Gmail — it never calls Gmail's send endpoint. Every
+// draft is staged under GMAIL_DRAFT_REVIEW_LABEL_NAME so SAGE-created
+// drafts are easy to find in one place.
 export async function POST(request: Request) {
   const access = await requireCommandCenterAccess();
   if (!access.allowed) return access.response;
@@ -35,33 +38,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "to, subject, and body are required." }, { status: 400 });
   }
 
-  const integration = await getIntegration(access.session, "gmail");
-  if (!integration || integration.status !== "connected") {
-    return NextResponse.json({ error: "Gmail is not connected." }, { status: 409 });
-  }
-
-  const tokens = parseStoredGmailTokens(integration.config);
-  if (!tokens) {
-    await updateIntegration(access.session, "gmail", { status: "error", config: {} });
-    return NextResponse.json({ error: "Gmail connection is invalid. Reconnect from the integrations page." }, { status: 409 });
-  }
-
   try {
-    let accessToken = tokens.accessToken;
-
-    if (isGmailTokenExpired(tokens.expiresAt)) {
-      if (!tokens.refreshToken) {
-        await updateIntegration(access.session, "gmail", { status: "error", config: {} });
-        return NextResponse.json({ error: "Gmail connection expired. Reconnect from the integrations page." }, { status: 409 });
-      }
-      const refreshed = await refreshGmailAccessToken({ refreshToken: tokens.refreshToken });
-      accessToken = refreshed.accessToken;
-      await updateIntegration(access.session, "gmail", {
-        status: "connected",
-        config: { ...tokens, accessToken: refreshed.accessToken, expiresAt: refreshed.expiresAt }
-      });
-    }
-
+    const accessToken = await getValidGmailAccessToken(access.session);
     const draft = await createGmailDraft({
       accessToken,
       to: payload.to,
@@ -70,8 +48,16 @@ export async function POST(request: Request) {
       inReplyTo: typeof payload.inReplyTo === "string" ? payload.inReplyTo : undefined,
       threadId: typeof payload.threadId === "string" ? payload.threadId : undefined
     });
+    await stageGmailDraftForReview({ accessToken, messageId: draft.messageId });
     return NextResponse.json({ draft }, { status: 201 });
-  } catch {
+  } catch (error) {
+    if (
+      error instanceof GmailNotConnectedError ||
+      error instanceof GmailConnectionInvalidError ||
+      error instanceof GmailConnectionExpiredError
+    ) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
     await updateIntegration(access.session, "gmail", { status: "error", config: {} });
     return NextResponse.json({ error: "Failed to create Gmail draft. Reconnect from the integrations page." }, { status: 502 });
   }
