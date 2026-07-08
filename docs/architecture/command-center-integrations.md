@@ -353,3 +353,31 @@ flow — just `FIRECRAWL_API_KEY` being present in the server environment.
 Like Slack, this increment does not yet wire Firecrawl into any automatic
 briefing feed — only a manual, Andrew-initiated (or future, explicitly
 requested) single-page scrape exists today.
+
+## Increment 6: Monday.com (read-only board listing)
+
+A follow-up PR adds Monday.com. Like Slack and Firecrawl, Monday's personal
+API token needs no OAuth flow — just `MONDAY_API_TOKEN` in the server
+environment.
+
+- `lib/command-center/integrations/monday.ts` — same
+  graceful-degradation pattern (`MondayConfigError`). `listMondayBoards()`
+  is a read-only GraphQL query (`{ boards { id name } }`) — **there is no
+  mutation query anywhere in this module.** Task sync (reading or writing
+  `personal_tasks` to/from a Monday board) is a distinct, separately
+  approved change; per the approval rules above, writing to Monday.com
+  without Andrew approving the specific sync direction first must never be
+  automatic.
+- `app/api/command-center/integrations/monday/boards/route.ts` — Andrew-only
+  `GET` that lists Andrew's boards (id, name only) to confirm the token
+  works, marking the integration `connected`/`error`.
+- `app/api/command-center/integrations/monday/disable/route.ts` —
+  Andrew-only `POST` that resets the stored status to `disconnected` (an
+  in-app pause; the API token stays set in the environment).
+- `components/command-center/monday-connection.tsx` — shows
+  `List boards` (configured, not yet tested) / `Pause` (connected) /
+  `Not active yet` (not configured).
+
+This increment is intentionally read-only end to end: no task, board item,
+or column value is ever created, updated, or deleted by any code in this
+PR.
