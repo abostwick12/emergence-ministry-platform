@@ -11,6 +11,7 @@ import {
   GoogleDriveConfigError,
   isGoogleDriveTokenExpired,
   listGoogleDriveFolders,
+  listRecentGoogleDriveFiles,
   moveGoogleDriveFile,
   parseStoredGoogleDriveTokens,
   readGoogleDriveConfig,
@@ -157,6 +158,27 @@ describe("searchGoogleDriveFiles", () => {
   it("throws when the search request fails", async () => {
     const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({}, false, 401));
     await expect(searchGoogleDriveFiles({ accessToken: "expired", query: "x", fetchImpl })).rejects.toThrow("Google Drive search failed");
+  });
+});
+
+describe("listRecentGoogleDriveFiles", () => {
+  it("orders by modifiedTime desc and excludes folders", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse({
+        files: [{ id: "file_1", name: "Recent doc", mimeType: "text/plain", modifiedTime: "2026-07-08T00:00:00.000Z" }]
+      })
+    );
+    const files = await listRecentGoogleDriveFiles({ accessToken: "at", fetchImpl });
+    expect(files).toEqual([{ id: "file_1", name: "Recent doc", mimeType: "text/plain", modifiedTime: "2026-07-08T00:00:00.000Z", webViewLink: undefined, parents: undefined }]);
+
+    const calledUrl = fetchImpl.mock.calls[0][0] as string;
+    expect(calledUrl).toContain("orderBy=modifiedTime+desc");
+    expect(calledUrl).toContain("application%2Fvnd.google-apps.folder");
+  });
+
+  it("throws when the request fails", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({}, false, 401));
+    await expect(listRecentGoogleDriveFiles({ accessToken: "expired", fetchImpl })).rejects.toThrow("Google Drive recent files fetch failed");
   });
 });
 

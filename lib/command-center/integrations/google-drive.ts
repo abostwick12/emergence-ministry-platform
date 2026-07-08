@@ -242,6 +242,29 @@ export async function searchGoogleDriveFiles(params: {
   return (json.files ?? []).map(mapDriveFile);
 }
 
+// Read-only, no query term: the most recently modified files, excluding
+// trashed and folders. Used for ambient "what has Andrew touched lately"
+// context (e.g. SAGE chat's live context) rather than a specific search.
+export async function listRecentGoogleDriveFiles(params: {
+  accessToken: string;
+  maxResults?: number;
+  fetchImpl?: typeof fetch;
+}): Promise<GoogleDriveFileSummary[]> {
+  const doFetch = params.fetchImpl ?? fetch;
+  const url = new URL(DRIVE_FILES_URL);
+  url.searchParams.set("q", `trashed = false and mimeType != '${GOOGLE_DRIVE_FOLDER_MIME_TYPE}'`);
+  url.searchParams.set("fields", `files(${DRIVE_FILE_FIELDS})`);
+  url.searchParams.set("orderBy", "modifiedTime desc");
+  url.searchParams.set("pageSize", String(params.maxResults ?? 5));
+
+  const response = await doFetch(url.toString(), {
+    headers: { Authorization: `Bearer ${params.accessToken}` }
+  });
+  if (!response.ok) throw new Error(`Google Drive recent files fetch failed: ${response.status}`);
+  const json = (await response.json()) as DriveFilesListResponse;
+  return (json.files ?? []).map(mapDriveFile);
+}
+
 // Read-only metadata for one file, including parents — used before reading
 // content (to know how to read it) and before moving a file (to know what
 // parent to remove).

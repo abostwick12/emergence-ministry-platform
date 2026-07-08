@@ -464,8 +464,9 @@ planned without a fresh, separately reviewed decision to add one.
 
 Every increment above intentionally stopped short of feeding its data into
 SAGE's actual chat conversation — each said so explicitly. This increment
-closes that gap for Calendar and Gmail (Drive and the rest remain deferred,
-still chat-invisible, exactly as documented in their own increments above).
+closes that gap for Calendar and Gmail (Drive was added in a later PR — see
+"Increment 13" below; the rest remain deferred, still chat-invisible,
+exactly as documented in their own increments above).
 
 - `lib/command-center/sage-live-context.ts` — new module that assembles
   read-only live integration context for one chat turn: up to 5 upcoming
@@ -639,3 +640,34 @@ This remains read-only end to end. Writing personal tasks to a Monday
 board, or pulling Monday items into `personal_tasks`, is still the
 distinct, separately approved change Increment 6 described — nothing in
 this increment moves any task data in either direction.
+
+## Increment 13: Google Drive context in SAGE chat
+
+Extends Increment 8's SAGE chat wiring to Google Drive. Firecrawl, Slack,
+Monday.com, and LinkedIn still have no natural read-only "ambient" content
+to offer chat (Firecrawl and Drive search are both query-driven with no
+default view; Slack and LinkedIn are write/draft-only; Monday item reads
+need a specific board id) and remain chat-invisible.
+
+- `lib/command-center/integrations/google-drive.ts` —
+  `listRecentGoogleDriveFiles()` is a new read-only query with no search
+  term: the most recently modified non-folder files, ordered by
+  `modifiedTime desc`. Drive has no natural equivalent to Calendar's
+  upcoming events or Gmail's inbox, so "what has Andrew touched lately"
+  stands in for that.
+- `lib/command-center/sage-live-context.ts` — `buildDriveLiveContext()`
+  follows the same isolated, best-effort pattern as Calendar and Gmail: a
+  Drive failure never blocks the other two, and `buildLiveIntegrationContext`
+  now assembles up to three sections instead of two.
+- `lib/command-center/sage.ts` — the system prompt and
+  `command_center.task_aware_chat` skill prompt both mention Drive
+  alongside Calendar/Gmail as a source of read-only context. The blanket
+  "You cannot access Google Drive... from chat" line is replaced with the
+  same precision used for Calendar/Gmail: SAGE may reference recently
+  modified Drive file names when provided, but still cannot search Drive,
+  read a file's content, move a file, or create a folder from chat — those
+  still require the Drive integration page directly.
+
+Like Calendar and Gmail, this is additive to what SAGE can read, not what
+it can do: no new write capability was added anywhere, and there is still
+no tool calling in this phase.
