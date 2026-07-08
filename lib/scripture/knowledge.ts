@@ -3,18 +3,9 @@ import type { AuthSession } from "@/lib/auth/server";
 import { getSupabaseAdminClient, getSupabaseAuthClient, isSupabaseAdminConfigured } from "@/lib/auth/server";
 import { resolveMinistryScope } from "@/lib/ministry/scope";
 import type { StudentQuestionNextStep } from "@/lib/scripture/student-home";
+import type { StudentDiscussionKnowledgeContext } from "@/lib/scripture/types";
 
-export type StudentKnowledgeMatch = {
-  id: string;
-  sourceChunkId?: string;
-  label: string;
-  title: string;
-  description: string;
-  href: string;
-  digQuestions: string[];
-  topicTags: string[];
-  scriptureReferences: string[];
-};
+export type StudentKnowledgeMatch = StudentDiscussionKnowledgeContext;
 
 type KnowledgeSearchInput = {
   id?: string;
@@ -114,6 +105,29 @@ export async function getStudentKnowledgeMatches(session: AuthSession, input: Kn
   return rankKnowledgeMatches(launchKnowledgePack, input).slice(0, MAX_MATCHES);
 }
 
+export function formatStudentKnowledgeContextForGloo(matches: StudentKnowledgeMatch[]) {
+  if (!matches.length) return "";
+
+  return matches
+    .slice(0, MAX_MATCHES)
+    .map((match, index) => {
+      const references = match.scriptureReferences.length ? match.scriptureReferences.join(", ") : "No direct passage";
+      const tags = match.topicTags.length ? match.topicTags.slice(0, 6).join(", ") : "general";
+      const questions = match.digQuestions.slice(0, 3).map((question) => `- ${question}`).join("\n");
+      return [
+        `Source ${index + 1}: ${match.title}`,
+        `Label: ${match.label}`,
+        `Summary: ${match.description}`,
+        `References: ${references}`,
+        `Tags: ${tags}`,
+        questions ? `Student exploration questions:\n${questions}` : ""
+      ]
+        .filter(Boolean)
+        .join("\n");
+    })
+    .join("\n\n");
+}
+
 export async function saveStudentQuestionRecommendations(
   session: AuthSession,
   promptId: string,
@@ -175,10 +189,10 @@ export async function saveStudentQuestionRecommendations(
 async function getLiveKnowledgeMatches(session: AuthSession, input: KnowledgeSearchInput) {
   if (!isSupabaseAdminConfigured()) return [];
 
-  const ministryId = await resolveMinistryScope(session);
-  if (!ministryId) return [];
-
   try {
+    const ministryId = await resolveMinistryScope(session);
+    if (!ministryId) return [];
+
     const supabase = getSupabaseAdminClient();
     const result = await supabase
       .from("knowledge_chunks")
