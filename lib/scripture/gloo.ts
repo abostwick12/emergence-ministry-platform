@@ -221,9 +221,27 @@ function needsProviderEscalation(draft: Extract<GlooDiscussionDraftResult, { ok:
 
 function resolveGlooChatUrls(apiBaseUrl: string) {
   const trimmed = apiBaseUrl.replace(/\/+$/, "");
+  const urls = new Set<string>();
   if (trimmed.endsWith("/chat/completions")) return [trimmed];
   if (trimmed.endsWith("/v1")) return [`${trimmed}/chat/completions`];
-  return [`${trimmed}/chat/completions`, `${trimmed}/v1/chat/completions`];
+  if (trimmed.endsWith("/api/v1")) return [`${trimmed}/chat/completions`];
+
+  urls.add(`${trimmed}/chat/completions`);
+  urls.add(`${trimmed}/v1/chat/completions`);
+  urls.add(`${trimmed}/api/chat/completions`);
+  urls.add(`${trimmed}/api/v1/chat/completions`);
+
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.hostname === "platform.ai.gloo.com") {
+      urls.add("https://api.ai.gloo.com/v1/chat/completions");
+      urls.add("https://api.ai.gloo.com/chat/completions");
+    }
+  } catch {
+    // Invalid URLs are handled by fetch and logged through the provider failure path.
+  }
+
+  return Array.from(urls);
 }
 
 function shouldTryNextGlooUrl(apiBaseUrl: string) {

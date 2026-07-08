@@ -6,6 +6,7 @@ import {
   DiscussionWorkflowError,
   getStudentDiscussionWorkflowState
 } from "@/lib/scripture/discussion-workflow";
+import { buildQuestionNextStep } from "@/lib/scripture/student-home";
 import { resolveStudentHubAccess } from "@/lib/student/access";
 
 type CreateDiscussionRequestBody = {
@@ -55,7 +56,7 @@ export async function POST(request: Request) {
       question: body.question,
       scriptureReference: body.scriptureReference
     });
-    return NextResponse.json({ ok: true, prompt }, { status: 201 });
+    return NextResponse.json({ ok: true, prompt, nextStep: buildQuestionNextStep(prompt) }, { status: 201 });
   } catch (error) {
     return discussionErrorResponse(error);
   }
