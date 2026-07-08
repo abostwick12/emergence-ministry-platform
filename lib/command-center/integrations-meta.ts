@@ -41,7 +41,8 @@ export const INTEGRATION_CATALOG: IntegrationMeta[] = [
   {
     service: "gmail",
     label: "Gmail",
-    description: "Read recent email for triage context and draft replies for Andrew to review. SAGE never sends email.",
+    description:
+      "Read recent email, organize it into labels/folders, and draft replies for important messages for Andrew to review. SAGE never sends email.",
     phase: "phase_2",
     priority: 2,
     capabilities: ["read", "write"],
