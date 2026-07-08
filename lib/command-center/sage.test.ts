@@ -37,8 +37,28 @@ describe("SAGE prompt assembly", () => {
   });
 
   it("returns the task-aware skill instructions by key", async () => {
-    await expect(loadSageSkillInstructions()).resolves.toContain("No external integrations");
+    await expect(loadSageSkillInstructions()).resolves.toContain("No external integration writes, sends, or actions");
     await expect(loadSageSkillInstructions("unknown.skill")).rejects.toThrow("Unknown SAGE skill");
+  });
+
+  it("omits live integration context when none is provided", async () => {
+    const instructions = await buildSageInstructions([task]);
+    expect(instructions).not.toContain("Read-only Google Calendar context");
+    expect(instructions).not.toContain("Read-only Gmail triage context");
+  });
+
+  it("appends live integration context when provided, without dropping task context", async () => {
+    const liveContext = "Read-only Google Calendar context (as of this turn):\n- 2026-07-10T14:00:00Z: Fellowship call";
+    const instructions = await buildSageInstructions([task], liveContext);
+    expect(instructions).toContain("Follow up with recruiter");
+    expect(instructions).toContain("Read-only Google Calendar context");
+    expect(instructions).toContain("Fellowship call");
+  });
+
+  it("still forbids calendar writes and email sending even when integration context is present", async () => {
+    const instructions = await buildSageInstructions([task], "Read-only Gmail triage context (as of this turn):\n- test");
+    expect(instructions).toContain("You cannot create, update, or delete a calendar event");
+    expect(instructions).toContain("you cannot send email or create a Gmail draft from this chat");
   });
 
   it("formats recent conversation turns for the Responses API input", () => {

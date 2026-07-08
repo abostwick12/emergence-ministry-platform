@@ -16,6 +16,7 @@ import {
   type SageProviderConfig,
   type SageProviderErrorCategory
 } from "@/lib/command-center/sage";
+import { buildLiveIntegrationContext } from "@/lib/command-center/sage-live-context";
 
 const MAX_MESSAGE_LENGTH = 4000;
 const SESSION_ID_PATTERN = /^[a-zA-Z0-9_.:-]{8,120}$/;
@@ -189,13 +190,14 @@ export async function POST(request: Request) {
         }
 
         phase = "load_context";
-        const [tasks, messages] = await Promise.all([
+        const [tasks, messages, liveIntegrationContext] = await Promise.all([
           listPersonalTasks(session),
-          listConversationMessages(session, sessionId, 12)
+          listConversationMessages(session, sessionId, 12),
+          buildLiveIntegrationContext(session)
         ]);
         taskCount = tasks.length;
         conversationCount = messages.length;
-        const instructions = await buildSageInstructions(tasks);
+        const instructions = await buildSageInstructions(tasks, liveIntegrationContext);
         const input = buildSageConversationInput(messages);
 
         phase = `${providerConfig.provider}_stream`;
