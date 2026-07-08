@@ -3,6 +3,7 @@ import type { AuthSession } from "@/lib/auth/server";
 import { getSupabaseAdminClient, getSupabaseAuthClient, isSupabaseAdminConfigured } from "@/lib/auth/server";
 import { resolveMinistryScope } from "@/lib/ministry/scope";
 import { generateGlooDiscussionDraft, isGlooConfigured } from "@/lib/scripture/gloo";
+import { formatStudentKnowledgeContextForGloo, getStudentKnowledgeMatches } from "@/lib/scripture/knowledge";
 import { deliverDiscussionPromptToSlack, isSlackDiscussionDeliveryConfigured } from "@/lib/scripture/slack";
 import type { StudentGroupDiscussionItem } from "@/lib/scripture/student-home";
 import { sanitizeScriptureReference } from "@/lib/scripture/youversion";
@@ -124,7 +125,7 @@ export async function getStudentDiscussionWorkflowState(session: AuthSession): P
   throwIfSupabaseError(result.error);
   return {
     readiness,
-    prompts: (result.data ?? []).map(toPrompt)
+    prompts: await withKnowledgeContext(session, (result.data ?? []).map(toPrompt))
   };
 }
 
@@ -169,11 +170,17 @@ export async function createStudentDiscussionPrompt(session: AuthSession, input:
   const metanarrativeMovement = input.metanarrativeMovement ?? inferMetanarrativeMovement(question, scripture.reference);
   const ministryId = await resolveMinistryScope(session);
   const groupId = await getPrimaryStudentGroupId(session);
+  const knowledgeContext = await getStudentKnowledgeMatches(session, {
+    question,
+    scriptureReference: scripture.reference
+  });
+  const retrievedContext = formatStudentKnowledgeContextForGloo(knowledgeContext);
   const draft = readiness.gloo
     ? await generateGlooDiscussionDraft({
         question,
         scriptureReference: scripture.reference,
-        metanarrativeMovement
+        metanarrativeMovement,
+        retrievedContext
       })
     : {
         ok: false as const,
@@ -214,7 +221,10 @@ export async function createStudentDiscussionPrompt(session: AuthSession, input:
   if (!result.data) throw new DiscussionWorkflowError("The discussion prompt was not saved.", 500, "missing_saved_prompt");
 
   await logPromptEvent(session, result.data.id, "submitted", { aiStatus: row.ai_status });
-  return toPrompt(result.data);
+  return {
+    ...toPrompt(result.data),
+    knowledgeContext
+  };
 }
 
 export async function decideStudentDiscussionPrompt(session: AuthSession, id: string, input: DecideStudentDiscussionInput) {
@@ -268,7 +278,10 @@ async function regenerateDiscussionDraft(session: AuthSession, prompt: StudentDi
   const draft = await generateGlooDiscussionDraft({
     question: prompt.question,
     scriptureReference: prompt.scriptureReference,
-    metanarrativeMovement: prompt.metanarrativeMovement ?? inferMetanarrativeMovement(prompt.question, prompt.scriptureReference)
+    metanarrativeMovement: prompt.metanarrativeMovement ?? inferMetanarrativeMovement(prompt.question, prompt.scriptureReference),
+    retrievedContext: formatStudentKnowledgeContextForGloo(
+      prompt.knowledgeContext?.length ? prompt.knowledgeContext : await getStudentKnowledgeMatches(session, prompt)
+    )
   });
 
   const update: Partial<StudentDiscussionPromptRow> = {
@@ -298,7 +311,7 @@ async function regenerateDiscussionDraft(session: AuthSession, prompt: StudentDi
     throw new DiscussionWorkflowError(draft.message, draft.code === "not_configured" ? 503 : 502, draft.code);
   }
 
-  return toPrompt(result.data);
+  return withKnowledgeContext(session, toPrompt(result.data));
 }
 
 async function postApprovedPrompt(session: AuthSession, prompt: StudentDiscussionPrompt) {
@@ -402,6 +415,34 @@ function toGroupDiscussionItem(row: ApprovedStudentDiscussionRow): StudentGroupD
     status: row.status,
     createdAt: row.created_at
   };
+}
+
+async function withKnowledgeContext(session: AuthSession, prompts: StudentDiscussionPrompt[]): Promise<StudentDiscussionPrompt[]>;
+async function withKnowledgeContext(session: AuthSession, prompt: StudentDiscussionPrompt): Promise<StudentDiscussionPrompt>;
+async function withKnowledgeContext(
+  session: AuthSession,
+  prompts: StudentDiscussionPrompt | StudentDiscussionPrompt[]
+): Promise<StudentDiscussionPrompt | StudentDiscussionPrompt[]> {
+  if (Array.isArray(prompts)) {
+    return Promise.all(prompts.map((prompt) => withKnowledgeContext(session, prompt)));
+  }
+
+  const prompt = prompts;
+  try {
+    return {
+      ...prompt,
+      knowledgeContext: await getStudentKnowledgeMatches(session, prompt)
+    };
+  } catch (error) {
+    console.warn("[scripture] leader knowledge context unavailable", {
+      promptId: prompt.id,
+      reason: error instanceof Error ? error.message : "unknown"
+    });
+    return {
+      ...prompt,
+      knowledgeContext: []
+    };
+  }
 }
 
 function normalizeScriptureReference(reference: string) {

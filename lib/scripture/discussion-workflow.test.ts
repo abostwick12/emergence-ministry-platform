@@ -7,18 +7,22 @@ const {
   getSupabaseAdminClientMock,
   getSupabaseAuthClientMock,
   getPrimaryStudentGroupIdMock,
+  getStudentKnowledgeMatchesMock,
   isGlooConfiguredMock,
   isSupabaseAdminConfiguredMock,
   isSupabaseConfiguredMock,
+  formatStudentKnowledgeContextForGlooMock,
   resolveMinistryScopeMock
 } = vi.hoisted(() => ({
   generateGlooDiscussionDraftMock: vi.fn(),
   getSupabaseAdminClientMock: vi.fn(),
   getSupabaseAuthClientMock: vi.fn(),
   getPrimaryStudentGroupIdMock: vi.fn(),
+  getStudentKnowledgeMatchesMock: vi.fn(),
   isGlooConfiguredMock: vi.fn(),
   isSupabaseAdminConfiguredMock: vi.fn(),
   isSupabaseConfiguredMock: vi.fn(),
+  formatStudentKnowledgeContextForGlooMock: vi.fn(),
   resolveMinistryScopeMock: vi.fn()
 }));
 
@@ -41,17 +45,24 @@ vi.mock("@/lib/scripture/gloo", () => ({
   isGlooConfigured: isGlooConfiguredMock
 }));
 
+vi.mock("@/lib/scripture/knowledge", () => ({
+  formatStudentKnowledgeContextForGloo: formatStudentKnowledgeContextForGlooMock,
+  getStudentKnowledgeMatches: getStudentKnowledgeMatchesMock
+}));
+
 vi.mock("@/lib/student/groups", () => ({
   getPrimaryStudentGroupId: getPrimaryStudentGroupIdMock
 }));
 
-import { decideStudentDiscussionPrompt, getApprovedStudentDiscussionFeed } from "@/lib/scripture/discussion-workflow";
+import { decideStudentDiscussionPrompt, getApprovedStudentDiscussionFeed, getStudentDiscussionWorkflowState } from "@/lib/scripture/discussion-workflow";
 
 describe("approved student discussion feed", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     isSupabaseConfiguredMock.mockReturnValue(true);
     isSupabaseAdminConfiguredMock.mockReturnValue(true);
+    getStudentKnowledgeMatchesMock.mockResolvedValue([]);
+    formatStudentKnowledgeContextForGlooMock.mockReturnValue("");
     resolveMinistryScopeMock.mockResolvedValue("ministry_1");
     getPrimaryStudentGroupIdMock.mockResolvedValue("group_1");
   });
@@ -98,12 +109,54 @@ describe("approved student discussion feed", () => {
   });
 });
 
+describe("student discussion workflow state", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    isSupabaseConfiguredMock.mockReturnValue(true);
+    isSupabaseAdminConfiguredMock.mockReturnValue(true);
+    isGlooConfiguredMock.mockReturnValue(false);
+    getStudentKnowledgeMatchesMock.mockResolvedValue([
+      {
+        id: "knowledge-romans-hope",
+        sourceChunkId: "chunk_1",
+        label: "Because you asked about suffering",
+        title: "Romans 8 and patient hope",
+        description: "Hold suffering and hope together without rushing the conversation.",
+        href: "/student/scripture/resources",
+        digQuestions: ["Where does Romans 8 name pain without pretending it is small?"],
+        topicTags: ["suffering", "hope"],
+        scriptureReferences: ["Romans 8:18"]
+      }
+    ]);
+  });
+
+  it("attaches retrieved context to prompts for leader review", async () => {
+    const client = workflowStateClient([discussionRow({ id: "prompt_context", scripture_reference: "Romans 8:18" })]);
+    getSupabaseAuthClientMock.mockReturnValue(client.client);
+
+    const state = await getStudentDiscussionWorkflowState(leaderSession());
+
+    expect(state.prompts[0]).toMatchObject({
+      id: "prompt_context",
+      knowledgeContext: [
+        {
+          title: "Romans 8 and patient hope",
+          scriptureReferences: ["Romans 8:18"]
+        }
+      ]
+    });
+    expect(getStudentKnowledgeMatchesMock).toHaveBeenCalledWith(leaderSession(), expect.objectContaining({ id: "prompt_context" }));
+  });
+});
+
 describe("leader discussion draft regeneration", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     isSupabaseConfiguredMock.mockReturnValue(true);
     isSupabaseAdminConfiguredMock.mockReturnValue(true);
     isGlooConfiguredMock.mockReturnValue(true);
+    getStudentKnowledgeMatchesMock.mockResolvedValue([]);
+    formatStudentKnowledgeContextForGlooMock.mockReturnValue("");
     resolveMinistryScopeMock.mockResolvedValue("ministry_1");
   });
 
@@ -116,6 +169,20 @@ describe("leader discussion draft regeneration", () => {
     });
     const client = regenerationClient(existingRow);
     getSupabaseAuthClientMock.mockReturnValue(client.client);
+    getStudentKnowledgeMatchesMock.mockResolvedValue([
+      {
+        id: "knowledge-psalm-13",
+        sourceChunkId: "chunk_psalm_13",
+        label: "Because you asked about prayer",
+        title: "Psalm 13 and honest prayer",
+        description: "Psalm 13 gives language for waiting, grief, and trust.",
+        href: "/student/scripture/resources",
+        digQuestions: ["Where does the psalm make room for honest speech?"],
+        topicTags: ["prayer", "trust"],
+        scriptureReferences: ["Psalm 13"]
+      }
+    ]);
+    formatStudentKnowledgeContextForGlooMock.mockReturnValue("Source 1: Psalm 13 and honest prayer");
     generateGlooDiscussionDraftMock.mockResolvedValue({
       ok: true,
       provider: "gloo",
@@ -143,7 +210,8 @@ describe("leader discussion draft regeneration", () => {
     expect(generateGlooDiscussionDraftMock).toHaveBeenCalledWith({
       question: "How do I trust God when prayer feels quiet?",
       scriptureReference: "Psalm 13",
-      metanarrativeMovement: "Jesus / Kingdom Fulfilled"
+      metanarrativeMovement: "Jesus / Kingdom Fulfilled",
+      retrievedContext: "Source 1: Psalm 13 and honest prayer"
     });
     expect(client.updates[0]).toMatchObject({
       ai_status: "generated",
@@ -177,6 +245,18 @@ function approvedFeedClient(rows: Array<Record<string, unknown>>) {
     is: vi.fn(() => query),
     order: vi.fn(() => query),
     limit: vi.fn(() => query),
+    returns: vi.fn(async () => ({ data: rows, error: null }))
+  };
+  const select = vi.fn(() => query);
+  const client = {
+    from: vi.fn(() => ({ select }))
+  };
+  return { client, select, query };
+}
+
+function workflowStateClient(rows: Array<Record<string, unknown>>) {
+  const query = {
+    order: vi.fn(() => query),
     returns: vi.fn(async () => ({ data: rows, error: null }))
   };
   const select = vi.fn(() => query);

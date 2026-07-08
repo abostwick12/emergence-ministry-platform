@@ -57,7 +57,7 @@ export async function POST(request: Request) {
       question: body.question,
       scriptureReference: body.scriptureReference
     });
-    const knowledgeMatches = await getStudentKnowledgeMatches(access.session, prompt);
+    const knowledgeMatches = prompt.knowledgeContext?.length ? prompt.knowledgeContext : await getStudentKnowledgeMatches(access.session, prompt);
     const nextStep = buildQuestionNextStep(prompt, knowledgeMatches);
     await saveStudentQuestionRecommendations(access.session, prompt.id, nextStep, knowledgeMatches);
     return NextResponse.json({ ok: true, prompt, nextStep }, { status: 201 });

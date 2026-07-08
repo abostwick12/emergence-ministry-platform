@@ -488,6 +488,8 @@ function LeaderReviewDetail({
         </section>
       ) : null}
 
+      {prompt.knowledgeContext?.length ? <LeaderKnowledgeContext matches={prompt.knowledgeContext} /> : null}
+
       <label className="leader-review-field">
         <span>Leader-approved prompt</span>
         <textarea onChange={(event) => setDiscussionPrompt(event.target.value)} value={discussionPrompt} />
@@ -515,6 +517,34 @@ function LeaderReviewDetail({
         </button>
       </div>
     </article>
+  );
+}
+
+function LeaderKnowledgeContext({ matches }: { matches: NonNullable<StudentDiscussionPrompt["knowledgeContext"]> }) {
+  return (
+    <section className="leader-review-context" aria-label="Retrieved discipleship context">
+      <div>
+        <p className="eyebrow">Retrieved context</p>
+        <h3>Use this to shape the conversation</h3>
+      </div>
+      <div className="leader-review-context-list">
+        {matches.slice(0, 3).map((match) => (
+          <article className="leader-review-context-card" key={match.id}>
+            <span>{match.label}</span>
+            <strong>{match.title}</strong>
+            <p>{match.description}</p>
+            {match.scriptureReferences.length ? <small>{match.scriptureReferences.join(", ")}</small> : null}
+            {match.digQuestions.length ? (
+              <ul>
+                {match.digQuestions.slice(0, 2).map((question) => (
+                  <li key={question}>{question}</li>
+                ))}
+              </ul>
+            ) : null}
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }
 

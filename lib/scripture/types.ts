@@ -67,6 +67,18 @@ export type StudentDiscussionStatus = "pending_review" | "approved" | "changes_r
 
 export type StudentDiscussionDeliveryStatus = "not_requested" | "not_configured" | "delivered" | "failed";
 
+export type StudentDiscussionKnowledgeContext = {
+  id: string;
+  sourceChunkId?: string;
+  label: string;
+  title: string;
+  description: string;
+  href: string;
+  digQuestions: string[];
+  topicTags: string[];
+  scriptureReferences: string[];
+};
+
 export type StudentDiscussionPrompt = {
   id: string;
   groupId?: string;
@@ -90,6 +102,7 @@ export type StudentDiscussionPrompt = {
   discussionPrompt: string;
   leaderNotes: string;
   status: StudentDiscussionStatus;
+  knowledgeContext?: StudentDiscussionKnowledgeContext[];
   deliveryChannel?: string;
   deliveryStatus: StudentDiscussionDeliveryStatus;
   deliveryMessage: string;
