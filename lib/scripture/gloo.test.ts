@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { generateGlooDiscussionDraft, isGlooConfigured, selectGlooModelPolicy } from "@/lib/scripture/gloo";
+import { generateGlooDiscussionDraft, isGlooConfigured, runGlooDiscussionDiagnostic, selectGlooModelPolicy } from "@/lib/scripture/gloo";
 import type { GlooDiscussionDraftInput } from "@/lib/scripture/gloo";
 
 const baseInput: GlooDiscussionDraftInput = {
@@ -261,6 +261,71 @@ describe("Gloo model policy", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(JSON.parse(fetchMock.mock.calls[0][1].body).model).toBe("GPT-5 Nano");
     expect(JSON.parse(fetchMock.mock.calls[1][1].body).model).toBe("GPT-5 Mini");
+  });
+
+  it("reports missing diagnostic configuration without calling Gloo", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await runGlooDiscussionDiagnostic(baseInput, {});
+
+    expect(result).toMatchObject({
+      ok: false,
+      configured: false,
+      credentialsConfigured: false,
+      baseUrlConfigured: false,
+      primaryModelConfigured: false,
+      attempts: []
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("returns safe diagnostic attempts when endpoint fallback succeeds", async () => {
+    process.env.GLOO_AI_CLIENT_SECRET = "secret";
+    process.env.GLOO_AI_BASE_URL = "https://platform.ai.gloo.com";
+    process.env.GLOO_AI_MODEL = "GPT-5 Nano";
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("not found", { status: 404, statusText: "Not Found" }))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          discussionPrompt: "Ask the group how this passage invites trust.",
+          safetyLabel: "safe",
+          safetyNotes: "Leader can review before use.",
+          confidence: 0.87,
+          topicTags: ["trust"],
+          escalationRecommended: false,
+          escalationReason: ""
+        })
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await runGlooDiscussionDiagnostic(baseInput);
+
+    expect(result).toMatchObject({
+      ok: true,
+      configured: true,
+      selectedModel: "GPT-5 Nano",
+      selectedTier: "default",
+      draftPreview: {
+        discussionPrompt: "Ask the group how this passage invites trust.",
+        safetyLabel: "safe",
+        confidence: 0.87
+      },
+      attempts: [
+        {
+          url: "https://platform.ai.gloo.com/chat/completions",
+          ok: false,
+          status: 404
+        },
+        {
+          url: "https://platform.ai.gloo.com/v1/chat/completions",
+          ok: true,
+          status: 200
+        }
+      ]
+    });
   });
 });
 

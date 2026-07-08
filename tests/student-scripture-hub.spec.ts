@@ -20,6 +20,8 @@ test.describe("Student Scripture Hub shell", () => {
     await discipleshipLink.click();
     await expect(page).toHaveURL(/\/discipleship$/);
     await expect(page.getByRole("heading", { name: "Discussion Review" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Test the draft connection" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Run Gloo Test" })).toBeVisible();
     await expect(page.getByRole("tab", { name: /Needs review/ })).toBeVisible();
   });
 
