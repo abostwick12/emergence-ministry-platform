@@ -21,10 +21,10 @@ export function StudentShell({ children, user }: StudentShellProps) {
       <header className="student-shell-header">
         <div className="student-shell-header-inner">
           <div className="student-shell-topline">
-            <Link className="student-shell-brand" href="/student">
-              <span>Lead Emergence</span>
-              <strong>Student Portal</strong>
-            </Link>
+            <div className="student-shell-brand">
+              <Link href="/dashboard">Lead Emergence</Link>
+              <Link href="/student">Student Portal</Link>
+            </div>
             <div className="student-shell-profile">
               <span className="pill blue">{user.role}</span>
               <strong>{user.name}</strong>

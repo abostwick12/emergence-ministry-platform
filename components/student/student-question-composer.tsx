@@ -3,29 +3,35 @@
 import { useState } from "react";
 
 import type { DiscussionWorkflowState } from "@/lib/scripture/discussion-workflow";
+import type { StudentQuestionNextStep } from "@/lib/scripture/student-home";
 import type { StudentDiscussionPrompt } from "@/lib/scripture/types";
 
 type StudentQuestionComposerProps = {
   readiness: DiscussionWorkflowState["readiness"];
-  onCreated?: (prompt: StudentDiscussionPrompt) => void;
+  onCreated?: (prompt: StudentDiscussionPrompt, nextStep: StudentQuestionNextStep) => void;
 };
 
 type CreateResponse = {
   ok?: boolean;
   error?: string;
   prompt?: StudentDiscussionPrompt;
+  nextStep?: StudentQuestionNextStep;
 };
 
 export function StudentQuestionComposer({ readiness, onCreated }: StudentQuestionComposerProps) {
   const [question, setQuestion] = useState("");
   const [scriptureReference, setScriptureReference] = useState("");
-  const [status, setStatus] = useState(readiness.liveStorage ? "Your question will go to a leader before it is shared." : "Live question submission needs a signed-in student account.");
+  const [status, setStatus] = useState(
+    readiness.liveStorage
+      ? "Ask the real question. You will get next steps here while your leader reviews it."
+      : "Live question submission needs a signed-in student account."
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function submitQuestion(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSubmitting(true);
-    setStatus("Sending your question to a leader...");
+    setStatus("Saving your question and shaping next steps...");
 
     try {
       const response = await fetch("/api/student/scripture/discussion", {
@@ -34,15 +40,15 @@ export function StudentQuestionComposer({ readiness, onCreated }: StudentQuestio
         body: JSON.stringify({ question, scriptureReference })
       });
       const payload = (await response.json()) as CreateResponse;
-      if (!response.ok || !payload.ok || !payload.prompt) {
+      if (!response.ok || !payload.ok || !payload.prompt || !payload.nextStep) {
         setStatus(payload.error ?? "Your question could not be saved.");
         return;
       }
 
-      onCreated?.(payload.prompt);
+      onCreated?.(payload.prompt, payload.nextStep);
       setQuestion("");
       setScriptureReference("");
-      setStatus("Sent to your leader. They will shape it for group discussion.");
+      setStatus("Saved. Start digging below while your leader shapes it for group discussion.");
     } catch {
       setStatus("Your question could not be saved.");
     } finally {
@@ -55,7 +61,7 @@ export function StudentQuestionComposer({ readiness, onCreated }: StudentQuestio
       <div className="student-question-composer-copy">
         <p className="eyebrow">Ask</p>
         <h1>What should we talk about next?</h1>
-        <p>Your leader will help shape honest questions into careful group discussion.</p>
+        <p>Ask honestly, then keep exploring with a few next steps before group.</p>
       </div>
 
       <label className="student-question-field">
@@ -81,7 +87,7 @@ export function StudentQuestionComposer({ readiness, onCreated }: StudentQuestio
 
       <div className="student-question-actions">
         <button className="button primary" disabled={!readiness.liveStorage || isSubmitting} type="submit">
-          {isSubmitting ? "Sending..." : "Send to leader"}
+          {isSubmitting ? "Saving..." : "Ask and keep exploring"}
         </button>
         <p role="status">{status}</p>
       </div>

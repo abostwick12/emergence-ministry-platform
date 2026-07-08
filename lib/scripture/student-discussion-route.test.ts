@@ -60,10 +60,16 @@ describe("student discussion route", () => {
     createStudentDiscussionPromptMock.mockResolvedValue(savedPrompt);
 
     const response = await discussionPOST(jsonRequest({ question: "Why did God put the tree in the garden?", scriptureReference: "" }));
-    const payload = (await response.json()) as { ok: boolean; prompt: StudentDiscussionPrompt };
+    const payload = (await response.json()) as { ok: boolean; prompt: StudentDiscussionPrompt; nextStep: { title: string } };
 
     expect(response.status).toBe(201);
-    expect(payload).toMatchObject({ ok: true, prompt: savedPrompt });
+    expect(payload).toMatchObject({
+      ok: true,
+      prompt: savedPrompt,
+      nextStep: {
+        title: "Start digging before group"
+      }
+    });
     expect(createStudentDiscussionPromptMock).toHaveBeenCalledWith(
       expect.objectContaining({ user: expect.objectContaining({ id: "usr_student" }) }),
       {

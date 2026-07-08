@@ -157,6 +157,40 @@ describe("Gloo model policy", () => {
     expect(fetchMock.mock.calls[1][0]).toBe("https://platform.ai.gloo.com/v1/chat/completions");
   });
 
+  it("tries the Gloo API host when the platform host does not expose chat completions", async () => {
+    process.env.GLOO_AI_CLIENT_SECRET = "secret";
+    process.env.GLOO_AI_BASE_URL = "https://platform.ai.gloo.com";
+    process.env.GLOO_AI_MODEL = "GPT-5 Nano";
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("not found", { status: 404, statusText: "Not Found" }))
+      .mockResolvedValueOnce(new Response("not found", { status: 404, statusText: "Not Found" }))
+      .mockResolvedValueOnce(new Response("not found", { status: 404, statusText: "Not Found" }))
+      .mockResolvedValueOnce(new Response("not found", { status: 404, statusText: "Not Found" }))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          discussionPrompt: "Ask how the garden story frames trust in God.",
+          safetyLabel: "safe",
+          safetyNotes: "Leader can review before use.",
+          confidence: 0.89,
+          topicTags: ["creation", "trust"],
+          escalationRecommended: false,
+          escalationReason: ""
+        })
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await generateGlooDiscussionDraft(baseInput);
+
+    expect(result).toMatchObject({
+      ok: true,
+      discussionPrompt: "Ask how the garden story frames trust in God."
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(fetchMock.mock.calls[4][0]).toBe("https://api.ai.gloo.com/v1/chat/completions");
+  });
+
   it("returns a safe credential diagnostic when Gloo rejects auth", async () => {
     process.env.GLOO_AI_CLIENT_SECRET = "secret";
     process.env.GLOO_AI_BASE_URL = "https://platform.ai.gloo.com/v1";
