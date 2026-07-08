@@ -1,7 +1,14 @@
+import type { ComponentType } from "react";
+import { GmailConnection } from "@/components/command-center/gmail-connection";
 import { GoogleCalendarConnection } from "@/components/command-center/google-calendar-connection";
 import { getServerSession } from "@/lib/auth/server";
 import { listIntegrations } from "@/lib/command-center/repository";
-import { INTEGRATION_CATALOG, integrationDisplayStatus, type IntegrationDisplayStatus } from "@/lib/command-center/integrations-meta";
+import {
+  INTEGRATION_CATALOG,
+  integrationDisplayStatus,
+  type IntegrationDisplayStatus
+} from "@/lib/command-center/integrations-meta";
+import type { IntegrationService } from "@/lib/command-center/types";
 
 const STATUS_LABELS: Record<IntegrationDisplayStatus, string> = {
   not_configured: "Not configured",
@@ -14,15 +21,28 @@ const PHASE_LABELS: Record<string, string> = {
   phase_3: "Phase 3"
 };
 
-const CALLBACK_MESSAGES: Record<string, string> = {
-  connected: "Google Calendar connected. SAGE can now read upcoming events.",
-  error: "Google Calendar connection failed. Try connecting again."
+// Live connect/disconnect controls, added one integration at a time. Every
+// service not listed here still shows the disabled "Not active yet" button.
+const CONNECTION_COMPONENTS: Partial<Record<IntegrationService, ComponentType<{ displayStatus: IntegrationDisplayStatus }>>> = {
+  google_calendar: GoogleCalendarConnection,
+  gmail: GmailConnection
+};
+
+const CALLBACK_MESSAGES: Record<string, Record<string, string>> = {
+  google_calendar: {
+    connected: "Google Calendar connected. SAGE can now read upcoming events.",
+    error: "Google Calendar connection failed. Try connecting again."
+  },
+  gmail: {
+    connected: "Gmail connected for read-only triage and draft-only replies.",
+    error: "Gmail connection failed. Try connecting again."
+  }
 };
 
 export default async function CommandCenterIntegrationsPage({
   searchParams
 }: {
-  searchParams?: { google_calendar?: string };
+  searchParams?: { google_calendar?: string; gmail?: string };
 }) {
   const session = await getServerSession();
   if (!session) return null;
@@ -30,7 +50,10 @@ export default async function CommandCenterIntegrationsPage({
   const storedByService = new Map(stored.map((integration) => [integration.service, integration]));
 
   const catalog = [...INTEGRATION_CATALOG].sort((a, b) => a.priority - b.priority);
-  const callbackMessage = searchParams?.google_calendar ? CALLBACK_MESSAGES[searchParams.google_calendar] : undefined;
+  const callbackMessages = [
+    searchParams?.google_calendar ? CALLBACK_MESSAGES.google_calendar[searchParams.google_calendar] : undefined,
+    searchParams?.gmail ? CALLBACK_MESSAGES.gmail[searchParams.gmail] : undefined
+  ].filter((message): message is string => Boolean(message));
 
   return (
     <div className="grid workspace-page">
@@ -38,16 +61,21 @@ export default async function CommandCenterIntegrationsPage({
         <p className="eyebrow">Integrations</p>
         <h2 className="section-title flush">Connected Tools</h2>
         <p className="muted">
-          Integrations are added one at a time. Google Calendar is the first live connection (read-only); every
-          other card below remains an inert placeholder until it is wired the same way, with Andrew&rsquo;s explicit
-          confirmation before it goes live.
+          Integrations are added one at a time. Google Calendar and Gmail are live connections now (read-only, plus
+          draft-only replies for Gmail); every other card below remains an inert placeholder until it is wired the
+          same way, with Andrew&rsquo;s explicit confirmation before it goes live.
         </p>
-        {callbackMessage ? <p className="muted">{callbackMessage}</p> : null}
+        {callbackMessages.map((message) => (
+          <p className="muted" key={message}>
+            {message}
+          </p>
+        ))}
       </section>
       <div className="grid grid-3">
         {catalog.map((meta) => {
           const storedStatus = storedByService.get(meta.service)?.status ?? "disconnected";
           const displayStatus = integrationDisplayStatus({ service: meta.service, storedStatus });
+          const Connection = CONNECTION_COMPONENTS[meta.service];
 
           return (
             <section className="panel" key={meta.service}>
@@ -57,8 +85,8 @@ export default async function CommandCenterIntegrationsPage({
               <p className="muted">
                 {PHASE_LABELS[meta.phase] ?? meta.phase} · {meta.capabilities.join(" + ")}
               </p>
-              {meta.service === "google_calendar" ? (
-                <GoogleCalendarConnection displayStatus={displayStatus} />
+              {Connection ? (
+                <Connection displayStatus={displayStatus} />
               ) : (
                 <button className="button" type="button" disabled>
                   Not active yet
