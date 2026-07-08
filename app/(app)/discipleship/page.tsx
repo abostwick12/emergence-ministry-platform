@@ -4,6 +4,7 @@ import { ScriptureLeaderReview } from "@/components/student/scripture-leader-rev
 import { getServerSession } from "@/lib/auth/server";
 import { getStudentDiscussionWorkflowState } from "@/lib/scripture/discussion-workflow";
 import { resolveStudentHubAccess } from "@/lib/student/access";
+import { getStudentGroupLeaderState } from "@/lib/student/groups";
 
 export default async function DiscipleshipPage() {
   const access = resolveStudentHubAccess(await getServerSession());
@@ -17,5 +18,6 @@ export default async function DiscipleshipPage() {
   }
 
   const state = await getStudentDiscussionWorkflowState(access.session);
-  return <ScriptureLeaderReview initialState={state} />;
+  const groupState = await getStudentGroupLeaderState(access.session);
+  return <ScriptureLeaderReview initialGroupState={groupState} initialState={state} />;
 }

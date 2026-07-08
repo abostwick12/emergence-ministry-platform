@@ -36,11 +36,11 @@ export default function LoginPage() {
     <main className="login-shell">
       <section className="login-card">
         <div className="brand-mark" aria-hidden="true">
-          EM
+          LE
         </div>
         <div>
           <p className="eyebrow">Internal Access</p>
-          <h1 className="title">Emerge Ministry Platform</h1>
+          <h1 className="title">Lead Emergence Automated Platform</h1>
           <p className="muted">Sign in with the email and password assigned from Supabase Auth.</p>
         </div>
 

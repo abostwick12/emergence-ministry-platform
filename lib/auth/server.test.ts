@@ -57,4 +57,50 @@ describe("getServerSession", () => {
 
     await expect(getServerSession()).resolves.toBeNull();
   });
+
+  it("uses the profile row for role and display name when available", async () => {
+    cookiesMock.mockReturnValue(cookieStore("access-token"));
+    createClientMock
+      .mockReturnValueOnce({
+        auth: {
+          getUser: vi.fn().mockResolvedValue({
+            data: {
+              user: {
+                id: "usr_student",
+                email: "student@example.test",
+                user_metadata: {
+                  full_name: "Metadata Name",
+                  role: "staff"
+                }
+              }
+            },
+            error: null
+          })
+        }
+      })
+      .mockReturnValueOnce({
+        from: vi.fn(() => ({
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: {
+                  full_name: "Student Person",
+                  role: "student"
+                },
+                error: null
+              })
+            }))
+          }))
+        }))
+      });
+
+    await expect(getServerSession()).resolves.toMatchObject({
+      user: {
+        id: "usr_student",
+        email: "student@example.test",
+        fullName: "Student Person",
+        role: "student"
+      }
+    });
+  });
 });
