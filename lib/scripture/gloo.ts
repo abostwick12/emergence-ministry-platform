@@ -56,6 +56,13 @@ type ParsedDraft = {
   escalationReason?: unknown;
 };
 
+type GlooProviderFailure = {
+  message: string;
+  status?: number;
+  statusText?: string;
+  url?: string;
+};
+
 export function isGlooConfigured(env: Partial<NodeJS.ProcessEnv> = process.env) {
   const credentials = getGlooCredentials(env);
   return Boolean(
@@ -142,59 +149,114 @@ async function requestGlooDiscussionDraft(
   apiKey: string,
   selection: GlooModelSelection
 ): Promise<GlooDiscussionDraftResult> {
-  const response = await fetch(resolveGlooChatUrl(apiBaseUrl), {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      model: selection.model,
-      temperature: 0.3,
-      messages: [
-        {
-          role: "system",
-          content:
-            "You help student ministry leaders prepare careful, Scripture-grounded discussion prompts. Return only JSON with keys discussionPrompt, safetyLabel, safetyNotes, confidence, topicTags, escalationRecommended, escalationReason. The safetyLabel must be one of safe, needs_leader_care, pastoral_escalation. confidence must be a number from 0 to 1. topicTags must be short lowercase strings. Do not claim pastoral authority, do not give crisis counseling, and do not include full Bible text."
-        },
-        {
-          role: "user",
-          content:
-            `Student question: ${input.question}\n` +
-            `Scripture reference: ${input.scriptureReference || "not selected"}\n` +
-            `Metanarrative movement: ${input.metanarrativeMovement}\n\n` +
-            `Model routing: ${selection.reason}${selection.escalationReason ? ` Escalation reason: ${selection.escalationReason}` : ""}\n\n` +
-            "Draft one Socratic small-group discussion prompt for leader review. Keep it humble, conversational, and grounded in the reference without quoting the passage."
-        }
-      ]
-    })
+  const body = JSON.stringify({
+    model: selection.model,
+    temperature: 0.3,
+    messages: [
+      {
+        role: "system",
+        content:
+          "You help student ministry leaders prepare careful, Scripture-grounded discussion prompts. Return only JSON with keys discussionPrompt, safetyLabel, safetyNotes, confidence, topicTags, escalationRecommended, escalationReason. The safetyLabel must be one of safe, needs_leader_care, pastoral_escalation. confidence must be a number from 0 to 1. topicTags must be short lowercase strings. Do not claim pastoral authority, do not give crisis counseling, and do not include full Bible text."
+      },
+      {
+        role: "user",
+        content:
+          `Student question: ${input.question}\n` +
+          `Scripture reference: ${input.scriptureReference || "not selected"}\n` +
+          `Metanarrative movement: ${input.metanarrativeMovement}\n\n` +
+          `Model routing: ${selection.reason}${selection.escalationReason ? ` Escalation reason: ${selection.escalationReason}` : ""}\n\n` +
+          "Draft one Socratic small-group discussion prompt for leader review. Keep it humble, conversational, and grounded in the reference without quoting the passage."
+      }
+    ]
   });
 
-  if (!response.ok) {
-    return { ok: false, code: "provider_error", message: "Gloo AI Studio did not return a usable draft." };
+  let lastFailure: GlooProviderFailure | undefined;
+  for (const url of resolveGlooChatUrls(apiBaseUrl)) {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body
+    });
+
+    if (!response.ok) {
+      lastFailure = {
+        message: providerStatusMessage(response.status),
+        status: response.status,
+        statusText: response.statusText,
+        url: redactGlooUrl(url)
+      };
+      if (response.status === 404 && shouldTryNextGlooUrl(apiBaseUrl)) continue;
+      logGlooProviderFailure(lastFailure);
+      return { ok: false, code: "provider_error", message: lastFailure.message };
+    }
+
+    const payload = (await response.json()) as GlooChatResponse;
+    const content = payload.choices?.[0]?.message?.content ?? payload.choices?.[0]?.text;
+    if (typeof content !== "string") {
+      const failure = { message: "Gloo AI Studio returned an unexpected response.", url: redactGlooUrl(url) };
+      logGlooProviderFailure(failure);
+      return { ok: false, code: "provider_error", message: failure.message };
+    }
+
+    const parsed = parseDraftContent(content, selection);
+    if (!parsed) {
+      const failure = { message: "Gloo AI Studio returned a draft that could not be parsed.", url: redactGlooUrl(url) };
+      logGlooProviderFailure(failure);
+      return { ok: false, code: "provider_error", message: failure.message };
+    }
+
+    return parsed;
   }
 
-  const payload = (await response.json()) as GlooChatResponse;
-  const content = payload.choices?.[0]?.message?.content ?? payload.choices?.[0]?.text;
-  if (typeof content !== "string") {
-    return { ok: false, code: "provider_error", message: "Gloo AI Studio returned an unexpected response." };
-  }
-
-  const parsed = parseDraftContent(content, selection);
-  if (!parsed) {
-    return { ok: false, code: "provider_error", message: "Gloo AI Studio returned a draft that could not be parsed." };
-  }
-
-  return parsed;
+  if (lastFailure) logGlooProviderFailure(lastFailure);
+  return { ok: false, code: "provider_error", message: lastFailure?.message ?? "Gloo AI Studio did not return a usable draft." };
 }
 
 function needsProviderEscalation(draft: Extract<GlooDiscussionDraftResult, { ok: true }>) {
   return draft.confidence < 0.72 || draft.safetyLabel !== "safe" || Boolean(draft.escalationReason);
 }
 
-function resolveGlooChatUrl(apiBaseUrl: string) {
+function resolveGlooChatUrls(apiBaseUrl: string) {
   const trimmed = apiBaseUrl.replace(/\/+$/, "");
-  return trimmed.endsWith("/chat/completions") ? trimmed : `${trimmed}/chat/completions`;
+  if (trimmed.endsWith("/chat/completions")) return [trimmed];
+  if (trimmed.endsWith("/v1")) return [`${trimmed}/chat/completions`];
+  return [`${trimmed}/chat/completions`, `${trimmed}/v1/chat/completions`];
+}
+
+function shouldTryNextGlooUrl(apiBaseUrl: string) {
+  const trimmed = apiBaseUrl.replace(/\/+$/, "");
+  return !trimmed.endsWith("/chat/completions") && !trimmed.endsWith("/v1");
+}
+
+function providerStatusMessage(status: number) {
+  if (status === 400) return "Gloo AI Studio rejected the draft request. Check the model name and request format.";
+  if (status === 401 || status === 403) return "Gloo AI Studio rejected the configured credentials.";
+  if (status === 404) return "Gloo AI Studio could not find the configured chat-completions endpoint.";
+  if (status === 429) return "Gloo AI Studio rate-limited the draft request.";
+  if (status >= 500) return "Gloo AI Studio is temporarily unavailable.";
+  return `Gloo AI Studio returned HTTP ${status}.`;
+}
+
+function redactGlooUrl(url: string) {
+  try {
+    const parsed = new URL(url);
+    return `${parsed.origin}${parsed.pathname}`;
+  } catch {
+    return "invalid-url";
+  }
+}
+
+function logGlooProviderFailure(failure: GlooProviderFailure) {
+  console.warn("[gloo] discussion draft provider failure", {
+    timestamp: new Date().toISOString(),
+    status: failure.status,
+    statusText: failure.statusText,
+    url: failure.url,
+    message: failure.message
+  });
 }
 
 function parseDraftContent(content: string, selection: GlooModelSelection): GlooDiscussionDraftResult | undefined {
