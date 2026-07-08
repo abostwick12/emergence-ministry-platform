@@ -4,6 +4,7 @@ import type { FormEvent } from "react";
 import { useMemo, useState } from "react";
 
 import type { KnowledgeControlRoomState, KnowledgeSourceControlItem, KnowledgeVisibility } from "@/lib/scripture/knowledge-control-room";
+import type { KnowledgeTestBenchResult } from "@/lib/scripture/knowledge-test-bench";
 
 type ScriptureKnowledgeControlRoomProps = {
   initialState: KnowledgeControlRoomState;
@@ -17,6 +18,12 @@ type CreateSourceResponse = {
 
 type UpdateSourceResponse = CreateSourceResponse;
 
+type TestBenchResponse = {
+  ok?: boolean;
+  error?: string;
+  result?: KnowledgeTestBenchResult;
+};
+
 const visibilityActions: Array<{ visibility: KnowledgeVisibility; label: string; note: string }> = [
   { visibility: "student_visible", label: "Make Student Visible", note: "Available to question follow-up and Keep Reading." },
   { visibility: "leader_only", label: "Leader Only", note: "Usable for leader preparation, hidden from students." },
@@ -28,6 +35,8 @@ export function ScriptureKnowledgeControlRoom({ initialState }: ScriptureKnowled
   const [sources, setSources] = useState(initialState.sources);
   const [status, setStatus] = useState(initialState.readiness.message);
   const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<KnowledgeTestBenchResult | null>(null);
   const [updatingId, setUpdatingId] = useState("");
   const stats = useMemo(() => buildStats(sources, initialState.stats.chunkCount), [sources, initialState.stats.chunkCount]);
   const canWrite = initialState.readiness.liveStorage && !saving;
@@ -94,6 +103,36 @@ export function ScriptureKnowledgeControlRoom({ initialState }: ScriptureKnowled
     }
   }
 
+  async function runTestBench(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    setTesting(true);
+    setStatus("Testing source matches and student next steps...");
+
+    try {
+      const response = await fetch("/api/student/scripture/knowledge-test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question: String(form.get("testQuestion") || ""),
+          scriptureReference: String(form.get("testScriptureReference") || "")
+        })
+      });
+      const payload = (await response.json()) as TestBenchResponse;
+      if (!response.ok || !payload.ok || !payload.result) {
+        setStatus(payload.error ?? "The knowledge brain preview could not run.");
+        return;
+      }
+
+      setTestResult(payload.result);
+      setStatus("Preview ready. This did not save a student question or publish anything.");
+    } catch {
+      setStatus("The knowledge brain preview could not run.");
+    } finally {
+      setTesting(false);
+    }
+  }
+
   return (
     <section className="knowledge-control-room" aria-label="Knowledge source control room">
       <div className="knowledge-control-hero">
@@ -113,6 +152,36 @@ export function ScriptureKnowledgeControlRoom({ initialState }: ScriptureKnowled
       <p className="leader-review-status" aria-live="polite">
         {status}
       </p>
+
+      <div className="knowledge-test-bench">
+        <form className="knowledge-test-form" onSubmit={runTestBench}>
+          <div>
+            <p className="eyebrow">Test bench</p>
+            <h2>Ask the brain before students do</h2>
+            <p>Preview the source matches, digging questions, and reading path a student would receive. Nothing is saved or shared.</p>
+          </div>
+
+          <label className="leader-review-field">
+            <span>Student-style question</span>
+            <textarea
+              name="testQuestion"
+              placeholder="How do I trust God when something painful still does not make sense?"
+              required
+            />
+          </label>
+
+          <label className="leader-review-field">
+            <span>Passage, if there is one</span>
+            <input className="input" name="testScriptureReference" placeholder="Psalm 13" />
+          </label>
+
+          <button className="button primary" disabled={testing} type="submit">
+            {testing ? "Testing..." : "Run Brain Test"}
+          </button>
+        </form>
+
+        <TestBenchPreview result={testResult} />
+      </div>
 
       <div className="knowledge-control-grid">
         <form className="knowledge-source-form" onSubmit={submitSource}>
@@ -204,6 +273,58 @@ export function ScriptureKnowledgeControlRoom({ initialState }: ScriptureKnowled
         </div>
       </div>
     </section>
+  );
+}
+
+function TestBenchPreview({ result }: { result: KnowledgeTestBenchResult | null }) {
+  if (!result) {
+    return (
+      <aside className="knowledge-test-preview" aria-label="Knowledge brain preview">
+        <p className="eyebrow">Preview</p>
+        <h3>Ready for a question</h3>
+        <p>Run a test to see what sources are retrieved and what a student would be invited to explore next.</p>
+      </aside>
+    );
+  }
+
+  return (
+    <aside className="knowledge-test-preview" aria-label="Knowledge brain preview">
+      <p className="eyebrow">Preview</p>
+      <h3>{result.nextStep.label}</h3>
+      <p>{result.nextStep.summary}</p>
+
+      <div className="knowledge-test-section">
+        <span>Questions to dig into</span>
+        <ul>
+          {result.nextStep.digQuestions.slice(0, 3).map((question) => (
+            <li key={question}>{question}</li>
+          ))}
+        </ul>
+      </div>
+
+      <div className="knowledge-test-section">
+        <span>Keep Reading</span>
+        <strong>{result.nextStep.readingPlan.title}</strong>
+        <p>{result.nextStep.readingPlan.description}</p>
+      </div>
+
+      <div className="knowledge-test-section">
+        <span>Matched sources</span>
+        {result.matches.length ? (
+          result.matches.map((match) => (
+            <article className="knowledge-test-match" key={match.id}>
+              <strong>{match.title}</strong>
+              <p>{match.description}</p>
+              <small>{match.scriptureReferences.join(", ") || "No passage tagged"}</small>
+            </article>
+          ))
+        ) : (
+          <p>No source matches yet. The launch-safe defaults will carry the preview.</p>
+        )}
+      </div>
+
+      <p className="knowledge-test-note">{result.visibilityNote}</p>
+    </aside>
   );
 }
 
