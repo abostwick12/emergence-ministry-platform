@@ -1,6 +1,7 @@
 import type { ComponentType } from "react";
 import { GmailConnection } from "@/components/command-center/gmail-connection";
 import { GoogleCalendarConnection } from "@/components/command-center/google-calendar-connection";
+import { GoogleDriveConnection } from "@/components/command-center/google-drive-connection";
 import { getServerSession } from "@/lib/auth/server";
 import { listIntegrations } from "@/lib/command-center/repository";
 import {
@@ -25,10 +26,19 @@ const PHASE_LABELS: Record<string, string> = {
 // service not listed here still shows the disabled "Not active yet" button.
 const CONNECTION_COMPONENTS: Partial<Record<IntegrationService, ComponentType<{ displayStatus: IntegrationDisplayStatus }>>> = {
   google_calendar: GoogleCalendarConnection,
-  gmail: GmailConnection
+  gmail: GmailConnection,
+  google_drive: GoogleDriveConnection
 };
 
-const CALLBACK_MESSAGES: Record<string, Record<string, string>> = {
+// Query param name each service's OAuth callback route redirects back with
+// (matches the searchParams.set(...) call in each callback/route.ts).
+const CALLBACK_QUERY_KEYS: Partial<Record<IntegrationService, string>> = {
+  google_calendar: "google_calendar",
+  gmail: "gmail",
+  google_drive: "google_drive"
+};
+
+const CALLBACK_MESSAGES: Partial<Record<IntegrationService, Record<string, string>>> = {
   google_calendar: {
     connected: "Google Calendar connected. SAGE can now read upcoming events.",
     error: "Google Calendar connection failed. Try connecting again."
@@ -36,13 +46,17 @@ const CALLBACK_MESSAGES: Record<string, Record<string, string>> = {
   gmail: {
     connected: "Gmail connected for read-only triage and draft-only replies.",
     error: "Gmail connection failed. Try connecting again."
+  },
+  google_drive: {
+    connected: "Google Drive connected for read-only document search.",
+    error: "Google Drive connection failed. Try connecting again."
   }
 };
 
 export default async function CommandCenterIntegrationsPage({
   searchParams
 }: {
-  searchParams?: { google_calendar?: string; gmail?: string };
+  searchParams?: Record<string, string | undefined>;
 }) {
   const session = await getServerSession();
   if (!session) return null;
@@ -50,10 +64,12 @@ export default async function CommandCenterIntegrationsPage({
   const storedByService = new Map(stored.map((integration) => [integration.service, integration]));
 
   const catalog = [...INTEGRATION_CATALOG].sort((a, b) => a.priority - b.priority);
-  const callbackMessages = [
-    searchParams?.google_calendar ? CALLBACK_MESSAGES.google_calendar[searchParams.google_calendar] : undefined,
-    searchParams?.gmail ? CALLBACK_MESSAGES.gmail[searchParams.gmail] : undefined
-  ].filter((message): message is string => Boolean(message));
+  const callbackMessages = Object.entries(CALLBACK_QUERY_KEYS)
+    .map(([service, queryKey]) => {
+      const status = queryKey ? searchParams?.[queryKey] : undefined;
+      return status ? CALLBACK_MESSAGES[service as IntegrationService]?.[status] : undefined;
+    })
+    .filter((message): message is string => Boolean(message));
 
   return (
     <div className="grid workspace-page">
@@ -61,9 +77,9 @@ export default async function CommandCenterIntegrationsPage({
         <p className="eyebrow">Integrations</p>
         <h2 className="section-title flush">Connected Tools</h2>
         <p className="muted">
-          Integrations are added one at a time. Google Calendar and Gmail are live connections now (read-only, plus
-          draft-only replies for Gmail); every other card below remains an inert placeholder until it is wired the
-          same way, with Andrew&rsquo;s explicit confirmation before it goes live.
+          Integrations are added one at a time. Google Calendar, Gmail, and Google Drive are live connections now
+          (read-only, plus draft-only replies for Gmail); every other card below remains an inert placeholder until
+          it is wired the same way, with Andrew&rsquo;s explicit confirmation before it goes live.
         </p>
         {callbackMessages.map((message) => (
           <p className="muted" key={message}>
