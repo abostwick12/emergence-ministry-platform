@@ -8,11 +8,11 @@ test.describe("Personal Command Center", () => {
     await page.goto("/command-center");
 
     await expect(page.getByRole("heading", { name: "Manual Resource Feed" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Planned Tool Connections" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Ask SAGE" })).toBeVisible();
-    await expect(page.getByText("All integrations remain disconnected placeholders in Phase 1A.")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Integrations" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Ask SAGE" }).first()).toBeVisible();
+    await expect(page.getByText("Manage Calendar, Gmail, Drive, Slack, Firecrawl, Monday.com, and LinkedIn from one place.")).toBeVisible();
 
-    await page.getByRole("link", { name: "Ask SAGE" }).click();
+    await page.getByRole("navigation").getByRole("link", { name: "Ask SAGE" }).click();
     await expect(page.getByRole("heading", { name: "Personal Command Center Chat" })).toBeVisible();
     await expect(page.getByText("SAGE can reason over open Command Center tasks.")).toBeVisible();
     await page.getByLabel("Message SAGE").fill("What should I focus on today?");
