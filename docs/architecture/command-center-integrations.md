@@ -364,9 +364,8 @@ webhooks have no OAuth consent flow — there is nothing to "connect" beyond
   (connected) / `Not active yet` (not configured), instead of the
   Connect/Disconnect OAuth pattern used by the Google integrations.
 
-Like the others, this increment does not yet wire Slack into any automatic
-briefing or notification flow — only a manual, Andrew-initiated test send
-exists today.
+This increment shipped only the manual test send; the actual daily
+briefing composer was added in a later PR — see "Increment 11" below.
 
 ## Increment 5: Firecrawl (manual on-demand scrape only)
 
@@ -588,3 +587,31 @@ Like Gmail's organize capability, this is read/organize only — reading a
 file's content or moving it between folders never changes what's inside
 the file, and every action is Andrew-triggered from the integrations page,
 never scheduled and never reachable from SAGE chat.
+
+## Increment 11: Slack daily briefing composer
+
+Slack's test-send route (Increment 4) proved the webhook works but never
+sent anything useful. This increment adds a real briefing — still manual,
+still Andrew-triggered, still the only two send paths that exist for this
+webhook anywhere in the codebase.
+
+- `lib/command-center/integrations/slack.ts` — `formatDailyBriefingMessage()`
+  is a pure formatting function (no network call, easy to unit test) that
+  composes a plain-text/mrkdwn summary from the same `CommandCenterOverview`
+  the dashboard already renders (today's priority, open tasks by domain,
+  job follow-ups due, unprocessed quick captures), plus whatever live
+  Calendar/Gmail context SAGE chat would also see for this moment (reuses
+  `lib/command-center/sage-live-context.ts`'s `buildLiveIntegrationContext`,
+  the same function the chat route calls).
+- `app/api/command-center/integrations/slack/briefing/route.ts` —
+  Andrew-only `POST` that composes the briefing and sends it in one Slack
+  message, returning the sent text as a `preview` so the integrations page
+  can show what went out. Marks the integration `connected`/`error`, same
+  as the test-send route.
+- `components/command-center/slack-connection.tsx` — adds a
+  `Send daily briefing` button alongside `Pause`, showing the sent text
+  inline after it goes out.
+
+There is still no scheduled or automatic caller anywhere in the codebase —
+the briefing goes out exactly once, exactly when Andrew clicks the button,
+using whatever task/Calendar/Gmail state exists at that moment.
