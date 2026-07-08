@@ -381,3 +381,40 @@ environment.
 This increment is intentionally read-only end to end: no task, board item,
 or column value is ever created, updated, or deleted by any code in this
 PR.
+
+## Increment 7: LinkedIn (drafting only, no API)
+
+A follow-up PR adds the seventh and final integration from the priority
+order. LinkedIn has no API integration at all — SAGE drafts post/outreach
+text locally using the same OpenAI/Azure OpenAI provider already
+configured for SAGE chat (`lib/command-center/sage.ts`). There is no
+LinkedIn credential, no OAuth flow, and no post/send function anywhere in
+the codebase.
+
+- `lib/command-center/integrations/linkedin.ts` — `draftLinkedInContent()`
+  calls SAGE's existing `streamSageResponse()` with LinkedIn-specific
+  instructions for either a `post` or an `outreach` message. Both
+  instruction sets explicitly tell the model never to claim the content has
+  been posted or sent. **There is no send/post function anywhere in this
+  module.**
+- `lib/command-center/integrations-meta.ts` — `isIntegrationConfigured()`
+  special-cases `linkedin` to check `readSageProviderConfig().configured`
+  instead of a `requiredEnv` list, since there is no dedicated LinkedIn
+  credential — the drafting capability is configured exactly when SAGE
+  chat is.
+- `app/api/command-center/integrations/linkedin/draft/route.ts` —
+  Andrew-only `POST { kind, topic }` that returns generated draft text only.
+  Returns SAGE's existing "not configured" message (503) when no AI
+  provider is set up, matching the graceful-degradation behavior SAGE chat
+  already has.
+- `app/api/command-center/integrations/linkedin/disable/route.ts` —
+  Andrew-only `POST` that resets the stored status to `disconnected` (there
+  is no credential to revoke; this is purely an in-app pause).
+- `components/command-center/linkedin-connection.tsx` — a small inline form
+  (draft type, topic, "Draft with SAGE" button, read-only result textarea)
+  instead of the single-button pattern used by the other integrations,
+  since this one needs input from Andrew to draft anything useful.
+
+Every draft is returned as plain text for Andrew to copy and post or send
+himself. No code path in this repository calls a LinkedIn API, and none is
+planned without a fresh, separately reviewed decision to add one.

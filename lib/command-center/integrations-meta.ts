@@ -6,6 +6,7 @@
 // docs/architecture/command-center-integrations.md for the full readiness
 // plan, priority order, and approval rules this catalog implements.
 
+import { readSageProviderConfig } from "@/lib/command-center/sage";
 import type { IntegrationService } from "@/lib/command-center/types";
 
 export type IntegrationCapability = "read" | "write";
@@ -95,7 +96,8 @@ export const INTEGRATION_CATALOG: IntegrationMeta[] = [
   {
     service: "linkedin",
     label: "LinkedIn",
-    description: "Draft posts and outreach messages for Andrew's job search. SAGE never posts or sends on Andrew's behalf.",
+    description:
+      "Draft posts and outreach messages for Andrew's job search using SAGE's own AI provider. SAGE never posts or sends on Andrew's behalf.",
     phase: "phase_3",
     priority: 7,
     capabilities: ["write"],
@@ -112,9 +114,14 @@ export function integrationMeta(service: IntegrationService): IntegrationMeta {
 }
 
 // True only when every required env var is present. Never reads or returns
-// the values themselves. LinkedIn has no requiredEnv because Phase 1 scaffolding
-// includes no LinkedIn API integration (draft-only, nothing to configure yet).
-export function isIntegrationConfigured(service: IntegrationService, env: NodeJS.ProcessEnv = process.env): boolean {
+// the values themselves. LinkedIn has no dedicated API/OAuth credential —
+// drafting is powered by SAGE's own OpenAI/Azure OpenAI provider
+// (lib/command-center/sage.ts), so LinkedIn is "configured" exactly when
+// that provider is.
+type IntegrationEnv = Record<string, string | undefined>;
+
+export function isIntegrationConfigured(service: IntegrationService, env: IntegrationEnv = process.env): boolean {
+  if (service === "linkedin") return readSageProviderConfig(env).configured;
   const meta = integrationMeta(service);
   if (meta.requiredEnv.length === 0) return false;
   return meta.requiredEnv.every((key) => Boolean(env[key]?.trim()));
@@ -125,7 +132,7 @@ export type IntegrationDisplayStatus = "not_configured" | "configured" | "connec
 export function integrationDisplayStatus(params: {
   service: IntegrationService;
   storedStatus: "connected" | "disconnected" | "error";
-  env?: NodeJS.ProcessEnv;
+  env?: IntegrationEnv;
 }): IntegrationDisplayStatus {
   if (!isIntegrationConfigured(params.service, params.env)) return "not_configured";
   return params.storedStatus === "connected" ? "connected" : "configured";
