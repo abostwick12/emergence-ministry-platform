@@ -1,6 +1,7 @@
 import type { ComponentType } from "react";
 import { GmailConnection } from "@/components/command-center/gmail-connection";
 import { GoogleCalendarConnection } from "@/components/command-center/google-calendar-connection";
+import { FirecrawlConnection } from "@/components/command-center/firecrawl-connection";
 import { GoogleDriveConnection } from "@/components/command-center/google-drive-connection";
 import { SlackConnection } from "@/components/command-center/slack-connection";
 import { getServerSession } from "@/lib/auth/server";
@@ -29,7 +30,8 @@ const CONNECTION_COMPONENTS: Partial<Record<IntegrationService, ComponentType<{ 
   google_calendar: GoogleCalendarConnection,
   gmail: GmailConnection,
   google_drive: GoogleDriveConnection,
-  slack: SlackConnection
+  slack: SlackConnection,
+  firecrawl: FirecrawlConnection
 };
 
 // Query param name each service's OAuth callback route redirects back with
@@ -80,9 +82,9 @@ export default async function CommandCenterIntegrationsPage({
         <h2 className="section-title flush">Connected Tools</h2>
         <p className="muted">
           Integrations are added one at a time. Google Calendar, Gmail, and Google Drive are live connections now
-          (read-only, plus draft-only replies for Gmail). Slack is live for manual test notifications only — there
-          is no scheduled or automatic push yet. Every other card below remains an inert placeholder until it is
-          wired the same way, with Andrew&rsquo;s explicit confirmation before it goes live.
+          (read-only, plus draft-only replies for Gmail). Slack and Firecrawl are live for manual test sends only —
+          there is no scheduled or automatic push or crawl yet. Every other card below remains an inert placeholder
+          until it is wired the same way, with Andrew&rsquo;s explicit confirmation before it goes live.
         </p>
         {callbackMessages.map((message) => (
           <p className="muted" key={message}>

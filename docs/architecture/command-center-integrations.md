@@ -325,3 +325,31 @@ webhooks have no OAuth consent flow — there is nothing to "connect" beyond
 Like the others, this increment does not yet wire Slack into any automatic
 briefing or notification flow — only a manual, Andrew-initiated test send
 exists today.
+
+## Increment 5: Firecrawl (manual on-demand scrape only)
+
+A follow-up PR adds Firecrawl. Like Slack, Firecrawl has no OAuth consent
+flow — just `FIRECRAWL_API_KEY` being present in the server environment.
+
+- `lib/command-center/integrations/firecrawl.ts` — same
+  graceful-degradation pattern (`FirecrawlConfigError`). `scrapeUrl()` calls
+  Firecrawl's single-page `/v1/scrape` endpoint only — no crawl or site-map
+  call — and truncates returned markdown to 4,000 characters as a payload
+  safety limit. There is no scheduled crawl, curated URL allowlist, or other
+  automatic caller anywhere; wiring an automatic daily-briefing crawl is a
+  distinct, separately approved change.
+- `app/api/command-center/integrations/firecrawl/scrape/route.ts` —
+  Andrew-only `POST { url }` that scrapes exactly the one URL provided,
+  validates it is `http`/`https`, and marks the integration
+  `connected`/`error` based on the result.
+- `app/api/command-center/integrations/firecrawl/disable/route.ts` —
+  Andrew-only `POST` that resets the stored status to `disconnected` (an
+  in-app pause; the API key itself stays set in the environment).
+- `components/command-center/firecrawl-connection.tsx` — shows
+  `Send test scrape` (configured, not yet tested; scrapes a fixed,
+  neutral test URL) / `Pause` (connected) / `Not active yet` (not
+  configured).
+
+Like Slack, this increment does not yet wire Firecrawl into any automatic
+briefing feed — only a manual, Andrew-initiated (or future, explicitly
+requested) single-page scrape exists today.
