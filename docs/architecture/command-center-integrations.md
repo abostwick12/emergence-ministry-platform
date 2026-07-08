@@ -25,7 +25,7 @@ and its own env vars:
 
 1. **Google Calendar** — read-only initially, later expanded to Andrew-triggered create/edit (see "Increment 9" below)
 2. **Gmail** — draft-only / read-only triage
-3. **Google Drive** — read-only search
+3. **Google Drive** — read-only search initially, later expanded to content read + organize (see "Increment 10" below)
 4. **Slack** — webhook push (notifications and daily briefings)
 5. **Firecrawl** — briefing feed (curated resource crawling)
 6. **Monday.com** — personal task tracker sync
@@ -96,7 +96,7 @@ descriptions.
 | --- | --- | --- | --- |
 | Google Calendar | Yes (schedule) | Yes (create/edit events) | Andrew-triggered only, from the integrations page; no delete, and no tool-calling path lets SAGE chat create or edit an event itself |
 | Gmail | Yes (recent mail for triage) | Draft-only | SAGE may prepare a draft reply; SAGE never sends |
-| Google Drive | Yes (document search) | No | Read-only |
+| Google Drive | Yes (document search + content) | Yes (organize) | Andrew-triggered only; organize (move files, create folders) never touches file content, and there is no content-edit or delete function anywhere |
 | Slack | No | Yes (webhook push) | Outbound notifications/briefings only; no inbound read |
 | Firecrawl | Yes (crawled resource pages) | No | Feeds the daily briefing cache; no writes |
 | Monday.com | Yes (board/task read) | Yes (task sync) | Sync only after Andrew approves the specific sync direction |
@@ -315,11 +315,10 @@ screen as Calendar and Gmail, its own fully separate OAuth grant and stored
 token under `service = 'google_drive'`.
 
 - `lib/command-center/integrations/google-drive.ts` — same raw-`fetch`,
-  graceful-degradation pattern (`GoogleDriveConfigError`). Requests only
-  `https://www.googleapis.com/auth/drive.metadata.readonly`, not the broader
-  `drive.readonly` scope — this integration only needs to find and name
-  relevant documents, never to download or read file content, so the OAuth
-  grant itself stays minimal on top of the app-level read-only guarantee.
+  graceful-degradation pattern (`GoogleDriveConfigError`). Originally
+  requested only `drive.metadata.readonly` (metadata, never content); see
+  "Increment 10" below for the later scope change to support reading
+  content and organizing files.
 - `searchGoogleDriveFiles` matches by filename (`name contains '...'`),
   excludes trashed files, and requests only
   `id,name,mimeType,webViewLink,modifiedTime` — never file content.
@@ -334,10 +333,9 @@ token under `service = 'google_drive'`.
   into the Google Drive card only.
 
 Like Calendar and Gmail, stored Drive tokens are never included in any API
-response, never logged, and this increment does not yet feed Drive search
-results into SAGE's chat context — that remains a distinct, separately
-reviewed change once Andrew confirms this read surface with real
-credentials.
+response, never logged, and Drive search results are not fed into SAGE's
+chat context — that remains a distinct, separately reviewed change, unlike
+Calendar and Gmail (see "Increment 8").
 
 ## Increment 4: Slack (manual test push only)
 
@@ -544,3 +542,49 @@ on it.
 Every create/edit action requires Andrew to fill out and submit the form
 himself in that session — nothing here is scheduled, and nothing here is
 reachable from SAGE chat.
+
+## Increment 10: Google Drive read content + organize (move/create folders)
+
+Following the same "everything an assistant could do" direction applied to
+Gmail (Increment 2) and Calendar (Increment 9), Drive expands from
+metadata-only search to reading file content and organizing files into
+folders. There is still no content-write, no rename, and no delete
+function anywhere in this module.
+
+- `lib/command-center/integrations/google-drive.ts` — the OAuth scope
+  widens from `drive.metadata.readonly` to two scopes together:
+  `drive.readonly` (read metadata + content) and `drive.metadata`
+  (read/write metadata only — no content). This pair is deliberately
+  narrower than the single broader `drive` scope, which would also allow
+  directly overwriting a file's content; organizing (moving files,
+  creating folders) only ever touches a file's name and parents, never its
+  bytes, so `drive.metadata` is sufficient.
+- `getGoogleDriveFileContent` reads Google Docs/Sheets/Slides via Google's
+  own export endpoint (as plain text/CSV) and plain-text-ish files
+  (`text/plain`, `text/markdown`, `text/csv`, `application/json`) via
+  direct download. Any other type (PDF, images, Office formats, folders,
+  etc.) throws a descriptive error instead of attempting binary parsing —
+  this integration only ever reads what converts cleanly to text, matching
+  the same text-first approach used for Gmail message bodies. Content is
+  truncated to 4,000 characters, the same safety limit Firecrawl uses.
+- `listGoogleDriveFolders`/`createGoogleDriveFolder`/`findOrCreateGoogleDriveFolder`
+  manage folders (folders are just files with the Drive folder mimeType);
+  `moveGoogleDriveFile` replaces a file's current parent(s) with the
+  target folder's id — Drive's actual mechanism for "moving" a file,
+  since a file can technically have multiple parents.
+- `app/api/command-center/integrations/google-drive/files/[id]/route.ts` —
+  Andrew-only read of one file's content (looks up its mimeType first,
+  then reads accordingly; returns 415 for an unsupported type).
+- `app/api/command-center/integrations/google-drive/folders/route.ts` —
+  Andrew-only `GET` (list folders) and `POST { name }` (create a folder).
+- `app/api/command-center/integrations/google-drive/files/[id]/move/route.ts`
+  — Andrew-only `POST { folderName }` that moves one file to a folder
+  (creating it first if needed).
+- `components/command-center/google-drive-connection.tsx` — search results
+  now show `Read` (fetches and displays content inline) and `Move to…`
+  (names a folder, creating it if it doesn't exist) per file.
+
+Like Gmail's organize capability, this is read/organize only — reading a
+file's content or moving it between folders never changes what's inside
+the file, and every action is Andrew-triggered from the integrations page,
+never scheduled and never reachable from SAGE chat.

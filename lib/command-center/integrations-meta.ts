@@ -54,10 +54,11 @@ export const INTEGRATION_CATALOG: IntegrationMeta[] = [
   {
     service: "google_drive",
     label: "Google Drive",
-    description: "Search for relevant documents to bring into SAGE conversations. Read-only.",
+    description:
+      "Search documents, read their content, and organize them into folders. Never edits or deletes a file's content.",
     phase: "phase_2",
     priority: 3,
-    capabilities: ["read"],
+    capabilities: ["read", "write"],
     requiredEnv: ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REDIRECT_URI"],
     requiresAndrewConfirmation: true,
     autonomous: false
