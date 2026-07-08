@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:unit": "vitest run",
     "test:e2e": "node scripts/run-e2e.mjs",
-    "design-check": "node scripts/design-check.mjs"
+    "design-check": "node scripts/design-check.mjs",
+    "rag:obsidian:dry-run": "node scripts/obsidian-rag-import.mjs --dry-run"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

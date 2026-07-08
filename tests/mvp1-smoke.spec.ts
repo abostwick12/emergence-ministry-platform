@@ -295,9 +295,9 @@ test.describe("MVP event automation navigation smoke tests", () => {
 
     await modal.getByRole("button", { name: "Run Communication Package stub action" }).click();
     // Wait for previews to appear (workspace refreshes after stub POST + GET)
-    await expect(modal.locator(".eyebrow", { hasText: /^Parent Email$/ })).toBeVisible({ timeout: 15000 });
-    await expect(modal.locator(".eyebrow", { hasText: /^Leader Announcement$/ })).toBeVisible();
-    await expect(modal.locator(".eyebrow", { hasText: /^Blast Text Summary$/ })).toBeVisible();
+    await expect(modal.locator(".eyebrow", { hasText: /^Parent Email$/ }).first()).toBeVisible({ timeout: 15000 });
+    await expect(modal.locator(".eyebrow", { hasText: /^Leader Announcement$/ }).first()).toBeVisible();
+    await expect(modal.locator(".eyebrow", { hasText: /^Blast Text Summary$/ }).first()).toBeVisible();
     await expect(modal.getByText(/Preview only.*not sent/).first()).toBeVisible();
   });
 
@@ -424,6 +424,8 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await modal.getByLabel(/Start Date/).fill(toDateTimeLocalInput(start));
     await modal.getByLabel(/End Date/).fill(toDateTimeLocalInput(end));
     await modal.getByRole("button", { name: /Next: Tasks/ }).click();
+    await expect(modal.getByRole("tab", { name: /Tasks & Integrations/ })).toHaveAttribute("aria-selected", "true");
+    await expect(modal.getByRole("button", { name: /Save & Create Event/ })).toBeVisible();
 
     const createResponse = page.waitForResponse(
       (response) => response.url().endsWith("/api/events") && response.request().method() === "POST"
@@ -499,13 +501,25 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await expect(modal.getByLabel("Location")).not.toHaveValue("");
 
     await modal.getByLabel("Target Group").fill("High School");
+    await expect(modal.getByLabel("Target Group")).toHaveValue("High School");
+    const saveResponsePromise = page.waitForResponse(
+      (response) => response.url().includes("/api/events/evt_winter_retreat") && response.request().method() === "PATCH"
+    );
     await modal.getByRole("button", { name: "Save event info" }).click();
+    const saveResponse = await saveResponsePromise;
+    expect(saveResponse.status()).toBe(200);
+    const savedWorkspace = (await saveResponse.json()) as { event: { targetGroup?: string } };
+    expect(savedWorkspace.event.targetGroup).toBe("High School");
     await expect(modal.getByRole("status")).toContainText("saved");
 
     // Close modal and re-open to confirm value persisted (workspace refresh via savedAt)
     await modal.getByRole("button", { name: "Close" }).click();
     await expect(modal).not.toBeVisible();
+    const reloadResponsePromise = page.waitForResponse(
+      (response) => response.url().includes("/api/events/evt_winter_retreat") && response.request().method() === "GET"
+    );
     await winterRow.getByRole("button", { name: /Edit event: Winter Retreat/ }).click();
+    expect((await reloadResponsePromise).status()).toBe(200);
     await expect(modal.getByLabel("Event Name")).toHaveValue("Winter Retreat");
     await expect(modal.getByLabel("Target Group")).toHaveValue("High School");
   });

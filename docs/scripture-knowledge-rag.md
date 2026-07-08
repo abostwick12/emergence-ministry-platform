@@ -34,3 +34,31 @@ If Supabase has student-visible knowledge chunks, the question flow uses them fi
 If the table is empty or the migration is not applied yet, the app falls back to a small launch-safe knowledge pack covering garden/trust, suffering/lament, honest doubt, Exodus formation, and identity/belonging.
 
 Embeddings are schema-ready through `knowledge_chunks.embedding`, but the first production slice uses safe metadata matching so the tryout does not depend on embedding generation being configured.
+
+## Obsidian Importer
+
+Dry-run the importer before writing anything to Supabase:
+
+```bash
+npm run rag:obsidian:dry-run
+```
+
+The dry-run reads the default vault at `~/Desktop/two-hemisphere brain` and writes a preview to `tmp/obsidian-rag-launch-pack-preview.json`.
+
+Use a custom vault or output file when needed:
+
+```bash
+node scripts/obsidian-rag-import.mjs --vault "C:\Users\awbostwick\Desktop\two-hemisphere brain" --out tmp/launch-pack-preview.json
+```
+
+The importer only promotes own-voice notes marked `contest-candidate` or `student_visible`, then applies risk filters for private, leadership-review, military, personal, medical/care, counseling, family, abuse, and trauma material. Scholar notes marked `scholar-citation-only` are skipped for student-visible import until they receive citation review.
+
+By default, the launch pack is capped to 80 sources and near-duplicate lesson title clusters are collapsed so the first contest dataset stays broad and reviewable. Use `--max-sources all` only after reviewing the preview output.
+
+Production writes require all of these:
+
+```bash
+node scripts/obsidian-rag-import.mjs --apply --confirm-production-write --ministry-id "<ministry uuid>"
+```
+
+Apply mode also requires `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`. Do not run apply mode until the dry-run preview has been reviewed.
