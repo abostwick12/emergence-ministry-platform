@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 
+import { ScriptureKnowledgeControlRoom } from "@/components/student/scripture-knowledge-control-room";
 import { ScriptureLeaderReview } from "@/components/student/scripture-leader-review";
 import { getServerSession } from "@/lib/auth/server";
+import { getKnowledgeControlRoomState } from "@/lib/scripture/knowledge-control-room";
 import { getStudentDiscussionWorkflowState } from "@/lib/scripture/discussion-workflow";
 import { resolveStudentHubAccess } from "@/lib/student/access";
 import { getStudentGroupLeaderState } from "@/lib/student/groups";
@@ -19,5 +21,11 @@ export default async function DiscipleshipPage() {
 
   const state = await getStudentDiscussionWorkflowState(access.session);
   const groupState = await getStudentGroupLeaderState(access.session);
-  return <ScriptureLeaderReview initialGroupState={groupState} initialState={state} />;
+  const knowledgeState = await getKnowledgeControlRoomState(access.session);
+  return (
+    <div className="discipleship-workspace-stack">
+      <ScriptureKnowledgeControlRoom initialState={knowledgeState} />
+      <ScriptureLeaderReview initialGroupState={groupState} initialState={state} />
+    </div>
+  );
 }

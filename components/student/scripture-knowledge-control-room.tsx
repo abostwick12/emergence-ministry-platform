@@ -1,0 +1,304 @@
+"use client";
+
+import type { FormEvent } from "react";
+import { useMemo, useState } from "react";
+
+import type { KnowledgeControlRoomState, KnowledgeSourceControlItem, KnowledgeVisibility } from "@/lib/scripture/knowledge-control-room";
+
+type ScriptureKnowledgeControlRoomProps = {
+  initialState: KnowledgeControlRoomState;
+};
+
+type CreateSourceResponse = {
+  ok?: boolean;
+  error?: string;
+  source?: KnowledgeSourceControlItem;
+};
+
+type UpdateSourceResponse = CreateSourceResponse;
+
+const visibilityActions: Array<{ visibility: KnowledgeVisibility; label: string; note: string }> = [
+  { visibility: "student_visible", label: "Make Student Visible", note: "Available to question follow-up and Keep Reading." },
+  { visibility: "leader_only", label: "Leader Only", note: "Usable for leader preparation, hidden from students." },
+  { visibility: "scholar_citation_only", label: "Citation Only", note: "Kept as scholar context without student retrieval." },
+  { visibility: "private_review", label: "Back to Review", note: "Held until a leader checks it again." }
+];
+
+export function ScriptureKnowledgeControlRoom({ initialState }: ScriptureKnowledgeControlRoomProps) {
+  const [sources, setSources] = useState(initialState.sources);
+  const [status, setStatus] = useState(initialState.readiness.message);
+  const [saving, setSaving] = useState(false);
+  const [updatingId, setUpdatingId] = useState("");
+  const stats = useMemo(() => buildStats(sources, initialState.stats.chunkCount), [sources, initialState.stats.chunkCount]);
+  const canWrite = initialState.readiness.liveStorage && !saving;
+
+  async function submitSource(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    setSaving(true);
+    setStatus("Saving source for review...");
+
+    try {
+      const response = await fetch("/api/student/scripture/knowledge-sources", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: String(form.get("title") || ""),
+          sourceKind: String(form.get("sourceKind") || "own_voice"),
+          hemisphere: String(form.get("hemisphere") || "own_voice"),
+          sourceUri: String(form.get("sourceUri") || ""),
+          citation: String(form.get("citation") || ""),
+          summary: String(form.get("summary") || ""),
+          tags: String(form.get("tags") || ""),
+          scriptureReferences: String(form.get("scriptureReferences") || ""),
+          content: String(form.get("content") || "")
+        })
+      });
+      const payload = (await response.json()) as CreateSourceResponse;
+      if (!response.ok || !payload.ok || !payload.source) {
+        setStatus(payload.error ?? "The source could not be saved.");
+        return;
+      }
+
+      setSources((current) => [payload.source!, ...current]);
+      setStatus("Source saved in private review. Check the chunks before making it visible.");
+      event.currentTarget.reset();
+    } catch {
+      setStatus("The source could not be saved.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function updateVisibility(sourceId: string, visibility: KnowledgeVisibility) {
+    setUpdatingId(sourceId);
+    setStatus("Updating source visibility...");
+    try {
+      const response = await fetch(`/api/student/scripture/knowledge-sources/${sourceId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ visibility })
+      });
+      const payload = (await response.json()) as UpdateSourceResponse;
+      if (!response.ok || !payload.ok || !payload.source) {
+        setStatus(payload.error ?? "The source visibility could not be updated.");
+        return;
+      }
+
+      setSources((current) => current.map((source) => (source.id === payload.source!.id ? payload.source! : source)));
+      setStatus(visibility === "student_visible" ? "Source is now available for student question follow-up." : "Source visibility updated.");
+    } catch {
+      setStatus("The source visibility could not be updated.");
+    } finally {
+      setUpdatingId("");
+    }
+  }
+
+  return (
+    <section className="knowledge-control-room" aria-label="Knowledge source control room">
+      <div className="knowledge-control-hero">
+        <div>
+          <p className="eyebrow">Knowledge Sources</p>
+          <h1>Build the discipleship brain</h1>
+          <p>Add trusted material, review the extracted chunks, then choose what can shape student-facing follow-up.</p>
+        </div>
+        <div className="knowledge-control-stats" aria-label="Knowledge source counts">
+          <StatTile label="Sources" value={stats.totalSources} />
+          <StatTile label="In review" value={stats.reviewSources} />
+          <StatTile label="Student visible" value={stats.studentVisibleSources} />
+          <StatTile label="Chunks" value={stats.chunkCount} />
+        </div>
+      </div>
+
+      <p className="leader-review-status" aria-live="polite">
+        {status}
+      </p>
+
+      <div className="knowledge-control-grid">
+        <form className="knowledge-source-form" onSubmit={submitSource}>
+          <div>
+            <p className="eyebrow">Add source</p>
+            <h2>Private review first</h2>
+          </div>
+
+          <label className="leader-review-field">
+            <span>Title</span>
+            <input className="input" name="title" placeholder="Romans 8 and patient hope" required />
+          </label>
+
+          <div className="knowledge-source-field-grid">
+            <label className="leader-review-field">
+              <span>Source type</span>
+              <select className="input" name="sourceKind" defaultValue="own_voice">
+                <option value="own_voice">My writing</option>
+                <option value="scholar_reference">Scholar reference</option>
+                <option value="app_resource">App resource</option>
+                <option value="curated_note">Curated note</option>
+              </select>
+            </label>
+
+            <label className="leader-review-field">
+              <span>Library side</span>
+              <select className="input" name="hemisphere" defaultValue="own_voice">
+                <option value="own_voice">Left: own voice</option>
+                <option value="scholar">Right: scholars</option>
+                <option value="platform">Platform resource</option>
+              </select>
+            </label>
+          </div>
+
+          <label className="leader-review-field">
+            <span>Paste source material</span>
+            <textarea name="content" placeholder="Paste the excerpt or lesson content you want reviewed for the knowledge brain." required />
+          </label>
+
+          <label className="leader-review-field">
+            <span>Student-safe summary</span>
+            <textarea name="summary" placeholder="Optional. If blank, the app drafts a short summary from the source." />
+          </label>
+
+          <div className="knowledge-source-field-grid">
+            <label className="leader-review-field">
+              <span>Topics</span>
+              <input className="input" name="tags" placeholder="trust, suffering, prayer" />
+            </label>
+
+            <label className="leader-review-field">
+              <span>Scripture</span>
+              <input className="input" name="scriptureReferences" placeholder="Romans 8:18, Psalm 13" />
+            </label>
+          </div>
+
+          <label className="leader-review-field">
+            <span>Citation</span>
+            <input className="input" name="citation" placeholder="Author, title, page, or sermon date" />
+          </label>
+
+          <label className="leader-review-field">
+            <span>Source link</span>
+            <input className="input" name="sourceUri" placeholder="https://..." />
+          </label>
+
+          <button className="button primary" disabled={!canWrite} type="submit">
+            {saving ? "Saving..." : "Save for Review"}
+          </button>
+        </form>
+
+        <div className="knowledge-source-list">
+          {sources.length ? (
+            sources.map((source) => (
+              <SourceCard
+                canWrite={initialState.readiness.liveStorage && !updatingId}
+                isUpdating={updatingId === source.id}
+                key={source.id}
+                onVisibilityChange={updateVisibility}
+                source={source}
+              />
+            ))
+          ) : (
+            <div className="leader-review-empty">
+              <strong>No sources loaded yet.</strong>
+              <p>Saved sources will appear here with chunk previews and visibility controls.</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function SourceCard({
+  canWrite,
+  isUpdating,
+  onVisibilityChange,
+  source
+}: {
+  canWrite: boolean;
+  isUpdating: boolean;
+  onVisibilityChange: (sourceId: string, visibility: KnowledgeVisibility) => Promise<void>;
+  source: KnowledgeSourceControlItem;
+}) {
+  return (
+    <article className="knowledge-source-card">
+      <header className="knowledge-source-card-header">
+        <div>
+          <span>{sourceLabel(source)}</span>
+          <h3>{source.title}</h3>
+          <p>{source.summary}</p>
+        </div>
+        <span className={visibilityClassName(source.visibility)}>{visibilityLabel(source.visibility)}</span>
+      </header>
+
+      <div className="knowledge-source-tags">
+        {source.tags.slice(0, 6).map((tag) => (
+          <span key={tag}>{tag}</span>
+        ))}
+        {source.citation ? <span>{source.citation}</span> : null}
+      </div>
+
+      <div className="knowledge-source-chunks">
+        {source.chunks.slice(0, 3).map((chunk) => (
+          <details key={chunk.id}>
+            <summary>
+              <span>{chunk.title}</span>
+              <strong>{chunk.scriptureReferences.join(", ") || "No passage tagged"}</strong>
+            </summary>
+            <p>{chunk.studentSummary || chunk.body}</p>
+          </details>
+        ))}
+      </div>
+
+      <div className="knowledge-source-actions">
+        {visibilityActions.map((action) => (
+          <button
+            className={action.visibility === "student_visible" ? "button primary" : "button"}
+            disabled={!canWrite || isUpdating || source.visibility === action.visibility}
+            key={action.visibility}
+            onClick={() => onVisibilityChange(source.id, action.visibility)}
+            title={action.note}
+            type="button"
+          >
+            {isUpdating ? "Updating..." : action.label}
+          </button>
+        ))}
+      </div>
+    </article>
+  );
+}
+
+function StatTile({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="leader-review-meta-tile">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function buildStats(sources: KnowledgeSourceControlItem[], fallbackChunkCount: number) {
+  return {
+    totalSources: sources.length,
+    reviewSources: sources.filter((source) => source.visibility === "private_review").length,
+    studentVisibleSources: sources.filter((source) => source.visibility === "student_visible").length,
+    chunkCount: sources.length ? sources.reduce((total, source) => total + source.chunkCount, 0) : fallbackChunkCount
+  };
+}
+
+function sourceLabel(source: KnowledgeSourceControlItem) {
+  const side = source.hemisphere === "own_voice" ? "Own voice" : source.hemisphere === "scholar" ? "Scholar" : "Platform";
+  return `${side} / ${source.sourceKind.replace(/_/g, " ")}`;
+}
+
+function visibilityClassName(visibility: KnowledgeVisibility) {
+  if (visibility === "student_visible") return "pill green";
+  if (visibility === "private_review") return "pill amber";
+  if (visibility === "scholar_citation_only") return "pill blue";
+  return "pill";
+}
+
+function visibilityLabel(visibility: KnowledgeVisibility) {
+  if (visibility === "student_visible") return "Student visible";
+  if (visibility === "private_review") return "Private review";
+  if (visibility === "scholar_citation_only") return "Citation only";
+  return "Leader only";
+}

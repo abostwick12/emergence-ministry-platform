@@ -19,6 +19,8 @@ test.describe("Student Scripture Hub shell", () => {
     await page.goto("/dashboard");
     await discipleshipLink.click();
     await expect(page).toHaveURL(/\/discipleship$/);
+    await expect(page.getByRole("heading", { name: "Build the discipleship brain" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Save for Review" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Discussion Review" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Test the draft connection" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Run Gloo Test" })).toBeVisible();
@@ -61,6 +63,7 @@ test.describe("Student Scripture Hub shell", () => {
 
     await page.goto("/student/scripture/review");
     await expect(page).toHaveURL(/\/discipleship$/);
+    await expect(page.getByRole("heading", { name: "Build the discipleship brain" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Discussion Review" })).toBeVisible();
     await expect(page.getByText("No real submissions yet.")).toBeVisible();
     await expect(page.getByRole("status")).toContainText("Live storage is not ready for review.");
