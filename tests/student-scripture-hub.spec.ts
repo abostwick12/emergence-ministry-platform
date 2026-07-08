@@ -21,6 +21,13 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page).toHaveURL(/\/discipleship$/);
     await expect(page.getByRole("heading", { name: "Build the discipleship brain" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Save for Review" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Ask the brain before students do" })).toBeVisible();
+    await page.getByLabel("Student-style question").fill("How do I trust God when suffering feels pointless?");
+    await page.getByLabel("Passage, if there is one").fill("Romans 8:18");
+    await page.getByRole("button", { name: "Run Brain Test" }).click();
+    await expect(page.getByText("Preview ready. This did not save a student question or publish anything.")).toBeVisible();
+    await expect(page.getByRole("complementary", { name: "Knowledge brain preview" })).toContainText("Questions to dig into");
+    await expect(page.getByRole("complementary", { name: "Knowledge brain preview" })).toContainText("Keep Reading");
     await expect(page.getByRole("heading", { name: "Discussion Review" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Test the draft connection" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Run Gloo Test" })).toBeVisible();

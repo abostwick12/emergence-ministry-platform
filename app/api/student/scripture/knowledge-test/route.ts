@@ -1,0 +1,51 @@
+import { NextResponse } from "next/server";
+
+import { getServerSession, unauthorizedResponse } from "@/lib/auth/server";
+import { KnowledgeTestBenchError, runKnowledgeTestBench } from "@/lib/scripture/knowledge-test-bench";
+import { resolveStudentHubAccess } from "@/lib/student/access";
+
+type KnowledgeTestRequestBody = {
+  question?: unknown;
+  scriptureReference?: unknown;
+};
+
+export async function POST(request: Request) {
+  const access = resolveStudentHubAccess(await getServerSession());
+  if (!access.allowed) return unauthorizedResponse();
+  if (access.role === "student") {
+    return NextResponse.json({ error: "Only leaders can test the knowledge brain." }, { status: 403 });
+  }
+
+  let body: KnowledgeTestRequestBody;
+  try {
+    body = (await request.json()) as KnowledgeTestRequestBody;
+  } catch {
+    return NextResponse.json({ error: "Request body must be valid JSON.", code: "invalid_json" }, { status: 400 });
+  }
+
+  if (typeof body.question !== "string") {
+    return NextResponse.json({ error: "Question is required.", code: "invalid_request" }, { status: 400 });
+  }
+
+  if (body.scriptureReference !== undefined && typeof body.scriptureReference !== "string") {
+    return NextResponse.json({ error: "Scripture reference must be text.", code: "invalid_reference" }, { status: 400 });
+  }
+
+  try {
+    const result = await runKnowledgeTestBench(access.session, {
+      question: body.question,
+      scriptureReference: body.scriptureReference
+    });
+    return NextResponse.json({ ok: true, result });
+  } catch (error) {
+    return knowledgeTestErrorResponse(error);
+  }
+}
+
+function knowledgeTestErrorResponse(error: unknown) {
+  if (error instanceof KnowledgeTestBenchError) {
+    return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
+  }
+
+  return NextResponse.json({ error: "Knowledge brain preview could not be completed.", code: "preview_error" }, { status: 500 });
+}
