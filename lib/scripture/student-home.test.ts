@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildStudentHomeFeed } from "@/lib/scripture/student-home";
+import { buildStudentHomeFeed, toGroupDiscussionItems } from "@/lib/scripture/student-home";
 import type { StudentDiscussionPrompt } from "@/lib/scripture/types";
 
 describe("student home feed personalization", () => {
@@ -50,6 +50,73 @@ describe("student home feed personalization", () => {
     );
 
     expect(feed.forGroup.map((item) => item.id)).toEqual(["approved"]);
+  });
+
+  it("accepts sanitized approved group prompts separately from the student's private queue", () => {
+    const feed = buildStudentHomeFeed(
+      [
+        prompt({
+          id: "student_pending",
+          question: "What should I do next?",
+          status: "pending_review",
+          submittedByUserId: "usr_student",
+          metanarrativeMovement: undefined,
+          topicTags: []
+        })
+      ],
+      "usr_student",
+      [
+        {
+          id: "group_approved",
+          question: "What is the context for trusting God when things are hard?",
+          scriptureReference: "Psalm 13",
+          discussionPrompt: "Where does this psalm give us language for honest trust?",
+          status: "approved",
+          createdAt: "2026-07-08T00:00:00.000Z"
+        }
+      ]
+    );
+
+    expect(feed.recentQuestions.map((item) => item.id)).toEqual(["student_pending"]);
+    expect(feed.forGroup).toEqual([
+      {
+        id: "group_approved",
+        question: "What is the context for trusting God when things are hard?",
+        scriptureReference: "Psalm 13",
+        discussionPrompt: "Where does this psalm give us language for honest trust?",
+        status: "approved",
+        createdAt: "2026-07-08T00:00:00.000Z"
+      }
+    ]);
+    expect(feed.keepReading.length).toBeGreaterThan(0);
+  });
+
+  it("sanitizes approved prompts before they enter the student group feed", () => {
+    const groupItems = toGroupDiscussionItems([
+      prompt({ id: "approved", status: "approved", discussionPrompt: "What does the passage invite us to practice?" }),
+      prompt({ id: "posted", status: "posted", discussionPrompt: "What should our group discuss next?" }),
+      prompt({ id: "pending", status: "pending_review", discussionPrompt: "Leader draft" }),
+      prompt({ id: "empty", status: "approved", discussionPrompt: "" })
+    ]);
+
+    expect(groupItems).toEqual([
+      {
+        id: "approved",
+        question: "How do I trust God?",
+        scriptureReference: "",
+        discussionPrompt: "What does the passage invite us to practice?",
+        status: "approved",
+        createdAt: "2026-07-08T00:00:00.000Z"
+      },
+      {
+        id: "posted",
+        question: "How do I trust God?",
+        scriptureReference: "",
+        discussionPrompt: "What should our group discuss next?",
+        status: "posted",
+        createdAt: "2026-07-08T00:00:00.000Z"
+      }
+    ]);
   });
 });
 

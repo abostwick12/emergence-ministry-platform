@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import { StudentQuestionComposer } from "@/components/student/student-question-composer";
 import type { DiscussionWorkflowState } from "@/lib/scripture/discussion-workflow";
-import type { StudentHomeFeed as StudentHomeFeedData, StudentKeepReadingItem } from "@/lib/scripture/student-home";
+import type { StudentGroupDiscussionItem, StudentHomeFeed as StudentHomeFeedData, StudentKeepReadingItem } from "@/lib/scripture/student-home";
 import type { StudentDiscussionPrompt } from "@/lib/scripture/types";
 
 type StudentHomeFeedProps = {
@@ -15,17 +15,11 @@ type StudentHomeFeedProps = {
 };
 
 export function StudentHomeFeed({ initialState, initialFeed, userName }: StudentHomeFeedProps) {
-  const [prompts, setPrompts] = useState(initialState.prompts);
+  const [recentQuestions, setRecentQuestions] = useState(initialFeed.recentQuestions);
   const firstName = userName.split(" ")[0] || userName;
 
-  const forGroup = useMemo(
-    () => prompts.filter((prompt) => prompt.status === "approved" || prompt.status === "posted").slice(0, 4),
-    [prompts]
-  );
-  const recentQuestions = useMemo(() => prompts.slice(0, 4), [prompts]);
-
   function addPrompt(prompt: StudentDiscussionPrompt) {
-    setPrompts((current) => [prompt, ...current]);
+    setRecentQuestions((current) => [prompt, ...current].filter((item) => item.submittedByUserId === prompt.submittedByUserId).slice(0, 4));
   }
 
   return (
@@ -40,7 +34,7 @@ export function StudentHomeFeed({ initialState, initialFeed, userName }: Student
         <StudentQuestionComposer readiness={initialState.readiness} onCreated={addPrompt} />
 
         <FeedSection title="For your group" emptyTitle="Nothing approved yet." emptyBody="Leader-approved discussion prompts will appear here when they are ready.">
-          {(forGroup.length ? forGroup : initialFeed.forGroup).map((prompt) => (
+          {initialFeed.forGroup.map((prompt) => (
             <DiscussionFeedRow key={prompt.id} prompt={prompt} />
           ))}
         </FeedSection>
@@ -90,7 +84,7 @@ function FeedSection({
   );
 }
 
-function DiscussionFeedRow({ prompt }: { prompt: StudentDiscussionPrompt }) {
+function DiscussionFeedRow({ prompt }: { prompt: StudentGroupDiscussionItem }) {
   return (
     <article className="student-feed-row">
       <div>

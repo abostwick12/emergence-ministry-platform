@@ -1,5 +1,14 @@
 import { scripturePlans, scriptureResources } from "@/lib/scripture/mock-data";
-import type { ScripturePlan, ScriptureResource, StudentDiscussionPrompt } from "@/lib/scripture/types";
+import type { ScripturePlan, ScriptureResource, StudentDiscussionPrompt, StudentDiscussionStatus } from "@/lib/scripture/types";
+
+export type StudentGroupDiscussionItem = {
+  id: string;
+  question: string;
+  scriptureReference: string;
+  discussionPrompt: string;
+  status: Extract<StudentDiscussionStatus, "approved" | "posted">;
+  createdAt: string;
+};
 
 export type StudentKeepReadingItem = {
   id: string;
@@ -10,14 +19,25 @@ export type StudentKeepReadingItem = {
 };
 
 export type StudentHomeFeed = {
-  forGroup: StudentDiscussionPrompt[];
+  forGroup: StudentGroupDiscussionItem[];
   recentQuestions: StudentDiscussionPrompt[];
   keepReading: StudentKeepReadingItem[];
 };
 
-export function buildStudentHomeFeed(prompts: StudentDiscussionPrompt[], userId: string): StudentHomeFeed {
+type ReadingSource = {
+  question: string;
+  scriptureReference: string;
+  metanarrativeMovement?: StudentDiscussionPrompt["metanarrativeMovement"];
+  topicTags?: string[];
+};
+
+export function buildStudentHomeFeed(
+  prompts: StudentDiscussionPrompt[],
+  userId: string,
+  approvedGroupPrompts: StudentGroupDiscussionItem[] = toGroupDiscussionItems(prompts)
+): StudentHomeFeed {
   const recentQuestions = prompts.filter((prompt) => prompt.submittedByUserId === userId).slice(0, 4);
-  const forGroup = prompts.filter((prompt) => prompt.status === "approved" || prompt.status === "posted").slice(0, 4);
+  const forGroup = approvedGroupPrompts.slice(0, 4);
 
   return {
     forGroup,
@@ -26,7 +46,20 @@ export function buildStudentHomeFeed(prompts: StudentDiscussionPrompt[], userId:
   };
 }
 
-function buildKeepReadingItems(recentQuestions: StudentDiscussionPrompt[], forGroup: StudentDiscussionPrompt[]) {
+export function toGroupDiscussionItems(prompts: StudentDiscussionPrompt[]): StudentGroupDiscussionItem[] {
+  return prompts
+    .filter((prompt) => (prompt.status === "approved" || prompt.status === "posted") && Boolean(prompt.discussionPrompt))
+    .map((prompt) => ({
+      id: prompt.id,
+      question: prompt.question,
+      scriptureReference: prompt.scriptureReference,
+      discussionPrompt: prompt.discussionPrompt,
+      status: prompt.status as Extract<StudentDiscussionStatus, "approved" | "posted">,
+      createdAt: prompt.createdAt
+    }));
+}
+
+function buildKeepReadingItems(recentQuestions: StudentDiscussionPrompt[], forGroup: StudentGroupDiscussionItem[]) {
   const sourcePrompts = [...recentQuestions, ...forGroup];
   const items: StudentKeepReadingItem[] = [];
 
@@ -105,7 +138,7 @@ function resourceItem(resource: ScriptureResource, label: string): StudentKeepRe
   };
 }
 
-function planForPrompt(prompt: StudentDiscussionPrompt) {
+function planForPrompt(prompt: ReadingSource) {
   if (prompt.metanarrativeMovement) {
     const movementMatch = scripturePlans.find((plan) => plan.movement === prompt.metanarrativeMovement);
     if (movementMatch) return movementMatch;
@@ -115,7 +148,7 @@ function planForPrompt(prompt: StudentDiscussionPrompt) {
   return scripturePlans.find((plan) => promptSearchTextForPlan(plan).split(" ").some((word) => word.length > 5 && text.includes(word)));
 }
 
-function resourceForPrompt(prompt: StudentDiscussionPrompt) {
+function resourceForPrompt(prompt: ReadingSource) {
   const text = promptSearchText(prompt);
   const checks: Array<[string, RegExp]> = [
     ["context", /\b(context|where|before|after|mean|meaning|passage)\b/],
@@ -130,14 +163,14 @@ function resourceForPrompt(prompt: StudentDiscussionPrompt) {
   return scriptureResources.find((resource) => resource.id === "better-questions");
 }
 
-function promptLabel(prompt: StudentDiscussionPrompt) {
+function promptLabel(prompt: ReadingSource) {
   if (prompt.scriptureReference) return `Because you asked about ${prompt.scriptureReference}`;
-  if (prompt.topicTags[0]) return `Because you asked about ${prompt.topicTags[0].replace(/_/g, " ")}`;
+  if (prompt.topicTags?.[0]) return `Because you asked about ${prompt.topicTags[0].replace(/_/g, " ")}`;
   return "Next for your group";
 }
 
-function promptSearchText(prompt: StudentDiscussionPrompt) {
-  return `${prompt.question} ${prompt.scriptureReference} ${prompt.topicTags.join(" ")}`.toLowerCase();
+function promptSearchText(prompt: ReadingSource) {
+  return `${prompt.question} ${prompt.scriptureReference} ${(prompt.topicTags ?? []).join(" ")}`.toLowerCase();
 }
 
 function promptSearchTextForPlan(plan: ScripturePlan) {
