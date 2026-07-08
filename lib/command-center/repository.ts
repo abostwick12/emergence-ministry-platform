@@ -294,6 +294,44 @@ export async function listIntegrations(session: AuthSession): Promise<PersonalIn
   return (data ?? []).map(mapIntegrationRow);
 }
 
+export async function getIntegration(
+  session: AuthSession,
+  service: PersonalIntegration["service"]
+): Promise<PersonalIntegration | null> {
+  if (shouldUseMock(session)) return mockStore.getIntegration(service);
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const { data, error } = await supabase
+    .from("personal_integrations")
+    .select("id, service, status, config")
+    .eq("service", service)
+    .maybeSingle<IntegrationRow>();
+  if (error) throw new Error(error.message);
+  return data ? mapIntegrationRow(data) : null;
+}
+
+// Persists integration status/config (e.g. OAuth tokens) server-side only.
+// Callers must never return `config` back to the client; only status and
+// catalog metadata (lib/command-center/integrations-meta.ts) are safe to
+// expose over the API.
+export async function updateIntegration(
+  session: AuthSession,
+  service: PersonalIntegration["service"],
+  input: { status: PersonalIntegration["status"]; config: Record<string, unknown> }
+): Promise<PersonalIntegration | null> {
+  if (shouldUseMock(session)) return mockStore.updateIntegration(service, input);
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const { data, error } = await supabase
+    .from("personal_integrations")
+    .update({ status: input.status, config: input.config })
+    .eq("service", service)
+    .select("id, service, status, config")
+    .maybeSingle<IntegrationRow>();
+  if (error) throw new Error(error.message);
+  return data ? mapIntegrationRow(data) : null;
+}
+
 // --- Quick Capture ------------------------------------------------------------
 
 export async function createCaptureEntry(session: AuthSession, rawText: string): Promise<CaptureEntry> {

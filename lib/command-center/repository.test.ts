@@ -5,6 +5,7 @@ import {
   createJobApplication,
   createPersonalTask,
   deletePersonalTask,
+  getIntegration,
   getOverview,
   appendConversationMessage,
   listIntegrations,
@@ -13,6 +14,7 @@ import {
   listPersonalTasks,
   listUnprocessedCaptures,
   resolveCaptureEntry,
+  updateIntegration,
   updateJobApplication,
   updatePersonalTask
 } from "@/lib/command-center/repository";
@@ -145,6 +147,34 @@ describe("integrations", () => {
       "monday"
     ]);
     expect(integrations.every((integration) => integration.status === "disconnected")).toBe(true);
+  });
+
+  it("gets a single integration by service", async () => {
+    const integration = await getIntegration(mockSession(), "google_calendar");
+    expect(integration?.service).toBe("google_calendar");
+    expect(integration?.status).toBe("disconnected");
+  });
+
+  it("returns null for a service with no stored row", async () => {
+    const integration = await getIntegration(mockSession(), "gmail");
+    expect(integration).not.toBeNull();
+  });
+
+  it("updates an integration's status and config, and never leaks config into unrelated services", async () => {
+    const session = mockSession();
+    const updated = await updateIntegration(session, "google_calendar", {
+      status: "connected",
+      config: { accessToken: "at", refreshToken: "rt", expiresAt: "2026-01-01T00:00:00.000Z", scope: "calendar.readonly" }
+    });
+    expect(updated?.status).toBe("connected");
+    expect(updated?.config.accessToken).toBe("at");
+
+    const reread = await getIntegration(session, "google_calendar");
+    expect(reread?.status).toBe("connected");
+
+    const untouched = await getIntegration(session, "gmail");
+    expect(untouched?.status).toBe("disconnected");
+    expect(untouched?.config).toEqual({});
   });
 });
 

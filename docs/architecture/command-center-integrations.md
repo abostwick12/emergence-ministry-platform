@@ -172,3 +172,51 @@ This PR adds structure only, no live behavior:
 
 No OAuth flow, webhook call, crawl, or third-party SDK call is implemented in
 this PR. No migration is applied. No deployment is performed.
+
+## Increment 1: Google Calendar (read-only)
+
+A follow-up PR implements the first live integration end to end, following
+the priority order and the graceful-degradation pattern above:
+
+- `lib/command-center/integrations/google-calendar.ts` — raw `fetch` calls
+  against Google's OAuth and Calendar REST APIs (no `googleapis` SDK
+  dependency added). `readGoogleCalendarConfig()` mirrors
+  `lib/command-center/sage.ts`'s provider-config shape; every exported
+  function throws `GoogleCalendarConfigError` instead of attempting a network
+  call when `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, or
+  `GOOGLE_REDIRECT_URI` is missing. Scope is `calendar.readonly` only.
+- `app/api/command-center/integrations/google-calendar/connect/route.ts` —
+  Andrew-only redirect into Google's consent screen with a random CSRF state
+  stored in a short-lived, `httpOnly` cookie scoped to this integration's own
+  API path.
+- `app/api/command-center/integrations/google-calendar/callback/route.ts` —
+  validates the state cookie, exchanges the code for tokens, and persists
+  `{ accessToken, refreshToken, expiresAt, scope }` into
+  `personal_integrations.config` for `service = 'google_calendar'` (no schema
+  change needed; `config jsonb` already exists from migration 023/024).
+  Redirects back to `/command-center/integrations` with a status flag only —
+  never with a token in the URL.
+- `app/api/command-center/integrations/google-calendar/disconnect/route.ts` —
+  Andrew-only POST that clears stored tokens and resets status to
+  `disconnected`.
+- `app/api/command-center/integrations/google-calendar/events/route.ts` —
+  Andrew-only read of the next 10 upcoming events (id, summary, start, end
+  only). Refreshes an expired access token using the stored refresh token
+  before reading, and re-persists the refreshed token; never returns a token
+  to the client.
+- `components/command-center/google-calendar-connection.tsx` — client
+  component rendering `Connect Google Calendar` / `Disconnect` /
+  `Not active yet` depending on `configured` + stored status, wired into the
+  Google Calendar card on `/command-center/integrations` only. Every other
+  card is untouched and still shows `Not active yet`.
+
+Stored tokens are never included in any API response body (the status route
+and repository callers only ever surface `status`, not `config`), never
+logged, and only ever leave the server to call Google's own APIs.
+
+This increment does not yet feed calendar data into SAGE's chat context —
+`lib/command-center/sage.ts`'s system prompt still tells SAGE it cannot
+access a calendar. Wiring calendar events into SAGE's context is a distinct,
+separately reviewed change to that guardrail language and its tests, once
+Andrew confirms the read surface above behaves as expected with real
+credentials.

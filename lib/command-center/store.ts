@@ -344,6 +344,23 @@ export function listIntegrations(): PersonalIntegration[] {
   return state.integrations;
 }
 
+export function getIntegration(service: PersonalIntegration["service"]): PersonalIntegration | null {
+  return state.integrations.find((integration) => integration.service === service) ?? null;
+}
+
+export function updateIntegration(
+  service: PersonalIntegration["service"],
+  input: { status: PersonalIntegration["status"]; config: Record<string, unknown> }
+): PersonalIntegration | null {
+  let updated: PersonalIntegration | null = null;
+  state.integrations = state.integrations.map((integration) => {
+    if (integration.service !== service) return integration;
+    updated = { ...integration, status: input.status, config: input.config };
+    return updated;
+  });
+  return updated;
+}
+
 export function createCaptureEntry(rawText: string): CaptureEntry {
   const entry: CaptureEntry = { id: uid("cap"), rawText, status: "unprocessed", createdAt: nowIso() };
   state.captureInbox = [entry, ...state.captureInbox];
