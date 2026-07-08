@@ -61,6 +61,11 @@ describe("SAGE prompt assembly", () => {
     expect(instructions).toContain("you cannot send email or create a Gmail draft from this chat");
   });
 
+  it("still forbids searching, reading, or organizing Google Drive from chat even when Drive context is present", async () => {
+    const instructions = await buildSageInstructions([task], "Read-only Google Drive context (as of this turn) — recently modified files:\n- test.doc");
+    expect(instructions).toContain("You cannot search Google Drive, read a Drive file's content, move a file, or create a folder from this chat");
+  });
+
   it("formats recent conversation turns for the Responses API input", () => {
     const messages: AiConversationMessage[] = [
       {

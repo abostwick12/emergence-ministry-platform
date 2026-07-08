@@ -1,13 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthSession } from "@/lib/auth/server";
 import type { PersonalIntegration } from "@/lib/command-center/types";
-import { buildCalendarLiveContext, buildGmailLiveContext, buildLiveIntegrationContext } from "@/lib/command-center/sage-live-context";
+import {
+  buildCalendarLiveContext,
+  buildDriveLiveContext,
+  buildGmailLiveContext,
+  buildLiveIntegrationContext
+} from "@/lib/command-center/sage-live-context";
 
 const getIntegration = vi.fn();
 const getValidGoogleCalendarAccessToken = vi.fn();
 const listUpcomingGoogleCalendarEvents = vi.fn();
 const getValidGmailAccessToken = vi.fn();
 const listRecentGmailMessages = vi.fn();
+const getValidGoogleDriveAccessToken = vi.fn();
+const listRecentGoogleDriveFiles = vi.fn();
 
 vi.mock("@/lib/command-center/repository", () => ({
   getIntegration: (...args: unknown[]) => getIntegration(...args)
@@ -23,6 +30,12 @@ vi.mock("@/lib/command-center/integrations/gmail-token", () => ({
 }));
 vi.mock("@/lib/command-center/integrations/gmail", () => ({
   listRecentGmailMessages: (...args: unknown[]) => listRecentGmailMessages(...args)
+}));
+vi.mock("@/lib/command-center/integrations/google-drive-token", () => ({
+  getValidGoogleDriveAccessToken: (...args: unknown[]) => getValidGoogleDriveAccessToken(...args)
+}));
+vi.mock("@/lib/command-center/integrations/google-drive", () => ({
+  listRecentGoogleDriveFiles: (...args: unknown[]) => listRecentGoogleDriveFiles(...args)
 }));
 
 function session(): AuthSession {
@@ -91,8 +104,44 @@ describe("buildGmailLiveContext", () => {
   });
 });
 
+describe("buildDriveLiveContext", () => {
+  it("returns null when Drive is not connected", async () => {
+    getIntegration.mockResolvedValue(integration("google_drive", "disconnected"));
+    expect(await buildDriveLiveContext(session())).toBeNull();
+    expect(getValidGoogleDriveAccessToken).not.toHaveBeenCalled();
+  });
+
+  it("formats recently modified files, name and modifiedTime only", async () => {
+    getIntegration.mockResolvedValue(integration("google_drive", "connected"));
+    getValidGoogleDriveAccessToken.mockResolvedValue("at");
+    listRecentGoogleDriveFiles.mockResolvedValue([
+      { id: "file_1", name: "SOTF reflection outline", mimeType: "application/vnd.google-apps.document", modifiedTime: "2026-07-08T00:00:00.000Z" }
+    ]);
+
+    const context = await buildDriveLiveContext(session());
+    expect(context).toContain("Read-only Google Drive context");
+    expect(context).toContain("SOTF reflection outline");
+    expect(context).toContain("2026-07-08T00:00:00.000Z");
+  });
+
+  it("reports no recent files plainly instead of an empty section", async () => {
+    getIntegration.mockResolvedValue(integration("google_drive", "connected"));
+    getValidGoogleDriveAccessToken.mockResolvedValue("at");
+    listRecentGoogleDriveFiles.mockResolvedValue([]);
+
+    expect(await buildDriveLiveContext(session())).toContain("no recently modified files found");
+  });
+
+  it("returns null (never throws) when the token has expired and cannot be refreshed", async () => {
+    getIntegration.mockResolvedValue(integration("google_drive", "connected"));
+    getValidGoogleDriveAccessToken.mockRejectedValue(new Error("Google Drive connection expired."));
+
+    await expect(buildDriveLiveContext(session())).resolves.toBeNull();
+  });
+});
+
 describe("buildLiveIntegrationContext", () => {
-  it("returns undefined when neither integration is connected", async () => {
+  it("returns undefined when no integration is connected", async () => {
     getIntegration.mockResolvedValue(null);
     expect(await buildLiveIntegrationContext(session())).toBeUndefined();
   });
@@ -106,13 +155,14 @@ describe("buildLiveIntegrationContext", () => {
     listRecentGmailMessages.mockResolvedValue([
       { id: "msg_1", threadId: "t1", subject: "Important ask", from: "vip@example.com", date: "", snippet: "s", labelIds: [] }
     ]);
+    getValidGoogleDriveAccessToken.mockRejectedValue(new Error("expired"));
 
     const context = await buildLiveIntegrationContext(session());
     expect(context).not.toContain("Google Calendar");
     expect(context).toContain("Gmail triage context");
   });
 
-  it("joins both sections when both integrations are connected", async () => {
+  it("joins all three sections when Calendar, Gmail, and Drive are all connected", async () => {
     getIntegration.mockImplementation(async (_session: AuthSession, service: PersonalIntegration["service"]) =>
       integration(service, "connected")
     );
@@ -122,9 +172,15 @@ describe("buildLiveIntegrationContext", () => {
     listRecentGmailMessages.mockResolvedValue([
       { id: "msg_1", threadId: "t1", subject: "Important ask", from: "vip@example.com", date: "", snippet: "s", labelIds: [] }
     ]);
+    getValidGoogleDriveAccessToken.mockResolvedValue("at");
+    listRecentGoogleDriveFiles.mockResolvedValue([
+      { id: "file_1", name: "SOTF reflection outline", mimeType: "application/vnd.google-apps.document", modifiedTime: "2026-07-08T00:00:00.000Z" }
+    ]);
 
     const context = await buildLiveIntegrationContext(session());
     expect(context).toContain("Google Calendar context");
     expect(context).toContain("Gmail triage context");
+    expect(context).toContain("Google Drive context");
+    expect(context).toContain("SOTF reflection outline");
   });
 });
