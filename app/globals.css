@@ -8695,6 +8695,181 @@ html:has(.app-shell-camp) body {
   line-height: 1.55;
 }
 
+.discipleship-workspace-stack {
+  display: grid;
+  gap: 18px;
+}
+
+.knowledge-control-room {
+  display: grid;
+  gap: 14px;
+}
+
+.knowledge-control-hero,
+.knowledge-source-form,
+.knowledge-source-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+
+.knowledge-control-hero {
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 22px;
+}
+
+.knowledge-control-hero h1 {
+  margin: 4px 0 0;
+  color: var(--text);
+  font-size: var(--text-3xl);
+  line-height: 1.1;
+}
+
+.knowledge-control-hero p {
+  margin: 10px 0 0;
+  max-width: 680px;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 800;
+  line-height: 1.55;
+}
+
+.knowledge-control-stats,
+.knowledge-source-field-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.knowledge-control-stats {
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  min-width: min(560px, 100%);
+}
+
+.knowledge-control-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.9fr) minmax(0, 1.2fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.knowledge-source-form {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+}
+
+.knowledge-source-form h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--text-2xl);
+  line-height: 1.15;
+}
+
+.knowledge-source-field-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.knowledge-source-list {
+  display: grid;
+  gap: 14px;
+}
+
+.knowledge-source-card {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+}
+
+.knowledge-source-card-header {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.knowledge-source-card-header span:first-child {
+  color: var(--primary);
+  font-size: var(--text-xs);
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.knowledge-source-card-header h3 {
+  margin: 6px 0 0;
+  color: var(--text);
+  font-size: var(--text-xl);
+  line-height: 1.2;
+}
+
+.knowledge-source-card-header p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 750;
+  line-height: 1.5;
+}
+
+.knowledge-source-tags,
+.knowledge-source-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.knowledge-source-tags span {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--muted);
+  padding: 6px 10px;
+  font-size: var(--text-xs);
+  font-weight: 850;
+}
+
+.knowledge-source-chunks {
+  display: grid;
+  gap: 8px;
+}
+
+.knowledge-source-chunks details {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  padding: 10px 12px;
+}
+
+.knowledge-source-chunks summary {
+  cursor: pointer;
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: 850;
+}
+
+.knowledge-source-chunks summary span,
+.knowledge-source-chunks summary strong {
+  display: block;
+}
+
+.knowledge-source-chunks summary strong {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 850;
+}
+
+.knowledge-source-chunks p {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 750;
+  line-height: 1.55;
+}
+
 .leader-review-context {
   display: grid;
   gap: 12px;
@@ -8772,6 +8947,9 @@ html:has(.app-shell-camp) body {
   }
 
   .leader-workspace-grid,
+  .knowledge-control-grid,
+  .knowledge-control-stats,
+  .knowledge-source-field-grid,
   .student-next-step-grid,
   .leader-review-meta-grid,
   .leader-student-invite-form,
@@ -8781,6 +8959,8 @@ html:has(.app-shell-camp) body {
   }
 
   .leader-gloo-diagnostics-actions,
+  .knowledge-control-hero,
+  .knowledge-source-card-header,
   .leader-student-invites-heading {
     align-items: flex-start;
     flex-direction: column;
