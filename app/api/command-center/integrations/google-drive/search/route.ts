@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { requireCommandCenterAccess } from "@/lib/command-center/access";
-import { getIntegration, updateIntegration } from "@/lib/command-center/repository";
+import { updateIntegration } from "@/lib/command-center/repository";
+import { searchGoogleDriveFiles } from "@/lib/command-center/integrations/google-drive";
 import {
-  isGoogleDriveTokenExpired,
-  parseStoredGoogleDriveTokens,
-  refreshGoogleDriveAccessToken,
-  searchGoogleDriveFiles
-} from "@/lib/command-center/integrations/google-drive";
+  GoogleDriveConnectionExpiredError,
+  GoogleDriveConnectionInvalidError,
+  GoogleDriveNotConnectedError,
+  getValidGoogleDriveAccessToken
+} from "@/lib/command-center/integrations/google-drive-token";
 
 export async function GET(request: Request) {
   const access = await requireCommandCenterAccess();
@@ -18,39 +19,18 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "A search query (q) is required." }, { status: 400 });
   }
 
-  const integration = await getIntegration(access.session, "google_drive");
-  if (!integration || integration.status !== "connected") {
-    return NextResponse.json({ error: "Google Drive is not connected." }, { status: 409 });
-  }
-
-  const tokens = parseStoredGoogleDriveTokens(integration.config);
-  if (!tokens) {
-    await updateIntegration(access.session, "google_drive", { status: "error", config: {} });
-    return NextResponse.json({ error: "Google Drive connection is invalid. Reconnect from the integrations page." }, { status: 409 });
-  }
-
   try {
-    let accessToken = tokens.accessToken;
-
-    if (isGoogleDriveTokenExpired(tokens.expiresAt)) {
-      if (!tokens.refreshToken) {
-        await updateIntegration(access.session, "google_drive", { status: "error", config: {} });
-        return NextResponse.json(
-          { error: "Google Drive connection expired. Reconnect from the integrations page." },
-          { status: 409 }
-        );
-      }
-      const refreshed = await refreshGoogleDriveAccessToken({ refreshToken: tokens.refreshToken });
-      accessToken = refreshed.accessToken;
-      await updateIntegration(access.session, "google_drive", {
-        status: "connected",
-        config: { ...tokens, accessToken: refreshed.accessToken, expiresAt: refreshed.expiresAt }
-      });
-    }
-
+    const accessToken = await getValidGoogleDriveAccessToken(access.session);
     const files = await searchGoogleDriveFiles({ accessToken, query, maxResults: 10 });
     return NextResponse.json({ files });
-  } catch {
+  } catch (error) {
+    if (
+      error instanceof GoogleDriveNotConnectedError ||
+      error instanceof GoogleDriveConnectionInvalidError ||
+      error instanceof GoogleDriveConnectionExpiredError
+    ) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
     await updateIntegration(access.session, "google_drive", { status: "error", config: {} });
     return NextResponse.json({ error: "Failed to search Google Drive. Reconnect from the integrations page." }, { status: 502 });
   }
