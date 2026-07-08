@@ -220,3 +220,45 @@ access a calendar. Wiring calendar events into SAGE's context is a distinct,
 separately reviewed change to that guardrail language and its tests, once
 Andrew confirms the read surface above behaves as expected with real
 credentials.
+
+## Increment 2: Gmail (read-only triage + draft-only replies)
+
+A follow-up PR adds the second live integration, reusing the same
+`GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_REDIRECT_URI` values as
+Google Calendar (one shared consent screen) but a fully separate OAuth grant
+and a fully separate stored token, under `service = 'gmail'`. Connecting
+Gmail does not connect Calendar, and disconnecting one never touches the
+other's row in `personal_integrations`.
+
+- `lib/command-center/integrations/gmail.ts` — same raw-`fetch`,
+  graceful-degradation pattern as Calendar (`GmailConfigError` instead of a
+  network call when config is missing). Requests
+  `https://www.googleapis.com/auth/gmail.readonly` (triage read) and
+  `https://www.googleapis.com/auth/gmail.compose` (draft creation) together,
+  because Gmail has no scope that grants draft creation without also
+  technically permitting `drafts.send`. **"SAGE never sends email" is
+  enforced at the application layer, not the OAuth layer** — this module
+  implements `listRecentGmailMessages` (read) and `createGmailDraft`
+  (draft-only) and intentionally has no `sendMessage`/`drafts.send` function
+  anywhere in the codebase.
+- `listRecentGmailMessages` reads only `Subject`/`From`/`Date` headers and
+  Gmail's own short snippet (`format=metadata`), never the full message
+  body, to keep triage read exposure minimal.
+- `app/api/command-center/integrations/gmail/connect|callback|disconnect/route.ts`
+  — same Andrew-only, CSRF-state-cookie OAuth flow as Calendar, on its own
+  cookie name and its own API path scope.
+- `app/api/command-center/integrations/gmail/messages/route.ts` — Andrew-only
+  read of the 10 most recent inbox messages (id, threadId, subject, from,
+  date, snippet only).
+- `app/api/command-center/integrations/gmail/drafts/route.ts` — Andrew-only
+  `POST` that creates exactly one Gmail draft from `{ to, subject, body,
+  inReplyTo?, threadId? }` and returns only the created draft's id. Andrew
+  reviews and sends it himself from Gmail; this route cannot send.
+- `components/command-center/gmail-connection.tsx` — same
+  `Connect Gmail` / `Disconnect` / `Not active yet` pattern as Calendar,
+  wired into the Gmail card only.
+
+Like Calendar, stored Gmail tokens are never included in any API response,
+never logged, and this increment does not yet feed Gmail data into SAGE's
+chat context — that remains a distinct, separately reviewed change once
+Andrew confirms the read/draft surface above with real credentials.
