@@ -3,6 +3,7 @@ import { GmailConnection } from "@/components/command-center/gmail-connection";
 import { GoogleCalendarConnection } from "@/components/command-center/google-calendar-connection";
 import { FirecrawlConnection } from "@/components/command-center/firecrawl-connection";
 import { GoogleDriveConnection } from "@/components/command-center/google-drive-connection";
+import { LinkedInConnection } from "@/components/command-center/linkedin-connection";
 import { MondayConnection } from "@/components/command-center/monday-connection";
 import { SlackConnection } from "@/components/command-center/slack-connection";
 import { getServerSession } from "@/lib/auth/server";
@@ -33,7 +34,8 @@ const CONNECTION_COMPONENTS: Partial<Record<IntegrationService, ComponentType<{ 
   google_drive: GoogleDriveConnection,
   slack: SlackConnection,
   firecrawl: FirecrawlConnection,
-  monday: MondayConnection
+  monday: MondayConnection,
+  linkedin: LinkedInConnection
 };
 
 // Query param name each service's OAuth callback route redirects back with
@@ -85,9 +87,9 @@ export default async function CommandCenterIntegrationsPage({
         <p className="muted">
           Integrations are added one at a time. Google Calendar, Gmail, and Google Drive are live connections now
           (read-only, plus draft-only replies for Gmail). Slack and Firecrawl are live for manual test sends only,
-          and Monday.com is live for read-only board listing only — there is no scheduled push/crawl and no task
-          sync yet. Every other card below remains an inert placeholder until it is wired the same way, with
-          Andrew&rsquo;s explicit confirmation before it goes live.
+          Monday.com is live for read-only board listing only, and LinkedIn is live for drafting only — SAGE never
+          posts, sends, or syncs anything automatically. Every other card below remains an inert placeholder until
+          it is wired the same way, with Andrew&rsquo;s explicit confirmation before it goes live.
         </p>
         {callbackMessages.map((message) => (
           <p className="muted" key={message}>
