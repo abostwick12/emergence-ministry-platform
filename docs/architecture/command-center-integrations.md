@@ -214,12 +214,9 @@ Stored tokens are never included in any API response body (the status route
 and repository callers only ever surface `status`, not `config`), never
 logged, and only ever leave the server to call Google's own APIs.
 
-This increment does not yet feed calendar data into SAGE's chat context —
-`lib/command-center/sage.ts`'s system prompt still tells SAGE it cannot
-access a calendar. Wiring calendar events into SAGE's context is a distinct,
-separately reviewed change to that guardrail language and its tests, once
-Andrew confirms the read surface above behaves as expected with real
-credentials.
+Calendar events are fed into SAGE's chat context — see "Increment 8: Wiring
+Calendar and Gmail into SAGE chat" below for how, and for the updated
+guardrail language that replaced "SAGE cannot access a calendar."
 
 ## Increment 2: Gmail (read, organize, and draft-only — never sends)
 
@@ -302,10 +299,11 @@ labels/folders and staging drafts for messages SAGE judges important.
   `Disconnect` / `Not active yet` plus, once connected, a
   `Triage inbox & draft replies` button showing per-message results.
 
-Stored Gmail tokens are never included in any API response, never logged,
-and this integration does not yet feed Gmail data into SAGE's chat
-context — that remains a distinct, separately reviewed change once Andrew
-confirms this read/organize/draft surface with real credentials.
+Stored Gmail tokens are never included in any API response, never logged.
+Recent Gmail triage context (subject/from/snippet only — never full body)
+is fed into SAGE's chat context; see "Increment 8" below. The triage-and-
+draft flow and the organize/label actions are not driven from chat itself
+(no tool calling exists), only referenced as context.
 
 ## Increment 3: Google Drive (read-only search)
 
@@ -462,3 +460,47 @@ the codebase.
 Every draft is returned as plain text for Andrew to copy and post or send
 himself. No code path in this repository calls a LinkedIn API, and none is
 planned without a fresh, separately reviewed decision to add one.
+
+## Increment 8: Wiring Calendar and Gmail into SAGE chat
+
+Every increment above intentionally stopped short of feeding its data into
+SAGE's actual chat conversation — each said so explicitly. This increment
+closes that gap for Calendar and Gmail (Drive and the rest remain deferred,
+still chat-invisible, exactly as documented in their own increments above).
+
+- `lib/command-center/sage-live-context.ts` — new module that assembles
+  read-only live integration context for one chat turn: up to 5 upcoming
+  Google Calendar events, and up to 5 recent Gmail messages (subject, from,
+  snippet only — never full body, matching the same minimal-exposure
+  default `listRecentGmailMessages` already uses for triage). Each
+  integration's fetch is isolated: a Calendar failure (expired token,
+  network error, not connected) never blocks Gmail's context or the
+  overall chat turn, and vice versa. If neither integration is connected,
+  or both fail, `buildLiveIntegrationContext` returns `undefined` and SAGE
+  falls back to task-only context exactly as it did before this existed.
+- `lib/command-center/integrations/google-calendar-token.ts` — extracted
+  the token load/refresh/persist sequence out of the events route (mirrors
+  `gmail-token.ts`) so both the events route and the new live-context
+  module share one implementation instead of duplicating it.
+- `app/api/command-center/chat/route.ts` — now fetches
+  `buildLiveIntegrationContext(session)` alongside open tasks and recent
+  conversation turns, and passes it into `buildSageInstructions`.
+- `lib/command-center/sage.ts` — `buildSageInstructions` takes an optional
+  second argument for this pre-fetched context. The system prompt and the
+  `command_center.task_aware_chat` skill prompt both changed:
+  - Old: "You cannot send messages, update calendars, access Gmail, access
+    Drive, ... or take autonomous actions."
+  - New: SAGE may reference read-only Calendar/Gmail context **when it is
+    provided that turn**, but still cannot create/update/delete a calendar
+    event, cannot send email or create a Gmail draft **from chat**, and
+    still cannot access Drive, Slack, Firecrawl, or Monday.com from chat.
+    Organizing mail (labels/folders) and the triage-and-draft flow remain
+    actions Andrew triggers from the integrations page directly — chat can
+    talk about that data, not act on it, since there is still no tool
+    calling in this phase.
+
+This is a narrow, additive change to what SAGE can read, not what it can
+do: no new write capability was added anywhere, and the "no tool calls, no
+function actions" rule from Phase 1B is unchanged. Google Drive, Slack,
+Firecrawl, Monday.com, and LinkedIn context remain chat-invisible until
+each gets the same treatment in its own separately reviewed change.

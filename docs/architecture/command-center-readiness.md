@@ -50,8 +50,13 @@ Phase 1B adds:
 - task-aware SAGE prompt context built only from open Command Center tasks
 - basic SAGE system prompt and `command_center.task_aware_chat` skill file
 
-SAGE Phase 1B can advise from Command Center task/context data only. It cannot
+SAGE Phase 1B could advise from Command Center task/context data only. It could not
 take actions outside the Command Center, call integrations, or execute tools.
+This has since evolved: read-only Google Calendar and Gmail context are now
+included in chat when those integrations are connected — see "Increment 8"
+in [`command-center-integrations.md`](./command-center-integrations.md) for
+the updated guardrails. SAGE still cannot execute tools, take an action, or
+write to any integration from chat.
 
 ## SAGE Provider Selection
 
