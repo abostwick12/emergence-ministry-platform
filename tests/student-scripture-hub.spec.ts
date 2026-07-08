@@ -6,13 +6,21 @@ test.describe("Student Scripture Hub shell", () => {
 
     const sidebar = page.getByRole("navigation", { name: "Desktop navigation" });
     const portalLink = sidebar.getByRole("link", { name: "Student Portal", exact: true });
+    const discipleshipLink = sidebar.getByRole("link", { name: "Discipleship", exact: true });
 
     await expect(portalLink).toBeVisible();
+    await expect(discipleshipLink).toBeVisible();
     await portalLink.click();
     await expect(page).toHaveURL(/\/student$/);
     await expect(page.getByRole("heading", { name: "Welcome back, Andrew." })).toBeVisible();
     await expect(page.getByRole("heading", { name: "What should we talk about next?" })).toBeVisible();
     await expect(page.getByRole("complementary", { name: "Keep reading" })).toBeVisible();
+
+    await page.goto("/dashboard");
+    await discipleshipLink.click();
+    await expect(page).toHaveURL(/\/discipleship$/);
+    await expect(page.getByRole("heading", { name: "Discussion Review" })).toBeVisible();
+    await expect(page.getByRole("tab", { name: /Needs review/ })).toBeVisible();
   });
 
   test("authenticated users can browse the Scripture Hub pages", async ({ page }) => {
@@ -47,7 +55,8 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page.getByRole("heading", { name: "Avoiding forced typology" })).toBeVisible();
 
     await page.goto("/student/scripture/review");
-    await expect(page.getByRole("heading", { name: "Questions awaiting review" })).toBeVisible();
+    await expect(page).toHaveURL(/\/discipleship$/);
+    await expect(page.getByRole("heading", { name: "Discussion Review" })).toBeVisible();
     await expect(page.getByText("No real submissions yet.")).toBeVisible();
     await expect(page.getByRole("status")).toContainText("Live storage is not ready for review.");
 
