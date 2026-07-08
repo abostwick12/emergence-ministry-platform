@@ -6,6 +6,7 @@ import {
   DiscussionWorkflowError,
   getStudentDiscussionWorkflowState
 } from "@/lib/scripture/discussion-workflow";
+import { getStudentKnowledgeMatches, saveStudentQuestionRecommendations } from "@/lib/scripture/knowledge";
 import { buildQuestionNextStep } from "@/lib/scripture/student-home";
 import { resolveStudentHubAccess } from "@/lib/student/access";
 
@@ -56,7 +57,10 @@ export async function POST(request: Request) {
       question: body.question,
       scriptureReference: body.scriptureReference
     });
-    return NextResponse.json({ ok: true, prompt, nextStep: buildQuestionNextStep(prompt) }, { status: 201 });
+    const knowledgeMatches = await getStudentKnowledgeMatches(access.session, prompt);
+    const nextStep = buildQuestionNextStep(prompt, knowledgeMatches);
+    await saveStudentQuestionRecommendations(access.session, prompt.id, nextStep, knowledgeMatches);
+    return NextResponse.json({ ok: true, prompt, nextStep }, { status: 201 });
   } catch (error) {
     return discussionErrorResponse(error);
   }
