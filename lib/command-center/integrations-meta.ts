@@ -30,10 +30,11 @@ export const INTEGRATION_CATALOG: IntegrationMeta[] = [
   {
     service: "google_calendar",
     label: "Google Calendar",
-    description: "Read Andrew's schedule to inform SAGE's daily briefing and task planning.",
+    description:
+      "Read Andrew's schedule to inform SAGE's daily briefing and task planning, and create or edit events from the integrations page.",
     phase: "phase_2",
     priority: 1,
-    capabilities: ["read"],
+    capabilities: ["read", "write"],
     requiredEnv: ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REDIRECT_URI"],
     requiresAndrewConfirmation: true,
     autonomous: false
