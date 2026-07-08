@@ -23,7 +23,7 @@ with it.
 Integrations are added one at a time, in this order, each behind its own PR
 and its own env vars:
 
-1. **Google Calendar** — read-only
+1. **Google Calendar** — read-only initially, later expanded to Andrew-triggered create/edit (see "Increment 9" below)
 2. **Gmail** — draft-only / read-only triage
 3. **Google Drive** — read-only search
 4. **Slack** — webhook push (notifications and daily briefings)
@@ -94,7 +94,7 @@ descriptions.
 
 | Integration | Read | Write | Write behavior |
 | --- | --- | --- | --- |
-| Google Calendar | Yes (schedule) | No | Read-only in this plan; event creation is a future, separately approved capability |
+| Google Calendar | Yes (schedule) | Yes (create/edit events) | Andrew-triggered only, from the integrations page; no delete, and no tool-calling path lets SAGE chat create or edit an event itself |
 | Gmail | Yes (recent mail for triage) | Draft-only | SAGE may prepare a draft reply; SAGE never sends |
 | Google Drive | Yes (document search) | No | Read-only |
 | Slack | No | Yes (webhook push) | Outbound notifications/briefings only; no inbound read |
@@ -216,7 +216,9 @@ logged, and only ever leave the server to call Google's own APIs.
 
 Calendar events are fed into SAGE's chat context — see "Increment 8: Wiring
 Calendar and Gmail into SAGE chat" below for how, and for the updated
-guardrail language that replaced "SAGE cannot access a calendar."
+guardrail language that replaced "SAGE cannot access a calendar." The scope
+above was later widened from `calendar.readonly` to `calendar.events` — see
+"Increment 9: Google Calendar create/edit events" below.
 
 ## Increment 2: Gmail (read, organize, and draft-only — never sends)
 
@@ -504,3 +506,41 @@ do: no new write capability was added anywhere, and the "no tool calls, no
 function actions" rule from Phase 1B is unchanged. Google Drive, Slack,
 Firecrawl, Monday.com, and LinkedIn context remain chat-invisible until
 each gets the same treatment in its own separately reviewed change.
+
+## Increment 9: Google Calendar create/edit events
+
+Andrew explicitly approved this: Google Calendar moves from read-only to
+read + create/edit, Andrew-triggered only, from the Calendar card on
+`/command-center/integrations`. There is still no delete-event capability,
+and still no tool-calling path that lets SAGE chat create or edit an event
+itself — chat can reference calendar context (Increment 8) but cannot act
+on it.
+
+- `lib/command-center/integrations/google-calendar.ts` — the OAuth scope
+  widens from `calendar.readonly` to `calendar.events`, which grants
+  read/write on events only, not the broader `calendar` scope (which would
+  also allow managing the calendar list and calendar settings this
+  integration has no need for). `createGoogleCalendarEvent` and
+  `updateGoogleCalendarEvent` are the only two new write calls; there is no
+  delete function anywhere in this module.
+- `updateGoogleCalendarEvent` is a partial update — only the fields
+  actually provided in a patch are sent to Google, so editing just a title
+  doesn't clobber an event's existing time or description.
+- `app/api/command-center/integrations/google-calendar/events/route.ts` —
+  gains a `POST` alongside the existing `GET`, creating exactly one event
+  from `{ summary, start, end, description?, isAllDay?, timeZone? }`.
+- `app/api/command-center/integrations/google-calendar/events/[id]/route.ts`
+  — new `PATCH` route for partial updates to one existing event, same
+  Andrew-only gate and token-refresh handling as every other Calendar/Gmail
+  route.
+- `components/command-center/google-calendar-connection.tsx` — once
+  connected, lists upcoming events with an `Edit` button per event and a
+  `New event` button, both opening the same inline form (title, all-day
+  toggle, start/end, description). The browser's own IANA time zone
+  (`Intl.DateTimeFormat().resolvedOptions().timeZone`) is sent alongside a
+  timezone-less `datetime-local` value, matching how Google's API expects
+  a `dateTime` + separate `timeZone` field to be paired.
+
+Every create/edit action requires Andrew to fill out and submit the form
+himself in that session — nothing here is scheduled, and nothing here is
+reachable from SAGE chat.
