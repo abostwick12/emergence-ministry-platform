@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import type { DiscussionWorkflowState } from "@/lib/scripture/discussion-workflow";
+import type { GlooDiagnosticResult } from "@/lib/scripture/gloo";
 import type { StudentDiscussionPrompt, StudentDiscussionStatus } from "@/lib/scripture/types";
 
 type ScriptureLeaderReviewProps = {
@@ -15,6 +16,12 @@ type DecisionResponse = {
   ok?: boolean;
   error?: string;
   prompt?: StudentDiscussionPrompt;
+};
+
+type GlooDiagnosticResponse = {
+  ok?: boolean;
+  error?: string;
+  diagnostic?: GlooDiagnosticResult;
 };
 
 type ReviewTab = {
@@ -37,6 +44,8 @@ export function ScriptureLeaderReview({ initialState }: ScriptureLeaderReviewPro
   const [activeTab, setActiveTab] = useState<ReviewTab["id"]>("needs_review");
   const [selectedId, setSelectedId] = useState(initialState.prompts[0]?.id ?? "");
   const [savingAction, setSavingAction] = useState<ReviewAction | "">("");
+  const [diagnostic, setDiagnostic] = useState<GlooDiagnosticResult | undefined>();
+  const [isRunningDiagnostic, setIsRunningDiagnostic] = useState(false);
   const [status, setStatus] = useState(initialState.readiness.liveStorage ? "Review student questions before anything is shared." : "Live storage is not ready for review.");
 
   const activeTabConfig = reviewTabs.find((tab) => tab.id === activeTab) ?? reviewTabs[0];
@@ -77,6 +86,26 @@ export function ScriptureLeaderReview({ initialState }: ScriptureLeaderReviewPro
     }
   }
 
+  async function runDiagnostic() {
+    setIsRunningDiagnostic(true);
+    setStatus("Running a safe Gloo test draft...");
+    try {
+      const response = await fetch("/api/student/scripture/gloo-diagnostics", { method: "POST" });
+      const payload = (await response.json()) as GlooDiagnosticResponse;
+      if (!response.ok || !payload.ok || !payload.diagnostic) {
+        setStatus(payload.error ?? "Gloo diagnostic could not run.");
+        return;
+      }
+
+      setDiagnostic(payload.diagnostic);
+      setStatus(payload.diagnostic.ok ? "Gloo diagnostic passed." : payload.diagnostic.message);
+    } catch {
+      setStatus("Gloo diagnostic could not run.");
+    } finally {
+      setIsRunningDiagnostic(false);
+    }
+  }
+
   return (
     <div className="leader-workspace">
       <section className="leader-workspace-hero">
@@ -95,6 +124,13 @@ export function ScriptureLeaderReview({ initialState }: ScriptureLeaderReviewPro
       <p className="leader-review-status" role="status">
         {status}
       </p>
+
+      <GlooDiagnosticPanel
+        diagnostic={diagnostic}
+        isRunning={isRunningDiagnostic}
+        onRun={runDiagnostic}
+        readiness={initialState.readiness}
+      />
 
       <div className="leader-workspace-grid">
         <aside className="leader-review-queue" aria-label="Discussion review queue">
@@ -154,6 +190,69 @@ export function ScriptureLeaderReview({ initialState }: ScriptureLeaderReviewPro
           </section>
         )}
       </div>
+    </div>
+  );
+}
+
+function GlooDiagnosticPanel({
+  diagnostic,
+  isRunning,
+  onRun,
+  readiness
+}: {
+  diagnostic: GlooDiagnosticResult | undefined;
+  isRunning: boolean;
+  onRun: () => void;
+  readiness: DiscussionWorkflowState["readiness"];
+}) {
+  return (
+    <section className="leader-gloo-diagnostics" aria-label="Gloo diagnostics">
+      <div>
+        <p className="eyebrow">Gloo Diagnostics</p>
+        <h2>Test the draft connection</h2>
+        <p>Runs one safe sample draft through the configured server-side Gloo settings and reports what happened.</p>
+      </div>
+      <div className="leader-gloo-diagnostics-actions">
+        <span className={readiness.gloo ? "pill green" : "pill amber"}>{readiness.gloo ? "Configured" : "Needs config"}</span>
+        <button className="button" disabled={isRunning} onClick={onRun} type="button">
+          {isRunning ? "Testing..." : "Run Gloo Test"}
+        </button>
+      </div>
+      {diagnostic ? <GlooDiagnosticResultView diagnostic={diagnostic} /> : null}
+    </section>
+  );
+}
+
+function GlooDiagnosticResultView({ diagnostic }: { diagnostic: GlooDiagnosticResult }) {
+  return (
+    <div className="leader-gloo-diagnostics-result">
+      <div className="leader-review-meta-grid" aria-label="Gloo configuration signals">
+        <MetaTile label="Result" value={diagnostic.ok ? "Usable draft" : "Needs attention"} />
+        <MetaTile label="Base URL" value={diagnostic.baseUrlConfigured ? "Set" : "Missing"} />
+        <MetaTile label="Credential" value={diagnostic.credentialsConfigured ? "Set" : "Missing"} />
+        <MetaTile label="Model" value={diagnostic.selectedModel || diagnostic.primaryModel || "Missing"} />
+      </div>
+      <p>{diagnostic.message}</p>
+      {diagnostic.draftPreview ? (
+        <div className="leader-gloo-draft-preview">
+          <span>Draft preview</span>
+          <p>{diagnostic.draftPreview.discussionPrompt}</p>
+          <small>
+            {diagnostic.draftPreview.safetyLabel} - {Math.round(diagnostic.draftPreview.confidence * 100)}%
+          </small>
+        </div>
+      ) : null}
+      {diagnostic.attempts.length ? (
+        <div className="leader-gloo-attempts">
+          {diagnostic.attempts.map((attempt) => (
+            <div className={attempt.ok ? "leader-gloo-attempt ok" : "leader-gloo-attempt"} key={`${attempt.url}-${attempt.status ?? "network"}`}>
+              <span>{attempt.status ? `${attempt.status} ${attempt.statusText ?? ""}`.trim() : "Network"}</span>
+              <strong>{attempt.url}</strong>
+              <p>{attempt.message}</p>
+            </div>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

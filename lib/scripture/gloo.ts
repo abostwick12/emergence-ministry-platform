@@ -37,6 +37,34 @@ export type GlooDiscussionDraftResult =
       message: string;
     };
 
+export type GlooDiagnosticAttempt = {
+  url: string;
+  ok: boolean;
+  status?: number;
+  statusText?: string;
+  message: string;
+};
+
+export type GlooDiagnosticResult = {
+  ok: boolean;
+  configured: boolean;
+  credentialsConfigured: boolean;
+  baseUrlConfigured: boolean;
+  primaryModelConfigured: boolean;
+  primaryModel: string;
+  escalationModel: string;
+  longContextModel: string;
+  selectedModel: string;
+  selectedTier: GlooModelTier | "";
+  message: string;
+  attempts: GlooDiagnosticAttempt[];
+  draftPreview?: {
+    discussionPrompt: string;
+    safetyLabel: string;
+    confidence: number;
+  };
+};
+
 type GlooChatResponse = {
   choices?: Array<{
     message?: {
@@ -143,32 +171,163 @@ export async function generateGlooDiscussionDraft(input: GlooDiscussionDraftInpu
   return firstDraft;
 }
 
+export async function runGlooDiscussionDiagnostic(
+  input: GlooDiscussionDraftInput = {
+    question: "Why did God put the tree of knowledge of good and evil in the garden?",
+    scriptureReference: "Genesis 3",
+    metanarrativeMovement: "Creation"
+  },
+  env: Partial<NodeJS.ProcessEnv> = process.env
+): Promise<GlooDiagnosticResult> {
+  const { apiKey, apiBaseUrl } = getGlooCredentials(env);
+  const primaryModel = getPrimaryGlooModel(env);
+  const selection = selectGlooModelPolicy(input, env);
+  const base: Omit<GlooDiagnosticResult, "ok" | "configured" | "message" | "attempts"> = {
+    credentialsConfigured: Boolean(apiKey),
+    baseUrlConfigured: Boolean(apiBaseUrl),
+    primaryModelConfigured: Boolean(primaryModel),
+    primaryModel,
+    escalationModel: env.GLOO_AI_ESCALATION_MODEL?.trim() ?? "",
+    longContextModel: env.GLOO_AI_LONG_CONTEXT_MODEL?.trim() ?? "",
+    selectedModel: selection?.model ?? "",
+    selectedTier: selection?.tier ?? ""
+  };
+
+  if (!apiKey || !apiBaseUrl || !selection) {
+    return {
+      ...base,
+      ok: false,
+      configured: false,
+      message: "Gloo AI Studio is missing a server credential, base URL, or primary model.",
+      attempts: []
+    };
+  }
+
+  const body = createGlooDraftRequestBody(input, selection);
+  const attempts: GlooDiagnosticAttempt[] = [];
+
+  for (const url of resolveGlooChatUrls(apiBaseUrl)) {
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json"
+        },
+        body
+      });
+
+      if (!response.ok) {
+        const attempt = {
+          url: redactGlooUrl(url),
+          ok: false,
+          status: response.status,
+          statusText: response.statusText,
+          message: providerStatusMessage(response.status)
+        };
+        attempts.push(attempt);
+        if (response.status === 404 && shouldTryNextGlooUrl(apiBaseUrl)) continue;
+        return {
+          ...base,
+          ok: false,
+          configured: true,
+          message: attempt.message,
+          attempts
+        };
+      }
+
+      const payload = (await response.json()) as GlooChatResponse;
+      const content = payload.choices?.[0]?.message?.content ?? payload.choices?.[0]?.text;
+      if (typeof content !== "string") {
+        const attempt = {
+          url: redactGlooUrl(url),
+          ok: false,
+          status: response.status,
+          statusText: response.statusText,
+          message: "Gloo AI Studio responded, but the response did not include text content."
+        };
+        attempts.push(attempt);
+        return {
+          ...base,
+          ok: false,
+          configured: true,
+          message: attempt.message,
+          attempts
+        };
+      }
+
+      const parsed = parseDraftContent(content, selection);
+      if (!parsed?.ok) {
+        const attempt = {
+          url: redactGlooUrl(url),
+          ok: false,
+          status: response.status,
+          statusText: response.statusText,
+          message: "Gloo AI Studio responded, but the draft JSON could not be parsed."
+        };
+        attempts.push(attempt);
+        return {
+          ...base,
+          ok: false,
+          configured: true,
+          message: attempt.message,
+          attempts
+        };
+      }
+
+      attempts.push({
+        url: redactGlooUrl(url),
+        ok: true,
+        status: response.status,
+        statusText: response.statusText,
+        message: "Gloo AI Studio returned a usable draft."
+      });
+
+      return {
+        ...base,
+        ok: true,
+        configured: true,
+        message: "Gloo AI Studio returned a usable draft.",
+        attempts,
+        draftPreview: {
+          discussionPrompt: parsed.discussionPrompt,
+          safetyLabel: parsed.safetyLabel,
+          confidence: parsed.confidence
+        }
+      };
+    } catch (error) {
+      const attempt = {
+        url: redactGlooUrl(url),
+        ok: false,
+        message: error instanceof Error ? limitText(error.message, 240) : "Network request failed."
+      };
+      attempts.push(attempt);
+      return {
+        ...base,
+        ok: false,
+        configured: true,
+        message: attempt.message,
+        attempts
+      };
+    }
+  }
+
+  return {
+    ...base,
+    ok: false,
+    configured: true,
+    message: attempts.at(-1)?.message ?? "Gloo AI Studio did not return a usable draft.",
+    attempts
+  };
+}
+
 async function requestGlooDiscussionDraft(
   input: GlooDiscussionDraftInput,
   apiBaseUrl: string,
   apiKey: string,
   selection: GlooModelSelection
 ): Promise<GlooDiscussionDraftResult> {
-  const body = JSON.stringify({
-    model: selection.model,
-    temperature: 0.3,
-    messages: [
-      {
-        role: "system",
-        content:
-          "You help student ministry leaders prepare careful, Scripture-grounded discussion prompts. Return only JSON with keys discussionPrompt, safetyLabel, safetyNotes, confidence, topicTags, escalationRecommended, escalationReason. The safetyLabel must be one of safe, needs_leader_care, pastoral_escalation. confidence must be a number from 0 to 1. topicTags must be short lowercase strings. Do not claim pastoral authority, do not give crisis counseling, and do not include full Bible text."
-      },
-      {
-        role: "user",
-        content:
-          `Student question: ${input.question}\n` +
-          `Scripture reference: ${input.scriptureReference || "not selected"}\n` +
-          `Quiet story-lens hint: ${input.metanarrativeMovement ?? "infer from the question and passage"}\n\n` +
-          `Model routing: ${selection.reason}${selection.escalationReason ? ` Escalation reason: ${selection.escalationReason}` : ""}\n\n` +
-          "Draft one Socratic small-group discussion prompt for leader review. Keep it humble, conversational, and grounded in the reference without quoting the passage."
-      }
-    ]
-  });
+  const body = createGlooDraftRequestBody(input, selection);
 
   let lastFailure: GlooProviderFailure | undefined;
   for (const url of resolveGlooChatUrls(apiBaseUrl)) {
@@ -213,6 +372,29 @@ async function requestGlooDiscussionDraft(
 
   if (lastFailure) logGlooProviderFailure(lastFailure);
   return { ok: false, code: "provider_error", message: lastFailure?.message ?? "Gloo AI Studio did not return a usable draft." };
+}
+
+function createGlooDraftRequestBody(input: GlooDiscussionDraftInput, selection: GlooModelSelection) {
+  return JSON.stringify({
+    model: selection.model,
+    temperature: 0.3,
+    messages: [
+      {
+        role: "system",
+        content:
+          "You help student ministry leaders prepare careful, Scripture-grounded discussion prompts. Return only JSON with keys discussionPrompt, safetyLabel, safetyNotes, confidence, topicTags, escalationRecommended, escalationReason. The safetyLabel must be one of safe, needs_leader_care, pastoral_escalation. confidence must be a number from 0 to 1. topicTags must be short lowercase strings. Do not claim pastoral authority, do not give crisis counseling, and do not include full Bible text."
+      },
+      {
+        role: "user",
+        content:
+          `Student question: ${input.question}\n` +
+          `Scripture reference: ${input.scriptureReference || "not selected"}\n` +
+          `Quiet story-lens hint: ${input.metanarrativeMovement ?? "infer from the question and passage"}\n\n` +
+          `Model routing: ${selection.reason}${selection.escalationReason ? ` Escalation reason: ${selection.escalationReason}` : ""}\n\n` +
+          "Draft one Socratic small-group discussion prompt for leader review. Keep it humble, conversational, and grounded in the reference without quoting the passage."
+      }
+    ]
+  });
 }
 
 function needsProviderEscalation(draft: Extract<GlooDiscussionDraftResult, { ok: true }>) {
