@@ -32,7 +32,7 @@ export type CreateStudentDiscussionInput = {
 };
 
 export type DecideStudentDiscussionInput = {
-  action: "approve" | "request_changes" | "archive" | "post";
+  action: "approve" | "request_changes" | "archive" | "post" | "regenerate";
   leaderNotes?: string;
   discussionPrompt?: string;
 };
@@ -214,6 +214,10 @@ export async function decideStudentDiscussionPrompt(session: AuthSession, id: st
   }
 
   const prompt = await getPromptById(session, id);
+  if (input.action === "regenerate") {
+    return regenerateDiscussionDraft(session, prompt);
+  }
+
   if (input.action === "post") {
     return postApprovedPrompt(session, prompt);
   }
@@ -242,6 +246,47 @@ export async function decideStudentDiscussionPrompt(session: AuthSession, id: st
   if (!result.data) throw new DiscussionWorkflowError("The discussion prompt was not updated.", 500, "missing_updated_prompt");
 
   await logPromptEvent(session, id, input.action, { leaderNotes });
+  return toPrompt(result.data);
+}
+
+async function regenerateDiscussionDraft(session: AuthSession, prompt: StudentDiscussionPrompt) {
+  if (!isGlooConfigured()) {
+    throw new DiscussionWorkflowError("Gloo AI Studio is not configured yet.", 503, "gloo_not_configured");
+  }
+
+  const draft = await generateGlooDiscussionDraft({
+    question: prompt.question,
+    scriptureReference: prompt.scriptureReference,
+    metanarrativeMovement: prompt.metanarrativeMovement ?? inferMetanarrativeMovement(prompt.question, prompt.scriptureReference)
+  });
+
+  const update: Partial<StudentDiscussionPromptRow> = {
+    ai_status: draft.ok ? "generated" : "failed",
+    ai_model: draft.ok ? draft.model : prompt.aiModel || null,
+    ai_model_tier: draft.ok ? draft.modelTier : prompt.aiModelTier,
+    ai_model_reason: draft.ok ? draft.modelReason : prompt.aiModelReason,
+    ai_confidence: draft.ok ? draft.confidence : prompt.aiConfidence,
+    topic_tags: draft.ok ? draft.topicTags : prompt.topicTags,
+    escalation_reason: draft.ok ? draft.escalationReason : prompt.escalationReason,
+    safety_label: draft.ok ? draft.safetyLabel : prompt.safetyLabel,
+    safety_notes: draft.ok ? draft.safetyNotes : draft.message,
+    discussion_prompt: draft.ok ? draft.discussionPrompt : prompt.discussionPrompt || null
+  };
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const result = await supabase.from("student_discussion_prompts").update(update).eq("id", prompt.id).select("*").single<StudentDiscussionPromptRow>();
+  throwIfSupabaseError(result.error);
+  if (!result.data) throw new DiscussionWorkflowError("The regenerated draft was not saved.", 500, "missing_regenerated_prompt");
+
+  await logPromptEvent(session, prompt.id, draft.ok ? "draft_regenerated" : "draft_regeneration_failed", {
+    aiStatus: update.ai_status,
+    model: update.ai_model
+  });
+
+  if (!draft.ok) {
+    throw new DiscussionWorkflowError(draft.message, draft.code === "not_configured" ? 503 : 502, draft.code);
+  }
+
   return toPrompt(result.data);
 }
 
@@ -398,7 +443,7 @@ function assertLeader(session: AuthSession) {
   }
 }
 
-function toStatusForAction(action: Exclude<DecideStudentDiscussionInput["action"], "post">): StudentDiscussionStatus {
+function toStatusForAction(action: Exclude<DecideStudentDiscussionInput["action"], "post" | "regenerate">): StudentDiscussionStatus {
   switch (action) {
     case "approve":
       return "approved";

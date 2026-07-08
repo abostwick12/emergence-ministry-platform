@@ -28,6 +28,8 @@ const primaryLinks = [
   { href: "/settings", label: "Settings" }
 ];
 
+const leaderDiscipleshipLink = { href: "/discipleship", label: "Discipleship" };
+
 const mobileLinks = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/events", label: "Events" },
@@ -104,6 +106,13 @@ const navIconPaths: Record<string, React.ReactNode> = {
       <path d="M8 9h2M8 12h2M14 9h2" strokeLinecap="round" />
     </>
   ),
+  "/discipleship": (
+    <>
+      <path d="M5 6.5h6.2A3.8 3.8 0 0115 10.3V19H8.8A3.8 3.8 0 015 15.2V6.5z" strokeLinejoin="round" />
+      <path d="M19 6.5h-4a3.8 3.8 0 00-3.8 3.8V19H15a4 4 0 004-4V6.5z" strokeLinejoin="round" />
+      <path d="M8 10h2M8 13h2M14 10h2M12 3.5v2" strokeLinecap="round" />
+    </>
+  ),
   "/tasks": (
     <>
       <path d="M4 6.5h12M4 12h12M4 17.5h8" strokeLinecap="round" />
@@ -161,6 +170,7 @@ const pageTitles: Record<string, string> = {
   "/files": "Files",
   "/budget": "Budget",
   "/settings": "Settings",
+  "/discipleship": "Discipleship",
   "/command-center": "Command Center"
 };
 
@@ -169,6 +179,7 @@ export function AppShell({
   devAuth = false,
   shellAccess = { kind: "full" },
   showCommandCenter = false,
+  showLeaderDiscipleship = false,
   showStudentPortal = false,
   user
 }: {
@@ -176,6 +187,7 @@ export function AppShell({
   devAuth?: boolean;
   shellAccess?: AppShellAccessState;
   showCommandCenter?: boolean;
+  showLeaderDiscipleship?: boolean;
   showStudentPortal?: boolean;
   user?: { name?: string; email?: string };
 }) {
@@ -188,7 +200,8 @@ export function AppShell({
   const canUseEmergeShell = shellAccess.kind === "full";
   const campOnly = !canUseEmergeShell;
   const studentAwareLinks = showStudentPortal ? primaryLinks : primaryLinks.filter((link) => link.href !== "/student");
-  const allPrimaryLinks = showCommandCenter ? [...studentAwareLinks, { href: "/command-center", label: "Command Center" }] : studentAwareLinks;
+  const discipleshipAwareLinks = showLeaderDiscipleship ? [...studentAwareLinks, leaderDiscipleshipLink] : studentAwareLinks;
+  const allPrimaryLinks = showCommandCenter ? [...discipleshipAwareLinks, { href: "/command-center", label: "Command Center" }] : discipleshipAwareLinks;
   const visiblePrimaryLinks = campOnly ? allPrimaryLinks.filter((link) => link.href === "/camp") : allPrimaryLinks;
   const visibleMobileLinks = campOnly ? [{ href: "/camp", label: "Camp" }] : mobileLinks;
   const visibleMobileMoreLinks = campOnly ? [] : mobileMoreLinksFor(allPrimaryLinks);

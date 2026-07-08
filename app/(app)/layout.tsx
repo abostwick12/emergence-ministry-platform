@@ -24,6 +24,7 @@ export default async function AuthenticatedLayout({ children }: { children: Reac
           devAuth={devAuth}
           shellAccess={shellAccess}
           showCommandCenter={isCommandCenterUser(session)}
+          showLeaderDiscipleship={session.user.role === "admin" || session.user.role === "leader"}
           showStudentPortal={canAccessStudentHub(session.user.role)}
           user={{ name: session.user.fullName, email: session.user.email }}
         >
