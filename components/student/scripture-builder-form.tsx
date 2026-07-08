@@ -2,8 +2,6 @@
 
 import { useMemo, useState } from "react";
 
-import { metanarrativeMovements } from "@/lib/scripture/mock-data";
-
 type ScriptureBuilderKind = "plan" | "study";
 
 type BuilderFieldKey =
@@ -11,7 +9,6 @@ type BuilderFieldKey =
   | "audience"
   | "duration"
   | "primaryScripture"
-  | "movement"
   | "contextNotes"
   | "observationQuestion"
   | "interpretationQuestion"
@@ -38,7 +35,6 @@ const initialPlanValues: BuilderValues = {
   audience: "",
   duration: "",
   primaryScripture: "",
-  movement: "",
   contextNotes: "",
   observationQuestion: "",
   interpretationQuestion: "",
@@ -111,7 +107,7 @@ const studyPlaceholders: Partial<Record<BuilderFieldKey, string>> = {
   guardrailNotes: "What direct teaching, inference, or creative connection needs to be named carefully?"
 };
 
-const previewMessage = "Preview generated locally. Use Small Group Questions for the live saved review workflow.";
+const previewMessage = "Preview generated locally. Use Ask for the live saved review workflow.";
 
 export function ScriptureBuilderForm({ kind }: ScriptureBuilderFormProps) {
   const [values, setValues] = useState<BuilderValues>(initialPlanValues);
@@ -144,19 +140,6 @@ export function ScriptureBuilderForm({ kind }: ScriptureBuilderFormProps) {
               />
             </label>
           ))}
-          <label className="field md:col-span-2">
-            <span>Metanarrative movement</span>
-            <select className="input" name="movement" onChange={(event) => updateValue("movement", event.target.value)} value={values.movement}>
-              <option value="" disabled>
-                Choose a movement
-              </option>
-              {metanarrativeMovements.map((movement) => (
-                <option key={movement} value={movement}>
-                  {movement}
-                </option>
-              ))}
-            </select>
-          </label>
         </div>
 
         <div className="grid gap-4">
@@ -184,7 +167,7 @@ export function ScriptureBuilderForm({ kind }: ScriptureBuilderFormProps) {
             Preview
           </button>
           <a className="button" href="/student/scripture/questions">
-            Open Live Question Workflow
+            Open Ask
           </a>
         </div>
         <p className="m-0 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm font-bold leading-6 text-blue-900" role="status">
@@ -206,7 +189,7 @@ function PreviewPanel({ kind, values }: { kind: ScriptureBuilderKind; values: Bu
         <p className="eyebrow">Preview only</p>
         <h2 className="section-title flush">{previewValue(values.title, labels.fallbackTitle)}</h2>
         <p className="m-0 text-sm font-bold leading-6 text-slate-600">
-          This planning worksheet does not save. Use the Small Group Questions workflow when a real question needs leader
+          This planning worksheet does not save. Use Ask when a real question needs leader
           review, Gloo generation, approval, and posting.
         </p>
       </div>
@@ -215,7 +198,6 @@ function PreviewPanel({ kind, values }: { kind: ScriptureBuilderKind; values: Bu
         <PreviewRow label="Audience" value={previewValue(values.audience, "Choose who this is for")} />
         <PreviewRow label="Duration" value={previewValue(values.duration, kind === "study" ? "Add study length" : "Add plan length")} />
         <PreviewRow label="Primary Scripture" value={previewValue(values.primaryScripture, "Add a Scripture reference")} />
-        <PreviewRow label="Metanarrative movement" value={previewValue(values.movement, "Choose a movement")} />
       </div>
 
       {kind === "study" ? (
@@ -273,7 +255,7 @@ function builderLabels(kind: ScriptureBuilderKind) {
       fallbackTitle: "Untitled student-led study",
       formLabel: "New Student-Led Study builder",
       guardrailBody:
-        "Student-led studies should be clear about what Scripture directly teaches, what the group is inferring, and what connections are creative. Use Small Group Questions when a real discussion needs saved leader review.",
+        "Student-led studies should be clear about what Scripture directly teaches, what the group is inferring, and what connections are creative. Use Ask when a real discussion needs saved leader review.",
       guardrailClassName: "grid gap-3 rounded-md border border-blue-200 bg-blue-50 p-4",
       guardrailHeadingClassName: "m-0 text-base font-black text-blue-950",
       guardrailLabel: "Leader review reminder",
@@ -287,7 +269,7 @@ function builderLabels(kind: ScriptureBuilderKind) {
     fallbackTitle: "Untitled reading plan",
     formLabel: "New Reading Plan builder",
     guardrailBody:
-      "Planning worksheet only: reading-plan drafts are not saved here. Use Small Group Questions when a real group discussion needs leader review before sharing.",
+      "Planning worksheet only: reading-plan drafts are not saved here. Use Ask when a real group discussion needs leader review before sharing.",
     guardrailClassName: "grid gap-3 rounded-md border border-amber-200 bg-amber-50 p-4",
     guardrailHeadingClassName: "m-0 text-base font-black text-amber-950",
     guardrailLabel: "Draft-only reminder",

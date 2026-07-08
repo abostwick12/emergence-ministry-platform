@@ -3,7 +3,7 @@ import type { MetanarrativeMovement } from "@/lib/scripture/types";
 export type GlooDiscussionDraftInput = {
   question: string;
   scriptureReference: string;
-  metanarrativeMovement: MetanarrativeMovement;
+  metanarrativeMovement?: MetanarrativeMovement;
   retrievedContext?: string;
 };
 
@@ -163,7 +163,7 @@ async function requestGlooDiscussionDraft(
         content:
           `Student question: ${input.question}\n` +
           `Scripture reference: ${input.scriptureReference || "not selected"}\n` +
-          `Metanarrative movement: ${input.metanarrativeMovement}\n\n` +
+          `Quiet story-lens hint: ${input.metanarrativeMovement ?? "infer from the question and passage"}\n\n` +
           `Model routing: ${selection.reason}${selection.escalationReason ? ` Escalation reason: ${selection.escalationReason}` : ""}\n\n` +
           "Draft one Socratic small-group discussion prompt for leader review. Keep it humble, conversational, and grounded in the reference without quoting the passage."
       }

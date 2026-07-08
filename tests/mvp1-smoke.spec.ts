@@ -322,18 +322,18 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await login(page);
     await page.goto("/student");
 
-    await expect(page.getByRole("heading", { name: "Practice reading Scripture with context, community, and care." })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Welcome back, Andrew." })).toBeVisible();
     await expect(
-      page.getByRole("navigation", { name: "Student navigation" }).getByRole("link", { name: "Scripture Hub", exact: true })
+      page.getByRole("navigation", { name: "Student navigation" }).getByRole("link", { name: "Ask", exact: true })
     ).toBeVisible();
     await expect(
       page.getByRole("navigation", { name: "Student navigation" }).getByRole("link", {
-        name: "Small Group Questions",
+        name: "Plans",
         exact: true
       })
     ).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Small Group Questions" })).toBeVisible();
-    await expect(page.getByText("Submit real small-group questions for leader review.").first()).toBeVisible();
+    await expect(page.getByRole("heading", { name: "What should we talk about next?" })).toBeVisible();
+    await expect(page.getByRole("complementary", { name: "Keep reading" })).toBeVisible();
   });
 
   test("Parent route is an inactive placeholder", async ({ page }) => {

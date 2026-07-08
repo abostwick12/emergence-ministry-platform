@@ -6,13 +6,11 @@ import {
   DiscussionWorkflowError,
   getStudentDiscussionWorkflowState
 } from "@/lib/scripture/discussion-workflow";
-import { metanarrativeMovements, type MetanarrativeMovement } from "@/lib/scripture/types";
 import { resolveStudentHubAccess } from "@/lib/student/access";
 
 type CreateDiscussionRequestBody = {
   question?: unknown;
   scriptureReference?: unknown;
-  metanarrativeMovement?: unknown;
 };
 
 export async function GET() {
@@ -44,28 +42,23 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, code: "invalid_json", error: "Valid JSON body is required." }, { status: 400 });
   }
 
-  if (typeof body.question !== "string" || typeof body.scriptureReference !== "string") {
-    return NextResponse.json({ ok: false, code: "invalid_request", error: "Question and Scripture reference fields are required." }, { status: 400 });
+  if (typeof body.question !== "string") {
+    return NextResponse.json({ ok: false, code: "invalid_request", error: "Question is required." }, { status: 400 });
   }
 
-  if (!isMetanarrativeMovement(body.metanarrativeMovement)) {
-    return NextResponse.json({ ok: false, code: "invalid_movement", error: "Choose a valid metanarrative movement." }, { status: 400 });
+  if (body.scriptureReference !== undefined && typeof body.scriptureReference !== "string") {
+    return NextResponse.json({ ok: false, code: "invalid_reference", error: "Scripture reference must be text." }, { status: 400 });
   }
 
   try {
     const prompt = await createStudentDiscussionPrompt(access.session, {
       question: body.question,
-      scriptureReference: body.scriptureReference,
-      metanarrativeMovement: body.metanarrativeMovement
+      scriptureReference: body.scriptureReference
     });
     return NextResponse.json({ ok: true, prompt }, { status: 201 });
   } catch (error) {
     return discussionErrorResponse(error);
   }
-}
-
-function isMetanarrativeMovement(value: unknown): value is MetanarrativeMovement {
-  return typeof value === "string" && metanarrativeMovements.includes(value as MetanarrativeMovement);
 }
 
 function discussionErrorResponse(error: unknown) {
