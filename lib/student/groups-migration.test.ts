@@ -3,6 +3,10 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const migration = readFileSync(join(process.cwd(), "supabase/migrations/027_student_group_self_join.sql"), "utf8");
+const grantHardeningMigration = readFileSync(
+  join(process.cwd(), "supabase/migrations/028_harden_student_group_self_join_grants.sql"),
+  "utf8"
+);
 
 describe("student group self-join migration", () => {
   it("adds group, invite, and membership tables with RLS enabled", () => {
@@ -18,6 +22,11 @@ describe("student group self-join migration", () => {
     expect(migration).toContain("public.current_user_role() in ('admin','leader','staff')");
     expect(migration).not.toContain("to anon");
     expect(migration).not.toContain("using (true)");
+
+    for (const table of ["student_groups", "student_group_invites", "student_group_members"]) {
+      expect(grantHardeningMigration).toContain(`revoke all privileges on table public.${table} from anon;`);
+      expect(grantHardeningMigration).toContain(`grant select, insert, update on table public.${table} to authenticated;`);
+    }
   });
 
   it("connects discussion prompts to a group without requiring a group for older data", () => {
