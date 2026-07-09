@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildQuestionNextStep, buildStudentHomeFeed, toGroupDiscussionItems } from "@/lib/scripture/student-home";
+import { buildGroupDiscussionNextStep, buildQuestionNextStep, buildStudentHomeFeed, toGroupDiscussionItems } from "@/lib/scripture/student-home";
 import type { StudentDiscussionPrompt } from "@/lib/scripture/types";
 
 describe("student home feed personalization", () => {
@@ -54,6 +54,12 @@ describe("student home feed personalization", () => {
     );
 
     expect(feed.forGroup.map((item) => item.id)).toEqual(["approved"]);
+    expect(feed.groupNextSteps[0]).toMatchObject({
+      promptId: "approved",
+      label: "Next for your group",
+      title: "Keep walking this out",
+      wrestleTogetherPrompt: "What does this passage reveal about trust?"
+    });
   });
 
   it("accepts sanitized approved group prompts separately from the student's private queue", () => {
@@ -93,6 +99,35 @@ describe("student home feed personalization", () => {
       }
     ]);
     expect(feed.keepReading.length).toBeGreaterThan(0);
+    expect(feed.groupNextSteps).toEqual([
+      expect.objectContaining({
+        promptId: "group_approved",
+        summary: "This leader-approved question is for your group. Read, reflect, and come ready to listen and respond together."
+      })
+    ]);
+  });
+
+  it("builds group follow-through from leader-approved prompts without private reflection state", () => {
+    const nextStep = buildGroupDiscussionNextStep({
+      id: "group_prompt",
+      question: "How can we trust God when life is hard?",
+      scriptureReference: "Psalm 13",
+      discussionPrompt: "Where does this psalm give us language for honest trust?",
+      status: "posted",
+      createdAt: "2026-07-09T00:00:00.000Z"
+    });
+
+    expect(nextStep).toMatchObject({
+      promptId: "group_prompt",
+      label: "Shared with your group",
+      title: "Keep walking this out",
+      wrestleTogetherPrompt: "Where does this psalm give us language for honest trust?",
+      readingPlan: {
+        href: "/student/scripture/plans"
+      }
+    });
+    expect(nextStep.journalPrompts.length).toBeGreaterThan(0);
+    expect(nextStep.prayerPrompts.length).toBeGreaterThan(0);
   });
 
   it("rehydrates saved recommendations for the student's recent questions", () => {

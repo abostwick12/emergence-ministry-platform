@@ -40,6 +40,7 @@ export type StudentHomeFeed = {
   recentQuestions: StudentDiscussionPrompt[];
   keepReading: StudentKeepReadingItem[];
   questionNextSteps: StudentQuestionNextStep[];
+  groupNextSteps: StudentQuestionNextStep[];
 };
 
 type ReadingSource = {
@@ -60,12 +61,14 @@ export function buildStudentHomeFeed(
   const questionNextSteps = recentQuestions.map((prompt) => {
     return savedRecommendationsToNextStep(prompt, savedRecommendations[prompt.id]) ?? buildQuestionNextStep(prompt, prompt.knowledgeContext ?? []);
   });
+  const groupNextSteps = forGroup.map((prompt) => buildGroupDiscussionNextStep(prompt));
 
   return {
     forGroup,
     recentQuestions,
-    keepReading: buildKeepReadingItems(recentQuestions, forGroup, questionNextSteps),
-    questionNextSteps
+    keepReading: buildKeepReadingItems(recentQuestions, forGroup, [...questionNextSteps, ...groupNextSteps]),
+    questionNextSteps,
+    groupNextSteps
   };
 }
 
@@ -105,6 +108,23 @@ export function buildQuestionNextStep(prompt: ReadingSource & { id?: string }, k
     wrestleTogetherPrompt: wrestleTogetherPromptForPrompt(prompt, primaryKnowledge),
     readingPlan: primaryKnowledge ? knowledgeItem(primaryKnowledge, primaryKnowledge.label) : planItem(plan, topic ? `Because you asked about ${topic}` : "Suggested plan"),
     resource: secondaryKnowledge ? knowledgeItem(secondaryKnowledge, "Keep digging") : resourceItem(resource, "Practice this")
+  };
+}
+
+export function buildGroupDiscussionNextStep(prompt: StudentGroupDiscussionItem): StudentQuestionNextStep {
+  const base = buildQuestionNextStep({
+    id: prompt.id,
+    question: `${prompt.question} ${prompt.discussionPrompt}`,
+    scriptureReference: prompt.scriptureReference
+  });
+
+  return {
+    ...base,
+    promptId: prompt.id,
+    label: prompt.status === "posted" ? "Shared with your group" : "Next for your group",
+    title: "Keep walking this out",
+    summary: "This leader-approved question is for your group. Read, reflect, and come ready to listen and respond together.",
+    wrestleTogetherPrompt: prompt.discussionPrompt || base.wrestleTogetherPrompt
   };
 }
 
