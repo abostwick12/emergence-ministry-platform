@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { DiscussionWorkflowState } from "@/lib/scripture/discussion-workflow";
 import type { GlooDiagnosticResult } from "@/lib/scripture/gloo";
 import { buildLocalDiscussionDraftForPrompt } from "@/lib/scripture/local-discussion-draft";
+import { buildQuestionNextStep, type StudentQuestionNextStep } from "@/lib/scripture/student-home";
 import { matchQuestionToStoryline, type StorylineQuestionMatch } from "@/lib/scripture/storyline-guide";
 import type { StudentDiscussionPrompt, StudentDiscussionStatus } from "@/lib/scripture/types";
 import type { StudentGroupLeaderState } from "@/lib/student/groups";
@@ -756,6 +757,7 @@ function LeaderReviewDetail({
   const [discussionPrompt, setDiscussionPrompt] = useState(prompt.discussionPrompt);
   const localDraft = useMemo(() => buildLocalDiscussionDraftForPrompt(prompt), [prompt]);
   const storylineMatch = useMemo(() => matchQuestionToStoryline(prompt), [prompt]);
+  const studentNextStep = useMemo(() => buildQuestionNextStep(prompt, prompt.knowledgeContext ?? []), [prompt]);
   const reviewDraft = guidanceText(prompt, localDraft.discussionPrompt);
   const draftSource = prompt.discussionPrompt
     ? prompt.aiStatus === "generated"
@@ -792,6 +794,7 @@ function LeaderReviewDetail({
       </div>
 
       <LeaderStorylineContext match={storylineMatch} />
+      <LeaderStudentJourneyContext nextStep={studentNextStep} prompt={prompt} />
 
       <section className="leader-review-guidance" aria-label="Draft and care notes">
         <div>
@@ -849,6 +852,59 @@ function LeaderReviewDetail({
           {savingAction === "archive" ? "Archiving..." : "Archive"}
         </button>
       </div>
+    </article>
+  );
+}
+
+function LeaderStudentJourneyContext({
+  nextStep,
+  prompt
+}: {
+  nextStep: StudentQuestionNextStep;
+  prompt: StudentDiscussionPrompt;
+}) {
+  const reflected = (prompt.studentReflectionCount ?? 0) > 0;
+
+  return (
+    <section className="leader-student-journey-context" aria-label="Student journey context">
+      <div className="leader-student-journey-heading">
+        <div>
+          <p className="eyebrow">Student Journey</p>
+          <h3>{reflected ? "Student has started wrestling with it" : "Student next steps are ready"}</h3>
+          <p>
+            This shows the guided path the student receives while the question is with leaders. Private journal notes stay private to the student.
+          </p>
+        </div>
+        <div className="leader-student-journey-signals" aria-label="Reflection signals">
+          <MetaTile label="Reflected" value={reflected ? `${prompt.studentReflectionCount}` : "Not yet"} />
+          <MetaTile label="Latest" value={prompt.studentLastReflectedAt ? formatShortDate(prompt.studentLastReflectedAt) : "Waiting"} />
+        </div>
+      </div>
+
+      <div className="leader-student-journey-grid">
+        <JourneyPreview title="Wrestle with it" items={nextStep.wrestleQuestions.slice(0, 2)} />
+        <JourneyPreview title="Dig deeper" items={nextStep.digQuestions.slice(0, 2)} />
+        <JourneyPreview title="Reflect" items={nextStep.journalPrompts.slice(0, 2)} />
+        <JourneyPreview title="Pray" items={nextStep.prayerPrompts.slice(0, 2)} />
+      </div>
+
+      <div className="leader-student-journey-together">
+        <span>Wrestle together</span>
+        <p>{nextStep.wrestleTogetherPrompt}</p>
+      </div>
+    </section>
+  );
+}
+
+function JourneyPreview({ items, title }: { items: string[]; title: string }) {
+  return (
+    <article>
+      <span>{title}</span>
+      <ul>
+        {items.map((item) => (
+          <li key={item}>{item}</li>
+        ))}
+      </ul>
     </article>
   );
 }
