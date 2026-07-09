@@ -18,6 +18,7 @@ describe("scripture trial report", () => {
             scriptureReference: "Genesis 3",
             knowledgeMatchCount: 2,
             hasSavedNextSteps: true,
+            studentReflectionCount: 1,
             createdAt: "2026-07-08T00:00:00.000Z"
           }
         ]
@@ -31,6 +32,7 @@ describe("scripture trial report", () => {
     expect(report).toContain("## Launch Readiness Notes");
     expect(report).toContain("- Live storage: ready for real submissions");
     expect(report).toContain("- Student next-step coverage: 1 of 3 questions");
+    expect(report).toContain("- Student reflection coverage: 1 of 3 questions");
     expect(report).toContain("- trust: 2");
     expect(report).toContain('1. "Why did God put the tree in the garden?"');
     expect(report).not.toContain("Student One");
@@ -78,6 +80,7 @@ function insights(overrides: Partial<ScriptureTrialInsights> = {}): ScriptureTri
     careNeeded: 0,
     withKnowledgeContext: 2,
     withSavedNextSteps: 1,
+    reflectedQuestions: 1,
     topicCounts: [{ label: "trust", count: 2 }],
     scriptureReferences: [{ label: "Genesis 3", count: 1 }],
     knowledgeMatches: [{ label: "Trust before the tree", count: 1 }],

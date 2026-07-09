@@ -84,6 +84,7 @@ export function ScriptureTrialInsightsPanel({ groupState, insights }: ScriptureT
                 <div className="scripture-trial-question-signals" aria-label="Question signals">
                   <Signal label={labelForStatus(question.status)} />
                   <Signal label={question.hasSavedNextSteps ? "next steps saved" : `${question.knowledgeMatchCount} brain match${question.knowledgeMatchCount === 1 ? "" : "es"}`} />
+                  <Signal label={question.studentReflectionCount ? `${question.studentReflectionCount} reflected` : "not reflected yet"} />
                   <Signal label={labelForSafety(question.safetyLabel)} />
                 </div>
               </article>
@@ -165,6 +166,14 @@ function buildLaunchReadiness(insights: ScriptureTrialInsights, groupState: Stud
         insights.withSavedNextSteps > 0
           ? `${insights.withSavedNextSteps} question${insights.withSavedNextSteps === 1 ? "" : "s"} connected to saved next steps`
           : "Save reading and dig questions as students ask"
+    },
+    {
+      label: "Student reflection",
+      state: insights.reflectedQuestions > 0 ? "ready" : insights.totalQuestions > 0 ? "watch" : "setup",
+      detail:
+        insights.reflectedQuestions > 0
+          ? `${insights.reflectedQuestions} question${insights.reflectedQuestions === 1 ? "" : "s"} have student reflection`
+          : "Reflections appear after students wrestle before group"
     }
   ];
 }

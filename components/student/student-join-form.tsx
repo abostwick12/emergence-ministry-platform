@@ -63,12 +63,12 @@ export function StudentJoinForm({ code, expiresAt, groupName, ministryName }: St
           <small>Your leader will review questions before anything is shared with the group.</small>
         </div>
         <ul className="student-join-next-steps">
-          <li>Ask a real question your group can wrestle with.</li>
-          <li>Keep reading with Scripture and prompts picked for your next step.</li>
-          <li>Watch for leader-approved discussion items from your group.</li>
+          <li>Open the Student Portal and ask your first real question.</li>
+          <li>Use the deeper questions, journal prompts, prayer prompts, and reading path while your leader reviews it.</li>
+          <li>Come back when your leader approves a group discussion prompt.</li>
         </ul>
         <button className="button primary" onClick={() => window.location.assign(joined.redirectTo)} type="button">
-          Open student portal
+          Open Student Portal
         </button>
       </div>
     );
@@ -79,7 +79,7 @@ export function StudentJoinForm({ code, expiresAt, groupName, ministryName }: St
       <div className="student-join-context">
         <strong>{ministryName}</strong>
         <span>{groupName}</span>
-        {expires ? <small>Invite expires {expires}</small> : null}
+        <small>{expires ? `Invite expires ${expires}` : "Use this account for your small group tryout."}</small>
       </div>
 
       <label className="field">
@@ -104,7 +104,7 @@ export function StudentJoinForm({ code, expiresAt, groupName, ministryName }: St
       ) : null}
 
       <button className="button primary" type="submit" disabled={isSubmitting}>
-        {isSubmitting ? "Creating access..." : "Join student portal"}
+        {isSubmitting ? "Creating access..." : "Join and open Student Portal"}
       </button>
     </form>
   );

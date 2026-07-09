@@ -15,6 +15,7 @@ describe("scripture trial insights", () => {
         topicTags: ["garden", "trust"],
         status: "pending_review",
         safetyLabel: "unreviewed",
+        studentReflectionCount: 2,
         knowledgeContext: [
           {
             id: "knowledge_1",
@@ -58,6 +59,7 @@ describe("scripture trial insights", () => {
       careNeeded: 1,
       withKnowledgeContext: 1,
       withSavedNextSteps: 1,
+      reflectedQuestions: 1,
       recommendationPersistenceAvailable: true
     });
     expect(insights.topicCounts).toEqual([
@@ -73,7 +75,8 @@ describe("scripture trial insights", () => {
     expect(insights.recentQuestions[0]).toMatchObject({
       id: "prompt_1",
       hasSavedNextSteps: true,
-      knowledgeMatchCount: 1
+      knowledgeMatchCount: 1,
+      studentReflectionCount: 2
     });
   });
 

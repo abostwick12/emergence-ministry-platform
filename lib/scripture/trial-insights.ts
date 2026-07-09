@@ -30,6 +30,7 @@ export type ScriptureTrialInsightRecentQuestion = {
   scriptureReference: string;
   knowledgeMatchCount: number;
   hasSavedNextSteps: boolean;
+  studentReflectionCount: number;
   createdAt: string;
 };
 
@@ -43,6 +44,7 @@ export type ScriptureTrialInsights = {
   careNeeded: number;
   withKnowledgeContext: number;
   withSavedNextSteps: number;
+  reflectedQuestions: number;
   topicCounts: ScriptureTrialInsightTopic[];
   scriptureReferences: ScriptureTrialInsightTopic[];
   knowledgeMatches: ScriptureTrialInsightTopic[];
@@ -91,6 +93,7 @@ export function buildScriptureTrialInsights(
   const careNeeded = prompts.filter((prompt) => prompt.safetyLabel === "needs_leader_care" || prompt.safetyLabel === "pastoral_escalation").length;
   const withKnowledgeContext = prompts.filter((prompt) => (prompt.knowledgeContext ?? []).length > 0).length;
   const withSavedNextSteps = recommendationPromptIds.size;
+  const reflectedQuestions = prompts.filter((prompt) => (prompt.studentReflectionCount ?? 0) > 0).length;
   const draftGaps = prompts.filter((prompt) => prompt.aiStatus === "failed" || prompt.aiStatus === "not_configured").length;
 
   return {
@@ -117,6 +120,11 @@ export function buildScriptureTrialInsights(
         detail: recommendationPersistenceAvailable ? "Saved for students" : "Checked from live matches"
       },
       {
+        label: "Reflected",
+        value: reflectedQuestions,
+        detail: reflectedQuestions ? "Students wrestling before group" : "No student reflections yet"
+      },
+      {
         label: "Care signals",
         value: careNeeded,
         detail: draftGaps ? `${draftGaps} draft gap${draftGaps === 1 ? "" : "s"}` : "No draft gaps"
@@ -129,6 +137,7 @@ export function buildScriptureTrialInsights(
     careNeeded,
     withKnowledgeContext,
     withSavedNextSteps,
+    reflectedQuestions,
     topicCounts: topCounts(prompts.flatMap((prompt) => prompt.topicTags).map(formatTopicLabel), 6),
     scriptureReferences: topCounts(
       prompts.map((prompt) => prompt.scriptureReference.trim()).filter(Boolean),
@@ -148,6 +157,7 @@ export function buildScriptureTrialInsights(
       scriptureReference: prompt.scriptureReference,
       knowledgeMatchCount: prompt.knowledgeContext?.length ?? 0,
       hasSavedNextSteps: recommendationPromptIds.has(prompt.id),
+      studentReflectionCount: prompt.studentReflectionCount ?? 0,
       createdAt: prompt.createdAt
     })),
     recommendationPersistenceAvailable
