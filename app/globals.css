@@ -7952,7 +7952,8 @@ html:has(.app-shell-camp) body {
 }
 
 .student-question-journey-meta div,
-.student-question-journey-response {
+.student-question-journey-response,
+.student-question-reflection {
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   background: var(--surface-2);
@@ -7984,6 +7985,68 @@ html:has(.app-shell-camp) body {
   font-size: var(--text-sm);
   font-weight: 760;
   line-height: 1.55;
+}
+
+.student-question-reflection {
+  display: grid;
+  gap: 12px;
+}
+
+.student-question-reflection h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--text-lg);
+  line-height: 1.2;
+}
+
+.student-question-reflection p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 720;
+  line-height: 1.5;
+}
+
+.student-question-reflection label {
+  display: grid;
+  gap: 8px;
+}
+
+.student-question-reflection label span {
+  color: var(--primary);
+  font-size: var(--text-xs);
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.student-question-reflection textarea {
+  min-height: 96px;
+  width: 100%;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: rgba(8, 18, 34, 0.72);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  padding: 12px;
+}
+
+.student-question-reflection textarea:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.student-question-reflection-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.student-question-reflection-status {
+  min-height: 20px;
 }
 
 .student-next-step-copy h2 {
