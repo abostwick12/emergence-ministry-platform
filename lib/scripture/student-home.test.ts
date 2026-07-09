@@ -26,6 +26,10 @@ describe("student home feed personalization", () => {
     );
 
     expect(feed.recentQuestions.map((item) => item.id)).toEqual(["question_tree"]);
+    expect(feed.questionNextSteps[0]).toMatchObject({
+      promptId: "question_tree",
+      title: "Start digging before group"
+    });
     expect(feed.keepReading[0]).toMatchObject({
       label: "Because you asked about Genesis 3",
       title: "Beginnings and Covenant"
@@ -89,6 +93,63 @@ describe("student home feed personalization", () => {
       }
     ]);
     expect(feed.keepReading.length).toBeGreaterThan(0);
+  });
+
+  it("rehydrates saved recommendations for the student's recent questions", () => {
+    const feed = buildStudentHomeFeed(
+      [
+        prompt({
+          id: "question_suffering",
+          question: "How do I trust God when suffering feels pointless?",
+          scriptureReference: "Romans 8:18",
+          metanarrativeMovement: undefined,
+          topicTags: []
+        })
+      ],
+      "usr_student",
+      [],
+      {
+        question_suffering: [
+          savedRecommendation({
+            kind: "dig_question",
+            label: "Because you asked about suffering",
+            title: "Where does Romans 8 name pain without pretending it is small?",
+            rank: 0
+          }),
+          savedRecommendation({
+            kind: "reading_plan",
+            label: "Because you asked about suffering",
+            title: "Romans 8 and patient hope",
+            description: "Read suffering and hope together before group.",
+            href: "/student/scripture/resources",
+            rank: 10
+          }),
+          savedRecommendation({
+            kind: "resource",
+            label: "Keep digging",
+            title: "Practicing honest lament",
+            description: "Use prayer and careful reading instead of rushing to an answer.",
+            href: "/student/scripture/resources",
+            rank: 11
+          })
+        ]
+      }
+    );
+
+    expect(feed.questionNextSteps[0]).toMatchObject({
+      promptId: "question_suffering",
+      label: "Because you asked about suffering",
+      title: "Keep digging before group",
+      summary: "Read suffering and hope together before group.",
+      digQuestions: ["Where does Romans 8 name pain without pretending it is small?"],
+      readingPlan: {
+        title: "Romans 8 and patient hope"
+      }
+    });
+    expect(feed.keepReading[0]).toMatchObject({
+      label: "Because you asked about suffering",
+      title: "Romans 8 and patient hope"
+    });
   });
 
   it("sanitizes approved prompts before they enter the student group feed", () => {
@@ -175,6 +236,22 @@ describe("student home feed personalization", () => {
     });
     expect(nextStep.digQuestions).toEqual(["Where does Romans 8 name pain without pretending it is small?"]);
   });
+
+  it("adds a careful leader-care note for sensitive questions", () => {
+    const nextStep = buildQuestionNextStep(
+      prompt({
+        id: "question_grief",
+        question: "How can I pray when grief and anxiety make everything feel heavy?",
+        metanarrativeMovement: undefined,
+        topicTags: []
+      })
+    );
+
+    expect(nextStep.careNote).toContain("trusted leader");
+    expect(nextStep.digQuestions).toEqual(
+      expect.arrayContaining(["Where does Scripture make room for honest grief or lament?"])
+    );
+  });
 });
 
 function prompt(overrides: Partial<StudentDiscussionPrompt>): StudentDiscussionPrompt {
@@ -203,6 +280,23 @@ function prompt(overrides: Partial<StudentDiscussionPrompt>): StudentDiscussionP
     deliveryMessage: "",
     createdAt: "2026-07-08T00:00:00.000Z",
     updatedAt: "2026-07-08T00:00:00.000Z",
+    ...overrides
+  };
+}
+
+function savedRecommendation(overrides: {
+  kind: "dig_question" | "reading_plan" | "resource" | "scripture_lookup" | "leader_context";
+  label: string;
+  title: string;
+  description?: string;
+  href?: string;
+  rank: number;
+}) {
+  return {
+    promptId: "question_suffering",
+    description: "",
+    href: "/student",
+    sourceChunkId: undefined,
     ...overrides
   };
 }

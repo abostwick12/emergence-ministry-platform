@@ -1,5 +1,5 @@
 import { scripturePlans, scriptureResources } from "@/lib/scripture/mock-data";
-import type { StudentKnowledgeMatch } from "@/lib/scripture/knowledge";
+import type { StudentKnowledgeMatch, StudentSavedQuestionRecommendation } from "@/lib/scripture/knowledge";
 import type { ScripturePlan, ScriptureResource, StudentDiscussionPrompt, StudentDiscussionStatus } from "@/lib/scripture/types";
 
 export type StudentGroupDiscussionItem = {
@@ -25,6 +25,7 @@ export type StudentQuestionNextStep = {
   label: string;
   title: string;
   summary: string;
+  careNote?: string;
   digQuestions: string[];
   readingPlan: StudentKeepReadingItem;
   resource: StudentKeepReadingItem;
@@ -34,6 +35,7 @@ export type StudentHomeFeed = {
   forGroup: StudentGroupDiscussionItem[];
   recentQuestions: StudentDiscussionPrompt[];
   keepReading: StudentKeepReadingItem[];
+  questionNextSteps: StudentQuestionNextStep[];
 };
 
 type ReadingSource = {
@@ -46,15 +48,20 @@ type ReadingSource = {
 export function buildStudentHomeFeed(
   prompts: StudentDiscussionPrompt[],
   userId: string,
-  approvedGroupPrompts: StudentGroupDiscussionItem[] = toGroupDiscussionItems(prompts)
+  approvedGroupPrompts: StudentGroupDiscussionItem[] = toGroupDiscussionItems(prompts),
+  savedRecommendations: Record<string, StudentSavedQuestionRecommendation[]> = {}
 ): StudentHomeFeed {
   const recentQuestions = prompts.filter((prompt) => prompt.submittedByUserId === userId).slice(0, 4);
   const forGroup = approvedGroupPrompts.slice(0, 4);
+  const questionNextSteps = recentQuestions.map((prompt) => {
+    return savedRecommendationsToNextStep(prompt, savedRecommendations[prompt.id]) ?? buildQuestionNextStep(prompt, prompt.knowledgeContext ?? []);
+  });
 
   return {
     forGroup,
     recentQuestions,
-    keepReading: buildKeepReadingItems(recentQuestions, forGroup)
+    keepReading: buildKeepReadingItems(recentQuestions, forGroup, questionNextSteps),
+    questionNextSteps
   };
 }
 
@@ -86,20 +93,31 @@ export function buildQuestionNextStep(prompt: ReadingSource & { id?: string }, k
     summary:
       primaryKnowledge?.description ??
       "Your leader can still shape this for discussion, but you do not have to wait to start reading carefully.",
+    careNote: careNoteForPrompt(prompt),
     digQuestions: primaryKnowledge?.digQuestions?.length ? primaryKnowledge.digQuestions : digQuestionsForPrompt(prompt),
-    readingPlan: primaryKnowledge ? knowledgeItem(primaryKnowledge, primaryKnowledge.label) : planItem(plan, topic ? `Reading for ${topic}` : "Suggested plan"),
+    readingPlan: primaryKnowledge ? knowledgeItem(primaryKnowledge, primaryKnowledge.label) : planItem(plan, topic ? `Because you asked about ${topic}` : "Suggested plan"),
     resource: secondaryKnowledge ? knowledgeItem(secondaryKnowledge, "Keep digging") : resourceItem(resource, "Practice this")
   };
 }
 
-function buildKeepReadingItems(recentQuestions: StudentDiscussionPrompt[], forGroup: StudentGroupDiscussionItem[]) {
+function buildKeepReadingItems(
+  recentQuestions: StudentDiscussionPrompt[],
+  forGroup: StudentGroupDiscussionItem[],
+  questionNextSteps: StudentQuestionNextStep[] = []
+) {
   const sourcePrompts = [...recentQuestions, ...forGroup];
   const items: StudentKeepReadingItem[] = [];
 
+  for (const nextStep of questionNextSteps) {
+    pushUniqueKeepReadingItem(items, nextStep.readingPlan);
+    pushUniqueKeepReadingItem(items, nextStep.resource);
+    if (items.length >= 3) return items.slice(0, 3);
+  }
+
   for (const prompt of sourcePrompts) {
     const plan = planForPrompt(prompt);
-    if (plan && !items.some((item) => item.id === `plan-${plan.id}`)) {
-      items.push({
+    if (plan) {
+      pushUniqueKeepReadingItem(items, {
         id: `plan-${plan.id}`,
         label: promptLabel(prompt),
         title: plan.title,
@@ -109,8 +127,8 @@ function buildKeepReadingItems(recentQuestions: StudentDiscussionPrompt[], forGr
     }
 
     const resource = resourceForPrompt(prompt);
-    if (resource && !items.some((item) => item.id === `resource-${resource.id}`)) {
-      items.push({
+    if (resource) {
+      pushUniqueKeepReadingItem(items, {
         id: `resource-${resource.id}`,
         label: prompt.scriptureReference ? `Because you opened ${prompt.scriptureReference}` : "Because you asked honestly",
         title: resource.title,
@@ -123,6 +141,44 @@ function buildKeepReadingItems(recentQuestions: StudentDiscussionPrompt[], forGr
   }
 
   return fillFallbackItems(items);
+}
+
+function savedRecommendationsToNextStep(
+  prompt: StudentDiscussionPrompt,
+  recommendations: StudentSavedQuestionRecommendation[] | undefined
+): StudentQuestionNextStep | undefined {
+  if (!recommendations?.length) return undefined;
+
+  const sorted = [...recommendations].sort((a, b) => a.rank - b.rank);
+  const digQuestions = sorted.filter((item) => item.kind === "dig_question").map((item) => item.title).filter(Boolean).slice(0, 3);
+  const readingPlan = sorted.find((item) => item.kind === "reading_plan");
+  const resource = sorted.find((item) => item.kind === "resource" || item.kind === "scripture_lookup");
+  const fallback = buildQuestionNextStep(prompt, prompt.knowledgeContext ?? []);
+  const firstRecommendation = sorted[0];
+
+  return {
+    promptId: prompt.id,
+    label: firstRecommendation?.label || fallback.label,
+    title: "Keep digging before group",
+    summary:
+      readingPlan?.description ||
+      resource?.description ||
+      "These next steps were saved from your question so you can keep reading while your leader reviews it.",
+    careNote: fallback.careNote,
+    digQuestions: digQuestions.length ? digQuestions : fallback.digQuestions,
+    readingPlan: readingPlan ? recommendationItem(readingPlan, prompt.id) : fallback.readingPlan,
+    resource: resource ? recommendationItem(resource, prompt.id) : fallback.resource
+  };
+}
+
+function recommendationItem(recommendation: StudentSavedQuestionRecommendation, promptId: string): StudentKeepReadingItem {
+  return {
+    id: `recommendation-${promptId}-${recommendation.kind}-${recommendation.rank}`,
+    label: recommendation.label,
+    title: recommendation.title,
+    description: recommendation.description,
+    href: recommendation.href
+  };
 }
 
 function fillFallbackItems(items: StudentKeepReadingItem[]) {
@@ -144,11 +200,15 @@ function fillFallbackItems(items: StudentKeepReadingItem[]) {
   ];
 
   for (const item of fallbacks) {
-    if (!items.some((current) => current.id === item.id)) items.push(item);
+    pushUniqueKeepReadingItem(items, item);
     if (items.length >= 3) break;
   }
 
-  return items;
+  return items.slice(0, 3);
+}
+
+function pushUniqueKeepReadingItem(items: StudentKeepReadingItem[], item: StudentKeepReadingItem) {
+  if (!items.some((current) => current.id === item.id || current.title === item.title)) items.push(item);
 }
 
 function planItem(plan: ScripturePlan, label: string): StudentKeepReadingItem {
@@ -252,6 +312,14 @@ function digQuestionsForPrompt(prompt: ReadingSource) {
     ];
   }
 
+  if (/\b(suffer|pain|grief|death|trauma|hard things|depression|panic)\b/.test(text)) {
+    return [
+      "Where does Scripture make room for honest grief or lament?",
+      "What does the passage reveal about God's nearness when life is painful?",
+      "What would be a careful, non-rushed way for the group to respond?"
+    ];
+  }
+
   if (/\b(trust|faith|believe|prayer|pray|anxiety|worry)\b/.test(text)) {
     return [
       "What does the passage show about God's character before it asks for a response?",
@@ -260,19 +328,24 @@ function digQuestionsForPrompt(prompt: ReadingSource) {
     ];
   }
 
-  if (/\b(suffer|pain|grief|death|trauma|hard things)\b/.test(text)) {
-    return [
-      "Where does Scripture make room for honest grief or lament?",
-      "What does the passage reveal about God's nearness when life is painful?",
-      "What would be a careful, non-rushed way for the group to respond?"
-    ];
-  }
-
   return [
     "What is happening in the passage or story behind this question?",
     "What does this reveal about God, people, brokenness, or hope?",
     "How could your group respond together without forcing a quick answer?"
   ];
+}
+
+function careNoteForPrompt(prompt: ReadingSource) {
+  const text = promptSearchText(prompt);
+  if (/\b(abuse|assault|self harm|suicide|kill myself|hurt myself|trauma|family crisis|unsafe)\b/.test(text)) {
+    return "This is important enough to bring to a trusted leader right away. Keep reading carefully, but do not carry it alone.";
+  }
+
+  if (/\b(grief|death|depression|anxiety|panic|sexuality|identity|deconstruct|hell|judgment)\b/.test(text)) {
+    return "This may need a slower conversation with a trusted leader. Use these questions to prepare, not to force a quick answer.";
+  }
+
+  return undefined;
 }
 
 function promptSearchText(prompt: ReadingSource) {

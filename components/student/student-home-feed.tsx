@@ -41,13 +41,19 @@ const readingHelps = [
 export function StudentHomeFeed({ initialState, initialFeed, userName }: StudentHomeFeedProps) {
   const [recentQuestions, setRecentQuestions] = useState(initialFeed.recentQuestions);
   const [keepReading, setKeepReading] = useState(initialFeed.keepReading);
-  const [nextStep, setNextStep] = useState<StudentQuestionNextStep | undefined>();
+  const [questionNextSteps, setQuestionNextSteps] = useState(initialFeed.questionNextSteps);
+  const [nextStep, setNextStep] = useState<StudentQuestionNextStep | undefined>(initialFeed.questionNextSteps[0]);
   const firstName = userName.split(" ")[0] || userName;
 
   function addPrompt(prompt: StudentDiscussionPrompt, nextPromptStep: StudentQuestionNextStep) {
     setRecentQuestions((current) => [prompt, ...current].filter((item) => item.submittedByUserId === prompt.submittedByUserId).slice(0, 4));
+    setQuestionNextSteps((current) => [nextPromptStep, ...current.filter((item) => item.promptId !== prompt.id)].slice(0, 4));
     setNextStep(nextPromptStep);
     setKeepReading((current) => mergeKeepReading(current, [nextPromptStep.readingPlan, nextPromptStep.resource]));
+  }
+
+  function nextStepForPrompt(promptId: string) {
+    return questionNextSteps.find((item) => item.promptId === promptId);
   }
 
   return (
@@ -103,7 +109,7 @@ export function StudentHomeFeed({ initialState, initialFeed, userName }: Student
 
         <FeedSection title="Your recent questions" emptyTitle="No questions sent yet." emptyBody="When you send a real question, it will show here while your leader reviews it.">
           {recentQuestions.map((prompt) => (
-            <QuestionFeedRow key={prompt.id} prompt={prompt} />
+            <QuestionFeedRow key={prompt.id} nextStep={nextStepForPrompt(prompt.id)} onOpenNextStep={setNextStep} prompt={prompt} />
           ))}
         </FeedSection>
       </section>
@@ -150,6 +156,11 @@ function StudentQuestionNextStepCard({ nextStep }: { nextStep: StudentQuestionNe
           <KeepReadingLink item={nextStep.resource} />
         </div>
       </div>
+      {nextStep.careNote ? (
+        <p className="student-next-step-care">
+          <strong>Bring this with you:</strong> {nextStep.careNote}
+        </p>
+      ) : null}
     </section>
   );
 }
@@ -190,7 +201,15 @@ function DiscussionFeedRow({ prompt }: { prompt: StudentGroupDiscussionItem }) {
   );
 }
 
-function QuestionFeedRow({ prompt }: { prompt: StudentDiscussionPrompt }) {
+function QuestionFeedRow({
+  prompt,
+  nextStep,
+  onOpenNextStep
+}: {
+  prompt: StudentDiscussionPrompt;
+  nextStep?: StudentQuestionNextStep;
+  onOpenNextStep: (nextStep: StudentQuestionNextStep) => void;
+}) {
   return (
     <article className="student-feed-row">
       <div>
@@ -198,7 +217,14 @@ function QuestionFeedRow({ prompt }: { prompt: StudentDiscussionPrompt }) {
         <h3>{prompt.question}</h3>
         <p>{statusText(prompt)}</p>
       </div>
-      <span className={prompt.status === "changes_requested" ? "pill amber" : "pill blue"}>{statusLabel(prompt.status)}</span>
+      <div className="student-feed-row-actions">
+        <span className={prompt.status === "changes_requested" ? "pill amber" : "pill blue"}>{statusLabel(prompt.status)}</span>
+        {nextStep ? (
+          <button className="button secondary" onClick={() => onOpenNextStep(nextStep)} type="button">
+            Open next steps
+          </button>
+        ) : null}
+      </div>
     </article>
   );
 }

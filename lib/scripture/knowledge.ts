@@ -7,6 +7,19 @@ import type { StudentDiscussionKnowledgeContext } from "@/lib/scripture/types";
 
 export type StudentKnowledgeMatch = StudentDiscussionKnowledgeContext;
 
+export type StudentQuestionRecommendationKind = "dig_question" | "reading_plan" | "resource" | "scripture_lookup" | "leader_context";
+
+export type StudentSavedQuestionRecommendation = {
+  promptId: string;
+  kind: StudentQuestionRecommendationKind;
+  label: string;
+  title: string;
+  description: string;
+  href: string;
+  rank: number;
+  sourceChunkId?: string;
+};
+
 type KnowledgeSearchInput = {
   id?: string;
   question: string;
@@ -22,6 +35,17 @@ type KnowledgeChunkRow = {
   topic_tags: string[] | null;
   concepts: string[] | null;
   scripture_references: string[] | null;
+};
+
+type StudentQuestionRecommendationRow = {
+  prompt_id: string;
+  recommendation_kind: StudentQuestionRecommendationKind;
+  label: string;
+  title: string;
+  description: string;
+  href: string;
+  rank: number;
+  source_chunk_id: string | null;
 };
 
 const MAX_MATCHES = 3;
@@ -186,6 +210,36 @@ export async function saveStudentQuestionRecommendations(
   }
 }
 
+export async function getSavedStudentQuestionRecommendations(
+  session: AuthSession,
+  promptIds: string[]
+): Promise<Record<string, StudentSavedQuestionRecommendation[]>> {
+  if (!session.accessToken || !isSupabaseConfigured() || promptIds.length === 0) return {};
+
+  try {
+    const supabase = getSupabaseAuthClient(session.accessToken);
+    const result = await supabase
+      .from("student_question_recommendations")
+      .select("prompt_id,recommendation_kind,label,title,description,href,rank,source_chunk_id")
+      .eq("student_user_id", session.user.id)
+      .in("prompt_id", promptIds)
+      .order("rank", { ascending: true })
+      .returns<StudentQuestionRecommendationRow[]>();
+
+    if (result.error) {
+      console.warn("[scripture] saved recommendation query failed", { message: result.error.message });
+      return {};
+    }
+
+    return groupRecommendationsByPrompt(result.data ?? []);
+  } catch (error) {
+    console.warn("[scripture] saved recommendation query unavailable", {
+      reason: error instanceof Error ? error.message : "unknown"
+    });
+    return {};
+  }
+}
+
 async function getLiveKnowledgeMatches(session: AuthSession, input: KnowledgeSearchInput) {
   if (!isSupabaseAdminConfigured()) return [];
 
@@ -234,6 +288,24 @@ function toKnowledgeMatch(row: KnowledgeChunkRow): StudentKnowledgeMatch {
     scriptureReferences,
     digQuestions: questionsFromChunk(row)
   };
+}
+
+function groupRecommendationsByPrompt(rows: StudentQuestionRecommendationRow[]) {
+  return rows.reduce<Record<string, StudentSavedQuestionRecommendation[]>>((groups, row) => {
+    const promptRecommendations = groups[row.prompt_id] ?? [];
+    promptRecommendations.push({
+      promptId: row.prompt_id,
+      kind: row.recommendation_kind,
+      label: row.label,
+      title: row.title,
+      description: row.description,
+      href: row.href,
+      rank: row.rank,
+      sourceChunkId: row.source_chunk_id ?? undefined
+    });
+    groups[row.prompt_id] = promptRecommendations;
+    return groups;
+  }, {});
 }
 
 function rankKnowledgeMatches(matches: StudentKnowledgeMatch[], input: KnowledgeSearchInput) {

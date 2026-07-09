@@ -1119,6 +1119,29 @@ body {
   padding-top: 14px;
 }
 
+.app-shell:not(.app-shell-camp) .student-feed-row-actions .button {
+  border-color: rgba(56, 189, 248, 0.28);
+  background: rgba(15, 23, 42, 0.72);
+  color: #e0f2fe;
+  box-shadow: none;
+}
+
+.app-shell:not(.app-shell-camp) .student-feed-row-actions .button:hover,
+.app-shell:not(.app-shell-camp) .student-feed-row-actions .button:focus-visible {
+  border-color: rgba(56, 189, 248, 0.62);
+  background: rgba(14, 165, 233, 0.16);
+}
+
+.app-shell:not(.app-shell-camp) .student-next-step-care {
+  border-color: rgba(251, 191, 36, 0.28);
+  background: rgba(251, 191, 36, 0.10);
+  color: #f8fafc;
+}
+
+.app-shell:not(.app-shell-camp) .student-next-step-care strong {
+  color: #fde68a;
+}
+
 .app-shell:not(.app-shell-camp) .student-feed-empty,
 .app-shell:not(.app-shell-camp) .student-next-step-panel,
 .app-shell:not(.app-shell-camp) .scripture-trial-stat,
