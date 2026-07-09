@@ -3,6 +3,7 @@ import {
   buildGoogleDriveAuthUrl,
   createGoogleDriveFolder,
   exchangeGoogleDriveCode,
+  findGoogleDriveFolderByName,
   findOrCreateGoogleDriveFolder,
   getGoogleDriveFile,
   getGoogleDriveFileContent,
@@ -10,6 +11,7 @@ import {
   GOOGLE_DRIVE_READONLY_SCOPE,
   GoogleDriveConfigError,
   isGoogleDriveTokenExpired,
+  listGoogleDriveFilesInFolder,
   listGoogleDriveFolders,
   listRecentGoogleDriveFiles,
   moveGoogleDriveFile,
@@ -292,5 +294,47 @@ describe("moveGoogleDriveFile", () => {
     await expect(
       moveGoogleDriveFile({ accessToken: "at", fileId: "missing", currentParents: [], folderName: "Job Search", fetchImpl })
     ).rejects.toThrow("Google Drive file move failed");
+  });
+});
+
+describe("findGoogleDriveFolderByName", () => {
+  it("returns the matching folder, scoped by parent when given", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ files: [{ id: "folder_articles", name: "Articles" }] }));
+    const folder = await findGoogleDriveFolderByName({ accessToken: "at", name: "Articles", parentId: "folder_root", fetchImpl });
+    expect(folder).toEqual({ id: "folder_articles", name: "Articles" });
+    const calledUrl = decodeURIComponent((fetchImpl.mock.calls[0][0] as string).replace(/\+/g, "%20"));
+    expect(calledUrl).toContain("'folder_root' in parents");
+    expect(calledUrl).toContain("name = 'Articles'");
+  });
+
+  it("returns null when no folder matches", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ files: [] }));
+    const folder = await findGoogleDriveFolderByName({ accessToken: "at", name: "Does Not Exist", fetchImpl });
+    expect(folder).toBeNull();
+  });
+
+  it("throws when the lookup request fails", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({}, false, 500));
+    await expect(findGoogleDriveFolderByName({ accessToken: "at", name: "Articles", fetchImpl })).rejects.toThrow(
+      "Google Drive folder lookup failed"
+    );
+  });
+});
+
+describe("listGoogleDriveFilesInFolder", () => {
+  it("lists non-folder files scoped to the given parent folder", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ files: [{ id: "file_1", name: "Note.md", mimeType: "text/markdown" }] }));
+    const files = await listGoogleDriveFilesInFolder({ accessToken: "at", folderId: "folder_articles", fetchImpl });
+    expect(files).toEqual([{ id: "file_1", name: "Note.md", mimeType: "text/markdown", webViewLink: undefined, modifiedTime: undefined, parents: undefined }]);
+    const calledUrl = decodeURIComponent((fetchImpl.mock.calls[0][0] as string).replace(/\+/g, "%20"));
+    expect(calledUrl).toContain("'folder_articles' in parents");
+    expect(calledUrl).toContain("mimeType != 'application/vnd.google-apps.folder'");
+  });
+
+  it("throws when the listing request fails", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({}, false, 403));
+    await expect(listGoogleDriveFilesInFolder({ accessToken: "at", folderId: "folder_articles", fetchImpl })).rejects.toThrow(
+      "Google Drive folder listing failed"
+    );
   });
 });

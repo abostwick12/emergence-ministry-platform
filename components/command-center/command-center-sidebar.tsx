@@ -10,20 +10,22 @@ import {
   Briefcase,
   Plug,
   Rss,
+  Sparkles,
   ArrowLeft,
   type LucideIcon
 } from "lucide-react";
 import { useCommandCenterSidebarOpen } from "@/components/command-center/command-center-mobile-nav";
 
-type NavItem = { label: string; href: string; icon: LucideIcon };
+type NavItem = { label: string; href: string; icon: LucideIcon; exact?: boolean };
 
 const NAV_ITEMS: NavItem[] = [
-  { label: "Dashboard", href: "/command-center", icon: Compass },
+  { label: "Dashboard", href: "/command-center", icon: Compass, exact: true },
   { label: "Ask SAGE", href: "/command-center/chat", icon: MessageSquareText },
   { label: "Tasks", href: "/command-center/tasks", icon: KanbanSquare },
   { label: "Job Search", href: "/command-center/job-search", icon: Briefcase },
   { label: "Integrations", href: "/command-center/integrations", icon: Plug },
-  { label: "Feed", href: "/command-center/feed", icon: Rss }
+  { label: "Feed", href: "/command-center/feed", icon: Rss, exact: true },
+  { label: "Weekly Intel", href: "/command-center/feed/weekly", icon: Sparkles }
 ];
 
 export function CommandCenterSidebar({ connectedCount, totalCount }: { connectedCount: number; totalCount: number }) {
@@ -55,7 +57,9 @@ export function CommandCenterSidebar({ connectedCount, totalCount }: { connected
           <ul className="cc-nav-list">
             {NAV_ITEMS.map((item) => {
               const Icon = item.icon;
-              const active = item.href === "/command-center" ? pathname === item.href : pathname?.startsWith(item.href);
+              const active = item.exact
+                ? pathname === item.href
+                : pathname?.startsWith(item.href) || (item.href === "/command-center/feed/weekly" && pathname?.startsWith("/command-center/feed/sources"));
               return (
                 <li key={item.href}>
                   <Link href={item.href} className={`cc-nav-item${active ? " cc-active" : ""}`}>

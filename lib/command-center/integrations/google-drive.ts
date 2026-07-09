@@ -414,3 +414,54 @@ export async function moveGoogleDriveFile(params: {
   if (!response.ok) throw new Error(`Google Drive file move failed: ${response.status}`);
   return folder;
 }
+
+// --- Weekly Intelligence Feed: folder-scoped listing -----------------------
+// Read-only. Resolves a folder by exact name (optionally scoped to a parent
+// folder, so "Articles" only matches the one inside "SAGE Feed Sources"
+// rather than any folder named "Articles" anywhere in Drive), and lists the
+// files directly inside a given folder ID. Used by
+// lib/command-center/weekly-feed/ingest.ts to scan only the approved
+// "SAGE Feed Sources" folder tree — never anywhere else in Drive.
+
+export async function findGoogleDriveFolderByName(params: {
+  accessToken: string;
+  name: string;
+  parentId?: string;
+  fetchImpl?: typeof fetch;
+}): Promise<GoogleDriveFolder | null> {
+  const doFetch = params.fetchImpl ?? fetch;
+  const parentClause = params.parentId ? ` and '${escapeDriveQueryTerm(params.parentId)}' in parents` : "";
+  const url = new URL(DRIVE_FILES_URL);
+  url.searchParams.set(
+    "q",
+    `trashed = false and mimeType = '${GOOGLE_DRIVE_FOLDER_MIME_TYPE}' and name = '${escapeDriveQueryTerm(params.name)}'${parentClause}`
+  );
+  url.searchParams.set("fields", "files(id,name)");
+  url.searchParams.set("pageSize", "1");
+
+  const response = await doFetch(url.toString(), { headers: { Authorization: `Bearer ${params.accessToken}` } });
+  if (!response.ok) throw new Error(`Google Drive folder lookup failed: ${response.status}`);
+  const json = (await response.json()) as DriveFilesListResponse;
+  const [first] = json.files ?? [];
+  return first ? toGoogleDriveFolder(first) : null;
+}
+
+export async function listGoogleDriveFilesInFolder(params: {
+  accessToken: string;
+  folderId: string;
+  fetchImpl?: typeof fetch;
+}): Promise<GoogleDriveFileSummary[]> {
+  const doFetch = params.fetchImpl ?? fetch;
+  const url = new URL(DRIVE_FILES_URL);
+  url.searchParams.set(
+    "q",
+    `trashed = false and mimeType != '${GOOGLE_DRIVE_FOLDER_MIME_TYPE}' and '${escapeDriveQueryTerm(params.folderId)}' in parents`
+  );
+  url.searchParams.set("fields", `files(${DRIVE_FILE_FIELDS})`);
+  url.searchParams.set("pageSize", "100");
+
+  const response = await doFetch(url.toString(), { headers: { Authorization: `Bearer ${params.accessToken}` } });
+  if (!response.ok) throw new Error(`Google Drive folder listing failed: ${response.status}`);
+  const json = (await response.json()) as DriveFilesListResponse;
+  return (json.files ?? []).map(mapDriveFile);
+}

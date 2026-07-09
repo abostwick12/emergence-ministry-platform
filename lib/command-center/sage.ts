@@ -1,5 +1,14 @@
 import type { AiConversationMessage, PersonalTask } from "@/lib/command-center/types";
 
+// A minimal structural type instead of zod's ZodType<T> directly -- ZodType's
+// Input/Output type params can otherwise cause TypeScript to widen T (e.g.
+// dropping defaults) when schemas mix required output fields with
+// optional/defaulted input fields. safeParse's shape is all callSageStructured
+// actually needs.
+type SafeParseSchema<T> = {
+  safeParse: (data: unknown) => { success: true; data: T } | { success: false; error: unknown };
+};
+
 export const DEFAULT_SAGE_MODEL = "gpt-4o-mini";
 export const DEFAULT_AZURE_OPENAI_API_VERSION = "2024-10-21";
 export const SAGE_TASK_AWARE_CHAT_SKILL = "command_center.task_aware_chat";
@@ -344,6 +353,116 @@ export async function streamSageResponse({
   if (!config.configured) throw new SageProviderConfigError(publicProviderConfig(config));
   if (config.provider === "azure") return streamers.azure({ config, instructions, input, signal, onDelta });
   return streamers.openai({ config, instructions, input, signal, onDelta });
+}
+
+// --- Non-streaming structured output (Weekly Intelligence Feed) -----------
+//
+// The chat functions above only stream. The weekly feed generator
+// (lib/command-center/weekly-feed/) needs single-shot calls that return
+// validated JSON instead of a token stream: once per new/changed source to
+// extract a knowledge item, and once per run to assemble the week's feed.
+// Modeled on lib/camp/emma-openai-provider.ts's callCampEmmaOpenAIModel, but
+// reuses SAGE's own dual-provider config so both fall under the same
+// "SAGE" cost/config surface as chat.
+
+type SageStructuredCallResult = {
+  provider: SageProvider;
+  modelLabel: string;
+  text: string;
+};
+
+type SageStructuredCallParams<TConfig extends SageProviderRuntimeConfig> = {
+  config: TConfig;
+  instructions: string;
+  input: string;
+};
+
+type SageStructuredCallers = {
+  openai: (params: SageStructuredCallParams<OpenAIProviderRuntimeConfig>) => Promise<SageStructuredCallResult>;
+  azure: (params: SageStructuredCallParams<AzureProviderRuntimeConfig>) => Promise<SageStructuredCallResult>;
+};
+
+export async function callOpenAIStructured({
+  config,
+  instructions,
+  input
+}: SageStructuredCallParams<OpenAIProviderRuntimeConfig>): Promise<SageStructuredCallResult> {
+  if (!config.configured || !config.apiKey) throw new SageProviderConfigError(publicProviderConfig(config));
+  const { default: OpenAI } = await import("openai");
+  const client = new OpenAI({ apiKey: config.apiKey, timeout: 30_000, maxRetries: 0 });
+  const response = await client.responses.create({ model: config.model, instructions, input, stream: false });
+  return { provider: "openai", modelLabel: config.modelLabel, text: response.output_text ?? "" };
+}
+
+export async function callAzureOpenAIStructured({
+  config,
+  instructions,
+  input
+}: SageStructuredCallParams<AzureProviderRuntimeConfig>): Promise<SageStructuredCallResult> {
+  if (!config.configured || !config.apiKey || !config.endpoint || !config.deployment) {
+    throw new SageProviderConfigError(publicProviderConfig(config));
+  }
+  const { default: OpenAI } = await import("openai");
+  const client = new OpenAI({
+    apiKey: config.apiKey,
+    baseURL: normalizeAzureResponsesBaseUrl(config.endpoint),
+    timeout: 30_000,
+    maxRetries: 0
+  });
+  const response = await client.responses.create({ model: config.deployment, instructions, input, stream: false });
+  return { provider: "azure", modelLabel: config.modelLabel, text: response.output_text ?? "" };
+}
+
+export type SageStructuredResult<T> =
+  | { ok: true; data: T; provider: SageProvider; modelLabel: string }
+  | { ok: false; reason: "unavailable" | "provider_error" | "invalid_output"; message: string };
+
+function stripJsonFences(text: string): string {
+  return text
+    .trim()
+    .replace(/^```(?:json)?/i, "")
+    .replace(/```$/, "")
+    .trim();
+}
+
+export async function callSageStructured<T>(params: {
+  instructions: string;
+  input: string;
+  schema: SafeParseSchema<T>;
+  env?: SageEnv;
+  callers?: SageStructuredCallers;
+}): Promise<SageStructuredResult<T>> {
+  const env = params.env ?? process.env;
+  const callers = params.callers ?? { openai: callOpenAIStructured, azure: callAzureOpenAIStructured };
+  const config = readSageProviderRuntimeConfig(env);
+
+  if (!config.configured) {
+    return { ok: false, reason: "unavailable", message: sageUnavailableMessage(publicProviderConfig(config)) };
+  }
+
+  let result: SageStructuredCallResult;
+  try {
+    result =
+      config.provider === "azure"
+        ? await callers.azure({ config, instructions: params.instructions, input: params.input })
+        : await callers.openai({ config, instructions: params.instructions, input: params.input });
+  } catch (error) {
+    return { ok: false, reason: "provider_error", message: error instanceof Error ? error.message : "SAGE provider call failed." };
+  }
+
+  let parsedJson: unknown;
+  try {
+    parsedJson = JSON.parse(stripJsonFences(result.text));
+  } catch {
+    return { ok: false, reason: "invalid_output", message: "SAGE did not return valid JSON." };
+  }
+
+  const validated = params.schema.safeParse(parsedJson);
+  if (!validated.success) {
+    return { ok: false, reason: "invalid_output", message: "SAGE's JSON output did not match the expected shape." };
+  }
+
+  return { ok: true, data: validated.data, provider: result.provider, modelLabel: result.modelLabel };
 }
 
 const SAGE_SYSTEM_PROMPT = `You are SAGE, Andrew's private Personal Command Center assistant inside Lead Emergence.

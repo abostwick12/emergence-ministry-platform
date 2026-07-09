@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 import {
   buildSageConversationInput,
   buildSageInstructions,
+  callSageStructured,
   classifySageProviderError,
   loadSageSkillInstructions,
   normalizeAzureResponsesBaseUrl,
@@ -256,5 +258,138 @@ describe("SAGE provider streaming selection", () => {
       .toBe("azure_quota");
     expect(classifySageProviderError(Object.assign(new Error("deployment not found"), { status: 404 }), "azure"))
       .toBe("azure_model_or_deployment");
+  });
+});
+
+describe("callSageStructured", () => {
+  const schema = z.object({ summary: z.string(), score: z.number() });
+
+  it("returns unavailable instead of calling a provider when not configured", async () => {
+    const result = await callSageStructured({
+      instructions: "test",
+      input: "test",
+      schema,
+      env: {},
+      callers: {
+        openai: async () => {
+          throw new Error("should not be called");
+        },
+        azure: async () => {
+          throw new Error("should not be called");
+        }
+      }
+    });
+    expect(result).toMatchObject({ ok: false, reason: "unavailable" });
+  });
+
+  it("parses and validates a successful JSON response from the OpenAI caller", async () => {
+    const result = await callSageStructured({
+      instructions: "test",
+      input: "test",
+      schema,
+      env: { OPENAI_API_KEY: "sk-test", OPENAI_MODEL: "gpt-4o-mini" },
+      callers: {
+        openai: async ({ config }) => ({
+          provider: "openai",
+          modelLabel: config.modelLabel,
+          text: JSON.stringify({ summary: "Concise summary.", score: 7 })
+        }),
+        azure: async () => {
+          throw new Error("should not be called");
+        }
+      }
+    });
+    expect(result).toMatchObject({ ok: true, data: { summary: "Concise summary.", score: 7 }, provider: "openai" });
+  });
+
+  it("strips markdown code fences before parsing", async () => {
+    const result = await callSageStructured({
+      instructions: "test",
+      input: "test",
+      schema,
+      env: { OPENAI_API_KEY: "sk-test" },
+      callers: {
+        openai: async () => ({ provider: "openai", modelLabel: "gpt-4o-mini", text: "```json\n{\"summary\":\"ok\",\"score\":1}\n```" }),
+        azure: async () => {
+          throw new Error("should not be called");
+        }
+      }
+    });
+    expect(result).toMatchObject({ ok: true, data: { summary: "ok", score: 1 } });
+  });
+
+  it("returns invalid_output for unparseable JSON", async () => {
+    const result = await callSageStructured({
+      instructions: "test",
+      input: "test",
+      schema,
+      env: { OPENAI_API_KEY: "sk-test" },
+      callers: {
+        openai: async () => ({ provider: "openai", modelLabel: "gpt-4o-mini", text: "not json" }),
+        azure: async () => {
+          throw new Error("should not be called");
+        }
+      }
+    });
+    expect(result).toMatchObject({ ok: false, reason: "invalid_output" });
+  });
+
+  it("returns invalid_output when the JSON doesn't match the schema", async () => {
+    const result = await callSageStructured({
+      instructions: "test",
+      input: "test",
+      schema,
+      env: { OPENAI_API_KEY: "sk-test" },
+      callers: {
+        openai: async () => ({ provider: "openai", modelLabel: "gpt-4o-mini", text: JSON.stringify({ wrong: "shape" }) }),
+        azure: async () => {
+          throw new Error("should not be called");
+        }
+      }
+    });
+    expect(result).toMatchObject({ ok: false, reason: "invalid_output" });
+  });
+
+  it("returns provider_error when the caller throws", async () => {
+    const result = await callSageStructured({
+      instructions: "test",
+      input: "test",
+      schema,
+      env: { OPENAI_API_KEY: "sk-test" },
+      callers: {
+        openai: async () => {
+          throw new Error("rate limited");
+        },
+        azure: async () => {
+          throw new Error("should not be called");
+        }
+      }
+    });
+    expect(result).toMatchObject({ ok: false, reason: "provider_error", message: "rate limited" });
+  });
+
+  it("dispatches to the Azure caller when SAGE_AI_PROVIDER is azure", async () => {
+    const result = await callSageStructured({
+      instructions: "test",
+      input: "test",
+      schema,
+      env: {
+        SAGE_AI_PROVIDER: "azure",
+        AZURE_OPENAI_API_KEY: "azure-secret",
+        AZURE_OPENAI_ENDPOINT: "https://example.openai.azure.com",
+        AZURE_OPENAI_DEPLOYMENT: "emma-camp-test"
+      },
+      callers: {
+        openai: async () => {
+          throw new Error("should not be called");
+        },
+        azure: async ({ config }) => ({
+          provider: "azure",
+          modelLabel: config.modelLabel,
+          text: JSON.stringify({ summary: "azure summary", score: 3 })
+        })
+      }
+    });
+    expect(result).toMatchObject({ ok: true, provider: "azure", data: { summary: "azure summary", score: 3 } });
   });
 });
