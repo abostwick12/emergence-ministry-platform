@@ -11,6 +11,7 @@ import { getSupabaseAuthClient, type AuthSession } from "@/lib/auth/server";
 import * as mockStore from "@/lib/command-center/store";
 import { FirecrawlConfigError, readFirecrawlConfig, scrapeUrl, summarizeMarkdown } from "@/lib/command-center/integrations/firecrawl";
 import { BRIEFING_SOURCES } from "@/lib/command-center/integrations/firecrawl-sources";
+import { listMondayBoardItems } from "@/lib/command-center/integrations/monday";
 import type {
   BriefingItem,
   CaptureEntry,
@@ -40,7 +41,8 @@ import type {
   WeeklyFeedItemWithDetail
 } from "@/lib/command-center/types";
 
-const TASK_COLUMNS = "id, domain, title, description, status, priority, due_date, tags, created_at, updated_at";
+const TASK_COLUMNS =
+  "id, domain, title, description, status, priority, due_date, tags, monday_board_id, monday_item_id, created_at, updated_at";
 const CAPTURE_COLUMNS = "id, raw_text, status, routed_domain, routed_task_id, created_at";
 const AI_CONVERSATION_COLUMNS = "id, session_id, role, content, created_at";
 const JOB_APPLICATION_COLUMNS =
@@ -62,6 +64,8 @@ type TaskRow = {
   priority: PersonalTaskPriority;
   due_date: string | null;
   tags: string[] | null;
+  monday_board_id: string | null;
+  monday_item_id: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -76,6 +80,8 @@ function mapTaskRow(row: TaskRow): PersonalTask {
     priority: row.priority,
     dueDate: row.due_date ?? undefined,
     tags: row.tags ?? [],
+    mondayBoardId: row.monday_board_id ?? undefined,
+    mondayItemId: row.monday_item_id ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
@@ -220,7 +226,9 @@ export async function createPersonalTask(
       status: input.status,
       priority: input.priority,
       due_date: input.dueDate ?? null,
-      tags: input.tags
+      tags: input.tags,
+      monday_board_id: input.mondayBoardId ?? null,
+      monday_item_id: input.mondayItemId ?? null
     })
     .select(TASK_COLUMNS)
     .single<TaskRow>();
@@ -261,6 +269,51 @@ export async function deletePersonalTask(session: AuthSession, id: string): Prom
   const supabase = getSupabaseAuthClient(session.accessToken);
   const { error } = await supabase.from("personal_tasks").delete().eq("id", id);
   if (error) throw new Error(error.message);
+}
+
+export type MondaySyncResult = {
+  importedCount: number;
+  skippedCount: number;
+  importedTasks: PersonalTask[];
+};
+
+// One-directional sync, Monday.com -> Command Center only (the direction
+// Andrew approved; personal_tasks are never written back to Monday.com --
+// there is still no mutation call anywhere in lib/command-center/integrations/monday.ts).
+// Andrew-triggered only, one board at a time. Re-running this is safe: each
+// Monday item is imported at most once, deduped by mondayItemId, so a
+// second sync only picks up items that are new since the last run and
+// never touches a task Andrew has already started working from in the
+// Command Center.
+export async function syncMondayBoardTasks(
+  session: AuthSession,
+  params: { boardId: string; domain: PersonalDomain }
+): Promise<MondaySyncResult> {
+  const items = await listMondayBoardItems({ boardId: params.boardId });
+
+  const existingTasks = await listPersonalTasks(session);
+  const alreadyImported = new Set(existingTasks.map((task) => task.mondayItemId).filter((id): id is string => Boolean(id)));
+  const newItems = items.filter((item) => !alreadyImported.has(item.id));
+
+  const importedTasks: PersonalTask[] = [];
+  for (const item of newItems) {
+    const description = item.columns.map((column) => column.text).filter(Boolean).join(", ") || undefined;
+    const task = await createPersonalTask(session, {
+      domain: params.domain,
+      title: item.name,
+      description,
+      status: "todo",
+      priority: "medium",
+      tags: [],
+      mondayBoardId: params.boardId,
+      mondayItemId: item.id
+    });
+    importedTasks.push(task);
+  }
+
+  await updateIntegration(session, "monday", { status: "connected", config: {} });
+
+  return { importedCount: importedTasks.length, skippedCount: items.length - importedTasks.length, importedTasks };
 }
 
 // --- Briefing ------------------------------------------------------------

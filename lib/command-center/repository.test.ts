@@ -19,6 +19,7 @@ import {
   listUnprocessedCaptures,
   refreshDailyBriefing,
   resolveCaptureEntry,
+  syncMondayBoardTasks,
   updateIntegration,
   updateJobApplication,
   updatePersonalTask
@@ -296,5 +297,67 @@ describe("daily briefing", () => {
     global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => ({}) }) as unknown as typeof fetch;
 
     await expect(refreshDailyBriefing(mockSession())).rejects.toThrow("All Firecrawl sources failed");
+  });
+});
+
+describe("Monday.com task sync", () => {
+  const originalFetch = global.fetch;
+  const originalApiToken = process.env.MONDAY_API_TOKEN;
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+    if (originalApiToken === undefined) delete process.env.MONDAY_API_TOKEN;
+    else process.env.MONDAY_API_TOKEN = originalApiToken;
+  });
+
+  function mockBoardItemsResponse(items: Array<{ id: string; name: string; column_values?: Array<{ id: string; text: string | null }> }>) {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: { boards: [{ items_page: { items } }] } })
+    }) as unknown as typeof fetch;
+  }
+
+  it("refuses to sync without an API token instead of silently no-oping", async () => {
+    delete process.env.MONDAY_API_TOKEN;
+    await expect(syncMondayBoardTasks(mockSession(), { boardId: "board_1", domain: "job_search" })).rejects.toThrow();
+  });
+
+  it("imports each board item as a task, with column values folded into the description", async () => {
+    process.env.MONDAY_API_TOKEN = "monday-test-token";
+    mockBoardItemsResponse([
+      { id: "item_1", name: "Follow up with recruiter", column_values: [{ id: "status", text: "Working on it" }, { id: "date", text: null }] }
+    ]);
+
+    const result = await syncMondayBoardTasks(mockSession(), { boardId: "board_1", domain: "job_search" });
+    expect(result.importedCount).toBe(1);
+    expect(result.skippedCount).toBe(0);
+    expect(result.importedTasks[0]).toMatchObject({
+      title: "Follow up with recruiter",
+      description: "Working on it",
+      domain: "job_search",
+      status: "todo",
+      priority: "medium",
+      mondayBoardId: "board_1",
+      mondayItemId: "item_1"
+    });
+
+    const tasks = await listPersonalTasks(mockSession());
+    expect(tasks.some((task) => task.mondayItemId === "item_1")).toBe(true);
+  });
+
+  it("skips items already imported on a second sync instead of creating duplicates", async () => {
+    process.env.MONDAY_API_TOKEN = "monday-test-token";
+    mockBoardItemsResponse([{ id: "item_2", name: "Update resume" }]);
+
+    const first = await syncMondayBoardTasks(mockSession(), { boardId: "board_1", domain: "job_search" });
+    expect(first.importedCount).toBe(1);
+
+    const second = await syncMondayBoardTasks(mockSession(), { boardId: "board_1", domain: "job_search" });
+    expect(second.importedCount).toBe(0);
+    expect(second.skippedCount).toBe(1);
+
+    const tasks = await listPersonalTasks(mockSession());
+    expect(tasks.filter((task) => task.mondayItemId === "item_2")).toHaveLength(1);
   });
 });
