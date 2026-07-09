@@ -68,6 +68,17 @@ describe("SAGE prompt assembly", () => {
     expect(instructions).toContain("You cannot search Google Drive, read a Drive file's content, move a file, or create a folder from this chat");
   });
 
+  it("still forbids a new Firecrawl scrape, Monday.com item reads, and Monday.com writes even when Firecrawl/Monday.com context is present", async () => {
+    const liveContext = [
+      "Read-only Firecrawl daily resource feed context (as of this turn):\n- \"TAP program updates\" (DOL) — New transition dates announced.",
+      "Read-only Monday.com context (as of this turn) — board names:\n- Job Search Pipeline"
+    ].join("\n\n");
+    const instructions = await buildSageInstructions([task], liveContext);
+    expect(instructions).toContain("Firecrawl daily resource feed context");
+    expect(instructions).toContain("Job Search Pipeline");
+    expect(instructions).toContain("You cannot trigger a new Firecrawl scrape, read Monday.com board items, write to Monday.com, post to Slack, or take autonomous actions");
+  });
+
   it("formats recent conversation turns for the Responses API input", () => {
     const messages: AiConversationMessage[] = [
       {

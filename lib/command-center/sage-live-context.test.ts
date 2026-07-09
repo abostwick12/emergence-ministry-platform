@@ -4,20 +4,25 @@ import type { PersonalIntegration } from "@/lib/command-center/types";
 import {
   buildCalendarLiveContext,
   buildDriveLiveContext,
+  buildFirecrawlLiveContext,
   buildGmailLiveContext,
-  buildLiveIntegrationContext
+  buildLiveIntegrationContext,
+  buildMondayLiveContext
 } from "@/lib/command-center/sage-live-context";
 
 const getIntegration = vi.fn();
+const getDailyBriefing = vi.fn();
 const getValidGoogleCalendarAccessToken = vi.fn();
 const listUpcomingGoogleCalendarEvents = vi.fn();
 const getValidGmailAccessToken = vi.fn();
 const listRecentGmailMessages = vi.fn();
 const getValidGoogleDriveAccessToken = vi.fn();
 const listRecentGoogleDriveFiles = vi.fn();
+const listMondayBoards = vi.fn();
 
 vi.mock("@/lib/command-center/repository", () => ({
-  getIntegration: (...args: unknown[]) => getIntegration(...args)
+  getIntegration: (...args: unknown[]) => getIntegration(...args),
+  getDailyBriefing: (...args: unknown[]) => getDailyBriefing(...args)
 }));
 vi.mock("@/lib/command-center/integrations/google-calendar-token", () => ({
   getValidGoogleCalendarAccessToken: (...args: unknown[]) => getValidGoogleCalendarAccessToken(...args)
@@ -36,6 +41,9 @@ vi.mock("@/lib/command-center/integrations/google-drive-token", () => ({
 }));
 vi.mock("@/lib/command-center/integrations/google-drive", () => ({
   listRecentGoogleDriveFiles: (...args: unknown[]) => listRecentGoogleDriveFiles(...args)
+}));
+vi.mock("@/lib/command-center/integrations/monday", () => ({
+  listMondayBoards: (...args: unknown[]) => listMondayBoards(...args)
 }));
 
 function session(): AuthSession {
@@ -140,6 +148,71 @@ describe("buildDriveLiveContext", () => {
   });
 });
 
+describe("buildFirecrawlLiveContext", () => {
+  it("returns null when Firecrawl is not connected", async () => {
+    getIntegration.mockResolvedValue(integration("firecrawl", "disconnected"));
+    expect(await buildFirecrawlLiveContext(session())).toBeNull();
+    expect(getDailyBriefing).not.toHaveBeenCalled();
+  });
+
+  it("formats cached briefing items when connected, title/source/summary only", async () => {
+    getIntegration.mockResolvedValue(integration("firecrawl", "connected"));
+    getDailyBriefing.mockResolvedValue([
+      { id: "brief_1", title: "TAP program updates", url: "https://example.com", summary: "New transition dates announced.", source: "DOL", category: "military_transition" }
+    ]);
+
+    const context = await buildFirecrawlLiveContext(session());
+    expect(context).toContain("Read-only Firecrawl daily resource feed context");
+    expect(context).toContain("TAP program updates");
+    expect(context).toContain("DOL");
+  });
+
+  it("reports no cached resources plainly instead of an empty section", async () => {
+    getIntegration.mockResolvedValue(integration("firecrawl", "connected"));
+    getDailyBriefing.mockResolvedValue([]);
+
+    expect(await buildFirecrawlLiveContext(session())).toContain("no cached resources found");
+  });
+
+  it("returns null (never throws) when the cache read fails", async () => {
+    getIntegration.mockResolvedValue(integration("firecrawl", "connected"));
+    getDailyBriefing.mockRejectedValue(new Error("cache unavailable"));
+
+    await expect(buildFirecrawlLiveContext(session())).resolves.toBeNull();
+  });
+});
+
+describe("buildMondayLiveContext", () => {
+  it("returns null when Monday.com is not connected", async () => {
+    getIntegration.mockResolvedValue(integration("monday", "disconnected"));
+    expect(await buildMondayLiveContext(session())).toBeNull();
+    expect(listMondayBoards).not.toHaveBeenCalled();
+  });
+
+  it("formats board names when connected", async () => {
+    getIntegration.mockResolvedValue(integration("monday", "connected"));
+    listMondayBoards.mockResolvedValue([{ id: "board_1", name: "Job Search Pipeline" }]);
+
+    const context = await buildMondayLiveContext(session());
+    expect(context).toContain("Read-only Monday.com context");
+    expect(context).toContain("Job Search Pipeline");
+  });
+
+  it("reports no boards plainly instead of an empty section", async () => {
+    getIntegration.mockResolvedValue(integration("monday", "connected"));
+    listMondayBoards.mockResolvedValue([]);
+
+    expect(await buildMondayLiveContext(session())).toContain("no boards found");
+  });
+
+  it("returns null (never throws) when the Monday.com API call fails", async () => {
+    getIntegration.mockResolvedValue(integration("monday", "connected"));
+    listMondayBoards.mockRejectedValue(new Error("Monday.com boards fetch failed: 500"));
+
+    await expect(buildMondayLiveContext(session())).resolves.toBeNull();
+  });
+});
+
 describe("buildLiveIntegrationContext", () => {
   it("returns undefined when no integration is connected", async () => {
     getIntegration.mockResolvedValue(null);
@@ -162,7 +235,7 @@ describe("buildLiveIntegrationContext", () => {
     expect(context).toContain("Gmail triage context");
   });
 
-  it("joins all three sections when Calendar, Gmail, and Drive are all connected", async () => {
+  it("joins all five sections when Calendar, Gmail, Drive, Firecrawl, and Monday.com are all connected", async () => {
     getIntegration.mockImplementation(async (_session: AuthSession, service: PersonalIntegration["service"]) =>
       integration(service, "connected")
     );
@@ -176,11 +249,19 @@ describe("buildLiveIntegrationContext", () => {
     listRecentGoogleDriveFiles.mockResolvedValue([
       { id: "file_1", name: "SOTF reflection outline", mimeType: "application/vnd.google-apps.document", modifiedTime: "2026-07-08T00:00:00.000Z" }
     ]);
+    getDailyBriefing.mockResolvedValue([
+      { id: "brief_1", title: "TAP program updates", url: "https://example.com", summary: "New transition dates announced.", source: "DOL", category: "military_transition" }
+    ]);
+    listMondayBoards.mockResolvedValue([{ id: "board_1", name: "Job Search Pipeline" }]);
 
     const context = await buildLiveIntegrationContext(session());
     expect(context).toContain("Google Calendar context");
     expect(context).toContain("Gmail triage context");
     expect(context).toContain("Google Drive context");
     expect(context).toContain("SOTF reflection outline");
+    expect(context).toContain("Firecrawl daily resource feed context");
+    expect(context).toContain("TAP program updates");
+    expect(context).toContain("Monday.com context");
+    expect(context).toContain("Job Search Pipeline");
   });
 });

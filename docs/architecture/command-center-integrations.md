@@ -649,6 +649,49 @@ to offer chat (Firecrawl and Drive search are both query-driven with no
 default view; Slack and LinkedIn are write/draft-only; Monday item reads
 need a specific board id) and remain chat-invisible.
 
+Firecrawl and Monday.com were later found to each have exactly one
+ambient, non-query-driven read available after all — see "Increment 14"
+below. Slack and LinkedIn still have no read API at all and remain
+chat-invisible.
+
+## Increment 14: Firecrawl and Monday.com context in SAGE chat
+
+Extends the same wiring to two of the four integrations Increment 13 left
+chat-invisible. Slack (webhook push, no inbound read API) and LinkedIn (no
+API integration — drafting-only) still have no external data to surface
+and remain chat-invisible; nothing changed for either in this increment.
+
+- `lib/command-center/sage-live-context.ts` — `buildFirecrawlLiveContext()`
+  reads the same cached daily resource feed the `/command-center/feed`
+  page already renders (`getDailyBriefing` in `repository.ts`), which never
+  calls Firecrawl live and always has content once Andrew has triggered at
+  least one manual refresh. This never triggers a new scrape.
+  `buildMondayLiveContext()` reads Andrew's board names via the existing
+  read-only `listMondayBoards()` (Increment 6) — no board id needed, unlike
+  item-level reads, which still require picking a specific board and stay
+  chat-invisible. Both follow the same isolated, best-effort pattern as
+  Calendar/Gmail/Drive: a failure on either never blocks the rest of the
+  chat turn, and `buildLiveIntegrationContext` now assembles up to five
+  sections instead of three. Both are gated on the integration's stored
+  `connected` status (set the first time Andrew successfully triggers a
+  manual Firecrawl refresh or lists Monday boards), so SAGE never surfaces
+  the daily briefing's static starter content as if it were a real
+  Firecrawl result before Andrew has connected it at least once.
+- `lib/command-center/sage.ts` — the system prompt and
+  `command_center.task_aware_chat` skill prompt both mention the Firecrawl
+  daily resource feed and Monday.com board names alongside Calendar/Gmail/
+  Drive as read-only context sources. The blanket "You cannot post to
+  Slack, crawl the web, update Monday.com..." guardrail is replaced with
+  the same precision used for Drive: SAGE may reference the cached
+  Firecrawl feed or Monday.com board names when provided, but still cannot
+  trigger a new Firecrawl scrape, read Monday.com board items, write to
+  Monday.com, post to Slack, or take autonomous actions — those still
+  require the dedicated integration page directly.
+
+Like Increments 8 and 13, this is additive to what SAGE can read, not what
+it can do: no new write capability was added anywhere, and there is still
+no tool calling in this phase.
+
 - `lib/command-center/integrations/google-drive.ts` —
   `listRecentGoogleDriveFiles()` is a new read-only query with no search
   term: the most recently modified non-folder files, ordered by
