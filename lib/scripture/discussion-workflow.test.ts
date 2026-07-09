@@ -152,9 +152,11 @@ describe("student discussion workflow state", () => {
     const client = workflowStateClient(
       [discussionRow({ id: "prompt_reflected", status: "approved" })],
       [
-        { prompt_id: "prompt_reflected", actor_user_id: "usr_student", created_at: "2026-07-09T16:00:00.000Z" },
-        { prompt_id: "prompt_reflected", actor_user_id: "usr_student", created_at: "2026-07-09T15:00:00.000Z" },
-        { prompt_id: "prompt_reflected", actor_user_id: "usr_other", created_at: "2026-07-09T14:00:00.000Z" }
+        { prompt_id: "prompt_reflected", action: "leader_discussed", actor_user_id: "usr_leader", created_at: "2026-07-09T17:00:00.000Z" },
+        { prompt_id: "prompt_reflected", action: "student_reflected", actor_user_id: "usr_student", created_at: "2026-07-09T16:00:00.000Z" },
+        { prompt_id: "prompt_reflected", action: "student_reflected", actor_user_id: "usr_student", created_at: "2026-07-09T15:00:00.000Z" },
+        { prompt_id: "prompt_reflected", action: "student_reflected", actor_user_id: "usr_other", created_at: "2026-07-09T14:00:00.000Z" },
+        { prompt_id: "prompt_reflected", action: "leader_follow_up_flagged", actor_user_id: "usr_leader", created_at: "2026-07-09T13:00:00.000Z" }
       ]
     );
     getSupabaseAuthClientMock.mockReturnValue(client.client);
@@ -164,9 +166,12 @@ describe("student discussion workflow state", () => {
     expect(state.prompts[0]).toMatchObject({
       id: "prompt_reflected",
       studentReflectionCount: 2,
-      studentLastReflectedAt: "2026-07-09T16:00:00.000Z"
+      studentLastReflectedAt: "2026-07-09T16:00:00.000Z",
+      leaderDiscussedAt: "2026-07-09T17:00:00.000Z",
+      leaderFollowUpFlaggedAt: "2026-07-09T13:00:00.000Z",
+      leaderFollowUpFlagCount: 1
     });
-    expect(client.eventSelect).toHaveBeenCalledWith("prompt_id,actor_user_id,created_at");
+    expect(client.eventSelect).toHaveBeenCalledWith("prompt_id,action,actor_user_id,created_at");
     expect(JSON.stringify(state.prompts[0])).not.toContain("private_note");
   });
 });
@@ -327,6 +332,67 @@ describe("leader discussion draft regeneration", () => {
     expect(client.events[0]).toMatchObject({
       prompt_id: "prompt_local",
       action: "local_draft_saved"
+    });
+  });
+
+  it("marks an approved prompt discussed without changing student-facing status", async () => {
+    const client = regenerationClient(
+      discussionRow({
+        id: "prompt_discussed",
+        status: "approved",
+        discussion_prompt: "What does this passage invite us to trust?"
+      })
+    );
+    getSupabaseAuthClientMock.mockReturnValue(client.client);
+
+    const prompt = await decideStudentDiscussionPrompt(leaderSession(), "prompt_discussed", {
+      action: "mark_discussed",
+      leaderNotes: "Group discussed this Wednesday.",
+      discussionPrompt: "What does this passage invite us to trust?"
+    });
+
+    expect(prompt).toMatchObject({
+      id: "prompt_discussed",
+      status: "approved",
+      leaderNotes: "Group discussed this Wednesday.",
+      leaderDiscussedAt: expect.any(String)
+    });
+    expect(client.updates[0]).toMatchObject({
+      leader_notes: "Group discussed this Wednesday.",
+      discussion_prompt: "What does this passage invite us to trust?"
+    });
+    expect(client.events[0]).toMatchObject({
+      prompt_id: "prompt_discussed",
+      action: "leader_discussed"
+    });
+  });
+
+  it("flags private leader follow-up without exposing a student-visible status change", async () => {
+    const client = regenerationClient(
+      discussionRow({
+        id: "prompt_follow_up",
+        status: "approved",
+        leader_notes: "Talk to Jordan after group."
+      })
+    );
+    getSupabaseAuthClientMock.mockReturnValue(client.client);
+
+    const prompt = await decideStudentDiscussionPrompt(leaderSession(), "prompt_follow_up", {
+      action: "flag_follow_up",
+      leaderNotes: "Follow up with parent context.",
+      discussionPrompt: "Old draft"
+    });
+
+    expect(prompt).toMatchObject({
+      id: "prompt_follow_up",
+      status: "approved",
+      leaderNotes: "Follow up with parent context.",
+      leaderFollowUpFlaggedAt: expect.any(String),
+      leaderFollowUpFlagCount: 1
+    });
+    expect(client.events[0]).toMatchObject({
+      prompt_id: "prompt_follow_up",
+      action: "leader_follow_up_flagged"
     });
   });
 });

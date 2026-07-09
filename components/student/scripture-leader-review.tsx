@@ -14,7 +14,15 @@ type ScriptureLeaderReviewProps = {
   initialState: DiscussionWorkflowState;
 };
 
-type ReviewAction = "approve" | "request_changes" | "archive" | "post" | "regenerate" | "use_local_draft";
+type ReviewAction =
+  | "approve"
+  | "request_changes"
+  | "archive"
+  | "post"
+  | "regenerate"
+  | "use_local_draft"
+  | "mark_discussed"
+  | "flag_follow_up";
 
 type DecisionResponse = {
   ok?: boolean;
@@ -54,6 +62,7 @@ export function ScriptureLeaderReview({ initialGroupState, initialState }: Scrip
   const [groupState, setGroupState] = useState(initialGroupState);
   const [activeTab, setActiveTab] = useState<ReviewTab["id"]>("needs_review");
   const [selectedId, setSelectedId] = useState(initialState.prompts[0]?.id ?? "");
+  const [activeGuideId, setActiveGuideId] = useState("");
   const [savingAction, setSavingAction] = useState<ReviewAction | "">("");
   const [isCreatingInvite, setIsCreatingInvite] = useState(false);
   const [diagnostic, setDiagnostic] = useState<GlooDiagnosticResult | undefined>();
@@ -63,6 +72,7 @@ export function ScriptureLeaderReview({ initialGroupState, initialState }: Scrip
   const activeTabConfig = reviewTabs.find((tab) => tab.id === activeTab) ?? reviewTabs[0];
   const filteredPrompts = useMemo(() => prompts.filter(activeTabConfig.matches), [activeTabConfig, prompts]);
   const selectedPrompt = prompts.find((prompt) => prompt.id === selectedId) ?? filteredPrompts[0] ?? prompts[0];
+  const activeGuidePrompt = prompts.find((prompt) => prompt.id === activeGuideId);
   const visibleSelectedId = selectedPrompt?.id ?? "";
   const stats = useMemo(() => buildReviewStats(prompts), [prompts]);
 
@@ -88,7 +98,7 @@ export function ScriptureLeaderReview({ initialGroupState, initialState }: Scrip
         return;
       }
 
-      setPrompts((current) => current.map((prompt) => (prompt.id === payload.prompt!.id ? payload.prompt! : prompt)));
+      setPrompts((current) => current.map((prompt) => (prompt.id === payload.prompt!.id ? { ...prompt, ...payload.prompt! } : prompt)));
       setSelectedId(payload.prompt.id);
       setStatus(statusForSaved(action));
     } catch {
@@ -148,6 +158,13 @@ export function ScriptureLeaderReview({ initialGroupState, initialState }: Scrip
     setStatus(`Opened ${prompt.submittedByName}'s question for review.`);
   }
 
+  function openDiscussionGuide(prompt: StudentDiscussionPrompt) {
+    setSelectedId(prompt.id);
+    setActiveTab(tabForPrompt(prompt));
+    setActiveGuideId(prompt.id);
+    setStatus(`Opened the group guide for ${prompt.submittedByName}'s question.`);
+  }
+
   return (
     <div className="leader-workspace">
       <section className="leader-workspace-hero">
@@ -176,7 +193,17 @@ export function ScriptureLeaderReview({ initialGroupState, initialState }: Scrip
 
       <StudentInvitePanel groupState={groupState} isCreating={isCreatingInvite} onCreate={createStudentInvite} />
 
-      <TonightPrepPanel prompts={prompts} stats={stats} onOpenPrompt={openPrompt} />
+      <TonightPrepPanel prompts={prompts} stats={stats} onOpenGuide={openDiscussionGuide} onOpenPrompt={openPrompt} />
+
+      {activeGuidePrompt ? (
+        <LeaderDiscussionGuide
+          liveStorageReady={initialState.readiness.liveStorage}
+          onClose={() => setActiveGuideId("")}
+          onDecide={decidePrompt}
+          prompt={activeGuidePrompt}
+          savingAction={savingAction}
+        />
+      ) : null}
 
       <div className="leader-workspace-grid">
         <aside className="leader-review-queue" aria-label="Discussion review queue">
@@ -226,6 +253,7 @@ export function ScriptureLeaderReview({ initialGroupState, initialState }: Scrip
             glooReady={initialState.readiness.gloo}
             liveStorageReady={initialState.readiness.liveStorage}
             onDecide={decidePrompt}
+            onOpenGuide={openDiscussionGuide}
             prompt={selectedPrompt}
             savingAction={savingAction}
           />
@@ -241,10 +269,12 @@ export function ScriptureLeaderReview({ initialGroupState, initialState }: Scrip
 }
 
 function TonightPrepPanel({
+  onOpenGuide,
   onOpenPrompt,
   prompts,
   stats
 }: {
+  onOpenGuide: (prompt: StudentDiscussionPrompt) => void;
   onOpenPrompt: (prompt: StudentDiscussionPrompt) => void;
   prompts: StudentDiscussionPrompt[];
   stats: ReturnType<typeof buildReviewStats>;
@@ -281,9 +311,14 @@ function TonightPrepPanel({
               : "When students submit questions, this area becomes the leader's quick read for tonight's discussion."}
           </p>
           {tonightPrompt ? (
-            <button className="button primary" onClick={() => onOpenPrompt(tonightPrompt)} type="button">
-              Open prep
-            </button>
+            <div className="leader-tonight-primary-actions">
+              <button className="button primary" onClick={() => onOpenGuide(tonightPrompt)} type="button">
+                Open guide
+              </button>
+              <button className="button" onClick={() => onOpenPrompt(tonightPrompt)} type="button">
+                Review
+              </button>
+            </div>
           ) : null}
         </article>
 
@@ -378,6 +413,98 @@ function GlooDiagnosticPanel({
         </button>
       </div>
       {diagnostic ? <GlooDiagnosticResultView diagnostic={diagnostic} /> : null}
+    </section>
+  );
+}
+
+function LeaderDiscussionGuide({
+  liveStorageReady,
+  onClose,
+  onDecide,
+  prompt,
+  savingAction
+}: {
+  liveStorageReady: boolean;
+  onClose: () => void;
+  onDecide: (id: string, action: ReviewAction, leaderNotes: string, discussionPrompt: string) => Promise<void>;
+  prompt: StudentDiscussionPrompt;
+  savingAction: ReviewAction | "";
+}) {
+  const [followUpNote, setFollowUpNote] = useState(prompt.leaderNotes);
+  const canSave = liveStorageReady && !savingAction;
+  const isReady = prompt.status === "approved" || prompt.status === "posted";
+  const guide = buildDiscussionGuide(prompt);
+
+  useEffect(() => {
+    setFollowUpNote(prompt.leaderNotes);
+  }, [prompt]);
+
+  return (
+    <section className="leader-discussion-guide" aria-label="Wrestle Together leader guide">
+      <div className="leader-discussion-guide-heading">
+        <div>
+          <p className="eyebrow">Wrestle Together</p>
+          <h2>{guide.title}</h2>
+          <p>Use this as a live small-group guide. Keep students thinking, reading, praying, and listening together.</p>
+        </div>
+        <div className="leader-discussion-guide-actions">
+          <ReviewPill status={prompt.status} />
+          <button className="button" onClick={onClose} type="button">
+            Close guide
+          </button>
+        </div>
+      </div>
+
+      <div className="leader-discussion-guide-question">
+        <span>{prompt.scriptureReference || "Choose a passage during group"}</span>
+        <strong>{prompt.question}</strong>
+        <p>{prompt.discussionPrompt || "Use the review panel to shape the leader-approved prompt before group."}</p>
+      </div>
+
+      <div className="leader-discussion-guide-signals" aria-label="Discussion signals">
+        <MetaTile label="Students reflected" value={`${prompt.studentReflectionCount ?? 0}`} />
+        <MetaTile label="Last reflection" value={prompt.studentLastReflectedAt ? formatShortDate(prompt.studentLastReflectedAt) : "None yet"} />
+        <MetaTile label="Discussed" value={prompt.leaderDiscussedAt ? formatShortDate(prompt.leaderDiscussedAt) : "Not yet"} />
+        <MetaTile label="Follow-up" value={prompt.leaderFollowUpFlagCount ? `${prompt.leaderFollowUpFlagCount} flagged` : "None"} />
+      </div>
+
+      <div className="leader-discussion-guide-grid">
+        {guide.sections.map((section) => (
+          <article className="leader-discussion-guide-card" key={section.label}>
+            <span>{section.label}</span>
+            <h3>{section.title}</h3>
+            <ul>
+              {section.items.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </article>
+        ))}
+      </div>
+
+      <label className="leader-review-field">
+        <span>Private follow-up note</span>
+        <textarea onChange={(event) => setFollowUpNote(event.target.value)} value={followUpNote} />
+      </label>
+
+      <div className="leader-review-actions">
+        <button
+          className="button primary"
+          disabled={!canSave || !isReady}
+          onClick={() => onDecide(prompt.id, "mark_discussed", followUpNote, prompt.discussionPrompt)}
+          type="button"
+        >
+          {savingAction === "mark_discussed" ? "Saving..." : "Mark discussed"}
+        </button>
+        <button
+          className="button"
+          disabled={!canSave || prompt.status === "archived"}
+          onClick={() => onDecide(prompt.id, "flag_follow_up", followUpNote, prompt.discussionPrompt)}
+          type="button"
+        >
+          {savingAction === "flag_follow_up" ? "Flagging..." : "Flag follow-up"}
+        </button>
+      </div>
     </section>
   );
 }
@@ -592,12 +719,14 @@ function LeaderReviewDetail({
   glooReady,
   liveStorageReady,
   onDecide,
+  onOpenGuide,
   prompt,
   savingAction
 }: {
   glooReady: boolean;
   liveStorageReady: boolean;
   onDecide: (id: string, action: ReviewAction, leaderNotes: string, discussionPrompt: string) => Promise<void>;
+  onOpenGuide: (prompt: StudentDiscussionPrompt) => void;
   prompt: StudentDiscussionPrompt;
   savingAction: ReviewAction | "";
 }) {
@@ -688,6 +817,9 @@ function LeaderReviewDetail({
         <button className="button" disabled={!canPost} onClick={() => onDecide(prompt.id, "post", leaderNotes, discussionPrompt)} type="button">
           {savingAction === "post" ? "Posting..." : "Post to Slack"}
         </button>
+        <button className="button" disabled={prompt.status !== "approved" && prompt.status !== "posted"} onClick={() => onOpenGuide(prompt)} type="button">
+          Open guide
+        </button>
         <button className="button" disabled={!canSave || prompt.status === "archived"} onClick={() => onDecide(prompt.id, "archive", leaderNotes, discussionPrompt)} type="button">
           {savingAction === "archive" ? "Archiving..." : "Archive"}
         </button>
@@ -754,6 +886,63 @@ function buildReviewStats(prompts: StudentDiscussionPrompt[]) {
   };
 }
 
+function buildDiscussionGuide(prompt: StudentDiscussionPrompt) {
+  const passage = prompt.scriptureReference || "the passage your group chooses together";
+  const care = careText(prompt);
+  const knowledgeQuestions = prompt.knowledgeContext?.flatMap((match) => match.digQuestions).filter(Boolean) ?? [];
+  const topic = prompt.topicTags[0] ?? "this question";
+  return {
+    title: prompt.discussionPrompt || prompt.question,
+    sections: [
+      {
+        label: "Start Here",
+        title: "Name what is really being asked",
+        items: [
+          "Ask students what they have heard or been taught about this before.",
+          "Invite them to name what is sticking out, bothering them, or making the question feel important.",
+          care ? `Frame this with care: ${care}.` : "Make room for honesty before trying to resolve the question."
+        ]
+      },
+      {
+        label: "Read Together",
+        title: `Open ${passage}`,
+        items: [
+          "Read slowly enough for students to notice repeated words, tension, or surprises.",
+          "Ask what the passage reveals about God, people, brokenness, and hope.",
+          "Keep the text in front of the group before moving to opinions."
+        ]
+      },
+      {
+        label: "Wrestle With",
+        title: "Let better questions surface",
+        items: [
+          knowledgeQuestions[0] ?? `What question underneath ${topic} might God be inviting us to face honestly?`,
+          knowledgeQuestions[1] ?? "Where does this passage challenge what we assumed before we read it?",
+          "What would faithful trust look like if we do not have a complete answer tonight?"
+        ]
+      },
+      {
+        label: "Pray",
+        title: "Turn the question toward God",
+        items: [
+          "Give students a quiet moment to name one honest sentence to God.",
+          "Pray for wisdom, courage, and tenderness for anyone carrying this question personally.",
+          "Ask God to make the group a safer place to bring real questions into the light."
+        ]
+      },
+      {
+        label: "Follow Up",
+        title: "Decide what needs a slower conversation",
+        items: [
+          "Watch for students who seem unusually quiet, agitated, or personally affected.",
+          "Flag private follow-up if the question points toward grief, family crisis, abuse, self-harm, or shame.",
+          "Offer a next Scripture reading or trusted leader conversation before the student leaves."
+        ]
+      }
+    ]
+  };
+}
+
 function tabForPrompt(prompt: StudentDiscussionPrompt): ReviewTab["id"] {
   if (prompt.status === "approved") return "approved";
   if (prompt.status === "changes_requested") return "changes";
@@ -800,6 +989,8 @@ function statusForSaving(action: ReviewAction) {
   if (action === "use_local_draft") return "Saving a knowledge-guided local draft...";
   if (action === "regenerate") return "Requesting a fresh AI draft...";
   if (action === "post") return "Posting the approved prompt...";
+  if (action === "mark_discussed") return "Marking this prompt discussed...";
+  if (action === "flag_follow_up") return "Flagging private follow-up...";
   return "Saving leader decision...";
 }
 
@@ -807,6 +998,8 @@ function statusForSaved(action: ReviewAction) {
   if (action === "use_local_draft") return "Knowledge-guided local draft saved for leader review.";
   if (action === "regenerate") return "AI draft regenerated for leader review.";
   if (action === "post") return "Approved prompt posted and logged.";
+  if (action === "mark_discussed") return "Discussion marked for leader follow-through.";
+  if (action === "flag_follow_up") return "Private follow-up flagged for a leader.";
   return "Leader decision saved.";
 }
 
