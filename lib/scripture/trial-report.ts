@@ -16,6 +16,7 @@ export function buildScriptureTrialReport(insights: ScriptureTrialInsights, gene
     `- Questions with leader-care signals: ${insights.careNeeded}`,
     `- Questions connected to knowledge-brain matches: ${insights.withKnowledgeContext}`,
     `- Questions with saved student next steps: ${insights.withSavedNextSteps}`,
+    `- Questions with student reflection: ${insights.reflectedQuestions}`,
     "",
     "## Launch Readiness Notes",
     "",
@@ -59,7 +60,8 @@ function readinessLines(insights: ScriptureTrialInsights) {
     `- AI draft connection: ${insights.readiness.gloo ? "connected" : "leader local drafts remain available"}`,
     `- Slack delivery: ${insights.readiness.slack ? "connected for leader-approved posting" : "offline; leader approval still controls sharing"}`,
     `- Leader review backlog: ${insights.pendingReview} question${insights.pendingReview === 1 ? "" : "s"} waiting`,
-    `- Student next-step coverage: ${insights.withSavedNextSteps} of ${insights.totalQuestions} question${insights.totalQuestions === 1 ? "" : "s"}`
+    `- Student next-step coverage: ${insights.withSavedNextSteps} of ${insights.totalQuestions} question${insights.totalQuestions === 1 ? "" : "s"}`,
+    `- Student reflection coverage: ${insights.reflectedQuestions} of ${insights.totalQuestions} question${insights.totalQuestions === 1 ? "" : "s"}`
   ];
 
   if (!insights.totalQuestions) {
@@ -77,6 +79,7 @@ function recentQuestionLines(insights: ScriptureTrialInsights) {
       `status: ${question.status.replace(/_/g, " ")}`,
       `safety: ${question.safetyLabel.replace(/_/g, " ")}`,
       question.scriptureReference ? `reference: ${question.scriptureReference}` : "reference: not entered",
+      question.studentReflectionCount ? `${question.studentReflectionCount} student reflection${question.studentReflectionCount === 1 ? "" : "s"}` : "no student reflection yet",
       question.hasSavedNextSteps ? "next steps saved" : `${question.knowledgeMatchCount} knowledge match${question.knowledgeMatchCount === 1 ? "" : "es"}`
     ];
     return `${index + 1}. "${escapeMarkdown(question.question)}" (${signals.join("; ")})`;

@@ -522,6 +522,7 @@ function StudentInvitePanel({
   const [copyStatus, setCopyStatus] = useState("");
   const activeInvites = groupState.invites.filter((invite) => invite.isActive).length;
   const activeStudents = groupState.members.filter((member) => member.status === "active").length;
+  const latestInvite = groupState.invites.find((invite) => invite.isActive);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -555,9 +556,16 @@ function StudentInvitePanel({
         <div>
           <p className="eyebrow">Student Access</p>
           <h2>Invite students to your group</h2>
-          <p>Create a small-group link students can use to join, ask questions, and receive leader-reviewed next steps.</p>
+          <p>Create one launch link, share it with students, then watch the first join, first question, and first reflection move through review.</p>
         </div>
         <span className={groupState.liveStorage ? "pill green" : "pill amber"}>{groupState.liveStorage ? "Live invites" : "Needs setup"}</span>
+      </div>
+
+      <div className="leader-student-launch-path" aria-label="Student launch path">
+        <LaunchPathStep state={activeInvites ? "ready" : groupState.liveStorage ? "watch" : "setup"} title="Share link" detail={latestInvite ? latestInvite.groupName : "Create one group link"} />
+        <LaunchPathStep state={activeStudents ? "ready" : activeInvites ? "watch" : "setup"} title="Students join" detail={activeStudents ? `${activeStudents} joined` : "Waiting for first signup"} />
+        <LaunchPathStep state="watch" title="First question" detail="Students land in Ask + Keep Reading" />
+        <LaunchPathStep state="watch" title="Leader review" detail="Approve before group or Slack" />
       </div>
 
       <div className="leader-student-access-summary" aria-label="Student access readiness">
@@ -613,7 +621,7 @@ function StudentInvitePanel({
 
       <div className="leader-student-invite-results">
         <div className="leader-student-invite-list">
-          <h3>Recent links</h3>
+          <h3>Share with students</h3>
           {groupState.invites.length ? (
             groupState.invites.map((invite) => (
               <article className="leader-student-invite-row" key={invite.id}>
@@ -630,6 +638,9 @@ function StudentInvitePanel({
                     Copy
                   </button>
                 </div>
+                <p className="leader-student-invite-script">
+                  Send this to students: join the portal, ask one honest question, and use the reading path before group.
+                </p>
               </article>
             ))
           ) : (
@@ -653,6 +664,16 @@ function StudentInvitePanel({
         </div>
       </div>
     </section>
+  );
+}
+
+function LaunchPathStep({ detail, state, title }: { detail: string; state: "ready" | "watch" | "setup"; title: string }) {
+  return (
+    <div className={`leader-student-launch-step ${state}`}>
+      <span>{title}</span>
+      <strong>{state === "ready" ? "Ready" : state === "watch" ? "Next" : "Setup"}</strong>
+      <small>{detail}</small>
+    </div>
   );
 }
 

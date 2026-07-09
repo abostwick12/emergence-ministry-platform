@@ -1,6 +1,14 @@
 import { expect, type Page, test } from "@playwright/test";
 
 test.describe("Student Scripture Hub shell", () => {
+  test("public join links explain the student launch path or fail closed", async ({ page }) => {
+    await page.goto("/join/small-group-tryout");
+
+    await expect(page.getByRole("main")).toContainText("Lead Emergence");
+    await expect(page.getByRole("heading", { name: "This link is not available." })).toBeVisible();
+    await expect(page.getByText("Ask your leader for a fresh student invite link")).toBeVisible();
+  });
+
   test("authorized app users can discover and open the Student Portal from app navigation", async ({ page }) => {
     await login(page);
 
@@ -31,6 +39,8 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page.getByRole("complementary", { name: "Knowledge brain preview" })).toContainText("Questions to dig into");
     await expect(page.getByRole("complementary", { name: "Knowledge brain preview" })).toContainText("Keep Reading");
     await expect(page.getByRole("heading", { name: "Discussion Review" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Invite students to your group" })).toBeVisible();
+    await expect(page.getByText("Create one launch link")).toBeVisible();
     await expect(page.getByRole("heading", { name: "Test the draft connection" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Run Connection Test" })).toBeVisible();
     await expect(page.getByRole("tab", { name: /Needs review/ })).toBeVisible();
