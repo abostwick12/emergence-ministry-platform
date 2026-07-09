@@ -61,6 +61,15 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page.getByText("No live Bible text or external provider is required")).toHaveCount(0);
 
     await page.goto("/student/scripture/resources");
+    await expect(page.getByRole("heading", { name: "The Big Story of Scripture" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Genesis + Exodus" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Genesis full guide" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Exodus full guide" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Old Testament flyover" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "New Testament flyover" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Tap a theme and trace the thread." })).toBeVisible();
+    await expect(page.getByText("Genesis and Exodus introduce the major categories")).toBeVisible();
+    await expect(page.getByText("every doctrine")).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "Simple tools for reading carefully together." })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Look up a Scripture reference" })).toBeVisible();
     await page.getByLabel("Scripture reference").fill("John 3:16");
