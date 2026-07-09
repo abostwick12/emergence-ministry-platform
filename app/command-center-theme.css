@@ -720,6 +720,20 @@
   border-color: var(--cc-border);
 }
 
+/*
+ * app/globals.css bumps .kanban to 4 columns only above a 1320px viewport,
+ * tuned for the shared shell's full-width layout. The Command Center's
+ * fixed 256px sidebar eats into that budget, so the same breakpoint left
+ * the 4-column Tasks/Job Search boards stuck at 2 columns (with the 3rd
+ * and 4th column wrapping to a second row) on common laptop widths. Lower
+ * the threshold here since there's still comfortably enough room.
+ */
+@media (min-width: 1180px) {
+  .command-center-shell .kanban {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
 .command-center-shell .task-card {
   background: white;
   border-color: var(--cc-border);

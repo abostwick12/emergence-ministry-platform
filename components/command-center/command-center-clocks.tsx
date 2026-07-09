@@ -15,6 +15,8 @@ const ZONE_OPTIONS: { value: string; label: string }[] = [
 ];
 
 const DEFAULT_ZONES = ["America/New_York", "America/Chicago", "America/Los_Angeles"];
+const STORAGE_KEY = "command-center-clock-zones";
+const VALID_ZONES = new Set(ZONE_OPTIONS.map((option) => option.value));
 
 function formatTime(now: Date, timeZone: string): string {
   return new Intl.DateTimeFormat("en-US", {
@@ -26,21 +28,39 @@ function formatTime(now: Date, timeZone: string): string {
   }).format(now);
 }
 
+function loadStoredZones(): string[] {
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return DEFAULT_ZONES;
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed) || parsed.length !== 3 || !parsed.every((zone) => VALID_ZONES.has(zone))) {
+      return DEFAULT_ZONES;
+    }
+    return parsed;
+  } catch {
+    return DEFAULT_ZONES;
+  }
+}
+
 // Andrew can swap any of the three clocks to a different time zone from its
-// own picker. No persistence yet — resets to the ET/CT/PT defaults on
-// reload.
+// own picker. The choice persists in localStorage so it survives reload.
 export function CommandCenterClocks() {
   const [now, setNow] = useState<Date | null>(null);
   const [zones, setZones] = useState<string[]>(DEFAULT_ZONES);
 
   useEffect(() => {
+    setZones(loadStoredZones());
     setNow(new Date());
     const timer = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
   function updateZone(index: number, value: string) {
-    setZones((current) => current.map((zone, i) => (i === index ? value : zone)));
+    setZones((current) => {
+      const next = current.map((zone, i) => (i === index ? value : zone));
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
   }
 
   return (
