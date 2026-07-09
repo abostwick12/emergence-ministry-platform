@@ -52,11 +52,15 @@ Phase 1B adds:
 
 SAGE Phase 1B could advise from Command Center task/context data only. It could not
 take actions outside the Command Center, call integrations, or execute tools.
-This has since evolved: read-only Google Calendar and Gmail context are now
-included in chat when those integrations are connected — see "Increment 8"
-in [`command-center-integrations.md`](./command-center-integrations.md) for
-the updated guardrails. SAGE still cannot execute tools, take an action, or
-write to any integration from chat.
+This has since evolved: read-only Google Calendar, Gmail, Google Drive,
+Firecrawl, and Monday.com context are now included in chat when those
+integrations are connected, and saved SAGE memory is included too — see
+"Increment 8", "Increment 13", and "SAGE Memory" above. SAGE also has one
+narrow tool call now: it can create a Gmail draft when Andrew explicitly
+asks and Gmail is connected — see "Increment 15" in
+[`command-center-integrations.md`](./command-center-integrations.md). It
+still cannot send an email, take any other action, or write to any other
+integration from chat.
 
 ## SAGE Provider Selection
 

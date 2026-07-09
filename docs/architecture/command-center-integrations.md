@@ -104,13 +104,18 @@ descriptions.
 
 ## What SAGE May Do Now vs. Later
 
-**Now (Phase 1B, current):**
+**Now (Phase 1B, as originally shipped):**
 
 - Advise from Command Center task data only (`lib/command-center/repository.ts`
   read paths already wired into `buildSageInstructions`).
 - Hold a conversational chat session persisted to `ai_conversations`.
 - Nothing else. No tool calls, no function calling, no integration reads or
   writes, no autonomous actions, no memory automation.
+
+This has since evolved considerably — see Increments 8, 13, and 14 for the
+read-only integration/memory context SAGE can now be given, and Increment
+15 for SAGE's one narrow tool call (Gmail draft creation). The "nothing
+else" line above describes Phase 1B's original scope only.
 
 **Later (as each integration above ships, one at a time):**
 
@@ -714,3 +719,65 @@ no tool calling in this phase.
 Like Calendar and Gmail, this is additive to what SAGE can read, not what
 it can do: no new write capability was added anywhere, and there is still
 no tool calling in this phase.
+
+Tool calling was added in "Increment 15" below, for exactly one narrow
+action (Gmail draft creation) that Andrew explicitly approved.
+
+## Increment 15: SAGE tool-calling — Gmail draft creation
+
+Every increment above gave SAGE more to *read*, never more to *do* — each
+said so explicitly, and Phase 1B's "no tool calls, no function actions"
+rule held all the way through. This increment is the first exception,
+and it is narrow and Andrew-approved: SAGE chat can now create exactly one
+kind of thing — a Gmail draft — when Andrew explicitly asks for one and
+Gmail is connected. It still cannot send an email, from this tool or any
+other path in the codebase; Andrew reviews and sends every draft himself
+from Gmail, exactly as the manual drafts route (Increment 2) already
+guaranteed. No other tool exists, and no other integration gained a write
+path from chat.
+
+- `lib/command-center/sage.ts` — adds a real OpenAI Responses API
+  function-calling loop, used by both `streamOpenAIResponse` and
+  `streamAzureOpenAIResponse` via a shared `runResponsesTurnsWithTools`
+  helper: the first streamed turn offers the caller's `tools` (if any); if
+  the model requests the one supported call, the caller's `onToolCall` is
+  awaited for its output, and a second turn continues the same response
+  (`previous_response_id`) with that output to produce the final
+  natural-language reply. `collectResponseStream` (now exported, and
+  directly unit-tested) also tracks the response id and any
+  `function_call` output item alongside the existing text-delta
+  collection. If no tool call happens, or the caller supplied no
+  `tools`/`onToolCall`, behavior is unchanged from every increment before
+  this one — a single plain text-streaming turn.
+- `lib/command-center/sage-tools.ts` — new module, SAGE's only tool
+  surface today. `buildSageTools()` offers `create_gmail_draft` only when
+  Gmail is connected (empty otherwise — the model is never even told the
+  tool exists). `executeSageToolCall()` validates the model's arguments,
+  then calls the exact same `createGmailDraft` + `stageGmailDraftForReview`
+  pair the manual drafts route already uses — a SAGE-authored draft is
+  identical to and indistinguishable from one created there, and there is
+  still no `send()` call anywhere in this codebase. Every failure path
+  (bad arguments, expired Gmail token, API error) returns a structured
+  failure outcome; it never throws into the chat stream.
+- `app/api/command-center/chat/route.ts` — fetches `buildSageTools(session)`
+  alongside tasks/context/memory, passes `tools` and an `onToolCall`
+  handler (wrapping `executeSageToolCall`) into `streamSageResponse`, and
+  emits a new `tool_call` SSE event with the structured outcome once the
+  turn completes, independent of whatever text the model streamed.
+- `components/command-center/sage-chat-panel.tsx` — renders that outcome
+  as a small inline confirmation under the assistant's message ("Drafted
+  an email to ... — review it in Gmail." or the failure reason), so
+  success/failure is visible even if the model's own text doesn't
+  mention it.
+- `lib/command-center/sage.ts` prompts — the blanket "you cannot send
+  email or create a Gmail draft from this chat" line is replaced with the
+  same increasing-precision pattern used for Drive/Firecrawl/Monday.com:
+  SAGE may create one Gmail draft per request via `create_gmail_draft`
+  when Gmail is connected and Andrew asks, but can never send an email,
+  and every other guardrail (no calendar writes, no Drive writes, no
+  Slack, no automatic memory saving, and so on) is unchanged.
+
+Every other integration's boundary from its own increment above is
+unchanged: Calendar, Drive, Slack, Firecrawl, and Monday.com still have no
+write path reachable from chat, and there is still no scheduled or
+automatic caller for anything, anywhere in this codebase.

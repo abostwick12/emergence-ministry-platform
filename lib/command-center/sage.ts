@@ -1,4 +1,8 @@
 import type { AiConversationMessage, PersonalTask, SageMemory } from "@/lib/command-center/types";
+// Type-only import -- erased at compile time, so this does not force the
+// SDK into the module graph at load time. Both callers still load the
+// actual client via a dynamic `import("openai")` at call time.
+import type OpenAI from "openai";
 
 // A minimal structural type instead of zod's ZodType<T> directly -- ZodType's
 // Input/Output type params can otherwise cause TypeScript to widen T (e.g.
@@ -72,7 +76,28 @@ type OpenAIStreamEvent = {
   type?: string;
   delta?: string;
   error?: { message?: string };
+  response?: { id?: string };
+  item?: { type?: string; name?: string; call_id?: string; arguments?: string };
 };
+
+// SAGE's tool-calling surface. A tool is only ever offered to the model when
+// the caller decides it should be (e.g. Gmail is connected) -- there is no
+// global "always available" tool list. At most one tool call is supported
+// per chat turn (the only tool that exists today, create_gmail_draft, never
+// needs more than one call).
+export type SageToolDefinition = {
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>;
+};
+
+export type SageToolCall = {
+  name: string;
+  callId: string;
+  argumentsJson: string;
+};
+
+export type SageToolExecutor = (call: SageToolCall) => Promise<string>;
 
 type SageResponseStreamParams = {
   instructions: string;
@@ -80,6 +105,8 @@ type SageResponseStreamParams = {
   signal: AbortSignal;
   env?: SageEnv;
   onDelta?: (delta: string) => boolean | void;
+  tools?: SageToolDefinition[];
+  onToolCall?: SageToolExecutor;
   streamers?: SageProviderStreamers;
 };
 
@@ -89,6 +116,8 @@ type SageProviderStreamParams<TConfig extends SageProviderRuntimeConfig> = {
   input: string;
   signal: AbortSignal;
   onDelta?: (delta: string) => boolean | void;
+  tools?: SageToolDefinition[];
+  onToolCall?: SageToolExecutor;
 };
 
 type SageProviderStreamResult = {
@@ -96,6 +125,7 @@ type SageProviderStreamResult = {
   modelLabel: string;
   content: string;
   completed: boolean;
+  toolCall?: SageToolCall;
 };
 
 type SageProviderStreamers = {
@@ -259,7 +289,9 @@ export function classifySageProviderError(
   return "unknown";
 }
 
-async function collectResponseStream(
+type CollectedResponseStream = SageProviderStreamResult & { responseId?: string };
+
+export async function collectResponseStream(
   params: {
     stream: AsyncIterable<unknown>;
     provider: SageProvider;
@@ -267,24 +299,117 @@ async function collectResponseStream(
     signal: AbortSignal;
     onDelta?: (delta: string) => boolean | void;
   }
-): Promise<SageProviderStreamResult> {
+): Promise<CollectedResponseStream> {
   let content = "";
+  let responseId: string | undefined;
+  let toolCall: SageToolCall | undefined;
 
   for await (const rawEvent of params.stream) {
-    if (params.signal.aborted) return { provider: params.provider, modelLabel: params.modelLabel, content, completed: false };
+    if (params.signal.aborted) {
+      return { provider: params.provider, modelLabel: params.modelLabel, content, completed: false, responseId, toolCall };
+    }
     const event = rawEvent as OpenAIStreamEvent;
+    if (event.response?.id) responseId = event.response.id;
     if (event.type === "response.output_text.delta" && event.delta) {
       content += event.delta;
       if (params.onDelta?.(event.delta) === false) {
-        return { provider: params.provider, modelLabel: params.modelLabel, content, completed: false };
+        return { provider: params.provider, modelLabel: params.modelLabel, content, completed: false, responseId, toolCall };
       }
+    }
+    if (event.type === "response.output_item.done" && event.item?.type === "function_call") {
+      toolCall = {
+        name: event.item.name ?? "",
+        callId: event.item.call_id ?? "",
+        argumentsJson: event.item.arguments ?? "{}"
+      };
     }
     if (event.type === "response.failed") {
       throw new Error(event.error?.message || "SAGE response failed");
     }
   }
 
-  return { provider: params.provider, modelLabel: params.modelLabel, content, completed: true };
+  return { provider: params.provider, modelLabel: params.modelLabel, content, completed: true, responseId, toolCall };
+}
+
+function toResponsesToolParams(tools?: SageToolDefinition[]) {
+  if (!tools || tools.length === 0) return undefined;
+  return tools.map((tool) => ({
+    type: "function" as const,
+    name: tool.name,
+    description: tool.description,
+    parameters: tool.parameters,
+    strict: false
+  }));
+}
+
+// Shared by both providers (they differ only in client construction/model).
+// Runs the first turn with tools offered; if the model requests the one
+// supported tool call and the caller supplied onToolCall, executes it and
+// runs a second turn continuing the same response (previous_response_id)
+// with the tool's output, then returns the combined text. If no tool call
+// happens, or the caller didn't supply onToolCall, behaves exactly as
+// before this existed -- a single plain text-streaming turn.
+async function runResponsesTurnsWithTools(params: {
+  client: OpenAI;
+  model: string;
+  provider: SageProvider;
+  modelLabel: string;
+  instructions: string;
+  input: string;
+  tools?: SageToolDefinition[];
+  onToolCall?: SageToolExecutor;
+  signal: AbortSignal;
+  onDelta?: (delta: string) => boolean | void;
+}): Promise<SageProviderStreamResult> {
+  const responsesTools = toResponsesToolParams(params.tools);
+  const firstStream = await params.client.responses.create(
+    {
+      model: params.model,
+      instructions: params.instructions,
+      input: params.input,
+      stream: true,
+      ...(responsesTools ? { tools: responsesTools } : {})
+    },
+    { signal: params.signal }
+  );
+  const first = await collectResponseStream({
+    stream: firstStream,
+    provider: params.provider,
+    modelLabel: params.modelLabel,
+    signal: params.signal,
+    onDelta: params.onDelta
+  });
+
+  if (!first.toolCall || !params.onToolCall || !first.completed) {
+    return { provider: first.provider, modelLabel: first.modelLabel, content: first.content, completed: first.completed, toolCall: first.toolCall };
+  }
+
+  const output = await params.onToolCall(first.toolCall);
+
+  const secondStream = await params.client.responses.create(
+    {
+      model: params.model,
+      previous_response_id: first.responseId,
+      input: [{ type: "function_call_output" as const, call_id: first.toolCall.callId, output }],
+      stream: true
+    },
+    { signal: params.signal }
+  );
+  const second = await collectResponseStream({
+    stream: secondStream,
+    provider: params.provider,
+    modelLabel: params.modelLabel,
+    signal: params.signal,
+    onDelta: params.onDelta
+  });
+
+  return {
+    provider: second.provider,
+    modelLabel: second.modelLabel,
+    content: first.content + second.content,
+    completed: second.completed,
+    toolCall: first.toolCall
+  };
 }
 
 export async function streamOpenAIResponse({
@@ -292,21 +417,25 @@ export async function streamOpenAIResponse({
   instructions,
   input,
   signal,
-  onDelta
+  onDelta,
+  tools,
+  onToolCall
 }: SageProviderStreamParams<OpenAIProviderRuntimeConfig>): Promise<SageProviderStreamResult> {
   if (!config.configured || !config.apiKey) throw new SageProviderConfigError(publicProviderConfig(config));
   const { default: OpenAI } = await import("openai");
   const client = new OpenAI({ apiKey: config.apiKey, timeout: 30_000, maxRetries: 0 });
-  const stream = await client.responses.create({
+  return runResponsesTurnsWithTools({
+    client,
     model: config.model,
+    provider: "openai",
+    modelLabel: config.modelLabel,
     instructions,
     input,
-    stream: true
-  }, {
-    signal
+    tools,
+    onToolCall,
+    signal,
+    onDelta
   });
-
-  return collectResponseStream({ stream, provider: "openai", modelLabel: config.modelLabel, signal, onDelta });
 }
 
 export async function streamAzureOpenAIResponse({
@@ -314,7 +443,9 @@ export async function streamAzureOpenAIResponse({
   instructions,
   input,
   signal,
-  onDelta
+  onDelta,
+  tools,
+  onToolCall
 }: SageProviderStreamParams<AzureProviderRuntimeConfig>): Promise<SageProviderStreamResult> {
   if (!config.configured || !config.apiKey || !config.endpoint || !config.deployment) {
     throw new SageProviderConfigError(publicProviderConfig(config));
@@ -326,16 +457,18 @@ export async function streamAzureOpenAIResponse({
     timeout: 30_000,
     maxRetries: 0
   });
-  const stream = await client.responses.create({
+  return runResponsesTurnsWithTools({
+    client,
     model: config.deployment,
+    provider: "azure",
+    modelLabel: config.modelLabel,
     instructions,
     input,
-    stream: true
-  }, {
-    signal
+    tools,
+    onToolCall,
+    signal,
+    onDelta
   });
-
-  return collectResponseStream({ stream, provider: "azure", modelLabel: config.modelLabel, signal, onDelta });
 }
 
 export async function streamSageResponse({
@@ -344,6 +477,8 @@ export async function streamSageResponse({
   signal,
   env = process.env,
   onDelta,
+  tools,
+  onToolCall,
   streamers = {
     openai: streamOpenAIResponse,
     azure: streamAzureOpenAIResponse
@@ -351,8 +486,8 @@ export async function streamSageResponse({
 }: SageResponseStreamParams): Promise<SageProviderStreamResult> {
   const config = readSageProviderRuntimeConfig(env);
   if (!config.configured) throw new SageProviderConfigError(publicProviderConfig(config));
-  if (config.provider === "azure") return streamers.azure({ config, instructions, input, signal, onDelta });
-  return streamers.openai({ config, instructions, input, signal, onDelta });
+  if (config.provider === "azure") return streamers.azure({ config, instructions, input, signal, onDelta, tools, onToolCall });
+  return streamers.openai({ config, instructions, input, signal, onDelta, tools, onToolCall });
 }
 
 // --- Non-streaming structured output (Weekly Intelligence Feed) -----------
@@ -473,7 +608,8 @@ Guardrails:
 
 - You are not EMMA and you are not Camp EMMA.
 - Do not reference, request, infer, or use student, Camp medical, pastoral-care, ministry-restricted, parent, guardian, or staff-only ministry data.
-- You cannot create, update, or delete a calendar event, and you cannot send email or create a Gmail draft from this chat — those actions still require Andrew to use the Calendar/Gmail integration surfaces directly, not chat.
+- You cannot create, update, or delete a calendar event from this chat — that still requires Andrew to use the Calendar integration page directly.
+- When Gmail is connected and Andrew explicitly asks, you may create exactly one Gmail draft per request using the create_gmail_draft tool — you never send an email, from this chat or anywhere else in this product; Andrew always reviews and sends every draft himself from Gmail. Confirm the recipient, subject, and body back to Andrew after creating a draft.
 - You cannot search Google Drive, read a Drive file's content, move a file, or create a folder from this chat — those still require the Drive integration page directly.
 - You cannot trigger a new Firecrawl scrape, read Monday.com board items, write to Monday.com, post to Slack, or take autonomous actions — you may only reference the daily Firecrawl resource feed or Monday.com board names when that context is provided for this turn.
 - You cannot create, update, or delete a SAGE memory entry from this chat, and you never save a memory automatically from conversation — Andrew adds and removes memory entries himself from the Memory page.
@@ -499,14 +635,18 @@ Allowed context:
 - Read-only Monday.com board names, only when Monday.com is connected
 - Read-only SAGE memory entries (facts, preferences, context, relationships) Andrew has explicitly saved
 
+Allowed actions:
+
+- create_gmail_draft: create exactly one Gmail draft (to, subject, body), only when Gmail is connected and Andrew explicitly asks. Never sends. This is SAGE's only tool call.
+
 Disallowed behavior:
 
-- No tool calls
-- No function actions
+- No tool calls beyond create_gmail_draft
 - No automatic memory saving
-- No external integration writes, sends, or actions of any kind
+- No external integration writes, sends, or actions of any kind other than create_gmail_draft
+- No sending an email under any circumstance, from this tool or otherwise
 - No ministry, Camp, student, medical, pastoral-care, or restricted data
-- No claims that a task, message, calendar event, job application, Drive file, or integration was changed
+- No claims that a task, message, calendar event, job application, Drive file, or integration was changed unless create_gmail_draft actually ran this turn
 
 Response style:
 
