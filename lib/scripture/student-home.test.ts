@@ -31,8 +31,8 @@ describe("student home feed personalization", () => {
       title: "Wrestle with your question"
     });
     expect(feed.keepReading[0]).toMatchObject({
-      label: "Because you asked about Genesis 3",
-      title: "Beginnings and Covenant"
+      label: "This starts in Genesis",
+      title: "Creation, trust, and fracture"
     });
   });
 
@@ -123,7 +123,7 @@ describe("student home feed personalization", () => {
       title: "Keep walking this out",
       wrestleTogetherPrompt: "Where does this psalm give us language for honest trust?",
       readingPlan: {
-        href: "/student/scripture/plans"
+        href: "/student/scripture/resources"
       }
     });
     expect(nextStep.journalPrompts.length).toBeGreaterThan(0);
@@ -234,14 +234,18 @@ describe("student home feed personalization", () => {
       label: "Because you asked about the garden",
       title: "Wrestle with your question",
       readingPlan: {
-        title: "Beginnings and Covenant"
+        title: "Creation, trust, and fracture"
+      },
+      storylineMatch: {
+        id: "creation-fracture",
+        label: "This starts in Genesis"
       }
     });
     expect(nextStep.wrestleQuestions).toEqual(
       expect.arrayContaining(["What do you think this story is showing about God, people, freedom, or trust?"])
     );
     expect(nextStep.digQuestions).toEqual(
-      expect.arrayContaining(["What good things does God give before the command appears?"])
+      expect.arrayContaining(["What kind of trust is being tested?"])
     );
     expect(nextStep.journalPrompts).toEqual(
       expect.arrayContaining(["Name what this question makes you wonder about God, people, and freedom."])
@@ -281,6 +285,9 @@ describe("student home feed personalization", () => {
       summary: "Hold suffering and hope together without rushing the conversation.",
       readingPlan: {
         title: "Romans 8 and patient hope"
+      },
+      storylineMatch: {
+        id: "wisdom-suffering"
       }
     });
     expect(nextStep.digQuestions).toEqual(["Where does Romans 8 name pain without pretending it is small?"]);
@@ -299,7 +306,7 @@ describe("student home feed personalization", () => {
 
     expect(nextStep.careNote).toContain("trusted leader");
     expect(nextStep.digQuestions).toEqual(
-      expect.arrayContaining(["Where does Scripture make room for honest grief or lament?"])
+      expect.arrayContaining(["Where does Scripture make room for honest lament?"])
     );
   });
 });

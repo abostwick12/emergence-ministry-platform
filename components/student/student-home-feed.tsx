@@ -220,6 +220,7 @@ function GroupDiscussionFollowThroughCard({
         <h2>{nextStep.title}</h2>
         <p>{nextStep.summary}</p>
       </div>
+      <StorylineContextCard match={nextStep.storylineMatch} />
       <StudentNextStepRhythm nextStep={nextStep} />
       <p className="student-next-step-care">
         <strong>Bring this back:</strong> Write down one thing you noticed, one question you still have, and one way your group can respond together.
@@ -272,6 +273,7 @@ function StudentQuestionJourneyCard({
         <h2>{nextStep.title}</h2>
         <p>{nextStep.summary}</p>
       </div>
+      <StorylineContextCard match={nextStep.storylineMatch} />
       <StudentNextStepRhythm nextStep={nextStep} />
       <StudentReflectionPanel onSaved={onReflectionSaved} prompt={prompt} reflection={reflection} />
       {nextStep.careNote ? (
@@ -279,6 +281,30 @@ function StudentQuestionJourneyCard({
           <strong>Bring this with you:</strong> {nextStep.careNote}
         </p>
       ) : null}
+    </section>
+  );
+}
+
+function StorylineContextCard({ match }: { match: StudentQuestionNextStep["storylineMatch"] }) {
+  return (
+    <section className="student-storyline-context" aria-label="Bible storyline connection">
+      <div className="student-storyline-context-copy">
+        <p className="eyebrow">{match.label}</p>
+        <h3>{match.title}</h3>
+        <p>{match.studentSummary}</p>
+      </div>
+
+      <div className="student-storyline-context-grid" aria-label="Storyline path">
+        <JourneyMeta label="Starts" value={match.startsHere} />
+        <JourneyMeta label="Develops" value={match.developsThrough} />
+        <JourneyMeta label="Fulfilled" value={match.fulfilledInChrist} />
+      </div>
+
+      <div className="student-storyline-passages" aria-label="Key passages">
+        {match.keyPassages.slice(0, 4).map((passage) => (
+          <span key={passage}>{passage}</span>
+        ))}
+      </div>
     </section>
   );
 }

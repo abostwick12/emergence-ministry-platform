@@ -38,6 +38,19 @@ export type StorylineTheme = {
   fulfilled: string;
 };
 
+export type StorylineQuestionMatch = {
+  id: string;
+  label: string;
+  title: string;
+  startsHere: string;
+  developsThrough: string;
+  fulfilledInChrist: string;
+  studentSummary: string;
+  leaderFrame: string;
+  keyPassages: string[];
+  studentQuestions: string[];
+};
+
 export const storylineMap = [
   "Creation",
   "Fall",
@@ -378,3 +391,249 @@ export const themeIndex: StorylineTheme[] = [
     fulfilled: "Jesus rises as the beginning of new creation, and Revelation shows creation renewed."
   }
 ];
+
+const storylineQuestionRules: Array<{
+  id: StorylineQuestionMatch["id"];
+  pattern: RegExp;
+  match: Omit<StorylineQuestionMatch, "id">;
+}> = [
+  {
+    id: "creation-fracture",
+    pattern: /\b(genesis|creation|created|image of god|garden|eden|tree|evil|fall|sin|serpent|curse)\b/,
+    match: {
+      label: "This starts in Genesis",
+      title: "Creation, trust, and fracture",
+      startsHere: "Genesis 1-3",
+      developsThrough: "Genesis 11, Israel's repeated distrust, exile, and prophetic hope",
+      fulfilledInChrist: "Jesus is the true image of God who enters the fractured world and begins renewed humanity.",
+      studentSummary:
+        "Genesis helps you ask what God made good, what sin fractured, and how God keeps pursuing people instead of abandoning the story.",
+      leaderFrame:
+        "Start with God's gifts and human vocation before moving to failure. Help students see trust, rupture, mercy, and promise rather than treating Genesis as a puzzle box.",
+      keyPassages: ["Genesis 1", "Genesis 3", "Genesis 12", "John 1:1-14", "Colossians 1:15-20"],
+      studentQuestions: [
+        "What good thing does God give before the problem appears?",
+        "What kind of trust is being tested?",
+        "Where do you see both judgment and mercy?"
+      ]
+    }
+  },
+  {
+    id: "covenant-promise",
+    pattern: /\b(abraham|abram|promise|covenant|blessing|chosen|election|nations|family|seed|descendant)\b/,
+    match: {
+      label: "This connects to covenant",
+      title: "Promise and blessing for the nations",
+      startsHere: "Genesis 12, 15, 17",
+      developsThrough: "Israel's family story, Sinai, David's promise, exile, and new covenant hope",
+      fulfilledInChrist: "Jesus carries the promise forward and forms a multi-nation covenant people by the Spirit.",
+      studentSummary:
+        "Covenant helps you see that God's rescue is not random. God binds Himself to His promises and blesses His people for the sake of the nations.",
+      leaderFrame:
+        "Frame covenant as relationship, promise, identity, and mission. Avoid reducing it to a contract or a generic example of commitment.",
+      keyPassages: ["Genesis 12", "Genesis 15", "Exodus 19", "Jeremiah 31", "Galatians 3"],
+      studentQuestions: [
+        "What does God promise to do?",
+        "Who is blessed, and who is the blessing meant to reach?",
+        "How does this question connect to belonging, identity, or mission?"
+      ]
+    }
+  },
+  {
+    id: "exodus-deliverance",
+    pattern: /\b(exodus|deliverance|deliver|rescue|slavery|slave|freedom|passover|red sea|pharaoh|egypt|liberation)\b/,
+    match: {
+      label: "This connects to deliverance",
+      title: "Exodus and rescue",
+      startsHere: "Exodus 1-15",
+      developsThrough: "Passover, wilderness testing, prophets, Jesus' death and resurrection, and redemption language in the letters",
+      fulfilledInChrist: "Jesus brings the deeper exodus: rescue from sin and formation into a redeemed people.",
+      studentSummary:
+        "Exodus shows that God hears suffering, confronts enslaving powers, rescues His people, and then forms them for worship and faithful life.",
+      leaderFrame:
+        "Hold rescue and formation together. Do not make deliverance only about personal escape; in Exodus, rescue leads to worship, covenant, and community.",
+      keyPassages: ["Exodus 3", "Exodus 12", "Exodus 14", "Luke 9:31", "1 Peter 1:18-19"],
+      studentQuestions: [
+        "What kind of rescue is needed in this question?",
+        "What does God rescue people from and for?",
+        "How does deliverance lead into worship or obedience?"
+      ]
+    }
+  },
+  {
+    id: "law-formation",
+    pattern: /\b(law|command|commandment|rules|obedience|holy|holiness|clean|unclean|leviticus|sinai|deuteronomy|neighbor)\b/,
+    match: {
+      label: "This connects to formation",
+      title: "Law, holiness, and covenant life",
+      startsHere: "Exodus 19-24",
+      developsThrough: "Leviticus, Numbers, Deuteronomy, prophetic calls to covenant faithfulness, and Jesus' teaching",
+      fulfilledInChrist: "Jesus fulfills the Law and forms people who love God and neighbor by the Spirit.",
+      studentSummary:
+        "The Law is not random rules. It shows God forming a rescued people to live differently with Him and one another.",
+      leaderFrame:
+        "Help students read law through rescue and covenant identity. Avoid presenting obedience as earning rescue.",
+      keyPassages: ["Exodus 19", "Exodus 20", "Leviticus 19", "Deuteronomy 6", "Matthew 22:34-40"],
+      studentQuestions: [
+        "What kind of people is God forming?",
+        "How does this command connect to love for God or neighbor?",
+        "What misunderstanding about rules might need to be corrected?"
+      ]
+    }
+  },
+  {
+    id: "presence-temple",
+    pattern: /\b(tabernacle|temple|presence|dwelling|dwell|priest|priesthood|sacrifice|worship|glory|holy place)\b/,
+    match: {
+      label: "This connects to God's presence",
+      title: "Tabernacle, temple, and dwelling",
+      startsHere: "Exodus 25-40",
+      developsThrough: "Priesthood, sacrifice, Solomon's temple, exile, John 1, the church as temple, and Revelation",
+      fulfilledInChrist: "Jesus dwells among us, brings access to God, and makes His people a Spirit-filled dwelling place.",
+      studentSummary:
+        "The tabernacle and temple show God's desire to dwell with His people, while also showing the seriousness of holiness, mediation, and worship.",
+      leaderFrame:
+        "Trace presence carefully: Eden, tabernacle, temple, Jesus, Spirit-filled church, new creation. Avoid forced symbolism without textual links.",
+      keyPassages: ["Exodus 40", "1 Kings 8", "John 1:14", "1 Corinthians 3:16", "Revelation 21:3"],
+      studentQuestions: [
+        "What does this show about God's desire to be near His people?",
+        "Why does holiness matter when God draws near?",
+        "How does Jesus change how we understand access to God?"
+      ]
+    }
+  },
+  {
+    id: "kingdom-messiah",
+    pattern: /\b(king|kingdom|david|messiah|christ|son of david|rule|reign|justice|throne|samuel|kings)\b/,
+    match: {
+      label: "This connects to kingdom",
+      title: "Kingdom and the promised King",
+      startsHere: "Genesis 1 and Exodus 19",
+      developsThrough: "Saul, David, Solomon, the divided kingdom, exile, and prophetic hope for David's greater Son",
+      fulfilledInChrist: "Jesus announces and embodies God's kingdom as the faithful King who reigns through the cross and resurrection.",
+      studentSummary:
+        "Kingdom questions ask what faithful rule looks like, why human leaders fail, and why Scripture keeps pointing toward a better King.",
+      leaderFrame:
+        "Show both the goodness of God's rule and the failure of human kings. Help students see Jesus as fulfillment, not merely a better example.",
+      keyPassages: ["1 Samuel 8", "2 Samuel 7", "Psalm 2", "Mark 1:14-15", "Revelation 11:15"],
+      studentQuestions: [
+        "What kind of rule does this question assume or desire?",
+        "Where do human leaders fail in this part of the story?",
+        "How does Jesus redefine power, victory, or faithfulness?"
+      ]
+    }
+  },
+  {
+    id: "exile-home",
+    pattern: /\b(exile|home|homesick|return|stranger|citizen|scattered|babylon|lost|belong|identity)\b/,
+    match: {
+      label: "This connects to exile and home",
+      title: "Exile, return, and belonging",
+      startsHere: "Genesis 3 and Genesis 11",
+      developsThrough: "Israel's exile, the prophets, partial return, and New Testament language of strangers and citizens",
+      fulfilledInChrist: "Jesus gathers exiles home and makes His people citizens of God's kingdom.",
+      studentSummary:
+        "Exile helps you name the ache of being far from home, from God, or from what life was meant to be, while still looking for God's promise to restore.",
+      leaderFrame:
+        "Use exile as a pastoral category for displacement and longing, but do not flatten every sadness into exile. Let the text guide the connection.",
+      keyPassages: ["Genesis 3", "Genesis 11", "Jeremiah 29", "1 Peter 2:11", "Revelation 21"],
+      studentQuestions: [
+        "Where does this question reveal a longing for home or belonging?",
+        "What has been broken or scattered?",
+        "What kind of restoration does Scripture teach us to hope for?"
+      ]
+    }
+  },
+  {
+    id: "wisdom-suffering",
+    pattern: /\b(wisdom|wise|suffer|suffering|pain|grief|death|lament|anxiety|worry|job|psalm|proverb|ecclesiastes|why would god)\b/,
+    match: {
+      label: "This connects to wisdom and suffering",
+      title: "Wisdom, lament, and faithful complexity",
+      startsHere: "Genesis' good world fractured by sin",
+      developsThrough: "Job, Psalms, Proverbs, Ecclesiastes, prophetic lament, Jesus' suffering, and resurrection hope",
+      fulfilledInChrist: "Jesus enters suffering, teaches wisdom through the cross, and gives hope without pretending pain is small.",
+      studentSummary:
+        "Wisdom helps you bring hard questions honestly without turning faith into a simplistic formula or rushing pain into easy answers.",
+      leaderFrame:
+        "Slow down. Use lament and wisdom before explanation. Avoid treating Proverbs as mechanical promises or Job as a quick answer to suffering.",
+      keyPassages: ["Job 1-2", "Psalm 13", "Proverbs 1:7", "Ecclesiastes 3", "Romans 8:18-25"],
+      studentQuestions: [
+        "What answer would feel too quick or too shallow?",
+        "Where does Scripture make room for honest lament?",
+        "What hope is offered without pretending the pain is small?"
+      ]
+    }
+  },
+  {
+    id: "spirit-church",
+    pattern: /\b(spirit|holy spirit|church|community|mission|acts|pentecost|gifts|witness|body of christ)\b/,
+    match: {
+      label: "This connects to Spirit and mission",
+      title: "Spirit-formed people and witness",
+      startsHere: "God's life-giving presence in creation and covenant life",
+      developsThrough: "Prophetic promises of the Spirit, Jesus' promise, Acts, and the church as God's people",
+      fulfilledInChrist: "The risen Jesus pours out the Spirit and sends the church as witnesses to the nations.",
+      studentSummary:
+        "The Spirit forms God's people for holiness, community, courage, and witness, not just private spiritual experience.",
+      leaderFrame:
+        "Connect Spirit language to formation and mission. Avoid making Acts only about spectacle; keep witness and community in view.",
+      keyPassages: ["Genesis 1:2", "Ezekiel 36", "John 14", "Acts 2", "Galatians 5"],
+      studentQuestions: [
+        "What kind of person or community is the Spirit forming?",
+        "How does this connect to witness or mission?",
+        "What fruit or courage would faithfulness require here?"
+      ]
+    }
+  },
+  {
+    id: "new-creation-hope",
+    pattern: /\b(new creation|revelation|heaven|new earth|restore|restoration|resurrection|hope|future|victory|end times)\b/,
+    match: {
+      label: "This connects to new creation",
+      title: "Hope and the renewal of all things",
+      startsHere: "Genesis 1-2",
+      developsThrough: "Sabbath, land, temple, prophetic restoration, resurrection, and Revelation",
+      fulfilledInChrist: "Jesus rises as the beginning of new creation and will renew creation fully.",
+      studentSummary:
+        "New creation keeps Christian hope bigger than escaping the world. God intends to renew what sin has broken.",
+      leaderFrame:
+        "Introduce Revelation as apocalyptic prophecy for faithful witness and hope, not first as a codebook for timelines.",
+      keyPassages: ["Genesis 1-2", "Isaiah 65", "Romans 8", "2 Corinthians 5:17", "Revelation 21-22"],
+      studentQuestions: [
+        "What part of creation or human life needs renewal here?",
+        "How does resurrection hope change the way we wait?",
+        "What does faithful witness look like while the story is not finished?"
+      ]
+    }
+  }
+];
+
+export function matchQuestionToStoryline(input: {
+  question: string;
+  scriptureReference?: string;
+  topicTags?: string[];
+}): StorylineQuestionMatch {
+  const text = `${input.question} ${input.scriptureReference ?? ""} ${(input.topicTags ?? []).join(" ")}`.toLowerCase();
+  const rule = storylineQuestionRules.find((item) => item.pattern.test(text));
+  if (rule) return { id: rule.id, ...rule.match };
+
+  return {
+    id: "big-story",
+    label: "Start with the big story",
+    title: "Read the question inside Scripture's whole story",
+    startsHere: "Genesis and Exodus",
+    developsThrough: "Law, land, kingdom, prophets, wisdom, Jesus, the church, and new creation",
+    fulfilledInChrist: "Jesus brings Scripture's major patterns and promises to fulfillment and sends His people to live as witnesses.",
+    studentSummary:
+      "When a question feels disconnected, start with the big story: what God made, what sin fractured, how God rescues, and where the story is going.",
+    leaderFrame:
+      "Use Genesis and Exodus as foundation, then trace the question through the rest of Scripture without forcing a connection the text does not support.",
+    keyPassages: ["Genesis 1-3", "Genesis 12", "Exodus 12", "John 1:1-14", "Revelation 21"],
+    studentQuestions: [
+      "Where might this question fit in the larger story?",
+      "What does this reveal about God, people, brokenness, or hope?",
+      "What passage should we read before trying to answer?"
+    ]
+  };
+}
