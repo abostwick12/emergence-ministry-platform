@@ -9,9 +9,18 @@ type StudentJoinFormProps = {
   expiresAt: string | null;
 };
 
+type JoinResponse = {
+  error?: string;
+  redirectTo?: string;
+  user?: {
+    fullName?: string;
+  };
+};
+
 export function StudentJoinForm({ code, expiresAt, groupName, ministryName }: StudentJoinFormProps) {
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [joined, setJoined] = useState<{ fullName: string; redirectTo: string } | null>(null);
   const expires = useMemo(() => formatExpiry(expiresAt), [expiresAt]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -33,13 +42,36 @@ export function StudentJoinForm({ code, expiresAt, groupName, ministryName }: St
 
     setIsSubmitting(false);
 
-    const payload = (await response.json().catch(() => null)) as { error?: string; redirectTo?: string } | null;
+    const payload = (await response.json().catch(() => null)) as JoinResponse | null;
     if (!response.ok || !payload?.redirectTo) {
       setError(payload?.error ?? "Student access could not be created.");
       return;
     }
 
-    window.location.assign(payload.redirectTo);
+    setJoined({
+      fullName: payload.user?.fullName ?? String(form.get("fullName") || "Student"),
+      redirectTo: payload.redirectTo
+    });
+  }
+
+  if (joined) {
+    return (
+      <div className="student-join-success" role="status">
+        <div className="student-join-context">
+          <strong>You are in, {joined.fullName}.</strong>
+          <span>{groupName}</span>
+          <small>Your leader will review questions before anything is shared with the group.</small>
+        </div>
+        <ul className="student-join-next-steps">
+          <li>Ask a real question your group can wrestle with.</li>
+          <li>Keep reading with Scripture and prompts picked for your next step.</li>
+          <li>Watch for leader-approved discussion items from your group.</li>
+        </ul>
+        <button className="button primary" onClick={() => window.location.assign(joined.redirectTo)} type="button">
+          Open student portal
+        </button>
+      </div>
+    );
   }
 
   return (

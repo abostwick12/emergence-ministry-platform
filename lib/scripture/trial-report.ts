@@ -17,6 +17,10 @@ export function buildScriptureTrialReport(insights: ScriptureTrialInsights, gene
     `- Questions connected to knowledge-brain matches: ${insights.withKnowledgeContext}`,
     `- Questions with saved student next steps: ${insights.withSavedNextSteps}`,
     "",
+    "## Launch Readiness Notes",
+    "",
+    ...readinessLines(insights),
+    "",
     "## What Students Are Asking About",
     "",
     ...topicLines(insights.topicCounts, "No topic patterns have surfaced yet."),
@@ -47,6 +51,22 @@ export function buildScriptureTrialReport(insights: ScriptureTrialInsights, gene
 function topicLines(items: ScriptureTrialInsightTopic[], emptyText: string) {
   if (!items.length) return [`- ${emptyText}`];
   return items.map((item) => `- ${escapeMarkdown(item.label)}: ${item.count}`);
+}
+
+function readinessLines(insights: ScriptureTrialInsights) {
+  const lines = [
+    `- Live storage: ${insights.readiness.liveStorage ? "ready for real submissions" : "setup needed before launch"}`,
+    `- AI draft connection: ${insights.readiness.gloo ? "connected" : "leader local drafts remain available"}`,
+    `- Slack delivery: ${insights.readiness.slack ? "connected for leader-approved posting" : "offline; leader approval still controls sharing"}`,
+    `- Leader review backlog: ${insights.pendingReview} question${insights.pendingReview === 1 ? "" : "s"} waiting`,
+    `- Student next-step coverage: ${insights.withSavedNextSteps} of ${insights.totalQuestions} question${insights.totalQuestions === 1 ? "" : "s"}`
+  ];
+
+  if (!insights.totalQuestions) {
+    lines.push("- Launch evidence will begin once students submit their first real questions.");
+  }
+
+  return lines;
 }
 
 function recentQuestionLines(insights: ScriptureTrialInsights) {

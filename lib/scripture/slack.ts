@@ -14,7 +14,7 @@ export async function deliverDiscussionPromptToSlack(prompt: StudentDiscussionPr
     return {
       ok: false,
       code: "not_configured",
-      message: "Slack delivery is not configured yet. Set SLACK_WEBHOOK_URL before posting approved prompts."
+      message: "Slack delivery is offline. The approved prompt is saved for leader-controlled sharing."
     };
   }
 

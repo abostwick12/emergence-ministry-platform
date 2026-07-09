@@ -94,7 +94,7 @@ export function getStudentDiscussionReadiness(session: AuthSession): DiscussionR
       liveStorage: false,
       gloo: isGlooConfigured(),
       slack: isSlackDiscussionDeliveryConfigured(),
-      message: "Real student discussion storage requires Supabase Auth and database configuration."
+      message: "Live question submission needs a signed-in student account."
     };
   }
 
@@ -105,8 +105,8 @@ export function getStudentDiscussionReadiness(session: AuthSession): DiscussionR
     gloo,
     slack,
     message: gloo
-      ? "Live storage is ready. Gloo drafts are generated for submitted questions."
-      : "Live storage is ready. Gloo is not configured, so submitted questions will wait for leader handling."
+      ? "Live storage is ready. AI drafts are generated for submitted questions."
+      : "Live storage is ready. Local guided drafts are active until the AI draft connection is online."
   };
 }
 
@@ -186,7 +186,7 @@ export async function createStudentDiscussionPrompt(session: AuthSession, input:
     : {
         ok: false as const,
         code: "not_configured" as const,
-        message: "Gloo AI Studio is not configured yet."
+        message: "AI draft connection is offline. Local guided drafts remain available for leader review."
       };
   const localDraft = buildLocalDiscussionDraft({
     question,
@@ -283,7 +283,7 @@ export async function decideStudentDiscussionPrompt(session: AuthSession, id: st
 
 async function regenerateDiscussionDraft(session: AuthSession, prompt: StudentDiscussionPrompt) {
   if (!isGlooConfigured()) {
-    return saveLocalDiscussionDraft(session, prompt, "Gloo AI Studio is not configured, so a knowledge-guided local draft was saved instead.");
+    return saveLocalDiscussionDraft(session, prompt, "AI draft connection is offline, so a knowledge-guided local draft was saved instead.");
   }
 
   const knowledgeContext = prompt.knowledgeContext?.length ? prompt.knowledgeContext : await getStudentKnowledgeMatches(session, prompt);

@@ -58,7 +58,7 @@ export function ScriptureLeaderReview({ initialGroupState, initialState }: Scrip
   const [isCreatingInvite, setIsCreatingInvite] = useState(false);
   const [diagnostic, setDiagnostic] = useState<GlooDiagnosticResult | undefined>();
   const [isRunningDiagnostic, setIsRunningDiagnostic] = useState(false);
-  const [status, setStatus] = useState(initialState.readiness.liveStorage ? "Review student questions before anything is shared." : "Live storage is not ready for review.");
+  const [status, setStatus] = useState(initialState.readiness.liveStorage ? "Review student questions before anything is shared." : "Connect student access before review can begin.");
 
   const activeTabConfig = reviewTabs.find((tab) => tab.id === activeTab) ?? reviewTabs[0];
   const filteredPrompts = useMemo(() => prompts.filter(activeTabConfig.matches), [activeTabConfig, prompts]);
@@ -105,14 +105,14 @@ export function ScriptureLeaderReview({ initialGroupState, initialState }: Scrip
       const response = await fetch("/api/student/scripture/gloo-diagnostics", { method: "POST" });
       const payload = (await response.json()) as GlooDiagnosticResponse;
       if (!response.ok || !payload.ok || !payload.diagnostic) {
-        setStatus(payload.error ?? "Gloo diagnostic could not run.");
+        setStatus(payload.error ?? "AI connection check could not run.");
         return;
       }
 
       setDiagnostic(payload.diagnostic);
-      setStatus(payload.diagnostic.ok ? "Gloo diagnostic passed." : payload.diagnostic.message);
+      setStatus(payload.diagnostic.ok ? "AI drafting connection is ready." : payload.diagnostic.message);
     } catch {
-      setStatus("Gloo diagnostic could not run.");
+      setStatus("AI connection check could not run.");
     } finally {
       setIsRunningDiagnostic(false);
     }
@@ -246,14 +246,14 @@ function GlooDiagnosticPanel({
   return (
     <section className="leader-gloo-diagnostics" aria-label="Gloo diagnostics">
       <div>
-        <p className="eyebrow">Gloo Diagnostics</p>
+        <p className="eyebrow">AI Connection</p>
         <h2>Test the draft connection</h2>
-        <p>Runs one safe sample draft through the configured server-side Gloo settings and reports what happened.</p>
+        <p>Runs one safe sample draft through the server-side AI connection and reports what happened.</p>
       </div>
       <div className="leader-gloo-diagnostics-actions">
-        <span className={readiness.gloo ? "pill green" : "pill amber"}>{readiness.gloo ? "Configured" : "Needs config"}</span>
+        <span className={readiness.gloo ? "pill green" : "pill amber"}>{readiness.gloo ? "Connected" : "Local drafts active"}</span>
         <button className="button" disabled={isRunning} onClick={onRun} type="button">
-          {isRunning ? "Testing..." : "Run Gloo Test"}
+          {isRunning ? "Testing..." : "Run Connection Test"}
         </button>
       </div>
       {diagnostic ? <GlooDiagnosticResultView diagnostic={diagnostic} /> : null}
@@ -271,6 +271,8 @@ function StudentInvitePanel({
   onCreate: (input: { groupId?: string; groupName?: string; label?: string; maxUses?: number | null }) => Promise<void>;
 }) {
   const [copyStatus, setCopyStatus] = useState("");
+  const activeInvites = groupState.invites.filter((invite) => invite.isActive).length;
+  const activeStudents = groupState.members.filter((member) => member.status === "active").length;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -303,10 +305,26 @@ function StudentInvitePanel({
       <div className="leader-student-invites-heading">
         <div>
           <p className="eyebrow">Student Access</p>
-          <h2>Invite students without touching Supabase</h2>
-          <p>Create a small-group link students can use to set up their own portal access.</p>
+          <h2>Invite students to your group</h2>
+          <p>Create a small-group link students can use to join, ask questions, and receive leader-reviewed next steps.</p>
         </div>
         <span className={groupState.liveStorage ? "pill green" : "pill amber"}>{groupState.liveStorage ? "Live invites" : "Needs setup"}</span>
+      </div>
+
+      <div className="leader-student-access-summary" aria-label="Student access readiness">
+        <AccessSummaryItem label="Join links" value={activeInvites} detail={activeInvites ? "Ready to share" : "Create one for this group"} tone={activeInvites ? "ready" : "watch"} />
+        <AccessSummaryItem
+          label="Students joined"
+          value={activeStudents}
+          detail={activeStudents ? "Can use the portal" : "Waiting for signups"}
+          tone={activeStudents ? "ready" : "watch"}
+        />
+        <AccessSummaryItem
+          label="Storage"
+          value={groupState.liveStorage ? "Live" : "Setup"}
+          detail={groupState.liveStorage ? "Connected" : groupState.message}
+          tone={groupState.liveStorage ? "ready" : "setup"}
+        />
       </div>
 
       <form className="leader-student-invite-form" onSubmit={submit}>
@@ -331,7 +349,7 @@ function StudentInvitePanel({
 
         <label className="leader-review-field">
           <span>Invite label</span>
-          <input className="input" name="label" placeholder="Small group tryout" />
+          <input className="input" name="label" placeholder="Small group launch" />
         </label>
 
         <label className="leader-review-field">
@@ -354,7 +372,7 @@ function StudentInvitePanel({
                   <span>{invite.groupName}</span>
                   <strong>{invite.label}</strong>
                   <small>
-                    {invite.useCount}{invite.maxUses ? ` of ${invite.maxUses}` : ""} joined
+                    {invite.useCount}{invite.maxUses ? ` of ${invite.maxUses}` : ""} joined{invite.expiresAt ? `, expires ${formatShortDate(invite.expiresAt)}` : ""}
                   </small>
                 </div>
                 <div className="leader-student-invite-copy">
@@ -381,12 +399,38 @@ function StudentInvitePanel({
               </div>
             ))
           ) : (
-            <p className="muted">Students will appear here after they use a join link.</p>
+            <p className="muted">Share a recent link with your group. Students appear here after they create access.</p>
           )}
         </div>
       </div>
     </section>
   );
+}
+
+function AccessSummaryItem({
+  detail,
+  label,
+  tone,
+  value
+}: {
+  detail: string;
+  label: string;
+  tone: "ready" | "watch" | "setup";
+  value: number | string;
+}) {
+  return (
+    <div className={`leader-student-access-item ${tone}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <small>{detail}</small>
+    </div>
+  );
+}
+
+function formatShortDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "later";
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
 function GlooDiagnosticResultView({ diagnostic }: { diagnostic: GlooDiagnosticResult }) {
@@ -487,7 +531,7 @@ function LeaderReviewDetail({
             {savingAction === "use_local_draft" ? "Saving..." : "Save local draft"}
           </button>
           <button className="button" disabled={!canRegenerate} onClick={() => onDecide(prompt.id, "regenerate", leaderNotes, discussionPrompt)} type="button">
-            {savingAction === "regenerate" ? "Regenerating..." : glooReady ? "Regenerate" : "Gloo unavailable"}
+            {savingAction === "regenerate" ? "Regenerating..." : glooReady ? "Regenerate" : "Local draft active"}
           </button>
         </div>
       </section>
@@ -603,7 +647,7 @@ function careText(prompt: StudentDiscussionPrompt) {
 function aiStatusLabel(prompt: StudentDiscussionPrompt) {
   if (prompt.aiStatus === "generated") return "Draft ready";
   if (prompt.aiStatus === "failed") return prompt.discussionPrompt ? "Local fallback" : "Needs local draft";
-  if (prompt.aiStatus === "not_configured") return prompt.discussionPrompt ? "Local draft ready" : "Provider not configured";
+  if (prompt.aiStatus === "not_configured") return prompt.discussionPrompt ? "Local draft ready" : "Local draft needed";
   return "Pending";
 }
 

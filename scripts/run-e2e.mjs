@@ -1,8 +1,8 @@
 import { spawn } from "node:child_process";
 
-const appUrl = "http://localhost:3000";
+const appUrl = "http://127.0.0.1:3000";
 
-const server = spawn(process.execPath, ["node_modules/next/dist/bin/next", "dev", "--hostname", "localhost"], {
+const server = spawn(process.execPath, ["node_modules/next/dist/bin/next", "dev", "--hostname", "127.0.0.1"], {
   stdio: "inherit",
   windowsHide: true
 });

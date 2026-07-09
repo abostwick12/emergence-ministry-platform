@@ -32,7 +32,7 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page.getByRole("complementary", { name: "Knowledge brain preview" })).toContainText("Keep Reading");
     await expect(page.getByRole("heading", { name: "Discussion Review" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Test the draft connection" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Run Gloo Test" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Run Connection Test" })).toBeVisible();
     await expect(page.getByRole("tab", { name: /Needs review/ })).toBeVisible();
   });
 
@@ -65,7 +65,7 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page.getByRole("heading", { name: "Look up a Scripture reference" })).toBeVisible();
     await page.getByLabel("Scripture reference").fill("John 3:16");
     await page.getByRole("button", { name: "Look Up" }).click();
-    await expect(page.getByRole("region", { name: "Scripture lookup" }).getByRole("alert")).toContainText("Scripture lookup is not configured yet.");
+    await expect(page.getByRole("region", { name: "Scripture lookup" }).getByRole("alert")).toContainText("Scripture lookup is offline.");
     await expect(page.getByRole("heading", { name: "Avoiding proof-texting" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Avoiding forced typology" })).toBeVisible();
 
@@ -74,7 +74,7 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page.getByRole("heading", { name: "Build the discipleship brain" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Discussion Review" })).toBeVisible();
     await expect(page.getByText("No real submissions yet.")).toBeVisible();
-    await expect(page.getByRole("status")).toContainText("Live storage is not ready for review.");
+    await expect(page.getByRole("status")).toContainText("Connect student access before review can begin.");
 
     await page.goto("/student/scripture/questions");
     await expect(page.getByRole("heading", { name: "What should we talk about next?" })).toBeVisible();
