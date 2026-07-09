@@ -8627,6 +8627,120 @@ html:has(.app-shell-camp) body {
   margin: 8px 0 0;
 }
 
+.leader-video-script-panel {
+  display: grid;
+  gap: 14px;
+  border: 1px solid color-mix(in srgb, var(--primary) 30%, var(--line));
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--primary) 12%, transparent), transparent 42%),
+    var(--surface-2);
+  padding: 16px;
+}
+
+.leader-video-script-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.leader-video-script-heading h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--text-lg);
+  line-height: 1.2;
+}
+
+.leader-video-script-heading p {
+  max-width: 70ch;
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 750;
+  line-height: 1.5;
+}
+
+.leader-video-script-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.leader-video-script-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.leader-video-script-guardrails,
+.leader-video-script-scenes article {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  padding: 12px;
+}
+
+.leader-video-script-guardrails span,
+.leader-video-script-scenes span {
+  display: block;
+  color: var(--primary);
+  font-size: var(--text-xs);
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.leader-video-script-guardrails ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.leader-video-script-guardrails li,
+.leader-video-script-scenes p,
+.leader-video-script-scenes small {
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 750;
+  line-height: 1.5;
+}
+
+.leader-video-script-guardrails li + li {
+  margin-top: 6px;
+}
+
+.leader-video-script-scenes {
+  display: grid;
+  gap: 10px;
+}
+
+.leader-video-script-scenes h4 {
+  margin: 8px 0 0;
+  color: var(--text);
+  font-size: var(--text-base);
+  font-weight: 950;
+  line-height: 1.25;
+}
+
+.leader-video-script-scenes p {
+  margin: 7px 0 0;
+}
+
+.leader-video-script-scenes small {
+  display: block;
+  margin-top: 8px;
+}
+
+.leader-video-script-status {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 800;
+  line-height: 1.45;
+}
+
 .leader-workspace {
   display: grid;
   gap: 16px;
@@ -10181,6 +10295,7 @@ html:has(.app-shell-camp) body {
   .leader-storyline-context-list,
   .leader-student-journey-grid,
   .leader-student-journey-signals,
+  .leader-video-script-meta,
   .leader-student-launch-path,
   .leader-tonight-prep-grid,
   .leader-tonight-prep-counts,
@@ -10201,7 +10316,8 @@ html:has(.app-shell-camp) body {
   .leader-tonight-prep-heading,
   .leader-discussion-guide-heading,
   .leader-student-invites-heading,
-  .leader-student-journey-heading {
+  .leader-student-journey-heading,
+  .leader-video-script-heading {
     align-items: flex-start;
     flex-direction: column;
   }
