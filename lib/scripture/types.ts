@@ -103,6 +103,8 @@ export type StudentDiscussionPrompt = {
   leaderNotes: string;
   status: StudentDiscussionStatus;
   knowledgeContext?: StudentDiscussionKnowledgeContext[];
+  studentReflectionCount?: number;
+  studentLastReflectedAt?: string;
   deliveryChannel?: string;
   deliveryStatus: StudentDiscussionDeliveryStatus;
   deliveryMessage: string;

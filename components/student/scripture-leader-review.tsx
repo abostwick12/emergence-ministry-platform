@@ -142,6 +142,12 @@ export function ScriptureLeaderReview({ initialGroupState, initialState }: Scrip
     }
   }
 
+  function openPrompt(prompt: StudentDiscussionPrompt) {
+    setSelectedId(prompt.id);
+    setActiveTab(tabForPrompt(prompt));
+    setStatus(`Opened ${prompt.submittedByName}'s question for review.`);
+  }
+
   return (
     <div className="leader-workspace">
       <section className="leader-workspace-hero">
@@ -169,6 +175,8 @@ export function ScriptureLeaderReview({ initialGroupState, initialState }: Scrip
       />
 
       <StudentInvitePanel groupState={groupState} isCreating={isCreatingInvite} onCreate={createStudentInvite} />
+
+      <TonightPrepPanel prompts={prompts} stats={stats} onOpenPrompt={openPrompt} />
 
       <div className="leader-workspace-grid">
         <aside className="leader-review-queue" aria-label="Discussion review queue">
@@ -229,6 +237,119 @@ export function ScriptureLeaderReview({ initialGroupState, initialState }: Scrip
         )}
       </div>
     </div>
+  );
+}
+
+function TonightPrepPanel({
+  onOpenPrompt,
+  prompts,
+  stats
+}: {
+  onOpenPrompt: (prompt: StudentDiscussionPrompt) => void;
+  prompts: StudentDiscussionPrompt[];
+  stats: ReturnType<typeof buildReviewStats>;
+}) {
+  const readyPrompts = prompts.filter((prompt) => prompt.status === "approved" || prompt.status === "posted");
+  const waitingPrompts = prompts.filter((prompt) => prompt.status === "pending_review");
+  const reflectedPrompts = prompts.filter((prompt) => (prompt.studentReflectionCount ?? 0) > 0);
+  const followUpPrompts = prompts.filter((prompt) => prompt.status === "changes_requested" || Boolean(careText(prompt)));
+  const tonightPrompt = readyPrompts[0] ?? reflectedPrompts[0] ?? waitingPrompts[0];
+
+  return (
+    <section className="leader-tonight-prep" aria-label="Tonight discussion prep">
+      <div className="leader-tonight-prep-heading">
+        <div>
+          <p className="eyebrow">Tonight Prep</p>
+          <h2>Lead the next conversation</h2>
+          <p>Use real student questions to decide what to discuss, what needs review, and who may need a slower follow-up.</p>
+        </div>
+        <div className="leader-tonight-prep-counts" aria-label="Small group readiness counts">
+          <PrepCount label="Waiting" value={stats.pending} />
+          <PrepCount label="Ready" value={readyPrompts.length} />
+          <PrepCount label="Reflected" value={reflectedPrompts.length} />
+          <PrepCount label="Follow up" value={followUpPrompts.length} />
+        </div>
+      </div>
+
+      <div className="leader-tonight-prep-grid">
+        <article className="leader-tonight-primary">
+          <span>{tonightPrompt ? nextActionLabel(tonightPrompt) : "No live questions yet"}</span>
+          <h3>{tonightPrompt ? tonightPrompt.discussionPrompt || tonightPrompt.question : "Invite students to ask before small group."}</h3>
+          <p>
+            {tonightPrompt
+              ? tonightPrompt.question
+              : "When students submit questions, this area becomes the leader's quick read for tonight's discussion."}
+          </p>
+          {tonightPrompt ? (
+            <button className="button primary" onClick={() => onOpenPrompt(tonightPrompt)} type="button">
+              Open prep
+            </button>
+          ) : null}
+        </article>
+
+        <PrepList
+          emptyText="Approved prompts will appear here."
+          items={readyPrompts}
+          label="Ready for group"
+          onOpenPrompt={onOpenPrompt}
+        />
+        <PrepList
+          emptyText="Questions students have marked reflected will appear here."
+          items={reflectedPrompts}
+          label="Students are wrestling"
+          onOpenPrompt={onOpenPrompt}
+          secondaryText={(prompt) => `${prompt.studentReflectionCount ?? 0} reflected${prompt.studentLastReflectedAt ? `, latest ${formatShortDate(prompt.studentLastReflectedAt)}` : ""}`}
+        />
+        <PrepList
+          emptyText="Care signals and requested changes will appear here."
+          items={followUpPrompts}
+          label="Follow up privately"
+          onOpenPrompt={onOpenPrompt}
+          secondaryText={(prompt) => careText(prompt) || statusLabel(prompt.status)}
+        />
+      </div>
+    </section>
+  );
+}
+
+function PrepCount({ label, value }: { label: string; value: number }) {
+  return (
+    <div>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function PrepList({
+  emptyText,
+  items,
+  label,
+  onOpenPrompt,
+  secondaryText = (prompt) => prompt.scriptureReference || statusLabel(prompt.status)
+}: {
+  emptyText: string;
+  items: StudentDiscussionPrompt[];
+  label: string;
+  onOpenPrompt: (prompt: StudentDiscussionPrompt) => void;
+  secondaryText?: (prompt: StudentDiscussionPrompt) => string;
+}) {
+  return (
+    <article className="leader-tonight-list">
+      <h3>{label}</h3>
+      {items.length ? (
+        <div>
+          {items.slice(0, 3).map((prompt) => (
+            <button key={prompt.id} onClick={() => onOpenPrompt(prompt)} type="button">
+              <span>{secondaryText(prompt)}</span>
+              <strong>{prompt.discussionPrompt || prompt.question}</strong>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <p>{emptyText}</p>
+      )}
+    </article>
   );
 }
 
@@ -631,6 +752,21 @@ function buildReviewStats(prompts: StudentDiscussionPrompt[]) {
     approved: prompts.filter((prompt) => prompt.status === "approved").length,
     care: prompts.filter((prompt) => prompt.safetyLabel === "needs_leader_care" || prompt.safetyLabel === "pastoral_escalation" || Boolean(prompt.escalationReason)).length
   };
+}
+
+function tabForPrompt(prompt: StudentDiscussionPrompt): ReviewTab["id"] {
+  if (prompt.status === "approved") return "approved";
+  if (prompt.status === "changes_requested") return "changes";
+  if (prompt.status === "posted") return "posted";
+  if (prompt.status === "archived") return "archived";
+  return "needs_review";
+}
+
+function nextActionLabel(prompt: StudentDiscussionPrompt) {
+  if (prompt.status === "approved" || prompt.status === "posted") return "Lead this tonight";
+  if ((prompt.studentReflectionCount ?? 0) > 0) return "Student is already wrestling";
+  if (careText(prompt)) return "Review with care";
+  return "Review before group";
 }
 
 function guidanceText(prompt: StudentDiscussionPrompt, localDraft: string) {

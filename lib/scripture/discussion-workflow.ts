@@ -84,6 +84,17 @@ type ApprovedStudentDiscussionRow = {
   created_at: string;
 };
 
+type StudentReflectionEventRow = {
+  prompt_id: string;
+  actor_user_id: string | null;
+  created_at: string;
+};
+
+type StudentReflectionSummary = {
+  studentReflectionCount: number;
+  studentLastReflectedAt?: string;
+};
+
 const MAX_QUESTION_LENGTH = 1200;
 const MAX_NOTES_LENGTH = 1200;
 const MAX_DISCUSSION_PROMPT_LENGTH = 1800;
@@ -124,9 +135,20 @@ export async function getStudentDiscussionWorkflowState(session: AuthSession): P
     .returns<StudentDiscussionPromptRow[]>();
 
   throwIfSupabaseError(result.error);
+  const prompts = (result.data ?? []).map(toPrompt);
+  const reflectionSummaries = await getStudentReflectionSummaries(
+    session,
+    prompts.map((prompt) => prompt.id)
+  );
   return {
     readiness,
-    prompts: await withKnowledgeContext(session, (result.data ?? []).map(toPrompt))
+    prompts: await withKnowledgeContext(
+      session,
+      prompts.map((prompt) => ({
+        ...prompt,
+        ...reflectionSummaries[prompt.id]
+      }))
+    )
   };
 }
 
@@ -399,6 +421,40 @@ async function logPromptEvent(session: AuthSession, promptId: string, action: st
   throwIfSupabaseError(result.error);
 }
 
+async function getStudentReflectionSummaries(session: AuthSession, promptIds: string[]) {
+  if (!promptIds.length) return {};
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const result = await supabase
+    .from("student_discussion_prompt_events")
+    .select("prompt_id,actor_user_id,created_at")
+    .eq("action", "student_reflected")
+    .in("prompt_id", promptIds)
+    .order("created_at", { ascending: false })
+    .returns<StudentReflectionEventRow[]>();
+
+  throwIfSupabaseError(result.error);
+
+  const summaries: Record<string, StudentReflectionSummary> = {};
+  const actorsSeen = new Set<string>();
+  for (const row of result.data ?? []) {
+    const current = summaries[row.prompt_id] ?? { studentReflectionCount: 0 };
+    summaries[row.prompt_id] = {
+      studentReflectionCount: current.studentReflectionCount,
+      studentLastReflectedAt: current.studentLastReflectedAt ?? row.created_at
+    };
+    if (row.actor_user_id) {
+      const actorKey = `${row.prompt_id}:${row.actor_user_id}`;
+      if (!actorsSeen.has(actorKey)) {
+        actorsSeen.add(actorKey);
+        summaries[row.prompt_id].studentReflectionCount += 1;
+      }
+    }
+  }
+
+  return summaries;
+}
+
 function toPrompt(row: StudentDiscussionPromptRow): StudentDiscussionPrompt {
   return {
     id: row.id,
@@ -423,6 +479,7 @@ function toPrompt(row: StudentDiscussionPromptRow): StudentDiscussionPrompt {
     discussionPrompt: row.discussion_prompt ?? "",
     leaderNotes: row.leader_notes ?? "",
     status: row.status,
+    studentReflectionCount: 0,
     deliveryChannel: row.delivery_channel ?? undefined,
     deliveryStatus: row.delivery_status,
     deliveryMessage: row.delivery_message ?? "",
