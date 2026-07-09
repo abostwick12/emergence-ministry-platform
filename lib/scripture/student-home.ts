@@ -1,5 +1,6 @@
 import { scripturePlans, scriptureResources } from "@/lib/scripture/mock-data";
 import type { StudentKnowledgeMatch, StudentSavedQuestionRecommendation } from "@/lib/scripture/knowledge";
+import { matchQuestionToStoryline, type StorylineQuestionMatch } from "@/lib/scripture/storyline-guide";
 import type { ScripturePlan, ScriptureResource, StudentDiscussionPrompt, StudentDiscussionStatus } from "@/lib/scripture/types";
 
 export type StudentGroupDiscussionItem = {
@@ -33,6 +34,7 @@ export type StudentQuestionNextStep = {
   wrestleTogetherPrompt: string;
   readingPlan: StudentKeepReadingItem;
   resource: StudentKeepReadingItem;
+  storylineMatch: StorylineQuestionMatch;
 };
 
 export type StudentHomeFeed = {
@@ -87,27 +89,29 @@ export function toGroupDiscussionItems(prompts: StudentDiscussionPrompt[]): Stud
 }
 
 export function buildQuestionNextStep(prompt: ReadingSource & { id?: string }, knowledgeMatches: StudentKnowledgeMatch[] = []): StudentQuestionNextStep {
-  const plan = planForPrompt(prompt) ?? scripturePlans[0];
   const resource = resourceForPrompt(prompt) ?? scriptureResources.find((item) => item.id === "better-questions") ?? scriptureResources[0];
   const topic = topicLabelForPrompt(prompt);
   const primaryKnowledge = knowledgeMatches[0];
   const secondaryKnowledge = knowledgeMatches[1];
+  const storylineMatch = matchQuestionToStoryline(prompt);
 
   return {
     promptId: prompt.id ?? "current-question",
-    label: primaryKnowledge?.label ?? (topic ? `Because you asked about ${topic}` : "Keep exploring"),
+    label: primaryKnowledge?.label ?? (topic ? `Because you asked about ${topic}` : storylineMatch.label),
     title: "Wrestle with your question",
     summary:
       primaryKnowledge?.description ??
+      storylineMatch.studentSummary ??
       "Your leader can still shape this for group discussion, but you do not have to wait to start seeking carefully.",
     careNote: careNoteForPrompt(prompt),
     wrestleQuestions: wrestleQuestionsForPrompt(prompt),
-    digQuestions: primaryKnowledge?.digQuestions?.length ? primaryKnowledge.digQuestions : digQuestionsForPrompt(prompt),
+    digQuestions: primaryKnowledge?.digQuestions?.length ? primaryKnowledge.digQuestions : uniqueQuestions([...storylineMatch.studentQuestions, ...digQuestionsForPrompt(prompt)], 3),
     journalPrompts: journalPromptsForPrompt(prompt),
     prayerPrompts: prayerPromptsForPrompt(prompt),
     wrestleTogetherPrompt: wrestleTogetherPromptForPrompt(prompt, primaryKnowledge),
-    readingPlan: primaryKnowledge ? knowledgeItem(primaryKnowledge, primaryKnowledge.label) : planItem(plan, topic ? `Because you asked about ${topic}` : "Suggested plan"),
-    resource: secondaryKnowledge ? knowledgeItem(secondaryKnowledge, "Keep digging") : resourceItem(resource, "Practice this")
+    readingPlan: primaryKnowledge ? knowledgeItem(primaryKnowledge, primaryKnowledge.label) : storylineItem(storylineMatch),
+    resource: secondaryKnowledge ? knowledgeItem(secondaryKnowledge, "Keep digging") : resourceItem(resource, "Practice this"),
+    storylineMatch
   };
 }
 
@@ -203,7 +207,8 @@ function savedRecommendationsToNextStep(
     prayerPrompts: prayerPrompts.length ? prayerPrompts : fallback.prayerPrompts,
     wrestleTogetherPrompt: wrestleTogether?.title || fallback.wrestleTogetherPrompt,
     readingPlan: readingPlan ? recommendationItem(readingPlan, prompt.id) : fallback.readingPlan,
-    resource: resource ? recommendationItem(resource, prompt.id) : fallback.resource
+    resource: resource ? recommendationItem(resource, prompt.id) : fallback.resource,
+    storylineMatch: fallback.storylineMatch
   };
 }
 
@@ -275,6 +280,27 @@ function knowledgeItem(match: StudentKnowledgeMatch, label: string): StudentKeep
     description: match.description,
     href: match.href
   };
+}
+
+function storylineItem(match: StorylineQuestionMatch): StudentKeepReadingItem {
+  return {
+    id: `storyline-${match.id}`,
+    label: match.label,
+    title: match.title,
+    description: match.studentSummary,
+    href: "/student/scripture/resources"
+  };
+}
+
+function uniqueQuestions(questions: string[], limit: number) {
+  const seen = new Set<string>();
+  return questions
+    .filter((question) => {
+      if (seen.has(question)) return false;
+      seen.add(question);
+      return true;
+    })
+    .slice(0, limit);
 }
 
 function planForPrompt(prompt: ReadingSource) {

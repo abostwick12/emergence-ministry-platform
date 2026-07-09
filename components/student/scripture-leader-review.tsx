@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { DiscussionWorkflowState } from "@/lib/scripture/discussion-workflow";
 import type { GlooDiagnosticResult } from "@/lib/scripture/gloo";
 import { buildLocalDiscussionDraftForPrompt } from "@/lib/scripture/local-discussion-draft";
+import { matchQuestionToStoryline, type StorylineQuestionMatch } from "@/lib/scripture/storyline-guide";
 import type { StudentDiscussionPrompt, StudentDiscussionStatus } from "@/lib/scripture/types";
 import type { StudentGroupLeaderState } from "@/lib/student/groups";
 
@@ -733,6 +734,7 @@ function LeaderReviewDetail({
   const [leaderNotes, setLeaderNotes] = useState(prompt.leaderNotes);
   const [discussionPrompt, setDiscussionPrompt] = useState(prompt.discussionPrompt);
   const localDraft = useMemo(() => buildLocalDiscussionDraftForPrompt(prompt), [prompt]);
+  const storylineMatch = useMemo(() => matchQuestionToStoryline(prompt), [prompt]);
   const reviewDraft = guidanceText(prompt, localDraft.discussionPrompt);
   const draftSource = prompt.discussionPrompt
     ? prompt.aiStatus === "generated"
@@ -767,6 +769,8 @@ function LeaderReviewDetail({
         <MetaTile label="Confidence" value={prompt.aiConfidence == null ? "Not scored" : `${Math.round(prompt.aiConfidence * 100)}%`} />
         <MetaTile label="Care signal" value={careText(prompt) || "Standard review"} />
       </div>
+
+      <LeaderStorylineContext match={storylineMatch} />
 
       <section className="leader-review-guidance" aria-label="Draft and care notes">
         <div>
@@ -825,6 +829,39 @@ function LeaderReviewDetail({
         </button>
       </div>
     </article>
+  );
+}
+
+function LeaderStorylineContext({ match }: { match: StorylineQuestionMatch }) {
+  return (
+    <section className="leader-storyline-context" aria-label="Bible storyline context">
+      <div className="leader-storyline-context-copy">
+        <p className="eyebrow">{match.label}</p>
+        <h3>{match.title}</h3>
+        <p>{match.leaderFrame}</p>
+      </div>
+
+      <div className="leader-storyline-context-grid" aria-label="Storyline path">
+        <MetaTile label="Starts" value={match.startsHere} />
+        <MetaTile label="Develops" value={match.developsThrough} />
+        <MetaTile label="Fulfilled" value={match.fulfilledInChrist} />
+      </div>
+
+      <div className="leader-storyline-context-list">
+        <div>
+          <span>Passages to open</span>
+          <p>{match.keyPassages.slice(0, 5).join(", ")}</p>
+        </div>
+        <div>
+          <span>Questions to ask</span>
+          <ul>
+            {match.studentQuestions.map((question) => (
+              <li key={question}>{question}</li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -889,7 +926,9 @@ function buildReviewStats(prompts: StudentDiscussionPrompt[]) {
 function buildDiscussionGuide(prompt: StudentDiscussionPrompt) {
   const passage = prompt.scriptureReference || "the passage your group chooses together";
   const care = careText(prompt);
+  const storylineMatch = matchQuestionToStoryline(prompt);
   const knowledgeQuestions = prompt.knowledgeContext?.flatMap((match) => match.digQuestions).filter(Boolean) ?? [];
+  const storylineQuestions = storylineMatch.studentQuestions;
   const topic = prompt.topicTags[0] ?? "this question";
   return {
     title: prompt.discussionPrompt || prompt.question,
@@ -900,6 +939,7 @@ function buildDiscussionGuide(prompt: StudentDiscussionPrompt) {
         items: [
           "Ask students what they have heard or been taught about this before.",
           "Invite them to name what is sticking out, bothering them, or making the question feel important.",
+          storylineMatch.leaderFrame,
           care ? `Frame this with care: ${care}.` : "Make room for honesty before trying to resolve the question."
         ]
       },
@@ -916,9 +956,9 @@ function buildDiscussionGuide(prompt: StudentDiscussionPrompt) {
         label: "Wrestle With",
         title: "Let better questions surface",
         items: [
-          knowledgeQuestions[0] ?? `What question underneath ${topic} might God be inviting us to face honestly?`,
-          knowledgeQuestions[1] ?? "Where does this passage challenge what we assumed before we read it?",
-          "What would faithful trust look like if we do not have a complete answer tonight?"
+          knowledgeQuestions[0] ?? storylineQuestions[0] ?? `What question underneath ${topic} might God be inviting us to face honestly?`,
+          knowledgeQuestions[1] ?? storylineQuestions[1] ?? "Where does this passage challenge what we assumed before we read it?",
+          storylineQuestions[2] ?? "What would faithful trust look like if we do not have a complete answer tonight?"
         ]
       },
       {
