@@ -14,7 +14,7 @@ test.describe("Personal Command Center", () => {
 
     await page.getByRole("navigation").getByRole("link", { name: "Ask SAGE" }).click();
     await expect(page.getByRole("heading", { name: "Personal Command Center Chat" })).toBeVisible();
-    await expect(page.getByText("SAGE can reason over open Command Center tasks.")).toBeVisible();
+    await expect(page.getByText("SAGE can reason over open Command Center tasks and, when Gmail is connected and you ask, create a Gmail draft for you to review.")).toBeVisible();
     await page.getByLabel("Message SAGE").fill("What should I focus on today?");
     await page.getByRole("button", { name: "Send" }).click();
     await expect(page.getByText("SAGE chat is ready, but OpenAI is not configured yet.")).toBeVisible();

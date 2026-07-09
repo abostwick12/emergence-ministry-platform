@@ -3,11 +3,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { AiConversationMessage } from "@/lib/command-center/types";
 
+type GmailDraftToolOutcome = { ok: true; draftId: string; to: string; subject: string } | { ok: false; error: string };
+
 type LocalMessage = {
   id: string;
   role: "user" | "assistant";
   content: string;
   pending?: boolean;
+  toolOutcome?: GmailDraftToolOutcome;
 };
 
 type ApiMessage = AiConversationMessage & { role: "user" | "assistant" };
@@ -141,13 +144,24 @@ export function SageChatPanel() {
   }
 
   function handleStreamEvent(event: string, data: unknown, assistantId: string) {
-    const payload = data as { delta?: string; message?: string; unavailable?: boolean; failed?: boolean };
+    const payload = data as {
+      delta?: string;
+      message?: string;
+      unavailable?: boolean;
+      failed?: boolean;
+      name?: string;
+      outcome?: GmailDraftToolOutcome;
+    };
     if (event === "delta" && payload.delta) {
       setMessages((current) =>
         current.map((item) =>
           item.id === assistantId ? { ...item, content: `${item.content}${payload.delta}`, pending: true } : item
         )
       );
+    }
+    if (event === "tool_call" && payload.outcome) {
+      const outcome = payload.outcome;
+      setMessages((current) => current.map((item) => (item.id === assistantId ? { ...item, toolOutcome: outcome } : item)));
     }
     if (event === "unavailable" && payload.message) {
       setStatus("SAGE is not configured yet.");
@@ -184,8 +198,8 @@ export function SageChatPanel() {
       </div>
 
       <p className="muted">
-        SAGE can reason over open Command Center tasks. It cannot send messages, connect integrations, save memory, or
-        take autonomous actions yet.
+        SAGE can reason over open Command Center tasks and, when Gmail is connected and you ask, create a Gmail draft
+        for you to review. It never sends a message, connects integrations, or saves memory itself.
       </p>
       <p className="command-center-chat-status" role="status">
         {status}
@@ -201,6 +215,13 @@ export function SageChatPanel() {
         {messages.map((message) => (
           <article className={`command-center-chat-bubble ${message.role}`} key={message.id}>
             {message.content || (message.pending ? "SAGE is thinking..." : "")}
+            {message.toolOutcome ? (
+              <p className={`pill ${message.toolOutcome.ok ? "" : "red"}`} style={{ marginTop: 8 }}>
+                {message.toolOutcome.ok
+                  ? `Drafted an email to ${message.toolOutcome.to}: "${message.toolOutcome.subject}" — review it in Gmail.`
+                  : `Couldn't create the draft: ${message.toolOutcome.error}`}
+              </p>
+            ) : null}
           </article>
         ))}
       </div>

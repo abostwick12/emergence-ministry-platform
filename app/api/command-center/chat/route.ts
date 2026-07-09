@@ -18,6 +18,7 @@ import {
   type SageProviderErrorCategory
 } from "@/lib/command-center/sage";
 import { buildLiveIntegrationContext } from "@/lib/command-center/sage-live-context";
+import { buildSageTools, executeSageToolCall, type GmailDraftToolOutcome } from "@/lib/command-center/sage-tools";
 
 const MAX_MESSAGE_LENGTH = 4000;
 const SESSION_ID_PATTERN = /^[a-zA-Z0-9_.:-]{8,120}$/;
@@ -191,22 +192,31 @@ export async function POST(request: Request) {
         }
 
         phase = "load_context";
-        const [tasks, messages, liveIntegrationContext, memories] = await Promise.all([
+        const [tasks, messages, liveIntegrationContext, memories, tools] = await Promise.all([
           listPersonalTasks(session),
           listConversationMessages(session, sessionId, 12),
           buildLiveIntegrationContext(session),
-          listSageMemory(session)
+          listSageMemory(session),
+          buildSageTools(session)
         ]);
         taskCount = tasks.length;
         conversationCount = messages.length;
         const instructions = await buildSageInstructions(tasks, liveIntegrationContext, memories);
         const input = buildSageConversationInput(messages);
 
+        let toolOutcome: GmailDraftToolOutcome | undefined;
+
         phase = `${providerConfig.provider}_stream`;
         const response = await streamSageResponse({
           instructions,
           input,
           signal: requestSignal,
+          tools,
+          async onToolCall(call) {
+            const result = await executeSageToolCall(session, call);
+            toolOutcome = result.outcome;
+            return result.output;
+          },
           onDelta(delta) {
             assistantContent += delta;
             return enqueue("delta", { delta });
@@ -215,7 +225,8 @@ export async function POST(request: Request) {
 
         if (isDisconnected() || !response.completed) return;
         assistantContent = response.content;
-        if (!assistantContent.trim()) {
+        if (toolOutcome) enqueue("tool_call", { name: "create_gmail_draft", outcome: toolOutcome });
+        if (!assistantContent.trim() && !toolOutcome) {
           enqueue("error", { message: "SAGE did not return a response. Please try again." });
           await finish("", { failed: true, category: response.provider === "azure" ? "azure_stream_error" : "stream_error" }, false);
           return;

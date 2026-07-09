@@ -5,6 +5,7 @@ import {
   buildSageInstructions,
   callSageStructured,
   classifySageProviderError,
+  collectResponseStream,
   formatSageMemoryContext,
   loadSageSkillInstructions,
   normalizeAzureResponsesBaseUrl,
@@ -58,10 +59,18 @@ describe("SAGE prompt assembly", () => {
     expect(instructions).toContain("Fellowship call");
   });
 
-  it("still forbids calendar writes and email sending even when integration context is present", async () => {
+  it("still forbids calendar writes, and forbids sending an email, even when integration context is present", async () => {
     const instructions = await buildSageInstructions([task], "Read-only Gmail triage context (as of this turn):\n- test");
     expect(instructions).toContain("You cannot create, update, or delete a calendar event");
-    expect(instructions).toContain("you cannot send email or create a Gmail draft from this chat");
+    expect(instructions).toContain("you never send an email, from this chat or anywhere else");
+    expect(instructions).toContain("No sending an email under any circumstance");
+  });
+
+  it("describes create_gmail_draft as SAGE's only tool call, draft-only and Andrew-triggered", async () => {
+    const instructions = await buildSageInstructions([task]);
+    expect(instructions).toContain("create_gmail_draft");
+    expect(instructions).toContain("This is SAGE's only tool call.");
+    expect(instructions).toContain("No tool calls beyond create_gmail_draft");
   });
 
   it("still forbids searching, reading, or organizing Google Drive from chat even when Drive context is present", async () => {
@@ -300,6 +309,114 @@ describe("SAGE provider streaming selection", () => {
       .toBe("azure_quota");
     expect(classifySageProviderError(Object.assign(new Error("deployment not found"), { status: 404 }), "azure"))
       .toBe("azure_model_or_deployment");
+  });
+
+  it("forwards tools and onToolCall through to the selected streamer", async () => {
+    const receivedTools: unknown[] = [];
+    let receivedOnToolCall: unknown;
+    await streamSageResponse({
+      instructions: "test instructions",
+      input: "test input",
+      signal: new AbortController().signal,
+      env: { OPENAI_API_KEY: "sk-test-secret" },
+      tools: [{ name: "create_gmail_draft", description: "test", parameters: {} }],
+      onToolCall: async () => "tool output",
+      streamers: {
+        openai: async ({ config, tools, onToolCall }) => {
+          receivedTools.push(...(tools ?? []));
+          receivedOnToolCall = onToolCall;
+          return { provider: "openai", modelLabel: config.modelLabel, content: "ok", completed: true };
+        },
+        azure: async () => {
+          throw new Error("Azure streamer should not be called");
+        }
+      }
+    });
+
+    expect(receivedTools).toEqual([{ name: "create_gmail_draft", description: "test", parameters: {} }]);
+    expect(receivedOnToolCall).toBeTypeOf("function");
+  });
+});
+
+async function* fakeEventStream(events: unknown[]) {
+  for (const event of events) yield event;
+}
+
+describe("collectResponseStream", () => {
+  it("collects text deltas into content", async () => {
+    const result = await collectResponseStream({
+      stream: fakeEventStream([
+        { type: "response.output_text.delta", delta: "Hel" },
+        { type: "response.output_text.delta", delta: "lo" }
+      ]),
+      provider: "openai",
+      modelLabel: "gpt-4o-mini",
+      signal: new AbortController().signal
+    });
+    expect(result).toMatchObject({ content: "Hello", completed: true, toolCall: undefined });
+  });
+
+  it("captures the response id from any event carrying one", async () => {
+    const result = await collectResponseStream({
+      stream: fakeEventStream([
+        { type: "response.created", response: { id: "resp_123" } },
+        { type: "response.output_text.delta", delta: "hi" }
+      ]),
+      provider: "openai",
+      modelLabel: "gpt-4o-mini",
+      signal: new AbortController().signal
+    });
+    expect(result.responseId).toBe("resp_123");
+  });
+
+  it("captures a function_call output item as a tool call", async () => {
+    const result = await collectResponseStream({
+      stream: fakeEventStream([
+        { type: "response.created", response: { id: "resp_abc" } },
+        {
+          type: "response.output_item.done",
+          item: { type: "function_call", name: "create_gmail_draft", call_id: "call_1", arguments: '{"to":"x@example.com"}' }
+        }
+      ]),
+      provider: "openai",
+      modelLabel: "gpt-4o-mini",
+      signal: new AbortController().signal
+    });
+    expect(result.toolCall).toEqual({ name: "create_gmail_draft", callId: "call_1", argumentsJson: '{"to":"x@example.com"}' });
+    expect(result.responseId).toBe("resp_abc");
+  });
+
+  it("ignores output items that are not function calls", async () => {
+    const result = await collectResponseStream({
+      stream: fakeEventStream([{ type: "response.output_item.done", item: { type: "message" } }]),
+      provider: "openai",
+      modelLabel: "gpt-4o-mini",
+      signal: new AbortController().signal
+    });
+    expect(result.toolCall).toBeUndefined();
+  });
+
+  it("throws when the stream reports response.failed", async () => {
+    await expect(
+      collectResponseStream({
+        stream: fakeEventStream([{ type: "response.failed", error: { message: "boom" } }]),
+        provider: "openai",
+        modelLabel: "gpt-4o-mini",
+        signal: new AbortController().signal
+      })
+    ).rejects.toThrow("boom");
+  });
+
+  it("stops and marks incomplete when the signal is already aborted", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const result = await collectResponseStream({
+      stream: fakeEventStream([{ type: "response.output_text.delta", delta: "hi" }]),
+      provider: "openai",
+      modelLabel: "gpt-4o-mini",
+      signal: controller.signal
+    });
+    expect(result.completed).toBe(false);
   });
 });
 
