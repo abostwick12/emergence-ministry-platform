@@ -10332,3 +10332,41 @@ html:has(.app-shell-camp) body {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.storyline-guide :is(.panel, .card, .rounded-lg, .rounded-md) {
+  border-color: rgba(56, 189, 248, 0.18);
+  background:
+    linear-gradient(145deg, rgba(15, 23, 42, 0.88), rgba(8, 16, 31, 0.78)),
+    rgba(8, 16, 31, 0.88);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.storyline-guide :is(h1, h2, h3, h4, strong, dt) {
+  color: #f8fafc;
+}
+
+.storyline-guide :is(p, li, dd) {
+  color: #cbd5e1;
+}
+
+.storyline-guide .eyebrow {
+  color: #38bdf8;
+}
+
+.storyline-guide .rounded-full {
+  border-color: rgba(125, 211, 252, 0.28);
+  background: rgba(226, 232, 240, 0.95);
+  color: #1e293b;
+}
+
+.storyline-guide .border-sky-300 {
+  border-color: #38bdf8;
+}
+
+.storyline-guide .border-emerald-200 {
+  border-color: rgba(16, 185, 129, 0.36);
+}
+
+.storyline-guide .border-amber-200 {
+  border-color: rgba(245, 158, 11, 0.42);
+}
