@@ -13,9 +13,14 @@ export function ScriptureTrialInsightsPanel({ insights }: ScriptureTrialInsights
           <h2>Trial Pulse</h2>
           <p>Watch whether real student questions are becoming leader-reviewed conversations and student next steps.</p>
         </div>
-        <span className={insights.readiness.liveStorage ? "pill green" : "pill amber"}>
-          {insights.readiness.liveStorage ? "Live storage" : "Setup needed"}
-        </span>
+        <div className="scripture-trial-actions">
+          <span className={insights.readiness.liveStorage ? "pill green" : "pill amber"}>
+            {insights.readiness.liveStorage ? "Live storage" : "Setup needed"}
+          </span>
+          <a className="button" href="/api/student/scripture/trial-report">
+            Export report
+          </a>
+        </div>
       </div>
 
       <div className="scripture-trial-stat-grid" aria-label="Trial counts">
