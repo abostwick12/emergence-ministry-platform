@@ -19,15 +19,22 @@ import type {
   CreateJobApplicationInput,
   CreatePersonalTaskInput,
   AiConversationMessage,
+  FeedRunLog,
+  FeedRunStatus,
   JobApplication,
   JobApplicationStatus,
+  KnowledgeItem,
+  KnowledgeSource,
+  KnowledgeSourceStatus,
   PersonalDomain,
   PersonalIntegration,
   PersonalTask,
   PersonalTaskPriority,
   PersonalTaskStatus,
   UpdateJobApplicationInput,
-  UpdatePersonalTaskInput
+  UpdatePersonalTaskInput,
+  WeeklyFeed,
+  WeeklyFeedItemWithDetail
 } from "@/lib/command-center/types";
 
 const TASK_COLUMNS = "id, domain, title, description, status, priority, due_date, tags, created_at, updated_at";
@@ -36,7 +43,7 @@ const AI_CONVERSATION_COLUMNS = "id, session_id, role, content, created_at";
 const JOB_APPLICATION_COLUMNS =
   "id, company, role, status, applied_date, contact_name, contact_notes, next_follow_up_date, compensation_notes, job_url, created_at, updated_at";
 
-function shouldUseMock(session: AuthSession): boolean {
+export function shouldUseMock(session: AuthSession): boolean {
   return session.isMock || !isSupabaseConfigured();
 }
 
@@ -548,4 +555,492 @@ export async function getOverview(session: AuthSession): Promise<CommandCenterOv
     jobApplications,
     unprocessedCaptureCount: unprocessedCaptures.length
   });
+}
+
+// --- SAGE Weekly Intelligence Feed ------------------------------------------
+// See lib/command-center/weekly-feed/ for the ingestion/analysis/generation
+// pipeline that calls these. Table names are personal_knowledge_* /
+// personal_weekly_* (migration 031) to avoid colliding with the unrelated
+// Student Portal Scripture RAG spine's public.knowledge_sources table.
+
+const KNOWLEDGE_SOURCE_COLUMNS =
+  "id, google_drive_file_id, file_name, file_path, source_type, title, source_name, author_or_host, url, date_found, imported_at, last_modified_at, content_hash, status, error_message, created_at, updated_at";
+const KNOWLEDGE_ITEM_COLUMNS =
+  "id, source_id, summary, key_takeaways, topic_tags, relevance_score, ministry_application, command_center_application, theological_or_discipleship_connection, career_readiness_connection, caveats, created_at, updated_at";
+const WEEKLY_FEED_COLUMNS =
+  "id, week_start, week_end, title, executive_summary, top_topics, app_platform_implications, ministry_implications, suggested_action_items, created_at, created_by";
+const WEEKLY_FEED_ITEM_COLUMNS = "id, weekly_feed_id, knowledge_item_id, rank, section, reason_included, recommended_action, confidence_note, created_at";
+const FEED_RUN_LOG_COLUMNS =
+  "id, run_started_at, run_completed_at, triggered_by, status, files_scanned, files_imported, files_skipped, errors_count, error_details, model_used, duration_ms, created_at";
+
+type KnowledgeSourceRow = {
+  id: string;
+  google_drive_file_id: string;
+  file_name: string;
+  file_path: string;
+  source_type: KnowledgeSource["sourceType"];
+  title: string;
+  source_name: string | null;
+  author_or_host: string | null;
+  url: string | null;
+  date_found: string | null;
+  imported_at: string;
+  last_modified_at: string | null;
+  content_hash: string;
+  status: KnowledgeSourceStatus;
+  error_message: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+function mapKnowledgeSourceRow(row: KnowledgeSourceRow): KnowledgeSource {
+  return {
+    id: row.id,
+    googleDriveFileId: row.google_drive_file_id,
+    fileName: row.file_name,
+    filePath: row.file_path,
+    sourceType: row.source_type,
+    title: row.title,
+    sourceName: row.source_name ?? undefined,
+    authorOrHost: row.author_or_host ?? undefined,
+    url: row.url ?? undefined,
+    dateFound: row.date_found ?? undefined,
+    importedAt: row.imported_at,
+    lastModifiedAt: row.last_modified_at ?? undefined,
+    contentHash: row.content_hash,
+    status: row.status,
+    errorMessage: row.error_message ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+export async function getKnowledgeSourceByDriveFileId(session: AuthSession, googleDriveFileId: string): Promise<KnowledgeSource | null> {
+  if (shouldUseMock(session)) return mockStore.getKnowledgeSourceByDriveFileId(googleDriveFileId);
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const { data, error } = await supabase
+    .from("personal_knowledge_sources")
+    .select(KNOWLEDGE_SOURCE_COLUMNS)
+    .eq("google_drive_file_id", googleDriveFileId)
+    .maybeSingle<KnowledgeSourceRow>();
+  if (error) throw new Error(error.message);
+  return data ? mapKnowledgeSourceRow(data) : null;
+}
+
+export type UpsertKnowledgeSourceInput = {
+  googleDriveFileId: string;
+  fileName: string;
+  filePath: string;
+  sourceType: KnowledgeSource["sourceType"];
+  title: string;
+  sourceName?: string;
+  authorOrHost?: string;
+  url?: string;
+  dateFound?: string;
+  lastModifiedAt?: string;
+  contentHash: string;
+};
+
+// Creates or updates a source by its unique Drive file ID. Always resets
+// status to "new" -- ingest.ts only calls this for files whose content hash
+// has changed (or is brand new), so a re-import should surface again for
+// review rather than staying silently archived/skipped from a prior week.
+export async function upsertKnowledgeSource(session: AuthSession, input: UpsertKnowledgeSourceInput): Promise<KnowledgeSource> {
+  if (shouldUseMock(session)) return mockStore.upsertKnowledgeSource(input);
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const { data, error } = await supabase
+    .from("personal_knowledge_sources")
+    .upsert(
+      {
+        google_drive_file_id: input.googleDriveFileId,
+        file_name: input.fileName,
+        file_path: input.filePath,
+        source_type: input.sourceType,
+        title: input.title,
+        source_name: input.sourceName ?? null,
+        author_or_host: input.authorOrHost ?? null,
+        url: input.url ?? null,
+        date_found: input.dateFound ?? null,
+        last_modified_at: input.lastModifiedAt ?? null,
+        content_hash: input.contentHash,
+        status: "new",
+        error_message: null
+      },
+      { onConflict: "google_drive_file_id" }
+    )
+    .select(KNOWLEDGE_SOURCE_COLUMNS)
+    .single<KnowledgeSourceRow>();
+  if (error) throw new Error(error.message);
+  return mapKnowledgeSourceRow(data);
+}
+
+export async function markKnowledgeSourceError(session: AuthSession, id: string, message: string): Promise<void> {
+  if (shouldUseMock(session)) return mockStore.markKnowledgeSourceError(id, message);
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const { error } = await supabase.from("personal_knowledge_sources").update({ error_message: message }).eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+export async function updateKnowledgeSourceStatus(
+  session: AuthSession,
+  id: string,
+  status: KnowledgeSourceStatus
+): Promise<KnowledgeSource | null> {
+  if (shouldUseMock(session)) return mockStore.updateKnowledgeSourceStatus(id, status);
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const { data, error } = await supabase
+    .from("personal_knowledge_sources")
+    .update({ status })
+    .eq("id", id)
+    .select(KNOWLEDGE_SOURCE_COLUMNS)
+    .maybeSingle<KnowledgeSourceRow>();
+  if (error) throw new Error(error.message);
+  return data ? mapKnowledgeSourceRow(data) : null;
+}
+
+export async function listKnowledgeSources(
+  session: AuthSession,
+  filter?: { sourceType?: KnowledgeSource["sourceType"]; status?: KnowledgeSourceStatus }
+): Promise<KnowledgeSource[]> {
+  if (shouldUseMock(session)) return mockStore.listKnowledgeSources(filter);
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  let query = supabase.from("personal_knowledge_sources").select(KNOWLEDGE_SOURCE_COLUMNS).order("date_found", { ascending: false });
+  if (filter?.sourceType) query = query.eq("source_type", filter.sourceType);
+  if (filter?.status) query = query.eq("status", filter.status);
+  const { data, error } = await query.returns<KnowledgeSourceRow[]>();
+  if (error) throw new Error(error.message);
+  return (data ?? []).map(mapKnowledgeSourceRow);
+}
+
+type KnowledgeItemRow = {
+  id: string;
+  source_id: string;
+  summary: string;
+  key_takeaways: string | null;
+  topic_tags: string[] | null;
+  relevance_score: number | null;
+  ministry_application: string | null;
+  command_center_application: string | null;
+  theological_or_discipleship_connection: string | null;
+  career_readiness_connection: string | null;
+  caveats: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+function mapKnowledgeItemRow(row: KnowledgeItemRow): KnowledgeItem {
+  return {
+    id: row.id,
+    sourceId: row.source_id,
+    summary: row.summary,
+    keyTakeaways: row.key_takeaways ?? undefined,
+    topicTags: row.topic_tags ?? [],
+    relevanceScore: row.relevance_score ?? undefined,
+    ministryApplication: row.ministry_application ?? undefined,
+    commandCenterApplication: row.command_center_application ?? undefined,
+    theologicalOrDiscipleshipConnection: row.theological_or_discipleship_connection ?? undefined,
+    careerReadinessConnection: row.career_readiness_connection ?? undefined,
+    caveats: row.caveats ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+export type CreateKnowledgeItemInput = {
+  sourceId: string;
+  summary: string;
+  keyTakeaways?: string;
+  topicTags: string[];
+  relevanceScore?: number;
+  ministryApplication?: string;
+  commandCenterApplication?: string;
+  theologicalOrDiscipleshipConnection?: string;
+  careerReadinessConnection?: string;
+  caveats?: string;
+};
+
+export async function createKnowledgeItem(session: AuthSession, input: CreateKnowledgeItemInput): Promise<KnowledgeItem> {
+  if (shouldUseMock(session)) return mockStore.createKnowledgeItem(input);
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const { data, error } = await supabase
+    .from("personal_knowledge_items")
+    .insert({
+      source_id: input.sourceId,
+      summary: input.summary,
+      key_takeaways: input.keyTakeaways ?? null,
+      topic_tags: input.topicTags,
+      relevance_score: input.relevanceScore ?? null,
+      ministry_application: input.ministryApplication ?? null,
+      command_center_application: input.commandCenterApplication ?? null,
+      theological_or_discipleship_connection: input.theologicalOrDiscipleshipConnection ?? null,
+      career_readiness_connection: input.careerReadinessConnection ?? null,
+      caveats: input.caveats ?? null
+    })
+    .select(KNOWLEDGE_ITEM_COLUMNS)
+    .single<KnowledgeItemRow>();
+  if (error) throw new Error(error.message);
+  return mapKnowledgeItemRow(data);
+}
+
+type WeeklyFeedRow = {
+  id: string;
+  week_start: string;
+  week_end: string;
+  title: string;
+  executive_summary: string;
+  top_topics: string[] | null;
+  app_platform_implications: string | null;
+  ministry_implications: string | null;
+  suggested_action_items: string | null;
+  created_at: string;
+  created_by: string | null;
+};
+
+function mapWeeklyFeedRow(row: WeeklyFeedRow): WeeklyFeed {
+  return {
+    id: row.id,
+    weekStart: row.week_start,
+    weekEnd: row.week_end,
+    title: row.title,
+    executiveSummary: row.executive_summary,
+    topTopics: row.top_topics ?? [],
+    appPlatformImplications: row.app_platform_implications ?? undefined,
+    ministryImplications: row.ministry_implications ?? undefined,
+    suggestedActionItems: row.suggested_action_items ?? undefined,
+    createdAt: row.created_at,
+    createdBy: row.created_by ?? undefined
+  };
+}
+
+export type CreateWeeklyFeedInput = {
+  weekStart: string;
+  weekEnd: string;
+  title: string;
+  executiveSummary: string;
+  topTopics: string[];
+  appPlatformImplications?: string;
+  ministryImplications?: string;
+  suggestedActionItems?: string;
+  createdBy?: string;
+};
+
+export async function createWeeklyFeed(session: AuthSession, input: CreateWeeklyFeedInput): Promise<WeeklyFeed> {
+  if (shouldUseMock(session)) return mockStore.createWeeklyFeed(input);
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const { data, error } = await supabase
+    .from("personal_weekly_feeds")
+    .upsert(
+      {
+        week_start: input.weekStart,
+        week_end: input.weekEnd,
+        title: input.title,
+        executive_summary: input.executiveSummary,
+        top_topics: input.topTopics,
+        app_platform_implications: input.appPlatformImplications ?? null,
+        ministry_implications: input.ministryImplications ?? null,
+        suggested_action_items: input.suggestedActionItems ?? null,
+        created_by: input.createdBy ?? null
+      },
+      { onConflict: "week_start" }
+    )
+    .select(WEEKLY_FEED_COLUMNS)
+    .single<WeeklyFeedRow>();
+  if (error) throw new Error(error.message);
+  return mapWeeklyFeedRow(data);
+}
+
+export type CreateWeeklyFeedItemInput = {
+  weeklyFeedId: string;
+  knowledgeItemId: string;
+  rank: number;
+  section: string;
+  reasonIncluded?: string;
+  recommendedAction?: string;
+  confidenceNote?: string;
+};
+
+export async function replaceWeeklyFeedItems(session: AuthSession, weeklyFeedId: string, items: CreateWeeklyFeedItemInput[]): Promise<void> {
+  if (shouldUseMock(session)) return mockStore.replaceWeeklyFeedItems(weeklyFeedId, items);
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const { error: deleteError } = await supabase.from("personal_weekly_feed_items").delete().eq("weekly_feed_id", weeklyFeedId);
+  if (deleteError) throw new Error(deleteError.message);
+  if (items.length === 0) return;
+
+  const { error } = await supabase.from("personal_weekly_feed_items").insert(
+    items.map((item) => ({
+      weekly_feed_id: item.weeklyFeedId,
+      knowledge_item_id: item.knowledgeItemId,
+      rank: item.rank,
+      section: item.section,
+      reason_included: item.reasonIncluded ?? null,
+      recommended_action: item.recommendedAction ?? null,
+      confidence_note: item.confidenceNote ?? null
+    }))
+  );
+  if (error) throw new Error(error.message);
+}
+
+type WeeklyFeedItemRow = {
+  id: string;
+  weekly_feed_id: string;
+  knowledge_item_id: string;
+  rank: number;
+  section: string;
+  reason_included: string | null;
+  recommended_action: string | null;
+  confidence_note: string | null;
+  created_at: string;
+};
+
+export async function getLatestWeeklyFeedWithItems(
+  session: AuthSession
+): Promise<{ feed: WeeklyFeed; items: WeeklyFeedItemWithDetail[] } | null> {
+  if (shouldUseMock(session)) return mockStore.getLatestWeeklyFeedWithItems();
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const { data: feedRow, error: feedError } = await supabase
+    .from("personal_weekly_feeds")
+    .select(WEEKLY_FEED_COLUMNS)
+    .order("week_start", { ascending: false })
+    .limit(1)
+    .maybeSingle<WeeklyFeedRow>();
+  if (feedError) throw new Error(feedError.message);
+  if (!feedRow) return null;
+  const feed = mapWeeklyFeedRow(feedRow);
+
+  const { data: itemRows, error: itemsError } = await supabase
+    .from("personal_weekly_feed_items")
+    .select(WEEKLY_FEED_ITEM_COLUMNS)
+    .eq("weekly_feed_id", feed.id)
+    .order("rank", { ascending: true })
+    .returns<WeeklyFeedItemRow[]>();
+  if (itemsError) throw new Error(itemsError.message);
+
+  const knowledgeItemIds = (itemRows ?? []).map((row) => row.knowledge_item_id);
+  const { data: knowledgeItemRows, error: knowledgeItemsError } = await supabase
+    .from("personal_knowledge_items")
+    .select(KNOWLEDGE_ITEM_COLUMNS)
+    .in("id", knowledgeItemIds.length > 0 ? knowledgeItemIds : ["00000000-0000-0000-0000-000000000000"])
+    .returns<KnowledgeItemRow[]>();
+  if (knowledgeItemsError) throw new Error(knowledgeItemsError.message);
+  const knowledgeItemsById = new Map((knowledgeItemRows ?? []).map((row) => [row.id, mapKnowledgeItemRow(row)]));
+
+  const sourceIds = Array.from(knowledgeItemsById.values()).map((item) => item.sourceId);
+  const { data: sourceRows, error: sourcesError } = await supabase
+    .from("personal_knowledge_sources")
+    .select(KNOWLEDGE_SOURCE_COLUMNS)
+    .in("id", sourceIds.length > 0 ? sourceIds : ["00000000-0000-0000-0000-000000000000"])
+    .returns<KnowledgeSourceRow[]>();
+  if (sourcesError) throw new Error(sourcesError.message);
+  const sourcesById = new Map((sourceRows ?? []).map((row) => [row.id, mapKnowledgeSourceRow(row)]));
+
+  const items: WeeklyFeedItemWithDetail[] = (itemRows ?? []).flatMap((row) => {
+    const knowledgeItem = knowledgeItemsById.get(row.knowledge_item_id);
+    const source = knowledgeItem ? sourcesById.get(knowledgeItem.sourceId) : undefined;
+    if (!knowledgeItem || !source) return [];
+    return [
+      {
+        id: row.id,
+        weeklyFeedId: row.weekly_feed_id,
+        knowledgeItemId: row.knowledge_item_id,
+        rank: row.rank,
+        section: row.section,
+        reasonIncluded: row.reason_included ?? undefined,
+        recommendedAction: row.recommended_action ?? undefined,
+        confidenceNote: row.confidence_note ?? undefined,
+        createdAt: row.created_at,
+        knowledgeItem,
+        source
+      }
+    ];
+  });
+
+  return { feed, items };
+}
+
+type FeedRunLogRow = {
+  id: string;
+  run_started_at: string;
+  run_completed_at: string | null;
+  triggered_by: string;
+  status: FeedRunStatus;
+  files_scanned: number;
+  files_imported: number;
+  files_skipped: number;
+  errors_count: number;
+  error_details: string[] | null;
+  model_used: string | null;
+  duration_ms: number | null;
+  created_at: string;
+};
+
+function mapFeedRunLogRow(row: FeedRunLogRow): FeedRunLog {
+  return {
+    id: row.id,
+    runStartedAt: row.run_started_at,
+    runCompletedAt: row.run_completed_at ?? undefined,
+    triggeredBy: row.triggered_by,
+    status: row.status,
+    filesScanned: row.files_scanned,
+    filesImported: row.files_imported,
+    filesSkipped: row.files_skipped,
+    errorsCount: row.errors_count,
+    errorDetails: row.error_details ?? [],
+    modelUsed: row.model_used ?? undefined,
+    durationMs: row.duration_ms ?? undefined,
+    createdAt: row.created_at
+  };
+}
+
+export async function createFeedRunLog(session: AuthSession, triggeredBy: string): Promise<FeedRunLog> {
+  if (shouldUseMock(session)) return mockStore.createFeedRunLog(triggeredBy);
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const { data, error } = await supabase
+    .from("personal_feed_run_logs")
+    .insert({ triggered_by: triggeredBy, status: "running" })
+    .select(FEED_RUN_LOG_COLUMNS)
+    .single<FeedRunLogRow>();
+  if (error) throw new Error(error.message);
+  return mapFeedRunLogRow(data);
+}
+
+export type CompleteFeedRunLogInput = {
+  status: FeedRunStatus;
+  filesScanned: number;
+  filesImported: number;
+  filesSkipped: number;
+  errorsCount: number;
+  errorDetails: string[];
+  modelUsed?: string;
+  durationMs: number;
+};
+
+export async function completeFeedRunLog(session: AuthSession, id: string, input: CompleteFeedRunLogInput): Promise<void> {
+  if (shouldUseMock(session)) return mockStore.completeFeedRunLog(id, input);
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const { error } = await supabase
+    .from("personal_feed_run_logs")
+    .update({
+      run_completed_at: new Date().toISOString(),
+      status: input.status,
+      files_scanned: input.filesScanned,
+      files_imported: input.filesImported,
+      files_skipped: input.filesSkipped,
+      errors_count: input.errorsCount,
+      error_details: input.errorDetails,
+      model_used: input.modelUsed ?? null,
+      duration_ms: input.durationMs
+    })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
 }

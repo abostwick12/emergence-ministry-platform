@@ -11,12 +11,27 @@ import type {
   CreateAiConversationMessageInput,
   DomainTaskSummary,
   AiConversationMessage,
+  FeedRunLog,
+  FeedRunStatus,
   JobApplication,
+  KnowledgeItem,
+  KnowledgeSource,
+  KnowledgeSourceStatus,
   PersonalDomain,
   PersonalIntegration,
   PersonalTask,
-  UpdateJobApplicationInput
+  UpdateJobApplicationInput,
+  WeeklyFeed,
+  WeeklyFeedItem,
+  WeeklyFeedItemWithDetail
 } from "@/lib/command-center/types";
+import type {
+  CompleteFeedRunLogInput,
+  CreateKnowledgeItemInput,
+  CreateWeeklyFeedInput,
+  CreateWeeklyFeedItemInput,
+  UpsertKnowledgeSourceInput
+} from "@/lib/command-center/repository";
 
 function uid(prefix: string): string {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
@@ -282,6 +297,11 @@ type CommandCenterStoreState = {
   captureInbox: CaptureEntry[];
   conversations: AiConversationMessage[];
   briefing: BriefingItem[];
+  knowledgeSources: KnowledgeSource[];
+  knowledgeItems: KnowledgeItem[];
+  weeklyFeeds: WeeklyFeed[];
+  weeklyFeedItems: WeeklyFeedItem[];
+  feedRunLogs: FeedRunLog[];
 };
 
 declare global {
@@ -289,6 +309,10 @@ declare global {
   var __commandCenterStore: CommandCenterStoreState | undefined;
 }
 
+// No seed data for the weekly intelligence feed entities -- an empty state
+// here is correct (matches the spec's own "no new sources this week" empty
+// state) rather than a gap, since this feature only produces real content
+// once Google Drive is actually connected to a populated source folder.
 function createInitialState(): CommandCenterStoreState {
   return {
     tasks: seedTasks(),
@@ -296,7 +320,12 @@ function createInitialState(): CommandCenterStoreState {
     jobApplications: seedJobApplications(),
     captureInbox: seedCaptures(),
     conversations: [],
-    briefing: seedBriefing()
+    briefing: seedBriefing(),
+    knowledgeSources: [],
+    knowledgeItems: [],
+    weeklyFeeds: [],
+    weeklyFeedItems: [],
+    feedRunLogs: []
   };
 }
 
@@ -311,6 +340,11 @@ export function __resetCommandCenterStoreForTests(): void {
   state.captureInbox = seedCaptures();
   state.conversations = [];
   state.briefing = seedBriefing();
+  state.knowledgeSources = [];
+  state.knowledgeItems = [];
+  state.weeklyFeeds = [];
+  state.weeklyFeedItems = [];
+  state.feedRunLogs = [];
 }
 
 export function listTasks(filter?: { domain?: PersonalDomain; status?: string }): PersonalTask[] {
@@ -532,4 +566,173 @@ export function listConversationMessages(sessionId: string, limit = 40): AiConve
     .filter((message) => message.sessionId === sessionId)
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
     .slice(-limit);
+}
+
+// --- SAGE Weekly Intelligence Feed (mock store) ---------------------------
+
+export function getKnowledgeSourceByDriveFileId(googleDriveFileId: string): KnowledgeSource | null {
+  return state.knowledgeSources.find((source) => source.googleDriveFileId === googleDriveFileId) ?? null;
+}
+
+export function upsertKnowledgeSource(input: UpsertKnowledgeSourceInput): KnowledgeSource {
+  const now = nowIso();
+  const existing = state.knowledgeSources.find((source) => source.googleDriveFileId === input.googleDriveFileId);
+  const source: KnowledgeSource = {
+    id: existing?.id ?? uid("source"),
+    googleDriveFileId: input.googleDriveFileId,
+    fileName: input.fileName,
+    filePath: input.filePath,
+    sourceType: input.sourceType,
+    title: input.title,
+    sourceName: input.sourceName,
+    authorOrHost: input.authorOrHost,
+    url: input.url,
+    dateFound: input.dateFound,
+    importedAt: existing?.importedAt ?? now,
+    lastModifiedAt: input.lastModifiedAt,
+    contentHash: input.contentHash,
+    status: "new",
+    errorMessage: undefined,
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now
+  };
+  state.knowledgeSources = existing
+    ? state.knowledgeSources.map((entry) => (entry.id === source.id ? source : entry))
+    : [...state.knowledgeSources, source];
+  return source;
+}
+
+export function markKnowledgeSourceError(id: string, message: string): void {
+  state.knowledgeSources = state.knowledgeSources.map((source) =>
+    source.id === id ? { ...source, errorMessage: message, updatedAt: nowIso() } : source
+  );
+}
+
+export function updateKnowledgeSourceStatus(id: string, status: KnowledgeSourceStatus): KnowledgeSource | null {
+  let updated: KnowledgeSource | null = null;
+  state.knowledgeSources = state.knowledgeSources.map((source) => {
+    if (source.id !== id) return source;
+    updated = { ...source, status, updatedAt: nowIso() };
+    return updated;
+  });
+  return updated;
+}
+
+export function listKnowledgeSources(filter?: {
+  sourceType?: KnowledgeSource["sourceType"];
+  status?: KnowledgeSourceStatus;
+}): KnowledgeSource[] {
+  return state.knowledgeSources
+    .filter((source) => !filter?.sourceType || source.sourceType === filter.sourceType)
+    .filter((source) => !filter?.status || source.status === filter.status)
+    .sort((a, b) => (b.dateFound ?? "").localeCompare(a.dateFound ?? ""));
+}
+
+export function createKnowledgeItem(input: CreateKnowledgeItemInput): KnowledgeItem {
+  const now = nowIso();
+  const item: KnowledgeItem = {
+    id: uid("item"),
+    sourceId: input.sourceId,
+    summary: input.summary,
+    keyTakeaways: input.keyTakeaways,
+    topicTags: input.topicTags,
+    relevanceScore: input.relevanceScore,
+    ministryApplication: input.ministryApplication,
+    commandCenterApplication: input.commandCenterApplication,
+    theologicalOrDiscipleshipConnection: input.theologicalOrDiscipleshipConnection,
+    careerReadinessConnection: input.careerReadinessConnection,
+    caveats: input.caveats,
+    createdAt: now,
+    updatedAt: now
+  };
+  state.knowledgeItems = [...state.knowledgeItems, item];
+  return item;
+}
+
+export function createWeeklyFeed(input: CreateWeeklyFeedInput): WeeklyFeed {
+  const existing = state.weeklyFeeds.find((feed) => feed.weekStart === input.weekStart);
+  const feed: WeeklyFeed = {
+    id: existing?.id ?? uid("feed"),
+    weekStart: input.weekStart,
+    weekEnd: input.weekEnd,
+    title: input.title,
+    executiveSummary: input.executiveSummary,
+    topTopics: input.topTopics,
+    appPlatformImplications: input.appPlatformImplications,
+    ministryImplications: input.ministryImplications,
+    suggestedActionItems: input.suggestedActionItems,
+    createdAt: existing?.createdAt ?? nowIso(),
+    createdBy: input.createdBy
+  };
+  state.weeklyFeeds = existing ? state.weeklyFeeds.map((entry) => (entry.id === feed.id ? feed : entry)) : [...state.weeklyFeeds, feed];
+  return feed;
+}
+
+export function replaceWeeklyFeedItems(weeklyFeedId: string, items: CreateWeeklyFeedItemInput[]): void {
+  const kept = state.weeklyFeedItems.filter((item) => item.weeklyFeedId !== weeklyFeedId);
+  const created: WeeklyFeedItem[] = items.map((item) => ({
+    id: uid("feed_item"),
+    weeklyFeedId: item.weeklyFeedId,
+    knowledgeItemId: item.knowledgeItemId,
+    rank: item.rank,
+    section: item.section,
+    reasonIncluded: item.reasonIncluded,
+    recommendedAction: item.recommendedAction,
+    confidenceNote: item.confidenceNote,
+    createdAt: nowIso()
+  }));
+  state.weeklyFeedItems = [...kept, ...created];
+}
+
+export function getLatestWeeklyFeedWithItems(): { feed: WeeklyFeed; items: WeeklyFeedItemWithDetail[] } | null {
+  const feed = [...state.weeklyFeeds].sort((a, b) => b.weekStart.localeCompare(a.weekStart))[0];
+  if (!feed) return null;
+
+  const items = state.weeklyFeedItems
+    .filter((item) => item.weeklyFeedId === feed.id)
+    .sort((a, b) => a.rank - b.rank)
+    .flatMap((item) => {
+      const knowledgeItem = state.knowledgeItems.find((entry) => entry.id === item.knowledgeItemId);
+      const source = knowledgeItem ? state.knowledgeSources.find((entry) => entry.id === knowledgeItem.sourceId) : undefined;
+      if (!knowledgeItem || !source) return [];
+      return [{ ...item, knowledgeItem, source }];
+    });
+
+  return { feed, items };
+}
+
+export function createFeedRunLog(triggeredBy: string): FeedRunLog {
+  const log: FeedRunLog = {
+    id: uid("run"),
+    runStartedAt: nowIso(),
+    triggeredBy,
+    status: "running",
+    filesScanned: 0,
+    filesImported: 0,
+    filesSkipped: 0,
+    errorsCount: 0,
+    errorDetails: [],
+    createdAt: nowIso()
+  };
+  state.feedRunLogs = [...state.feedRunLogs, log];
+  return log;
+}
+
+export function completeFeedRunLog(id: string, input: CompleteFeedRunLogInput): void {
+  state.feedRunLogs = state.feedRunLogs.map((log) =>
+    log.id === id
+      ? {
+          ...log,
+          runCompletedAt: nowIso(),
+          status: input.status as FeedRunStatus,
+          filesScanned: input.filesScanned,
+          filesImported: input.filesImported,
+          filesSkipped: input.filesSkipped,
+          errorsCount: input.errorsCount,
+          errorDetails: input.errorDetails,
+          modelUsed: input.modelUsed,
+          durationMs: input.durationMs
+        }
+      : log
+  );
 }

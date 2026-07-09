@@ -142,3 +142,101 @@ export interface CommandCenterOverview {
   jobFollowUpsDueCount: number;
   unprocessedCaptureCount: number;
 }
+
+// --- SAGE Weekly Intelligence Feed ------------------------------------------
+//
+// Reads a curated Google Drive folder of research notes (see
+// lib/command-center/weekly-feed/) and turns them into a ranked weekly
+// digest. Entirely separate from BriefingItem/daily_briefing_cache above,
+// which is the unrelated Firecrawl-powered daily resource feed.
+
+export type KnowledgeSourceType = "article" | "podcast" | "video" | "linkedin" | "report";
+
+export type KnowledgeSourceStatus = "new" | "included" | "skipped" | "archived";
+
+export interface KnowledgeSource {
+  id: string;
+  googleDriveFileId: string;
+  fileName: string;
+  filePath: string;
+  sourceType: KnowledgeSourceType;
+  title: string;
+  sourceName?: string;
+  authorOrHost?: string;
+  url?: string;
+  dateFound?: string;
+  importedAt: string;
+  lastModifiedAt?: string;
+  contentHash: string;
+  status: KnowledgeSourceStatus;
+  errorMessage?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface KnowledgeItem {
+  id: string;
+  sourceId: string;
+  summary: string;
+  keyTakeaways?: string;
+  topicTags: string[];
+  relevanceScore?: number;
+  ministryApplication?: string;
+  commandCenterApplication?: string;
+  theologicalOrDiscipleshipConnection?: string;
+  careerReadinessConnection?: string;
+  caveats?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WeeklyFeed {
+  id: string;
+  weekStart: string;
+  weekEnd: string;
+  title: string;
+  executiveSummary: string;
+  topTopics: string[];
+  appPlatformImplications?: string;
+  ministryImplications?: string;
+  suggestedActionItems?: string;
+  createdAt: string;
+  createdBy?: string;
+}
+
+export interface WeeklyFeedItem {
+  id: string;
+  weeklyFeedId: string;
+  knowledgeItemId: string;
+  rank: number;
+  section: string;
+  reasonIncluded?: string;
+  recommendedAction?: string;
+  confidenceNote?: string;
+  createdAt: string;
+}
+
+// A WeeklyFeedItem joined with its KnowledgeItem and source KnowledgeSource,
+// the shape the UI actually renders (see /command-center/feed/weekly).
+export interface WeeklyFeedItemWithDetail extends WeeklyFeedItem {
+  knowledgeItem: KnowledgeItem;
+  source: KnowledgeSource;
+}
+
+export type FeedRunStatus = "running" | "succeeded" | "failed";
+
+export interface FeedRunLog {
+  id: string;
+  runStartedAt: string;
+  runCompletedAt?: string;
+  triggeredBy: string;
+  status: FeedRunStatus;
+  filesScanned: number;
+  filesImported: number;
+  filesSkipped: number;
+  errorsCount: number;
+  errorDetails: string[];
+  modelUsed?: string;
+  durationMs?: number;
+  createdAt: string;
+}
