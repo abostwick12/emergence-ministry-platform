@@ -52,14 +52,19 @@ export function StudentHomeFeed({ initialState, initialFeed, initialReflections,
   const [questionNextSteps, setQuestionNextSteps] = useState(initialFeed.questionNextSteps);
   const [reflections, setReflections] = useState(initialReflections);
   const [activePromptId, setActivePromptId] = useState(initialFeed.recentQuestions[0]?.id);
+  const [activeGroupPromptId, setActiveGroupPromptId] = useState(initialFeed.forGroup[0]?.id);
+  const [activeJourneyType, setActiveJourneyType] = useState<"question" | "group">(initialFeed.recentQuestions[0] ? "question" : "group");
   const firstName = userName.split(" ")[0] || userName;
-  const activePrompt = recentQuestions.find((prompt) => prompt.id === activePromptId);
+  const activePrompt = activeJourneyType === "question" ? recentQuestions.find((prompt) => prompt.id === activePromptId) : undefined;
   const activeNextStep = activePrompt ? nextStepForPrompt(activePrompt.id) : undefined;
+  const activeGroupPrompt = activeJourneyType === "group" ? initialFeed.forGroup.find((prompt) => prompt.id === activeGroupPromptId) : undefined;
+  const activeGroupNextStep = activeGroupPrompt ? groupNextStepForPrompt(activeGroupPrompt.id) : undefined;
 
   function addPrompt(prompt: StudentDiscussionPrompt, nextPromptStep: StudentQuestionNextStep) {
     setRecentQuestions((current) => [prompt, ...current].filter((item) => item.submittedByUserId === prompt.submittedByUserId).slice(0, 4));
     setQuestionNextSteps((current) => [nextPromptStep, ...current.filter((item) => item.promptId !== prompt.id)].slice(0, 4));
     setActivePromptId(prompt.id);
+    setActiveJourneyType("question");
     setKeepReading((current) => mergeKeepReading(current, [nextPromptStep.readingPlan, nextPromptStep.resource]));
   }
 
@@ -69,6 +74,10 @@ export function StudentHomeFeed({ initialState, initialFeed, initialReflections,
 
   function nextStepForPrompt(promptId: string) {
     return questionNextSteps.find((item) => item.promptId === promptId);
+  }
+
+  function groupNextStepForPrompt(promptId: string) {
+    return initialFeed.groupNextSteps.find((item) => item.promptId === promptId);
   }
 
   return (
@@ -124,9 +133,21 @@ export function StudentHomeFeed({ initialState, initialFeed, initialReflections,
           />
         ) : null}
 
+        {activeGroupPrompt && activeGroupNextStep ? (
+          <GroupDiscussionFollowThroughCard key={activeGroupPrompt.id} nextStep={activeGroupNextStep} prompt={activeGroupPrompt} />
+        ) : null}
+
         <FeedSection title="For your group" emptyTitle="Nothing approved yet." emptyBody="Leader-approved discussion prompts will appear here when they are ready.">
           {initialFeed.forGroup.map((prompt) => (
-            <DiscussionFeedRow key={prompt.id} prompt={prompt} />
+            <DiscussionFeedRow
+              isActive={activeJourneyType === "group" && prompt.id === activeGroupPromptId}
+              key={prompt.id}
+              onOpen={() => {
+                setActiveGroupPromptId(prompt.id);
+                setActiveJourneyType("group");
+              }}
+              prompt={prompt}
+            />
           ))}
         </FeedSection>
 
@@ -136,7 +157,10 @@ export function StudentHomeFeed({ initialState, initialFeed, initialReflections,
               isActive={prompt.id === activePromptId}
               key={prompt.id}
               nextStep={nextStepForPrompt(prompt.id)}
-              onOpenJourney={() => setActivePromptId(prompt.id)}
+              onOpenJourney={() => {
+                setActivePromptId(prompt.id);
+                setActiveJourneyType("question");
+              }}
               prompt={prompt}
             />
           ))}
@@ -159,6 +183,48 @@ export function StudentHomeFeed({ initialState, initialFeed, initialReflections,
         </section>
       </aside>
     </div>
+  );
+}
+
+function GroupDiscussionFollowThroughCard({
+  nextStep,
+  prompt
+}: {
+  nextStep: StudentQuestionNextStep;
+  prompt: StudentGroupDiscussionItem;
+}) {
+  return (
+    <section className="student-question-journey student-group-follow-through" aria-label="Group discussion follow-through">
+      <div className="student-question-journey-header">
+        <div>
+          <p className="eyebrow">Wrestle Together</p>
+          <h2>{prompt.discussionPrompt || prompt.question}</h2>
+          <p>Use this leader-approved prompt before or after group so the conversation keeps forming you.</p>
+        </div>
+        <span className="pill green">{prompt.status === "posted" ? "Shared" : "Ready"}</span>
+      </div>
+
+      <div className="student-question-journey-meta" aria-label="Group discussion status">
+        <JourneyMeta label="Passage" value={prompt.scriptureReference || "Open together"} />
+        <JourneyMeta label="Question" value="Leader reviewed" />
+        <JourneyMeta label="Next" value="Read, reflect, bring it back" />
+      </div>
+
+      <div className="student-question-journey-response">
+        <span>Original question</span>
+        <p>{prompt.question}</p>
+      </div>
+
+      <div className="student-next-step-copy">
+        <p className="eyebrow">{nextStep.label}</p>
+        <h2>{nextStep.title}</h2>
+        <p>{nextStep.summary}</p>
+      </div>
+      <StudentNextStepRhythm nextStep={nextStep} />
+      <p className="student-next-step-care">
+        <strong>Bring this back:</strong> Write down one thing you noticed, one question you still have, and one way your group can respond together.
+      </p>
+    </section>
   );
 }
 
@@ -380,7 +446,15 @@ function FeedSection({
   );
 }
 
-function DiscussionFeedRow({ prompt }: { prompt: StudentGroupDiscussionItem }) {
+function DiscussionFeedRow({
+  isActive,
+  onOpen,
+  prompt
+}: {
+  isActive: boolean;
+  onOpen: () => void;
+  prompt: StudentGroupDiscussionItem;
+}) {
   return (
     <article className="student-feed-row">
       <div>
@@ -388,7 +462,12 @@ function DiscussionFeedRow({ prompt }: { prompt: StudentGroupDiscussionItem }) {
         <h3>{prompt.discussionPrompt || prompt.question}</h3>
         <p>{prompt.question}</p>
       </div>
-      <span className="pill green">{prompt.status === "posted" ? "Shared" : "Approved"}</span>
+      <div className="student-feed-row-actions">
+        <span className="pill green">{prompt.status === "posted" ? "Shared" : "Approved"}</span>
+        <button className="button secondary" onClick={onOpen} type="button">
+          {isActive ? "Open above" : "Open follow-up"}
+        </button>
+      </div>
     </article>
   );
 }
