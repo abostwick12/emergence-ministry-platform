@@ -9003,6 +9003,14 @@ html:has(.app-shell-camp) body {
   justify-content: space-between;
 }
 
+.scripture-trial-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
 .scripture-trial-insights-heading h2,
 .scripture-trial-section-title h3 {
   margin: 4px 0 0;
@@ -9287,6 +9295,10 @@ html:has(.app-shell-camp) body {
   .leader-student-invites-heading {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .scripture-trial-actions {
+    justify-content: flex-start;
   }
 
   .student-feed-rail {
