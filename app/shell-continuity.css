@@ -486,3 +486,767 @@ body {
     justify-content: center;
   }
 }
+
+/* Base44 visual direction port: dark blueprint shell for the main app.
+   Scoped away from Camp so the Camp command center keeps its approved shell. */
+.app-shell:not(.app-shell-camp) {
+  color-scheme: dark;
+  --app-header-height: 112px;
+  --bg: #050b16;
+  --surface: rgba(15, 28, 49, 0.78);
+  --surface-2: rgba(255, 255, 255, 0.04);
+  --text: #f8fafc;
+  --muted: #8fa4bd;
+  --line: rgba(255, 255, 255, 0.08);
+  --primary: #38bdf8;
+  --primary-soft: rgba(56, 189, 248, 0.14);
+  --success: #34d399;
+  --warning: #fbbf24;
+  --danger: #fb7185;
+  --shadow-sm: 0 12px 28px rgba(0, 0, 0, 0.28);
+  --shadow-md: 0 18px 44px rgba(0, 0, 0, 0.34);
+  --shadow-lg: 0 24px 70px rgba(0, 0, 0, 0.42);
+  --shadow-card: 0 24px 70px rgba(0, 0, 0, 0.34);
+  min-height: 100dvh;
+  background:
+    linear-gradient(rgba(7, 18, 34, 0.74), rgba(3, 8, 18, 0.94)),
+    url("data:image/svg+xml,%3Csvg width='640' height='640' viewBox='0 0 640 640' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' stroke='%230ea5e9' stroke-opacity='.10' stroke-width='1'%3E%3Cpath d='M36 78h96v34h72v84h88v62h112v82h122M44 216h74v66h128v52h86v82h150M138 462h86v-48h96v58h120v64h86M316 42v126h54v92h78v92M204 586v-82h68v-94h72'/%3E%3Ccircle cx='132' cy='112' r='4'/%3E%3Ccircle cx='292' cy='258' r='5'/%3E%3Ccircle cx='448' cy='352' r='4'/%3E%3Ccircle cx='224' cy='462' r='4'/%3E%3Crect x='422' y='480' width='84' height='40' rx='2'/%3E%3Crect x='86' y='528' width='92' height='48' rx='2'/%3E%3C/g%3E%3Cg fill='%237dd3fc' fill-opacity='.18'%3E%3Ccircle cx='42' cy='184' r='1.2'/%3E%3Ccircle cx='118' cy='38' r='1'/%3E%3Ccircle cx='306' cy='142' r='1'/%3E%3Ccircle cx='560' cy='94' r='1.2'/%3E%3Ccircle cx='604' cy='392' r='1'/%3E%3Ccircle cx='252' cy='612' r='1.2'/%3E%3C/g%3E%3C/svg%3E"),
+    linear-gradient(180deg, #071426 0%, #04101f 52%, #020711 100%);
+  background-attachment: fixed;
+}
+
+.app-shell:not(.app-shell-camp)::before,
+.app-shell:not(.app-shell-camp) .app-shell-parchment,
+.app-shell:not(.app-shell-camp) .app-shell-night-sky,
+.app-shell:not(.app-shell-camp) .app-top-art-clip {
+  display: none;
+}
+
+.app-shell:not(.app-shell-camp) .app-main-shell {
+  grid-template-rows: var(--app-header-height) minmax(0, 1fr);
+  background: transparent;
+}
+
+.app-shell:not(.app-shell-camp) .app-scroll-region {
+  padding: 0 38px 44px;
+}
+
+.app-shell:not(.app-shell-camp) .app-scroll-region::before {
+  content: none;
+}
+
+.app-shell:not(.app-shell-camp) .app-sidebar {
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  background:
+    linear-gradient(rgba(4, 10, 24, 0.96), rgba(3, 8, 18, 0.98)),
+    url("data:image/svg+xml,%3Csvg width='220' height='220' viewBox='0 0 220 220' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' stroke='%237dd3fc' stroke-opacity='.12' stroke-width='.8'%3E%3Cpath d='M20 32l44 22 42-16 48 38M64 54l26 44M24 168l52-24 58 14 52-36'/%3E%3Ccircle cx='20' cy='32' r='2'/%3E%3Ccircle cx='64' cy='54' r='2'/%3E%3Ccircle cx='106' cy='38' r='2'/%3E%3Ccircle cx='154' cy='76' r='2'/%3E%3C/g%3E%3Cg fill='%23e0f2fe' fill-opacity='.26'%3E%3Ccircle cx='38' cy='104' r='1'/%3E%3Ccircle cx='112' cy='86' r='1'/%3E%3Ccircle cx='184' cy='44' r='1'/%3E%3Ccircle cx='76' cy='188' r='1'/%3E%3Ccircle cx='196' cy='164' r='1'/%3E%3C/g%3E%3C/svg%3E");
+  box-shadow: inset -1px 0 0 rgba(125, 211, 252, 0.08);
+}
+
+.app-shell:not(.app-shell-camp) .brand-lead {
+  margin-bottom: 24px;
+}
+
+.app-shell:not(.app-shell-camp) .brand-lead-name {
+  color: #ffffff;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 21px;
+  font-style: italic;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.app-shell:not(.app-shell-camp) .brand-lead-light {
+  color: #ffffff;
+}
+
+.app-shell:not(.app-shell-camp) .brand-lead-bold {
+  color: #38bdf8;
+}
+
+.app-shell:not(.app-shell-camp) .brand-lead-sub {
+  color: rgba(56, 189, 248, 0.72);
+  font-size: 10px;
+  letter-spacing: 0.22em;
+}
+
+.app-shell:not(.app-shell-camp) .app-nav-list {
+  gap: 4px;
+  margin-top: 16px;
+}
+
+.app-shell:not(.app-shell-camp) .app-nav-link {
+  min-height: 38px;
+  border-color: transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: #9fb1c7;
+  font-size: 13px;
+  font-weight: 650;
+  padding: 8px 12px;
+  box-shadow: none;
+  transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease;
+}
+
+.app-shell:not(.app-shell-camp) .app-nav-link:hover:not(.active),
+.app-shell:not(.app-shell-camp) .app-nav-link:focus-visible:not(.active) {
+  border-color: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.04);
+  color: #f8fafc;
+}
+
+.app-shell:not(.app-shell-camp) .app-nav-link.active {
+  border-color: rgba(56, 189, 248, 0.10);
+  background: rgba(14, 165, 233, 0.20);
+  color: #7dd3fc;
+  box-shadow: 0 0 24px rgba(56, 189, 248, 0.08);
+}
+
+.app-shell:not(.app-shell-camp) .app-nav-icon {
+  color: currentColor;
+}
+
+.app-shell:not(.app-shell-camp) .role-control {
+  gap: 0;
+  margin-top: auto;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md);
+}
+
+.app-shell:not(.app-shell-camp) .role-pill {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #74869e;
+  box-shadow: none;
+}
+
+.app-shell:not(.app-shell-camp) .role-pill.active {
+  background: rgba(14, 165, 233, 0.22);
+  color: #7dd3fc;
+}
+
+.app-shell:not(.app-shell-camp) .sidebar-add-event {
+  width: 100%;
+  margin-top: 12px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: linear-gradient(90deg, #0ea5e9, #2563eb);
+  box-shadow: 0 16px 34px rgba(37, 99, 235, 0.24);
+}
+
+.app-shell:not(.app-shell-camp) .sidebar-profile {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  margin-top: 16px;
+  padding-top: 13px;
+}
+
+.app-shell:not(.app-shell-camp) .sidebar-avatar {
+  width: 34px;
+  height: 34px;
+  background: linear-gradient(135deg, #0ea5e9, #2563eb);
+}
+
+.app-shell:not(.app-shell-camp) .sidebar-profile-text strong {
+  max-width: 132px;
+  overflow: hidden;
+  color: #dbeafe;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-shell:not(.app-shell-camp) .sidebar-profile-text .muted,
+.app-shell:not(.app-shell-camp) .sidebar-profile-logout {
+  color: #72839a;
+  font-size: 11px;
+}
+
+.app-shell:not(.app-shell-camp) .app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  height: var(--app-header-height);
+  min-height: var(--app-header-height);
+  padding: 18px 38px 14px;
+  border-bottom: 1px solid rgba(56, 189, 248, 0.18);
+}
+
+.app-shell:not(.app-shell-camp) .app-header::before {
+  content: "";
+  position: absolute;
+  left: 38px;
+  right: 38px;
+  bottom: -1px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(56, 189, 248, 0.46), transparent);
+}
+
+.app-shell:not(.app-shell-camp) .app-header-text {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding-top: 0;
+}
+
+.app-shell:not(.app-shell-camp) .app-header-title {
+  position: relative;
+  margin: 0;
+  padding-left: 18px;
+  color: #ffffff;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(2rem, 3.4vw, 2.55rem);
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 0.95;
+  text-shadow: none;
+  text-transform: uppercase;
+}
+
+.app-shell:not(.app-shell-camp) .app-header-title::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 1px;
+  width: 4px;
+  height: 34px;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(180deg, #38bdf8, #2563eb);
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.54);
+}
+
+.app-shell:not(.app-shell-camp) .app-header-welcome {
+  margin: 0;
+  padding-left: 18px;
+  color: rgba(56, 189, 248, 0.72);
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.app-shell:not(.app-shell-camp) .app-header-right {
+  position: static;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  min-width: fit-content;
+}
+
+.app-shell:not(.app-shell-camp) .app-search-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 206px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.04);
+  color: #64748b;
+  padding: 9px 14px;
+}
+
+.app-shell:not(.app-shell-camp) .app-search-pill input {
+  width: 132px;
+  border: 0;
+  background: transparent;
+  color: #94a3b8;
+  outline: none;
+  padding: 0;
+}
+
+.app-shell:not(.app-shell-camp) .app-search-pill input::placeholder {
+  color: #64748b;
+}
+
+.app-shell:not(.app-shell-camp) .hub-bell {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.05);
+  color: #94a3b8;
+  box-shadow: none;
+}
+
+.app-shell:not(.app-shell-camp) .hub-bell-badge {
+  background: linear-gradient(135deg, #38bdf8, #2563eb);
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.55);
+}
+
+.app-shell:not(.app-shell-camp) :is(.panel, .card, .dashboard-card, .kpi-card, .pulse-panel, .next-cal-panel, .calendar-panel, .student-reading-help, .student-scripture-tool, .student-question-composer, .student-next-step, .student-feed-section, .student-feed-rail-card, .leader-review-queue, .leader-review-detail, .leader-workspace-hero, .leader-gloo-diagnostics, .leader-student-invites, .knowledge-control-hero, .knowledge-test-bench, .knowledge-test-preview, .knowledge-source-form, .knowledge-source-card, .scripture-trial-insights, .scripture-trial-list, .scripture-trial-question, .scripture-trial-empty, .leader-review-context, .leader-review-context-card) {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md);
+  background:
+    linear-gradient(145deg, rgba(18, 32, 55, 0.78), rgba(10, 20, 37, 0.82)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent);
+  box-shadow:
+    0 20px 52px rgba(0, 0, 0, 0.30),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(16px) saturate(125%);
+  -webkit-backdrop-filter: blur(16px) saturate(125%);
+}
+
+.app-shell:not(.app-shell-camp) :is(.panel, .card, .dashboard-card, .kpi-card, .pulse-panel, .next-cal-panel, .calendar-panel)::before,
+.app-shell:not(.app-shell-camp) :is(.panel, .card, .dashboard-card, .kpi-card, .pulse-panel, .next-cal-panel, .calendar-panel)::after {
+  opacity: 0.35;
+}
+
+.app-shell:not(.app-shell-camp) :is(.kpi-label, .eyebrow, .student-feed-row span:first-child, .student-keep-reading-link span, .scripture-trial-stat span, .scripture-trial-question span, .leader-review-meta-tile span, .leader-review-stat span, .leader-review-queue-item span:first-child, .knowledge-test-section span, .knowledge-source-card-header span:first-child) {
+  color: #38bdf8;
+}
+
+.app-shell:not(.app-shell-camp) :is(.section-title, .kpi-value, .pulse-label, .pulse-value, .next-cal-title, .calendar-month, .student-feed-section-heading h2, .student-feed-rail h2, .student-feed-row h3, .student-keep-reading-link strong, .student-question-composer h1, .student-next-step-copy h2, .leader-review-detail-header h2, .knowledge-control-hero h1, .knowledge-test-form h2, .knowledge-source-form h2, .knowledge-source-card-header h3, .scripture-trial-insights-heading h2, .scripture-trial-section-title h3) {
+  color: #f8fafc;
+}
+
+.app-shell:not(.app-shell-camp) :is(.muted, .kpi-hint, .pulse-hint, .next-cal-time, .next-cal-loc, .calendar-weekday, .student-feed-row p, .student-keep-reading-link p, .student-feed-empty p, .student-question-composer-copy p, .student-next-step-copy p, .leader-review-detail-header p, .knowledge-control-hero p, .knowledge-test-form p, .knowledge-test-preview p, .knowledge-source-card-header p, .scripture-trial-insights-heading p, .scripture-trial-section-title p, .scripture-trial-list p, .scripture-trial-empty p) {
+  color: #8fa4bd;
+}
+
+.app-shell:not(.app-shell-camp) .button {
+  border-color: rgba(255, 255, 255, 0.10);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.04);
+  color: #f8fafc;
+}
+
+.app-shell:not(.app-shell-camp) .button.primary {
+  border-color: transparent;
+  background: linear-gradient(90deg, #0ea5e9, #2563eb);
+  color: #ffffff;
+}
+
+.app-shell:not(.app-shell-camp) :is(.input, textarea, input, select) {
+  border-color: rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.04);
+  color: #f8fafc;
+}
+
+.app-shell:not(.app-shell-camp) :is(textarea, input)::placeholder {
+  color: #64748b;
+}
+
+.app-shell:not(.app-shell-camp) .pill {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(56, 189, 248, 0.12);
+  color: #7dd3fc;
+}
+
+.app-shell:not(.app-shell-camp) .pill.green,
+.app-shell:not(.app-shell-camp) .pill.done {
+  background: rgba(16, 185, 129, 0.14);
+  color: #6ee7b7;
+}
+
+.app-shell:not(.app-shell-camp) .pill.amber {
+  background: rgba(245, 158, 11, 0.14);
+  color: #fcd34d;
+}
+
+.app-shell:not(.app-shell-camp) .pill.red,
+.app-shell:not(.app-shell-camp) .pill.blocked {
+  background: rgba(244, 63, 94, 0.14);
+  color: #fda4af;
+}
+
+.app-shell:not(.app-shell-camp) .dashboard-watercolor {
+  gap: 22px;
+  padding-top: 0;
+}
+
+.app-shell:not(.app-shell-camp) .dashboard-main-grid {
+  gap: 22px;
+}
+
+.app-shell:not(.app-shell-camp) .kpi-card {
+  min-height: 118px;
+  padding: 18px;
+  animation: none;
+}
+
+.app-shell:not(.app-shell-camp) .kpi-card-inner {
+  align-items: flex-start;
+}
+
+.app-shell:not(.app-shell-camp) .kpi-icon,
+.app-shell:not(.app-shell-camp) .pulse-icon,
+.app-shell:not(.app-shell-camp) .next-cal-header-glyph,
+.app-shell:not(.app-shell-camp) .calendar-title-glyph,
+.app-shell:not(.app-shell-camp) .student-help-icon {
+  border: 1px solid rgba(56, 189, 248, 0.24);
+  background: rgba(14, 165, 233, 0.14);
+  color: #7dd3fc;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10);
+}
+
+.app-shell:not(.app-shell-camp) .kpi-label {
+  font-size: 11px;
+  letter-spacing: 0.18em;
+}
+
+.app-shell:not(.app-shell-camp) .kpi-value {
+  font-size: 32px;
+}
+
+.app-shell:not(.app-shell-camp) .kpi-wash,
+.app-shell:not(.app-shell-camp) .dashboard-footer {
+  display: none;
+}
+
+.app-shell:not(.app-shell-camp) .pulse-panel,
+.app-shell:not(.app-shell-camp) .next-cal-panel {
+  padding: 22px;
+}
+
+.app-shell:not(.app-shell-camp) .pulse-row,
+.app-shell:not(.app-shell-camp) .next-cal-item {
+  border-color: rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.app-shell:not(.app-shell-camp) .next-cal-item:hover {
+  background: rgba(14, 165, 233, 0.12);
+}
+
+.app-shell:not(.app-shell-camp) .next-cal-date {
+  background: rgba(14, 165, 233, 0.16);
+  border: 1px solid rgba(56, 189, 248, 0.24);
+  color: #7dd3fc;
+}
+
+.app-shell:not(.app-shell-camp) .calendar-cell {
+  min-height: 72px;
+  border-color: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.025);
+  box-shadow: none;
+}
+
+.app-shell:not(.app-shell-camp) .calendar-cell.today {
+  border-color: rgba(56, 189, 248, 0.65);
+  background: rgba(14, 165, 233, 0.14);
+  box-shadow: 0 0 22px rgba(56, 189, 248, 0.22);
+}
+
+.app-shell:not(.app-shell-camp) .calendar-daynum,
+.app-shell:not(.app-shell-camp) .chip-title,
+.app-shell:not(.app-shell-camp) .kpi-ring-text {
+  color: #dbeafe;
+  fill: #dbeafe;
+}
+
+.app-shell:not(.app-shell-camp) .calendar-legend {
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+.app-shell:not(.app-shell-camp) .student-shell {
+  background: transparent;
+}
+
+.app-shell:not(.app-shell-camp) .student-feed {
+  grid-template-columns: minmax(0, 1fr) minmax(286px, 340px);
+  gap: 22px;
+  align-items: start;
+}
+
+.app-shell:not(.app-shell-camp) .student-reading-helps {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.app-shell:not(.app-shell-camp) .student-reading-help {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  min-height: 118px;
+  padding: 18px;
+}
+
+.app-shell:not(.app-shell-camp) .student-reading-help h2,
+.app-shell:not(.app-shell-camp) .student-scripture-tool h2 {
+  margin: 0;
+  color: #f8fafc;
+  font-size: 15px;
+  line-height: 1.25;
+}
+
+.app-shell:not(.app-shell-camp) .student-reading-help p {
+  margin: 6px 0 0;
+  color: #9fb1c7;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.app-shell:not(.app-shell-camp) .student-help-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  border-radius: var(--radius-md);
+}
+
+.app-shell:not(.app-shell-camp) .student-feed-welcome {
+  display: none;
+}
+
+.app-shell:not(.app-shell-camp) .student-scripture-tool {
+  display: grid;
+  align-content: start;
+  min-height: 320px;
+  padding: 22px;
+}
+
+.app-shell:not(.app-shell-camp) .student-tool-heading {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.app-shell:not(.app-shell-camp) .student-tool-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.04);
+  color: #64748b;
+  padding: 12px 14px;
+}
+
+.app-shell:not(.app-shell-camp) .student-tool-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.app-shell:not(.app-shell-camp) .student-tool-chips a {
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.04);
+  color: #94a3b8;
+  padding: 6px 10px;
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.app-shell:not(.app-shell-camp) .student-tool-chips a:hover,
+.app-shell:not(.app-shell-camp) .student-tool-chips a:focus-visible {
+  border-color: rgba(56, 189, 248, 0.35);
+  color: #7dd3fc;
+}
+
+.app-shell:not(.app-shell-camp) .student-feed-rail {
+  position: sticky;
+  top: 18px;
+  display: grid;
+  gap: 18px;
+}
+
+.app-shell:not(.app-shell-camp) .student-feed-rail-card,
+.app-shell:not(.app-shell-camp) .student-question-composer {
+  display: grid;
+  gap: 14px;
+  padding: 20px;
+}
+
+.app-shell:not(.app-shell-camp) .student-question-composer h1 {
+  font-size: 18px;
+}
+
+.app-shell:not(.app-shell-camp) .student-question-composer-copy p {
+  font-size: 12px;
+}
+
+.app-shell:not(.app-shell-camp) .student-question-field span {
+  color: #9fb1c7;
+  font-size: 12px;
+}
+
+.app-shell:not(.app-shell-camp) .student-question-field textarea {
+  min-height: 86px;
+}
+
+.app-shell:not(.app-shell-camp) .student-question-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.app-shell:not(.app-shell-camp) .student-question-actions .button {
+  width: 100%;
+}
+
+.app-shell:not(.app-shell-camp) .student-feed-section {
+  padding: 20px;
+}
+
+.app-shell:not(.app-shell-camp) .student-feed-section-heading h2::before {
+  content: "Discussion Space";
+  display: block;
+  color: #34d399;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.app-shell:not(.app-shell-camp) .student-feed-list {
+  max-height: 480px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.app-shell:not(.app-shell-camp) .student-feed-row,
+.app-shell:not(.app-shell-camp) .student-keep-reading-link {
+  border-top-color: rgba(255, 255, 255, 0.07);
+}
+
+.app-shell:not(.app-shell-camp) .student-feed-row {
+  border: 1px solid rgba(56, 189, 248, 0.16);
+  border-radius: var(--radius-md);
+  background: rgba(14, 165, 233, 0.10);
+  padding: 14px;
+}
+
+.app-shell:not(.app-shell-camp) .student-feed-row + .student-feed-row {
+  margin-top: 10px;
+}
+
+.app-shell:not(.app-shell-camp) .student-feed-row:first-child {
+  padding-top: 14px;
+}
+
+.app-shell:not(.app-shell-camp) .student-feed-empty,
+.app-shell:not(.app-shell-camp) .student-next-step-panel,
+.app-shell:not(.app-shell-camp) .scripture-trial-stat,
+.app-shell:not(.app-shell-camp) .leader-review-meta-tile,
+.app-shell:not(.app-shell-camp) .leader-review-stat,
+.app-shell:not(.app-shell-camp) .leader-review-tab,
+.app-shell:not(.app-shell-camp) .leader-review-queue-item,
+.app-shell:not(.app-shell-camp) .knowledge-test-match,
+.app-shell:not(.app-shell-camp) .knowledge-source-tags span,
+.app-shell:not(.app-shell-camp) .knowledge-source-chunks details {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.app-shell:not(.app-shell-camp) .discipleship-workspace-stack::before {
+  content: none;
+}
+
+.app-shell:not(.app-shell-camp) .scripture-trial-insights,
+.app-shell:not(.app-shell-camp) .knowledge-control-room,
+.app-shell:not(.app-shell-camp) .leader-workspace {
+  scroll-margin-top: 24px;
+}
+
+.app-shell:not(.app-shell-camp) .leader-review-tab.active,
+.app-shell:not(.app-shell-camp) .leader-review-queue-item.active,
+.app-shell:not(.app-shell-camp) .leader-review-tab:hover,
+.app-shell:not(.app-shell-camp) .leader-review-queue-item:hover {
+  border-color: rgba(56, 189, 248, 0.56);
+  background: rgba(14, 165, 233, 0.14);
+}
+
+.app-shell:not(.app-shell-camp) .leader-review-care {
+  border-color: rgba(251, 191, 36, 0.26);
+  background: rgba(251, 191, 36, 0.12);
+}
+
+.app-shell:not(.app-shell-camp) .leader-review-care p {
+  color: #fde68a;
+}
+
+@media (max-width: 960px) {
+  .app-shell:not(.app-shell-camp) .student-reading-helps,
+  .app-shell:not(.app-shell-camp) .student-feed {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .app-shell:not(.app-shell-camp) .student-feed-rail {
+    position: static;
+  }
+}
+
+@media (max-width: 720px) {
+  .app-shell:not(.app-shell-camp) {
+    display: block;
+    min-height: 100dvh;
+    height: auto;
+    overflow: visible;
+    background-color: #050b16;
+  }
+
+  .app-shell:not(.app-shell-camp) .app-main-shell {
+    display: block;
+    min-height: 100dvh;
+    height: auto;
+    background:
+      linear-gradient(rgba(7, 18, 34, 0.76), rgba(3, 8, 18, 0.96)),
+      url("data:image/svg+xml,%3Csvg width='420' height='420' viewBox='0 0 420 420' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' stroke='%230ea5e9' stroke-opacity='.09' stroke-width='1'%3E%3Cpath d='M28 82h78v42h66v58h86v72h96M86 302h74v-46h96v62h84'/%3E%3Ccircle cx='106' cy='124' r='3'/%3E%3Ccircle cx='258' cy='254' r='3'/%3E%3C/g%3E%3C/svg%3E"),
+      #050b16;
+  }
+
+  .app-shell:not(.app-shell-camp) .app-header {
+    align-items: flex-start;
+    height: auto;
+    min-height: 0;
+    padding: calc(env(safe-area-inset-top, 0px) + 18px) 18px 16px;
+  }
+
+  .app-shell:not(.app-shell-camp) .app-header-right {
+    display: none;
+  }
+
+  .app-shell:not(.app-shell-camp) .app-header-title {
+    font-size: 2rem;
+  }
+
+  .app-shell:not(.app-shell-camp) .app-scroll-region {
+    overflow: visible;
+    padding: 18px 16px 86px;
+    background: transparent;
+  }
+
+  .app-shell:not(.app-shell-camp) .mobile-bottom-nav {
+    left: 10px;
+    right: 10px;
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: var(--radius-md);
+    background: rgba(5, 11, 22, 0.92);
+    box-shadow: 0 -16px 36px rgba(0, 0, 0, 0.36);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+  }
+
+  .app-shell:not(.app-shell-camp) .mobile-nav-link {
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: #8fa4bd;
+  }
+
+  .app-shell:not(.app-shell-camp) .mobile-nav-link.active {
+    border-color: rgba(56, 189, 248, 0.18);
+    border-top-color: rgba(56, 189, 248, 0.70);
+    background: rgba(14, 165, 233, 0.16);
+    color: #7dd3fc;
+  }
+
+  .app-shell:not(.app-shell-camp) .mobile-more-menu[open] .mobile-more-panel {
+    border-color: rgba(255, 255, 255, 0.08);
+    background: #071426;
+  }
+
+  .app-shell:not(.app-shell-camp) .student-reading-help,
+  .app-shell:not(.app-shell-camp) .student-scripture-tool,
+  .app-shell:not(.app-shell-camp) .student-question-composer,
+  .app-shell:not(.app-shell-camp) .student-feed-section,
+  .app-shell:not(.app-shell-camp) .student-feed-rail-card {
+    padding: 16px;
+  }
+}

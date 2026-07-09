@@ -12,9 +12,11 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(discipleshipLink).toBeVisible();
     await portalLink.click();
     await expect(page).toHaveURL(/\/student$/);
-    await expect(page.getByRole("heading", { name: "Welcome back, Andrew." })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Student Portal" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "How to Read the Bible" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Scripture Study Tool" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "What should we talk about next?" })).toBeVisible();
-    await expect(page.getByRole("complementary", { name: "Keep reading" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Keep reading" })).toBeVisible();
 
     await page.goto("/dashboard");
     await discipleshipLink.click();
@@ -38,16 +40,15 @@ test.describe("Student Scripture Hub shell", () => {
     await login(page);
 
     await page.goto("/student");
-    await expect(page.getByRole("heading", { name: "Welcome back, Andrew." })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Student Portal" })).toBeVisible();
     await expect(page.getByText("Ask honestly, then keep exploring with a few next steps before group.")).toBeVisible();
-    await expect(page.getByRole("navigation", { name: "Student navigation" }).getByRole("link", { name: "Home", exact: true })).toBeVisible();
-    await expect(page.getByRole("navigation", { name: "Student navigation" }).getByRole("link", { name: "Ask", exact: true })).toBeVisible();
-    await expect(page.getByRole("navigation", { name: "Student navigation" }).getByRole("link", { name: "Plans", exact: true })).toBeVisible();
-    await expect(page.getByRole("navigation", { name: "Student navigation" }).getByRole("link", { name: "Resources", exact: true })).toBeVisible();
-    await expect(page.getByRole("navigation", { name: "Student navigation" }).getByRole("link", { name: "Review Queue", exact: true })).toHaveCount(0);
-    await expect(page.getByRole("navigation", { name: "Student navigation" }).getByRole("link", { name: "Leader Review", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "How to Read the Bible" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Understanding Context" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Asking Good Questions" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Review Queue", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Leader Review", exact: true })).toHaveCount(0);
     await expect(page.getByText("Metanarrative movement")).toHaveCount(0);
-    await page.getByRole("link", { name: "Lead Emergence", exact: true }).click();
+    await page.getByRole("link", { name: "Lead Emergence Automated Platform", exact: true }).click();
     await expect(page).toHaveURL(/\/dashboard$/);
 
     await page.goto("/student/scripture");

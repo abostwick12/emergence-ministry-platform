@@ -18,7 +18,7 @@ export default async function AuthenticatedLayout({ children }: { children: Reac
   const shellAccess = await resolveAppShellAccess(session);
 
   return (
-    <RoleProvider>
+    <RoleProvider initialRole={session.user.role === "leader" ? "leader" : "admin"}>
       <EventCardProvider>
         <AppShell
           devAuth={devAuth}

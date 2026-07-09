@@ -1,5 +1,6 @@
 "use client";
 
+import { BookOpen, Search, Sparkles, Users } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -19,6 +20,24 @@ type StudentHomeFeedProps = {
   userName: string;
 };
 
+const readingHelps = [
+  {
+    title: "How to Read the Bible",
+    description: "Start with the whole story before zooming into a single verse.",
+    icon: BookOpen
+  },
+  {
+    title: "Understanding Context",
+    description: "Ask who wrote it, who received it, and what was happening around them.",
+    icon: Sparkles
+  },
+  {
+    title: "Asking Good Questions",
+    description: "Look for what it shows about God, people, and faithful response.",
+    icon: Users
+  }
+] as const;
+
 export function StudentHomeFeed({ initialState, initialFeed, userName }: StudentHomeFeedProps) {
   const [recentQuestions, setRecentQuestions] = useState(initialFeed.recentQuestions);
   const [keepReading, setKeepReading] = useState(initialFeed.keepReading);
@@ -33,6 +52,20 @@ export function StudentHomeFeed({ initialState, initialFeed, userName }: Student
 
   return (
     <div className="student-feed">
+      <section className="student-reading-helps" aria-label="Bible reading helps">
+        {readingHelps.map((help) => (
+          <article className="student-reading-help" key={help.title}>
+            <span className="student-help-icon" aria-hidden="true">
+              <help.icon size={17} />
+            </span>
+            <div>
+              <h2>{help.title}</h2>
+              <p>{help.description}</p>
+            </div>
+          </article>
+        ))}
+      </section>
+
       <section className="student-feed-main" aria-label="Student home feed">
         <div className="student-feed-welcome">
           <p className="eyebrow">Student Portal</p>
@@ -40,7 +73,25 @@ export function StudentHomeFeed({ initialState, initialFeed, userName }: Student
           <p>Ask real questions, keep reading, and bring better conversations to your group.</p>
         </div>
 
-        <StudentQuestionComposer readiness={initialState.readiness} onCreated={addPrompt} />
+        <section className="student-scripture-tool" aria-label="Scripture study shortcuts">
+          <div className="student-tool-heading">
+            <span className="student-help-icon" aria-hidden="true">
+              <BookOpen size={17} />
+            </span>
+            <h2>Scripture Study Tool</h2>
+          </div>
+          <div className="student-tool-search">
+            <Search size={17} aria-hidden="true" />
+            <span>Look up a passage or topic through the resources below.</span>
+          </div>
+          <div className="student-tool-chips" aria-label="Starter passages">
+            {["Genesis 1", "Psalm 23", "John 1:1-14", "Romans 8", "The Sermon on the Mount"].map((label) => (
+              <Link href="/student/scripture/resources" key={label}>
+                {label}
+              </Link>
+            ))}
+          </div>
+        </section>
 
         {nextStep ? <StudentQuestionNextStepCard nextStep={nextStep} /> : null}
 
@@ -57,16 +108,20 @@ export function StudentHomeFeed({ initialState, initialFeed, userName }: Student
         </FeedSection>
       </section>
 
-      <aside className="student-feed-rail" aria-label="Keep reading">
-        <div>
-          <p className="eyebrow">Keep reading</p>
-          <h2>Picked for where you are</h2>
-        </div>
-        <div className="student-feed-rail-list">
-          {keepReading.map((item) => (
-            <KeepReadingLink item={item} key={item.id} />
-          ))}
-        </div>
+      <aside className="student-feed-rail" aria-label="Student actions and keep reading">
+        <StudentQuestionComposer readiness={initialState.readiness} onCreated={addPrompt} />
+
+        <section className="student-feed-rail-card" aria-label="Keep reading">
+          <div>
+            <p className="eyebrow">Keep reading</p>
+            <h2>Picked for where you are</h2>
+          </div>
+          <div className="student-feed-rail-list">
+            {keepReading.map((item) => (
+              <KeepReadingLink item={item} key={item.id} />
+            ))}
+          </div>
+        </section>
       </aside>
     </div>
   );
