@@ -147,6 +147,28 @@ describe("student discussion workflow state", () => {
     });
     expect(getStudentKnowledgeMatchesMock).toHaveBeenCalledWith(leaderSession(), expect.objectContaining({ id: "prompt_context" }));
   });
+
+  it("summarizes student reflection activity without exposing private notes", async () => {
+    const client = workflowStateClient(
+      [discussionRow({ id: "prompt_reflected", status: "approved" })],
+      [
+        { prompt_id: "prompt_reflected", actor_user_id: "usr_student", created_at: "2026-07-09T16:00:00.000Z" },
+        { prompt_id: "prompt_reflected", actor_user_id: "usr_student", created_at: "2026-07-09T15:00:00.000Z" },
+        { prompt_id: "prompt_reflected", actor_user_id: "usr_other", created_at: "2026-07-09T14:00:00.000Z" }
+      ]
+    );
+    getSupabaseAuthClientMock.mockReturnValue(client.client);
+
+    const state = await getStudentDiscussionWorkflowState(leaderSession());
+
+    expect(state.prompts[0]).toMatchObject({
+      id: "prompt_reflected",
+      studentReflectionCount: 2,
+      studentLastReflectedAt: "2026-07-09T16:00:00.000Z"
+    });
+    expect(client.eventSelect).toHaveBeenCalledWith("prompt_id,actor_user_id,created_at");
+    expect(JSON.stringify(state.prompts[0])).not.toContain("private_note");
+  });
 });
 
 describe("leader discussion draft regeneration", () => {
@@ -327,16 +349,23 @@ function approvedFeedClient(rows: Array<Record<string, unknown>>) {
   return { client, select, query };
 }
 
-function workflowStateClient(rows: Array<Record<string, unknown>>) {
-  const query = {
-    order: vi.fn(() => query),
+function workflowStateClient(rows: Array<Record<string, unknown>>, eventRows: Array<Record<string, unknown>> = []) {
+  const promptQuery = {
+    order: vi.fn(() => promptQuery),
     returns: vi.fn(async () => ({ data: rows, error: null }))
   };
-  const select = vi.fn(() => query);
-  const client = {
-    from: vi.fn(() => ({ select }))
+  const eventQuery = {
+    eq: vi.fn(() => eventQuery),
+    in: vi.fn(() => eventQuery),
+    order: vi.fn(() => eventQuery),
+    returns: vi.fn(async () => ({ data: eventRows, error: null }))
   };
-  return { client, select, query };
+  const select = vi.fn(() => promptQuery);
+  const eventSelect = vi.fn(() => eventQuery);
+  const client = {
+    from: vi.fn((table: string) => ({ select: table === "student_discussion_prompt_events" ? eventSelect : select }))
+  };
+  return { client, select, eventSelect, promptQuery, eventQuery };
 }
 
 function session(): AuthSession {
