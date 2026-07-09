@@ -252,6 +252,54 @@
   flex-direction: column;
 }
 
+.command-center-shell .cc-menu-toggle {
+  display: none;
+}
+
+.command-center-shell .cc-sidebar-backdrop {
+  display: none;
+}
+
+/*
+ * Below 900px there isn't room for a fixed 256px sidebar alongside usable
+ * content, so it becomes an off-canvas drawer toggled from the header.
+ */
+@media (max-width: 900px) {
+  .command-center-shell .cc-sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 50;
+    transform: translateX(-100%);
+    transition: transform 0.22s ease;
+    box-shadow: var(--cc-shadow-hero);
+  }
+
+  .command-center-shell .cc-sidebar.cc-sidebar-open {
+    transform: translateX(0);
+  }
+
+  .command-center-shell .cc-menu-toggle {
+    display: inline-flex;
+  }
+
+  .command-center-shell .cc-sidebar-backdrop.cc-visible {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    background: oklch(0.22 0.045 258 / 0.4);
+  }
+}
+
+@media (max-width: 560px) {
+  .command-center-shell .cc-clocks,
+  .command-center-shell .cc-header-greeting-row .cc-divider-v {
+    display: none;
+  }
+}
+
 .command-center-shell .cc-sidebar-brand {
   padding: 24px;
   border-bottom: 1px solid oklch(0.22 0.045 258 / 0.08);
@@ -480,6 +528,16 @@
   }
 }
 
+@media (max-width: 640px) {
+  .command-center-shell .cc-bento-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .command-center-shell .cc-col-2,
+  .command-center-shell .cc-col-4 {
+    grid-column: span 1 / span 1;
+  }
+}
+
 /* --- Feed rail --------------------------------------------------------- */
 
 .command-center-shell .cc-feed-rail {
@@ -489,6 +547,28 @@
   background: oklch(0.985 0.006 85 / 0.4);
   display: flex;
   flex-direction: column;
+}
+
+/*
+ * Below 900px the fixed 320px feed rail squeezes .cc-content-main down to a
+ * sliver in the shared row flexbox. Stack dashboard content above the
+ * activity feed instead of splitting the width between them.
+ */
+@media (max-width: 900px) {
+  .command-center-shell .cc-content {
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  .command-center-shell .cc-content-main {
+    overflow-y: visible;
+  }
+
+  .command-center-shell .cc-feed-rail {
+    width: 100%;
+    border-left: none;
+    border-top: 1px solid oklch(0.22 0.045 258 / 0.1);
+  }
 }
 
 .command-center-shell .cc-feed-header {

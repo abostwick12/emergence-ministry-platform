@@ -2,6 +2,7 @@
 
 import { Bell } from "lucide-react";
 import { CommandCenterClocks } from "@/components/command-center/command-center-clocks";
+import { CommandCenterMenuToggle } from "@/components/command-center/command-center-mobile-nav";
 
 function initials(fullName: string): string {
   const parts = fullName.trim().split(/\s+/);
@@ -36,6 +37,7 @@ export function CommandCenterHeader({
   return (
     <header className="cc-header">
       <div className="cc-header-greeting-row">
+        <CommandCenterMenuToggle />
         <div>
           <h1 style={{ fontSize: 17, fontWeight: 600, letterSpacing: "-0.01em", lineHeight: 1 }}>
             Good {timeOfDayGreeting()}, <span className="cc-serif" style={{ fontStyle: "italic", fontWeight: 500 }}>{firstName(fullName)}</span>.
