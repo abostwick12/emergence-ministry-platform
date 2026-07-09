@@ -6,6 +6,7 @@ import { useState } from "react";
 
 import { StudentQuestionComposer } from "@/components/student/student-question-composer";
 import type { DiscussionWorkflowState } from "@/lib/scripture/discussion-workflow";
+import type { StudentQuestionReflection } from "@/lib/scripture/student-reflections";
 import type {
   StudentGroupDiscussionItem,
   StudentHomeFeed as StudentHomeFeedData,
@@ -17,7 +18,14 @@ import type { StudentDiscussionPrompt } from "@/lib/scripture/types";
 type StudentHomeFeedProps = {
   initialState: DiscussionWorkflowState;
   initialFeed: StudentHomeFeedData;
+  initialReflections: Record<string, StudentQuestionReflection>;
   userName: string;
+};
+
+type ReflectionResponse = {
+  ok?: boolean;
+  error?: string;
+  reflection?: StudentQuestionReflection;
 };
 
 const readingHelps = [
@@ -38,10 +46,11 @@ const readingHelps = [
   }
 ] as const;
 
-export function StudentHomeFeed({ initialState, initialFeed, userName }: StudentHomeFeedProps) {
+export function StudentHomeFeed({ initialState, initialFeed, initialReflections, userName }: StudentHomeFeedProps) {
   const [recentQuestions, setRecentQuestions] = useState(initialFeed.recentQuestions);
   const [keepReading, setKeepReading] = useState(initialFeed.keepReading);
   const [questionNextSteps, setQuestionNextSteps] = useState(initialFeed.questionNextSteps);
+  const [reflections, setReflections] = useState(initialReflections);
   const [activePromptId, setActivePromptId] = useState(initialFeed.recentQuestions[0]?.id);
   const firstName = userName.split(" ")[0] || userName;
   const activePrompt = recentQuestions.find((prompt) => prompt.id === activePromptId);
@@ -52,6 +61,10 @@ export function StudentHomeFeed({ initialState, initialFeed, userName }: Student
     setQuestionNextSteps((current) => [nextPromptStep, ...current.filter((item) => item.promptId !== prompt.id)].slice(0, 4));
     setActivePromptId(prompt.id);
     setKeepReading((current) => mergeKeepReading(current, [nextPromptStep.readingPlan, nextPromptStep.resource]));
+  }
+
+  function updateReflection(reflection: StudentQuestionReflection) {
+    setReflections((current) => ({ ...current, [reflection.promptId]: reflection }));
   }
 
   function nextStepForPrompt(promptId: string) {
@@ -101,7 +114,15 @@ export function StudentHomeFeed({ initialState, initialFeed, userName }: Student
           </div>
         </section>
 
-        {activePrompt && activeNextStep ? <StudentQuestionJourneyCard nextStep={activeNextStep} prompt={activePrompt} /> : null}
+        {activePrompt && activeNextStep ? (
+          <StudentQuestionJourneyCard
+            key={activePrompt.id}
+            nextStep={activeNextStep}
+            onReflectionSaved={updateReflection}
+            prompt={activePrompt}
+            reflection={reflections[activePrompt.id]}
+          />
+        ) : null}
 
         <FeedSection title="For your group" emptyTitle="Nothing approved yet." emptyBody="Leader-approved discussion prompts will appear here when they are ready.">
           {initialFeed.forGroup.map((prompt) => (
@@ -141,7 +162,17 @@ export function StudentHomeFeed({ initialState, initialFeed, userName }: Student
   );
 }
 
-function StudentQuestionJourneyCard({ prompt, nextStep }: { prompt: StudentDiscussionPrompt; nextStep: StudentQuestionNextStep }) {
+function StudentQuestionJourneyCard({
+  prompt,
+  nextStep,
+  onReflectionSaved,
+  reflection
+}: {
+  prompt: StudentDiscussionPrompt;
+  nextStep: StudentQuestionNextStep;
+  onReflectionSaved: (reflection: StudentQuestionReflection) => void;
+  reflection?: StudentQuestionReflection;
+}) {
   const hasLeaderResponse = prompt.status === "approved" || prompt.status === "posted";
 
   return (
@@ -176,11 +207,83 @@ function StudentQuestionJourneyCard({ prompt, nextStep }: { prompt: StudentDiscu
         <p>{nextStep.summary}</p>
       </div>
       <StudentNextStepRhythm nextStep={nextStep} />
+      <StudentReflectionPanel onSaved={onReflectionSaved} prompt={prompt} reflection={reflection} />
       {nextStep.careNote ? (
         <p className="student-next-step-care">
           <strong>Bring this with you:</strong> {nextStep.careNote}
         </p>
       ) : null}
+    </section>
+  );
+}
+
+function StudentReflectionPanel({
+  onSaved,
+  prompt,
+  reflection
+}: {
+  onSaved: (reflection: StudentQuestionReflection) => void;
+  prompt: StudentDiscussionPrompt;
+  reflection?: StudentQuestionReflection;
+}) {
+  const [privateNote, setPrivateNote] = useState(reflection?.privateNote ?? "");
+  const [isReflected, setIsReflected] = useState(Boolean(reflection?.reflectedAt));
+  const [isSaving, setIsSaving] = useState(false);
+  const [status, setStatus] = useState(reflection?.reflectedAt ? "You marked this as reflected." : "Private to you.");
+
+  async function saveReflection(reflected: boolean) {
+    setIsSaving(true);
+    setStatus(reflected ? "Saving your reflection..." : "Saving your private note...");
+    try {
+      const response = await fetch("/api/student/scripture/reflections", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ promptId: prompt.id, reflected, privateNote })
+      });
+      const payload = (await response.json()) as ReflectionResponse;
+      if (!response.ok || !payload.ok || !payload.reflection) {
+        setStatus(payload.error ?? "Reflection could not be saved.");
+        return;
+      }
+
+      onSaved(payload.reflection);
+      setIsReflected(Boolean(payload.reflection.reflectedAt));
+      setPrivateNote(payload.reflection.privateNote);
+      setStatus(payload.reflection.reflectedAt ? "Reflection saved. Bring this with you to group." : "Private note saved.");
+    } catch {
+      setStatus("Reflection could not be saved.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  return (
+    <section className="student-question-reflection" aria-label="Private reflection">
+      <div>
+        <p className="eyebrow">Reflect</p>
+        <h3>What are you noticing?</h3>
+        <p>Save a private note for yourself before this becomes a group conversation.</p>
+      </div>
+      <label>
+        <span>Private note</span>
+        <textarea
+          maxLength={1200}
+          onChange={(event) => setPrivateNote(event.target.value)}
+          placeholder="What are you starting to see, wonder, or pray?"
+          value={privateNote}
+        />
+      </label>
+      <div className="student-question-reflection-actions">
+        <button className="button" disabled={isSaving} onClick={() => void saveReflection(isReflected)} type="button">
+          {isSaving ? "Saving..." : "Save note"}
+        </button>
+        <button className="button primary" disabled={isSaving} onClick={() => void saveReflection(true)} type="button">
+          {isReflected ? "Reflected" : "I reflected on this"}
+        </button>
+      </div>
+      <p className="student-question-reflection-status" role="status">
+        {status}
+      </p>
     </section>
   );
 }
