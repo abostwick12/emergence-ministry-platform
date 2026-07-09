@@ -1,26 +1,50 @@
 import type { ScriptureTrialInsights, ScriptureTrialInsightTopic } from "@/lib/scripture/trial-insights";
+import type { StudentGroupLeaderState } from "@/lib/student/groups";
 
 type ScriptureTrialInsightsProps = {
+  groupState: StudentGroupLeaderState;
   insights: ScriptureTrialInsights;
 };
 
-export function ScriptureTrialInsightsPanel({ insights }: ScriptureTrialInsightsProps) {
+type LaunchReadinessItem = {
+  label: string;
+  detail: string;
+  state: "ready" | "watch" | "setup";
+};
+
+export function ScriptureTrialInsightsPanel({ groupState, insights }: ScriptureTrialInsightsProps) {
+  const launchReadiness = buildLaunchReadiness(insights, groupState);
+  const activeInvites = groupState.invites.filter((invite) => invite.isActive).length;
+  const activeStudents = groupState.members.filter((member) => member.status === "active").length;
+
   return (
     <section className="scripture-trial-insights" aria-label="Small group tryout pulse">
       <div className="scripture-trial-insights-heading">
         <div>
-          <p className="eyebrow">Small Group Tryout</p>
-          <h2>Trial Pulse</h2>
-          <p>Watch whether real student questions are becoming leader-reviewed conversations and student next steps.</p>
+          <p className="eyebrow">Small Group Launch</p>
+          <h2>Launch Readiness</h2>
+          <p>Track whether students can join, ask real questions, receive leader-reviewed prompts, and leave with next steps.</p>
         </div>
         <div className="scripture-trial-actions">
           <span className={insights.readiness.liveStorage ? "pill green" : "pill amber"}>
             {insights.readiness.liveStorage ? "Live storage" : "Setup needed"}
           </span>
+          <span className={activeInvites ? "pill green" : "pill amber"}>{activeInvites} invite link{activeInvites === 1 ? "" : "s"}</span>
+          <span className={activeStudents ? "pill green" : "pill amber"}>{activeStudents} student{activeStudents === 1 ? "" : "s"} joined</span>
           <a className="button" href="/api/student/scripture/trial-report">
             Export report
           </a>
         </div>
+      </div>
+
+      <div className="scripture-launch-readiness" aria-label="Small group launch checklist">
+        {launchReadiness.map((item) => (
+          <div className={`scripture-launch-readiness-item ${item.state}`} key={item.label}>
+            <span>{item.label}</span>
+            <strong>{labelForReadinessState(item.state)}</strong>
+            <small>{item.detail}</small>
+          </div>
+        ))}
       </div>
 
       <div className="scripture-trial-stat-grid" aria-label="Trial counts">
@@ -98,6 +122,57 @@ function InsightList({ emptyText, items, title }: { emptyText: string; items: Sc
 
 function Signal({ label }: { label: string }) {
   return <span>{label}</span>;
+}
+
+function buildLaunchReadiness(insights: ScriptureTrialInsights, groupState: StudentGroupLeaderState): LaunchReadinessItem[] {
+  const activeInvites = groupState.invites.filter((invite) => invite.isActive).length;
+  const activeStudents = groupState.members.filter((member) => member.status === "active").length;
+
+  return [
+    {
+      label: "Student access",
+      state: groupState.liveStorage && activeInvites > 0 ? "ready" : groupState.liveStorage ? "watch" : "setup",
+      detail: groupState.liveStorage
+        ? activeInvites > 0
+          ? `${activeInvites} join link${activeInvites === 1 ? "" : "s"} ready to share`
+          : "Create one join link before the tryout"
+        : groupState.message
+    },
+    {
+      label: "Students joined",
+      state: activeStudents > 0 ? "ready" : activeInvites > 0 ? "watch" : "setup",
+      detail: activeStudents > 0 ? `${activeStudents} student${activeStudents === 1 ? "" : "s"} can use the portal` : "Students appear here after using a link"
+    },
+    {
+      label: "Question flow",
+      state: insights.totalQuestions > 0 ? "ready" : activeStudents > 0 ? "watch" : "setup",
+      detail: insights.totalQuestions > 0 ? `${insights.totalQuestions} real question${insights.totalQuestions === 1 ? "" : "s"} submitted` : "Ready for the first honest question"
+    },
+    {
+      label: "Leader review",
+      state: insights.pendingReview === 0 && insights.totalQuestions > 0 ? "ready" : insights.pendingReview > 0 ? "watch" : "setup",
+      detail:
+        insights.pendingReview > 0
+          ? `${insights.pendingReview} question${insights.pendingReview === 1 ? "" : "s"} waiting on leader review`
+          : insights.totalQuestions > 0
+            ? "No review backlog"
+            : "Review starts after questions arrive"
+    },
+    {
+      label: "Student next steps",
+      state: insights.withSavedNextSteps > 0 ? "ready" : insights.totalQuestions > 0 ? "watch" : "setup",
+      detail:
+        insights.withSavedNextSteps > 0
+          ? `${insights.withSavedNextSteps} question${insights.withSavedNextSteps === 1 ? "" : "s"} connected to saved next steps`
+          : "Save reading and dig questions as students ask"
+    }
+  ];
+}
+
+function labelForReadinessState(state: LaunchReadinessItem["state"]) {
+  if (state === "ready") return "Ready";
+  if (state === "watch") return "Needs action";
+  return "Not started";
 }
 
 function labelForStatus(status: string) {

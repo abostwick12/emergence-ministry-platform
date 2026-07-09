@@ -28,6 +28,9 @@ describe("scripture trial report", () => {
     expect(report).toContain("# Lead Emergence Scripture Trial Report");
     expect(report).toContain("Generated: 2026-07-09");
     expect(report).toContain("- Total student questions: 3");
+    expect(report).toContain("## Launch Readiness Notes");
+    expect(report).toContain("- Live storage: ready for real submissions");
+    expect(report).toContain("- Student next-step coverage: 1 of 3 questions");
     expect(report).toContain("- trust: 2");
     expect(report).toContain('1. "Why did God put the tree in the garden?"');
     expect(report).not.toContain("Student One");
@@ -54,6 +57,7 @@ describe("scripture trial report", () => {
     );
 
     expect(report).toContain("- No topic patterns have surfaced yet.");
+    expect(report).toContain("- Trial evidence will begin once students submit their first real questions.");
     expect(report).toContain("- No student questions have been submitted yet.");
   });
 });

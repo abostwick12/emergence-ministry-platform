@@ -27,7 +27,7 @@ export default async function DiscipleshipPage() {
   const trialInsights = await getScriptureTrialInsights(access.session, state);
   return (
     <div className="discipleship-workspace-stack">
-      <ScriptureTrialInsightsPanel insights={trialInsights} />
+      <ScriptureTrialInsightsPanel groupState={groupState} insights={trialInsights} />
       <ScriptureKnowledgeControlRoom initialState={knowledgeState} />
       <ScriptureLeaderReview initialGroupState={groupState} initialState={state} />
     </div>

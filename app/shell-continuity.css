@@ -771,7 +771,7 @@ body {
   box-shadow: 0 0 12px rgba(56, 189, 248, 0.55);
 }
 
-.app-shell:not(.app-shell-camp) :is(.panel, .card, .dashboard-card, .kpi-card, .pulse-panel, .next-cal-panel, .calendar-panel, .student-reading-help, .student-scripture-tool, .student-question-composer, .student-next-step, .student-feed-section, .student-feed-rail-card, .leader-review-queue, .leader-review-detail, .leader-workspace-hero, .leader-gloo-diagnostics, .leader-student-invites, .knowledge-control-hero, .knowledge-test-bench, .knowledge-test-preview, .knowledge-source-form, .knowledge-source-card, .scripture-trial-insights, .scripture-trial-list, .scripture-trial-question, .scripture-trial-empty, .leader-review-context, .leader-review-context-card) {
+.app-shell:not(.app-shell-camp) :is(.panel, .card, .dashboard-card, .kpi-card, .pulse-panel, .next-cal-panel, .calendar-panel, .student-reading-help, .student-scripture-tool, .student-question-composer, .student-next-step, .student-feed-section, .student-feed-rail-card, .leader-review-queue, .leader-review-detail, .leader-workspace-hero, .leader-gloo-diagnostics, .leader-student-invites, .leader-student-access-item, .knowledge-control-hero, .knowledge-test-bench, .knowledge-test-preview, .knowledge-source-form, .knowledge-source-card, .scripture-trial-insights, .scripture-launch-readiness-item, .scripture-trial-list, .scripture-trial-question, .scripture-trial-empty, .leader-review-context, .leader-review-context-card) {
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius-md);
   background:
@@ -789,7 +789,7 @@ body {
   opacity: 0.35;
 }
 
-.app-shell:not(.app-shell-camp) :is(.kpi-label, .eyebrow, .student-feed-row span:first-child, .student-keep-reading-link span, .scripture-trial-stat span, .scripture-trial-question span, .leader-review-meta-tile span, .leader-review-stat span, .leader-review-queue-item span:first-child, .knowledge-test-section span, .knowledge-source-card-header span:first-child) {
+.app-shell:not(.app-shell-camp) :is(.kpi-label, .eyebrow, .student-feed-row span:first-child, .student-keep-reading-link span, .scripture-launch-readiness-item span, .scripture-trial-stat span, .scripture-trial-question span, .leader-student-access-item span, .leader-review-meta-tile span, .leader-review-stat span, .leader-review-queue-item span:first-child, .knowledge-test-section span, .knowledge-source-card-header span:first-child) {
   color: #38bdf8;
 }
 
@@ -797,7 +797,7 @@ body {
   color: #f8fafc;
 }
 
-.app-shell:not(.app-shell-camp) :is(.muted, .kpi-hint, .pulse-hint, .next-cal-time, .next-cal-loc, .calendar-weekday, .student-feed-row p, .student-keep-reading-link p, .student-feed-empty p, .student-question-composer-copy p, .student-next-step-copy p, .leader-review-detail-header p, .knowledge-control-hero p, .knowledge-test-form p, .knowledge-test-preview p, .knowledge-source-card-header p, .scripture-trial-insights-heading p, .scripture-trial-section-title p, .scripture-trial-list p, .scripture-trial-empty p) {
+.app-shell:not(.app-shell-camp) :is(.muted, .kpi-hint, .pulse-hint, .next-cal-time, .next-cal-loc, .calendar-weekday, .student-feed-row p, .student-keep-reading-link p, .student-feed-empty p, .student-question-composer-copy p, .student-next-step-copy p, .leader-review-detail-header p, .knowledge-control-hero p, .knowledge-test-form p, .knowledge-test-preview p, .knowledge-source-card-header p, .scripture-trial-insights-heading p, .scripture-trial-section-title p, .scripture-launch-readiness-item small, .scripture-trial-list p, .scripture-trial-empty p, .leader-student-access-item small) {
   color: #8fa4bd;
 }
 

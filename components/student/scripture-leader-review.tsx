@@ -271,6 +271,8 @@ function StudentInvitePanel({
   onCreate: (input: { groupId?: string; groupName?: string; label?: string; maxUses?: number | null }) => Promise<void>;
 }) {
   const [copyStatus, setCopyStatus] = useState("");
+  const activeInvites = groupState.invites.filter((invite) => invite.isActive).length;
+  const activeStudents = groupState.members.filter((member) => member.status === "active").length;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -303,10 +305,26 @@ function StudentInvitePanel({
       <div className="leader-student-invites-heading">
         <div>
           <p className="eyebrow">Student Access</p>
-          <h2>Invite students without touching Supabase</h2>
-          <p>Create a small-group link students can use to set up their own portal access.</p>
+          <h2>Get students into the tryout</h2>
+          <p>Create a small-group link students can use to join, ask questions, and receive leader-reviewed next steps.</p>
         </div>
         <span className={groupState.liveStorage ? "pill green" : "pill amber"}>{groupState.liveStorage ? "Live invites" : "Needs setup"}</span>
+      </div>
+
+      <div className="leader-student-access-summary" aria-label="Student access readiness">
+        <AccessSummaryItem label="Join links" value={activeInvites} detail={activeInvites ? "Ready to share" : "Create one for this group"} tone={activeInvites ? "ready" : "watch"} />
+        <AccessSummaryItem
+          label="Students joined"
+          value={activeStudents}
+          detail={activeStudents ? "Can use the portal" : "Waiting for signups"}
+          tone={activeStudents ? "ready" : "watch"}
+        />
+        <AccessSummaryItem
+          label="Storage"
+          value={groupState.liveStorage ? "Live" : "Setup"}
+          detail={groupState.liveStorage ? "Connected" : groupState.message}
+          tone={groupState.liveStorage ? "ready" : "setup"}
+        />
       </div>
 
       <form className="leader-student-invite-form" onSubmit={submit}>
@@ -354,7 +372,7 @@ function StudentInvitePanel({
                   <span>{invite.groupName}</span>
                   <strong>{invite.label}</strong>
                   <small>
-                    {invite.useCount}{invite.maxUses ? ` of ${invite.maxUses}` : ""} joined
+                    {invite.useCount}{invite.maxUses ? ` of ${invite.maxUses}` : ""} joined{invite.expiresAt ? `, expires ${formatShortDate(invite.expiresAt)}` : ""}
                   </small>
                 </div>
                 <div className="leader-student-invite-copy">
@@ -381,12 +399,38 @@ function StudentInvitePanel({
               </div>
             ))
           ) : (
-            <p className="muted">Students will appear here after they use a join link.</p>
+            <p className="muted">Share a recent link with your group. Students appear here after they create access.</p>
           )}
         </div>
       </div>
     </section>
   );
+}
+
+function AccessSummaryItem({
+  detail,
+  label,
+  tone,
+  value
+}: {
+  detail: string;
+  label: string;
+  tone: "ready" | "watch" | "setup";
+  value: number | string;
+}) {
+  return (
+    <div className={`leader-student-access-item ${tone}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <small>{detail}</small>
+    </div>
+  );
+}
+
+function formatShortDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "later";
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
 function GlooDiagnosticResultView({ diagnostic }: { diagnostic: GlooDiagnosticResult }) {
