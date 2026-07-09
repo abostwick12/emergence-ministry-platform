@@ -11,6 +11,7 @@ import {
   Plug,
   Rss,
   Sparkles,
+  Brain,
   ArrowLeft,
   type LucideIcon
 } from "lucide-react";
@@ -23,6 +24,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Ask SAGE", href: "/command-center/chat", icon: MessageSquareText },
   { label: "Tasks", href: "/command-center/tasks", icon: KanbanSquare },
   { label: "Job Search", href: "/command-center/job-search", icon: Briefcase },
+  { label: "Memory", href: "/command-center/memory", icon: Brain },
   { label: "Integrations", href: "/command-center/integrations", icon: Plug },
   { label: "Feed", href: "/command-center/feed", icon: Rss, exact: true },
   { label: "Weekly Intel", href: "/command-center/feed/weekly", icon: Sparkles }

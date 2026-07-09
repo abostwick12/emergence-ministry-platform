@@ -5,6 +5,7 @@ import {
   buildSageInstructions,
   callSageStructured,
   classifySageProviderError,
+  formatSageMemoryContext,
   loadSageSkillInstructions,
   normalizeAzureResponsesBaseUrl,
   readSageProviderConfig,
@@ -13,7 +14,7 @@ import {
   streamSageResponse,
   SAGE_TASK_AWARE_CHAT_SKILL
 } from "@/lib/command-center/sage";
-import type { AiConversationMessage, PersonalTask } from "@/lib/command-center/types";
+import type { AiConversationMessage, PersonalTask, SageMemory } from "@/lib/command-center/types";
 
 const task: PersonalTask = {
   id: "task_1",
@@ -77,6 +78,36 @@ describe("SAGE prompt assembly", () => {
     expect(instructions).toContain("Firecrawl daily resource feed context");
     expect(instructions).toContain("Job Search Pipeline");
     expect(instructions).toContain("You cannot trigger a new Firecrawl scrape, read Monday.com board items, write to Monday.com, post to Slack, or take autonomous actions");
+  });
+
+  it("reports no saved memory plainly when none exist", () => {
+    expect(formatSageMemoryContext([])).toBe("No saved SAGE memory entries yet.");
+  });
+
+  it("formats saved memory entries with type and domain", () => {
+    const memories: SageMemory[] = [
+      {
+        id: "mem_1",
+        memoryType: "preference",
+        content: "Prefers concise, bulleted follow-up suggestions.",
+        domain: "job_search",
+        createdAt: "2026-07-06T00:00:00.000Z"
+      }
+    ];
+    const formatted = formatSageMemoryContext(memories);
+    expect(formatted).toContain("Prefers concise, bulleted follow-up suggestions.");
+    expect(formatted).toContain("type=preference");
+    expect(formatted).toContain("domain=job_search");
+  });
+
+  it("includes saved memory in the built instructions and still forbids SAGE from writing to it", async () => {
+    const memories: SageMemory[] = [
+      { id: "mem_1", memoryType: "fact", content: "Prior service: US Army, 12 years.", createdAt: "2026-07-06T00:00:00.000Z" }
+    ];
+    const instructions = await buildSageInstructions([task], undefined, memories);
+    expect(instructions).toContain("Prior service: US Army, 12 years.");
+    expect(instructions).toContain("You cannot create, update, or delete a SAGE memory entry from this chat");
+    expect(instructions).toContain("No automatic memory saving");
   });
 
   it("formats recent conversation turns for the Responses API input", () => {

@@ -4,7 +4,9 @@ import {
   createCaptureEntry,
   createJobApplication,
   createPersonalTask,
+  createSageMemory,
   deletePersonalTask,
+  deleteSageMemory,
   getDailyBriefing,
   getIntegration,
   getOverview,
@@ -13,6 +15,7 @@ import {
   listConversationMessages,
   listJobApplications,
   listPersonalTasks,
+  listSageMemory,
   listUnprocessedCaptures,
   refreshDailyBriefing,
   resolveCaptureEntry,
@@ -133,6 +136,33 @@ describe("job applications", () => {
 
     const applications = await listJobApplications(session);
     expect(applications.some((app) => app.id === created.id)).toBe(true);
+  });
+});
+
+describe("SAGE memory", () => {
+  it("creates, lists, and deletes a memory entry", async () => {
+    const session = mockSession();
+    const created = await createSageMemory(session, {
+      memoryType: "preference",
+      content: "Prefers concise, bulleted follow-up suggestions.",
+      domain: "job_search"
+    });
+    expect(created.content).toBe("Prefers concise, bulleted follow-up suggestions.");
+    expect(created.memoryType).toBe("preference");
+    expect(created.domain).toBe("job_search");
+
+    const listed = await listSageMemory(session);
+    expect(listed.some((memory) => memory.id === created.id)).toBe(true);
+
+    await deleteSageMemory(session, created.id);
+    const afterDelete = await listSageMemory(session);
+    expect(afterDelete.some((memory) => memory.id === created.id)).toBe(false);
+  });
+
+  it("allows a memory entry with no domain", async () => {
+    const session = mockSession();
+    const created = await createSageMemory(session, { memoryType: "fact", content: "Prior service: US Army, 12 years." });
+    expect(created.domain).toBeUndefined();
   });
 });
 

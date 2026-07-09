@@ -18,6 +18,7 @@ import type {
   CreateAiConversationMessageInput,
   CreateJobApplicationInput,
   CreatePersonalTaskInput,
+  CreateSageMemoryInput,
   AiConversationMessage,
   FeedRunLog,
   FeedRunStatus,
@@ -31,6 +32,8 @@ import type {
   PersonalTask,
   PersonalTaskPriority,
   PersonalTaskStatus,
+  SageMemory,
+  SageMemoryType,
   UpdateJobApplicationInput,
   UpdatePersonalTaskInput,
   WeeklyFeed,
@@ -42,6 +45,7 @@ const CAPTURE_COLUMNS = "id, raw_text, status, routed_domain, routed_task_id, cr
 const AI_CONVERSATION_COLUMNS = "id, session_id, role, content, created_at";
 const JOB_APPLICATION_COLUMNS =
   "id, company, role, status, applied_date, contact_name, contact_notes, next_follow_up_date, compensation_notes, job_url, created_at, updated_at";
+const SAGE_MEMORY_COLUMNS = "id, memory_type, content, domain, created_at, last_referenced_at";
 
 export function shouldUseMock(session: AuthSession): boolean {
   return session.isMock || !isSupabaseConfigured();
@@ -122,6 +126,26 @@ function mapJobApplicationRow(row: JobApplicationRow): JobApplication {
     jobUrl: row.job_url ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at
+  };
+}
+
+type SageMemoryRow = {
+  id: string;
+  memory_type: SageMemoryType;
+  content: string;
+  domain: PersonalDomain | null;
+  created_at: string;
+  last_referenced_at: string | null;
+};
+
+function mapSageMemoryRow(row: SageMemoryRow): SageMemory {
+  return {
+    id: row.id,
+    memoryType: row.memory_type,
+    content: row.content,
+    domain: row.domain ?? undefined,
+    createdAt: row.created_at,
+    lastReferencedAt: row.last_referenced_at ?? undefined
   };
 }
 
@@ -533,6 +557,48 @@ export async function updateJobApplication(
     .maybeSingle<JobApplicationRow>();
   if (error) throw new Error(error.message);
   return data ? mapJobApplicationRow(data) : null;
+}
+
+// --- SAGE Memory ------------------------------------------------------------
+//
+// Andrew-authored notes SAGE can draw on across conversations (schema from
+// migration 023/024). Andrew adds and removes entries from
+// /command-center/memory; there is no write path anywhere that lets SAGE
+// chat create, update, or delete a memory entry itself -- matching the
+// "no automatic memory saving" guardrail already in the SAGE prompts.
+
+export async function listSageMemory(session: AuthSession): Promise<SageMemory[]> {
+  if (shouldUseMock(session)) return mockStore.listSageMemory();
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const { data, error } = await supabase
+    .from("sage_memory")
+    .select(SAGE_MEMORY_COLUMNS)
+    .order("created_at", { ascending: false })
+    .returns<SageMemoryRow[]>();
+  if (error) throw new Error(error.message);
+  return (data ?? []).map(mapSageMemoryRow);
+}
+
+export async function createSageMemory(session: AuthSession, input: CreateSageMemoryInput): Promise<SageMemory> {
+  if (shouldUseMock(session)) return mockStore.createSageMemory(input);
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const { data, error } = await supabase
+    .from("sage_memory")
+    .insert({ memory_type: input.memoryType, content: input.content, domain: input.domain ?? null })
+    .select(SAGE_MEMORY_COLUMNS)
+    .single<SageMemoryRow>();
+  if (error) throw new Error(error.message);
+  return mapSageMemoryRow(data);
+}
+
+export async function deleteSageMemory(session: AuthSession, id: string): Promise<void> {
+  if (shouldUseMock(session)) return mockStore.deleteSageMemory(id);
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const { error } = await supabase.from("sage_memory").delete().eq("id", id);
+  if (error) throw new Error(error.message);
 }
 
 // --- Overview ------------------------------------------------------------

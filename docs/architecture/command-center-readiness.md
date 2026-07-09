@@ -161,9 +161,38 @@ Phase 1B still deliberately does not include:
 
 ## Known Gaps
 
-- `daily_briefing_cache` and `sage_memory` are schema placeholders only.
+- `daily_briefing_cache` is wired up (see "Increment 5" in
+  [`command-center-integrations.md`](./command-center-integrations.md)).
+  `sage_memory` is wired up too — Andrew adds/removes entries from
+  `/command-center/memory`, and SAGE reads (never writes) them as chat
+  context. See "SAGE Memory" below.
 - Integration cards are disconnected placeholders only.
 - No live provider credentials are required for local fallback behavior.
+
+## SAGE Memory
+
+Andrew-authored notes SAGE can draw on across conversations, using the
+`sage_memory` table from migration 023/024 (`memory_type` one of `fact`,
+`preference`, `context`, `relationship`; optional `domain`).
+
+- `lib/command-center/repository.ts` — `listSageMemory`, `createSageMemory`,
+  `deleteSageMemory`, same mock/real split as every other table here.
+- `app/api/command-center/memory/route.ts` (`GET`/`POST`) and
+  `app/api/command-center/memory/[id]/route.ts` (`DELETE`) — Andrew-only via
+  `requireCommandCenterAccess()`.
+- `/command-center/memory` — a page to add and remove entries. This is the
+  only write path anywhere for this table.
+- `lib/command-center/sage.ts` — `buildSageInstructions` now takes saved
+  memory entries as read-only chat context, formatted via
+  `formatSageMemoryContext`. The system and skill prompts both say SAGE
+  cannot create, update, or delete a memory entry from chat, and never
+  saves one automatically from a conversation — matching the "no automatic
+  memory saving" guardrail already in place since Phase 1B.
+
+`last_referenced_at` remains an unused schema column in this increment —
+nothing writes to it. Wiring it up (e.g. marking an entry referenced when
+SAGE's context included it) is a distinct, smaller follow-up if it turns
+out to be useful.
 
 See [`command-center-integrations.md`](./command-center-integrations.md) for
 the integration priority order, required env vars, and approval rules that

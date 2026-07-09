@@ -67,16 +67,26 @@ export interface PersonalIntegration {
   config: Record<string, unknown>;
 }
 
+// Andrew-authored notes SAGE can draw on across conversations -- schema from
+// migration 023/024. Andrew adds and removes entries himself from
+// /command-center/memory; SAGE never writes to this table from chat (no
+// automatic memory saving, matching every other Phase 1B guardrail).
 export type SageMemoryType = "fact" | "preference" | "context" | "relationship";
 
 export interface SageMemory {
   id: string;
   memoryType: SageMemoryType;
   content: string;
-  domain?: string;
+  domain?: PersonalDomain;
   createdAt: string;
   lastReferencedAt?: string;
 }
+
+export type CreateSageMemoryInput = {
+  memoryType: SageMemoryType;
+  content: string;
+  domain?: PersonalDomain;
+};
 
 export type CaptureStatus = "unprocessed" | "processed" | "discarded";
 

@@ -1,4 +1,4 @@
-import type { AiConversationMessage, PersonalTask } from "@/lib/command-center/types";
+import type { AiConversationMessage, PersonalTask, SageMemory } from "@/lib/command-center/types";
 
 // A minimal structural type instead of zod's ZodType<T> directly -- ZodType's
 // Input/Output type params can otherwise cause TypeScript to widen T (e.g.
@@ -467,7 +467,7 @@ export async function callSageStructured<T>(params: {
 
 const SAGE_SYSTEM_PROMPT = `You are SAGE, Andrew's private Personal Command Center assistant inside Lead Emergence.
 
-You may advise from Andrew-only Command Center context provided by the server, including personal tasks, job-search tasks, military transition tasks, SOTF Fellowship tasks, and life admin tasks. When Andrew's Google Calendar, Gmail, Google Drive, Firecrawl, or Monday.com integration is connected, you may also be given read-only upcoming calendar events, recent email triage context, recently modified Drive file names, the cached daily Firecrawl resource feed, or Monday.com board names for this turn — treat it strictly as a snapshot from when this message was sent, never as a live feed you can re-check mid-conversation.
+You may advise from Andrew-only Command Center context provided by the server, including personal tasks, job-search tasks, military transition tasks, SOTF Fellowship tasks, life admin tasks, and any SAGE memory entries Andrew has explicitly saved (facts, preferences, context, relationships). When Andrew's Google Calendar, Gmail, Google Drive, Firecrawl, or Monday.com integration is connected, you may also be given read-only upcoming calendar events, recent email triage context, recently modified Drive file names, the cached daily Firecrawl resource feed, or Monday.com board names for this turn — treat it strictly as a snapshot from when this message was sent, never as a live feed you can re-check mid-conversation.
 
 Guardrails:
 
@@ -476,6 +476,7 @@ Guardrails:
 - You cannot create, update, or delete a calendar event, and you cannot send email or create a Gmail draft from this chat — those actions still require Andrew to use the Calendar/Gmail integration surfaces directly, not chat.
 - You cannot search Google Drive, read a Drive file's content, move a file, or create a folder from this chat — those still require the Drive integration page directly.
 - You cannot trigger a new Firecrawl scrape, read Monday.com board items, write to Monday.com, post to Slack, or take autonomous actions — you may only reference the daily Firecrawl resource feed or Monday.com board names when that context is provided for this turn.
+- You cannot create, update, or delete a SAGE memory entry from this chat, and you never save a memory automatically from conversation — Andrew adds and removes memory entries himself from the Memory page.
 - You cannot create, update, delete, or resolve records in this phase. You can advise Andrew on what he may choose to do next.
 - Treat all task and integration context as read-only.
 - If Andrew asks for an unavailable integration or action, explain what's available today and what still requires the dedicated integration page.
@@ -496,6 +497,7 @@ Allowed context:
 - Read-only recently modified Google Drive file names, only when Drive is connected
 - Read-only cached daily Firecrawl resource feed items (title, source, summary), only when Firecrawl is connected
 - Read-only Monday.com board names, only when Monday.com is connected
+- Read-only SAGE memory entries (facts, preferences, context, relationships) Andrew has explicitly saved
 
 Disallowed behavior:
 
@@ -537,18 +539,37 @@ export function formatOpenTaskContext(tasks: PersonalTask[]): string {
   return openTasks.map(formatTask).join("\n");
 }
 
+function formatMemoryEntry(memory: SageMemory): string {
+  const parts = [`type=${memory.memoryType}`];
+  if (memory.domain) parts.push(`domain=${memory.domain}`);
+  return `- ${memory.content} (${parts.join("; ")})`;
+}
+
+// Andrew adds/removes these himself from /command-center/memory -- SAGE only
+// ever reads this list, it never writes to sage_memory from chat.
+export function formatSageMemoryContext(memories: SageMemory[]): string {
+  if (memories.length === 0) return "No saved SAGE memory entries yet.";
+  return memories.map(formatMemoryEntry).join("\n");
+}
+
 // liveIntegrationContext is pre-fetched by the caller (see
 // lib/command-center/sage-live-context.ts) and is optional — when no
 // integration is connected, or a fetch failed, SAGE falls back to
 // task-only context exactly as before this existed.
-export async function buildSageInstructions(tasks: PersonalTask[], liveIntegrationContext?: string): Promise<string> {
+export async function buildSageInstructions(
+  tasks: PersonalTask[],
+  liveIntegrationContext?: string,
+  memories: SageMemory[] = []
+): Promise<string> {
   const skillPrompt = await loadSageSkillInstructions();
 
   const sections = [
     SAGE_SYSTEM_PROMPT.trim(),
     skillPrompt.trim(),
     "Current read-only open Command Center task context:",
-    formatOpenTaskContext(tasks)
+    formatOpenTaskContext(tasks),
+    "Andrew's saved SAGE memory:",
+    formatSageMemoryContext(memories)
   ];
   if (liveIntegrationContext) sections.push(liveIntegrationContext);
   return sections.join("\n\n");

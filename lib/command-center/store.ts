@@ -9,6 +9,7 @@ import type {
   CaptureEntry,
   CommandCenterOverview,
   CreateAiConversationMessageInput,
+  CreateSageMemoryInput,
   DomainTaskSummary,
   AiConversationMessage,
   FeedRunLog,
@@ -20,6 +21,7 @@ import type {
   PersonalDomain,
   PersonalIntegration,
   PersonalTask,
+  SageMemory,
   UpdateJobApplicationInput,
   WeeklyFeed,
   WeeklyFeedItem,
@@ -302,6 +304,7 @@ type CommandCenterStoreState = {
   weeklyFeeds: WeeklyFeed[];
   weeklyFeedItems: WeeklyFeedItem[];
   feedRunLogs: FeedRunLog[];
+  sageMemory: SageMemory[];
 };
 
 declare global {
@@ -313,6 +316,8 @@ declare global {
 // here is correct (matches the spec's own "no new sources this week" empty
 // state) rather than a gap, since this feature only produces real content
 // once Google Drive is actually connected to a populated source folder.
+// sage_memory is likewise empty by default -- it's Andrew-authored content
+// (added from /command-center/memory), not something SAGE populates itself.
 function createInitialState(): CommandCenterStoreState {
   return {
     tasks: seedTasks(),
@@ -325,7 +330,8 @@ function createInitialState(): CommandCenterStoreState {
     knowledgeItems: [],
     weeklyFeeds: [],
     weeklyFeedItems: [],
-    feedRunLogs: []
+    feedRunLogs: [],
+    sageMemory: []
   };
 }
 
@@ -345,6 +351,7 @@ export function __resetCommandCenterStoreForTests(): void {
   state.weeklyFeeds = [];
   state.weeklyFeedItems = [];
   state.feedRunLogs = [];
+  state.sageMemory = [];
 }
 
 export function listTasks(filter?: { domain?: PersonalDomain; status?: string }): PersonalTask[] {
@@ -473,6 +480,20 @@ export function updateJobApplication(id: string, input: UpdateJobApplicationInpu
     return updated;
   });
   return updated;
+}
+
+export function listSageMemory(): SageMemory[] {
+  return state.sageMemory;
+}
+
+export function createSageMemory(input: CreateSageMemoryInput): SageMemory {
+  const memory: SageMemory = { ...input, id: uid("mem"), createdAt: nowIso() };
+  state.sageMemory = [memory, ...state.sageMemory];
+  return memory;
+}
+
+export function deleteSageMemory(id: string): void {
+  state.sageMemory = state.sageMemory.filter((memory) => memory.id !== id);
 }
 
 const DOMAIN_ORDER: PersonalDomain[] = ["military_transition", "sotf_fellowship", "job_search", "life"];
