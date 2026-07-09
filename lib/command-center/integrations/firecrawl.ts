@@ -85,3 +85,17 @@ export async function scrapeUrl(params: { url: string; env?: FirecrawlEnv; fetch
     truncated
   };
 }
+
+// Strips markdown syntax down to a short plain-text snippet for display as
+// a briefing item summary (see refreshDailyBriefing in repository.ts).
+export function summarizeMarkdown(markdown: string, maxLength = 220): string {
+  const plain = markdown
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/[#*_>`~-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (plain.length <= maxLength) return plain;
+  return `${plain.slice(0, maxLength).trimEnd()}…`;
+}

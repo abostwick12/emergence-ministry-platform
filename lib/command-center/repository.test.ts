@@ -1,10 +1,11 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthSession } from "@/lib/auth/server";
 import {
   createCaptureEntry,
   createJobApplication,
   createPersonalTask,
   deletePersonalTask,
+  getDailyBriefing,
   getIntegration,
   getOverview,
   appendConversationMessage,
@@ -13,12 +14,14 @@ import {
   listJobApplications,
   listPersonalTasks,
   listUnprocessedCaptures,
+  refreshDailyBriefing,
   resolveCaptureEntry,
   updateIntegration,
   updateJobApplication,
   updatePersonalTask
 } from "@/lib/command-center/repository";
 import { __resetCommandCenterStoreForTests } from "@/lib/command-center/store";
+import { BRIEFING_SOURCES } from "@/lib/command-center/integrations/firecrawl-sources";
 
 function mockSession(): AuthSession {
   return {
@@ -204,5 +207,64 @@ describe("SAGE conversations", () => {
     const messages = await listConversationMessages(session, "sage-test");
     expect(messages.map((message) => message.role)).toEqual(["user", "assistant"]);
     expect(messages[0].content).toContain("focus");
+  });
+});
+
+describe("daily briefing", () => {
+  const originalFetch = global.fetch;
+  const originalApiKey = process.env.FIRECRAWL_API_KEY;
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+    if (originalApiKey === undefined) delete process.env.FIRECRAWL_API_KEY;
+    else process.env.FIRECRAWL_API_KEY = originalApiKey;
+  });
+
+  it("falls back to static seed content when Firecrawl is not configured", async () => {
+    delete process.env.FIRECRAWL_API_KEY;
+    const items = await getDailyBriefing(mockSession());
+    expect(items.length).toBeGreaterThan(0);
+  });
+
+  it("refuses to refresh without an API key instead of silently no-oping", async () => {
+    delete process.env.FIRECRAWL_API_KEY;
+    await expect(refreshDailyBriefing(mockSession())).rejects.toThrow();
+  });
+
+  it("scrapes every curated source and caches the result for later reads", async () => {
+    process.env.FIRECRAWL_API_KEY = "fc-test-key";
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ success: true, data: { markdown: "# Real content from the source", metadata: { title: "Real Source" } } })
+    }) as unknown as typeof fetch;
+
+    const items = await refreshDailyBriefing(mockSession());
+    expect(items.length).toBe(BRIEFING_SOURCES.length);
+    expect(items[0].title).toBe("Real Source");
+    expect(items[0].summary).toContain("Real content from the source");
+
+    const cached = await getDailyBriefing(mockSession());
+    expect(cached).toEqual(items);
+  });
+
+  it("keeps whatever sources succeed when some scrapes fail", async () => {
+    process.env.FIRECRAWL_API_KEY = "fc-test-key";
+    let callCount = 0;
+    global.fetch = vi.fn().mockImplementation(async () => {
+      callCount += 1;
+      if (callCount === 1) return { ok: false, status: 500, json: async () => ({}) };
+      return { ok: true, status: 200, json: async () => ({ success: true, data: { markdown: "content", metadata: { title: "OK" } } }) };
+    }) as unknown as typeof fetch;
+
+    const items = await refreshDailyBriefing(mockSession());
+    expect(items.length).toBe(BRIEFING_SOURCES.length - 1);
+  });
+
+  it("throws instead of caching an empty feed when every source fails", async () => {
+    process.env.FIRECRAWL_API_KEY = "fc-test-key";
+    global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => ({}) }) as unknown as typeof fetch;
+
+    await expect(refreshDailyBriefing(mockSession())).rejects.toThrow("All Firecrawl sources failed");
   });
 });

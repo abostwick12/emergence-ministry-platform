@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { FirecrawlConfigError, readFirecrawlConfig, scrapeUrl } from "@/lib/command-center/integrations/firecrawl";
+import { FirecrawlConfigError, readFirecrawlConfig, scrapeUrl, summarizeMarkdown } from "@/lib/command-center/integrations/firecrawl";
 
 const configuredEnv = { FIRECRAWL_API_KEY: "fc-test-key" };
 
@@ -51,5 +51,23 @@ describe("scrapeUrl", () => {
   it("throws when the scrape request fails", async () => {
     const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({}, false, 401));
     await expect(scrapeUrl({ url: "https://example.com", env: configuredEnv, fetchImpl })).rejects.toThrow("Firecrawl scrape failed");
+  });
+});
+
+describe("summarizeMarkdown", () => {
+  it("strips markdown syntax and collapses whitespace", () => {
+    const markdown = "# Heading\n\nSome **bold** text with a [link](https://example.com) and  extra   spaces.";
+    expect(summarizeMarkdown(markdown)).toBe("Heading Some bold text with a link and extra spaces.");
+  });
+
+  it("truncates long plain text with an ellipsis", () => {
+    const markdown = "a".repeat(300);
+    const result = summarizeMarkdown(markdown, 50);
+    expect(result.length).toBe(51);
+    expect(result.endsWith("…")).toBe(true);
+  });
+
+  it("leaves short text untouched", () => {
+    expect(summarizeMarkdown("Short and sweet.")).toBe("Short and sweet.");
   });
 });

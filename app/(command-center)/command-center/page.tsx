@@ -5,7 +5,7 @@ import { DashboardFeedRail, type ActivityItem } from "@/components/command-cente
 import { DOMAIN_LABELS, DOMAIN_ORDER } from "@/components/command-center/domain-meta";
 import { getServerSession } from "@/lib/auth/server";
 import { getOverview, listJobApplications, listPersonalTasks, listUnprocessedCaptures } from "@/lib/command-center/repository";
-import { integrationDisplayStatus } from "@/lib/command-center/integrations-meta";
+import { integrationDisplayStatus, isIntegrationConfigured } from "@/lib/command-center/integrations-meta";
 import { formatDate } from "@/lib/utils";
 import type { JobApplicationStatus, PersonalIntegration } from "@/lib/command-center/types";
 
@@ -241,7 +241,7 @@ export default async function CommandCenterPage() {
           <p className="cc-eyebrow" style={{ marginBottom: 8 }}>
             Morning Briefing
           </p>
-          <h2 style={{ fontWeight: 600, marginBottom: 12 }}>Manual Resource Feed</h2>
+          <h2 style={{ fontWeight: 600, marginBottom: 12 }}>{isIntegrationConfigured("firecrawl") ? "Live Resource Feed" : "Manual Resource Feed"}</h2>
           {overview.briefingItems.map((item) => (
             <div key={item.id} style={{ borderBottom: "1px solid var(--cc-border)", paddingBottom: 10, marginBottom: 10 }}>
               <strong style={{ fontSize: 13 }}>{item.title}</strong>
