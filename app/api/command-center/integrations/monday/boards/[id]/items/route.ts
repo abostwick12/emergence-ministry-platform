@@ -4,8 +4,8 @@ import { updateIntegration } from "@/lib/command-center/repository";
 import { listMondayBoardItems, MondayConfigError } from "@/lib/command-center/integrations/monday";
 
 // Read-only. Lists the items (tasks) inside one board, including each
-// item's column values. There is no write/sync route anywhere in this
-// integration yet.
+// item's column values. Importing these items as personal_tasks is a
+// separate, explicit action -- see the sibling sync/route.ts.
 export async function GET(_request: Request, { params }: { params: { id: string } }) {
   const access = await requireCommandCenterAccess();
   if (!access.allowed) return access.response;

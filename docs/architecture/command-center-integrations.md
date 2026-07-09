@@ -646,6 +646,11 @@ board, or pulling Monday items into `personal_tasks`, is still the
 distinct, separately approved change Increment 6 described — nothing in
 this increment moves any task data in either direction.
 
+Andrew approved a direction in "Increment 16" below: Monday.com ->
+Command Center only. `personal_tasks` are still never written back to
+Monday.com, and there is still no mutation query anywhere in
+`monday.ts`.
+
 ## Increment 13: Google Drive context in SAGE chat
 
 Extends Increment 8's SAGE chat wiring to Google Drive. Firecrawl, Slack,
@@ -781,3 +786,48 @@ Every other integration's boundary from its own increment above is
 unchanged: Calendar, Drive, Slack, Firecrawl, and Monday.com still have no
 write path reachable from chat, and there is still no scheduled or
 automatic caller for anything, anywhere in this codebase.
+
+## Increment 16: Monday.com task sync (Monday.com → Command Center only)
+
+Increments 6 and 12 both deferred task sync until Andrew picked a
+direction. He approved exactly one: **Monday.com → Command Center.**
+`personal_tasks` are never written back to Monday.com — there is still no
+mutation query anywhere in `lib/command-center/integrations/monday.ts`,
+and this increment doesn't add one. Command Center → Monday and two-way
+sync remain out of scope; a future change would need its own explicit
+approval, per the approval rules above.
+
+- `supabase/migrations/20260709210000_personal_tasks_monday_sync.sql` —
+  additive, nullable `monday_board_id` and `monday_item_id` columns on
+  `personal_tasks`, plus a partial unique index on `monday_item_id` (only
+  where non-null) so a re-sync can never create a duplicate task for the
+  same Monday item. Existing rows and every other table are untouched.
+  Not yet applied to prod.
+- `lib/command-center/repository.ts` — `syncMondayBoardTasks(session, {
+  boardId, domain })` calls the existing read-only `listMondayBoardItems`
+  (Increment 12), dedupes against already-imported tasks by
+  `mondayItemId`, and creates one `personal_task` per new item via the
+  existing `createPersonalTask` (now Monday-aware) — no separate insert
+  path, no query duplication. Each item's column values (status, dates,
+  whatever the board tracks) are folded into the task's `description` as
+  plain text, since column schemas vary per board and there's no stable
+  cross-board contract to parse them more precisely. New tasks always
+  land as `status: "todo"`, `priority: "medium"`; Andrew re-prioritizes
+  them in the Command Center same as any other task. Re-running a sync on
+  the same board only imports items that are new since the last run — it
+  never touches or overwrites a task Andrew has already started working
+  from.
+- `app/api/command-center/integrations/monday/boards/[id]/sync/route.ts`
+  — Andrew-only `POST { domain }` that syncs one board, one domain per
+  call (Andrew picks which Command Center domain the imported tasks land
+  in, since Monday has no equivalent concept). Same `MondayConfigError` ->
+  503 / other failure -> 502 + `status: "error"` pattern as every other
+  Monday.com route.
+- `components/command-center/monday-connection.tsx` — the existing
+  `View items` panel (Increment 12) gains a domain selector and an
+  `Import as tasks` button, showing an inline "Imported N new tasks (M
+  already imported)" summary after each run.
+
+Like every increment before it, this is Andrew-triggered only — there is
+still no scheduled or automatic caller for a Monday.com sync anywhere in
+the codebase.

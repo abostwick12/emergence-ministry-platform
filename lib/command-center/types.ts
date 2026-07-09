@@ -19,6 +19,11 @@ export interface PersonalTask {
   priority: PersonalTaskPriority;
   dueDate?: string;
   tags: string[];
+  // Set only for tasks imported from a Monday.com board sync (Monday -> Command
+  // Center, one direction only). mondayItemId is the dedup key that keeps a
+  // re-sync from creating duplicates.
+  mondayBoardId?: string;
+  mondayItemId?: string;
   createdAt: string;
   updatedAt: string;
 }
