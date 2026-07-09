@@ -169,32 +169,34 @@ function seedTasks(): PersonalTask[] {
   ];
 }
 
-const briefingItems: BriefingItem[] = [
-  {
-    id: uid("brief"),
-    title: "How to translate military leadership into civilian executive language",
-    url: "https://example.com/military-to-executive",
-    summary: "A practical framework for reframing command experience as P&L and org leadership on a resume.",
-    source: "Hiring Our Heroes",
-    category: "military_transition"
-  },
-  {
-    id: uid("brief"),
-    title: "Job market pulse: what's changed for leadership roles in the last 30 days",
-    url: "https://example.com/job-market-pulse",
-    summary: "Hiring for Director/COO-level roles is picking up in nonprofit and mission-driven organizations.",
-    source: "LinkedIn Talent Insights",
-    category: "job_market"
-  },
-  {
-    id: uid("brief"),
-    title: "The compounding value of fellowship relationships during a career transition",
-    url: "https://example.com/fellowship-relationships",
-    summary: "Why cohort relationships built during structured leadership programs often outlast the program itself.",
-    source: "HBR",
-    category: "leadership"
-  }
-];
+function seedBriefing(): BriefingItem[] {
+  return [
+    {
+      id: uid("brief"),
+      title: "How to translate military leadership into civilian executive language",
+      url: "https://example.com/military-to-executive",
+      summary: "A practical framework for reframing command experience as P&L and org leadership on a resume.",
+      source: "Hiring Our Heroes",
+      category: "military_transition"
+    },
+    {
+      id: uid("brief"),
+      title: "Job market pulse: what's changed for leadership roles in the last 30 days",
+      url: "https://example.com/job-market-pulse",
+      summary: "Hiring for Director/COO-level roles is picking up in nonprofit and mission-driven organizations.",
+      source: "LinkedIn Talent Insights",
+      category: "job_market"
+    },
+    {
+      id: uid("brief"),
+      title: "The compounding value of fellowship relationships during a career transition",
+      url: "https://example.com/fellowship-relationships",
+      summary: "Why cohort relationships built during structured leadership programs often outlast the program itself.",
+      source: "HBR",
+      category: "leadership"
+    }
+  ];
+}
 
 function seedIntegrations(): PersonalIntegration[] {
   return [
@@ -279,6 +281,7 @@ type CommandCenterStoreState = {
   jobApplications: JobApplication[];
   captureInbox: CaptureEntry[];
   conversations: AiConversationMessage[];
+  briefing: BriefingItem[];
 };
 
 declare global {
@@ -292,7 +295,8 @@ function createInitialState(): CommandCenterStoreState {
     integrations: seedIntegrations(),
     jobApplications: seedJobApplications(),
     captureInbox: seedCaptures(),
-    conversations: []
+    conversations: [],
+    briefing: seedBriefing()
   };
 }
 
@@ -306,6 +310,7 @@ export function __resetCommandCenterStoreForTests(): void {
   state.jobApplications = seedJobApplications();
   state.captureInbox = seedCaptures();
   state.conversations = [];
+  state.briefing = seedBriefing();
 }
 
 export function listTasks(filter?: { domain?: PersonalDomain; status?: string }): PersonalTask[] {
@@ -337,7 +342,11 @@ export function deleteTask(id: string): void {
 }
 
 export function getBriefing(): BriefingItem[] {
-  return briefingItems;
+  return state.briefing;
+}
+
+export function setBriefing(items: BriefingItem[]): void {
+  state.briefing = items;
 }
 
 export function listIntegrations(): PersonalIntegration[] {
@@ -499,7 +508,7 @@ export function computeOverviewFromParts(parts: {
 export function buildOverview(): CommandCenterOverview {
   return computeOverviewFromParts({
     tasks: state.tasks,
-    briefingItems,
+    briefingItems: state.briefing,
     integrations: state.integrations,
     jobApplications: state.jobApplications,
     unprocessedCaptureCount: listUnprocessedCaptures().length

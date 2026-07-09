@@ -9,6 +9,8 @@
 import { isSupabaseConfigured } from "@/lib/auth/config";
 import { getSupabaseAuthClient, type AuthSession } from "@/lib/auth/server";
 import * as mockStore from "@/lib/command-center/store";
+import { FirecrawlConfigError, readFirecrawlConfig, scrapeUrl, summarizeMarkdown } from "@/lib/command-center/integrations/firecrawl";
+import { BRIEFING_SOURCES } from "@/lib/command-center/integrations/firecrawl-sources";
 import type {
   BriefingItem,
   CaptureEntry,
@@ -232,11 +234,86 @@ export async function deletePersonalTask(session: AuthSession, id: string): Prom
 
 // --- Briefing ------------------------------------------------------------
 
+type BriefingCacheRow = { items: BriefingItem[] };
+
 export async function getDailyBriefing(session: AuthSession): Promise<BriefingItem[]> {
-  // Phase 1: static/mock content regardless of session, since the live
-  // Firecrawl-backed feed is a Phase 2 addition (see docs/command-center plan).
   if (shouldUseMock(session)) return mockStore.getBriefing();
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const cacheDate = new Date().toISOString().slice(0, 10);
+
+  const { data: today, error: todayError } = await supabase
+    .from("daily_briefing_cache")
+    .select("items")
+    .eq("cache_date", cacheDate)
+    .maybeSingle<BriefingCacheRow>();
+  if (todayError) throw new Error(todayError.message);
+  if (today?.items?.length) return today.items;
+
+  // Never fetch live here -- refreshDailyBriefing is the only path that
+  // calls Firecrawl, and only when Andrew explicitly triggers it. Fall back
+  // to the most recent cached day, then to static starter content, so the
+  // feed is never blank before the first manual refresh.
+  const { data: latest, error: latestError } = await supabase
+    .from("daily_briefing_cache")
+    .select("items")
+    .order("cache_date", { ascending: false })
+    .limit(1)
+    .maybeSingle<BriefingCacheRow>();
+  if (latestError) throw new Error(latestError.message);
+  if (latest?.items?.length) return latest.items;
+
   return mockStore.getBriefing();
+}
+
+// Manual, Andrew-triggered refresh of the curated resource feed. Scrapes
+// each entry in BRIEFING_SOURCES independently -- one failed source never
+// blocks the others -- and caches the result under today's date so
+// getDailyBriefing never needs to call Firecrawl itself.
+export async function refreshDailyBriefing(session: AuthSession): Promise<BriefingItem[]> {
+  const config = readFirecrawlConfig();
+  if (!config.configured) throw new FirecrawlConfigError(config.missing);
+
+  const results = await Promise.allSettled(
+    BRIEFING_SOURCES.map(async (entry): Promise<BriefingItem> => {
+      const scraped = await scrapeUrl({ url: entry.url });
+      return {
+        id: `brief_${crypto.randomUUID()}`,
+        title: scraped.title,
+        url: entry.url,
+        summary: summarizeMarkdown(scraped.markdown),
+        source: entry.source,
+        category: entry.category
+      };
+    })
+  );
+
+  const items = results
+    .filter((result): result is PromiseFulfilledResult<BriefingItem> => result.status === "fulfilled")
+    .map((result) => result.value);
+
+  // Never cache a total wipeout: getDailyBriefing's "most recent cached day"
+  // fallback would otherwise pick up an empty row and permanently shadow the
+  // last good cache. Partial failures (some sources succeed) are fine.
+  if (items.length === 0) {
+    throw new Error("All Firecrawl sources failed to scrape.");
+  }
+
+  if (shouldUseMock(session)) {
+    mockStore.setBriefing(items);
+    return items;
+  }
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const cacheDate = new Date().toISOString().slice(0, 10);
+  const { error } = await supabase
+    .from("daily_briefing_cache")
+    .upsert({ cache_date: cacheDate, items, generated_at: new Date().toISOString() }, { onConflict: "cache_date" });
+  if (error) throw new Error(error.message);
+
+  await updateIntegration(session, "firecrawl", { status: "connected", config: {} });
+
+  return items;
 }
 
 // --- SAGE Conversation ------------------------------------------------------------
