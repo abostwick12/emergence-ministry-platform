@@ -35,7 +35,15 @@ export type CreateStudentDiscussionInput = {
 };
 
 export type DecideStudentDiscussionInput = {
-  action: "approve" | "request_changes" | "archive" | "post" | "regenerate" | "use_local_draft";
+  action:
+    | "approve"
+    | "request_changes"
+    | "archive"
+    | "post"
+    | "regenerate"
+    | "use_local_draft"
+    | "mark_discussed"
+    | "flag_follow_up";
   leaderNotes?: string;
   discussionPrompt?: string;
 };
@@ -86,6 +94,7 @@ type ApprovedStudentDiscussionRow = {
 
 type StudentReflectionEventRow = {
   prompt_id: string;
+  action: "student_reflected" | "leader_discussed" | "leader_follow_up_flagged";
   actor_user_id: string | null;
   created_at: string;
 };
@@ -93,6 +102,9 @@ type StudentReflectionEventRow = {
 type StudentReflectionSummary = {
   studentReflectionCount: number;
   studentLastReflectedAt?: string;
+  leaderDiscussedAt?: string;
+  leaderFollowUpFlaggedAt?: string;
+  leaderFollowUpFlagCount?: number;
 };
 
 const MAX_QUESTION_LENGTH = 1200;
@@ -136,7 +148,7 @@ export async function getStudentDiscussionWorkflowState(session: AuthSession): P
 
   throwIfSupabaseError(result.error);
   const prompts = (result.data ?? []).map(toPrompt);
-  const reflectionSummaries = await getStudentReflectionSummaries(
+  const eventSummaries = await getStudentPromptEventSummaries(
     session,
     prompts.map((prompt) => prompt.id)
   );
@@ -146,7 +158,7 @@ export async function getStudentDiscussionWorkflowState(session: AuthSession): P
       session,
       prompts.map((prompt) => ({
         ...prompt,
-        ...reflectionSummaries[prompt.id]
+        ...eventSummaries[prompt.id]
       }))
     )
   };
@@ -276,6 +288,10 @@ export async function decideStudentDiscussionPrompt(session: AuthSession, id: st
     return postApprovedPrompt(session, prompt);
   }
 
+  if (input.action === "mark_discussed" || input.action === "flag_follow_up") {
+    return saveLeaderDiscussionEvent(session, prompt, input);
+  }
+
   const leaderNotes = normalizeOptionalText(input.leaderNotes, MAX_NOTES_LENGTH);
   const discussionPrompt = normalizeOptionalText(input.discussionPrompt, MAX_DISCUSSION_PROMPT_LENGTH);
   const now = new Date().toISOString();
@@ -301,6 +317,44 @@ export async function decideStudentDiscussionPrompt(session: AuthSession, id: st
 
   await logPromptEvent(session, id, input.action, { leaderNotes });
   return toPrompt(result.data);
+}
+
+async function saveLeaderDiscussionEvent(session: AuthSession, prompt: StudentDiscussionPrompt, input: DecideStudentDiscussionInput) {
+  if (input.action !== "mark_discussed" && input.action !== "flag_follow_up") {
+    throw new DiscussionWorkflowError("Choose a valid discussion action.", 400, "invalid_discussion_action");
+  }
+
+  if (input.action === "mark_discussed" && prompt.status !== "approved" && prompt.status !== "posted") {
+    throw new DiscussionWorkflowError("Approve the prompt before marking it discussed.", 409, "prompt_not_ready");
+  }
+
+  if (prompt.status === "archived") {
+    throw new DiscussionWorkflowError("Archived prompts cannot be updated for group discussion.", 409, "prompt_archived");
+  }
+
+  const leaderNotes = normalizeOptionalText(input.leaderNotes, MAX_NOTES_LENGTH);
+  const discussionPrompt = normalizeOptionalText(input.discussionPrompt, MAX_DISCUSSION_PROMPT_LENGTH);
+  const update: Partial<StudentDiscussionPromptRow> = {
+    leader_notes: leaderNotes || prompt.leaderNotes || null,
+    discussion_prompt: discussionPrompt || prompt.discussionPrompt || null
+  };
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const result = await supabase.from("student_discussion_prompts").update(update).eq("id", prompt.id).select("*").single<StudentDiscussionPromptRow>();
+  throwIfSupabaseError(result.error);
+  if (!result.data) throw new DiscussionWorkflowError("The discussion prompt was not updated.", 500, "missing_updated_prompt");
+
+  const happenedAt = new Date().toISOString();
+  const eventAction = input.action === "mark_discussed" ? "leader_discussed" : "leader_follow_up_flagged";
+  await logPromptEvent(session, prompt.id, eventAction, {
+    leaderNotes,
+    discussionPrompt,
+    happenedAt
+  });
+
+  return {
+    ...toPrompt(result.data),
+    ...(input.action === "mark_discussed" ? { leaderDiscussedAt: happenedAt } : { leaderFollowUpFlaggedAt: happenedAt, leaderFollowUpFlagCount: 1 })
+  };
 }
 
 async function regenerateDiscussionDraft(session: AuthSession, prompt: StudentDiscussionPrompt) {
@@ -421,14 +475,14 @@ async function logPromptEvent(session: AuthSession, promptId: string, action: st
   throwIfSupabaseError(result.error);
 }
 
-async function getStudentReflectionSummaries(session: AuthSession, promptIds: string[]) {
+async function getStudentPromptEventSummaries(session: AuthSession, promptIds: string[]) {
   if (!promptIds.length) return {};
 
   const supabase = getSupabaseAuthClient(session.accessToken);
   const result = await supabase
     .from("student_discussion_prompt_events")
-    .select("prompt_id,actor_user_id,created_at")
-    .eq("action", "student_reflected")
+    .select("prompt_id,action,actor_user_id,created_at")
+    .in("action", ["student_reflected", "leader_discussed", "leader_follow_up_flagged"])
     .in("prompt_id", promptIds)
     .order("created_at", { ascending: false })
     .returns<StudentReflectionEventRow[]>();
@@ -438,18 +492,34 @@ async function getStudentReflectionSummaries(session: AuthSession, promptIds: st
   const summaries: Record<string, StudentReflectionSummary> = {};
   const actorsSeen = new Set<string>();
   for (const row of result.data ?? []) {
-    const current = summaries[row.prompt_id] ?? { studentReflectionCount: 0 };
-    summaries[row.prompt_id] = {
+    const current = summaries[row.prompt_id] ?? { studentReflectionCount: 0, leaderFollowUpFlagCount: 0 };
+    const next: StudentReflectionSummary = {
       studentReflectionCount: current.studentReflectionCount,
-      studentLastReflectedAt: current.studentLastReflectedAt ?? row.created_at
+      studentLastReflectedAt: current.studentLastReflectedAt,
+      leaderDiscussedAt: current.leaderDiscussedAt,
+      leaderFollowUpFlaggedAt: current.leaderFollowUpFlaggedAt,
+      leaderFollowUpFlagCount: current.leaderFollowUpFlagCount ?? 0
     };
-    if (row.actor_user_id) {
+
+    if (row.action === "student_reflected" && row.actor_user_id) {
       const actorKey = `${row.prompt_id}:${row.actor_user_id}`;
       if (!actorsSeen.has(actorKey)) {
         actorsSeen.add(actorKey);
-        summaries[row.prompt_id].studentReflectionCount += 1;
+        next.studentReflectionCount += 1;
       }
+      next.studentLastReflectedAt = next.studentLastReflectedAt ?? row.created_at;
     }
+
+    if (row.action === "leader_discussed") {
+      next.leaderDiscussedAt = next.leaderDiscussedAt ?? row.created_at;
+    }
+
+    if (row.action === "leader_follow_up_flagged") {
+      next.leaderFollowUpFlaggedAt = next.leaderFollowUpFlaggedAt ?? row.created_at;
+      next.leaderFollowUpFlagCount = (next.leaderFollowUpFlagCount ?? 0) + 1;
+    }
+
+    summaries[row.prompt_id] = next;
   }
 
   return summaries;
@@ -480,6 +550,7 @@ function toPrompt(row: StudentDiscussionPromptRow): StudentDiscussionPrompt {
     leaderNotes: row.leader_notes ?? "",
     status: row.status,
     studentReflectionCount: 0,
+    leaderFollowUpFlagCount: 0,
     deliveryChannel: row.delivery_channel ?? undefined,
     deliveryStatus: row.delivery_status,
     deliveryMessage: row.delivery_message ?? "",
@@ -583,7 +654,9 @@ function assertLeader(session: AuthSession) {
   }
 }
 
-function toStatusForAction(action: Exclude<DecideStudentDiscussionInput["action"], "post" | "regenerate" | "use_local_draft">): StudentDiscussionStatus {
+function toStatusForAction(
+  action: Exclude<DecideStudentDiscussionInput["action"], "post" | "regenerate" | "use_local_draft" | "mark_discussed" | "flag_follow_up">
+): StudentDiscussionStatus {
   switch (action) {
     case "approve":
       return "approved";

@@ -14,7 +14,7 @@ type DecisionRequestBody = {
   discussionPrompt?: unknown;
 };
 
-const validActions = new Set(["approve", "request_changes", "archive", "post", "regenerate", "use_local_draft"]);
+const validActions = new Set(["approve", "request_changes", "archive", "post", "regenerate", "use_local_draft", "mark_discussed", "flag_follow_up"]);
 
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
   const access = resolveStudentHubAccess(await getServerSession());

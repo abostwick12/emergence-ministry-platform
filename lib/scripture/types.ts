@@ -105,6 +105,9 @@ export type StudentDiscussionPrompt = {
   knowledgeContext?: StudentDiscussionKnowledgeContext[];
   studentReflectionCount?: number;
   studentLastReflectedAt?: string;
+  leaderDiscussedAt?: string;
+  leaderFollowUpFlaggedAt?: string;
+  leaderFollowUpFlagCount?: number;
   deliveryChannel?: string;
   deliveryStatus: StudentDiscussionDeliveryStatus;
   deliveryMessage: string;

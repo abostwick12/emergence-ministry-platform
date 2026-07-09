@@ -8814,6 +8814,14 @@ html:has(.app-shell-camp) body {
   align-content: start;
 }
 
+.leader-tonight-primary-actions,
+.leader-discussion-guide-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
 .leader-tonight-list {
   display: grid;
   gap: 10px;
@@ -8848,6 +8856,103 @@ html:has(.app-shell-camp) body {
   font-size: var(--text-sm);
   font-weight: 900;
   line-height: 1.35;
+}
+
+.leader-discussion-guide {
+  display: grid;
+  gap: 16px;
+  border: 1px solid color-mix(in srgb, var(--primary) 34%, var(--line));
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(135deg, rgba(59, 130, 246, 0.13), rgba(16, 185, 129, 0.07) 42%, rgba(8, 18, 34, 0.2)),
+    var(--surface);
+  box-shadow: var(--shadow-sm);
+  padding: 18px;
+}
+
+.leader-discussion-guide-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: flex-start;
+}
+
+.leader-discussion-guide-heading h2,
+.leader-discussion-guide-card h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--text-xl);
+  line-height: 1.18;
+}
+
+.leader-discussion-guide-heading p,
+.leader-discussion-guide-question p,
+.leader-discussion-guide-card li {
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 760;
+  line-height: 1.55;
+}
+
+.leader-discussion-guide-heading p {
+  margin: 7px 0 0;
+}
+
+.leader-discussion-guide-question {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  padding: 14px;
+}
+
+.leader-discussion-guide-question span,
+.leader-discussion-guide-card span {
+  color: var(--primary);
+  font-size: var(--text-xs);
+  font-weight: 950;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.leader-discussion-guide-question strong {
+  color: var(--text);
+  font-size: var(--text-2xl);
+  line-height: 1.14;
+}
+
+.leader-discussion-guide-question p {
+  margin: 0;
+}
+
+.leader-discussion-guide-signals {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.leader-discussion-guide-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(170px, 1fr));
+  gap: 12px;
+}
+
+.leader-discussion-guide-card {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  padding: 14px;
+}
+
+.leader-discussion-guide-card ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 18px;
 }
 
 .student-join-shell {
@@ -9725,6 +9830,8 @@ html:has(.app-shell-camp) body {
   .leader-review-meta-grid,
   .leader-tonight-prep-grid,
   .leader-tonight-prep-counts,
+  .leader-discussion-guide-grid,
+  .leader-discussion-guide-signals,
   .leader-student-access-summary,
   .leader-student-invite-form,
   .leader-student-invite-results,
@@ -9737,6 +9844,7 @@ html:has(.app-shell-camp) body {
   .knowledge-source-card-header,
   .scripture-trial-insights-heading,
   .leader-tonight-prep-heading,
+  .leader-discussion-guide-heading,
   .leader-student-invites-heading {
     align-items: flex-start;
     flex-direction: column;
