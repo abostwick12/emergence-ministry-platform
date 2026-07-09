@@ -65,6 +65,15 @@ export type CreateKnowledgeSourceInput = {
   content: string;
 };
 
+export type UpdateKnowledgeSourceDetailsInput = {
+  title: string;
+  summary: string;
+  tags?: string[] | string;
+  scriptureReferences?: string[] | string;
+  citation?: string;
+  sourceUri?: string;
+};
+
 type KnowledgeSourceRow = {
   id: string;
   title: string;
@@ -194,6 +203,56 @@ export async function updateKnowledgeSourceVisibility(
   const chunkResult = await supabase
     .from("knowledge_chunks")
     .update({ visibility: nextVisibility })
+    .eq("source_id", sourceId)
+    .select("*")
+    .returns<KnowledgeChunkRow[]>();
+  throwIfSupabaseError(chunkResult.error);
+
+  return toControlItem(sourceResult.data, chunkResult.data ?? []);
+}
+
+export async function updateKnowledgeSourceDetails(
+  session: AuthSession,
+  sourceId: string,
+  input: UpdateKnowledgeSourceDetailsInput
+): Promise<KnowledgeSourceControlItem> {
+  if (!isLiveKnowledgeStorageReady(session)) {
+    throw new KnowledgeControlRoomError("Knowledge source control requires Supabase Auth and database configuration.", 503, "live_storage_not_configured");
+  }
+
+  assertKnowledgeLeader(session);
+  const title = normalizeRequiredText(input.title, "Title", MAX_TITLE_LENGTH);
+  const summary = normalizeRequiredText(input.summary, "Student-safe summary", MAX_SUMMARY_LENGTH);
+  const tags = normalizeList(input.tags).slice(0, 12);
+  const scriptureReferences = normalizeList(input.scriptureReferences).slice(0, 12);
+  const sourceUri = normalizeOptionalText(input.sourceUri, 500) || null;
+  const citation = normalizeOptionalText(input.citation, 500) || null;
+  const supabase = getSupabaseAuthClient(session.accessToken);
+
+  const sourceResult = await supabase
+    .from("knowledge_sources")
+    .update({
+      title,
+      summary,
+      tags,
+      source_uri: sourceUri,
+      citation
+    })
+    .eq("id", sourceId)
+    .select("*")
+    .single<KnowledgeSourceRow>();
+  throwIfSupabaseError(sourceResult.error);
+  if (!sourceResult.data) throw new KnowledgeControlRoomError("Knowledge source not found.", 404, "not_found");
+
+  const chunkResult = await supabase
+    .from("knowledge_chunks")
+    .update({
+      title,
+      student_summary: summarizeText(summary, 420),
+      topic_tags: tags,
+      concepts: tags.map(toConceptSlug).filter(Boolean).slice(0, 12),
+      scripture_references: scriptureReferences
+    })
     .eq("source_id", sourceId)
     .select("*")
     .returns<KnowledgeChunkRow[]>();

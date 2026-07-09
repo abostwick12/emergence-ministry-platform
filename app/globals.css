@@ -8966,6 +8966,26 @@ html:has(.app-shell-camp) body {
   line-height: 1.55;
 }
 
+.knowledge-source-edit {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  padding: 10px 12px;
+}
+
+.knowledge-source-edit summary {
+  cursor: pointer;
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: 900;
+}
+
+.knowledge-source-edit-form {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+
 .leader-review-context {
   display: grid;
   gap: 12px;
