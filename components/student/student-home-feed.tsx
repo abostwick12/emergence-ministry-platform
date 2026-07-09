@@ -42,13 +42,15 @@ export function StudentHomeFeed({ initialState, initialFeed, userName }: Student
   const [recentQuestions, setRecentQuestions] = useState(initialFeed.recentQuestions);
   const [keepReading, setKeepReading] = useState(initialFeed.keepReading);
   const [questionNextSteps, setQuestionNextSteps] = useState(initialFeed.questionNextSteps);
-  const [nextStep, setNextStep] = useState<StudentQuestionNextStep | undefined>(initialFeed.questionNextSteps[0]);
+  const [activePromptId, setActivePromptId] = useState(initialFeed.recentQuestions[0]?.id);
   const firstName = userName.split(" ")[0] || userName;
+  const activePrompt = recentQuestions.find((prompt) => prompt.id === activePromptId);
+  const activeNextStep = activePrompt ? nextStepForPrompt(activePrompt.id) : undefined;
 
   function addPrompt(prompt: StudentDiscussionPrompt, nextPromptStep: StudentQuestionNextStep) {
     setRecentQuestions((current) => [prompt, ...current].filter((item) => item.submittedByUserId === prompt.submittedByUserId).slice(0, 4));
     setQuestionNextSteps((current) => [nextPromptStep, ...current.filter((item) => item.promptId !== prompt.id)].slice(0, 4));
-    setNextStep(nextPromptStep);
+    setActivePromptId(prompt.id);
     setKeepReading((current) => mergeKeepReading(current, [nextPromptStep.readingPlan, nextPromptStep.resource]));
   }
 
@@ -99,7 +101,7 @@ export function StudentHomeFeed({ initialState, initialFeed, userName }: Student
           </div>
         </section>
 
-        {nextStep ? <StudentQuestionNextStepCard nextStep={nextStep} /> : null}
+        {activePrompt && activeNextStep ? <StudentQuestionJourneyCard nextStep={activeNextStep} prompt={activePrompt} /> : null}
 
         <FeedSection title="For your group" emptyTitle="Nothing approved yet." emptyBody="Leader-approved discussion prompts will appear here when they are ready.">
           {initialFeed.forGroup.map((prompt) => (
@@ -109,7 +111,13 @@ export function StudentHomeFeed({ initialState, initialFeed, userName }: Student
 
         <FeedSection title="Your recent questions" emptyTitle="No questions sent yet." emptyBody="When you send a real question, it will show here while your leader reviews it.">
           {recentQuestions.map((prompt) => (
-            <QuestionFeedRow key={prompt.id} nextStep={nextStepForPrompt(prompt.id)} onOpenNextStep={setNextStep} prompt={prompt} />
+            <QuestionFeedRow
+              isActive={prompt.id === activePromptId}
+              key={prompt.id}
+              nextStep={nextStepForPrompt(prompt.id)}
+              onOpenJourney={() => setActivePromptId(prompt.id)}
+              prompt={prompt}
+            />
           ))}
         </FeedSection>
       </section>
@@ -133,43 +141,84 @@ export function StudentHomeFeed({ initialState, initialFeed, userName }: Student
   );
 }
 
-function StudentQuestionNextStepCard({ nextStep }: { nextStep: StudentQuestionNextStep }) {
+function StudentQuestionJourneyCard({ prompt, nextStep }: { prompt: StudentDiscussionPrompt; nextStep: StudentQuestionNextStep }) {
+  const hasLeaderResponse = prompt.status === "approved" || prompt.status === "posted";
+
   return (
-    <section className="student-next-step" aria-label="Question next steps">
+    <section className="student-question-journey" aria-label="Question journey">
+      <div className="student-question-journey-header">
+        <div>
+          <p className="eyebrow">Question Journey</p>
+          <h2>{prompt.question}</h2>
+          <p>{journeySummary(prompt)}</p>
+        </div>
+        <span className={prompt.status === "changes_requested" ? "pill amber" : "pill blue"}>{statusLabel(prompt.status)}</span>
+      </div>
+
+      <div className="student-question-journey-meta" aria-label="Question status">
+        <JourneyMeta label="Passage" value={prompt.scriptureReference || "No passage selected"} />
+        <JourneyMeta label="Submitted" value={formatQuestionDate(prompt.createdAt)} />
+        <JourneyMeta label="Next" value={hasLeaderResponse ? "Bring it to group" : "Keep wrestling while it is with your leader"} />
+      </div>
+
+      <div className="student-question-journey-response">
+        <span>{hasLeaderResponse ? "Leader-approved prompt" : "With your leader"}</span>
+        <p>
+          {hasLeaderResponse && prompt.discussionPrompt
+            ? prompt.discussionPrompt
+            : "Your leader can shape this into a careful group conversation. Use the rhythm below while you wait."}
+        </p>
+      </div>
+
       <div className="student-next-step-copy">
         <p className="eyebrow">{nextStep.label}</p>
         <h2>{nextStep.title}</h2>
         <p>{nextStep.summary}</p>
       </div>
-      <div className="student-next-step-grid">
-        <StudentNextStepPanel icon={MessageCircle} title="Wrestle with your question">
-          <QuestionList questions={nextStep.wrestleQuestions} />
-        </StudentNextStepPanel>
-
-        <StudentNextStepPanel icon={BookOpen} title="Dig deeper">
-          <QuestionList questions={nextStep.digQuestions} />
-          <KeepReadingLink item={nextStep.readingPlan} />
-          <KeepReadingLink item={nextStep.resource} />
-        </StudentNextStepPanel>
-
-        <StudentNextStepPanel icon={PenLine} title="Reflect">
-          <QuestionList questions={nextStep.journalPrompts} />
-        </StudentNextStepPanel>
-
-        <StudentNextStepPanel icon={Heart} title="Pray">
-          <QuestionList questions={nextStep.prayerPrompts} />
-        </StudentNextStepPanel>
-
-        <StudentNextStepPanel className="student-next-step-panel-wide" icon={Users} title="Wrestle together">
-          <p className="student-next-step-together">{nextStep.wrestleTogetherPrompt}</p>
-        </StudentNextStepPanel>
-      </div>
+      <StudentNextStepRhythm nextStep={nextStep} />
       {nextStep.careNote ? (
         <p className="student-next-step-care">
           <strong>Bring this with you:</strong> {nextStep.careNote}
         </p>
       ) : null}
     </section>
+  );
+}
+
+function JourneyMeta({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function StudentNextStepRhythm({ nextStep }: { nextStep: StudentQuestionNextStep }) {
+  return (
+    <div className="student-next-step-grid">
+      <StudentNextStepPanel icon={MessageCircle} title="Wrestle with your question">
+        <QuestionList questions={nextStep.wrestleQuestions} />
+      </StudentNextStepPanel>
+
+      <StudentNextStepPanel icon={BookOpen} title="Dig deeper">
+        <QuestionList questions={nextStep.digQuestions} />
+        <KeepReadingLink item={nextStep.readingPlan} />
+        <KeepReadingLink item={nextStep.resource} />
+      </StudentNextStepPanel>
+
+      <StudentNextStepPanel icon={PenLine} title="Reflect">
+        <QuestionList questions={nextStep.journalPrompts} />
+      </StudentNextStepPanel>
+
+      <StudentNextStepPanel icon={Heart} title="Pray">
+        <QuestionList questions={nextStep.prayerPrompts} />
+      </StudentNextStepPanel>
+
+      <StudentNextStepPanel className="student-next-step-panel-wide" icon={Users} title="Wrestle together">
+        <p className="student-next-step-together">{nextStep.wrestleTogetherPrompt}</p>
+      </StudentNextStepPanel>
+    </div>
   );
 }
 
@@ -244,11 +293,13 @@ function DiscussionFeedRow({ prompt }: { prompt: StudentGroupDiscussionItem }) {
 function QuestionFeedRow({
   prompt,
   nextStep,
-  onOpenNextStep
+  isActive,
+  onOpenJourney
 }: {
   prompt: StudentDiscussionPrompt;
   nextStep?: StudentQuestionNextStep;
-  onOpenNextStep: (nextStep: StudentQuestionNextStep) => void;
+  isActive: boolean;
+  onOpenJourney: () => void;
 }) {
   return (
     <article className="student-feed-row">
@@ -260,8 +311,8 @@ function QuestionFeedRow({
       <div className="student-feed-row-actions">
         <span className={prompt.status === "changes_requested" ? "pill amber" : "pill blue"}>{statusLabel(prompt.status)}</span>
         {nextStep ? (
-          <button className="button secondary" onClick={() => onOpenNextStep(nextStep)} type="button">
-            Open next steps
+          <button className="button secondary" onClick={onOpenJourney} type="button">
+            {isActive ? "Journey open" : "Open journey"}
           </button>
         ) : null}
       </div>
@@ -312,4 +363,18 @@ function statusLabel(status: StudentDiscussionPrompt["status"]) {
   if (status === "pending_review") return "With leader";
   if (status === "changes_requested") return "Needs update";
   return status.replace(/_/g, " ");
+}
+
+function journeySummary(prompt: StudentDiscussionPrompt) {
+  if (prompt.status === "changes_requested") return "Your leader asked for more shaping. Keep naming what you are really asking.";
+  if (prompt.status === "approved") return "Your leader approved this for group discussion. Keep reading before you wrestle together.";
+  if (prompt.status === "posted") return "This has been shared for group discussion. Come ready to listen and respond.";
+  if (prompt.status === "archived") return "This question has been archived, but the reading path can still help you process it.";
+  return "Use this space to keep wrestling with your question while your leader prepares the group conversation.";
+}
+
+function formatQuestionDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Recently";
+  return new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(date);
 }
