@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, Search, Sparkles, Users } from "lucide-react";
+import { BookOpen, Heart, MessageCircle, PenLine, Search, Sparkles, Users, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -142,19 +142,27 @@ function StudentQuestionNextStepCard({ nextStep }: { nextStep: StudentQuestionNe
         <p>{nextStep.summary}</p>
       </div>
       <div className="student-next-step-grid">
-        <div className="student-next-step-panel">
-          <span>Questions to dig into</span>
-          <ul>
-            {nextStep.digQuestions.map((question) => (
-              <li key={question}>{question}</li>
-            ))}
-          </ul>
-        </div>
-        <div className="student-next-step-panel">
-          <span>Reading direction</span>
+        <StudentNextStepPanel icon={MessageCircle} title="Wrestle with your question">
+          <QuestionList questions={nextStep.wrestleQuestions} />
+        </StudentNextStepPanel>
+
+        <StudentNextStepPanel icon={BookOpen} title="Dig deeper">
+          <QuestionList questions={nextStep.digQuestions} />
           <KeepReadingLink item={nextStep.readingPlan} />
           <KeepReadingLink item={nextStep.resource} />
-        </div>
+        </StudentNextStepPanel>
+
+        <StudentNextStepPanel icon={PenLine} title="Reflect">
+          <QuestionList questions={nextStep.journalPrompts} />
+        </StudentNextStepPanel>
+
+        <StudentNextStepPanel icon={Heart} title="Pray">
+          <QuestionList questions={nextStep.prayerPrompts} />
+        </StudentNextStepPanel>
+
+        <StudentNextStepPanel className="student-next-step-panel-wide" icon={Users} title="Wrestle together">
+          <p className="student-next-step-together">{nextStep.wrestleTogetherPrompt}</p>
+        </StudentNextStepPanel>
       </div>
       {nextStep.careNote ? (
         <p className="student-next-step-care">
@@ -162,6 +170,38 @@ function StudentQuestionNextStepCard({ nextStep }: { nextStep: StudentQuestionNe
         </p>
       ) : null}
     </section>
+  );
+}
+
+function StudentNextStepPanel({
+  title,
+  icon: Icon,
+  className = "",
+  children
+}: {
+  title: string;
+  icon: LucideIcon;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className={`student-next-step-panel ${className}`}>
+      <span className="student-next-step-panel-title">
+        <Icon size={14} aria-hidden="true" />
+        {title}
+      </span>
+      {children}
+    </div>
+  );
+}
+
+function QuestionList({ questions }: { questions: string[] }) {
+  return (
+    <ul>
+      {questions.map((question) => (
+        <li key={question}>{question}</li>
+      ))}
+    </ul>
   );
 }
 

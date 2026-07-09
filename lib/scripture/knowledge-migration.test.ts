@@ -8,6 +8,10 @@ const grantHardeningMigration = readFileSync(
   join(process.cwd(), "supabase/migrations/030_harden_student_question_recommendation_grants.sql"),
   "utf8"
 );
+const rabbinicRecommendationMigration = readFileSync(
+  join(process.cwd(), "supabase/migrations/031_student_question_rabbinic_recommendations.sql"),
+  "utf8"
+);
 
 describe("scripture knowledge RAG migration", () => {
   it("creates the launch knowledge tables with pgvector-ready chunks", () => {
@@ -36,5 +40,13 @@ describe("scripture knowledge RAG migration", () => {
       "revoke update, delete, truncate, trigger on public.student_question_recommendations from authenticated"
     );
     expect(grantHardeningMigration).toContain("grant select, insert on public.student_question_recommendations to authenticated");
+  });
+
+  it("allows the student question rhythm to be persisted as first-class recommendations", () => {
+    expect(rabbinicRecommendationMigration).toContain("drop constraint if exists student_question_recommendations_recommendation_kind_check");
+    expect(rabbinicRecommendationMigration).toContain("'wrestle_question'");
+    expect(rabbinicRecommendationMigration).toContain("'journal_prompt'");
+    expect(rabbinicRecommendationMigration).toContain("'prayer_prompt'");
+    expect(rabbinicRecommendationMigration).toContain("'wrestle_together'");
   });
 });

@@ -23,7 +23,7 @@ export function StudentQuestionComposer({ readiness, onCreated }: StudentQuestio
   const [scriptureReference, setScriptureReference] = useState("");
   const [status, setStatus] = useState(
     readiness.liveStorage
-      ? "Ask the real question. You will get next steps here while your leader reviews it."
+      ? "Ask the real question. You will get a guided way to wrestle with it while your leader reviews it."
       : "Live question submission needs a signed-in student account."
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -48,7 +48,7 @@ export function StudentQuestionComposer({ readiness, onCreated }: StudentQuestio
       onCreated?.(payload.prompt, payload.nextStep);
       setQuestion("");
       setScriptureReference("");
-      setStatus("Saved. Start digging below while your leader shapes it for group discussion.");
+      setStatus("Saved. Use the rhythm below while your leader shapes it for group discussion.");
     } catch {
       setStatus("Your question could not be saved.");
     } finally {
@@ -61,7 +61,7 @@ export function StudentQuestionComposer({ readiness, onCreated }: StudentQuestio
       <div className="student-question-composer-copy">
         <p className="eyebrow">Ask</p>
         <h1>What should we talk about next?</h1>
-        <p>Ask honestly, then keep exploring with a few next steps before group.</p>
+        <p>Ask honestly. Then wrestle with better questions while your leader prepares the group conversation.</p>
       </div>
 
       <label className="student-question-field">
@@ -87,7 +87,7 @@ export function StudentQuestionComposer({ readiness, onCreated }: StudentQuestio
 
       <div className="student-question-actions">
         <button className="button primary" disabled={!readiness.liveStorage || isSubmitting} type="submit">
-          {isSubmitting ? "Saving..." : "Ask and keep exploring"}
+          {isSubmitting ? "Saving..." : "Ask and wrestle with it"}
         </button>
         <p role="status">{status}</p>
       </div>
