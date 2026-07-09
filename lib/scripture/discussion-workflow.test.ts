@@ -224,15 +224,88 @@ describe("leader discussion draft regeneration", () => {
     });
   });
 
-  it("does not call Gloo when draft regeneration is not configured", async () => {
+  it("saves a local guided draft when regeneration is not configured", async () => {
     isGlooConfiguredMock.mockReturnValue(false);
-    getSupabaseAuthClientMock.mockReturnValue(regenerationClient(discussionRow()).client);
+    const client = regenerationClient(
+      discussionRow({
+        ai_status: "not_configured",
+        ai_model: null,
+        ai_model_tier: null,
+        question: "Why did God put the tree in the garden?",
+        scripture_reference: "Genesis 3",
+        discussion_prompt: null
+      })
+    );
+    getSupabaseAuthClientMock.mockReturnValue(client.client);
 
-    await expect(decideStudentDiscussionPrompt(leaderSession(), "prompt_1", { action: "regenerate" })).rejects.toMatchObject({
-      code: "gloo_not_configured",
-      status: 503
+    const prompt = await decideStudentDiscussionPrompt(leaderSession(), "prompt_1", { action: "regenerate" });
+
+    expect(prompt).toMatchObject({
+      aiStatus: "not_configured",
+      discussionPrompt: "What does the garden story show us about God's gifts, human trust, and God's pursuit after failure as you read Genesis 3?",
+      safetyLabel: "safe"
     });
     expect(generateGlooDiscussionDraftMock).not.toHaveBeenCalled();
+    expect(client.updates[0]).toMatchObject({
+      ai_status: "not_configured",
+      discussion_prompt: "What does the garden story show us about God's gifts, human trust, and God's pursuit after failure as you read Genesis 3?",
+      ai_model_reason: expect.stringContaining("Knowledge-guided local fallback")
+    });
+    expect(client.events[0]).toMatchObject({
+      prompt_id: "prompt_1",
+      action: "local_draft_saved"
+    });
+  });
+
+  it("saves a local guided draft when the provider fails", async () => {
+    const client = regenerationClient(
+      discussionRow({
+        id: "prompt_failed_provider",
+        ai_status: "failed",
+        question: "How do I trust God when suffering feels pointless?",
+        scripture_reference: "Romans 8:18",
+        discussion_prompt: null
+      })
+    );
+    getSupabaseAuthClientMock.mockReturnValue(client.client);
+    generateGlooDiscussionDraftMock.mockResolvedValue({
+      ok: false,
+      code: "provider_error",
+      message: "Gloo AI Studio did not return a usable draft."
+    });
+
+    const prompt = await decideStudentDiscussionPrompt(leaderSession(), "prompt_failed_provider", { action: "regenerate" });
+
+    expect(prompt).toMatchObject({
+      aiStatus: "failed",
+      discussionPrompt: "Where does Scripture give us room for honest pain while still helping us look for God's nearness and hope as you read Romans 8:18?",
+      safetyLabel: "needs_leader_care",
+      safetyNotes: "Gloo AI Studio did not return a usable draft. A knowledge-guided local draft is available for leader review."
+    });
+    expect(client.events[0]).toMatchObject({
+      prompt_id: "prompt_failed_provider",
+      action: "draft_regeneration_failed"
+    });
+  });
+
+  it("lets leaders explicitly save a local guided draft", async () => {
+    const client = regenerationClient(
+      discussionRow({
+        id: "prompt_local",
+        question: "What should we do when faith feels confusing?",
+        scripture_reference: "",
+        discussion_prompt: null
+      })
+    );
+    getSupabaseAuthClientMock.mockReturnValue(client.client);
+
+    const prompt = await decideStudentDiscussionPrompt(leaderSession(), "prompt_local", { action: "use_local_draft" });
+
+    expect(prompt.discussionPrompt).toContain("What question is underneath this question");
+    expect(client.events[0]).toMatchObject({
+      prompt_id: "prompt_local",
+      action: "local_draft_saved"
+    });
   });
 });
 

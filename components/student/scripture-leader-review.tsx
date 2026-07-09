@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import type { DiscussionWorkflowState } from "@/lib/scripture/discussion-workflow";
 import type { GlooDiagnosticResult } from "@/lib/scripture/gloo";
+import { buildLocalDiscussionDraftForPrompt } from "@/lib/scripture/local-discussion-draft";
 import type { StudentDiscussionPrompt, StudentDiscussionStatus } from "@/lib/scripture/types";
 import type { StudentGroupLeaderState } from "@/lib/student/groups";
 
@@ -13,7 +14,7 @@ type ScriptureLeaderReviewProps = {
   initialState: DiscussionWorkflowState;
 };
 
-type ReviewAction = "approve" | "request_changes" | "archive" | "post" | "regenerate";
+type ReviewAction = "approve" | "request_changes" | "archive" | "post" | "regenerate" | "use_local_draft";
 
 type DecisionResponse = {
   ok?: boolean;
@@ -437,11 +438,18 @@ function LeaderReviewDetail({
 }) {
   const [leaderNotes, setLeaderNotes] = useState(prompt.leaderNotes);
   const [discussionPrompt, setDiscussionPrompt] = useState(prompt.discussionPrompt);
-  const aiDraft = guidanceText(prompt);
+  const localDraft = useMemo(() => buildLocalDiscussionDraftForPrompt(prompt), [prompt]);
+  const reviewDraft = guidanceText(prompt, localDraft.discussionPrompt);
+  const draftSource = prompt.discussionPrompt
+    ? prompt.aiStatus === "generated"
+      ? "Provider draft"
+      : "Saved guided draft"
+    : "Guided local draft";
   const canSave = liveStorageReady && !savingAction;
   const canApprove = canSave && discussionPrompt.trim().length > 0 && prompt.status !== "posted";
   const canPost = canSave && prompt.status === "approved";
   const canRegenerate = canSave && glooReady && prompt.status !== "posted";
+  const canSaveLocalDraft = canSave && prompt.status !== "posted";
 
   useEffect(() => {
     setLeaderNotes(prompt.leaderNotes);
@@ -466,17 +474,20 @@ function LeaderReviewDetail({
         <MetaTile label="Care signal" value={careText(prompt) || "Standard review"} />
       </div>
 
-      <section className="leader-review-guidance" aria-label="AI draft and care notes">
+      <section className="leader-review-guidance" aria-label="Draft and care notes">
         <div>
-          <p className="eyebrow">AI draft</p>
-          <p>{aiDraft}</p>
+          <p className="eyebrow">{draftSource}</p>
+          <p>{reviewDraft}</p>
         </div>
         <div className="leader-review-guidance-actions">
-          <button className="button" disabled={!aiDraft || !canSave} onClick={() => setDiscussionPrompt(aiDraft)} type="button">
+          <button className="button" disabled={!reviewDraft || !canSave} onClick={() => setDiscussionPrompt(reviewDraft)} type="button">
             Use draft
           </button>
+          <button className="button" disabled={!canSaveLocalDraft} onClick={() => onDecide(prompt.id, "use_local_draft", leaderNotes, discussionPrompt)} type="button">
+            {savingAction === "use_local_draft" ? "Saving..." : "Save local draft"}
+          </button>
           <button className="button" disabled={!canRegenerate} onClick={() => onDecide(prompt.id, "regenerate", leaderNotes, discussionPrompt)} type="button">
-            {savingAction === "regenerate" ? "Regenerating..." : "Regenerate"}
+            {savingAction === "regenerate" ? "Regenerating..." : glooReady ? "Regenerate" : "Gloo unavailable"}
           </button>
         </div>
       </section>
@@ -578,10 +589,9 @@ function buildReviewStats(prompts: StudentDiscussionPrompt[]) {
   };
 }
 
-function guidanceText(prompt: StudentDiscussionPrompt) {
+function guidanceText(prompt: StudentDiscussionPrompt, localDraft: string) {
   if (prompt.discussionPrompt) return prompt.discussionPrompt;
-  if (prompt.safetyNotes && prompt.aiStatus === "generated") return prompt.safetyNotes;
-  return "";
+  return localDraft;
 }
 
 function careText(prompt: StudentDiscussionPrompt) {
@@ -592,8 +602,8 @@ function careText(prompt: StudentDiscussionPrompt) {
 
 function aiStatusLabel(prompt: StudentDiscussionPrompt) {
   if (prompt.aiStatus === "generated") return "Draft ready";
-  if (prompt.aiStatus === "failed") return "Draft failed";
-  if (prompt.aiStatus === "not_configured") return "Not configured";
+  if (prompt.aiStatus === "failed") return prompt.discussionPrompt ? "Local fallback" : "Needs local draft";
+  if (prompt.aiStatus === "not_configured") return prompt.discussionPrompt ? "Local draft ready" : "Provider not configured";
   return "Pending";
 }
 
@@ -607,12 +617,14 @@ function emptyText(tab: ReviewTab["id"]) {
 }
 
 function statusForSaving(action: ReviewAction) {
+  if (action === "use_local_draft") return "Saving a knowledge-guided local draft...";
   if (action === "regenerate") return "Requesting a fresh AI draft...";
   if (action === "post") return "Posting the approved prompt...";
   return "Saving leader decision...";
 }
 
 function statusForSaved(action: ReviewAction) {
+  if (action === "use_local_draft") return "Knowledge-guided local draft saved for leader review.";
   if (action === "regenerate") return "AI draft regenerated for leader review.";
   if (action === "post") return "Approved prompt posted and logged.";
   return "Leader decision saved.";

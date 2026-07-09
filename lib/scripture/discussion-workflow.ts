@@ -4,6 +4,7 @@ import { getSupabaseAdminClient, getSupabaseAuthClient, isSupabaseAdminConfigure
 import { resolveMinistryScope } from "@/lib/ministry/scope";
 import { generateGlooDiscussionDraft, isGlooConfigured } from "@/lib/scripture/gloo";
 import { formatStudentKnowledgeContextForGloo, getStudentKnowledgeMatches } from "@/lib/scripture/knowledge";
+import { buildLocalDiscussionDraft, buildLocalDiscussionDraftForPrompt } from "@/lib/scripture/local-discussion-draft";
 import { deliverDiscussionPromptToSlack, isSlackDiscussionDeliveryConfigured } from "@/lib/scripture/slack";
 import type { StudentGroupDiscussionItem } from "@/lib/scripture/student-home";
 import { sanitizeScriptureReference } from "@/lib/scripture/youversion";
@@ -34,7 +35,7 @@ export type CreateStudentDiscussionInput = {
 };
 
 export type DecideStudentDiscussionInput = {
-  action: "approve" | "request_changes" | "archive" | "post" | "regenerate";
+  action: "approve" | "request_changes" | "archive" | "post" | "regenerate" | "use_local_draft";
   leaderNotes?: string;
   discussionPrompt?: string;
 };
@@ -187,6 +188,12 @@ export async function createStudentDiscussionPrompt(session: AuthSession, input:
         code: "not_configured" as const,
         message: "Gloo AI Studio is not configured yet."
       };
+  const localDraft = buildLocalDiscussionDraft({
+    question,
+    scriptureReference: scripture.reference,
+    metanarrativeMovement,
+    knowledgeContext
+  });
 
   const row = {
     ...ministryScopeColumns(ministryId),
@@ -202,13 +209,13 @@ export async function createStudentDiscussionPrompt(session: AuthSession, input:
     ai_status: draft.ok ? "generated" : draft.code === "not_configured" ? "not_configured" : "failed",
     ai_model: draft.ok ? draft.model : null,
     ai_model_tier: draft.ok ? draft.modelTier : null,
-    ai_model_reason: draft.ok ? draft.modelReason : null,
+    ai_model_reason: draft.ok ? draft.modelReason : fallbackReason(draft.message),
     ai_confidence: draft.ok ? draft.confidence : null,
-    topic_tags: draft.ok ? draft.topicTags : [],
-    escalation_reason: draft.ok ? draft.escalationReason : null,
-    safety_label: draft.ok ? draft.safetyLabel : "unreviewed",
-    safety_notes: draft.ok ? draft.safetyNotes : draft.message,
-    discussion_prompt: draft.ok ? draft.discussionPrompt : null,
+    topic_tags: draft.ok ? draft.topicTags : localDraft.topicTags,
+    escalation_reason: draft.ok ? draft.escalationReason : localDraft.escalationReason || null,
+    safety_label: draft.ok ? draft.safetyLabel : localDraft.safetyLabel,
+    safety_notes: draft.ok ? draft.safetyNotes : localDraft.safetyNotes,
+    discussion_prompt: draft.ok ? draft.discussionPrompt : localDraft.discussionPrompt,
     leader_notes: null,
     status: "pending_review",
     delivery_status: "not_requested",
@@ -237,6 +244,10 @@ export async function decideStudentDiscussionPrompt(session: AuthSession, id: st
   const prompt = await getPromptById(session, id);
   if (input.action === "regenerate") {
     return regenerateDiscussionDraft(session, prompt);
+  }
+
+  if (input.action === "use_local_draft") {
+    return saveLocalDiscussionDraft(session, prompt);
   }
 
   if (input.action === "post") {
@@ -272,29 +283,29 @@ export async function decideStudentDiscussionPrompt(session: AuthSession, id: st
 
 async function regenerateDiscussionDraft(session: AuthSession, prompt: StudentDiscussionPrompt) {
   if (!isGlooConfigured()) {
-    throw new DiscussionWorkflowError("Gloo AI Studio is not configured yet.", 503, "gloo_not_configured");
+    return saveLocalDiscussionDraft(session, prompt, "Gloo AI Studio is not configured, so a knowledge-guided local draft was saved instead.");
   }
 
+  const knowledgeContext = prompt.knowledgeContext?.length ? prompt.knowledgeContext : await getStudentKnowledgeMatches(session, prompt);
   const draft = await generateGlooDiscussionDraft({
     question: prompt.question,
     scriptureReference: prompt.scriptureReference,
     metanarrativeMovement: prompt.metanarrativeMovement ?? inferMetanarrativeMovement(prompt.question, prompt.scriptureReference),
-    retrievedContext: formatStudentKnowledgeContextForGloo(
-      prompt.knowledgeContext?.length ? prompt.knowledgeContext : await getStudentKnowledgeMatches(session, prompt)
-    )
+    retrievedContext: formatStudentKnowledgeContextForGloo(knowledgeContext)
   });
+  const localDraft = buildLocalDiscussionDraftForPrompt({ ...prompt, knowledgeContext });
 
   const update: Partial<StudentDiscussionPromptRow> = {
     ai_status: draft.ok ? "generated" : "failed",
     ai_model: draft.ok ? draft.model : prompt.aiModel || null,
     ai_model_tier: draft.ok ? draft.modelTier : prompt.aiModelTier,
-    ai_model_reason: draft.ok ? draft.modelReason : prompt.aiModelReason,
+    ai_model_reason: draft.ok ? draft.modelReason : fallbackReason(draft.message),
     ai_confidence: draft.ok ? draft.confidence : prompt.aiConfidence,
-    topic_tags: draft.ok ? draft.topicTags : prompt.topicTags,
-    escalation_reason: draft.ok ? draft.escalationReason : prompt.escalationReason,
-    safety_label: draft.ok ? draft.safetyLabel : prompt.safetyLabel,
-    safety_notes: draft.ok ? draft.safetyNotes : draft.message,
-    discussion_prompt: draft.ok ? draft.discussionPrompt : prompt.discussionPrompt || null
+    topic_tags: draft.ok ? draft.topicTags : localDraft.topicTags,
+    escalation_reason: draft.ok ? draft.escalationReason : localDraft.escalationReason || prompt.escalationReason,
+    safety_label: draft.ok ? draft.safetyLabel : localDraft.safetyLabel,
+    safety_notes: draft.ok ? draft.safetyNotes : `${draft.message} A knowledge-guided local draft is available for leader review.`,
+    discussion_prompt: draft.ok ? draft.discussionPrompt : localDraft.discussionPrompt
   };
 
   const supabase = getSupabaseAuthClient(session.accessToken);
@@ -307,10 +318,28 @@ async function regenerateDiscussionDraft(session: AuthSession, prompt: StudentDi
     model: update.ai_model
   });
 
-  if (!draft.ok) {
-    throw new DiscussionWorkflowError(draft.message, draft.code === "not_configured" ? 503 : 502, draft.code);
-  }
+  return withKnowledgeContext(session, toPrompt(result.data));
+}
 
+async function saveLocalDiscussionDraft(session: AuthSession, prompt: StudentDiscussionPrompt, reason = "Knowledge-guided local draft saved for leader review.") {
+  const knowledgeContext = prompt.knowledgeContext?.length ? prompt.knowledgeContext : await getStudentKnowledgeMatches(session, prompt);
+  const localDraft = buildLocalDiscussionDraftForPrompt({ ...prompt, knowledgeContext });
+  const update: Partial<StudentDiscussionPromptRow> = {
+    ai_status: prompt.aiStatus === "not_configured" ? "not_configured" : prompt.aiStatus === "generated" ? "generated" : "failed",
+    ai_model_reason: fallbackReason(reason),
+    topic_tags: localDraft.topicTags.length ? localDraft.topicTags : prompt.topicTags,
+    escalation_reason: localDraft.escalationReason || prompt.escalationReason || null,
+    safety_label: localDraft.safetyLabel,
+    safety_notes: localDraft.safetyNotes,
+    discussion_prompt: localDraft.discussionPrompt
+  };
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const result = await supabase.from("student_discussion_prompts").update(update).eq("id", prompt.id).select("*").single<StudentDiscussionPromptRow>();
+  throwIfSupabaseError(result.error);
+  if (!result.data) throw new DiscussionWorkflowError("The local discussion draft was not saved.", 500, "missing_local_draft_prompt");
+
+  await logPromptEvent(session, prompt.id, "local_draft_saved", { reason });
   return withKnowledgeContext(session, toPrompt(result.data));
 }
 
@@ -497,7 +526,7 @@ function assertLeader(session: AuthSession) {
   }
 }
 
-function toStatusForAction(action: Exclude<DecideStudentDiscussionInput["action"], "post" | "regenerate">): StudentDiscussionStatus {
+function toStatusForAction(action: Exclude<DecideStudentDiscussionInput["action"], "post" | "regenerate" | "use_local_draft">): StudentDiscussionStatus {
   switch (action) {
     case "approve":
       return "approved";
@@ -506,6 +535,10 @@ function toStatusForAction(action: Exclude<DecideStudentDiscussionInput["action"
     case "archive":
       return "archived";
   }
+}
+
+function fallbackReason(reason: string) {
+  return `Knowledge-guided local fallback: ${reason}`;
 }
 
 function ministryScopeColumns(ministryId: string | undefined): { ministry_id?: string } {
