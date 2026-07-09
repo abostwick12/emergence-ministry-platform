@@ -70,6 +70,15 @@ function BellIcon() {
   );
 }
 
+function SearchIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="17" height="17" fill="none" aria-hidden="true">
+      <circle cx="10.8" cy="10.8" r="6.3" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M16 16l4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 const navIconPaths: Record<string, React.ReactNode> = {
   "/dashboard": (
     <>
@@ -164,6 +173,7 @@ const pageTitles: Record<string, string> = {
   "/camp": "Camp Command Center",
   "/events": "Events",
   "/worship": "Worship",
+  "/student": "Student Portal",
   "/tasks": "Tasks",
   "/communications": "Communications",
   "/people": "People",
@@ -174,8 +184,19 @@ const pageTitles: Record<string, string> = {
   "/command-center": "Command Center"
 };
 
+const pageSubtitles: Record<string, string> = {
+  "/student": "A space for discipleship - study Scripture, ask questions, and grow in community.",
+  "/discipleship": "Move beyond attendance into formation - Scripture as a whole story, studied in community.",
+  "/command-center": "Coordinate AI-supported ministry decisions with a clear audit trail."
+};
+
+function isLinkActive(pathname: string, href: string): boolean {
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
 export function AppShell({
   children,
+  canManageEvents = true,
   devAuth = false,
   shellAccess = { kind: "full" },
   showCommandCenter = false,
@@ -184,6 +205,7 @@ export function AppShell({
   user
 }: {
   children: React.ReactNode;
+  canManageEvents?: boolean;
   devAuth?: boolean;
   shellAccess?: AppShellAccessState;
   showCommandCenter?: boolean;
@@ -207,7 +229,20 @@ export function AppShell({
   const visibleMobileMoreLinks = campOnly ? [] : mobileMoreLinksFor(allPrimaryLinks);
   const title = isCampRoute
     ? "Camp Command Center"
-    : pageTitles[pathname] ?? (pathname.startsWith("/command-center") ? "Command Center" : "Dashboard");
+    : pageTitles[pathname] ??
+      (pathname.startsWith("/student")
+        ? "Student Portal"
+        : pathname.startsWith("/command-center")
+          ? "Command Center"
+          : "Dashboard");
+  const subtitle = pathname === "/dashboard"
+    ? `Welcome back, ${displayName.split(" ")[0]}! Here's what's going on across the ministry.`
+    : pageSubtitles[pathname] ??
+      (pathname.startsWith("/student")
+        ? pageSubtitles["/student"]
+        : pathname.startsWith("/discipleship")
+          ? pageSubtitles["/discipleship"]
+          : "");
   const isDashboard = pathname === "/dashboard";
   const shouldBlockEmergeChildren = !isCampRoute && !canUseEmergeShell;
   const shellAccessIssue = shellAccess.kind === "full" ? null : shellAccess;
@@ -232,14 +267,14 @@ export function AppShell({
 
             <nav className="app-nav-list" aria-label="Desktop navigation">
               {visiblePrimaryLinks.map((link) => (
-                <Link className={pathname === link.href ? "app-nav-link active" : "app-nav-link"} href={link.href} key={link.href}>
+                <Link className={isLinkActive(pathname, link.href) ? "app-nav-link active" : "app-nav-link"} href={link.href} key={link.href}>
                   <NavIcon href={link.href} />
                   {link.label}
                 </Link>
               ))}
             </nav>
 
-            {canUseEmergeShell ? (
+            {canUseEmergeShell && canManageEvents ? (
               <>
                 <div className="role-control" role="group" aria-label="Switch active role">
                   {(["admin", "leader"] as Role[]).map((role) => (
@@ -285,17 +320,15 @@ export function AppShell({
         {!isCampRoute ? (
           <header className="app-header app-fixed-header">
             <div className="app-header-text">
-              {isDashboard ? (
-                <>
-                  <h1 className="app-header-title">Dashboard</h1>
-                  <p className="app-header-welcome">Welcome back, {displayName.split(" ")[0]}! Here&apos;s what&apos;s going on across the ministry.</p>
-                </>
-              ) : (
-                <h1 className="app-header-title app-header-title-compact">{title}</h1>
-              )}
+              <h1 className={isDashboard ? "app-header-title" : "app-header-title app-header-title-compact"}>{title}</h1>
+              {subtitle ? <p className="app-header-welcome">{subtitle}</p> : null}
             </div>
 
             <div className="app-header-right">
+              <label className="app-search-pill" aria-label="Search coming soon">
+                <SearchIcon />
+                <input disabled placeholder="Search..." type="search" />
+              </label>
               {process.env.NODE_ENV === "development" ? (
                 <>
                   <span className="pill stub">Stub Mode</span>
@@ -318,7 +351,7 @@ export function AppShell({
       {!isCampRoute ? (
         <nav className="mobile-bottom-nav" aria-label="Mobile navigation">
           {visibleMobileLinks.map((link) => (
-            <Link className={pathname === link.href ? "mobile-nav-link active" : "mobile-nav-link"} href={link.href} key={link.href}>
+            <Link className={isLinkActive(pathname, link.href) ? "mobile-nav-link active" : "mobile-nav-link"} href={link.href} key={link.href}>
               <NavIcon href={link.href} />
               {link.label}
             </Link>
@@ -326,7 +359,7 @@ export function AppShell({
           <details className="mobile-more-menu">
             <summary className="mobile-nav-link">More</summary>
             <div className="mobile-more-panel" aria-label="More navigation">
-              {canUseEmergeShell ? (
+              {canUseEmergeShell && canManageEvents ? (
                 <button
                   className="button primary mobile-add-event-btn"
                   type="button"

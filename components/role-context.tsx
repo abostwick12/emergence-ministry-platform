@@ -10,8 +10,8 @@ type RoleContextValue = {
 
 const RoleContext = createContext<RoleContextValue | null>(null);
 
-export function RoleProvider({ children }: { children: React.ReactNode }) {
-  const [activeRole, setActiveRole] = useState<Role>("admin");
+export function RoleProvider({ children, initialRole = "admin" }: { children: React.ReactNode; initialRole?: Role }) {
+  const [activeRole, setActiveRole] = useState<Role>(initialRole);
   const value = useMemo(() => ({ activeRole, setActiveRole }), [activeRole]);
 
   return <RoleContext.Provider value={value}>{children}</RoleContext.Provider>;
