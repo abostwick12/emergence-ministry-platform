@@ -7,7 +7,16 @@ import type { StudentDiscussionKnowledgeContext } from "@/lib/scripture/types";
 
 export type StudentKnowledgeMatch = StudentDiscussionKnowledgeContext;
 
-export type StudentQuestionRecommendationKind = "dig_question" | "reading_plan" | "resource" | "scripture_lookup" | "leader_context";
+export type StudentQuestionRecommendationKind =
+  | "wrestle_question"
+  | "dig_question"
+  | "journal_prompt"
+  | "prayer_prompt"
+  | "wrestle_together"
+  | "reading_plan"
+  | "resource"
+  | "scripture_lookup"
+  | "leader_context";
 
 export type StudentSavedQuestionRecommendation = {
   promptId: string;
@@ -161,16 +170,56 @@ export async function saveStudentQuestionRecommendations(
   if (!session.accessToken || !isSupabaseConfigured()) return;
 
   const rows = [
-    ...nextStep.digQuestions.map((question, index) => ({
-      recommendation_kind: "dig_question",
-      label: nextStep.label,
+    ...nextStep.wrestleQuestions.map((question, index) => ({
+      recommendation_kind: "wrestle_question",
+      label: "Wrestle with it",
       title: question,
-      description: "A question to explore while your leader reviews the group prompt.",
+      description: "A question to help the student name what they are really asking.",
       href: "/student",
-      reason: "Generated from the student's question and launch-safe knowledge matches.",
+      reason: "Generated from the student's question as a rabbinic-style reflection prompt.",
       rank: index,
       source_chunk_id: matches[0]?.sourceChunkId ?? null
     })),
+    ...nextStep.digQuestions.map((question, index) => ({
+      recommendation_kind: "dig_question",
+      label: "Dig deeper",
+      title: question,
+      description: "A Scripture-facing question to explore while the leader reviews the group prompt.",
+      href: "/student",
+      reason: "Generated from the student's question and launch-safe knowledge matches.",
+      rank: 10 + index,
+      source_chunk_id: matches[0]?.sourceChunkId ?? null
+    })),
+    ...nextStep.journalPrompts.map((prompt, index) => ({
+      recommendation_kind: "journal_prompt",
+      label: "Reflect",
+      title: prompt,
+      description: "A private reflection prompt for the student to consider before group.",
+      href: "/student",
+      reason: "Generated from the student's question to support slower discipleship reflection.",
+      rank: 20 + index,
+      source_chunk_id: matches[0]?.sourceChunkId ?? null
+    })),
+    ...nextStep.prayerPrompts.map((prompt, index) => ({
+      recommendation_kind: "prayer_prompt",
+      label: "Pray",
+      title: prompt,
+      description: "A short prayer prompt connected to the student's question.",
+      href: "/student",
+      reason: "Generated from the student's question to support prayerful formation.",
+      rank: 30 + index,
+      source_chunk_id: matches[0]?.sourceChunkId ?? null
+    })),
+    {
+      recommendation_kind: "wrestle_together",
+      label: "Wrestle together",
+      title: nextStep.wrestleTogetherPrompt,
+      description: "A bridge from private reflection into leader-reviewed group discussion.",
+      href: "/student",
+      reason: "Generated from the student's question to prepare for group conversation.",
+      rank: 40,
+      source_chunk_id: matches[0]?.sourceChunkId ?? null
+    },
     {
       recommendation_kind: "reading_plan",
       label: nextStep.readingPlan.label,
@@ -178,7 +227,7 @@ export async function saveStudentQuestionRecommendations(
       description: nextStep.readingPlan.description,
       href: nextStep.readingPlan.href,
       reason: "Suggested as the next reading direction for this student question.",
-      rank: 10,
+      rank: 50,
       source_chunk_id: matches[0]?.sourceChunkId ?? null
     },
     {
@@ -188,7 +237,7 @@ export async function saveStudentQuestionRecommendations(
       description: nextStep.resource.description,
       href: nextStep.resource.href,
       reason: "Suggested as a careful reading practice for this student question.",
-      rank: 11,
+      rank: 51,
       source_chunk_id: matches[1]?.sourceChunkId ?? matches[0]?.sourceChunkId ?? null
     }
   ].map((row) => ({

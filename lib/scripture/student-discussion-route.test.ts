@@ -67,7 +67,8 @@ describe("student discussion route", () => {
       ok: true,
       prompt: savedPrompt,
       nextStep: {
-        title: "Start digging before group"
+        title: "Wrestle with your question",
+        wrestleTogetherPrompt: "Bring this to group: What does the garden story show about God's gifts, human trust, and God's pursuit after failure?"
       }
     });
     expect(createStudentDiscussionPromptMock).toHaveBeenCalledWith(

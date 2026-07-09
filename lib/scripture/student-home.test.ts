@@ -28,7 +28,7 @@ describe("student home feed personalization", () => {
     expect(feed.recentQuestions.map((item) => item.id)).toEqual(["question_tree"]);
     expect(feed.questionNextSteps[0]).toMatchObject({
       promptId: "question_tree",
-      title: "Start digging before group"
+      title: "Wrestle with your question"
     });
     expect(feed.keepReading[0]).toMatchObject({
       label: "Because you asked about Genesis 3",
@@ -141,7 +141,11 @@ describe("student home feed personalization", () => {
       label: "Because you asked about suffering",
       title: "Keep digging before group",
       summary: "Read suffering and hope together before group.",
+      wrestleQuestions: expect.arrayContaining(["What kind of answer would feel too quick or too shallow?"]),
       digQuestions: ["Where does Romans 8 name pain without pretending it is small?"],
+      journalPrompts: expect.arrayContaining(["Write one honest sentence naming what hurts or feels unresolved."]),
+      prayerPrompts: expect.arrayContaining(["God, help me be honest about what hurts."]),
+      wrestleTogetherPrompt: "Bring this to group: How can we make room for honest pain while looking for God's nearness and hope together?",
       readingPlan: {
         title: "Romans 8 and patient hope"
       }
@@ -193,14 +197,24 @@ describe("student home feed personalization", () => {
     expect(nextStep).toMatchObject({
       promptId: "question_tree",
       label: "Because you asked about the garden",
-      title: "Start digging before group",
+      title: "Wrestle with your question",
       readingPlan: {
         title: "Beginnings and Covenant"
       }
     });
+    expect(nextStep.wrestleQuestions).toEqual(
+      expect.arrayContaining(["What do you think this story is showing about God, people, freedom, or trust?"])
+    );
     expect(nextStep.digQuestions).toEqual(
       expect.arrayContaining(["What good things does God give before the command appears?"])
     );
+    expect(nextStep.journalPrompts).toEqual(
+      expect.arrayContaining(["Name what this question makes you wonder about God, people, and freedom."])
+    );
+    expect(nextStep.prayerPrompts).toEqual(
+      expect.arrayContaining(["God, help me be honest about what I am really asking."])
+    );
+    expect(nextStep.wrestleTogetherPrompt).toContain("garden story");
   });
 
   it("uses knowledge matches before generic next-step recommendations", () => {
@@ -235,6 +249,7 @@ describe("student home feed personalization", () => {
       }
     });
     expect(nextStep.digQuestions).toEqual(["Where does Romans 8 name pain without pretending it is small?"]);
+    expect(nextStep.wrestleTogetherPrompt).toContain("honest pain");
   });
 
   it("adds a careful leader-care note for sensitive questions", () => {
@@ -285,7 +300,16 @@ function prompt(overrides: Partial<StudentDiscussionPrompt>): StudentDiscussionP
 }
 
 function savedRecommendation(overrides: {
-  kind: "dig_question" | "reading_plan" | "resource" | "scripture_lookup" | "leader_context";
+  kind:
+    | "wrestle_question"
+    | "dig_question"
+    | "journal_prompt"
+    | "prayer_prompt"
+    | "wrestle_together"
+    | "reading_plan"
+    | "resource"
+    | "scripture_lookup"
+    | "leader_context";
   label: string;
   title: string;
   description?: string;

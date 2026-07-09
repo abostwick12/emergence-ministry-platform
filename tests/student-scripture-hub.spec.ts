@@ -41,7 +41,7 @@ test.describe("Student Scripture Hub shell", () => {
 
     await page.goto("/student");
     await expect(page.getByRole("heading", { name: "Student Portal" })).toBeVisible();
-    await expect(page.getByText("Ask honestly, then keep exploring with a few next steps before group.")).toBeVisible();
+    await expect(page.getByText("Ask honestly. Then wrestle with better questions while your leader prepares the group conversation.")).toBeVisible();
     await expect(page.getByRole("heading", { name: "How to Read the Bible" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Understanding Context" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Asking Good Questions" })).toBeVisible();
@@ -78,10 +78,10 @@ test.describe("Student Scripture Hub shell", () => {
 
     await page.goto("/student/scripture/questions");
     await expect(page.getByRole("heading", { name: "What should we talk about next?" })).toBeVisible();
-    await expect(page.getByText("Ask honestly, then keep exploring with a few next steps before group.")).toBeVisible();
+    await expect(page.getByText("Ask honestly. Then wrestle with better questions while your leader prepares the group conversation.")).toBeVisible();
     await expect(page.getByLabel("What are you wondering?")).toBeVisible();
     await expect(page.getByText("Metanarrative movement")).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Ask and keep exploring" })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Ask and wrestle with it" })).toBeDisabled();
   });
 
   test("builder pages generate local previews without saving or sending", async ({ page }) => {

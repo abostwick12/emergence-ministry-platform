@@ -26,7 +26,11 @@ export type StudentQuestionNextStep = {
   title: string;
   summary: string;
   careNote?: string;
+  wrestleQuestions: string[];
   digQuestions: string[];
+  journalPrompts: string[];
+  prayerPrompts: string[];
+  wrestleTogetherPrompt: string;
   readingPlan: StudentKeepReadingItem;
   resource: StudentKeepReadingItem;
 };
@@ -89,12 +93,16 @@ export function buildQuestionNextStep(prompt: ReadingSource & { id?: string }, k
   return {
     promptId: prompt.id ?? "current-question",
     label: primaryKnowledge?.label ?? (topic ? `Because you asked about ${topic}` : "Keep exploring"),
-    title: "Start digging before group",
+    title: "Wrestle with your question",
     summary:
       primaryKnowledge?.description ??
-      "Your leader can still shape this for discussion, but you do not have to wait to start reading carefully.",
+      "Your leader can still shape this for group discussion, but you do not have to wait to start seeking carefully.",
     careNote: careNoteForPrompt(prompt),
+    wrestleQuestions: wrestleQuestionsForPrompt(prompt),
     digQuestions: primaryKnowledge?.digQuestions?.length ? primaryKnowledge.digQuestions : digQuestionsForPrompt(prompt),
+    journalPrompts: journalPromptsForPrompt(prompt),
+    prayerPrompts: prayerPromptsForPrompt(prompt),
+    wrestleTogetherPrompt: wrestleTogetherPromptForPrompt(prompt, primaryKnowledge),
     readingPlan: primaryKnowledge ? knowledgeItem(primaryKnowledge, primaryKnowledge.label) : planItem(plan, topic ? `Because you asked about ${topic}` : "Suggested plan"),
     resource: secondaryKnowledge ? knowledgeItem(secondaryKnowledge, "Keep digging") : resourceItem(resource, "Practice this")
   };
@@ -150,7 +158,11 @@ function savedRecommendationsToNextStep(
   if (!recommendations?.length) return undefined;
 
   const sorted = [...recommendations].sort((a, b) => a.rank - b.rank);
+  const wrestleQuestions = sorted.filter((item) => item.kind === "wrestle_question").map((item) => item.title).filter(Boolean).slice(0, 4);
   const digQuestions = sorted.filter((item) => item.kind === "dig_question").map((item) => item.title).filter(Boolean).slice(0, 3);
+  const journalPrompts = sorted.filter((item) => item.kind === "journal_prompt").map((item) => item.title).filter(Boolean).slice(0, 3);
+  const prayerPrompts = sorted.filter((item) => item.kind === "prayer_prompt").map((item) => item.title).filter(Boolean).slice(0, 3);
+  const wrestleTogether = sorted.find((item) => item.kind === "wrestle_together");
   const readingPlan = sorted.find((item) => item.kind === "reading_plan");
   const resource = sorted.find((item) => item.kind === "resource" || item.kind === "scripture_lookup");
   const fallback = buildQuestionNextStep(prompt, prompt.knowledgeContext ?? []);
@@ -163,9 +175,13 @@ function savedRecommendationsToNextStep(
     summary:
       readingPlan?.description ||
       resource?.description ||
-      "These next steps were saved from your question so you can keep reading while your leader reviews it.",
+      "These next steps were saved from your question so you can wrestle, read, reflect, and pray while your leader reviews it.",
     careNote: fallback.careNote,
+    wrestleQuestions: wrestleQuestions.length ? wrestleQuestions : fallback.wrestleQuestions,
     digQuestions: digQuestions.length ? digQuestions : fallback.digQuestions,
+    journalPrompts: journalPrompts.length ? journalPrompts : fallback.journalPrompts,
+    prayerPrompts: prayerPrompts.length ? prayerPrompts : fallback.prayerPrompts,
+    wrestleTogetherPrompt: wrestleTogether?.title || fallback.wrestleTogetherPrompt,
     readingPlan: readingPlan ? recommendationItem(readingPlan, prompt.id) : fallback.readingPlan,
     resource: resource ? recommendationItem(resource, prompt.id) : fallback.resource
   };
@@ -292,7 +308,7 @@ function topicLabelForPrompt(prompt: ReadingSource) {
   const text = promptSearchText(prompt);
   const checks: Array<[string, RegExp]> = [
     ["trust", /\b(trust|faith|believe|prayer|pray|anxiety|worry)\b/],
-    ["suffering", /\b(suffer|pain|grief|death|trauma|hard things)\b/],
+    ["suffering", /\b(suffer\w*|pain|grief|death|trauma|hard things)\b/],
     ["the garden", /\b(garden|eden|tree|evil|genesis|creation)\b/],
     ["doubt", /\b(doubt|deconstruct|confused|questioning)\b/],
     ["identity", /\b(identity|belong|purpose|worth)\b/],
@@ -312,7 +328,7 @@ function digQuestionsForPrompt(prompt: ReadingSource) {
     ];
   }
 
-  if (/\b(suffer|pain|grief|death|trauma|hard things|depression|panic)\b/.test(text)) {
+  if (/\b(suffer\w*|pain|grief|death|trauma|hard things|depression|panic)\b/.test(text)) {
     return [
       "Where does Scripture make room for honest grief or lament?",
       "What does the passage reveal about God's nearness when life is painful?",
@@ -335,13 +351,122 @@ function digQuestionsForPrompt(prompt: ReadingSource) {
   ];
 }
 
+function wrestleQuestionsForPrompt(prompt: ReadingSource) {
+  const text = promptSearchText(prompt);
+  const baseQuestions = [
+    "What have you heard or been taught about this before?",
+    "What is sticking out to you, bothering you, or confusing you?",
+    "What is the main thing you really want to know?",
+    "Where have you already looked for answers?"
+  ];
+
+  if (/\b(garden|eden|tree|evil|genesis|creation)\b/.test(text)) {
+    return [
+      baseQuestions[0],
+      "What do you think this story is showing about God, people, freedom, or trust?",
+      baseQuestions[2],
+      baseQuestions[3]
+    ];
+  }
+
+  if (/\b(suffer\w*|pain|grief|death|trauma|hard things|depression|panic)\b/.test(text)) {
+    return [
+      "What kind of answer would feel too quick or too shallow?",
+      baseQuestions[1],
+      baseQuestions[2],
+      "Who could help you carry this question with wisdom and care?"
+    ];
+  }
+
+  if (/\b(doubt|deconstruct|confused|questioning)\b/.test(text)) {
+    return [
+      "If this question has a deeper question underneath it, what might that be?",
+      baseQuestions[0],
+      baseQuestions[2],
+      baseQuestions[3]
+    ];
+  }
+
+  return baseQuestions;
+}
+
+function journalPromptsForPrompt(prompt: ReadingSource) {
+  const text = promptSearchText(prompt);
+
+  if (/\b(suffer\w*|pain|grief|death|trauma|hard things|depression|panic)\b/.test(text)) {
+    return [
+      "Write one honest sentence naming what hurts or feels unresolved.",
+      "Name one thing the reading reveals about God's nearness, even if it does not answer everything.",
+      "Write one question you want a trusted leader to help you carry."
+    ];
+  }
+
+  if (/\b(garden|eden|tree|evil|genesis|creation)\b/.test(text)) {
+    return [
+      "List the gifts God gives in the story before you write about the command.",
+      "Write one sentence about what trust might have looked like in the garden.",
+      "Name what this question makes you wonder about God, people, and freedom."
+    ];
+  }
+
+  return [
+    "Write one sentence naming what you hope is true about God here.",
+    "What did the reading reveal about God, people, brokenness, or hope?",
+    "What question are you still carrying after reading?"
+  ];
+}
+
+function prayerPromptsForPrompt(prompt: ReadingSource) {
+  const text = promptSearchText(prompt);
+
+  if (/\b(suffer\w*|pain|grief|death|trauma|hard things|depression|panic)\b/.test(text)) {
+    return [
+      "God, help me be honest about what hurts.",
+      "God, show me where you are near, even while I still have questions.",
+      "God, give me courage to bring this into wise community."
+    ];
+  }
+
+  if (/\b(trust|faith|believe|prayer|pray|anxiety|worry)\b/.test(text)) {
+    return [
+      "God, help me name what makes trust hard.",
+      "God, show me what your character is like before I rush to respond.",
+      "God, teach our group to practice honest faith together."
+    ];
+  }
+
+  return [
+    "God, help me be honest about what I am really asking.",
+    "God, show me what I may be missing in Scripture.",
+    "God, give me humility to seek an answer with others."
+  ];
+}
+
+function wrestleTogetherPromptForPrompt(prompt: ReadingSource, primaryKnowledge?: StudentKnowledgeMatch) {
+  const text = promptSearchText(prompt);
+
+  if (/\b(suffer\w*|pain|grief|death|trauma|hard things|depression|panic)\b/.test(text)) {
+    return "Bring this to group: How can we make room for honest pain while looking for God's nearness and hope together?";
+  }
+
+  if (/\b(garden|eden|tree|evil|genesis|creation)\b/.test(text)) {
+    return "Bring this to group: What does the garden story show about God's gifts, human trust, and God's pursuit after failure?";
+  }
+
+  if (primaryKnowledge?.digQuestions?.[0]) {
+    return `Bring this to group: ${primaryKnowledge.digQuestions[0]}`;
+  }
+
+  return "Bring this to group: What would it look like to seek a faithful answer together without rushing?";
+}
+
 function careNoteForPrompt(prompt: ReadingSource) {
   const text = promptSearchText(prompt);
   if (/\b(abuse|assault|self harm|suicide|kill myself|hurt myself|trauma|family crisis|unsafe)\b/.test(text)) {
     return "This is important enough to bring to a trusted leader right away. Keep reading carefully, but do not carry it alone.";
   }
 
-  if (/\b(grief|death|depression|anxiety|panic|sexuality|identity|deconstruct|hell|judgment)\b/.test(text)) {
+  if (/\b(suffer\w*|grief|death|depression|anxiety|panic|sexuality|identity|deconstruct|hell|judgment)\b/.test(text)) {
     return "This may need a slower conversation with a trusted leader. Use these questions to prepare, not to force a quick answer.";
   }
 
