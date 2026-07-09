@@ -137,7 +137,11 @@ export function StudentHomeFeed({ initialState, initialFeed, initialReflections,
           <GroupDiscussionFollowThroughCard key={activeGroupPrompt.id} nextStep={activeGroupNextStep} prompt={activeGroupPrompt} />
         ) : null}
 
-        <FeedSection title="For your group" emptyTitle="Nothing approved yet." emptyBody="Leader-approved discussion prompts will appear here when they are ready.">
+        <FeedSection
+          title="Wrestle together"
+          emptyTitle="Nothing approved yet."
+          emptyBody="Leader-approved discussion prompts will appear here when they are ready."
+        >
           {initialFeed.forGroup.map((prompt) => (
             <DiscussionFeedRow
               isActive={activeJourneyType === "group" && prompt.id === activeGroupPromptId}
@@ -199,15 +203,15 @@ function GroupDiscussionFollowThroughCard({
         <div>
           <p className="eyebrow">Wrestle Together</p>
           <h2>{prompt.discussionPrompt || prompt.question}</h2>
-          <p>Use this leader-approved prompt before or after group so the conversation keeps forming you.</p>
+          <p>This is the leader-approved conversation path for your group. Read, reflect, and come ready to listen well.</p>
         </div>
         <span className="pill green">{prompt.status === "posted" ? "Shared" : "Ready"}</span>
       </div>
 
       <div className="student-question-journey-meta" aria-label="Group discussion status">
         <JourneyMeta label="Passage" value={prompt.scriptureReference || "Open together"} />
-        <JourneyMeta label="Question" value="Leader reviewed" />
-        <JourneyMeta label="Next" value="Read, reflect, bring it back" />
+        <JourneyMeta label="Review" value="Leader approved" />
+        <JourneyMeta label="Next" value="Wrestle together" />
       </div>
 
       <div className="student-question-journey-response">
@@ -491,7 +495,7 @@ function DiscussionFeedRow({
       <div className="student-feed-row-actions">
         <span className="pill green">{prompt.status === "posted" ? "Shared" : "Approved"}</span>
         <button className="button secondary" onClick={onOpen} type="button">
-          {isActive ? "Open above" : "Open follow-up"}
+          {isActive ? "Open above" : "Open together"}
         </button>
       </div>
     </article>

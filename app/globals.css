@@ -8540,6 +8540,93 @@ html:has(.app-shell-camp) body {
   margin-top: 6px;
 }
 
+.leader-student-journey-context {
+  display: grid;
+  gap: 14px;
+  border: 1px solid color-mix(in srgb, var(--success) 30%, var(--line));
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(14, 165, 233, 0.07) 44%, rgba(8, 18, 34, 0.18)),
+    var(--surface-2);
+  padding: 16px;
+}
+
+.leader-student-journey-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.leader-student-journey-heading h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--text-lg);
+  line-height: 1.2;
+}
+
+.leader-student-journey-heading p {
+  max-width: 68ch;
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 750;
+  line-height: 1.5;
+}
+
+.leader-student-journey-signals {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(96px, 1fr));
+  gap: 8px;
+  min-width: min(250px, 100%);
+}
+
+.leader-student-journey-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.leader-student-journey-grid article,
+.leader-student-journey-together {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  padding: 12px;
+}
+
+.leader-student-journey-grid span,
+.leader-student-journey-together span {
+  display: block;
+  color: var(--primary);
+  font-size: var(--text-xs);
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.leader-student-journey-grid ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.leader-student-journey-grid li,
+.leader-student-journey-together p {
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: 760;
+  line-height: 1.5;
+}
+
+.leader-student-journey-grid li + li {
+  margin-top: 6px;
+}
+
+.leader-student-journey-together p {
+  margin: 8px 0 0;
+}
+
 .leader-workspace {
   display: grid;
   gap: 16px;
@@ -10092,6 +10179,8 @@ html:has(.app-shell-camp) body {
   .leader-review-meta-grid,
   .leader-storyline-context-grid,
   .leader-storyline-context-list,
+  .leader-student-journey-grid,
+  .leader-student-journey-signals,
   .leader-student-launch-path,
   .leader-tonight-prep-grid,
   .leader-tonight-prep-counts,
@@ -10111,7 +10200,8 @@ html:has(.app-shell-camp) body {
   .scripture-trial-insights-heading,
   .leader-tonight-prep-heading,
   .leader-discussion-guide-heading,
-  .leader-student-invites-heading {
+  .leader-student-invites-heading,
+  .leader-student-journey-heading {
     align-items: flex-start;
     flex-direction: column;
   }
