@@ -244,6 +244,7 @@ export function AppShell({
           ? pageSubtitles["/discipleship"]
           : "");
   const isDashboard = pathname === "/dashboard";
+  const isProductionLaunchPath = pathname.startsWith("/student") || pathname.startsWith("/discipleship");
   const shouldBlockEmergeChildren = !isCampRoute && !canUseEmergeShell;
   const shellAccessIssue = shellAccess.kind === "full" ? null : shellAccess;
 
@@ -329,7 +330,7 @@ export function AppShell({
                 <SearchIcon />
                 <input disabled placeholder="Search..." type="search" />
               </label>
-              {process.env.NODE_ENV === "development" ? (
+              {process.env.NODE_ENV === "development" && !isProductionLaunchPath ? (
                 <>
                   <span className="pill stub">Stub Mode</span>
                   {devAuth ? <span className="pill dev-auth">DEV AUTH</span> : null}

@@ -1,6 +1,6 @@
 const DEFAULT_YOUVERSION_API_BASE_URL = "https://api.youversion.com";
 const DEFAULT_BIBLE_ID = 3034;
-const MISSING_CONFIG_MESSAGE = "Scripture lookup is not configured yet.";
+const MISSING_CONFIG_MESSAGE = "Scripture lookup is offline. You can still use the reading resources and starter passages.";
 const MAX_REFERENCE_LENGTH = 80;
 const PASSAGE_ID_PATTERN = /^(?:[1-3])?[A-Z]{3}\.(?:INTRO\d*|\d{1,3})(?:\.\d{1,3})?$/;
 

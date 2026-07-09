@@ -149,7 +149,7 @@ export async function generateGlooDiscussionDraft(input: GlooDiscussionDraftInpu
     return {
       ok: false,
       code: "not_configured",
-      message: "Gloo AI Studio is not configured yet. Set the server-only key, base URL, and primary model before generating drafts."
+      message: "AI drafting is offline. Leaders can continue with knowledge-guided local drafts while the server-side connection is brought online."
     };
   }
 

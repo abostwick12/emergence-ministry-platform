@@ -125,7 +125,7 @@ export async function getStudentGroupLeaderState(session: AuthSession, origin = 
   if (!isLiveStudentGroupStorageReady(session)) {
     return {
       liveStorage: false,
-      message: "Student invite links require live Supabase Auth and database configuration.",
+      message: "Student access is not connected yet. Finish launch access setup before sharing invite links.",
       groups: [],
       invites: [],
       members: []
@@ -200,7 +200,7 @@ export async function createStudentGroupInvite(
     throw new StudentGroupError("Only leaders can create student invite links.", 403, "forbidden");
   }
   if (!isLiveStudentGroupStorageReady(session)) {
-    throw new StudentGroupError("Student invite links require live Supabase configuration.", 503, "live_storage_not_configured");
+    throw new StudentGroupError("Student access is not connected yet. Finish launch access setup before creating invite links.", 503, "live_storage_not_configured");
   }
 
   const ministryId = await resolveMinistryScope(session);
@@ -272,7 +272,7 @@ export async function getPublicStudentInvite(code: string): Promise<PublicStuden
 
 export async function joinStudentGroupWithInvite(input: JoinStudentGroupInput): Promise<JoinStudentGroupResult> {
   if (!isSupabaseAdminConfigured() || !isSupabaseConfigured()) {
-    return { ok: false, status: 503, error: "Student self-join requires live Supabase Auth and database configuration." };
+    return { ok: false, status: 503, error: "Student access is not connected yet. Ask your leader for the launch invite once setup is ready." };
   }
 
   const code = normalizeInviteCode(input.code);

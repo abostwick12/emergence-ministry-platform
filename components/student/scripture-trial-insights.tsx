@@ -18,7 +18,7 @@ export function ScriptureTrialInsightsPanel({ groupState, insights }: ScriptureT
   const activeStudents = groupState.members.filter((member) => member.status === "active").length;
 
   return (
-    <section className="scripture-trial-insights" aria-label="Small group tryout pulse">
+    <section className="scripture-trial-insights" aria-label="Small group launch pulse">
       <div className="scripture-trial-insights-heading">
         <div>
           <p className="eyebrow">Small Group Launch</p>
@@ -58,7 +58,7 @@ export function ScriptureTrialInsightsPanel({ groupState, insights }: ScriptureT
       </div>
 
       <div className="scripture-trial-grid">
-        <InsightList emptyText="Tags will appear after Gloo generates or leaders add draft context." items={insights.topicCounts} title="What students are asking about" />
+        <InsightList emptyText="Tags will appear after AI drafts or leaders add discussion context." items={insights.topicCounts} title="What students are asking about" />
         <InsightList emptyText="Optional references students enter will appear here." items={insights.scriptureReferences} title="Passages surfacing" />
         <InsightList emptyText="Knowledge matches will appear as student questions connect to the brain." items={insights.knowledgeMatches} title="Knowledge brain matches" />
       </div>
@@ -92,7 +92,7 @@ export function ScriptureTrialInsightsPanel({ groupState, insights }: ScriptureT
         ) : (
           <div className="scripture-trial-empty">
             <strong>No student questions yet.</strong>
-            <p>Once students start asking, this becomes the launch readout for the two-week tryout.</p>
+            <p>Once students start asking, this becomes the launch readout for the two-week student group run.</p>
           </div>
         )}
       </div>
@@ -135,7 +135,7 @@ function buildLaunchReadiness(insights: ScriptureTrialInsights, groupState: Stud
       detail: groupState.liveStorage
         ? activeInvites > 0
           ? `${activeInvites} join link${activeInvites === 1 ? "" : "s"} ready to share`
-          : "Create one join link before the tryout"
+          : "Create one join link before the group starts"
         : groupState.message
     },
     {

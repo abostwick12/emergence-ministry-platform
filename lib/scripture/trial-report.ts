@@ -55,15 +55,15 @@ function topicLines(items: ScriptureTrialInsightTopic[], emptyText: string) {
 
 function readinessLines(insights: ScriptureTrialInsights) {
   const lines = [
-    `- Live storage: ${insights.readiness.liveStorage ? "ready for real submissions" : "setup needed before the tryout"}`,
-    `- AI draft connection: ${insights.readiness.gloo ? "configured" : "leader local drafts remain available"}`,
-    `- Slack delivery: ${insights.readiness.slack ? "configured for leader-approved posting" : "not configured; leader approval still controls sharing"}`,
+    `- Live storage: ${insights.readiness.liveStorage ? "ready for real submissions" : "setup needed before launch"}`,
+    `- AI draft connection: ${insights.readiness.gloo ? "connected" : "leader local drafts remain available"}`,
+    `- Slack delivery: ${insights.readiness.slack ? "connected for leader-approved posting" : "offline; leader approval still controls sharing"}`,
     `- Leader review backlog: ${insights.pendingReview} question${insights.pendingReview === 1 ? "" : "s"} waiting`,
     `- Student next-step coverage: ${insights.withSavedNextSteps} of ${insights.totalQuestions} question${insights.totalQuestions === 1 ? "" : "s"}`
   ];
 
   if (!insights.totalQuestions) {
-    lines.push("- Trial evidence will begin once students submit their first real questions.");
+    lines.push("- Launch evidence will begin once students submit their first real questions.");
   }
 
   return lines;

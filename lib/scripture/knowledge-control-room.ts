@@ -112,7 +112,7 @@ const LEADER_ROLES = new Set(["admin", "leader", "staff"]);
 
 export async function getKnowledgeControlRoomState(session: AuthSession): Promise<KnowledgeControlRoomState> {
   if (!isLiveKnowledgeStorageReady(session)) {
-    return emptyKnowledgeState("Knowledge source control requires Supabase Auth and database configuration.");
+    return emptyKnowledgeState("Knowledge source review needs launch access to be connected.");
   }
 
   assertKnowledgeLeader(session);
@@ -133,7 +133,7 @@ export async function getKnowledgeControlRoomState(session: AuthSession): Promis
 
 export async function createKnowledgeSource(session: AuthSession, input: CreateKnowledgeSourceInput): Promise<KnowledgeSourceControlItem> {
   if (!isLiveKnowledgeStorageReady(session)) {
-    throw new KnowledgeControlRoomError("Knowledge source control requires Supabase Auth and database configuration.", 503, "live_storage_not_configured");
+    throw new KnowledgeControlRoomError("Knowledge source review needs launch access to be connected.", 503, "live_storage_not_configured");
   }
 
   assertKnowledgeLeader(session);
@@ -184,7 +184,7 @@ export async function updateKnowledgeSourceVisibility(
   visibility: string
 ): Promise<KnowledgeSourceControlItem> {
   if (!isLiveKnowledgeStorageReady(session)) {
-    throw new KnowledgeControlRoomError("Knowledge source control requires Supabase Auth and database configuration.", 503, "live_storage_not_configured");
+    throw new KnowledgeControlRoomError("Knowledge source review needs launch access to be connected.", 503, "live_storage_not_configured");
   }
 
   assertKnowledgeLeader(session);
@@ -217,7 +217,7 @@ export async function updateKnowledgeSourceDetails(
   input: UpdateKnowledgeSourceDetailsInput
 ): Promise<KnowledgeSourceControlItem> {
   if (!isLiveKnowledgeStorageReady(session)) {
-    throw new KnowledgeControlRoomError("Knowledge source control requires Supabase Auth and database configuration.", 503, "live_storage_not_configured");
+    throw new KnowledgeControlRoomError("Knowledge source review needs launch access to be connected.", 503, "live_storage_not_configured");
   }
 
   assertKnowledgeLeader(session);

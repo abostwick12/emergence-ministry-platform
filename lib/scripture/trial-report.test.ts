@@ -57,7 +57,7 @@ describe("scripture trial report", () => {
     );
 
     expect(report).toContain("- No topic patterns have surfaced yet.");
-    expect(report).toContain("- Trial evidence will begin once students submit their first real questions.");
+    expect(report).toContain("- Launch evidence will begin once students submit their first real questions.");
     expect(report).toContain("- No student questions have been submitted yet.");
   });
 });

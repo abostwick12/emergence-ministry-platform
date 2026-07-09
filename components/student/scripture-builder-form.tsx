@@ -190,7 +190,7 @@ function PreviewPanel({ kind, values }: { kind: ScriptureBuilderKind; values: Bu
         <h2 className="section-title flush">{previewValue(values.title, labels.fallbackTitle)}</h2>
         <p className="m-0 text-sm font-bold leading-6 text-slate-600">
           This planning worksheet does not save. Use Ask when a real question needs leader
-          review, Gloo generation, approval, and posting.
+          review, AI-assisted drafting, approval, and sharing.
         </p>
       </div>
 

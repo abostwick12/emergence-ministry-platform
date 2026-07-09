@@ -53,7 +53,7 @@ describe("YouVersion config and reference normalization", () => {
       apiBaseUrl: "https://api.youversion.com",
       bibleId: 3034,
       reason: "missing_app_key",
-      message: "Scripture lookup is not configured yet."
+      message: "Scripture lookup is offline. You can still use the reading resources and starter passages."
     });
   });
 
@@ -92,7 +92,7 @@ describe("YouVersion passage lookup adapter", () => {
     await expect(lookupYouVersionPassage({ reference: "John 3:16" })).resolves.toEqual({
       ok: false,
       code: "not_configured",
-      message: "Scripture lookup is not configured yet.",
+      message: "Scripture lookup is offline. You can still use the reading resources and starter passages.",
       status: 503
     });
     expect(fetchMock).not.toHaveBeenCalled();
@@ -164,7 +164,7 @@ describe("Student Scripture lookup route", () => {
     expect(await response.json()).toEqual({
       ok: false,
       code: "not_configured",
-      error: "Scripture lookup is not configured yet."
+      error: "Scripture lookup is offline. You can still use the reading resources and starter passages."
     });
     expect(fetchMock).not.toHaveBeenCalled();
   });
