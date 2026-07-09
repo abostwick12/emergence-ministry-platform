@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect } from "react";
 import {
   Compass,
   MessageSquareText,
@@ -12,6 +13,7 @@ import {
   ArrowLeft,
   type LucideIcon
 } from "lucide-react";
+import { useCommandCenterSidebarOpen } from "@/components/command-center/command-center-mobile-nav";
 
 type NavItem = { label: string; href: string; icon: LucideIcon };
 
@@ -26,9 +28,15 @@ const NAV_ITEMS: NavItem[] = [
 
 export function CommandCenterSidebar({ connectedCount, totalCount }: { connectedCount: number; totalCount: number }) {
   const pathname = usePathname();
+  const { open, close } = useCommandCenterSidebarOpen();
+
+  useEffect(() => {
+    close();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
 
   return (
-    <aside className="cc-sidebar">
+    <aside className={`cc-sidebar${open ? " cc-sidebar-open" : ""}`}>
       <div className="cc-sidebar-brand">
         <div className="cc-sidebar-mark" />
         <div>
