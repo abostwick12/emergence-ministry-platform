@@ -38,7 +38,7 @@ async function capture(name, route, ready, action) {
   if (ready) await ready(page);
   if (action) await action(page);
   await page.evaluate(() => window.scrollTo(0, 0));
-  await page.waitForTimeout(250);
+  await page.waitForTimeout(300);
   await page.screenshot({ path: path.join(outputDir, name), fullPage: false });
   console.log(`Captured ${name}`);
 }
@@ -47,54 +47,24 @@ await capture("dashboard.png", "/dashboard", async (p) => {
   await p.getByRole("heading").first().waitFor();
 });
 
-await capture("events-tasks.png", "/events", async (p) => {
+await capture("events.png", "/events", async (p) => {
   await p.locator("main").first().waitFor();
 });
 
-await capture("camp-command.png", "/camp", async (p) => {
-  const campMain = p.locator("main.camp-cc-main");
-  if (await campMain.count()) {
-    await campMain.waitFor();
-  } else {
-    await p.locator("main").first().waitFor();
-  }
+await capture("tasks.png", "/tasks", async (p) => {
+  await p.locator("main").first().waitFor();
 });
 
-await page.route("**/api/student/scripture/lookup", async (route) => {
-  const body = JSON.parse(route.request().postData() ?? "{}") ?? {};
-  const reference = body.reference ?? "Psalm 23";
-  await route.fulfill({
-    status: 200,
-    contentType: "application/json",
-    body: JSON.stringify({
-      ok: true,
-      passageId: reference,
-      passage: {
-        id: reference,
-        reference,
-        content: "The Lord is my shepherd; I have what I need. He lets me lie down in green pastures; he leads me beside quiet waters."
-      }
-    })
-  });
+await capture("worship.png", "/worship", async (p) => {
+  await p.locator("main").first().waitFor();
 });
 
-await capture(
-  "youversion-scripture.png",
-  "/student/scripture/resources",
-  async (p) => p.getByRole("heading", { name: "Look up a Scripture reference" }).waitFor(),
-  async (p) => {
-    await p.getByLabel("Scripture reference").fill("Psalm 23");
-    await p.getByRole("button", { name: "Look Up" }).click();
-    await p.getByRole("heading", { name: "Psalm 23" }).waitFor();
-  }
-);
-
-await capture("student-journey.png", "/student", async (p) => {
+await capture("student-portal.png", "/student", async (p) => {
   await p.getByRole("heading", { name: "Student Portal" }).waitFor();
 });
 
 await capture(
-  "leader-review.png",
+  "discipleship.png",
   "/discipleship",
   async (p) => p.getByRole("heading", { name: "Build the discipleship brain" }).waitFor(),
   async (p) => {
@@ -107,14 +77,6 @@ await capture(
     }
   }
 );
-
-await page.screenshot({ path: path.join(outputDir, "gloo-guided-preview.png"), fullPage: false });
-console.log("Captured gloo-guided-preview.png");
-
-await page.goto(`${baseURL}/`, { waitUntil: "domcontentloaded" });
-await page.waitForLoadState("networkidle").catch(() => undefined);
-await page.screenshot({ path: path.join(outputDir, "closing.png"), fullPage: false });
-console.log("Captured closing.png");
 
 await browser.close();
 console.log(`Contest promo captures saved to ${outputDir}`);
