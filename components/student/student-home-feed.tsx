@@ -225,6 +225,7 @@ function GroupDiscussionFollowThroughCard({
         <p>{nextStep.summary}</p>
       </div>
       <StorylineContextCard match={nextStep.storylineMatch} />
+      <KnowledgePathCard matches={nextStep.knowledgeMatches} />
       <StudentNextStepRhythm nextStep={nextStep} />
       <p className="student-next-step-care">
         <strong>Bring this back:</strong> Write down one thing you noticed, one question you still have, and one way your group can respond together.
@@ -278,6 +279,7 @@ function StudentQuestionJourneyCard({
         <p>{nextStep.summary}</p>
       </div>
       <StorylineContextCard match={nextStep.storylineMatch} />
+      <KnowledgePathCard matches={nextStep.knowledgeMatches} />
       <StudentNextStepRhythm nextStep={nextStep} />
       <StudentReflectionPanel onSaved={onReflectionSaved} prompt={prompt} reflection={reflection} />
       {nextStep.careNote ? (
@@ -307,6 +309,35 @@ function StorylineContextCard({ match }: { match: StudentQuestionNextStep["story
       <div className="student-storyline-passages" aria-label="Key passages">
         {match.keyPassages.slice(0, 4).map((passage) => (
           <span key={passage}>{passage}</span>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function KnowledgePathCard({ matches }: { matches: StudentQuestionNextStep["knowledgeMatches"] }) {
+  if (!matches.length) return null;
+
+  return (
+    <section className="student-knowledge-path" aria-label="Knowledge path">
+      <div className="student-knowledge-path-heading">
+        <div>
+          <p className="eyebrow">Study path</p>
+          <h3>Picked from approved resources</h3>
+        </div>
+        <span>{matches.some((match) => match.sourceChunkId) ? "Approved library" : "Starter guide"}</span>
+      </div>
+
+      <div className="student-knowledge-path-list">
+        {matches.slice(0, 3).map((match) => (
+          <article className="student-knowledge-source" key={match.id}>
+            <div className="student-knowledge-source-heading">
+              <span>{match.sourceChunkId ? "Approved resource" : "Starter guide"}</span>
+              {match.scriptureReferences[0] ? <small>{match.scriptureReferences[0]}</small> : null}
+            </div>
+            <h4>{match.title}</h4>
+            <p>{match.description}</p>
+          </article>
         ))}
       </div>
     </section>
