@@ -13,6 +13,8 @@ export type HowToReadModule = {
   groupQuestion: string;
 };
 
+export const studentHowToReadLocalProgressKey = "lead-emergence:student-how-to-read-progress";
+
 export const howToReadModules: HowToReadModule[] = [
   {
     id: "what-is-the-bible",
