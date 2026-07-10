@@ -1016,6 +1016,48 @@ body {
   padding: 12px 14px;
 }
 
+.app-shell:not(.app-shell-camp) .student-tool-search input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: #e2e8f0;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  outline: 0;
+  padding: 0;
+}
+
+.app-shell:not(.app-shell-camp) .student-tool-search input::placeholder {
+  color: #64748b;
+}
+
+.app-shell:not(.app-shell-camp) .student-tool-search:focus-within {
+  border-color: rgba(56, 189, 248, 0.45);
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.12);
+}
+
+.app-shell:not(.app-shell-camp) .student-tool-search button {
+  flex: 0 0 auto;
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  border-radius: var(--radius-sm);
+  background: rgba(14, 165, 233, 0.12);
+  color: #bae6fd;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  padding: 6px 10px;
+}
+
+.app-shell:not(.app-shell-camp) .student-tool-search button:hover,
+.app-shell:not(.app-shell-camp) .student-tool-search button:focus-visible {
+  border-color: rgba(56, 189, 248, 0.55);
+  color: #e0f2fe;
+  outline: 0;
+}
+
 .app-shell:not(.app-shell-camp) .student-tool-chips {
   display: flex;
   flex-wrap: wrap;

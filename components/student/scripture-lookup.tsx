@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 type LookupState =
   | { status: "idle"; message: string }
@@ -13,13 +13,13 @@ const initialState: LookupState = {
   message: "No lookup has run yet. Returned Bible text is shown only on this page and is not saved."
 };
 
-export function ScriptureLookup() {
-  const [reference, setReference] = useState("");
+export function ScriptureLookup({ initialReference = "" }: { initialReference?: string }) {
+  const normalizedInitialReference = initialReference.trim();
+  const hasRunInitialLookup = useRef(false);
+  const [reference, setReference] = useState(normalizedInitialReference);
   const [state, setState] = useState<LookupState>(initialState);
 
-  async function submitLookup(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const requestedReference = reference.trim();
+  const runLookup = useCallback(async (requestedReference: string) => {
     if (!requestedReference) {
       setState({ status: "error", message: "Enter a Scripture reference first." });
       return;
@@ -56,6 +56,17 @@ export function ScriptureLookup() {
     } catch {
       setState({ status: "error", message: "Scripture lookup is temporarily unavailable." });
     }
+  }, []);
+
+  useEffect(() => {
+    if (!normalizedInitialReference || hasRunInitialLookup.current) return;
+    hasRunInitialLookup.current = true;
+    void runLookup(normalizedInitialReference);
+  }, [normalizedInitialReference, runLookup]);
+
+  async function submitLookup(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await runLookup(reference.trim());
   }
 
   return (

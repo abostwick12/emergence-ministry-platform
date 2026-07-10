@@ -156,27 +156,45 @@ test.describe("Student Scripture Hub shell", () => {
     await login(page);
 
     await page.route("**/api/student/scripture/lookup", async (route) => {
+      const body = JSON.parse(route.request().postData() ?? "{}") as { reference?: string };
+      const reference = body.reference ?? "John 3:16";
+
       await route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
           ok: true,
-          passageId: "JHN.3.16",
+          passageId: reference,
           passage: {
-            id: "JHN.3.16",
-            reference: "John 3:16",
-            content: "For God so loved the world."
+            id: reference,
+            reference,
+            content: `Mock lookup content for ${reference}.`
           }
         })
       });
     });
+
+    await page.goto("/student");
+    const homeTool = page.getByRole("region", { name: "Scripture study shortcuts" });
+    await homeTool.getByLabel("Scripture reference").fill("Psalm 23");
+    await homeTool.getByRole("button", { name: "Look Up" }).click();
+    await expect(page).toHaveURL(/\/student\/scripture\/resources\?reference=Psalm(\+|%20)23/);
+    await expect(page.getByRole("status")).toContainText("Scripture lookup loaded.");
+    await expect(page.getByRole("heading", { name: "Psalm 23" })).toBeVisible();
+    await expect(page.getByText("Mock lookup content for Psalm 23.")).toBeVisible();
+
+    await page.goto("/student");
+    await page.getByRole("link", { name: "Genesis 1" }).click();
+    await expect(page).toHaveURL(/\/student\/scripture\/resources\?reference=Genesis(\+|%20)1/);
+    await expect(page.getByRole("heading", { name: "Genesis 1" })).toBeVisible();
+    await expect(page.getByText("Mock lookup content for Genesis 1.")).toBeVisible();
 
     await page.goto("/student/scripture/resources");
     await page.getByLabel("Scripture reference").fill("John 3:16");
     await page.getByRole("button", { name: "Look Up" }).click();
     await expect(page.getByRole("status")).toContainText("Scripture lookup loaded.");
     await expect(page.getByRole("heading", { name: "John 3:16" })).toBeVisible();
-    await expect(page.getByText("For God so loved the world.")).toBeVisible();
+    await expect(page.getByText("Mock lookup content for John 3:16.")).toBeVisible();
 
     await page.unroute("**/api/student/scripture/lookup");
     await page.route("**/api/student/scripture/lookup", async (route) => {
