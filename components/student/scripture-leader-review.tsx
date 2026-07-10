@@ -4,6 +4,7 @@ import type { FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
 
 import type { DiscussionWorkflowState } from "@/lib/scripture/discussion-workflow";
+import { buildDiscussionVideoScript, formatDiscussionVideoScriptForCopy, type DiscussionVideoScript } from "@/lib/scripture/discussion-video";
 import type { GlooDiagnosticResult } from "@/lib/scripture/gloo";
 import { buildLocalDiscussionDraftForPrompt } from "@/lib/scripture/local-discussion-draft";
 import { buildQuestionNextStep, type StudentQuestionNextStep } from "@/lib/scripture/student-home";
@@ -755,9 +756,12 @@ function LeaderReviewDetail({
 }) {
   const [leaderNotes, setLeaderNotes] = useState(prompt.leaderNotes);
   const [discussionPrompt, setDiscussionPrompt] = useState(prompt.discussionPrompt);
+  const [videoScriptOpen, setVideoScriptOpen] = useState(false);
+  const [videoCopyStatus, setVideoCopyStatus] = useState("");
   const localDraft = useMemo(() => buildLocalDiscussionDraftForPrompt(prompt), [prompt]);
   const storylineMatch = useMemo(() => matchQuestionToStoryline(prompt), [prompt]);
   const studentNextStep = useMemo(() => buildQuestionNextStep(prompt, prompt.knowledgeContext ?? []), [prompt]);
+  const videoScript = useMemo(() => buildDiscussionVideoScript({ ...prompt, discussionPrompt }), [discussionPrompt, prompt]);
   const reviewDraft = guidanceText(prompt, localDraft.discussionPrompt);
   const draftSource = prompt.discussionPrompt
     ? prompt.aiStatus === "generated"
@@ -769,11 +773,24 @@ function LeaderReviewDetail({
   const canPost = canSave && prompt.status === "approved";
   const canRegenerate = canSave && glooReady && prompt.status !== "posted";
   const canSaveLocalDraft = canSave && prompt.status !== "posted";
+  const canPrepareVideo = prompt.status === "approved" || prompt.status === "posted";
 
   useEffect(() => {
     setLeaderNotes(prompt.leaderNotes);
     setDiscussionPrompt(prompt.discussionPrompt);
+    setVideoScriptOpen(false);
+    setVideoCopyStatus("");
   }, [prompt]);
+
+  async function copyVideoScript() {
+    const text = formatDiscussionVideoScriptForCopy(videoScript);
+    try {
+      await navigator.clipboard.writeText(text);
+      setVideoCopyStatus("Video script copied for leader review.");
+    } catch {
+      setVideoCopyStatus("Copy was not available in this browser. Select the scene text manually.");
+    }
+  }
 
   return (
     <article className="leader-review-detail" aria-label="Selected discussion review">
@@ -823,6 +840,8 @@ function LeaderReviewDetail({
 
       {prompt.knowledgeContext?.length ? <LeaderKnowledgeContext matches={prompt.knowledgeContext} /> : null}
 
+      {videoScriptOpen ? <LeaderDiscussionVideoScriptPanel onCopy={copyVideoScript} script={videoScript} status={videoCopyStatus} /> : null}
+
       <label className="leader-review-field">
         <span>Leader-approved prompt</span>
         <textarea onChange={(event) => setDiscussionPrompt(event.target.value)} value={discussionPrompt} />
@@ -848,11 +867,85 @@ function LeaderReviewDetail({
         <button className="button" disabled={prompt.status !== "approved" && prompt.status !== "posted"} onClick={() => onOpenGuide(prompt)} type="button">
           Open guide
         </button>
+        <button
+          className="button"
+          disabled={!canPrepareVideo}
+          onClick={() => setVideoScriptOpen((current) => !current)}
+          title={canPrepareVideo ? "Prepare a leader-reviewed discussion video script" : "Approve the prompt before preparing a group video"}
+          type="button"
+        >
+          {videoScriptOpen ? "Hide video" : "Prepare video"}
+        </button>
         <button className="button" disabled={!canSave || prompt.status === "archived"} onClick={() => onDecide(prompt.id, "archive", leaderNotes, discussionPrompt)} type="button">
           {savingAction === "archive" ? "Archiving..." : "Archive"}
         </button>
       </div>
     </article>
+  );
+}
+
+function LeaderDiscussionVideoScriptPanel({
+  onCopy,
+  script,
+  status
+}: {
+  onCopy: () => void;
+  script: DiscussionVideoScript;
+  status: string;
+}) {
+  return (
+    <section className="leader-video-script-panel" aria-label="Discussion video script">
+      <div className="leader-video-script-heading">
+        <div>
+          <p className="eyebrow">Discussion Video</p>
+          <h3>{script.title}</h3>
+          <p>
+            Review this short vertical video script before rendering or sharing. It uses only the leader-approved prompt,
+            Scripture context, and public group next steps.
+          </p>
+        </div>
+        <div className="leader-video-script-actions">
+          <span className={script.status === "ready_for_review" ? "pill green" : "pill amber"}>
+            {script.status === "ready_for_review" ? "Ready for review" : "Approve first"}
+          </span>
+          <button className="button" onClick={onCopy} type="button">
+            Copy script
+          </button>
+        </div>
+      </div>
+
+      <div className="leader-video-script-meta" aria-label="Video format">
+        <MetaTile label="Length" value={`${script.totalDurationSeconds}s`} />
+        <MetaTile label="Format" value="Vertical 1080x1920" />
+        <MetaTile label="Scenes" value={`${script.scenes.length}`} />
+      </div>
+
+      <div className="leader-video-script-guardrails">
+        <span>Leader guardrails</span>
+        <ul>
+          {script.guardrails.map((guardrail) => (
+            <li key={guardrail}>{guardrail}</li>
+          ))}
+        </ul>
+      </div>
+
+      <div className="leader-video-script-scenes">
+        {script.scenes.map((scene, index) => (
+          <article key={scene.id}>
+            <span>
+              Scene {index + 1} - {scene.eyebrow}
+            </span>
+            <h4>{scene.headline}</h4>
+            <p>{scene.body}</p>
+            <small>{scene.durationSeconds}s - {scene.speakerNotes}</small>
+          </article>
+        ))}
+      </div>
+
+      <p className="leader-video-script-status" role="status">
+        {status || "Rendering is not connected yet. This prepares the reviewed scene plan for the Remotion renderer."}
+      </p>
+    </section>
   );
 }
 
