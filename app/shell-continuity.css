@@ -1323,3 +1323,114 @@ body {
     padding: 16px;
   }
 }
+
+/* Core operations: Events and Tasks should read as blue glass, not pale sheets. */
+.app-shell:not(.app-shell-camp) :is(.workspace-notice, .workflow-command-panel, .tasks-workspace, .events-workspace-panel, .event-group, .kanban-column, .event-board, .event-row-card, .event-card-row, .event-identity-section, .event-date-block, .event-summary-shell, .event-summary-scroll, .event-task-tree-wrap, .event-task-tree, .task-card, .summary-field, .notes-panel, .task-edit-panel, .notes-editor) {
+  border-color: rgba(56, 189, 248, 0.22);
+  background:
+    radial-gradient(circle at 16% 0%, rgba(56, 189, 248, 0.16), transparent 34%),
+    radial-gradient(circle at 92% 100%, rgba(14, 165, 233, 0.12), transparent 38%),
+    linear-gradient(145deg, rgba(19, 48, 82, 0.82), rgba(7, 23, 43, 0.88));
+  box-shadow:
+    0 18px 44px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 -1px 0 rgba(56, 189, 248, 0.12);
+  backdrop-filter: blur(15px) saturate(125%);
+  -webkit-backdrop-filter: blur(15px) saturate(125%);
+}
+
+.app-shell:not(.app-shell-camp) .event-group.priority {
+  border-color: rgba(125, 211, 252, 0.30);
+  background:
+    radial-gradient(circle at 14% 0%, rgba(125, 211, 252, 0.18), transparent 36%),
+    radial-gradient(circle at 88% 100%, rgba(29, 78, 216, 0.18), transparent 42%),
+    linear-gradient(145deg, rgba(21, 61, 101, 0.86), rgba(8, 28, 52, 0.90));
+}
+
+.app-shell:not(.app-shell-camp) :is(.workspace-notice, .workflow-command-panel) {
+  border-color: rgba(56, 189, 248, 0.28);
+  background:
+    radial-gradient(circle at 12% 0%, rgba(125, 211, 252, 0.20), transparent 36%),
+    radial-gradient(circle at 94% 100%, rgba(37, 99, 235, 0.18), transparent 42%),
+    linear-gradient(145deg, rgba(18, 76, 118, 0.88), rgba(7, 31, 58, 0.92));
+}
+
+.app-shell:not(.app-shell-camp) .event-board-header {
+  border-bottom-color: rgba(56, 189, 248, 0.22);
+  background: linear-gradient(180deg, rgba(16, 44, 76, 0.94), rgba(10, 31, 58, 0.94));
+}
+
+.app-shell:not(.app-shell-camp) .event-board-header span,
+.app-shell:not(.app-shell-camp) .event-identity-section,
+.app-shell:not(.app-shell-camp) .event-date-block {
+  border-color: rgba(56, 189, 248, 0.18);
+}
+
+.app-shell:not(.app-shell-camp) :is(.workspace-notice, .workflow-command-panel .section-title, .tasks-workspace .section-title, .events-workspace-panel .section-title, .event-group-header h3, .event-board-header span, .event-row-title button.button.ghost, .event-date-block strong, .summary-field strong, .task-card-title, .task-card-date, .lane-title, .task-tree-title strong, .task-tree-owner span, .task-tree-files span) {
+  color: #e8f6ff;
+}
+
+.app-shell:not(.app-shell-camp) :is(.workflow-command-panel .muted, .tasks-workspace .muted, .events-workspace-panel .muted, .event-row-title .muted, .event-date-block .muted, .summary-label, .summary-field span, .summary-scroll-hint, .kanban-empty, .task-card .muted, .inline-save-state, .subtask-scroll-label) {
+  color: #9fc2dd;
+}
+
+.app-shell:not(.app-shell-camp) .event-row-title button.button.ghost {
+  background: transparent;
+  border-color: transparent;
+  text-decoration-color: rgba(125, 211, 252, 0.58);
+}
+
+.app-shell:not(.app-shell-camp) .event-identity-clickable:hover,
+.app-shell:not(.app-shell-camp) .task-table tbody tr:hover td {
+  background: rgba(14, 165, 233, 0.10);
+}
+
+.app-shell:not(.app-shell-camp) .summary-field.success {
+  border-color: rgba(16, 185, 129, 0.34);
+  background:
+    radial-gradient(circle at 14% 0%, rgba(16, 185, 129, 0.16), transparent 36%),
+    linear-gradient(145deg, rgba(12, 67, 64, 0.76), rgba(7, 31, 43, 0.88));
+}
+
+.app-shell:not(.app-shell-camp) .summary-field.warning {
+  border-color: rgba(245, 158, 11, 0.34);
+  background:
+    radial-gradient(circle at 14% 0%, rgba(245, 158, 11, 0.16), transparent 36%),
+    linear-gradient(145deg, rgba(80, 54, 18, 0.72), rgba(8, 28, 52, 0.88));
+}
+
+.app-shell:not(.app-shell-camp) .summary-field.stub {
+  border-color: rgba(56, 189, 248, 0.30);
+  background:
+    radial-gradient(circle at 14% 0%, rgba(56, 189, 248, 0.18), transparent 36%),
+    linear-gradient(145deg, rgba(16, 54, 85, 0.78), rgba(7, 23, 43, 0.88));
+}
+
+.app-shell:not(.app-shell-camp) .task-card.attention {
+  border-color: rgba(244, 63, 94, 0.38);
+  background:
+    radial-gradient(circle at 16% 0%, rgba(244, 63, 94, 0.16), transparent 34%),
+    linear-gradient(145deg, rgba(63, 28, 49, 0.78), rgba(7, 23, 43, 0.90));
+}
+
+.app-shell:not(.app-shell-camp) :is(.task-card .button, .notes-panel .button, .summary-toggle-button) {
+  border-color: rgba(125, 211, 252, 0.22);
+  background: rgba(14, 165, 233, 0.14);
+  color: #e0f2fe;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 8px 18px rgba(0, 0, 0, 0.16);
+}
+
+.app-shell:not(.app-shell-camp) :is(.task-card .button:hover, .notes-panel .button:hover, .summary-toggle-button:hover) {
+  border-color: rgba(125, 211, 252, 0.38);
+  background: rgba(14, 165, 233, 0.22);
+}
+
+.app-shell:not(.app-shell-camp) .event-task-tree-item {
+  border-top-color: rgba(56, 189, 248, 0.16);
+}
+
+.app-shell:not(.app-shell-camp) .event-task-tree-item.completed {
+  background: rgba(14, 165, 233, 0.08);
+}

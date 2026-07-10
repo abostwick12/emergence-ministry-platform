@@ -5,7 +5,7 @@ export default function FilesPage() {
     <PlaceholderPage
       eyebrow="Files"
       title="Ministry Files"
-      description="Future Google Drive connection area. Live Google Drive folder creation is not enabled in MVP 1."
+      description="Google Drive-ready file organization for event folders, forms, slides, receipts, and leader resources. Live Drive creation is not enabled yet."
       stubLabel="Future Drive Area"
       sections={["Event folders", "Waivers", "Packing lists", "Slides", "Receipts", "Leader resources"]}
     />

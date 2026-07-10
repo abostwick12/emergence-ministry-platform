@@ -15,14 +15,14 @@ export default async function SettingsPage() {
       <PlaceholderPage
         eyebrow="Settings"
         title="Platform Settings"
-        description="MVP settings shell for configuration planning. API keys and secrets are not exposed in the UI."
+        description="Configuration planning for profile, roles, ministry defaults, event setup, and provider readiness. Secrets are never exposed in the UI."
         sections={[
           "User profile",
           "Roles and permissions",
           "Ministry areas",
           "Event types",
           "Locations",
-          "Stub Mode integrations",
+          "Preview integration adapters",
           "Future API connection settings"
         ]}
       />

@@ -5,7 +5,7 @@ export default function PeoplePage() {
     <PlaceholderPage
       eyebrow="People"
       title="Ministry Roster"
-      description="Future Planning Center / ministry roster sync area. Live Planning Center sync is not enabled in MVP 1."
+      description="Planning Center-ready roster visibility for leaders, volunteers, students, households, and pastoral follow-up. Live sync is not enabled yet."
       stubLabel="Future Sync Area"
       sections={["Leaders", "Volunteers", "Students", "Parents / Households", "Birthdays and Anniversaries"]}
     />

@@ -5,7 +5,7 @@ export default function BudgetPage() {
     <PlaceholderPage
       eyebrow="Budget"
       title="Budget Workspace"
-      description="Simple MVP budget planning shell. Detailed approvals and live accounting are future work."
+      description="Budget visibility for event planning, proposed costs, receipts, and approval readiness. Live accounting integrations are not connected yet."
       sections={["Event budgets", "Proposed vs actual", "Receipts", "Approval status", "Categories"]}
     />
   );
