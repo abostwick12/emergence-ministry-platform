@@ -1,8 +1,8 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BookOpen, Headphones, Image as ImageIcon, PlayCircle, ShieldCheck, Users } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { HowToReadGuideActions } from "@/components/student/how-to-read-guide-actions";
 import { StudentScriptureTabs } from "@/components/student/student-scripture-tabs";
 import { getServerSession } from "@/lib/auth/server";
 import { getHowToReadModule, howToReadModules } from "@/lib/scripture/how-to-read";
@@ -26,6 +26,9 @@ export default async function HowToReadGuidePage({ params }: HowToReadGuidePageP
   const access = resolveStudentHubAccess(await getServerSession());
   const progress = access.allowed ? await getStudentHowToReadProgress(access.session) : undefined;
   const isComplete = progress?.completedModuleIds.includes(guide.id) ?? false;
+  const guideIndex = howToReadModules.findIndex((module) => module.id === guide.id);
+  const previousGuide = guideIndex > 0 ? howToReadModules[guideIndex - 1] : undefined;
+  const nextGuide = guideIndex >= 0 && guideIndex < howToReadModules.length - 1 ? howToReadModules[guideIndex + 1] : undefined;
 
   return (
     <>
@@ -42,7 +45,7 @@ export default async function HowToReadGuidePage({ params }: HowToReadGuidePageP
           <aside className="how-to-read-guide-status" aria-label="Guide status">
             <span className={isComplete ? "pill green" : "pill blue"}>{isComplete ? "Signed off" : "In progress"}</span>
             <strong>{guide.badge}</strong>
-            <p>{isComplete ? "You have already signed this guide off." : "Open the path page when you are ready to sign this guide off."}</p>
+            <p>{isComplete ? "You have already signed this guide off." : "Use the sign-off below when you are ready to mark this guide complete."}</p>
           </aside>
         </header>
 
@@ -109,14 +112,13 @@ export default async function HowToReadGuidePage({ params }: HowToReadGuidePageP
           </p>
         </section>
 
-        <div className="how-to-read-guide-actions">
-          <Link className="button secondary" href="/student/scripture/how-to-read">
-            Back to path
-          </Link>
-          <Link className="button primary" href="/student/scripture/resources">
-            Open resources
-          </Link>
-        </div>
+        <HowToReadGuideActions
+          initialComplete={isComplete}
+          initialProgressStorage={progress?.storage ?? "unavailable"}
+          moduleId={guide.id}
+          nextGuideHref={nextGuide ? `/student/scripture/how-to-read/${nextGuide.id}` : undefined}
+          previousGuideHref={previousGuide ? `/student/scripture/how-to-read/${previousGuide.id}` : undefined}
+        />
       </article>
     </>
   );
