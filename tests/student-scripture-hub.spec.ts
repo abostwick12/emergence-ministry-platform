@@ -30,6 +30,9 @@ test.describe("Student Scripture Hub shell", () => {
     await discipleshipLink.click();
     await expect(page).toHaveURL(/\/discipleship$/);
     await expect(page.getByRole("heading", { name: "Build the discipleship brain" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Prepare a group video package" })).toBeVisible();
+    await expect(page.getByLabel("Upload text resource")).toBeVisible();
+    await expect(page.getByLabel("Resource format")).toBeVisible();
     await expect(page.getByRole("button", { name: "Save for Review" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Ask the brain before students do" })).toBeVisible();
     await page.getByLabel("Student-style question").fill("How do I trust God when suffering feels pointless?");

@@ -31,6 +31,24 @@ export type DiscussionVideoScript = {
   scenes: DiscussionVideoScene[];
 };
 
+export type DiscussionVideoRenderPackage = {
+  compositionId: DiscussionVideoScript["compositionId"];
+  promptId: string;
+  renderConfig: {
+    fps: DiscussionVideoScript["remotion"]["fps"];
+    width: DiscussionVideoScript["remotion"]["width"];
+    height: DiscussionVideoScript["remotion"]["height"];
+    durationInFrames: number;
+  };
+  inputProps: {
+    title: string;
+    subtitle: string;
+    status: DiscussionVideoScript["status"];
+    guardrails: string[];
+    scenes: DiscussionVideoScene[];
+  };
+};
+
 export function buildDiscussionVideoScript(prompt: StudentDiscussionPrompt): DiscussionVideoScript {
   const storyline = matchQuestionToStoryline(prompt);
   const nextStep = buildQuestionNextStep(prompt, prompt.knowledgeContext ?? []);
@@ -140,6 +158,30 @@ export function formatDiscussionVideoScriptForCopy(script: DiscussionVideoScript
       `   Leader note: ${scene.speakerNotes}`
     ])
   ].join("\n");
+}
+
+export function buildDiscussionVideoRenderPackage(script: DiscussionVideoScript): DiscussionVideoRenderPackage {
+  return {
+    compositionId: script.compositionId,
+    promptId: script.promptId,
+    renderConfig: {
+      fps: script.remotion.fps,
+      width: script.remotion.width,
+      height: script.remotion.height,
+      durationInFrames: script.totalDurationSeconds * script.remotion.fps
+    },
+    inputProps: {
+      title: script.title,
+      subtitle: script.subtitle,
+      status: script.status,
+      guardrails: script.guardrails,
+      scenes: script.scenes
+    }
+  };
+}
+
+export function formatDiscussionVideoRenderPackageForCopy(script: DiscussionVideoScript) {
+  return JSON.stringify(buildDiscussionVideoRenderPackage(script), null, 2);
 }
 
 function careGuardrail(prompt: StudentDiscussionPrompt) {

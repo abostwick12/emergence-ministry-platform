@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { buildDiscussionVideoScript, formatDiscussionVideoScriptForCopy } from "@/lib/scripture/discussion-video";
+import {
+  buildDiscussionVideoRenderPackage,
+  buildDiscussionVideoScript,
+  formatDiscussionVideoRenderPackageForCopy,
+  formatDiscussionVideoScriptForCopy
+} from "@/lib/scripture/discussion-video";
 import type { StudentDiscussionPrompt } from "@/lib/scripture/types";
 
 describe("discussion video script builder", () => {
@@ -61,6 +66,40 @@ describe("discussion video script builder", () => {
     expect(script.guardrails).toContain("Frame this topic slowly and invite direct leader follow-up where needed.");
     expect(copy).toContain("Guardrails:");
     expect(copy).toContain("Scenes:");
+    expect(copy).not.toContain("Jordan Student");
+    expect(copy).not.toContain("jordan@example.test");
+  });
+
+  it("builds a copyable Remotion render package without student identity", () => {
+    const script = buildDiscussionVideoScript(
+      prompt({
+        submittedByName: "Jordan Student",
+        submittedByEmail: "jordan@example.test",
+        discussionPrompt: "Where does Psalm 13 help us pray honestly together?"
+      })
+    );
+    const renderPackage = buildDiscussionVideoRenderPackage(script);
+    const copy = formatDiscussionVideoRenderPackageForCopy(script);
+
+    expect(renderPackage).toMatchObject({
+      compositionId: "LeaderDiscussionVideo",
+      promptId: "prompt_1",
+      renderConfig: {
+        fps: 30,
+        width: 1080,
+        height: 1920,
+        durationInFrames: script.totalDurationSeconds * 30
+      },
+      inputProps: {
+        title: "Where does Psalm 13 help us pray honestly together?",
+        scenes: expect.arrayContaining([
+          expect.objectContaining({
+            kind: "title"
+          })
+        ])
+      }
+    });
+    expect(JSON.parse(copy)).toMatchObject({ compositionId: "LeaderDiscussionVideo" });
     expect(copy).not.toContain("Jordan Student");
     expect(copy).not.toContain("jordan@example.test");
   });

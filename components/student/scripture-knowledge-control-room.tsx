@@ -1,12 +1,16 @@
 "use client";
 
-import type { FormEvent } from "react";
+import type { ChangeEvent, FormEvent } from "react";
 import { useMemo, useState } from "react";
 
+import { buildDiscussionVideoScript, formatDiscussionVideoRenderPackageForCopy, formatDiscussionVideoScriptForCopy } from "@/lib/scripture/discussion-video";
+import type { DiscussionWorkflowState } from "@/lib/scripture/discussion-workflow";
 import type { KnowledgeControlRoomState, KnowledgeSourceControlItem, KnowledgeVisibility } from "@/lib/scripture/knowledge-control-room";
 import type { KnowledgeTestBenchResult } from "@/lib/scripture/knowledge-test-bench";
+import type { StudentDiscussionPrompt } from "@/lib/scripture/types";
 
 type ScriptureKnowledgeControlRoomProps = {
+  initialDiscussionState?: DiscussionWorkflowState;
   initialState: KnowledgeControlRoomState;
 };
 
@@ -31,15 +35,27 @@ const visibilityActions: Array<{ visibility: KnowledgeVisibility; label: string;
   { visibility: "private_review", label: "Back to Review", note: "Held until a leader checks it again." }
 ];
 
-export function ScriptureKnowledgeControlRoom({ initialState }: ScriptureKnowledgeControlRoomProps) {
+const textImportExtensions = new Set(["txt", "md", "markdown", "csv", "json", "vtt", "srt"]);
+const pasteOnlyExtensions = new Set(["pdf", "doc", "docx"]);
+
+export function ScriptureKnowledgeControlRoom({ initialDiscussionState, initialState }: ScriptureKnowledgeControlRoomProps) {
   const [sources, setSources] = useState(initialState.sources);
   const [status, setStatus] = useState(initialState.readiness.message);
+  const [importStatus, setImportStatus] = useState("Import text-based files directly, or paste extracted text from PDF and document reports.");
+  const [selectedVideoPromptId, setSelectedVideoPromptId] = useState("");
+  const [videoCopyStatus, setVideoCopyStatus] = useState("");
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<KnowledgeTestBenchResult | null>(null);
   const [updatingId, setUpdatingId] = useState("");
   const stats = useMemo(() => buildStats(sources, initialState.stats.chunkCount), [sources, initialState.stats.chunkCount]);
   const canWrite = initialState.readiness.liveStorage && !saving;
+  const approvedPrompts = useMemo(
+    () => (initialDiscussionState?.prompts ?? []).filter((prompt) => prompt.status === "approved" || prompt.status === "posted"),
+    [initialDiscussionState?.prompts]
+  );
+  const selectedVideoPrompt = approvedPrompts.find((prompt) => prompt.id === selectedVideoPromptId) ?? approvedPrompts[0];
+  const selectedVideoScript = selectedVideoPrompt ? buildDiscussionVideoScript(selectedVideoPrompt) : null;
 
   async function submitSource(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -48,6 +64,8 @@ export function ScriptureKnowledgeControlRoom({ initialState }: ScriptureKnowled
     setStatus("Saving source for review...");
 
     try {
+      const resourceFormat = String(form.get("resourceFormat") || "");
+      const topicTags = String(form.get("tags") || "");
       const response = await fetch("/api/student/scripture/knowledge-sources", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -58,7 +76,7 @@ export function ScriptureKnowledgeControlRoom({ initialState }: ScriptureKnowled
           sourceUri: String(form.get("sourceUri") || ""),
           citation: String(form.get("citation") || ""),
           summary: String(form.get("summary") || ""),
-          tags: String(form.get("tags") || ""),
+          tags: buildTagPayload(resourceFormat, topicTags),
           scriptureReferences: String(form.get("scriptureReferences") || ""),
           content: String(form.get("content") || "")
         })
@@ -76,6 +94,51 @@ export function ScriptureKnowledgeControlRoom({ initialState }: ScriptureKnowled
       setStatus("The source could not be saved.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function importResourceFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const form = event.currentTarget.form;
+    const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
+    const titleInput = form?.elements.namedItem("title") as HTMLInputElement | null;
+    const sourceUriInput = form?.elements.namedItem("sourceUri") as HTMLInputElement | null;
+    const citationInput = form?.elements.namedItem("citation") as HTMLInputElement | null;
+    const contentInput = form?.elements.namedItem("content") as HTMLTextAreaElement | null;
+
+    if (titleInput && !titleInput.value.trim()) titleInput.value = file.name.replace(/\.[^.]+$/, "");
+    if (sourceUriInput && !sourceUriInput.value.trim()) sourceUriInput.value = `uploaded:${file.name}`;
+    if (citationInput && !citationInput.value.trim()) citationInput.value = file.name;
+
+    if (pasteOnlyExtensions.has(extension)) {
+      setImportStatus("PDF and Word files are noted, but this launch build needs their text pasted below before saving.");
+      return;
+    }
+
+    if (!textImportExtensions.has(extension)) {
+      setImportStatus("This file type is not text-readable yet. Paste the useful transcript, notes, or report text below.");
+      return;
+    }
+
+    try {
+      const text = await file.text();
+      if (contentInput) contentInput.value = cleanImportedText(text);
+      setImportStatus(`${file.name} imported into the review form. Check the text before saving.`);
+    } catch {
+      setImportStatus("The file could not be read. Paste the useful text below instead.");
+    }
+  }
+
+  async function copyVideoPackage(mode: "script" | "render") {
+    if (!selectedVideoScript) return;
+    const text = mode === "script" ? formatDiscussionVideoScriptForCopy(selectedVideoScript) : formatDiscussionVideoRenderPackageForCopy(selectedVideoScript);
+    try {
+      await navigator.clipboard.writeText(text);
+      setVideoCopyStatus(mode === "script" ? "Video script copied." : "Render package copied.");
+    } catch {
+      setVideoCopyStatus("Copy was not available in this browser. Select the package text manually.");
     }
   }
 
@@ -169,9 +232,9 @@ export function ScriptureKnowledgeControlRoom({ initialState }: ScriptureKnowled
     <section className="knowledge-control-room" aria-label="Knowledge source control room">
       <div className="knowledge-control-hero">
         <div>
-          <p className="eyebrow">Knowledge Sources</p>
+          <p className="eyebrow">Resource Hub</p>
           <h1>Build the discipleship brain</h1>
-          <p>Add trusted material, review the extracted chunks, then choose what can shape student-facing follow-up.</p>
+          <p>Add trusted material, prepare group video packages, review extracted chunks, then choose what can shape student-facing follow-up.</p>
         </div>
         <div className="knowledge-control-stats" aria-label="Knowledge source counts">
           <StatTile label="Sources" value={stats.totalSources} />
@@ -184,6 +247,16 @@ export function ScriptureKnowledgeControlRoom({ initialState }: ScriptureKnowled
       <p className="leader-review-status" aria-live="polite">
         {status}
       </p>
+
+      <ResourceVideoPackagePanel
+        copyStatus={videoCopyStatus}
+        onCopy={copyVideoPackage}
+        onSelectPrompt={setSelectedVideoPromptId}
+        prompts={approvedPrompts}
+        selectedPrompt={selectedVideoPrompt}
+        script={selectedVideoScript}
+        selectedPromptId={selectedVideoPrompt?.id ?? ""}
+      />
 
       <div className="knowledge-test-bench">
         <form className="knowledge-test-form" onSubmit={runTestBench}>
@@ -218,13 +291,25 @@ export function ScriptureKnowledgeControlRoom({ initialState }: ScriptureKnowled
       <div className="knowledge-control-grid">
         <form className="knowledge-source-form" onSubmit={submitSource}>
           <div>
-            <p className="eyebrow">Add source</p>
-            <h2>Private review first</h2>
+            <p className="eyebrow">Add resource</p>
+            <h2>Import into private review</h2>
           </div>
+
+          <label className="knowledge-file-import">
+            <span>Upload text resource</span>
+            <input
+              accept=".txt,.md,.markdown,.csv,.json,.vtt,.srt,.pdf,.doc,.docx"
+              disabled={!canWrite}
+              name="sourceFile"
+              onChange={importResourceFile}
+              type="file"
+            />
+            <small>{importStatus}</small>
+          </label>
 
           <label className="leader-review-field">
             <span>Title</span>
-            <input className="input" name="title" placeholder="Romans 8 and patient hope" required />
+            <input className="input" name="title" placeholder="NotebookLM report, podcast transcript, sermon notes, or study guide" required />
           </label>
 
           <div className="knowledge-source-field-grid">
@@ -250,7 +335,7 @@ export function ScriptureKnowledgeControlRoom({ initialState }: ScriptureKnowled
 
           <label className="leader-review-field">
             <span>Paste source material</span>
-            <textarea name="content" placeholder="Paste the excerpt or lesson content you want reviewed for the knowledge brain." required />
+            <textarea name="content" placeholder="Paste the excerpt, NotebookLM report text, podcast transcript, sermon notes, or study guide material you want reviewed." required />
           </label>
 
           <label className="leader-review-field">
@@ -260,15 +345,27 @@ export function ScriptureKnowledgeControlRoom({ initialState }: ScriptureKnowled
 
           <div className="knowledge-source-field-grid">
             <label className="leader-review-field">
-              <span>Topics</span>
-              <input className="input" name="tags" placeholder="trust, suffering, prayer" />
+              <span>Resource format</span>
+              <select className="input" name="resourceFormat" defaultValue="study-guide">
+                <option value="notebooklm-report">NotebookLM report</option>
+                <option value="podcast-transcript">Podcast transcript</option>
+                <option value="sermon-notes">Sermon notes</option>
+                <option value="study-guide">Study guide</option>
+                <option value="pdf-report-text">PDF/report text</option>
+                <option value="lesson-plan">Lesson plan</option>
+              </select>
             </label>
 
             <label className="leader-review-field">
-              <span>Scripture</span>
-              <input className="input" name="scriptureReferences" placeholder="Romans 8:18, Psalm 13" />
+              <span>Topics</span>
+              <input className="input" name="tags" placeholder="trust, suffering, prayer" />
             </label>
           </div>
+
+          <label className="leader-review-field">
+            <span>Scripture</span>
+            <input className="input" name="scriptureReferences" placeholder="Romans 8:18, Psalm 13" />
+          </label>
 
           <label className="leader-review-field">
             <span>Citation</span>
@@ -358,6 +455,106 @@ function TestBenchPreview({ result }: { result: KnowledgeTestBenchResult | null 
 
       <p className="knowledge-test-note">{result.visibilityNote}</p>
     </aside>
+  );
+}
+
+function ResourceVideoPackagePanel({
+  copyStatus,
+  onCopy,
+  onSelectPrompt,
+  prompts,
+  script,
+  selectedPrompt,
+  selectedPromptId
+}: {
+  copyStatus: string;
+  onCopy: (mode: "script" | "render") => Promise<void>;
+  onSelectPrompt: (promptId: string) => void;
+  prompts: StudentDiscussionPrompt[];
+  script: ReturnType<typeof buildDiscussionVideoScript> | null;
+  selectedPrompt: StudentDiscussionPrompt | undefined;
+  selectedPromptId: string;
+}) {
+  return (
+    <section className="resource-video-workspace" aria-label="Discussion video packages">
+      <div className="resource-video-heading">
+        <div>
+          <p className="eyebrow">Discussion Videos</p>
+          <h2>Prepare a group video package</h2>
+          <p>Select a leader-approved prompt, preview the vertical video scene plan, then copy a script or render-ready package.</p>
+        </div>
+        <span className={prompts.length ? "pill green" : "pill amber"}>{prompts.length ? `${prompts.length} ready` : "Approve a prompt first"}</span>
+      </div>
+
+      {prompts.length ? (
+        <div className="resource-video-grid">
+          <label className="leader-review-field">
+            <span>Approved prompt</span>
+            <select className="input" onChange={(event) => onSelectPrompt(event.target.value)} value={selectedPromptId}>
+              {prompts.map((prompt) => (
+                <option key={prompt.id} value={prompt.id}>
+                  {prompt.discussionPrompt || prompt.question}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {script && selectedPrompt ? (
+            <div className="resource-video-preview">
+              <div className="resource-video-preview-title">
+                <span>{selectedPrompt.scriptureReference || "Group discussion"}</span>
+                <h3>{script.title}</h3>
+                <p>{script.subtitle}</p>
+              </div>
+
+              <div className="leader-video-script-meta" aria-label="Video package format">
+                <VideoMeta label="Length" value={`${script.totalDurationSeconds}s`} />
+                <VideoMeta label="Format" value="1080x1920" />
+                <VideoMeta label="Frames" value={`${script.totalDurationSeconds * script.remotion.fps}`} />
+              </div>
+
+              <div className="resource-video-scenes">
+                {script.scenes.slice(0, 3).map((scene, index) => (
+                  <article key={scene.id}>
+                    <span>
+                      Scene {index + 1} - {scene.eyebrow}
+                    </span>
+                    <strong>{scene.headline}</strong>
+                    <p>{scene.body}</p>
+                  </article>
+                ))}
+              </div>
+
+              <div className="resource-video-actions">
+                <button className="button" onClick={() => void onCopy("script")} type="button">
+                  Copy script
+                </button>
+                <button className="button primary" onClick={() => void onCopy("render")} type="button">
+                  Copy render package
+                </button>
+              </div>
+              <p className="leader-video-script-status" role="status">
+                {copyStatus || "Rendering is not connected yet. This package is ready for the Remotion renderer when that worker is added."}
+              </p>
+            </div>
+          ) : null}
+        </div>
+      ) : (
+        <div className="leader-review-empty">
+          <strong>No approved prompts yet.</strong>
+          <p>Approve a student question in Discussion Review, then it will appear here for video packaging.</p>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function VideoMeta({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="leader-review-meta-tile">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
   );
 }
 
@@ -511,4 +708,17 @@ function visibilityLabel(visibility: KnowledgeVisibility) {
   if (visibility === "private_review") return "Private review";
   if (visibility === "scholar_citation_only") return "Citation only";
   return "Leader only";
+}
+
+function cleanImportedText(value: string) {
+  return value
+    .replace(/\r/g, "\n")
+    .replace(/\u0000/g, "")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{4,}/g, "\n\n\n")
+    .trim();
+}
+
+function buildTagPayload(resourceFormat: string, topicTags: string) {
+  return [resourceFormat, ...topicTags.split(/[\n,]/)].map((tag) => tag.trim()).filter(Boolean);
 }
