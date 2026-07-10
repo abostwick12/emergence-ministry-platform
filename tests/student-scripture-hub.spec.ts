@@ -120,15 +120,19 @@ test.describe("Student Scripture Hub shell", () => {
 
     await page.goto("/student/scripture/resources");
     await expect(page.getByRole("heading", { name: "The Big Story of Scripture" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Genesis + Exodus" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Genesis full guide" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Exodus full guide" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Where are we in the story?" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Start with Genesis and Exodus" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Genesis: beginnings and promise" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Exodus: rescue and formation" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Old Testament flyover" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "New Testament flyover" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Tap a theme and trace the thread." })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Themes to trace as you read" })).toBeVisible();
     await expect(page.getByText("Genesis and Exodus introduce the major categories")).toBeVisible();
+    await expect(page.getByText("Leader notes")).toHaveCount(0);
+    await expect(page.getByText(/full academic/i)).toHaveCount(0);
+    await expect(page.getByText(/metanarrative/i)).toHaveCount(0);
     await expect(page.getByText("every doctrine")).toHaveCount(0);
-    await expect(page.getByRole("heading", { name: "Simple tools for reading carefully together." })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Simple tools for reading carefully together" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Look up a Scripture reference" })).toBeVisible();
     await page.getByLabel("Scripture reference").fill("John 3:16");
     await page.getByRole("button", { name: "Look Up" }).click();
