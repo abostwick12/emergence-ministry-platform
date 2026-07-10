@@ -29,7 +29,8 @@ export default function LoginPage() {
       return;
     }
 
-    window.location.assign("/dashboard");
+    const nextPath = getSafeNextPath(new URLSearchParams(window.location.search).get("next"));
+    window.location.assign(nextPath);
   }
 
   return (
@@ -65,5 +66,10 @@ export default function LoginPage() {
       </section>
     </main>
   );
+}
+
+function getSafeNextPath(value: string | null) {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) return "/dashboard";
+  return value;
 }
 

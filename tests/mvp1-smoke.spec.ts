@@ -10,6 +10,22 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await expect(page.getByRole("heading", { name: "Lead Emergence Automated Platform" })).toBeVisible();
   });
 
+  test("public landing page presents role-based entry paths", async ({ page }) => {
+    await page.goto("/");
+
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.getByRole("heading", { name: "Create space for ministry. Connect people to Jesus." })).toBeVisible();
+    await expect(page.getByLabel("Lead Emergence product film preview")).toBeVisible();
+
+    for (const role of ["Ministry Director", "Volunteer Leader", "Student"]) {
+      await expect(page.getByText(role, { exact: true }).first()).toBeVisible();
+    }
+
+    await expect(page.getByRole("link", { name: /Go to dashboard/ })).toHaveAttribute("href", "/login?next=/dashboard");
+    await expect(page.getByRole("link", { name: /Go to discipleship/ })).toHaveAttribute("href", "/login?next=/discipleship");
+    await expect(page.getByRole("link", { name: /Go to student portal/ })).toHaveAttribute("href", "/login?next=/student");
+  });
+
   test("login page renders for internal access", async ({ page }) => {
     await page.goto("/login");
 
@@ -17,6 +33,16 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await expect(page.getByLabel("Email")).toBeVisible();
     await expect(page.getByLabel("Password")).toBeVisible();
     await expect(page.getByRole("button", { name: "Log in" })).toBeVisible();
+  });
+
+  test("login honors safe internal next destination", async ({ page }) => {
+    await page.goto("/login?next=/tasks");
+    await page.getByLabel("Email").fill("staff@example.com");
+    await page.getByLabel("Password").fill("password");
+    await page.getByRole("button", { name: "Log in" }).click();
+
+    await expect(page).toHaveURL(/\/tasks$/);
+    await expect(page.getByRole("heading", { name: "Tasks", level: 1 })).toBeVisible();
   });
 
   test("authenticated user lands on dashboard and can log out", async ({ page }) => {

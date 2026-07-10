@@ -11,6 +11,8 @@
     "test:unit": "vitest run",
     "test:e2e": "node scripts/run-e2e.mjs",
     "design-check": "node scripts/design-check.mjs",
+    "video:landing:studio": "remotion studio remotion/landing/Root.tsx",
+    "video:landing:still": "remotion still remotion/landing/Root.tsx LeadEmergenceLandingVideo --frame=90 --scale=0.25 --output=test-results/landing-video-frame.png",
     "rag:obsidian:dry-run": "node scripts/obsidian-rag-import.mjs --dry-run"
   },
   "dependencies": {
@@ -26,6 +28,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.49.1",
+    "@remotion/cli": "^4.0.487",
     "@types/node": "^20.14.10",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
@@ -33,6 +36,7 @@
     "eslint": "^8.57.0",
     "eslint-config-next": "^14.2.35",
     "postcss": "^8.4.39",
+    "remotion": "^4.0.487",
     "tailwindcss": "^3.4.4",
     "typescript": "^5.5.3",
     "vitest": "^4.1.9"
