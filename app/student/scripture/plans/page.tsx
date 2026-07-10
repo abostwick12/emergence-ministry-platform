@@ -1,11 +1,13 @@
 import Link from "next/link";
 
 import { ScriptureCard } from "@/components/student/scripture-card";
+import { StudentScriptureTabs } from "@/components/student/student-scripture-tabs";
 import { scripturePlans } from "@/lib/scripture/mock-data";
 
 export default function ScripturePlansPage() {
   return (
     <>
+      <StudentScriptureTabs active="plans" />
       <section className="panel grid gap-4 bg-white">
         <div className="toolbar split">
           <div className="grid gap-2">

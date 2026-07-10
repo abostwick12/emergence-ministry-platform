@@ -960,6 +960,14 @@ body {
   align-items: flex-start;
   min-height: 118px;
   padding: 18px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.app-shell:not(.app-shell-camp) .student-reading-help:hover,
+.app-shell:not(.app-shell-camp) .student-reading-help:focus-visible {
+  border-color: rgba(56, 189, 248, 0.38);
+  transform: translateY(-1px);
 }
 
 .app-shell:not(.app-shell-camp) .student-reading-help h2,
