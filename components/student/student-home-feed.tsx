@@ -1,12 +1,13 @@
 "use client";
 
-import { BookOpen, Heart, MessageCircle, PenLine, Search, Sparkles, Users, type LucideIcon } from "lucide-react";
+import { Award, BookOpen, CheckCircle2, Heart, MessageCircle, PenLine, Search, Sparkles, Users, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { StudentQuestionComposer } from "@/components/student/student-question-composer";
 import type { DiscussionWorkflowState } from "@/lib/scripture/discussion-workflow";
+import { howToReadModules, studentHowToReadLocalProgressKey } from "@/lib/scripture/how-to-read";
 import type { StudentQuestionReflection } from "@/lib/scripture/student-reflections";
 import type {
   StudentGroupDiscussionItem,
@@ -20,6 +21,8 @@ import type { StudentDiscussionPrompt } from "@/lib/scripture/types";
 type StudentHomeFeedProps = {
   initialState: DiscussionWorkflowState;
   initialFeed: StudentHomeFeedData;
+  initialHowToReadCompletedModuleIds: string[];
+  initialHowToReadProgressStorage: "server" | "unavailable";
   initialReflections: Record<string, StudentQuestionReflection>;
   userName: string;
 };
@@ -59,8 +62,19 @@ const starterPassages = [
   "Matthew 5"
 ] as const;
 
-export function StudentHomeFeed({ initialState, initialFeed, initialReflections, userName }: StudentHomeFeedProps) {
+export function StudentHomeFeed({
+  initialState,
+  initialFeed,
+  initialHowToReadCompletedModuleIds,
+  initialHowToReadProgressStorage,
+  initialReflections,
+  userName
+}: StudentHomeFeedProps) {
   const router = useRouter();
+  const validHowToReadModuleIds = useMemo(() => new Set(howToReadModules.map((module) => module.id)), []);
+  const [howToReadCompletedIds, setHowToReadCompletedIds] = useState<Set<string>>(() =>
+    sanitizeHowToReadProgress(initialHowToReadCompletedModuleIds, validHowToReadModuleIds)
+  );
   const [recentQuestions, setRecentQuestions] = useState(initialFeed.recentQuestions);
   const [keepReading, setKeepReading] = useState(initialFeed.keepReading);
   const [questionNextSteps, setQuestionNextSteps] = useState(initialFeed.questionNextSteps);
@@ -74,6 +88,16 @@ export function StudentHomeFeed({ initialState, initialFeed, initialReflections,
   const activeNextStep = activePrompt ? nextStepForPrompt(activePrompt.id) : undefined;
   const activeGroupPrompt = activeJourneyType === "group" ? initialFeed.forGroup.find((prompt) => prompt.id === activeGroupPromptId) : undefined;
   const activeGroupNextStep = activeGroupPrompt ? groupNextStepForPrompt(activeGroupPrompt.id) : undefined;
+  const howToReadCompletedCount = howToReadCompletedIds.size;
+  const nextHowToReadGuide = howToReadModules.find((module) => !howToReadCompletedIds.has(module.id)) ?? howToReadModules[howToReadModules.length - 1];
+  const latestHowToReadBadge = [...howToReadModules].reverse().find((module) => howToReadCompletedIds.has(module.id))?.badge;
+
+  useEffect(() => {
+    if (initialHowToReadProgressStorage === "server") return;
+    if (initialHowToReadCompletedModuleIds.length > 0) return;
+    const localIds = readLocalHowToReadProgress(validHowToReadModuleIds);
+    if (localIds.size > 0) setHowToReadCompletedIds(localIds);
+  }, [initialHowToReadCompletedModuleIds.length, initialHowToReadProgressStorage, validHowToReadModuleIds]);
 
   function addPrompt(prompt: StudentDiscussionPrompt, nextPromptStep: StudentQuestionNextStep) {
     setRecentQuestions((current) => [prompt, ...current].filter((item) => item.submittedByUserId === prompt.submittedByUserId).slice(0, 4));
@@ -123,6 +147,39 @@ export function StudentHomeFeed({ initialState, initialFeed, initialReflections,
           <h1>Welcome back, {firstName}.</h1>
           <p>Ask real questions, keep reading, and bring better conversations to your group.</p>
         </div>
+
+        <section className="student-progress-card" aria-label="Private Bible reading progress">
+          <div className="student-progress-card-main">
+            <span className="student-help-icon" aria-hidden="true">
+              <Award size={17} />
+            </span>
+            <div>
+              <p className="eyebrow">Private progress</p>
+              <h2>
+                {howToReadCompletedCount} of {howToReadModules.length} How to Read guides signed off
+              </h2>
+              <p>
+                {latestHowToReadBadge
+                  ? `Latest badge: ${latestHowToReadBadge}. Keep going at a pace that helps you actually understand.`
+                  : "Sign off the first guide when you are ready. This is here to help you see your growth, not to rush you."}
+              </p>
+            </div>
+          </div>
+          <div className="student-progress-card-actions">
+            <div className="student-progress-mini-meter" aria-label={`${howToReadCompletedCount} of ${howToReadModules.length} How to Read guides complete`}>
+              {howToReadModules.map((module) => (
+                <span className={howToReadCompletedIds.has(module.id) ? "complete" : ""} key={module.id} />
+              ))}
+            </div>
+            <Link className="button secondary" href="/student/scripture/how-to-read">
+              {howToReadCompletedCount > 0 ? "Continue" : "Start"}
+            </Link>
+          </div>
+          <div className="student-progress-next-guide">
+            <CheckCircle2 size={15} aria-hidden="true" />
+            <span>Next guide: {nextHowToReadGuide.title}</span>
+          </div>
+        </section>
 
         <section className="student-scripture-tool" aria-label="Scripture study shortcuts">
           <div className="student-tool-heading">
@@ -649,6 +706,22 @@ function mergeKeepReading(current: StudentKeepReadingItem[], incoming: StudentKe
       return true;
     })
     .slice(0, 4);
+}
+
+function sanitizeHowToReadProgress(moduleIds: string[], validModuleIds: Set<string>) {
+  return new Set(moduleIds.filter((moduleId) => validModuleIds.has(moduleId)));
+}
+
+function readLocalHowToReadProgress(validModuleIds: Set<string>) {
+  if (typeof window === "undefined") return new Set<string>();
+  try {
+    const raw = window.localStorage.getItem(studentHowToReadLocalProgressKey);
+    if (!raw) return new Set<string>();
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? sanitizeHowToReadProgress(parsed.filter((item): item is string => typeof item === "string"), validModuleIds) : new Set<string>();
+  } catch {
+    return new Set<string>();
+  }
 }
 
 function EmptyFeedState({ title, body }: { title: string; body: string }) {

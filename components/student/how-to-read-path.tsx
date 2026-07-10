@@ -3,10 +3,11 @@
 import { BookOpen, CheckCircle2, Circle, Headphones, Image as ImageIcon, PlayCircle, ShieldCheck, Trophy, Users } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
-import type { HowToReadModule } from "@/lib/scripture/how-to-read";
+import { studentHowToReadLocalProgressKey, type HowToReadModule } from "@/lib/scripture/how-to-read";
 
 type HowToReadPathProps = {
   initialCompletedModuleIds?: string[];
+  initialProgressStorage?: "server" | "unavailable";
   modules: HowToReadModule[];
 };
 
@@ -18,9 +19,7 @@ type ProgressResponse = {
   };
 };
 
-const localProgressKey = "lead-emergence:student-how-to-read-progress";
-
-export function HowToReadPath({ initialCompletedModuleIds = [], modules }: HowToReadPathProps) {
+export function HowToReadPath({ initialCompletedModuleIds = [], initialProgressStorage = "unavailable", modules }: HowToReadPathProps) {
   const validModuleIds = useMemo(() => new Set(modules.map((module) => module.id)), [modules]);
   const [completedIds, setCompletedIds] = useState<Set<string>>(() => sanitizeCompletedIds(initialCompletedModuleIds, validModuleIds));
   const [saveMessage, setSaveMessage] = useState("Progress saves when storage is connected.");
@@ -28,6 +27,7 @@ export function HowToReadPath({ initialCompletedModuleIds = [], modules }: HowTo
   const completedCount = completedIds.size;
   const currentModule = modules.find((module) => !completedIds.has(module.id)) ?? modules[modules.length - 1];
   const earnedBadges = useMemo(() => modules.filter((module) => completedIds.has(module.id)).map((module) => module.badge), [completedIds, modules]);
+  const nextBadge = modules.find((module) => !completedIds.has(module.id))?.badge;
 
   function toggleComplete(moduleId: string) {
     if (!validModuleIds.has(moduleId)) return;
@@ -80,13 +80,14 @@ export function HowToReadPath({ initialCompletedModuleIds = [], modules }: HowTo
   }
 
   useEffect(() => {
+    if (initialProgressStorage === "server") return;
     if (initialCompletedModuleIds.length > 0) return;
     const localIds = readLocalProgress(validModuleIds);
     if (localIds.size > 0) {
       setCompletedIds(localIds);
       setSaveMessage("Loaded saved progress from this browser.");
     }
-  }, [initialCompletedModuleIds.length, validModuleIds]);
+  }, [initialCompletedModuleIds.length, initialProgressStorage, validModuleIds]);
 
   return (
     <div className="how-to-read-path">
@@ -122,21 +123,28 @@ export function HowToReadPath({ initialCompletedModuleIds = [], modules }: HowTo
             <span className={completedIds.has(module.id) ? "complete" : ""} key={module.id} />
           ))}
         </div>
-        <div className="how-to-read-badges" aria-label="Earned badges">
-          {earnedBadges.length ? (
-            earnedBadges.map((badge) => (
-              <span className="how-to-read-badge" key={badge}>
-                <Trophy size={14} aria-hidden="true" />
-                {badge}
-              </span>
-            ))
-          ) : (
-            <span className="how-to-read-badge muted">
-              <Trophy size={14} aria-hidden="true" />
-              Badges appear as guides are signed off
-            </span>
-          )}
-        </div>
+        <section className="how-to-read-achievement-panel" aria-label="Private badge progress">
+          <div>
+            <p className="eyebrow">Badges</p>
+            <h3>{earnedBadges.length ? `${earnedBadges.length} earned so far` : "Earn your first badge"}</h3>
+            <p>
+              {nextBadge
+                ? `Next badge: ${nextBadge}. These stay focused on your own progress for now.`
+                : "You finished the whole path. Nice work staying with it."}
+            </p>
+          </div>
+          <div className="how-to-read-badge-grid" aria-label="Badge path">
+            {modules.map((module) => {
+              const isEarned = completedIds.has(module.id);
+              return (
+                <span className={`how-to-read-badge ${isEarned ? "" : "muted"}`} key={module.badge}>
+                  <Trophy size={14} aria-hidden="true" />
+                  {module.badge}
+                </span>
+              );
+            })}
+          </div>
+        </section>
       </section>
 
       <section className="how-to-read-module-list" aria-label="How to read your Bible guides">
@@ -240,7 +248,7 @@ function sanitizeCompletedIds(moduleIds: string[], validModuleIds: Set<string>) 
 function readLocalProgress(validModuleIds: Set<string>) {
   if (typeof window === "undefined") return new Set<string>();
   try {
-    const raw = window.localStorage.getItem(localProgressKey);
+    const raw = window.localStorage.getItem(studentHowToReadLocalProgressKey);
     if (!raw) return new Set<string>();
     const parsed = JSON.parse(raw) as unknown;
     return Array.isArray(parsed) ? sanitizeCompletedIds(parsed.filter((item): item is string => typeof item === "string"), validModuleIds) : new Set<string>();
@@ -252,7 +260,7 @@ function readLocalProgress(validModuleIds: Set<string>) {
 function persistLocalProgress(moduleIds: Set<string>) {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(localProgressKey, JSON.stringify(Array.from(moduleIds)));
+    window.localStorage.setItem(studentHowToReadLocalProgressKey, JSON.stringify(Array.from(moduleIds)));
   } catch {
     // Local progress is helpful, but the UI should not fail if storage is blocked.
   }

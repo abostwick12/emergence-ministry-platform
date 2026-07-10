@@ -2,6 +2,7 @@ import { StudentHomeFeed } from "@/components/student/student-home-feed";
 import { getServerSession } from "@/lib/auth/server";
 import { getSavedStudentQuestionRecommendations } from "@/lib/scripture/knowledge";
 import { getApprovedStudentDiscussionFeed, getStudentDiscussionWorkflowState } from "@/lib/scripture/discussion-workflow";
+import { getStudentHowToReadProgress } from "@/lib/scripture/how-to-read-progress";
 import { getStudentQuestionReflections } from "@/lib/scripture/student-reflections";
 import { buildStudentHomeFeed } from "@/lib/scripture/student-home";
 import { resolveStudentHubAccess } from "@/lib/student/access";
@@ -18,7 +19,17 @@ export default async function StudentPortalPage() {
     .map((prompt) => prompt.id);
   const savedRecommendations = await getSavedStudentQuestionRecommendations(access.session, recentPromptIds);
   const reflections = await getStudentQuestionReflections(access.session, recentPromptIds);
+  const howToReadProgress = await getStudentHowToReadProgress(access.session);
   const feed = buildStudentHomeFeed(state.prompts, access.session.user.id, approvedGroupPrompts, savedRecommendations);
 
-  return <StudentHomeFeed initialFeed={feed} initialReflections={reflections} initialState={state} userName={access.session.user.fullName} />;
+  return (
+    <StudentHomeFeed
+      initialFeed={feed}
+      initialHowToReadCompletedModuleIds={howToReadProgress.completedModuleIds}
+      initialHowToReadProgressStorage={howToReadProgress.storage}
+      initialReflections={reflections}
+      initialState={state}
+      userName={access.session.user.fullName}
+    />
+  );
 }

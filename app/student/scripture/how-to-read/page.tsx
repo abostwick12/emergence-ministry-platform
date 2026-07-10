@@ -12,7 +12,7 @@ export default async function StudentHowToReadPage() {
   return (
     <>
       <StudentScriptureTabs active="how-to-read" />
-      <HowToReadPath initialCompletedModuleIds={progress?.completedModuleIds ?? []} modules={howToReadModules} />
+      <HowToReadPath initialCompletedModuleIds={progress?.completedModuleIds ?? []} initialProgressStorage={progress?.storage ?? "unavailable"} modules={howToReadModules} />
     </>
   );
 }

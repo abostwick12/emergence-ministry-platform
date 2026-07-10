@@ -22,6 +22,7 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page).toHaveURL(/\/student$/);
     await expect(page.getByRole("heading", { name: "Student Portal" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "How to Read the Bible" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Private Bible reading progress" })).toContainText("0 of 8 How to Read guides signed off");
     await expect(page.getByRole("heading", { name: "Scripture Study Tool" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "What should we talk about next?" })).toBeVisible();
     await expect(page.getByRole("region", { name: "Keep reading" })).toBeVisible();
@@ -90,13 +91,18 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page.getByText(/metanarrative/i)).toHaveCount(0);
     await expect(page.getByText(/full academic/i)).toHaveCount(0);
     await expect(page.getByText("0 of 8 guides signed off")).toBeVisible();
+    await expect(page.getByRole("region", { name: "Private badge progress" })).toContainText("Earn your first badge");
     await page.getByRole("button", { name: "Mark complete" }).first().click();
     await expect(page.getByText("1 of 8 guides signed off")).toBeVisible();
     await expect(page.getByRole("status")).toContainText("Saved in this browser for now.");
     await expect(page.getByText("Start With the Story").first()).toBeVisible();
+    await expect(page.getByRole("region", { name: "Private badge progress" })).toContainText("1 earned so far");
     await page.reload();
     await expect(page.getByText("1 of 8 guides signed off")).toBeVisible();
     await expect(page.getByRole("status")).toContainText("Loaded saved progress from this browser.");
+    await page.goto("/student");
+    await expect(page.getByRole("region", { name: "Private Bible reading progress" })).toContainText("1 of 8 How to Read guides signed off");
+    await expect(page.getByRole("region", { name: "Private Bible reading progress" })).toContainText("Latest badge: Start With the Story.");
 
     await page.goto("/student/scripture/resources");
     await expect(page.getByRole("heading", { name: "The Big Story of Scripture" })).toBeVisible();

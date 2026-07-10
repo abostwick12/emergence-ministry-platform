@@ -7866,6 +7866,7 @@ html:has(.app-shell-camp) body {
 }
 
 .student-feed-welcome,
+.student-progress-card,
 .student-question-composer,
 .student-next-step,
 .student-question-journey,
@@ -7891,6 +7892,7 @@ html:has(.app-shell-camp) body {
 }
 
 .student-feed-welcome p,
+.student-progress-card p,
 .student-question-composer-copy p,
 .leader-review-intro p {
   margin: 8px 0 0;
@@ -7898,6 +7900,68 @@ html:has(.app-shell-camp) body {
   font-size: var(--text-base);
   font-weight: 700;
   line-height: 1.55;
+}
+
+.student-progress-card {
+  display: grid;
+  gap: 14px;
+  border-color: color-mix(in srgb, var(--success) 24%, var(--line));
+}
+
+.student-progress-card-main,
+.student-progress-card-actions,
+.student-progress-next-guide {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.student-progress-card-main {
+  align-items: flex-start;
+}
+
+.student-progress-card h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--text-xl);
+  line-height: 1.16;
+}
+
+.student-progress-card-actions {
+  justify-content: space-between;
+}
+
+.student-progress-mini-meter {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(14px, 1fr));
+  gap: 5px;
+  width: min(100%, 360px);
+}
+
+.student-progress-mini-meter span {
+  min-height: 10px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+}
+
+.student-progress-mini-meter span.complete {
+  background: linear-gradient(90deg, var(--success), var(--primary));
+}
+
+.student-progress-next-guide {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 800;
+  line-height: 1.35;
+  padding: 10px 12px;
+}
+
+.student-progress-next-guide svg {
+  flex: 0 0 auto;
+  color: var(--success);
 }
 
 .student-question-composer {
@@ -8685,6 +8749,29 @@ html:has(.app-shell-camp) body {
   background: linear-gradient(90deg, var(--success), var(--primary));
 }
 
+.how-to-read-achievement-panel {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  padding: 14px;
+}
+
+.how-to-read-achievement-panel h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--text-lg);
+  line-height: 1.2;
+}
+
+.how-to-read-badge-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
 .how-to-read-badges,
 .how-to-read-module-actions,
 .how-to-read-module-tools {
@@ -8843,6 +8930,15 @@ html:has(.app-shell-camp) body {
   .how-to-read-module-actions {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .student-progress-card-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .student-progress-mini-meter {
+    width: 100%;
   }
 }
 
