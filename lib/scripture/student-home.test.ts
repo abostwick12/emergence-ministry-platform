@@ -283,6 +283,12 @@ describe("student home feed personalization", () => {
     expect(nextStep).toMatchObject({
       label: "Because you asked about suffering",
       summary: "Hold suffering and hope together without rushing the conversation.",
+      knowledgeMatches: [
+        expect.objectContaining({
+          sourceChunkId: "chunk_1",
+          title: "Romans 8 and patient hope"
+        })
+      ],
       readingPlan: {
         title: "Romans 8 and patient hope"
       },
@@ -292,6 +298,55 @@ describe("student home feed personalization", () => {
     });
     expect(nextStep.digQuestions).toEqual(["Where does Romans 8 name pain without pretending it is small?"]);
     expect(nextStep.wrestleTogetherPrompt).toContain("honest pain");
+  });
+
+  it("keeps the matched knowledge path available after saved recommendations rehydrate", () => {
+    const feed = buildStudentHomeFeed(
+      [
+        prompt({
+          id: "question_romans",
+          question: "How do I trust God when suffering feels pointless?",
+          scriptureReference: "Romans 8:18",
+          knowledgeContext: [
+            {
+              id: "knowledge-romans-hope",
+              sourceChunkId: "chunk_1",
+              label: "Because you asked about suffering",
+              title: "Romans 8 and patient hope",
+              description: "Hold suffering and hope together without rushing the conversation.",
+              href: "/student/scripture/resources",
+              digQuestions: ["Where does Romans 8 name pain without pretending it is small?"],
+              topicTags: ["suffering", "hope"],
+              scriptureReferences: ["Romans 8:18"]
+            }
+          ],
+          metanarrativeMovement: undefined,
+          topicTags: []
+        })
+      ],
+      "usr_student",
+      [],
+      {
+        question_romans: [
+          savedRecommendation({
+            kind: "reading_plan",
+            label: "Because you asked about suffering",
+            title: "Romans 8 and patient hope",
+            description: "Read suffering and hope together before group.",
+            href: "/student/scripture/resources",
+            rank: 10
+          })
+        ]
+      }
+    );
+
+    expect(feed.questionNextSteps[0].knowledgeMatches).toEqual([
+      expect.objectContaining({
+        sourceChunkId: "chunk_1",
+        title: "Romans 8 and patient hope",
+        scriptureReferences: ["Romans 8:18"]
+      })
+    ]);
   });
 
   it("adds a careful leader-care note for sensitive questions", () => {

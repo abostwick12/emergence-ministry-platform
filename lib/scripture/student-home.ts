@@ -27,6 +27,7 @@ export type StudentQuestionNextStep = {
   title: string;
   summary: string;
   careNote?: string;
+  knowledgeMatches: StudentKnowledgeMatch[];
   wrestleQuestions: string[];
   digQuestions: string[];
   journalPrompts: string[];
@@ -104,6 +105,7 @@ export function buildQuestionNextStep(prompt: ReadingSource & { id?: string }, k
       storylineMatch.studentSummary ??
       "Your leader can still shape this for group discussion, but you do not have to wait to start seeking carefully.",
     careNote: careNoteForPrompt(prompt),
+    knowledgeMatches: knowledgeMatches.slice(0, 3),
     wrestleQuestions: wrestleQuestionsForPrompt(prompt),
     digQuestions: primaryKnowledge?.digQuestions?.length ? primaryKnowledge.digQuestions : uniqueQuestions([...storylineMatch.studentQuestions, ...digQuestionsForPrompt(prompt)], 3),
     journalPrompts: journalPromptsForPrompt(prompt),
@@ -201,6 +203,7 @@ function savedRecommendationsToNextStep(
       resource?.description ||
       "These next steps were saved from your question so you can wrestle, read, reflect, and pray while your leader reviews it.",
     careNote: fallback.careNote,
+    knowledgeMatches: fallback.knowledgeMatches,
     wrestleQuestions: wrestleQuestions.length ? wrestleQuestions : fallback.wrestleQuestions,
     digQuestions: digQuestions.length ? digQuestions : fallback.digQuestions,
     journalPrompts: journalPrompts.length ? journalPrompts : fallback.journalPrompts,
