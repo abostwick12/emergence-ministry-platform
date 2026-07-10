@@ -25,12 +25,20 @@ page.on("console", (message) => {
   console.error(`[browser] ${text}`);
 });
 
-await page.goto(`${baseURL}/login`, { waitUntil: "domcontentloaded" });
-await page.getByLabel("Email").fill(email);
-await page.getByLabel("Password").fill(password);
-await page.getByRole("button", { name: "Log in" }).click();
-await page.waitForURL(/\/dashboard$/);
-await page.waitForLoadState("networkidle");
+const loginResponse = await context.request.post(`${baseURL}/api/auth/login`, {
+  data: { email, password }
+});
+
+if (!loginResponse.ok()) {
+  const body = await loginResponse.text().catch(() => "");
+  throw new Error(`Contest capture login failed (${loginResponse.status()}): ${body || "No response body"}`);
+}
+
+await page.goto(`${baseURL}/dashboard`, { waitUntil: "domcontentloaded" });
+await page.waitForLoadState("networkidle").catch(() => undefined);
+if (!/\/dashboard$/.test(new URL(page.url()).pathname)) {
+  throw new Error(`Contest capture login did not create a dashboard session. Current URL: ${page.url()}`);
+}
 
 async function capture(name, route, ready, action) {
   await page.goto(`${baseURL}${route}`, { waitUntil: "domcontentloaded" });
