@@ -92,6 +92,14 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page.getByText(/full academic/i)).toHaveCount(0);
     await expect(page.getByText("0 of 8 guides signed off")).toBeVisible();
     await expect(page.getByRole("region", { name: "Private badge progress" })).toContainText("Earn your first badge");
+    await howToReadGuides.getByRole("link", { name: "Open guide" }).first().click();
+    await expect(page).toHaveURL(/\/student\/scripture\/how-to-read\/what-is-the-bible$/);
+    await expect(page.getByRole("heading", { name: "What Is the Bible?" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Media and infographic slots" })).toContainText("Video");
+    await expect(page.getByRole("region", { name: "Media and infographic slots" })).toContainText("Coming later.");
+    await expect(page.getByRole("region", { name: "Student-level note" })).toContainText("understandable");
+    await page.getByRole("link", { name: "Back to path" }).click();
+    await expect(page).toHaveURL(/\/student\/scripture\/how-to-read$/);
     await page.getByRole("button", { name: "Mark complete" }).first().click();
     await expect(page.getByText("1 of 8 guides signed off")).toBeVisible();
     await expect(page.getByRole("status")).toContainText("Saved in this browser for now.");

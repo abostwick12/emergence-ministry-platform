@@ -1,6 +1,7 @@
 "use client";
 
 import { BookOpen, CheckCircle2, Circle, Headphones, Image as ImageIcon, PlayCircle, ShieldCheck, Trophy, Users } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { studentHowToReadLocalProgressKey, type HowToReadModule } from "@/lib/scripture/how-to-read";
@@ -214,6 +215,9 @@ export function HowToReadPath({ initialCompletedModuleIds = [], initialProgressS
               </div>
 
               <div className="how-to-read-module-actions">
+                <Link className="button secondary" href={`/student/scripture/how-to-read/${module.id}`}>
+                  Open guide
+                </Link>
                 <button className="button primary" type="button" aria-pressed={isComplete} onClick={() => toggleComplete(module.id)}>
                   {savingModuleId === module.id ? "Saving..." : isComplete ? "Signed off" : "Mark complete"}
                 </button>
