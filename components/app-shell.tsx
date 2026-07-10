@@ -2,6 +2,22 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import {
+  Bell,
+  BookOpen,
+  Bot,
+  CalendarDays,
+  DollarSign,
+  LayoutDashboard,
+  ListChecks,
+  MessageSquareText,
+  Music,
+  Search,
+  Settings,
+  TentTree,
+  Users
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { useRole } from "@/components/role-context";
 import { useEventCard } from "@/components/event-card-context";
 import { UnifiedDashboardBrandArt } from "@/components/unified-dashboard-brand-art";
@@ -56,116 +72,24 @@ function initialsForUser(displayName: string): string {
   return initials.toUpperCase();
 }
 
-function BellIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true">
-      <path
-        d="M6 9a6 6 0 0112 0c0 5 1.5 6.5 2 7H4c.5-.5 2-2 2-7z"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinejoin="round"
-      />
-      <path d="M10 20a2 2 0 004 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function SearchIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="17" height="17" fill="none" aria-hidden="true">
-      <circle cx="10.8" cy="10.8" r="6.3" stroke="currentColor" strokeWidth="1.8" />
-      <path d="M16 16l4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-const navIconPaths: Record<string, React.ReactNode> = {
-  "/dashboard": (
-    <>
-      <rect x="3" y="3" width="7" height="9" rx="1.4" />
-      <rect x="14" y="3" width="7" height="5" rx="1.4" />
-      <rect x="14" y="12" width="7" height="9" rx="1.4" />
-      <rect x="3" y="16" width="7" height="5" rx="1.4" />
-    </>
-  ),
-  "/camp": (
-    <>
-      <path d="M4 19V8.5l8-4 8 4V19" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M8 19v-5h8v5M8.5 9.5h7M10 12h4" strokeLinecap="round" />
-    </>
-  ),
-  "/events": (
-    <>
-      <rect x="3" y="4.5" width="18" height="16" rx="2.2" />
-      <path d="M3 9h18M8 3v4M16 3v4" strokeLinecap="round" />
-    </>
-  ),
-  "/worship": (
-    <>
-      <path d="M9 18V5.5l9-1.8v12.5" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx="6.8" cy="18" r="2.8" />
-      <circle cx="15.8" cy="16.2" r="2.8" />
-      <path d="M9 8.5l9-1.8" strokeLinecap="round" />
-    </>
-  ),
-  "/student": (
-    <>
-      <path d="M5 5.5h6.2A3.8 3.8 0 0115 9.3V19H8.8A3.8 3.8 0 015 15.2V5.5z" strokeLinejoin="round" />
-      <path d="M19 5.5h-4a3.8 3.8 0 00-3.8 3.8V19H15a4 4 0 004-4V5.5z" strokeLinejoin="round" />
-      <path d="M8 9h2M8 12h2M14 9h2" strokeLinecap="round" />
-    </>
-  ),
-  "/discipleship": (
-    <>
-      <path d="M5 6.5h6.2A3.8 3.8 0 0115 10.3V19H8.8A3.8 3.8 0 015 15.2V6.5z" strokeLinejoin="round" />
-      <path d="M19 6.5h-4a3.8 3.8 0 00-3.8 3.8V19H15a4 4 0 004-4V6.5z" strokeLinejoin="round" />
-      <path d="M8 10h2M8 13h2M14 10h2M12 3.5v2" strokeLinecap="round" />
-    </>
-  ),
-  "/tasks": (
-    <>
-      <path d="M4 6.5h12M4 12h12M4 17.5h8" strokeLinecap="round" />
-      <path d="M19 5.5l1.4 1.4L23 4.3" strokeLinecap="round" strokeLinejoin="round" />
-    </>
-  ),
-  "/communications": (
-    <path d="M4 5.5h16a1 1 0 011 1v9a1 1 0 01-1 1H9l-4 3.2V16.5H4a1 1 0 01-1-1v-9a1 1 0 011-1z" strokeLinejoin="round" />
-  ),
-  "/people": (
-    <>
-      <circle cx="9" cy="8" r="3.2" />
-      <path d="M3.5 19c.6-3.2 3-5 5.5-5s4.9 1.8 5.5 5" strokeLinecap="round" />
-      <path d="M16 5.4a3 3 0 010 5.4M17.5 19c-.3-2-1.1-3.6-2.3-4.6" strokeLinecap="round" />
-    </>
-  ),
-  "/budget": (
-    <>
-      <circle cx="12" cy="12" r="8.5" />
-      <path d="M12 7v10M9.5 9.2c0-1.1 1.1-1.8 2.5-1.8s2.5.7 2.5 1.8-1 1.6-2.5 1.9-2.5.8-2.5 1.9 1.1 1.8 2.5 1.8 2.5-.7 2.5-1.8" strokeLinecap="round" />
-    </>
-  ),
-  "/settings": (
-    <>
-      <circle cx="12" cy="12" r="3" />
-      <path d="M12 2.5l1.4 2.3 2.7-.5.6 2.7 2.5 1.1-1 2.6 1 2.6-2.5 1.1-.6 2.7-2.7-.5L12 21.5l-1.4-2.3-2.7.5-.6-2.7L4.8 16l1-2.6-1-2.6 2.5-1.1.6-2.7 2.7.5z" strokeLinejoin="round" />
-    </>
-  ),
-  "/command-center": (
-    <>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M15.5 8.5l-2 5-5 2 2-5z" strokeLinejoin="round" />
-    </>
-  )
+const navIcons: Record<string, LucideIcon> = {
+  "/dashboard": LayoutDashboard,
+  "/camp": TentTree,
+  "/events": CalendarDays,
+  "/worship": Music,
+  "/student": BookOpen,
+  "/discipleship": BookOpen,
+  "/tasks": ListChecks,
+  "/communications": MessageSquareText,
+  "/people": Users,
+  "/budget": DollarSign,
+  "/settings": Settings,
+  "/command-center": Bot
 };
 
 function NavIcon({ href }: { href: string }) {
-  const paths = navIconPaths[href];
-  if (!paths) return null;
-  return (
-    <svg className="app-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-      {paths}
-    </svg>
-  );
+  const Icon = navIcons[href];
+  return Icon ? <Icon className="app-nav-icon" aria-hidden="true" /> : null;
 }
 
 const pageTitles: Record<string, string> = {
@@ -327,17 +251,17 @@ export function AppShell({
 
             <div className="app-header-right">
               <label className="app-search-pill" aria-label="Search coming soon">
-                <SearchIcon />
+                <Search className="app-search-icon" aria-hidden="true" />
                 <input disabled placeholder="Search..." type="search" />
               </label>
               {process.env.NODE_ENV === "development" && !isProductionLaunchPath ? (
                 <>
-                  <span className="pill stub">Stub Mode</span>
+                  <span className="pill stub">Preview Mode</span>
                   {devAuth ? <span className="pill dev-auth">DEV AUTH</span> : null}
                 </>
               ) : null}
               <span className="hub-bell" role="img" aria-label="2 notifications">
-                <BellIcon />
+                <Bell className="hub-bell-icon" aria-hidden="true" />
                 <span className="hub-bell-badge">2</span>
               </span>
             </div>

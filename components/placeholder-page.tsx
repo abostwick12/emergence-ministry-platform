@@ -6,13 +6,13 @@ type PlaceholderPageProps = {
   stubLabel?: string;
 };
 
-export function PlaceholderPage({ eyebrow, title, description, sections, stubLabel = "Stub Mode" }: PlaceholderPageProps) {
+export function PlaceholderPage({ eyebrow, title, description, sections, stubLabel = "Preview Mode" }: PlaceholderPageProps) {
   return (
-    <section className="panel placeholder-page">
-      <div className="toolbar" style={{ justifyContent: "space-between" }}>
+    <section className="panel placeholder-page liquid-page-panel">
+      <div className="toolbar split placeholder-page-header">
         <div>
           <p className="eyebrow">{eyebrow}</p>
-          <h2 className="section-title" style={{ margin: 0 }}>
+          <h2 className="section-title flush">
             {title}
           </h2>
         </div>
@@ -21,14 +21,12 @@ export function PlaceholderPage({ eyebrow, title, description, sections, stubLab
       <p className="muted">{description}</p>
       <div className="grid grid-3">
         {sections.map((section) => (
-          <article className="card" key={section}>
+          <article className="card placeholder-card liquid-card" key={section}>
             <strong>{section}</strong>
             <p className="muted">
-              Placeholder area for a later build.
+              Planned capability. This area will stay preview-only until the matching workflow and provider boundary are approved.
             </p>
-            <button className="button compact-button" type="button" disabled>
-              Coming soon
-            </button>
+            <span className="pill placeholder-card-status">Not live yet</span>
           </article>
         ))}
       </div>

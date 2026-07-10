@@ -69,11 +69,11 @@ export function EmmaProposalReviewPanel() {
   const isBusy = state.status === "loading" || state.status === "saving";
 
   return (
-    <article className="card" aria-labelledby="emma-proposals-title" style={{ display: "grid", gap: 14 }}>
-      <div className="toolbar" style={{ justifyContent: "space-between" }}>
+    <article className="card liquid-card-strong emma-admin-panel" aria-labelledby="emma-proposals-title">
+      <div className="toolbar split">
         <div>
           <p className="eyebrow">Admin Review</p>
-          <h3 className="section-title" id="emma-proposals-title" style={{ margin: 0 }}>
+          <h3 className="section-title flush" id="emma-proposals-title">
             EMMA Inert Proposals
           </h3>
         </div>
@@ -97,27 +97,21 @@ export function EmmaProposalReviewPanel() {
       ) : null}
 
       {state.proposals.length ? (
-        <div style={{ display: "grid", gap: 10 }} role="list">
+        <div className="emma-proposal-list" role="list">
           {state.proposals.map((proposal) => (
             <article
               key={proposal.proposalId}
+              className="emma-proposal-card liquid-card"
               role="listitem"
-              style={{
-                border: "1px solid var(--line)",
-                borderRadius: 7,
-                display: "grid",
-                gap: 10,
-                padding: 12
-              }}
             >
-              <div className="toolbar" style={{ justifyContent: "space-between" }}>
+              <div className="toolbar split">
                 <div>
                   <strong>{proposal.summary}</strong>
-                  <p className="muted" style={{ margin: "4px 0 0" }}>
+                  <p className="muted compact-copy">
                     {proposal.proposalType ?? "event_summary_recommendation"} / {proposal.status}
                   </p>
                   {proposal.eventTitle ? (
-                    <p className="muted" style={{ margin: "4px 0 0" }}>
+                    <p className="muted compact-copy">
                       Event: {proposal.eventTitle}
                     </p>
                   ) : null}
@@ -125,14 +119,7 @@ export function EmmaProposalReviewPanel() {
                 <span className="pill">Audit only</span>
               </div>
 
-              <dl
-                style={{
-                  display: "grid",
-                  gap: 8,
-                  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 160px), 1fr))",
-                  margin: 0
-                }}
-              >
+              <dl className="emma-meta-grid emma-meta-grid-compact">
                 <Metadata label="Proposal" value={proposal.proposalId} />
                 <Metadata label="Request" value={proposal.requestId} />
                 <Metadata label="Run" value={proposal.runId} />
@@ -167,11 +154,11 @@ export function EmmaProposalReviewPanel() {
 
 function Metadata({ label, value }: { label: string; value: string }) {
   return (
-    <div style={{ minWidth: 0 }}>
-      <dt className="muted" style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase" }}>
+    <div className="emma-metadata">
+      <dt className="muted emma-metadata-label">
         {label}
       </dt>
-      <dd style={{ margin: "3px 0 0", overflowWrap: "anywhere" }}>{value}</dd>
+      <dd>{value}</dd>
     </div>
   );
 }

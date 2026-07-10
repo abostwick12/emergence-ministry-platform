@@ -5,7 +5,7 @@ export default function CommunicationsPage() {
     <PlaceholderPage
       eyebrow="Communications"
       title="Communication Drafts"
-      description="Stub Mode - not connected to live sending yet."
+      description="Draft and approval space for parent emails, leader updates, text copy, and briefing content. Nothing sends live from this workspace yet."
       sections={["Parent Email Drafts", "Leader Announcements", "Blast Texts", "Podcast / Leader Briefing Drafts", "Approval Queue"]}
     />
   );

@@ -50,7 +50,7 @@ export default function MinistryWorkspace({ view }: { view: WorkspaceView }) {
   const { activeRole } = useRole();
   const { openCreate, openEdit, state: cardState } = useEventCard();
   const [isLoading, setIsLoading] = useState(true);
-  const [notice, setNotice] = useState("Stub Mode active. No live credentials are required.");
+  const [notice, setNotice] = useState("Preview adapters active. Live provider credentials are not required.");
   const [expandedEventIds, setExpandedEventIds] = useState<string[]>(["evt_winter_retreat"]);
 
   async function loadOverview() {
@@ -138,7 +138,7 @@ export default function MinistryWorkspace({ view }: { view: WorkspaceView }) {
   return (
     <div className="grid workspace-page">
       {view !== "dashboard" ? (
-        <div className="panel" role="status">
+        <div className="panel liquid-panel workspace-notice" role="status">
           {notice}
         </div>
       ) : (
@@ -148,7 +148,7 @@ export default function MinistryWorkspace({ view }: { view: WorkspaceView }) {
       )}
 
       {loadError ? (
-        <section className="panel">
+        <section className="panel liquid-panel">
           <p className="eyebrow">Access Readiness</p>
           <h2 className="section-title flush">
             Ministry workspace unavailable
@@ -164,14 +164,14 @@ export default function MinistryWorkspace({ view }: { view: WorkspaceView }) {
           </div>
         </section>
       ) : isLoading || !overview ? (
-        <section className="panel">Loading ministry workspace...</section>
+        <section className="panel liquid-panel workspace-loading">Loading ministry workspace...</section>
       ) : view === "dashboard" ? (
         <DashboardWorkspace overview={overview} totalTasks={totalTasks} doneTasks={doneTasks} blockedTasks={blockedTasks} />
       ) : view === "events" ? (
         <section className="grid workflow-stack">
           <div className="grid">
             {activeRole === "admin" ? (
-              <section className="panel" id="create-event">
+              <section className="panel liquid-panel workflow-command-panel" id="create-event">
                 <div className="toolbar split">
                   <div>
                     <p className="eyebrow">Admin</p>
@@ -185,12 +185,12 @@ export default function MinistryWorkspace({ view }: { view: WorkspaceView }) {
                 </div>
               </section>
             ) : (
-              <section className="panel" id="create-event">
+              <section className="panel liquid-panel workflow-command-panel" id="create-event">
                 <p className="eyebrow">Leader View</p>
                 <h2 className="section-title">Assigned Ministry Work</h2>
-                <p className="muted" style={{ margin: 0 }}>
+                <p className="muted flush-copy">
                   Leaders can move assigned tasks through statuses and review event workspace details. Event creation is
-                  Admin-only in MVP 1.
+                  reserved for admins in this launch slice.
                 </p>
               </section>
             )}
@@ -558,7 +558,7 @@ function TasksWorkspace({
   const groupedFilteredTasks = groupTasksByEvent(filteredTasks, events);
 
   return (
-    <section className="panel tasks-workspace" id="kanban-dashboard">
+    <section className="panel tasks-workspace liquid-page-panel" id="kanban-dashboard">
       <div className="toolbar tasks-header">
         <div>
           <p className="eyebrow">Task Workspace</p>
@@ -763,7 +763,7 @@ function EventsWorkspace({
   const groupedEvents = groupEventsByTimeframe(events);
 
   return (
-    <section className="panel" id="events-workspace">
+    <section className="panel liquid-page-panel events-workspace-panel" id="events-workspace">
       <p className="eyebrow">Primary Workflow</p>
       <h2 className="section-title">Events Workspace</h2>
       <div className="grid">
@@ -952,7 +952,7 @@ function EventScrollableSummary({
   const actualBudget = expenses.reduce((sum, expense) => sum + expense.amount, 0);
   const openTasks = tasks.length - completeTasks;
   const communicationStatus = missingCount === 0 ? "Preview ready" : `${missingCount} item${missingCount === 1 ? "" : "s"} needed`;
-  const driveStatus = event.googleDriveFolderId ? "Stub folder ready" : "Stub pending";
+  const driveStatus = event.googleDriveFolderId ? "Preview folder ready" : "Preview pending";
   const priority = event.type === "camp" || event.type === "retreat" ? "High" : event.type === "service" ? "Medium" : "Normal";
 
   return (
@@ -972,7 +972,7 @@ function EventScrollableSummary({
         <EventSummaryField label="Budget actual" value={actualBudget ? money(actualBudget) : "$0 recorded"} />
         <EventSummaryField label="Volunteers needed" value={estimateVolunteersNeeded(event, tasks)} />
         <EventSummaryField label="Registration status" value={event.registrationDeadline ? `Due ${formatDate(event.registrationDeadline)}` : "Not configured"} tone="warning" />
-        <EventSummaryField label="Planning Center status" value="Stub Mode ready" tone="stub" />
+        <EventSummaryField label="Planning Center status" value="Adapter ready" tone="stub" />
         <EventSummaryField label="Drive folder status" value={driveStatus} tone={event.googleDriveFolderId ? "success" : "warning"} />
         <EventSummaryField label="Parent email status" value={communicationStatus} tone={missingCount ? "warning" : "success"} />
         <EventSummaryField label="GroupMe status" value="Preview only" tone="stub" />

@@ -24,7 +24,7 @@ test.describe("MVP event automation navigation smoke tests", () => {
 
     await expect(page).toHaveURL(/\/dashboard$/);
     await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible();
-    await expect(page.getByText("Stub Mode", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText("Preview Mode", { exact: true }).first()).toBeVisible();
     // Dev auth is active under E2E_MOCK_AUTH; the shell shows a server-driven badge.
     await expect(page.getByText("DEV AUTH", { exact: true })).toBeVisible();
     await page.getByRole("link", { name: "Log out" }).click();
@@ -301,20 +301,20 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await expect(modal.getByText(/Preview only.*not sent/).first()).toBeVisible();
   });
 
-  test("placeholder pages render Stub Mode and future integration language", async ({ page }) => {
+  test("placeholder pages render preview-mode and future integration language", async ({ page }) => {
     await login(page);
 
     for (const route of [
-      ["/communications", "Communication Drafts", "Stub Mode - not connected to live sending yet."],
-      ["/people", "Ministry Roster", "Future Planning Center / ministry roster sync area."],
-      ["/files", "Ministry Files", "Future Google Drive connection area."],
-      ["/budget", "Budget Workspace", "Simple MVP budget planning shell."],
-      ["/settings", "Platform Settings", "API keys and secrets are not exposed in the UI."]
+      ["/communications", "Communication Drafts", "Draft and approval space for parent emails"],
+      ["/people", "Ministry Roster", "Planning Center-ready roster visibility"],
+      ["/files", "Ministry Files", "Google Drive-ready file organization"],
+      ["/budget", "Budget Workspace", "Budget visibility for event planning"],
+      ["/settings", "Platform Settings", "Secrets are never exposed in the UI."]
     ] as const) {
       await page.goto(route[0]);
       await expect(page.getByRole("heading", { name: route[1] })).toBeVisible();
       await expect(page.getByText(route[2])).toBeVisible();
-      await expect(page.getByRole("button", { name: "Coming soon" }).first()).toBeDisabled();
+      await expect(page.getByText("Not live yet").first()).toBeVisible();
     }
   });
 
