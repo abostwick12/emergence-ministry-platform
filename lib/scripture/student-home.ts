@@ -21,6 +21,15 @@ export type StudentKeepReadingItem = {
   href: string;
 };
 
+export type StudentResourceStep = {
+  id: "read" | "journal" | "group";
+  label: string;
+  title: string;
+  description: string;
+  href: string;
+  sourceLabel: string;
+};
+
 export type StudentQuestionNextStep = {
   promptId: string;
   label: string;
@@ -35,6 +44,7 @@ export type StudentQuestionNextStep = {
   wrestleTogetherPrompt: string;
   readingPlan: StudentKeepReadingItem;
   resource: StudentKeepReadingItem;
+  resourceSteps: StudentResourceStep[];
   storylineMatch: StorylineQuestionMatch;
 };
 
@@ -95,6 +105,13 @@ export function buildQuestionNextStep(prompt: ReadingSource & { id?: string }, k
   const primaryKnowledge = knowledgeMatches[0];
   const secondaryKnowledge = knowledgeMatches[1];
   const storylineMatch = matchQuestionToStoryline(prompt);
+  const wrestleQuestions = wrestleQuestionsForPrompt(prompt);
+  const digQuestions = primaryKnowledge?.digQuestions?.length ? primaryKnowledge.digQuestions : uniqueQuestions([...storylineMatch.studentQuestions, ...digQuestionsForPrompt(prompt)], 3);
+  const journalPrompts = journalPromptsForPrompt(prompt);
+  const prayerPrompts = prayerPromptsForPrompt(prompt);
+  const wrestleTogetherPrompt = wrestleTogetherPromptForPrompt(prompt, primaryKnowledge);
+  const readingPlan = primaryKnowledge ? knowledgeItem(primaryKnowledge, primaryKnowledge.label) : storylineItem(storylineMatch);
+  const nextResource = secondaryKnowledge ? knowledgeItem(secondaryKnowledge, "Keep digging") : resourceItem(resource, "Practice this");
 
   return {
     promptId: prompt.id ?? "current-question",
@@ -106,13 +123,22 @@ export function buildQuestionNextStep(prompt: ReadingSource & { id?: string }, k
       "Your leader can still shape this for group discussion, but you do not have to wait to start seeking carefully.",
     careNote: careNoteForPrompt(prompt),
     knowledgeMatches: knowledgeMatches.slice(0, 3),
-    wrestleQuestions: wrestleQuestionsForPrompt(prompt),
-    digQuestions: primaryKnowledge?.digQuestions?.length ? primaryKnowledge.digQuestions : uniqueQuestions([...storylineMatch.studentQuestions, ...digQuestionsForPrompt(prompt)], 3),
-    journalPrompts: journalPromptsForPrompt(prompt),
-    prayerPrompts: prayerPromptsForPrompt(prompt),
-    wrestleTogetherPrompt: wrestleTogetherPromptForPrompt(prompt, primaryKnowledge),
-    readingPlan: primaryKnowledge ? knowledgeItem(primaryKnowledge, primaryKnowledge.label) : storylineItem(storylineMatch),
-    resource: secondaryKnowledge ? knowledgeItem(secondaryKnowledge, "Keep digging") : resourceItem(resource, "Practice this"),
+    wrestleQuestions,
+    digQuestions,
+    journalPrompts,
+    prayerPrompts,
+    wrestleTogetherPrompt,
+    readingPlan,
+    resource: nextResource,
+    resourceSteps: buildResourceSteps({
+      prompt,
+      primaryKnowledge,
+      readingPlan,
+      resource: nextResource,
+      journalPrompts,
+      storylineMatch,
+      wrestleTogetherPrompt
+    }),
     storylineMatch
   };
 }
@@ -193,6 +219,8 @@ function savedRecommendationsToNextStep(
   const resource = sorted.find((item) => item.kind === "resource" || item.kind === "scripture_lookup");
   const fallback = buildQuestionNextStep(prompt, prompt.knowledgeContext ?? []);
   const firstRecommendation = sorted[0];
+  const readingPlanItem = readingPlan ? recommendationItem(readingPlan, prompt.id) : fallback.readingPlan;
+  const resourceItem = resource ? recommendationItem(resource, prompt.id) : fallback.resource;
 
   return {
     promptId: prompt.id,
@@ -209,8 +237,17 @@ function savedRecommendationsToNextStep(
     journalPrompts: journalPrompts.length ? journalPrompts : fallback.journalPrompts,
     prayerPrompts: prayerPrompts.length ? prayerPrompts : fallback.prayerPrompts,
     wrestleTogetherPrompt: wrestleTogether?.title || fallback.wrestleTogetherPrompt,
-    readingPlan: readingPlan ? recommendationItem(readingPlan, prompt.id) : fallback.readingPlan,
-    resource: resource ? recommendationItem(resource, prompt.id) : fallback.resource,
+    readingPlan: readingPlanItem,
+    resource: resourceItem,
+    resourceSteps: buildResourceSteps({
+      prompt,
+      primaryKnowledge: fallback.knowledgeMatches[0],
+      readingPlan: readingPlanItem,
+      resource: resourceItem,
+      journalPrompts: journalPrompts.length ? journalPrompts : fallback.journalPrompts,
+      storylineMatch: fallback.storylineMatch,
+      wrestleTogetherPrompt: wrestleTogether?.title || fallback.wrestleTogetherPrompt
+    }),
     storylineMatch: fallback.storylineMatch
   };
 }
@@ -293,6 +330,64 @@ function storylineItem(match: StorylineQuestionMatch): StudentKeepReadingItem {
     description: match.studentSummary,
     href: "/student/scripture/resources"
   };
+}
+
+function buildResourceSteps({
+  prompt,
+  primaryKnowledge,
+  readingPlan,
+  resource,
+  journalPrompts,
+  storylineMatch,
+  wrestleTogetherPrompt
+}: {
+  prompt: ReadingSource;
+  primaryKnowledge?: StudentKnowledgeMatch;
+  readingPlan: StudentKeepReadingItem;
+  resource: StudentKeepReadingItem;
+  journalPrompts: string[];
+  storylineMatch: StorylineQuestionMatch;
+  wrestleTogetherPrompt: string;
+}): StudentResourceStep[] {
+  const sourceLabel = primaryKnowledge?.sourceChunkId ? "Approved library" : "Starter guide";
+  const groupPrompt = stripBringToGroupPrefix(wrestleTogetherPrompt);
+
+  return [
+    {
+      id: "read",
+      label: "Read this next",
+      title: readingPlan.title,
+      description: primaryKnowledge
+        ? readingPlan.description
+        : `Start with ${readingPlan.title} before trying to answer this question quickly.`,
+      href: readingPlan.href,
+      sourceLabel
+    },
+    {
+      id: "journal",
+      label: "Journal on this",
+      title: journalPrompts[0] ?? "What are you noticing?",
+      description: primaryKnowledge
+        ? `Use ${resource.title} to slow down and name what you are seeing.`
+        : `Connect your question to ${storylineMatch.title} and write what still feels unresolved.`,
+      href: "/student",
+      sourceLabel: "Private reflection"
+    },
+    {
+      id: "group",
+      label: "Bring this to group",
+      title: groupPrompt,
+      description: prompt.scriptureReference
+        ? `Bring ${prompt.scriptureReference} with the question so your group starts from the text.`
+        : "Bring one observation, one unresolved question, and one honest response to the discussion.",
+      href: "/student",
+      sourceLabel: "Wrestle together"
+    }
+  ];
+}
+
+function stripBringToGroupPrefix(value: string) {
+  return value.replace(/^Bring this to group:\s*/i, "").trim();
 }
 
 function uniqueQuestions(questions: string[], limit: number) {

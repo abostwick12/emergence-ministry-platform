@@ -11,7 +11,8 @@ import type {
   StudentGroupDiscussionItem,
   StudentHomeFeed as StudentHomeFeedData,
   StudentKeepReadingItem,
-  StudentQuestionNextStep
+  StudentQuestionNextStep,
+  StudentResourceStep
 } from "@/lib/scripture/student-home";
 import type { StudentDiscussionPrompt } from "@/lib/scripture/types";
 
@@ -226,6 +227,7 @@ function GroupDiscussionFollowThroughCard({
       </div>
       <StorylineContextCard match={nextStep.storylineMatch} />
       <KnowledgePathCard matches={nextStep.knowledgeMatches} />
+      <StudentResourceSteps steps={nextStep.resourceSteps} />
       <StudentNextStepRhythm nextStep={nextStep} />
       <p className="student-next-step-care">
         <strong>Bring this back:</strong> Write down one thing you noticed, one question you still have, and one way your group can respond together.
@@ -280,6 +282,7 @@ function StudentQuestionJourneyCard({
       </div>
       <StorylineContextCard match={nextStep.storylineMatch} />
       <KnowledgePathCard matches={nextStep.knowledgeMatches} />
+      <StudentResourceSteps steps={nextStep.resourceSteps} />
       <StudentNextStepRhythm nextStep={nextStep} />
       <StudentReflectionPanel onSaved={onReflectionSaved} prompt={prompt} reflection={reflection} />
       {nextStep.careNote ? (
@@ -287,6 +290,32 @@ function StudentQuestionJourneyCard({
           <strong>Bring this with you:</strong> {nextStep.careNote}
         </p>
       ) : null}
+    </section>
+  );
+}
+
+function StudentResourceSteps({ steps }: { steps: StudentResourceStep[] }) {
+  if (!steps.length) return null;
+
+  return (
+    <section className="student-resource-steps" aria-label="Personal next steps from approved resources">
+      <div className="student-resource-steps-heading">
+        <div>
+          <p className="eyebrow">Your next steps</p>
+          <h3>Read, reflect, and bring it back</h3>
+        </div>
+        <span>{steps.some((step) => step.sourceLabel === "Approved library") ? "Approved resources" : "Guided path"}</span>
+      </div>
+      <div className="student-resource-step-grid">
+        {steps.map((step) => (
+          <Link className="student-resource-step" href={step.href} key={step.id}>
+            <span>{step.label}</span>
+            <h4>{step.title}</h4>
+            <p>{step.description}</p>
+            <small>{step.sourceLabel}</small>
+          </Link>
+        ))}
+      </div>
     </section>
   );
 }

@@ -30,6 +30,7 @@ describe("student home feed personalization", () => {
       promptId: "question_tree",
       title: "Wrestle with your question"
     });
+    expect(feed.questionNextSteps[0].resourceSteps.map((item) => item.label)).toEqual(["Read this next", "Journal on this", "Bring this to group"]);
     expect(feed.keepReading[0]).toMatchObject({
       label: "This starts in Genesis",
       title: "Creation, trust, and fracture"
@@ -296,6 +297,22 @@ describe("student home feed personalization", () => {
         id: "wisdom-suffering"
       }
     });
+    expect(nextStep.resourceSteps).toEqual([
+      expect.objectContaining({
+        id: "read",
+        title: "Romans 8 and patient hope",
+        sourceLabel: "Approved library"
+      }),
+      expect.objectContaining({
+        id: "journal",
+        title: "Write one honest sentence naming what hurts or feels unresolved.",
+        sourceLabel: "Private reflection"
+      }),
+      expect.objectContaining({
+        id: "group",
+        title: "How can we make room for honest pain while looking for God's nearness and hope together?"
+      })
+    ]);
     expect(nextStep.digQuestions).toEqual(["Where does Romans 8 name pain without pretending it is small?"]);
     expect(nextStep.wrestleTogetherPrompt).toContain("honest pain");
   });
@@ -347,6 +364,11 @@ describe("student home feed personalization", () => {
         scriptureReferences: ["Romans 8:18"]
       })
     ]);
+    expect(feed.questionNextSteps[0].resourceSteps[0]).toMatchObject({
+      label: "Read this next",
+      title: "Romans 8 and patient hope",
+      sourceLabel: "Approved library"
+    });
   });
 
   it("adds a careful leader-care note for sensitive questions", () => {
