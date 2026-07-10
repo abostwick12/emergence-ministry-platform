@@ -8910,9 +8910,159 @@ html:has(.app-shell-camp) body {
   padding: 18px;
 }
 
+.how-to-read-guide-detail {
+  display: grid;
+  gap: 16px;
+}
+
+.how-to-read-guide-hero,
+.how-to-read-guide-section,
+.how-to-read-guide-media-slot,
+.how-to-read-guide-status {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.how-to-read-guide-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
+  gap: 18px;
+  align-items: stretch;
+  padding: 20px;
+}
+
+.how-to-read-guide-hero h1,
+.how-to-read-guide-section h2,
+.how-to-read-guide-media-slot h2,
+.how-to-read-guide-status strong {
+  margin: 0;
+  color: var(--text);
+  line-height: 1.12;
+}
+
+.how-to-read-guide-hero h1 {
+  font-size: var(--text-2xl);
+}
+
+.how-to-read-guide-section h2,
+.how-to-read-guide-media-slot h2 {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: var(--text-xl);
+}
+
+.how-to-read-guide-hero p,
+.how-to-read-guide-section p,
+.how-to-read-guide-media-slot p,
+.how-to-read-guide-status p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: var(--text-base);
+  font-weight: 720;
+  line-height: 1.55;
+}
+
+.how-to-read-guide-status {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  background: var(--surface-2);
+  padding: 16px;
+}
+
+.how-to-read-guide-status strong {
+  font-size: var(--text-lg);
+}
+
+.how-to-read-guide-media,
+.how-to-read-guide-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.how-to-read-guide-media {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.how-to-read-guide-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.how-to-read-guide-section,
+.how-to-read-guide-media-slot {
+  padding: 16px;
+}
+
+.how-to-read-guide-media-slot {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.how-to-read-guide-media-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid color-mix(in srgb, var(--primary) 30%, var(--line));
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--primary);
+}
+
+.how-to-read-guide-passages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.how-to-read-guide-passages span {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: 850;
+  padding: 7px 10px;
+}
+
+.how-to-read-guide-section ul {
+  margin: 12px 0 0;
+  padding-left: 20px;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 740;
+  line-height: 1.55;
+}
+
+.how-to-read-guide-section li + li {
+  margin-top: 6px;
+}
+
+.how-to-read-guide-takeaway,
+.how-to-read-guide-note {
+  border-color: color-mix(in srgb, var(--primary) 26%, var(--line));
+}
+
+.how-to-read-guide-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
 @media (max-width: 960px) {
   .how-to-read-hero,
-  .how-to-read-module-body {
+  .how-to-read-module-body,
+  .how-to-read-guide-hero,
+  .how-to-read-guide-grid,
+  .how-to-read-guide-media {
     grid-template-columns: minmax(0, 1fr);
   }
 }
@@ -8939,6 +9089,10 @@ html:has(.app-shell-camp) body {
 
   .student-progress-mini-meter {
     width: 100%;
+  }
+
+  .how-to-read-guide-actions {
+    flex-direction: column;
   }
 }
 

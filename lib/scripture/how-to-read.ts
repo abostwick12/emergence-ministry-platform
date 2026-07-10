@@ -11,6 +11,8 @@ export type HowToReadModule = {
   tools: string[];
   practice: string;
   groupQuestion: string;
+  keyPassages: string[];
+  studentTakeaway: string;
 };
 
 export const studentHowToReadLocalProgressKey = "lead-emergence:student-how-to-read-progress";
@@ -29,7 +31,9 @@ export const howToReadModules: HowToReadModule[] = [
     badge: "Start With the Story",
     tools: ["One library, many books", "God's story before my hot take", "Read with humility"],
     practice: "Open the table of contents. Notice the main sections and write one question you have before reading.",
-    groupQuestion: "What did you assume the Bible was before someone explained it to you?"
+    groupQuestion: "What did you assume the Bible was before someone explained it to you?",
+    keyPassages: ["Luke 24:27", "2 Timothy 3:16-17", "Psalm 119:105"],
+    studentTakeaway: "The Bible is not a pile of random inspirational quotes. It is a library that tells one connected story about God and his world."
   },
   {
     id: "big-story",
@@ -44,7 +48,9 @@ export const howToReadModules: HowToReadModule[] = [
     badge: "See the Big Picture",
     tools: ["Creation", "Fall", "Covenant", "Jesus", "New creation"],
     practice: "Pick one Bible book and ask where it sits in the larger story.",
-    groupQuestion: "Why does a verse make more sense when you know where it is in the story?"
+    groupQuestion: "Why does a verse make more sense when you know where it is in the story?",
+    keyPassages: ["Genesis 1:1", "Genesis 12:1-3", "John 1:14", "Revelation 21:1-5"],
+    studentTakeaway: "A verse makes more sense when you know where it sits in the larger story of creation, brokenness, promise, Jesus, and renewal."
   },
   {
     id: "genres-and-tools",
@@ -59,7 +65,9 @@ export const howToReadModules: HowToReadModule[] = [
     badge: "Read the Room",
     tools: ["Story", "Poetry", "Wisdom", "Prophecy", "Letters"],
     practice: "Read Psalm 23 and Romans 8:1-4. Notice how the two passages communicate differently.",
-    groupQuestion: "What changes when we read poetry like poetry and letters like letters?"
+    groupQuestion: "What changes when we read poetry like poetry and letters like letters?",
+    keyPassages: ["Psalm 23", "Proverbs 3:5-6", "Romans 8:1-4", "Revelation 1:1-3"],
+    studentTakeaway: "Different kinds of writing ask different kinds of questions. Reading carefully starts with noticing what kind of passage you are in."
   },
   {
     id: "old-testament",
@@ -74,7 +82,9 @@ export const howToReadModules: HowToReadModule[] = [
     badge: "Do Not Skip the Beginning",
     tools: ["Promise", "Covenant", "Wisdom", "Prophets", "Hope"],
     practice: "Read Genesis 12:1-3 and ask what God promises before asking what you should do.",
-    groupQuestion: "Why is it hard to read the Old Testament, and what helps?"
+    groupQuestion: "Why is it hard to read the Old Testament, and what helps?",
+    keyPassages: ["Genesis 12:1-3", "Exodus 34:6-7", "Isaiah 53", "Jeremiah 31:31-34"],
+    studentTakeaway: "The Old Testament is not the part to skip. It gives the beginning of the story Jesus fulfills."
   },
   {
     id: "new-testament",
@@ -89,7 +99,9 @@ export const howToReadModules: HowToReadModule[] = [
     badge: "Follow Jesus Closely",
     tools: ["Gospels", "Acts", "Letters", "Revelation", "Hope"],
     practice: "Read Mark 1:14-20. Ask what Jesus announces, what he invites, and how people respond.",
-    groupQuestion: "What do you notice when you read Jesus' words before jumping to application?"
+    groupQuestion: "What do you notice when you read Jesus' words before jumping to application?",
+    keyPassages: ["Mark 1:14-20", "Luke 24:44-49", "Acts 1:8", "Revelation 21:1-5"],
+    studentTakeaway: "The New Testament centers on Jesus and shows how his first followers learned to live as his people."
   },
   {
     id: "translations",
@@ -104,7 +116,9 @@ export const howToReadModules: HowToReadModule[] = [
     badge: "Use Good Tools",
     tools: ["Manuscripts", "Translation", "Study Bible notes", "Compare carefully"],
     practice: "Compare the same short passage in two translations. Write what is clearer in each one.",
-    groupQuestion: "What questions do people have about whether the Bible can be trusted?"
+    groupQuestion: "What questions do people have about whether the Bible can be trusted?",
+    keyPassages: ["Nehemiah 8:1-8", "Luke 1:1-4", "2 Peter 1:16-21"],
+    studentTakeaway: "Translations exist because people worked carefully to make the Bible understandable in languages people actually read."
   },
   {
     id: "how-not-to-read",
@@ -119,7 +133,9 @@ export const howToReadModules: HowToReadModule[] = [
     badge: "Handle With Care",
     tools: ["Do not cherry-pick", "Do not rush", "Do not weaponize", "Do not make it all about me"],
     practice: "Choose a verse you have heard quoted often. Read the paragraph before and after it.",
-    groupQuestion: "What is one Bible-reading shortcut you have seen, and why is it risky?"
+    groupQuestion: "What is one Bible-reading shortcut you have seen, and why is it risky?",
+    keyPassages: ["Matthew 4:1-11", "2 Timothy 2:15", "James 1:22-25"],
+    studentTakeaway: "Bad shortcuts can make the Bible say what we already wanted. Careful reading slows down enough to listen."
   },
   {
     id: "practical-tips",
@@ -134,6 +150,12 @@ export const howToReadModules: HowToReadModule[] = [
     badge: "Keep Showing Up",
     tools: ["Read a little", "Notice what is repeated", "Ask one honest question", "Bring it to group"],
     practice: "Read for ten minutes. Write one sentence that begins, 'I noticed...'",
-    groupQuestion: "What would make Bible reading feel more possible this week?"
+    groupQuestion: "What would make Bible reading feel more possible this week?",
+    keyPassages: ["Psalm 1", "Acts 17:11", "James 1:22"],
+    studentTakeaway: "Faithful Bible reading is usually small, honest, repeated attention. You do not have to master everything at once."
   }
 ];
+
+export function getHowToReadModule(moduleId: string) {
+  return howToReadModules.find((module) => module.id === moduleId);
+}
