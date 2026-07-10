@@ -3,7 +3,6 @@ import {
   AbsoluteFill,
   Composition,
   Easing,
-  Img,
   interpolate,
   registerRoot,
   Sequence,
@@ -53,10 +52,32 @@ function Scene({ scene }: { scene: ContestScene }) {
 
   return (
     <AbsoluteFill style={{ opacity: fade }}>
-      <Img
-        src={staticFile(scene.capture)}
-        style={{ ...styles.capture, transform: `scale(${scale})` }}
+      <div
+        style={{
+          ...styles.capture,
+          backgroundImage: `url(${staticFile(scene.capture)})`,
+          transform: `scale(${scale})`
+        }}
       />
+      <div style={styles.placeholderVisual}>
+        <div style={styles.placeholderGlow} />
+        <div style={styles.placeholderFrame}>
+          <div style={styles.placeholderTopline}>
+            <span>{scene.eyebrow}</span>
+            <strong>REAL PAGE CAPTURE SLOT</strong>
+          </div>
+          <div style={styles.placeholderGrid}>
+            <i />
+            <i />
+            <i />
+          </div>
+          <div style={styles.placeholderRows}>
+            <b />
+            <b />
+            <b />
+          </div>
+        </div>
+      </div>
       <div style={styles.scrim} />
       <header style={styles.brand}>
         <strong>LEAD EMERGENCE</strong>
@@ -108,11 +129,62 @@ const styles: Record<string, React.CSSProperties> = {
     inset: 0,
     width: "100%",
     height: "100%",
-    objectFit: "cover"
+    backgroundPosition: "center",
+    backgroundRepeat: "no-repeat",
+    backgroundSize: "cover",
+    zIndex: 1
+  },
+  placeholderVisual: {
+    position: "absolute",
+    inset: 0,
+    overflow: "hidden",
+    background: "linear-gradient(135deg, #020817 0%, #08213a 48%, #050a16 100%)"
+  },
+  placeholderGlow: {
+    position: "absolute",
+    width: 900,
+    height: 900,
+    right: -180,
+    top: -180,
+    borderRadius: 999,
+    background: "radial-gradient(circle, rgba(56,189,248,.34), rgba(14,165,233,.08) 58%, transparent 72%)"
+  },
+  placeholderFrame: {
+    position: "absolute",
+    right: "6%",
+    top: "16%",
+    width: "42%",
+    minHeight: "58%",
+    display: "grid",
+    gap: 24,
+    padding: 32,
+    border: "1px solid rgba(125,211,252,.28)",
+    borderRadius: 28,
+    background: "linear-gradient(145deg, rgba(15,48,82,.88), rgba(7,20,39,.9))",
+    boxShadow: "0 34px 90px rgba(0,0,0,.34)"
+  },
+  placeholderTopline: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 18,
+    color: "#bae6fd",
+    fontSize: 20,
+    fontWeight: 800
+  },
+  placeholderGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3,1fr)",
+    gap: 16
+  },
+  placeholderRows: {
+    display: "grid",
+    gap: 18
   },
   scrim: {
     position: "absolute",
     inset: 0,
+    zIndex: 2,
     background: "linear-gradient(90deg, rgba(2,6,23,.96) 0%, rgba(2,6,23,.82) 42%, rgba(2,6,23,.24) 74%, rgba(2,6,23,.5) 100%)"
   },
   brand: {
@@ -180,6 +252,20 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 25,
     fontWeight: 700
   }
+};
+
+styles.placeholderGrid_i = {
+  minHeight: 118,
+  borderRadius: 18,
+  background: "rgba(56,189,248,.18)",
+  border: "1px solid rgba(125,211,252,.2)"
+};
+
+styles.placeholderRows_b = {
+  height: 58,
+  borderRadius: 16,
+  background: "rgba(125,211,252,.14)",
+  border: "1px solid rgba(125,211,252,.16)"
 };
 
 export default RemotionRoot;
