@@ -1324,8 +1324,8 @@ body {
   }
 }
 
-/* Core operations: Events and Tasks should read as blue glass, not pale sheets. */
-.app-shell:not(.app-shell-camp) :is(.workspace-notice, .workflow-command-panel, .tasks-workspace, .events-workspace-panel, .event-group, .kanban-column, .event-board, .event-row-card, .event-card-row, .event-identity-section, .event-date-block, .event-summary-shell, .event-summary-scroll, .event-task-tree-wrap, .event-task-tree, .task-card, .summary-field, .notes-panel, .task-edit-panel, .notes-editor) {
+/* Core operations should read as blue glass, not pale sheets. */
+.app-shell:not(.app-shell-camp) :is(.workspace-notice, .workflow-command-panel, .tasks-workspace, .events-workspace-panel, .event-group, .kanban-column, .event-board, .event-row-card, .event-card-row, .event-identity-section, .event-date-block, .event-summary-shell, .event-summary-scroll, .event-task-tree-wrap, .event-task-tree, .task-card, .summary-field, .notes-panel, .task-edit-panel, .notes-editor, .worship-page, .worship-section, .worship-mini-card, .worship-roster-card, .worship-slide-card, .worship-set-list li) {
   border-color: rgba(56, 189, 248, 0.22);
   background:
     radial-gradient(circle at 16% 0%, rgba(56, 189, 248, 0.16), transparent 34%),
@@ -1360,18 +1360,128 @@ body {
   background: linear-gradient(180deg, rgba(16, 44, 76, 0.94), rgba(10, 31, 58, 0.94));
 }
 
+.app-shell:not(.app-shell-camp) .task-table-wrap {
+  border-color: rgba(56, 189, 248, 0.22);
+  background:
+    radial-gradient(circle at 12% 0%, rgba(56, 189, 248, 0.12), transparent 36%),
+    linear-gradient(145deg, rgba(8, 28, 52, 0.88), rgba(4, 13, 26, 0.92));
+  box-shadow:
+    0 18px 44px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+
+.app-shell:not(.app-shell-camp) .task-table {
+  min-width: 1240px;
+  table-layout: fixed;
+  background: transparent;
+  color: #dbeafe;
+}
+
+.app-shell:not(.app-shell-camp) .task-table th,
+.app-shell:not(.app-shell-camp) .task-table td {
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.app-shell:not(.app-shell-camp) .task-table th {
+  border-bottom-color: rgba(56, 189, 248, 0.20);
+  background: linear-gradient(180deg, rgba(16, 44, 76, 0.96), rgba(8, 28, 52, 0.96));
+  color: #9fc2dd;
+  white-space: nowrap;
+}
+
+.app-shell:not(.app-shell-camp) .task-table td {
+  border-bottom-color: rgba(56, 189, 248, 0.12);
+  background: rgba(255, 255, 255, 0.025);
+  color: #dbeafe;
+}
+
+.app-shell:not(.app-shell-camp) .task-table :is(th, td):nth-child(1) {
+  width: 28%;
+}
+
+.app-shell:not(.app-shell-camp) .task-table :is(th, td):nth-child(2) {
+  width: 16%;
+}
+
+.app-shell:not(.app-shell-camp) .task-table :is(th, td):nth-child(3) {
+  width: 15%;
+}
+
+.app-shell:not(.app-shell-camp) .task-table :is(th, td):nth-child(4) {
+  width: 190px;
+}
+
+.app-shell:not(.app-shell-camp) .task-table :is(th, td):nth-child(5) {
+  width: 140px;
+}
+
+.app-shell:not(.app-shell-camp) .task-table :is(th, td):nth-child(6) {
+  width: 96px;
+}
+
+.app-shell:not(.app-shell-camp) .task-table :is(th, td):nth-child(7),
+.app-shell:not(.app-shell-camp) .task-table :is(th, td):nth-child(8) {
+  width: 92px;
+}
+
+.app-shell:not(.app-shell-camp) .task-table .notes-panel .button {
+  min-width: 74px;
+  white-space: nowrap;
+}
+
+.app-shell:not(.app-shell-camp) .task-table tbody tr:not(.task-event-group-row):nth-child(even) td {
+  background: rgba(14, 165, 233, 0.045);
+}
+
+.app-shell:not(.app-shell-camp) .task-event-group-row td {
+  border-top: 1px solid rgba(56, 189, 248, 0.18);
+  border-bottom-color: rgba(56, 189, 248, 0.18);
+  background:
+    linear-gradient(90deg, rgba(14, 165, 233, 0.18), rgba(14, 165, 233, 0.06));
+  color: #e8f6ff;
+}
+
 .app-shell:not(.app-shell-camp) .event-board-header span,
 .app-shell:not(.app-shell-camp) .event-identity-section,
 .app-shell:not(.app-shell-camp) .event-date-block {
   border-color: rgba(56, 189, 248, 0.18);
 }
 
-.app-shell:not(.app-shell-camp) :is(.workspace-notice, .workflow-command-panel .section-title, .tasks-workspace .section-title, .events-workspace-panel .section-title, .event-group-header h3, .event-board-header span, .event-row-title button.button.ghost, .event-date-block strong, .summary-field strong, .task-card-title, .task-card-date, .lane-title, .task-tree-title strong, .task-tree-owner span, .task-tree-files span) {
+.app-shell:not(.app-shell-camp) :is(.workspace-notice, .workflow-command-panel .section-title, .tasks-workspace .section-title, .events-workspace-panel .section-title, .event-group-header h3, .event-board-header span, .event-row-title button.button.ghost, .event-date-block strong, .summary-field strong, .task-card-title, .task-card-date, .lane-title, .task-tree-title strong, .task-tree-owner span, .task-tree-files span, .worship-hero .section-title, .worship-readiness strong, .worship-mini-card strong, .worship-section-header h3, .worship-roster-card strong, .worship-slide-card strong, .worship-set-list li) {
   color: #e8f6ff;
 }
 
-.app-shell:not(.app-shell-camp) :is(.workflow-command-panel .muted, .tasks-workspace .muted, .events-workspace-panel .muted, .event-row-title .muted, .event-date-block .muted, .summary-label, .summary-field span, .summary-scroll-hint, .kanban-empty, .task-card .muted, .inline-save-state, .subtask-scroll-label) {
+.app-shell:not(.app-shell-camp) :is(.workflow-command-panel .muted, .tasks-workspace .muted, .events-workspace-panel .muted, .event-row-title .muted, .event-date-block .muted, .summary-label, .summary-field span, .summary-scroll-hint, .kanban-empty, .task-card .muted, .inline-save-state, .subtask-scroll-label, .worship-hero .muted, .worship-roster-card .muted, .worship-status-note, .worship-mini-card span, .worship-roster-card span, .worship-slide-card span, .worship-select span) {
   color: #9fc2dd;
+}
+
+.app-shell:not(.app-shell-camp) :is(.worship-roster-card p, .worship-slide-card p) {
+  color: #7dd3fc;
+}
+
+.app-shell:not(.app-shell-camp) :is(.worship-select select, .worship-message-input) {
+  border-color: rgba(56, 189, 248, 0.22);
+  background: rgba(255, 255, 255, 0.04);
+  color: #f8fafc;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.app-shell:not(.app-shell-camp) .worship-message-input::placeholder {
+  color: #64748b;
+}
+
+.app-shell:not(.app-shell-camp) .worship-action-row .button {
+  border-color: rgba(125, 211, 252, 0.22);
+  background: rgba(14, 165, 233, 0.14);
+  color: #e0f2fe;
+}
+
+.app-shell:not(.app-shell-camp) .worship-action-row .button:disabled {
+  border-color: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.035);
+  color: #6b7f98;
+  opacity: 1;
 }
 
 .app-shell:not(.app-shell-camp) .event-row-title button.button.ghost {
