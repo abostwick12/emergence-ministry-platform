@@ -1,31 +1,92 @@
 "use client";
 
 import { BookOpen, CheckCircle2, Circle, Headphones, Image as ImageIcon, PlayCircle, ShieldCheck, Trophy, Users } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import type { HowToReadModule } from "@/lib/scripture/how-to-read";
 
 type HowToReadPathProps = {
+  initialCompletedModuleIds?: string[];
   modules: HowToReadModule[];
 };
 
-export function HowToReadPath({ modules }: HowToReadPathProps) {
-  const [completedIds, setCompletedIds] = useState<Set<string>>(() => new Set());
+type ProgressResponse = {
+  ok?: boolean;
+  error?: string;
+  progress?: {
+    completedModuleIds?: string[];
+  };
+};
+
+const localProgressKey = "lead-emergence:student-how-to-read-progress";
+
+export function HowToReadPath({ initialCompletedModuleIds = [], modules }: HowToReadPathProps) {
+  const validModuleIds = useMemo(() => new Set(modules.map((module) => module.id)), [modules]);
+  const [completedIds, setCompletedIds] = useState<Set<string>>(() => sanitizeCompletedIds(initialCompletedModuleIds, validModuleIds));
+  const [saveMessage, setSaveMessage] = useState("Progress saves when storage is connected.");
+  const [savingModuleId, setSavingModuleId] = useState<string | null>(null);
   const completedCount = completedIds.size;
   const currentModule = modules.find((module) => !completedIds.has(module.id)) ?? modules[modules.length - 1];
   const earnedBadges = useMemo(() => modules.filter((module) => completedIds.has(module.id)).map((module) => module.badge), [completedIds, modules]);
 
   function toggleComplete(moduleId: string) {
-    setCompletedIds((current) => {
-      const next = new Set(current);
-      if (next.has(moduleId)) {
-        next.delete(moduleId);
-      } else {
-        next.add(moduleId);
-      }
-      return next;
-    });
+    if (!validModuleIds.has(moduleId)) return;
+    const wasComplete = completedIds.has(moduleId);
+    const nextCompleted = new Set(completedIds);
+    if (wasComplete) {
+      nextCompleted.delete(moduleId);
+    } else {
+      nextCompleted.add(moduleId);
+    }
+
+    setCompletedIds(nextCompleted);
+    persistLocalProgress(nextCompleted);
+    setSavingModuleId(moduleId);
+    setSaveMessage("Saving progress...");
+
+    void syncProgress(moduleId, !wasComplete, completedIds);
   }
+
+  async function syncProgress(moduleId: string, completed: boolean, rollbackIds: Set<string>) {
+    try {
+      const response = await fetch("/api/student/scripture/how-to-read-progress", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ moduleId, completed })
+      });
+      const payload = (await response.json()) as ProgressResponse;
+
+      if (response.ok && payload.ok && payload.progress?.completedModuleIds) {
+        const serverCompleted = sanitizeCompletedIds(payload.progress.completedModuleIds, validModuleIds);
+        setCompletedIds(serverCompleted);
+        persistLocalProgress(serverCompleted);
+        setSaveMessage("Progress saved.");
+        return;
+      }
+
+      if (response.status === 503) {
+        setSaveMessage("Saved in this browser for now. Server progress is not connected yet.");
+        return;
+      }
+
+      setCompletedIds(rollbackIds);
+      persistLocalProgress(rollbackIds);
+      setSaveMessage(payload.error ?? "Progress could not be saved.");
+    } catch {
+      setSaveMessage("Saved in this browser for now. Server progress is not connected yet.");
+    } finally {
+      setSavingModuleId(null);
+    }
+  }
+
+  useEffect(() => {
+    if (initialCompletedModuleIds.length > 0) return;
+    const localIds = readLocalProgress(validModuleIds);
+    if (localIds.size > 0) {
+      setCompletedIds(localIds);
+      setSaveMessage("Loaded saved progress from this browser.");
+    }
+  }, [initialCompletedModuleIds.length, validModuleIds]);
 
   return (
     <div className="how-to-read-path">
@@ -51,8 +112,11 @@ export function HowToReadPath({ modules }: HowToReadPathProps) {
           <h2>
             {completedCount} of {modules.length} guides signed off
           </h2>
-          <p>This sign-off works for this visit. Next we can let students save it and choose what their group can see.</p>
+          <p>This path saves your progress when student storage is connected. Until then, it stays in this browser.</p>
         </div>
+        <p className="how-to-read-progress-status" role="status">
+          {saveMessage}
+        </p>
         <div className="how-to-read-progress-meter" aria-label={`${completedCount} of ${modules.length} guides complete`}>
           {modules.map((module) => (
             <span className={completedIds.has(module.id) ? "complete" : ""} key={module.id} />
@@ -88,7 +152,7 @@ export function HowToReadPath({ modules }: HowToReadPathProps) {
                 </div>
                 <div>
                   <p className="eyebrow">
-                    Guide {module.order} · {module.minutes} min
+                    Guide {module.order} - {module.minutes} min
                   </p>
                   <h2>{module.title}</h2>
                   <p>{module.summary}</p>
@@ -143,7 +207,7 @@ export function HowToReadPath({ modules }: HowToReadPathProps) {
 
               <div className="how-to-read-module-actions">
                 <button className="button primary" type="button" aria-pressed={isComplete} onClick={() => toggleComplete(module.id)}>
-                  {isComplete ? "Signed off" : "Mark complete"}
+                  {savingModuleId === module.id ? "Saving..." : isComplete ? "Signed off" : "Mark complete"}
                 </button>
                 <span className="how-to-read-badge">
                   <Trophy size={14} aria-hidden="true" />
@@ -167,4 +231,29 @@ export function HowToReadPath({ modules }: HowToReadPathProps) {
       </section>
     </div>
   );
+}
+
+function sanitizeCompletedIds(moduleIds: string[], validModuleIds: Set<string>) {
+  return new Set(moduleIds.filter((moduleId) => validModuleIds.has(moduleId)));
+}
+
+function readLocalProgress(validModuleIds: Set<string>) {
+  if (typeof window === "undefined") return new Set<string>();
+  try {
+    const raw = window.localStorage.getItem(localProgressKey);
+    if (!raw) return new Set<string>();
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? sanitizeCompletedIds(parsed.filter((item): item is string => typeof item === "string"), validModuleIds) : new Set<string>();
+  } catch {
+    return new Set<string>();
+  }
+}
+
+function persistLocalProgress(moduleIds: Set<string>) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(localProgressKey, JSON.stringify(Array.from(moduleIds)));
+  } catch {
+    // Local progress is helpful, but the UI should not fail if storage is blocked.
+  }
 }

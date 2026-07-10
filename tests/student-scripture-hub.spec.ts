@@ -78,6 +78,8 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page.getByText("No live Bible text or external provider is required")).toHaveCount(0);
 
     await page.goto("/student/scripture/how-to-read");
+    await page.evaluate(() => window.localStorage.removeItem("lead-emergence:student-how-to-read-progress"));
+    await page.reload();
     await expect(page.getByRole("heading", { name: "Learn to read the Bible with care." })).toBeVisible();
     const howToReadGuides = page.getByRole("region", { name: "How to read your Bible guides" });
     await expect(howToReadGuides.getByRole("heading", { name: "What Is the Bible?" })).toBeVisible();
@@ -90,7 +92,11 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page.getByText("0 of 8 guides signed off")).toBeVisible();
     await page.getByRole("button", { name: "Mark complete" }).first().click();
     await expect(page.getByText("1 of 8 guides signed off")).toBeVisible();
+    await expect(page.getByRole("status")).toContainText("Saved in this browser for now.");
     await expect(page.getByText("Start With the Story").first()).toBeVisible();
+    await page.reload();
+    await expect(page.getByText("1 of 8 guides signed off")).toBeVisible();
+    await expect(page.getByRole("status")).toContainText("Loaded saved progress from this browser.");
 
     await page.goto("/student/scripture/resources");
     await expect(page.getByRole("heading", { name: "The Big Story of Scripture" })).toBeVisible();
