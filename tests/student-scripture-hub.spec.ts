@@ -25,6 +25,9 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page.getByRole("heading", { name: "Scripture Study Tool" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "What should we talk about next?" })).toBeVisible();
     await expect(page.getByRole("region", { name: "Keep reading" })).toBeVisible();
+    await page.getByRole("link", { name: /How to Read the Bible/ }).click();
+    await expect(page).toHaveURL(/\/student\/scripture\/how-to-read$/);
+    await expect(page.getByRole("heading", { name: "Learn to read the Bible with care." })).toBeVisible();
 
     await page.goto("/dashboard");
     await discipleshipLink.click();
@@ -70,8 +73,24 @@ test.describe("Student Scripture Hub shell", () => {
     await page.goto("/student/scripture/plans");
     await expect(page.getByRole("heading", { name: "Example reading plans for whole-Scripture familiarity." })).toBeVisible();
     await expect(page.getByText("Beginnings and Covenant")).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "Student Scripture Hub sections" }).getByRole("link", { name: "How to Read", exact: true })).toBeVisible();
     await expect(page.getByText("Creation", { exact: true })).toHaveCount(0);
     await expect(page.getByText("No live Bible text or external provider is required")).toHaveCount(0);
+
+    await page.goto("/student/scripture/how-to-read");
+    await expect(page.getByRole("heading", { name: "Learn to read the Bible with care." })).toBeVisible();
+    const howToReadGuides = page.getByRole("region", { name: "How to read your Bible guides" });
+    await expect(howToReadGuides.getByRole("heading", { name: "What Is the Bible?" })).toBeVisible();
+    await expect(howToReadGuides.getByRole("heading", { name: "Literary Genres and Bible Tools" })).toBeVisible();
+    await expect(howToReadGuides.getByRole("heading", { name: "How Not to Read Your Bible" })).toBeVisible();
+    await expect(page.getByText("Short guides, simple practice, and honest questions")).toBeVisible();
+    await expect(page.getByText("Lectio")).toHaveCount(0);
+    await expect(page.getByText(/metanarrative/i)).toHaveCount(0);
+    await expect(page.getByText(/full academic/i)).toHaveCount(0);
+    await expect(page.getByText("0 of 8 guides signed off")).toBeVisible();
+    await page.getByRole("button", { name: "Mark complete" }).first().click();
+    await expect(page.getByText("1 of 8 guides signed off")).toBeVisible();
+    await expect(page.getByText("Start With the Story").first()).toBeVisible();
 
     await page.goto("/student/scripture/resources");
     await expect(page.getByRole("heading", { name: "The Big Story of Scripture" })).toBeVisible();

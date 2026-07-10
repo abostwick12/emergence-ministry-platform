@@ -1,4 +1,5 @@
 import { ScriptureLookup } from "@/components/student/scripture-lookup";
+import { StudentScriptureTabs } from "@/components/student/student-scripture-tabs";
 import { scriptureResources } from "@/lib/scripture/mock-data";
 import {
   foundationBooks,
@@ -21,6 +22,7 @@ export default function ScriptureResourcesPage({ searchParams }: ScriptureResour
 
   return (
     <>
+      <StudentScriptureTabs active="resources" />
       <div className="storyline-guide grid gap-4">
         <section className="panel grid gap-3 bg-white">
           <p className="eyebrow">Bible Storyline Guide</p>

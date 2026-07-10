@@ -34,17 +34,20 @@ const readingHelps = [
   {
     title: "How to Read the Bible",
     description: "Start with the whole story before zooming into a single verse.",
-    icon: BookOpen
+    icon: BookOpen,
+    href: "/student/scripture/how-to-read"
   },
   {
     title: "Understanding Context",
     description: "Ask who wrote it, who received it, and what was happening around them.",
-    icon: Sparkles
+    icon: Sparkles,
+    href: "/student/scripture/how-to-read"
   },
   {
     title: "Asking Good Questions",
     description: "Look for what it shows about God, people, and faithful response.",
-    icon: Users
+    icon: Users,
+    href: "/student/scripture/how-to-read"
   }
 ] as const;
 
@@ -102,7 +105,7 @@ export function StudentHomeFeed({ initialState, initialFeed, initialReflections,
     <div className="student-feed">
       <section className="student-reading-helps" aria-label="Bible reading helps">
         {readingHelps.map((help) => (
-          <article className="student-reading-help" key={help.title}>
+          <Link className="student-reading-help" href={help.href} key={help.title}>
             <span className="student-help-icon" aria-hidden="true">
               <help.icon size={17} />
             </span>
@@ -110,7 +113,7 @@ export function StudentHomeFeed({ initialState, initialFeed, initialReflections,
               <h2>{help.title}</h2>
               <p>{help.description}</p>
             </div>
-          </article>
+          </Link>
         ))}
       </section>
 
