@@ -5,7 +5,6 @@ export type ContestScene = {
   body: string;
   capture: string;
   durationSeconds: number;
-  previewLabel?: string;
 };
 
 export const contestScenes: ContestScene[] = [
@@ -13,65 +12,64 @@ export const contestScenes: ContestScene[] = [
     id: "opening",
     eyebrow: "Lead Emergence Automated Platform",
     title: "Create more space for community and connecting people to Jesus.",
-    body: "LEAP brings ministry operations, Scripture engagement, trusted leaders, and guided discipleship into one connected platform.",
+    body: "LEAP brings the work of ministry into one connected platform so leaders can spend less time chasing systems and more time investing in people.",
     capture: "contest/dashboard.png",
     durationSeconds: 8
   },
   {
-    id: "operations",
-    eyebrow: "One connected ministry workspace",
-    title: "See what matters. Know what is next. Move together.",
-    body: "Dashboard, events, tasks, people, and communications reduce the friction that pulls leaders away from relationships.",
-    capture: "contest/events-tasks.png",
+    id: "dashboard",
+    eyebrow: "Dashboard",
+    title: "See what matters before the week gets away from you.",
+    body: "Upcoming priorities, ministry pulse, and the next right actions come together in one live operating view.",
+    capture: "contest/dashboard.png",
+    durationSeconds: 9
+  },
+  {
+    id: "events",
+    eyebrow: "Events",
+    title: "Turn ministry ideas into coordinated plans.",
+    body: "Dates, ownership, readiness, and shared details stay visible so the team can move together with clarity.",
+    capture: "contest/events.png",
     durationSeconds: 10
   },
   {
-    id: "camp",
-    eyebrow: "Built for real ministry complexity",
-    title: "A mobile command center when ministry gets complicated.",
-    body: "Schedules, teams, rooms, safety information, protected workflows, and bounded AI support stay connected in the moment.",
-    capture: "contest/camp-command.png",
+    id: "tasks",
+    eyebrow: "Tasks",
+    title: "Make follow-through visible without adding more meetings.",
+    body: "Leaders can see what is assigned, what is blocked, and what needs attention next.",
+    capture: "contest/tasks.png",
+    durationSeconds: 9
+  },
+  {
+    id: "worship",
+    eyebrow: "Worship",
+    title: "Prepare students to lead, not just participate.",
+    body: "Songs, teams, rehearsals, and ministry preparation live in one place so worship becomes a pathway for formation and ownership.",
+    capture: "contest/worship.png",
     durationSeconds: 10
   },
   {
-    id: "scripture",
-    eyebrow: "YouVersion integration",
-    title: "Scripture lives inside the discipleship journey.",
-    body: "Students can open a passage, explore context, build reading habits, and move beyond isolated verses into the larger story of Scripture.",
-    capture: "contest/youversion-scripture.png",
-    durationSeconds: 13
-  },
-  {
-    id: "student-journey",
-    eyebrow: "Student Scripture Hub",
-    title: "Questions become invitations to wrestle with Scripture together.",
-    body: "Students can ask honestly, follow the Wrestle–Dig–Reflect–Pray pathway, journal privately, and bring discoveries back to community.",
-    capture: "contest/student-journey.png",
+    id: "student-portal",
+    eyebrow: "Student Portal",
+    title: "Give students a clear path into Scripture, questions, and community.",
+    body: "The Student Portal brings reading tools, guided questions, progress, and next steps into an experience built for students rather than administrators.",
+    capture: "contest/student-portal.png",
     durationSeconds: 14
   },
   {
-    id: "leaders",
-    eyebrow: "Human-guided discipleship",
-    title: "AI supports ministry. Trusted leaders still lead it.",
-    body: "Leader review, approved resources, privacy boundaries, and relational follow-through keep technology accountable to pastoral care.",
-    capture: "contest/leader-review.png",
-    durationSeconds: 12
-  },
-  {
-    id: "gloo",
-    eyebrow: "Gloo integration",
-    title: "Personalized, Scripture-centered next steps.",
-    body: "Gloo-powered guidance helps organize student questions into contextual pathways while leaders remain responsible for wisdom, review, and care.",
-    capture: "contest/gloo-guided-preview.png",
-    durationSeconds: 9,
-    previewLabel: "Gloo-guided workflow preview — replace with live capture when connected"
+    id: "discipleship",
+    eyebrow: "Discipleship",
+    title: "Technology supports ministry. Trusted leaders still lead it.",
+    body: "Student questions, reviewed resources, Scripture-centered guidance, and relational follow-through help leaders disciple with greater clarity and care.",
+    capture: "contest/discipleship.png",
+    durationSeconds: 13
   },
   {
     id: "closing",
     eyebrow: "Lead Emergence Automated Platform",
     title: "More than managing ministry.",
     body: "Creating more space for building community and connecting people to Jesus.",
-    capture: "contest/closing.png",
+    capture: "contest/dashboard.png",
     durationSeconds: 7
   }
 ];
