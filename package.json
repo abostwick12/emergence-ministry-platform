@@ -13,6 +13,7 @@
     "design-check": "node scripts/design-check.mjs",
     "video:landing:studio": "remotion studio remotion/landing/Root.tsx",
     "video:landing:still": "remotion still remotion/landing/Root.tsx LeadEmergenceLandingVideo --frame=90 --scale=0.25 --output=test-results/landing-video-frame.png",
+    "video:contest:capture": "node scripts/capture-contest-promo.mjs",
     "video:contest:studio": "remotion studio remotion/contest/Root.tsx",
     "video:contest:render": "remotion render remotion/contest/Root.tsx LeadEmergenceContestFilm output/lead-emergence-contest.mp4",
     "video:contest:vertical": "remotion render remotion/contest/Root.tsx LeadEmergenceContestFilmVertical output/lead-emergence-contest-vertical.mp4",
