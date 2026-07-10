@@ -28,7 +28,7 @@ export default async function DiscipleshipPage() {
   return (
     <div className="discipleship-workspace-stack">
       <ScriptureTrialInsightsPanel groupState={groupState} insights={trialInsights} />
-      <ScriptureKnowledgeControlRoom initialState={knowledgeState} />
+      <ScriptureKnowledgeControlRoom initialDiscussionState={state} initialState={knowledgeState} />
       <ScriptureLeaderReview initialGroupState={groupState} initialState={state} />
     </div>
   );
