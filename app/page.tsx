@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { ArrowRight, CalendarCheck2, CheckCircle2, MessageSquareText, Sparkles, UsersRound } from "lucide-react";
-import { landingRoleEntries, landingVideoScenes } from "@/lib/landing-video";
+import { ArrowRight, CalendarCheck2, CheckCircle2, LayoutDashboard, MessageSquareText, UsersRound } from "lucide-react";
+import { landingRoleEntries, landingVideoScenes as landingWorkflowSteps } from "@/lib/landing-video";
 
 export const metadata: Metadata = {
   title: "Lead Emergence - Automated Platform",
@@ -47,42 +47,39 @@ export default function RootPage() {
             </div>
           </div>
 
-          <section className="landing-video-card" aria-label="Lead Emergence product film preview">
-            <div className="landing-video-topline">
-              <span><Sparkles size={16} aria-hidden="true" /> Platform film</span>
-              <strong>00:42</strong>
+          <section className="landing-preview-card" aria-label="Lead Emergence platform preview">
+            <div className="landing-preview-topline">
+              <span><LayoutDashboard size={16} aria-hidden="true" /> Platform preview</span>
+              <strong>Role-based workspace</strong>
             </div>
-            <div className="landing-video-stage" aria-hidden="true">
-              {landingVideoScenes.map((scene, index) => (
-                <article className={`landing-video-scene landing-video-scene-${index + 1} accent-${scene.accent}`} key={scene.eyebrow}>
-                  <div>
-                    <span>{scene.eyebrow}</span>
-                    <h2>{scene.title}</h2>
-                    <p>{scene.body}</p>
+            <div className="landing-preview-panel">
+              <div className="landing-product-frame" aria-hidden="true">
+                <div className="landing-product-bar">
+                  <span>Ministry Director View</span>
+                  <strong>5 events this week</strong>
+                </div>
+                <div className="landing-product-grid">
+                  <i />
+                  <i />
+                  <i />
+                </div>
+                <div className="landing-product-row">
+                  <b />
+                  <b />
+                  <b />
+                </div>
+              </div>
+              <div className="landing-preview-steps">
+                {landingWorkflowSteps.slice(0, 4).map((step) => (
+                  <div className={`landing-preview-step accent-${step.accent}`} key={step.eyebrow}>
+                    <span>{step.eyebrow}</span>
+                    <div>
+                      <strong>{step.productArea}</strong>
+                      <p>{step.title}</p>
+                    </div>
                   </div>
-                  <div className="landing-product-frame">
-                    <div className="landing-product-bar">
-                      <span>{scene.productArea}</span>
-                      <strong>{scene.metric}</strong>
-                    </div>
-                    <div className="landing-product-grid">
-                      <i />
-                      <i />
-                      <i />
-                    </div>
-                    <div className="landing-product-row">
-                      <b />
-                      <b />
-                      <b />
-                    </div>
-                  </div>
-                </article>
-              ))}
-            </div>
-            <div className="landing-video-timeline" aria-hidden="true">
-              {landingVideoScenes.map((scene) => (
-                <span key={scene.eyebrow}>{scene.eyebrow}</span>
-              ))}
+                ))}
+              </div>
             </div>
           </section>
         </div>
