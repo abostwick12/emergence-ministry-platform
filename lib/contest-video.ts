@@ -15,7 +15,7 @@ export const contestScenes: ContestScene[] = [
     title: "Create more space for community and connecting people to Jesus.",
     body: "LEAP brings ministry operations, Scripture engagement, trusted leaders, and guided discipleship into one connected platform.",
     capture: "contest/dashboard.png",
-    durationSeconds: 9
+    durationSeconds: 8
   },
   {
     id: "operations",
@@ -23,31 +23,31 @@ export const contestScenes: ContestScene[] = [
     title: "See what matters. Know what is next. Move together.",
     body: "Dashboard, events, tasks, people, and communications reduce the friction that pulls leaders away from relationships.",
     capture: "contest/events-tasks.png",
-    durationSeconds: 11
+    durationSeconds: 10
   },
   {
     id: "camp",
     eyebrow: "Built for real ministry complexity",
-    title: "A mobile command center for camp and events.",
-    body: "Schedules, teams, rooms, safety information, protected medical workflows, and bounded AI support stay connected.",
+    title: "A mobile command center when ministry gets complicated.",
+    body: "Schedules, teams, rooms, safety information, protected workflows, and bounded AI support stay connected in the moment.",
     capture: "contest/camp-command.png",
-    durationSeconds: 12
+    durationSeconds: 10
   },
   {
     id: "scripture",
     eyebrow: "YouVersion integration",
     title: "Scripture lives inside the discipleship journey.",
-    body: "Students can look up passages, explore context, build reading habits, and move beyond isolated verses into the larger story of Scripture.",
+    body: "Students can open a passage, explore context, build reading habits, and move beyond isolated verses into the larger story of Scripture.",
     capture: "contest/youversion-scripture.png",
-    durationSeconds: 14
+    durationSeconds: 13
   },
   {
     id: "student-journey",
     eyebrow: "Student Scripture Hub",
     title: "Questions become invitations to wrestle with Scripture together.",
-    body: "Students can ask real questions, follow the Wrestle–Dig–Reflect–Pray pathway, journal privately, and bring discoveries back to community.",
+    body: "Students can ask honestly, follow the Wrestle–Dig–Reflect–Pray pathway, journal privately, and bring discoveries back to community.",
     capture: "contest/student-journey.png",
-    durationSeconds: 15
+    durationSeconds: 14
   },
   {
     id: "leaders",
@@ -55,7 +55,7 @@ export const contestScenes: ContestScene[] = [
     title: "AI supports ministry. Trusted leaders still lead it.",
     body: "Leader review, approved resources, privacy boundaries, and relational follow-through keep technology accountable to pastoral care.",
     capture: "contest/leader-review.png",
-    durationSeconds: 13
+    durationSeconds: 12
   },
   {
     id: "gloo",
