@@ -19,10 +19,13 @@ const context = await browser.newContext({
 const page = await context.newPage();
 
 page.on("console", (message) => {
-  if (message.type() === "error") console.error(`[browser] ${message.text()}`);
+  if (message.type() !== "error") return;
+  const text = message.text();
+  if (text.includes("Failed to fetch RSC payload") || text.includes("fastRefresh")) return;
+  console.error(`[browser] ${text}`);
 });
 
-await page.goto(`${baseURL}/login`, { waitUntil: "networkidle" });
+await page.goto(`${baseURL}/login`, { waitUntil: "domcontentloaded" });
 await page.getByLabel("Email").fill(email);
 await page.getByLabel("Password").fill(password);
 await page.getByRole("button", { name: "Log in" }).click();
@@ -30,10 +33,12 @@ await page.waitForURL(/\/dashboard$/);
 await page.waitForLoadState("networkidle");
 
 async function capture(name, route, ready, action) {
-  await page.goto(`${baseURL}${route}`, { waitUntil: "networkidle" });
+  await page.goto(`${baseURL}${route}`, { waitUntil: "domcontentloaded" });
+  await page.waitForLoadState("networkidle").catch(() => undefined);
   if (ready) await ready(page);
   if (action) await action(page);
   await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(250);
   await page.screenshot({ path: path.join(outputDir, name), fullPage: false });
   console.log(`Captured ${name}`);
 }
@@ -43,11 +48,16 @@ await capture("dashboard.png", "/dashboard", async (p) => {
 });
 
 await capture("events-tasks.png", "/events", async (p) => {
-  await p.getByRole("main").waitFor();
+  await p.locator("main").first().waitFor();
 });
 
 await capture("camp-command.png", "/camp", async (p) => {
-  await p.getByRole("main").waitFor();
+  const campMain = p.locator("main.camp-cc-main");
+  if (await campMain.count()) {
+    await campMain.waitFor();
+  } else {
+    await p.locator("main").first().waitFor();
+  }
 });
 
 await page.route("**/api/student/scripture/lookup", async (route) => {
@@ -99,9 +109,12 @@ await capture(
 );
 
 await page.screenshot({ path: path.join(outputDir, "gloo-guided-preview.png"), fullPage: false });
+console.log("Captured gloo-guided-preview.png");
 
-await page.goto(`${baseURL}/`, { waitUntil: "networkidle" });
+await page.goto(`${baseURL}/`, { waitUntil: "domcontentloaded" });
+await page.waitForLoadState("networkidle").catch(() => undefined);
 await page.screenshot({ path: path.join(outputDir, "closing.png"), fullPage: false });
+console.log("Captured closing.png");
 
 await browser.close();
 console.log(`Contest promo captures saved to ${outputDir}`);
