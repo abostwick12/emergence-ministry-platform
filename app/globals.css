@@ -9455,6 +9455,24 @@ html:has(.app-shell-camp) body {
   border-color: color-mix(in srgb, var(--primary) 26%, var(--line));
 }
 
+.how-to-read-guide-signoff {
+  display: grid;
+  gap: 12px;
+  border: 1px solid color-mix(in srgb, var(--primary) 24%, var(--line));
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  padding: 16px;
+}
+
+.how-to-read-guide-signoff-status {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 820;
+  line-height: 1.45;
+}
+
 .how-to-read-guide-actions {
   display: flex;
   flex-wrap: wrap;
