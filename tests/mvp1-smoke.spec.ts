@@ -15,7 +15,8 @@ test.describe("MVP event automation navigation smoke tests", () => {
 
     await expect(page).toHaveURL(/\/$/);
     await expect(page.getByRole("heading", { name: "Create space for ministry. Connect people to Jesus." })).toBeVisible();
-    await expect(page.getByLabel("Lead Emergence product film preview")).toBeVisible();
+    await expect(page.getByLabel("Lead Emergence platform preview")).toBeVisible();
+    await expect(page.getByText("Platform preview")).toBeVisible();
 
     for (const role of ["Ministry Director", "Volunteer Leader", "Student"]) {
       await expect(page.getByText(role, { exact: true }).first()).toBeVisible();
