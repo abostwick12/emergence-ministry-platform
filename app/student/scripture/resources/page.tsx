@@ -10,7 +10,15 @@ import {
   type StorylineFlyover
 } from "@/lib/scripture/storyline-guide";
 
-export default function ScriptureResourcesPage() {
+type ScriptureResourcesPageProps = {
+  searchParams?: {
+    reference?: string | string[];
+  };
+};
+
+export default function ScriptureResourcesPage({ searchParams }: ScriptureResourcesPageProps) {
+  const requestedReference = Array.isArray(searchParams?.reference) ? searchParams.reference[0] : searchParams?.reference;
+
   return (
     <>
       <div className="storyline-guide grid gap-4">
@@ -189,7 +197,7 @@ export default function ScriptureResourcesPage() {
         </section>
       </div>
 
-      <ScriptureLookup />
+      <ScriptureLookup initialReference={requestedReference ?? ""} />
 
       <section className="grid gap-4 md:grid-cols-2" aria-label="Scripture study resources">
         <div className="md:col-span-2">

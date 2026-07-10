@@ -2,6 +2,7 @@
 
 import { BookOpen, Heart, MessageCircle, PenLine, Search, Sparkles, Users, type LucideIcon } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { StudentQuestionComposer } from "@/components/student/student-question-composer";
@@ -47,11 +48,21 @@ const readingHelps = [
   }
 ] as const;
 
+const starterPassages = [
+  "Genesis 1",
+  "Psalm 23",
+  "John 1",
+  "Romans 8",
+  "Matthew 5"
+] as const;
+
 export function StudentHomeFeed({ initialState, initialFeed, initialReflections, userName }: StudentHomeFeedProps) {
+  const router = useRouter();
   const [recentQuestions, setRecentQuestions] = useState(initialFeed.recentQuestions);
   const [keepReading, setKeepReading] = useState(initialFeed.keepReading);
   const [questionNextSteps, setQuestionNextSteps] = useState(initialFeed.questionNextSteps);
   const [reflections, setReflections] = useState(initialReflections);
+  const [lookupReference, setLookupReference] = useState("");
   const [activePromptId, setActivePromptId] = useState(initialFeed.recentQuestions[0]?.id);
   const [activeGroupPromptId, setActiveGroupPromptId] = useState(initialFeed.forGroup[0]?.id);
   const [activeJourneyType, setActiveJourneyType] = useState<"question" | "group">(initialFeed.recentQuestions[0] ? "question" : "group");
@@ -79,6 +90,12 @@ export function StudentHomeFeed({ initialState, initialFeed, initialReflections,
 
   function groupNextStepForPrompt(promptId: string) {
     return initialFeed.groupNextSteps.find((item) => item.promptId === promptId);
+  }
+
+  function openLookup(reference: string) {
+    const normalizedReference = reference.trim();
+    if (!normalizedReference) return;
+    router.push(`/student/scripture/resources?reference=${encodeURIComponent(normalizedReference)}`);
   }
 
   return (
@@ -111,13 +128,30 @@ export function StudentHomeFeed({ initialState, initialFeed, initialReflections,
             </span>
             <h2>Scripture Study Tool</h2>
           </div>
-          <div className="student-tool-search">
+          <form
+            className="student-tool-search"
+            onSubmit={(event) => {
+              event.preventDefault();
+              openLookup(lookupReference);
+            }}
+          >
             <Search size={17} aria-hidden="true" />
-            <span>Look up a passage or topic through the resources below.</span>
-          </div>
+            <label className="sr-only" htmlFor="student-home-scripture-reference">
+              Scripture reference
+            </label>
+            <input
+              id="student-home-scripture-reference"
+              name="reference"
+              onChange={(event) => setLookupReference(event.target.value)}
+              placeholder="Look up a passage through the resources below."
+              type="text"
+              value={lookupReference}
+            />
+            <button type="submit">Look Up</button>
+          </form>
           <div className="student-tool-chips" aria-label="Starter passages">
-            {["Genesis 1", "Psalm 23", "John 1:1-14", "Romans 8", "The Sermon on the Mount"].map((label) => (
-              <Link href="/student/scripture/resources" key={label}>
+            {starterPassages.map((label) => (
+              <Link href={`/student/scripture/resources?reference=${encodeURIComponent(label)}`} key={label}>
                 {label}
               </Link>
             ))}
