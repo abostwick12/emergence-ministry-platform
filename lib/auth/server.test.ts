@@ -103,4 +103,50 @@ describe("getServerSession", () => {
       }
     });
   });
+
+  it("uses service-controlled app metadata before legacy user metadata when no profile row exists", async () => {
+    cookiesMock.mockReturnValue(cookieStore("access-token"));
+    createClientMock
+      .mockReturnValueOnce({
+        auth: {
+          getUser: vi.fn().mockResolvedValue({
+            data: {
+              user: {
+                id: "usr_student",
+                email: "student@example.test",
+                app_metadata: {
+                  role: "student"
+                },
+                user_metadata: {
+                  full_name: "Student Person",
+                  role: "staff"
+                }
+              }
+            },
+            error: null
+          })
+        }
+      })
+      .mockReturnValueOnce({
+        from: vi.fn(() => ({
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: null,
+                error: null
+              })
+            }))
+          }))
+        }))
+      });
+
+    await expect(getServerSession()).resolves.toMatchObject({
+      user: {
+        id: "usr_student",
+        email: "student@example.test",
+        fullName: "Student Person",
+        role: "student"
+      }
+    });
+  });
 });

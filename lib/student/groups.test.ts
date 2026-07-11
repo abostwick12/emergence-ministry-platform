@@ -156,7 +156,131 @@ describe("student group invites", () => {
         status: "active"
       })
     );
+    expect(fixture.createdUsers[0]).toMatchObject({
+      email: "student@example.test",
+      password: "studentPass123",
+      email_confirm: true,
+      user_metadata: { full_name: "Student Person", role: "student" },
+      app_metadata: { role: "student" }
+    });
     expect(fixture.invites[0].use_count).toBe(1);
+  });
+
+  it("lets an existing student account join another invited group without manual Supabase edits", async () => {
+    isSupabaseConfiguredMock.mockReturnValue(true);
+    isSupabaseAdminConfiguredMock.mockReturnValue(true);
+    const fixture = studentGroupFixture({
+      invites: [inviteRow({ code: "second-group-1234", use_count: 2 })],
+      members: [],
+      profiles: [profileRow({ id: "student-user-existing", email: "student@example.test", full_name: "Existing Student", role: "student" })]
+    });
+    getSupabaseAdminClientMock.mockReturnValue(studentGroupAdminClient(fixture, { createUserError: true }));
+    getSupabaseAuthClientMock.mockReturnValue(
+      studentGroupAuthClient({
+        user: {
+          id: "student-user-existing",
+          email: "student@example.test",
+          app_metadata: { role: "student" },
+          user_metadata: { full_name: "Metadata Student" }
+        }
+      })
+    );
+
+    const result = await joinStudentGroupWithInvite({
+      code: "second-group-1234",
+      fullName: "Typed Name",
+      email: "student@example.test",
+      password: "studentPass123"
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      user: {
+        id: "student-user-existing",
+        fullName: "Existing Student",
+        role: "student"
+      }
+    });
+    expect(fixture.profileUpserts).toHaveLength(1);
+    expect(fixture.members).toContainEqual(
+      expect.objectContaining({
+        group_id: "group-1",
+        user_id: "student-user-existing",
+        display_name: "Existing Student",
+        status: "active"
+      })
+    );
+    expect(fixture.invites[0].use_count).toBe(3);
+  });
+
+  it("does not increment invite usage when an existing student rejoins an already-active membership", async () => {
+    isSupabaseConfiguredMock.mockReturnValue(true);
+    isSupabaseAdminConfiguredMock.mockReturnValue(true);
+    const fixture = studentGroupFixture({
+      invites: [inviteRow({ code: "active-link-1234", use_count: 7 })],
+      members: [
+        {
+          id: "member-active",
+          ministry_id: "ministry-1",
+          group_id: "group-1",
+          user_id: "student-user-existing",
+          display_name: "Existing Student",
+          status: "active",
+          joined_at: "2026-07-03T00:00:00.000Z"
+        }
+      ],
+      profiles: [profileRow({ id: "student-user-existing", email: "student@example.test", role: "student" })]
+    });
+    getSupabaseAdminClientMock.mockReturnValue(studentGroupAdminClient(fixture, { createUserError: true }));
+    getSupabaseAuthClientMock.mockReturnValue(studentGroupAuthClient({ user: { id: "student-user-existing", email: "student@example.test", app_metadata: { role: "student" } } }));
+
+    await expect(
+      joinStudentGroupWithInvite({
+        code: "active-link-1234",
+        fullName: "Existing Student",
+        email: "student@example.test",
+        password: "studentPass123"
+      })
+    ).resolves.toMatchObject({ ok: true });
+
+    expect(fixture.invites[0].use_count).toBe(7);
+  });
+
+  it("does not convert an existing non-student account into a student account", async () => {
+    isSupabaseConfiguredMock.mockReturnValue(true);
+    isSupabaseAdminConfiguredMock.mockReturnValue(true);
+    const fixture = studentGroupFixture({
+      invites: [inviteRow({ code: "leader-link-1234", use_count: 4 })],
+      members: [],
+      profiles: [profileRow({ id: "leader-user-existing", email: "leader@example.test", full_name: "Leader Person", role: "leader" })]
+    });
+    getSupabaseAdminClientMock.mockReturnValue(studentGroupAdminClient(fixture, { createUserError: true }));
+    getSupabaseAuthClientMock.mockReturnValue(
+      studentGroupAuthClient({
+        user: {
+          id: "leader-user-existing",
+          email: "leader@example.test",
+          app_metadata: { role: "leader" },
+          user_metadata: { full_name: "Leader Person" }
+        }
+      })
+    );
+
+    const result = await joinStudentGroupWithInvite({
+      code: "leader-link-1234",
+      fullName: "Leader Person",
+      email: "leader@example.test",
+      password: "leaderPass123"
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      status: 409
+    });
+    if (!result.ok) expect(result.error).toMatch(/already connected to another Lead Emergence account/i);
+    expect(fixture.profileUpserts).toHaveLength(0);
+    expect(fixture.members).toHaveLength(0);
+    expect(fixture.invites[0].use_count).toBe(4);
   });
 });
 
@@ -209,7 +333,9 @@ type StudentGroupFixture = {
   groups: GroupRow[];
   invites: InviteRow[];
   members: MemberRow[];
-  profiles: Array<Record<string, unknown>>;
+  profiles: ProfileRow[];
+  profileUpserts: Array<Record<string, unknown>>;
+  createdUsers: Array<Record<string, unknown>>;
 };
 
 function studentGroupFixture(overrides: Partial<StudentGroupFixture> = {}): StudentGroupFixture {
@@ -237,6 +363,8 @@ function studentGroupFixture(overrides: Partial<StudentGroupFixture> = {}): Stud
       }
     ],
     profiles: [],
+    profileUpserts: [],
+    createdUsers: [],
     ...overrides
   };
 }
@@ -257,14 +385,64 @@ function inviteRow(overrides: Partial<InviteRow> = {}): InviteRow {
   };
 }
 
-function studentGroupAdminClient(fixture: StudentGroupFixture) {
+type ProfileRow = {
+  id: string;
+  ministry_id: string;
+  email: string;
+  full_name: string | null;
+  role: string;
+};
+
+type StudentGroupAdminClientOptions = {
+  createUserError?: boolean;
+};
+
+type StudentGroupAuthClientOptions = {
+  user?: {
+    id: string;
+    email: string;
+    app_metadata?: Record<string, unknown>;
+    user_metadata?: Record<string, unknown>;
+  };
+  signInError?: boolean;
+};
+
+function profileRow(overrides: Partial<ProfileRow> = {}): ProfileRow {
+  return {
+    id: "student-user-existing",
+    ministry_id: "ministry-1",
+    email: "student@example.test",
+    full_name: "Existing Student",
+    role: "student",
+    ...overrides
+  };
+}
+
+function studentGroupAdminClient(fixture: StudentGroupFixture, options: StudentGroupAdminClientOptions = {}) {
   return {
     auth: {
       admin: {
-        createUser: vi.fn(async ({ email }: { email: string }) => ({
-          data: { user: { id: "student-user-1", email } },
-          error: null
-        })),
+        createUser: vi.fn(async (payload: Record<string, unknown>) => {
+          fixture.createdUsers.push(payload);
+          if (options.createUserError) {
+            return {
+              data: { user: null },
+              error: { message: "User already registered" }
+            };
+          }
+
+          return {
+            data: {
+              user: {
+                id: "student-user-1",
+                email: payload.email,
+                app_metadata: payload.app_metadata,
+                user_metadata: payload.user_metadata
+              }
+            },
+            error: null
+          };
+        }),
         updateUserById: vi.fn(async () => ({ data: {}, error: null }))
       }
     },
@@ -279,16 +457,32 @@ function studentGroupAdminClient(fixture: StudentGroupFixture) {
   };
 }
 
-function studentGroupAuthClient() {
+function studentGroupAuthClient(options: StudentGroupAuthClientOptions = {}) {
+  const user = options.user ?? {
+    id: "student-user-1",
+    email: "student@example.test",
+    app_metadata: { role: "student" },
+    user_metadata: { full_name: "Student Person" }
+  };
+
   return {
     auth: {
-      signInWithPassword: vi.fn(async ({ email }: { email: string }) => ({
-        data: {
-          user: { id: "student-user-1", email },
-          session: { access_token: "student-access-token", refresh_token: "student-refresh-token" }
-        },
-        error: null
-      }))
+      signInWithPassword: vi.fn(async ({ email }: { email: string }) => {
+        if (options.signInError) {
+          return {
+            data: { user: null, session: null },
+            error: { message: "Invalid login credentials" }
+          };
+        }
+
+        return {
+          data: {
+            user: { ...user, email },
+            session: { access_token: "student-access-token", refresh_token: "student-refresh-token" }
+          },
+          error: null
+        };
+      })
     }
   };
 }
@@ -437,8 +631,23 @@ function ministryTable() {
 
 function profileTable(fixture: StudentGroupFixture) {
   return {
+    select: () => ({
+      eq: (_field: string, value: unknown) => ({
+        maybeSingle: async () => ({ data: fixture.profiles.find((profile) => profile.id === value) ?? null, error: null })
+      })
+    }),
     upsert: async (row: Record<string, unknown>) => {
-      fixture.profiles.push(row);
+      fixture.profileUpserts.push(row);
+      const existing = fixture.profiles.find((profile) => profile.id === row.id);
+      const next = {
+        id: String(row.id),
+        ministry_id: String(row.ministry_id),
+        email: String(row.email),
+        full_name: String(row.full_name),
+        role: String(row.role)
+      };
+      if (existing) Object.assign(existing, next);
+      else fixture.profiles.push(next);
       return { data: null, error: null };
     }
   };

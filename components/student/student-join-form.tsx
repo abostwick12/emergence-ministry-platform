@@ -29,6 +29,14 @@ export function StudentJoinForm({ code, expiresAt, groupName, ministryName }: St
     setIsSubmitting(true);
 
     const form = new FormData(event.currentTarget);
+    const password = String(form.get("password") || "");
+    const confirmPassword = String(form.get("confirmPassword") || "");
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
+      setIsSubmitting(false);
+      return;
+    }
+
     const response = await fetch("/api/student/join", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -36,7 +44,7 @@ export function StudentJoinForm({ code, expiresAt, groupName, ministryName }: St
         code,
         fullName: String(form.get("fullName") || ""),
         email: String(form.get("email") || ""),
-        password: String(form.get("password") || "")
+        password
       })
     });
 
@@ -79,7 +87,7 @@ export function StudentJoinForm({ code, expiresAt, groupName, ministryName }: St
       <div className="student-join-context">
         <strong>{ministryName}</strong>
         <span>{groupName}</span>
-        <small>{expires ? `Invite expires ${expires}` : "Use this account for your small group tryout."}</small>
+        <small>{expires ? `Create your Student Portal account before ${expires}.` : "Create your Student Portal account for this group."}</small>
       </div>
 
       <label className="field">
@@ -93,8 +101,13 @@ export function StudentJoinForm({ code, expiresAt, groupName, ministryName }: St
       </label>
 
       <label className="field">
-        <span>Password</span>
+        <span>Create password</span>
         <input className="input" name="password" type="password" autoComplete="new-password" minLength={8} required />
+      </label>
+
+      <label className="field">
+        <span>Confirm password</span>
+        <input className="input" name="confirmPassword" type="password" autoComplete="new-password" minLength={8} required />
       </label>
 
       {error ? (
@@ -104,7 +117,7 @@ export function StudentJoinForm({ code, expiresAt, groupName, ministryName }: St
       ) : null}
 
       <button className="button primary" type="submit" disabled={isSubmitting}>
-        {isSubmitting ? "Creating access..." : "Join and open Student Portal"}
+        {isSubmitting ? "Creating account..." : "Create account and open Student Portal"}
       </button>
     </form>
   );

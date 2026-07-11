@@ -2,6 +2,13 @@
 
 import { FormEvent, useState } from "react";
 
+type LoginResponse = {
+  user?: {
+    role?: string;
+  };
+  error?: string;
+};
+
 export default function LoginPage() {
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -22,14 +29,14 @@ export default function LoginPage() {
     });
 
     setIsSubmitting(false);
+    const body = (await response.json().catch(() => null)) as LoginResponse | null;
 
     if (!response.ok) {
-      const body = (await response.json().catch(() => null)) as { error?: string } | null;
       setError(body?.error ?? "Login failed.");
       return;
     }
 
-    const nextPath = getSafeNextPath(new URLSearchParams(window.location.search).get("next"));
+    const nextPath = getSafeNextPath(new URLSearchParams(window.location.search).get("next"), body?.user?.role);
     window.location.assign(nextPath);
   }
 
@@ -42,7 +49,7 @@ export default function LoginPage() {
         <div>
           <p className="eyebrow">Internal Access</p>
           <h1 className="title">Lead Emergence Automated Platform</h1>
-          <p className="muted">Sign in with the email and password assigned from Supabase Auth.</p>
+          <p className="muted">Sign in with your Lead Emergence account. Students can create access from a group invite, then return here anytime.</p>
         </div>
 
         <form className="grid" onSubmit={submit}>
@@ -68,8 +75,8 @@ export default function LoginPage() {
   );
 }
 
-function getSafeNextPath(value: string | null) {
-  if (!value || !value.startsWith("/") || value.startsWith("//")) return "/dashboard";
+function getSafeNextPath(value: string | null, role?: string) {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) return role?.trim().toLowerCase() === "student" ? "/student" : "/dashboard";
   return value;
 }
 
