@@ -22,7 +22,7 @@ type StudentHomeFeedProps = {
   initialState: DiscussionWorkflowState;
   initialFeed: StudentHomeFeedData;
   initialHowToReadCompletedModuleIds: string[];
-  initialHowToReadProgressStorage: "server" | "unavailable";
+  initialHowToReadProgressStorage: "server" | "local" | "unavailable";
   initialReflections: Record<string, StudentQuestionReflection>;
   userName: string;
 };

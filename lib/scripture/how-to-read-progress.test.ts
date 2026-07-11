@@ -36,10 +36,10 @@ describe("student how to read progress", () => {
   it("falls back cleanly when live storage is not configured", async () => {
     isSupabaseConfiguredMock.mockReturnValue(false);
 
-    await expect(getStudentHowToReadProgress(session())).resolves.toEqual({
+    await expect(getStudentHowToReadProgress(session())).resolves.toMatchObject({
       completedModuleIds: [],
       shareWithGroup: false,
-      storage: "unavailable"
+      storage: "local"
     });
     expect(getSupabaseAuthClientMock).not.toHaveBeenCalled();
   });

@@ -3,6 +3,11 @@ import type { AuthSession } from "@/lib/auth/server";
 import { getSupabaseAuthClient } from "@/lib/auth/server";
 import { resolveMinistryScope } from "@/lib/ministry/scope";
 import { howToReadModules } from "@/lib/scripture/how-to-read";
+import {
+  getLocalStudentHowToReadProgress,
+  saveLocalStudentHowToReadProgress,
+  shouldUseLocalStudentState
+} from "@/lib/scripture/student-local-state";
 
 const validModuleIds = new Set(howToReadModules.map((module) => module.id));
 
@@ -10,7 +15,7 @@ export type StudentHowToReadProgress = {
   completedModuleIds: string[];
   shareWithGroup: boolean;
   updatedAt?: string;
-  storage: "server" | "unavailable";
+  storage: "server" | "local" | "unavailable";
 };
 
 type StudentHowToReadProgressRow = {
@@ -27,6 +32,8 @@ export type SaveStudentHowToReadProgressInput = {
 };
 
 export async function getStudentHowToReadProgress(session: AuthSession): Promise<StudentHowToReadProgress> {
+  if (shouldUseLocalStudentState(session)) return getLocalStudentHowToReadProgress(session);
+
   if (!session.accessToken || !isSupabaseConfigured()) {
     return emptyProgress("unavailable");
   }
@@ -55,11 +62,20 @@ export async function getStudentHowToReadProgress(session: AuthSession): Promise
 }
 
 export async function saveStudentHowToReadProgress(session: AuthSession, input: SaveStudentHowToReadProgressInput) {
+  const moduleId = normalizeModuleId(input.moduleId);
+
+  if (shouldUseLocalStudentState(session)) {
+    return saveLocalStudentHowToReadProgress(session, {
+      moduleId,
+      completed: input.completed,
+      shareWithGroup: input.shareWithGroup
+    });
+  }
+
   if (!session.accessToken || !isSupabaseConfigured()) {
     throw new StudentHowToReadProgressError("Saved progress is not configured yet.", 503, "live_storage_not_configured");
   }
 
-  const moduleId = normalizeModuleId(input.moduleId);
   const ministryId = await resolveMinistryScope(session);
   const completedAt = input.completed ? new Date().toISOString() : null;
   const supabase = getSupabaseAuthClient(session.accessToken);

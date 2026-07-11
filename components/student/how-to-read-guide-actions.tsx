@@ -7,7 +7,7 @@ import { studentHowToReadLocalProgressKey } from "@/lib/scripture/how-to-read";
 
 type HowToReadGuideActionsProps = {
   initialComplete: boolean;
-  initialProgressStorage: "server" | "unavailable";
+  initialProgressStorage: "server" | "local" | "unavailable";
   moduleId: string;
   nextGuideHref?: string;
   previousGuideHref?: string;
@@ -37,7 +37,7 @@ export function HowToReadGuideActions({
     const localIds = readLocalProgress();
     if (localIds.has(moduleId)) {
       setIsComplete(true);
-      setMessage("Loaded saved progress from this browser.");
+      setMessage(initialProgressStorage === "local" ? "Progress saved in this portal session." : "Loaded saved progress from this browser.");
     }
   }, [initialComplete, initialProgressStorage, moduleId]);
 
@@ -86,7 +86,7 @@ export function HowToReadGuideActions({
         {message}
       </p>
       <div className="how-to-read-guide-actions">
-        <Link className="button secondary" href="/student/scripture/how-to-read">
+        <Link className="button secondary" href="/student/scripture/how-to-read" prefetch={false}>
           Back to path
         </Link>
         {previousGuideHref ? (

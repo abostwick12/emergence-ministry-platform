@@ -118,11 +118,37 @@ function isLinkActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+export function getAppShellNavigation({
+  campOnly,
+  isStudentShell,
+  showCommandCenter,
+  showLeaderDiscipleship,
+  showStudentPortal
+}: {
+  campOnly: boolean;
+  isStudentShell: boolean;
+  showCommandCenter: boolean;
+  showLeaderDiscipleship: boolean;
+  showStudentPortal: boolean;
+}) {
+  const studentAwareLinks = showStudentPortal ? primaryLinks : primaryLinks.filter((link) => link.href !== "/student");
+  const discipleshipAwareLinks = showLeaderDiscipleship ? [...studentAwareLinks, leaderDiscipleshipLink] : studentAwareLinks;
+  const allPrimaryLinks = showCommandCenter ? [...discipleshipAwareLinks, { href: "/command-center", label: "Command Center" }] : discipleshipAwareLinks;
+  const studentPortalOnlyLinks = [{ href: "/student", label: "Student Portal" }];
+
+  return {
+    primaryLinks: isStudentShell ? studentPortalOnlyLinks : campOnly ? allPrimaryLinks.filter((link) => link.href === "/camp") : allPrimaryLinks,
+    mobileLinks: isStudentShell ? studentPortalOnlyLinks : campOnly ? [{ href: "/camp", label: "Camp" }] : mobileLinks,
+    mobileMoreLinks: isStudentShell || campOnly ? [] : mobileMoreLinksFor(allPrimaryLinks)
+  };
+}
+
 export function AppShell({
   children,
   canManageEvents = true,
   devAuth = false,
   shellAccess = { kind: "full" },
+  sessionRole,
   showCommandCenter = false,
   showLeaderDiscipleship = false,
   showStudentPortal = false,
@@ -135,6 +161,7 @@ export function AppShell({
   showCommandCenter?: boolean;
   showLeaderDiscipleship?: boolean;
   showStudentPortal?: boolean;
+  sessionRole?: Role;
   user?: { name?: string; email?: string };
 }) {
   const pathname = usePathname();
@@ -143,14 +170,20 @@ export function AppShell({
   const { activeRole, setActiveRole } = useRole();
   const { openCreate } = useEventCard();
   const isCampRoute = pathname.startsWith("/camp");
+  const isStudentShell = sessionRole === "student";
   const canUseEmergeShell = shellAccess.kind === "full";
   const campOnly = !canUseEmergeShell;
-  const studentAwareLinks = showStudentPortal ? primaryLinks : primaryLinks.filter((link) => link.href !== "/student");
-  const discipleshipAwareLinks = showLeaderDiscipleship ? [...studentAwareLinks, leaderDiscipleshipLink] : studentAwareLinks;
-  const allPrimaryLinks = showCommandCenter ? [...discipleshipAwareLinks, { href: "/command-center", label: "Command Center" }] : discipleshipAwareLinks;
-  const visiblePrimaryLinks = campOnly ? allPrimaryLinks.filter((link) => link.href === "/camp") : allPrimaryLinks;
-  const visibleMobileLinks = campOnly ? [{ href: "/camp", label: "Camp" }] : mobileLinks;
-  const visibleMobileMoreLinks = campOnly ? [] : mobileMoreLinksFor(allPrimaryLinks);
+  const {
+    primaryLinks: visiblePrimaryLinks,
+    mobileLinks: visibleMobileLinks,
+    mobileMoreLinks: visibleMobileMoreLinks
+  } = getAppShellNavigation({
+    campOnly,
+    isStudentShell,
+    showCommandCenter,
+    showLeaderDiscipleship,
+    showStudentPortal
+  });
   const title = isCampRoute
     ? "Camp Command Center"
     : pageTitles[pathname] ??
@@ -183,7 +216,7 @@ export function AppShell({
           </div>
 
           <aside className="sidebar app-sidebar" aria-label="Primary navigation">
-            <Link className="brand-lead" href="/dashboard" aria-label="Lead Emergence Automated Platform">
+            <Link className="brand-lead" href={isStudentShell ? "/student" : "/dashboard"} aria-label="Lead Emergence Automated Platform">
               <span className="brand-lead-name">
                 <span className="brand-lead-light">Lead</span> <span className="brand-lead-bold">Emergence</span>
               </span>
@@ -199,7 +232,7 @@ export function AppShell({
               ))}
             </nav>
 
-            {canUseEmergeShell && canManageEvents ? (
+            {canUseEmergeShell && canManageEvents && !isStudentShell ? (
               <>
                 <div className="role-control" role="group" aria-label="Switch active role">
                   {(["admin", "leader"] as Role[]).map((role) => (
@@ -229,7 +262,7 @@ export function AppShell({
               <span className="sidebar-avatar" aria-hidden="true">{userInitials}</span>
               <span className="sidebar-profile-text">
                 <strong>{displayName}</strong>
-                <span className="muted">{roleLabels[activeRole]}</span>
+                <span className="muted">{roleLabels[sessionRole ?? activeRole]}</span>
               </span>
               <a className="sidebar-profile-logout" href="/api/auth/logout">
                 Log out
@@ -281,25 +314,27 @@ export function AppShell({
               {link.label}
             </Link>
           ))}
-          <details className="mobile-more-menu">
-            <summary className="mobile-nav-link">More</summary>
-            <div className="mobile-more-panel" aria-label="More navigation">
-              {canUseEmergeShell && canManageEvents ? (
-                <button
-                  className="button primary mobile-add-event-btn"
-                  type="button"
-                  onClick={openCreate}
-                >
-                  + Add Event
-                </button>
-              ) : null}
-              {visibleMobileMoreLinks.map((link) => (
-                <Link className="app-nav-link" href={link.href} key={link.href}>
-                  {link.label}
-                </Link>
-              ))}
-            </div>
-          </details>
+          {!isStudentShell ? (
+            <details className="mobile-more-menu">
+              <summary className="mobile-nav-link">More</summary>
+              <div className="mobile-more-panel" aria-label="More navigation">
+                {canUseEmergeShell && canManageEvents ? (
+                  <button
+                    className="button primary mobile-add-event-btn"
+                    type="button"
+                    onClick={openCreate}
+                  >
+                    + Add Event
+                  </button>
+                ) : null}
+                {visibleMobileMoreLinks.map((link) => (
+                  <Link className="app-nav-link" href={link.href} key={link.href}>
+                    {link.label}
+                  </Link>
+                ))}
+              </div>
+            </details>
+          ) : null}
         </nav>
       ) : null}
     </div>
