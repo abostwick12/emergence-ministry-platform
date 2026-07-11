@@ -15,8 +15,8 @@ export function ScriptureCard({ eyebrow, title, description, href, actionLabel, 
     <>
       <div className="grid gap-2">
         {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
-        <h2 className="m-0 text-xl font-black leading-tight text-slate-950">{title}</h2>
-        <p className="m-0 text-sm font-semibold leading-6 text-slate-600">{description}</p>
+        <h2 className="scripture-card-title">{title}</h2>
+        <p className="scripture-card-copy">{description}</p>
       </div>
       {meta.length ? (
         <div className="flex flex-wrap gap-2">

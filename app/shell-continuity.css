@@ -1544,3 +1544,150 @@ body {
 .app-shell:not(.app-shell-camp) .event-task-tree-item.completed {
   background: rgba(14, 165, 233, 0.08);
 }
+
+.app-shell:not(.app-shell-camp) .event-row-card {
+  --event-row-accent: #38bdf8;
+  position: relative;
+  overflow: hidden;
+  border-color: color-mix(in srgb, var(--event-row-accent) 34%, rgba(56, 189, 248, 0.18));
+  box-shadow:
+    0 18px 44px rgba(0, 0, 0, 0.24),
+    inset 4px 0 0 color-mix(in srgb, var(--event-row-accent) 84%, #e0f2fe),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 -1px 0 rgba(56, 189, 248, 0.12);
+}
+
+.app-shell:not(.app-shell-camp) .event-row-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: 0;
+  width: 8px;
+  pointer-events: none;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--event-row-accent) 88%, #ffffff), color-mix(in srgb, var(--event-row-accent) 52%, transparent));
+  box-shadow: 0 0 24px color-mix(in srgb, var(--event-row-accent) 42%, transparent);
+}
+
+.app-shell:not(.app-shell-camp) .event-row-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.app-shell:not(.app-shell-camp) .event-row-card.event-date-live {
+  --event-row-accent: #34d399;
+}
+
+.app-shell:not(.app-shell-camp) .event-row-card.event-date-week {
+  --event-row-accent: #f59e0b;
+}
+
+.app-shell:not(.app-shell-camp) .event-row-card.event-date-month {
+  --event-row-accent: #38bdf8;
+}
+
+.app-shell:not(.app-shell-camp) .event-row-card.event-date-later {
+  --event-row-accent: #8b5cf6;
+}
+
+.app-shell:not(.app-shell-camp) .event-row-card.event-date-ready {
+  --event-row-accent: #22c55e;
+}
+
+.app-shell:not(.app-shell-camp) .event-row-card.event-date-stuck {
+  --event-row-accent: #f43f5e;
+}
+
+.app-shell:not(.app-shell-camp) .event-row-card.event-date-past {
+  --event-row-accent: #94a3b8;
+}
+
+.app-shell:not(.app-shell-camp) .event-board-rows {
+  gap: 12px;
+}
+
+.app-shell:not(.app-shell-camp) .event-row-card:first-child {
+  border-top: 1px solid color-mix(in srgb, var(--event-row-accent) 34%, rgba(56, 189, 248, 0.18));
+}
+
+.app-shell:not(.app-shell-camp) .scripture-plan-intro,
+.app-shell:not(.app-shell-camp) .scripture-plan-detail {
+  border-color: rgba(56, 189, 248, 0.22);
+  background:
+    radial-gradient(circle at 16% 0%, rgba(56, 189, 248, 0.16), transparent 34%),
+    radial-gradient(circle at 92% 100%, rgba(14, 165, 233, 0.12), transparent 38%),
+    linear-gradient(145deg, rgba(19, 48, 82, 0.82), rgba(7, 23, 43, 0.88));
+  box-shadow:
+    0 18px 44px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 -1px 0 rgba(56, 189, 248, 0.12);
+}
+
+.app-shell:not(.app-shell-camp) .scripture-plan-copy {
+  max-width: 48rem;
+  margin: 0;
+  color: #b7d5e8;
+  font-size: var(--text-md);
+  font-weight: 700;
+  line-height: 1.65;
+}
+
+.app-shell:not(.app-shell-camp) .scripture-plan-detail {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  border: 1px solid rgba(125, 211, 252, 0.24);
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.app-shell:not(.app-shell-camp) .scripture-plan-detail h3 {
+  margin: 0;
+  color: #f8fafc;
+  font-size: var(--text-sm);
+  font-weight: 900;
+}
+
+.app-shell:not(.app-shell-camp) .scripture-card-title {
+  margin: 0;
+  color: #f8fafc;
+  font-size: var(--text-xl);
+  font-weight: 900;
+  line-height: 1.18;
+}
+
+.app-shell:not(.app-shell-camp) .scripture-card-copy {
+  margin: 0;
+  color: #b7d5e8;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  line-height: 1.65;
+}
+
+.app-shell:not(.app-shell-camp) .scripture-plan-detail p,
+.app-shell:not(.app-shell-camp) .scripture-plan-detail li {
+  color: #cfe8f8;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  line-height: 1.65;
+}
+
+.app-shell:not(.app-shell-camp) .scripture-plan-detail p,
+.app-shell:not(.app-shell-camp) .scripture-plan-detail ul {
+  margin: 0;
+}
+
+.app-shell:not(.app-shell-camp) .scripture-plan-detail ul {
+  display: grid;
+  gap: 6px;
+  padding-left: 18px;
+}
+
+@media (max-width: 720px) {
+  .app-shell:not(.app-shell-camp) .event-board-rows {
+    gap: 14px;
+  }
+
+  .app-shell:not(.app-shell-camp) .event-row-card {
+    border-radius: 18px;
+  }
+}

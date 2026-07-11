@@ -8,12 +8,12 @@ export default function ScripturePlansPage() {
   return (
     <>
       <StudentScriptureTabs active="plans" />
-      <section className="panel grid gap-4 bg-white">
+      <section className="panel grid gap-4 scripture-plan-intro">
         <div className="toolbar split">
           <div className="grid gap-2">
             <p className="eyebrow">Reading Plans</p>
             <h1 className="title">Example reading plans for whole-Scripture familiarity.</h1>
-            <p className="m-0 max-w-3xl text-base font-semibold leading-7 text-slate-600">
+            <p className="scripture-plan-copy">
               These plans are sample resources only. They do not call a Bible API, assume Bible text licensing, link accounts,
               or save student progress.
             </p>
@@ -34,21 +34,21 @@ export default function ScripturePlansPage() {
             title={plan.title}
           >
             <div className="grid gap-3 lg:grid-cols-3">
-              <div className="rounded-md border border-[var(--line)] bg-slate-50 p-3 lg:col-span-1">
-                <h3 className="m-0 text-sm font-black text-slate-900">Context focus</h3>
-                <p className="mb-0 mt-2 text-sm font-semibold leading-6 text-slate-600">{plan.contextFocus}</p>
+              <div className="scripture-plan-detail">
+                <h3>Context focus</h3>
+                <p>{plan.contextFocus}</p>
               </div>
-              <div className="rounded-md border border-[var(--line)] bg-slate-50 p-3 lg:col-span-1">
-                <h3 className="m-0 text-sm font-black text-slate-900">Weekly rhythm</h3>
-                <ul className="mb-0 mt-2 grid gap-1 pl-5 text-sm font-semibold leading-6 text-slate-600">
+              <div className="scripture-plan-detail">
+                <h3>Weekly rhythm</h3>
+                <ul>
                   {plan.weeklyRhythm.map((item) => (
                     <li key={item}>{item}</li>
                   ))}
                 </ul>
               </div>
-              <div className="rounded-md border border-[var(--line)] bg-slate-50 p-3 lg:col-span-1">
-                <h3 className="m-0 text-sm font-black text-slate-900">Guardrails</h3>
-                <ul className="mb-0 mt-2 grid gap-1 pl-5 text-sm font-semibold leading-6 text-slate-600">
+              <div className="scripture-plan-detail">
+                <h3>Guardrails</h3>
+                <ul>
                   {plan.guardrailNotes.map((item) => (
                     <li key={item}>{item}</li>
                   ))}

@@ -850,8 +850,10 @@ function EventRowCard({
   onUpdateTask: (taskId: string, body: Partial<ActiveTask>) => Promise<void>;
   onUpdateEvent: (eventId: string, body: Partial<MinistryEvent>) => Promise<void>;
 }) {
+  const rowTone = getEventRowTone(event);
+
   return (
-    <article className="event-row event-row-card" data-start-time={event.startTime}>
+    <article className={`event-row event-row-card ${rowTone}`} data-start-time={event.startTime}>
       <div className="event-card-row" role="row">
         <EventIdentitySection event={event} tasks={tasks} completeTasks={completeTasks} />
         <EventDateBlock event={event} />
@@ -874,6 +876,22 @@ function EventRowCard({
       ) : null}
     </article>
   );
+}
+
+function getEventRowTone(event: MinistryEvent) {
+  if (event.status === "stuck") return "event-date-stuck";
+  if (event.status === "ready" || event.status === "completed") return "event-date-ready";
+
+  const now = new Date();
+  const start = new Date(event.startTime);
+  const end = event.endTime ? new Date(event.endTime) : start;
+  const daysUntilStart = Math.ceil((start.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (end < now) return "event-date-past";
+  if (start <= now && end >= now) return "event-date-live";
+  if (daysUntilStart <= 7) return "event-date-week";
+  if (daysUntilStart <= 30) return "event-date-month";
+  return "event-date-later";
 }
 
 function EventIdentitySection({
@@ -999,7 +1017,6 @@ function EventScrollableSummary({
           />
         </div>
       </div>
-      <span className="summary-scroll-hint">Scroll summary fields sideways for owner, budget, readiness, files, and notes.</span>
     </div>
   );
 }
@@ -1093,7 +1110,6 @@ function EventTaskTree({
 }) {
   return (
     <div className="event-task-tree-wrap">
-      <span className="muted subtask-scroll-label">Compact task tree. Scroll inside this task list when it grows.</span>
       <div className="event-task-tree" aria-label={`${event.title} subtasks`}>
         {tasks.map((task) => (
           <EventTaskTreeItem key={task.id} task={task} users={users} onUpdateTask={onUpdateTask} onOpenEvent={onOpenEvent} />
