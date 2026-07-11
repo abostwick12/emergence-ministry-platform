@@ -124,8 +124,8 @@ export function ScriptureBuilderForm({ kind }: ScriptureBuilderFormProps) {
   }
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.95fr)] lg:items-start">
-      <form className="panel grid gap-5 bg-white" aria-label={labels.formLabel} onSubmit={(event) => event.preventDefault()}>
+    <div className="scripture-builder-layout">
+      <form className="panel scripture-builder-panel" aria-label={labels.formLabel} onSubmit={(event) => event.preventDefault()}>
         <div className="grid gap-4 md:grid-cols-2">
           {visibleFields.slice(0, 4).map((field) => (
             <label className="field" key={field.key}>
@@ -158,8 +158,8 @@ export function ScriptureBuilderForm({ kind }: ScriptureBuilderFormProps) {
         </div>
 
         <section className={labels.guardrailClassName} aria-label={labels.guardrailLabel}>
-          <h2 className={labels.guardrailHeadingClassName}>{labels.guardrailTitle}</h2>
-          <p className={labels.guardrailTextClassName}>{labels.guardrailBody}</p>
+          <h2>{labels.guardrailTitle}</h2>
+          <p>{labels.guardrailBody}</p>
         </section>
 
         <div className="toolbar">
@@ -170,7 +170,7 @@ export function ScriptureBuilderForm({ kind }: ScriptureBuilderFormProps) {
             Open Ask
           </a>
         </div>
-        <p className="m-0 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm font-bold leading-6 text-blue-900" role="status">
+        <p className="scripture-builder-status" role="status">
           {message}
         </p>
       </form>
@@ -184,25 +184,25 @@ function PreviewPanel({ kind, values }: { kind: ScriptureBuilderKind; values: Bu
   const labels = builderLabels(kind);
 
   return (
-    <aside className="panel grid gap-4 bg-white" aria-label={labels.previewLabel}>
+    <aside className="panel scripture-builder-panel scripture-builder-preview" aria-label={labels.previewLabel}>
       <div className="grid gap-2">
         <p className="eyebrow">Preview only</p>
         <h2 className="section-title flush">{previewValue(values.title, labels.fallbackTitle)}</h2>
-        <p className="m-0 text-sm font-bold leading-6 text-slate-600">
+        <p className="scripture-builder-copy">
           This planning worksheet does not save. Use Ask when a real question needs leader
           review, AI-assisted drafting, approval, and sharing.
         </p>
       </div>
 
-      <div className="grid gap-2 rounded-md border border-[var(--line)] bg-slate-50 p-3">
+      <div className="scripture-builder-preview-card">
         <PreviewRow label="Audience" value={previewValue(values.audience, "Choose who this is for")} />
         <PreviewRow label="Duration" value={previewValue(values.duration, kind === "study" ? "Add study length" : "Add plan length")} />
         <PreviewRow label="Primary Scripture" value={previewValue(values.primaryScripture, "Add a Scripture reference")} />
       </div>
 
       {kind === "study" ? (
-        <section className="grid gap-3 rounded-md border border-[var(--line)] bg-slate-50 p-3">
-          <h3 className="m-0 text-base font-black text-slate-950">Student-led study outline</h3>
+        <section className="scripture-builder-preview-card">
+          <h3>Student-led study outline</h3>
           <PreviewBlock label="Context before discussion" value={values.contextNotes} />
           <PreviewBlock label="Observation" value={values.observationQuestion} />
           <PreviewBlock label="Interpretation" value={values.interpretationQuestion} />
@@ -212,8 +212,8 @@ function PreviewPanel({ kind, values }: { kind: ScriptureBuilderKind; values: Bu
           <PreviewBlock label="Theological guardrails" value={values.guardrailNotes} />
         </section>
       ) : (
-        <section className="grid gap-3 rounded-md border border-[var(--line)] bg-slate-50 p-3">
-          <h3 className="m-0 text-base font-black text-slate-950">Reading plan preview</h3>
+        <section className="scripture-builder-preview-card">
+          <h3>Reading plan preview</h3>
           <PreviewBlock label="Context notes" value={values.contextNotes} />
           <PreviewBlock label="Observation question" value={values.observationQuestion} />
           <PreviewBlock label="Interpretation question" value={values.interpretationQuestion} />
@@ -229,18 +229,18 @@ function PreviewPanel({ kind, values }: { kind: ScriptureBuilderKind; values: Bu
 
 function PreviewRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="grid gap-1">
-      <span className="text-xs font-black uppercase tracking-[0.06em] text-slate-500">{label}</span>
-      <strong className="text-sm leading-6 text-slate-900">{value}</strong>
+    <div className="scripture-preview-row">
+      <span>{label}</span>
+      <strong>{value}</strong>
     </div>
   );
 }
 
 function PreviewBlock({ label, value }: { label: string; value: string }) {
   return (
-    <div className="grid gap-1 border-t border-[var(--line)] pt-3 first:border-t-0 first:pt-0">
-      <span className="text-xs font-black uppercase tracking-[0.06em] text-[var(--primary)]">{label}</span>
-      <p className="m-0 text-sm font-semibold leading-6 text-slate-700">{previewValue(value, "Add draft notes to preview this section.")}</p>
+    <div className="scripture-preview-block">
+      <span>{label}</span>
+      <p>{previewValue(value, "Add draft notes to preview this section.")}</p>
     </div>
   );
 }
@@ -256,10 +256,8 @@ function builderLabels(kind: ScriptureBuilderKind) {
       formLabel: "New Student-Led Study builder",
       guardrailBody:
         "Student-led studies should be clear about what Scripture directly teaches, what the group is inferring, and what connections are creative. Use Ask when a real discussion needs saved leader review.",
-      guardrailClassName: "grid gap-3 rounded-md border border-blue-200 bg-blue-50 p-4",
-      guardrailHeadingClassName: "m-0 text-base font-black text-blue-950",
+      guardrailClassName: "scripture-builder-callout",
       guardrailLabel: "Leader review reminder",
-      guardrailTextClassName: "m-0 text-sm font-bold leading-6 text-blue-900",
       guardrailTitle: "Leader review guardrail",
       previewLabel: "Student-Led Study local preview"
     };
@@ -270,10 +268,8 @@ function builderLabels(kind: ScriptureBuilderKind) {
     formLabel: "New Reading Plan builder",
     guardrailBody:
       "Planning worksheet only: reading-plan drafts are not saved here. Use Ask when a real group discussion needs leader review before sharing.",
-    guardrailClassName: "grid gap-3 rounded-md border border-amber-200 bg-amber-50 p-4",
-    guardrailHeadingClassName: "m-0 text-base font-black text-amber-950",
+    guardrailClassName: "scripture-builder-callout warning",
     guardrailLabel: "Draft-only reminder",
-    guardrailTextClassName: "m-0 text-sm font-bold leading-6 text-amber-900",
     guardrailTitle: "Planning worksheet",
     previewLabel: "Reading Plan local preview"
   };

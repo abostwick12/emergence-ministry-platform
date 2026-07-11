@@ -3,10 +3,10 @@ import { ScriptureBuilderForm } from "@/components/student/scripture-builder-for
 export default function NewReadingPlanPage() {
   return (
     <>
-      <section className="panel grid gap-3 bg-white">
+      <section className="panel grid gap-3">
         <p className="eyebrow">New Reading Plan</p>
         <h1 className="title">Build a reading plan draft around context and the whole story.</h1>
-        <p className="m-0 max-w-3xl text-base font-semibold leading-7 text-slate-600">
+        <p className="scripture-builder-copy">
           This static builder shows the shape of a future draft workflow. The controls below do not save, submit, publish,
           send, or call an API in this slice.
         </p>
