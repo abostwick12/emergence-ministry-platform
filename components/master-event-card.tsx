@@ -523,7 +523,7 @@ function MasterEventCardInner({
         {/* Body */}
         <div className="event-card-body">
           {isLoading ? (
-            <p className="muted" style={{ padding: "24px 0" }}>Loading event data...</p>
+            <p className="muted event-card-loading">Loading event data...</p>
           ) : step === 1 && step1 ? (
             <Step1Form
               state={step1}
@@ -935,7 +935,7 @@ function Step2Panel({
 
       <section className="event-card-section">
         <h3 className="section-title">Integration Actions <span className="pill stub">Stub Mode</span></h3>
-        <p className="muted" style={{ marginBottom: 12 }}>
+        <p className="muted event-card-section-note">
           All actions are Stub Mode only. No external API calls are made.
         </p>
         <div className="integration-stub-grid">
@@ -970,12 +970,12 @@ function Step2Panel({
         </div>
 
         {workspace && workspace.integrationLogs.length > 0 && (
-          <div className="grid" style={{ marginTop: 12 }}>
+          <div className="grid event-card-meta-grid">
             {workspace.integrationLogs.slice(0, 3).map((log) => (
               <div className="card" key={log.id}>
                 <span className="pill stub">Stub Mode</span>
-                <strong style={{ display: "block", marginTop: 4 }}>{log.integrationType.replace(/_/g, " ")}</strong>
-                <p className="muted" style={{ margin: "2px 0 0" }}>{log.details.message}</p>
+                <strong className="event-card-log-title">{log.integrationType.replace(/_/g, " ")}</strong>
+                <p className="muted event-card-log-copy">{log.details.message}</p>
               </div>
             ))}
           </div>
@@ -990,13 +990,13 @@ function Step2Panel({
             <h3 className="section-title flush">Communication Previews</h3>
             <span className="pill">Preview only — not sent</span>
           </div>
-          <div className="grid" style={{ marginTop: 8 }}>
+          <div className="grid event-card-preview-grid">
             {workspace.communications.map((item) => (
               <article className="card" key={item.id}>
                 <span className="pill">Preview only — not sent</span>
                 <p className="eyebrow">{communicationTypeLabel(item.type)}</p>
-                <h4 style={{ margin: "4px 0" }}>{item.payload.subject}</h4>
-                <p className="muted" style={{ margin: 0, fontSize: 13 }}>{item.payload.body}</p>
+                <h4 className="event-card-preview-title">{item.payload.subject}</h4>
+                <p className="muted event-card-preview-copy">{item.payload.body}</p>
               </article>
             ))}
           </div>
@@ -1010,7 +1010,7 @@ function Step2Panel({
             {workspace.activity.map((item) => (
               <article className="card" key={item.id}>
                 <strong>{item.message}</strong>
-                <div className="muted" style={{ fontSize: 12 }}>{new Date(item.timestamp).toLocaleString()}</div>
+                <div className="muted event-card-log-time">{new Date(item.timestamp).toLocaleString()}</div>
               </article>
             ))}
           </div>

@@ -143,8 +143,10 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await expect(winterRow.locator(".event-identity-section")).toBeVisible();
     await expect(winterRow.locator(".event-date-block")).toBeVisible();
     await expect(winterRow.locator(".event-summary-scroll")).toBeVisible();
-    await expect(winterRow.getByText("Scroll summary fields sideways")).toBeVisible();
+    await expect(winterRow.getByText("Scroll summary fields sideways")).toHaveCount(0);
     await expect(winterRow.locator(".event-summary-scroll").getByRole("button", { name: /Notes/ })).toBeVisible();
+    const rowAccentRailWidth = await winterRow.evaluate((element) => getComputedStyle(element, "::before").width);
+    expect(rowAccentRailWidth).toBe("8px");
     const summaryOwnsHorizontalScroll = await winterRow
       .locator(".event-summary-scroll")
       .evaluate((element) => element.scrollWidth > element.clientWidth);
