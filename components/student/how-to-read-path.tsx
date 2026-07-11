@@ -8,7 +8,7 @@ import { studentHowToReadLocalProgressKey, type HowToReadModule } from "@/lib/sc
 
 type HowToReadPathProps = {
   initialCompletedModuleIds?: string[];
-  initialProgressStorage?: "server" | "unavailable";
+  initialProgressStorage?: "server" | "local" | "unavailable";
   modules: HowToReadModule[];
 };
 
@@ -23,7 +23,7 @@ type ProgressResponse = {
 export function HowToReadPath({ initialCompletedModuleIds = [], initialProgressStorage = "unavailable", modules }: HowToReadPathProps) {
   const validModuleIds = useMemo(() => new Set(modules.map((module) => module.id)), [modules]);
   const [completedIds, setCompletedIds] = useState<Set<string>>(() => sanitizeCompletedIds(initialCompletedModuleIds, validModuleIds));
-  const [saveMessage, setSaveMessage] = useState("Progress saves when storage is connected.");
+  const [saveMessage, setSaveMessage] = useState(() => initialProgressMessage(initialProgressStorage));
   const [savingModuleId, setSavingModuleId] = useState<string | null>(null);
   const completedCount = completedIds.size;
   const currentModule = modules.find((module) => !completedIds.has(module.id)) ?? modules[modules.length - 1];
@@ -86,7 +86,7 @@ export function HowToReadPath({ initialCompletedModuleIds = [], initialProgressS
     const localIds = readLocalProgress(validModuleIds);
     if (localIds.size > 0) {
       setCompletedIds(localIds);
-      setSaveMessage("Loaded saved progress from this browser.");
+      setSaveMessage(initialProgressStorage === "local" ? "Progress saved in this portal session." : "Loaded saved progress from this browser.");
     }
   }, [initialCompletedModuleIds.length, initialProgressStorage, validModuleIds]);
 
@@ -247,6 +247,12 @@ export function HowToReadPath({ initialCompletedModuleIds = [], initialProgressS
 
 function sanitizeCompletedIds(moduleIds: string[], validModuleIds: Set<string>) {
   return new Set(moduleIds.filter((moduleId) => validModuleIds.has(moduleId)));
+}
+
+function initialProgressMessage(storage: HowToReadPathProps["initialProgressStorage"]) {
+  if (storage === "server") return "Progress saves to your student account.";
+  if (storage === "local") return "Progress saved in this portal session.";
+  return "Progress saves when storage is connected.";
 }
 
 function readLocalProgress(validModuleIds: Set<string>) {

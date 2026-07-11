@@ -97,6 +97,8 @@ function stateWithPrompts(prompts: StudentDiscussionPrompt[]): DiscussionWorkflo
   return {
     readiness: {
       liveStorage: true,
+      localStorage: false,
+      canSubmit: true,
       gloo: true,
       slack: false,
       message: "Live storage is ready."

@@ -1,4 +1,3 @@
-import { isSupabaseConfigured } from "@/lib/auth/config";
 import type { AuthSession } from "@/lib/auth/server";
 import { getSupabaseAdminClient, getSupabaseAuthClient, isSupabaseAdminConfigured } from "@/lib/auth/server";
 import { resolveMinistryScope } from "@/lib/ministry/scope";
@@ -6,6 +5,11 @@ import { generateGlooDiscussionDraft, isGlooConfigured } from "@/lib/scripture/g
 import { formatStudentKnowledgeContextForGloo, getStudentKnowledgeMatches } from "@/lib/scripture/knowledge";
 import { buildLocalDiscussionDraft, buildLocalDiscussionDraftForPrompt } from "@/lib/scripture/local-discussion-draft";
 import { deliverDiscussionPromptToSlack, isSlackDiscussionDeliveryConfigured } from "@/lib/scripture/slack";
+import {
+  listLocalStudentDiscussionPrompts,
+  saveLocalStudentDiscussionPrompt,
+  shouldUseLocalStudentState
+} from "@/lib/scripture/student-local-state";
 import type { StudentGroupDiscussionItem } from "@/lib/scripture/student-home";
 import { sanitizeScriptureReference } from "@/lib/scripture/youversion";
 import { getPrimaryStudentGroupId } from "@/lib/student/groups";
@@ -18,6 +22,8 @@ import type {
 
 type DiscussionReadiness = {
   liveStorage: boolean;
+  localStorage: boolean;
+  canSubmit: boolean;
   gloo: boolean;
   slack: boolean;
   message: string;
@@ -112,12 +118,14 @@ const MAX_NOTES_LENGTH = 1200;
 const MAX_DISCUSSION_PROMPT_LENGTH = 1800;
 
 export function getStudentDiscussionReadiness(session: AuthSession): DiscussionReadiness {
-  if (session.isMock || !session.accessToken || !isSupabaseConfigured()) {
+  if (shouldUseLocalStudentState(session)) {
     return {
       liveStorage: false,
+      localStorage: true,
+      canSubmit: true,
       gloo: isGlooConfigured(),
       slack: isSlackDiscussionDeliveryConfigured(),
-      message: "Live question submission needs a signed-in student account."
+      message: "Local student portal mode is ready. Questions and progress work here without writing to live Supabase."
     };
   }
 
@@ -125,6 +133,8 @@ export function getStudentDiscussionReadiness(session: AuthSession): DiscussionR
   const slack = isSlackDiscussionDeliveryConfigured();
   return {
     liveStorage: true,
+    localStorage: false,
+    canSubmit: true,
     gloo,
     slack,
     message: gloo
@@ -136,7 +146,7 @@ export function getStudentDiscussionReadiness(session: AuthSession): DiscussionR
 export async function getStudentDiscussionWorkflowState(session: AuthSession): Promise<DiscussionWorkflowState> {
   const readiness = getStudentDiscussionReadiness(session);
   if (!readiness.liveStorage) {
-    return { readiness, prompts: [] };
+    return { readiness, prompts: listLocalStudentDiscussionPrompts(session) };
   }
 
   const supabase = getSupabaseAuthClient(session.accessToken);
@@ -166,6 +176,9 @@ export async function getStudentDiscussionWorkflowState(session: AuthSession): P
 
 export async function getApprovedStudentDiscussionFeed(session: AuthSession): Promise<StudentGroupDiscussionItem[]> {
   const readiness = getStudentDiscussionReadiness(session);
+  if (!readiness.liveStorage && readiness.localStorage) {
+    return [];
+  }
   if (!readiness.liveStorage || !isSupabaseAdminConfigured()) {
     return [];
   }
@@ -195,14 +208,37 @@ export async function getApprovedStudentDiscussionFeed(session: AuthSession): Pr
 }
 
 export async function createStudentDiscussionPrompt(session: AuthSession, input: CreateStudentDiscussionInput) {
-  const readiness = getStudentDiscussionReadiness(session);
-  if (!readiness.liveStorage) {
-    throw new DiscussionWorkflowError(readiness.message, 503, "live_storage_not_configured");
-  }
-
   const question = normalizeRequiredText(input.question, "Question", MAX_QUESTION_LENGTH);
   const scripture = normalizeScriptureReference(input.scriptureReference ?? "");
   const metanarrativeMovement = input.metanarrativeMovement ?? inferMetanarrativeMovement(question, scripture.reference);
+  const readiness = getStudentDiscussionReadiness(session);
+
+  if (!readiness.liveStorage) {
+    if (!readiness.canSubmit) {
+      throw new DiscussionWorkflowError(readiness.message, 503, "live_storage_not_configured");
+    }
+
+    const knowledgeContext = await getStudentKnowledgeMatches(session, {
+      question,
+      scriptureReference: scripture.reference
+    });
+    const localDraft = buildLocalDiscussionDraft({
+      question,
+      scriptureReference: scripture.reference,
+      metanarrativeMovement,
+      knowledgeContext
+    });
+
+    return saveLocalStudentDiscussionPrompt(session, {
+      question,
+      scriptureReference: scripture.reference,
+      scripturePassageId: scripture.passageId,
+      metanarrativeMovement,
+      draft: localDraft,
+      knowledgeContext
+    });
+  }
+
   const ministryId = await resolveMinistryScope(session);
   const groupId = await getPrimaryStudentGroupId(session);
   const knowledgeContext = await getStudentKnowledgeMatches(session, {

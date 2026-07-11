@@ -2,6 +2,11 @@ import { isSupabaseConfigured } from "@/lib/auth/config";
 import type { AuthSession } from "@/lib/auth/server";
 import { getSupabaseAuthClient } from "@/lib/auth/server";
 import { resolveMinistryScope } from "@/lib/ministry/scope";
+import {
+  getLocalStudentQuestionReflections,
+  saveLocalStudentQuestionReflection,
+  shouldUseLocalStudentState
+} from "@/lib/scripture/student-local-state";
 
 const MAX_PRIVATE_NOTE_LENGTH = 1200;
 
@@ -29,6 +34,7 @@ export async function getStudentQuestionReflections(
   session: AuthSession,
   promptIds: string[]
 ): Promise<Record<string, StudentQuestionReflection>> {
+  if (shouldUseLocalStudentState(session)) return getLocalStudentQuestionReflections(session, promptIds);
   if (!session.accessToken || !isSupabaseConfigured() || promptIds.length === 0) return {};
 
   try {
@@ -55,12 +61,21 @@ export async function getStudentQuestionReflections(
 }
 
 export async function saveStudentQuestionReflection(session: AuthSession, input: SaveStudentQuestionReflectionInput) {
+  const promptId = normalizeId(input.promptId);
+  const privateNote = normalizePrivateNote(input.privateNote ?? "");
+
+  if (shouldUseLocalStudentState(session)) {
+    return saveLocalStudentQuestionReflection(session, {
+      promptId,
+      reflected: input.reflected,
+      privateNote
+    });
+  }
+
   if (!session.accessToken || !isSupabaseConfigured()) {
     throw new StudentQuestionReflectionError("Live student reflection storage is not available.", 503, "live_storage_not_configured");
   }
 
-  const promptId = normalizeId(input.promptId);
-  const privateNote = normalizePrivateNote(input.privateNote ?? "");
   const ministryId = await resolveMinistryScope(session);
   const now = new Date().toISOString();
   const reflectedAt = input.reflected ? now : null;

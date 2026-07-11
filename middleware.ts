@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authCookieNames, isMockAuthEnabled, isSupabaseConfigured } from "./lib/auth/config";
+import { authCookieNames, devAuthRole, isMockAuthEnabled, isSupabaseConfigured } from "./lib/auth/config";
 
 const publicPaths = ["/", "/login", "/auth/set-password", "/hackathon", "/api/auth/login", "/api/auth/logout", "/api/auth/invite-session", "/api/student/join"];
 const publicPathPrefixes = ["/join/"];
@@ -35,6 +35,14 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
+  if (isStudentRestrictedPath(pathname) && await isStudentSession(request)) {
+    if (pathname.startsWith("/api")) {
+      return NextResponse.json({ error: "Student accounts can only use Student Portal APIs." }, { status: 403 });
+    }
+
+    return NextResponse.redirect(new URL("/student", request.url));
+  }
+
   if (!pathname.startsWith("/api") && !pathname.startsWith("/camp") && emergeManagementPaths.some((path) => pathname === path || pathname.startsWith(`${path}/`))) {
     const shouldBlock = await shouldBlockNonCampManagementRequest(request);
     if (shouldBlock) {
@@ -43,6 +51,63 @@ export async function middleware(request: NextRequest) {
   }
 
   return NextResponse.next();
+}
+
+function isStudentRestrictedPath(pathname: string) {
+  if (pathname.startsWith("/student")) return false;
+  if (pathname.startsWith("/api/student")) return false;
+  if (pathname === "/api/auth/logout") return false;
+  return true;
+}
+
+async function isStudentSession(request: NextRequest): Promise<boolean> {
+  if (request.cookies.get(authCookieNames.mockSession)?.value === "1") {
+    return devAuthRole() === "student";
+  }
+
+  const accessToken = request.cookies.get(authCookieNames.accessToken)?.value;
+  if (!accessToken || !isSupabaseConfigured()) return false;
+
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!supabaseUrl || !supabaseKey) return false;
+
+    const userResponse = await fetch(`${supabaseUrl}/auth/v1/user`, {
+      headers: {
+        apikey: supabaseKey,
+        Authorization: `Bearer ${accessToken}`
+      }
+    });
+    if (!userResponse.ok) return false;
+    const user = await userResponse.json() as {
+      id?: string;
+      app_metadata?: { role?: unknown };
+      user_metadata?: { role?: unknown };
+    };
+    if (normalizeRole(user.app_metadata?.role) === "student") return true;
+    if (!user.id) return false;
+
+    const profileResponse = await fetch(
+      `${supabaseUrl}/rest/v1/profiles?select=role&id=eq.${encodeURIComponent(user.id)}&limit=1`,
+      {
+        headers: {
+          apikey: supabaseKey,
+          Authorization: `Bearer ${accessToken}`,
+          Accept: "application/json"
+        }
+      }
+    );
+    if (!profileResponse.ok) return false;
+    const rows = await profileResponse.json() as Array<{ role?: string | null }>;
+    return normalizeRole(rows[0]?.role) === "student";
+  } catch {
+    return false;
+  }
+}
+
+function normalizeRole(value: unknown) {
+  return typeof value === "string" ? value.trim().toLowerCase() : "";
 }
 
 export const config = {

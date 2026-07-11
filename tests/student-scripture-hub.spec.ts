@@ -92,7 +92,7 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page.getByText(/full academic/i)).toHaveCount(0);
     await expect(page.getByText("0 of 8 guides signed off")).toBeVisible();
     await expect(page.getByRole("region", { name: "Private badge progress" })).toContainText("Earn your first badge");
-    await howToReadGuides.getByRole("link", { name: "Open guide" }).first().click();
+    await howToReadGuides.locator('a[href="/student/scripture/how-to-read/what-is-the-bible"]').click();
     await expect(page).toHaveURL(/\/student\/scripture\/how-to-read\/what-is-the-bible$/);
     await expect(page.getByRole("heading", { name: "What Is the Bible?" })).toBeVisible();
     await expect(page.getByRole("region", { name: "Media and infographic slots" })).toContainText("Video");
@@ -100,7 +100,7 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page.getByRole("region", { name: "Student-level note" })).toContainText("understandable");
     await expect(page.getByRole("region", { name: "Guide sign off" })).toContainText("Sign this guide off when you are ready.");
     await page.getByRole("button", { name: "Mark complete" }).click();
-    await expect(page.getByRole("region", { name: "Guide sign off" }).getByRole("status")).toContainText("Saved in this browser for now.");
+    await expect(page.getByRole("region", { name: "Guide sign off" }).getByRole("status")).toContainText("Progress saved. This guide is signed off.");
     await expect(page.getByRole("button", { name: "Signed off" })).toBeVisible();
     await page.getByRole("link", { name: "Next guide" }).click();
     await expect(page).toHaveURL(/\/student\/scripture\/how-to-read\/big-story$/);
@@ -108,12 +108,12 @@ test.describe("Student Scripture Hub shell", () => {
     await page.getByRole("link", { name: "Back to path" }).click();
     await expect(page).toHaveURL(/\/student\/scripture\/how-to-read$/);
     await expect(page.getByText("1 of 8 guides signed off")).toBeVisible();
-    await expect(page.getByRole("status")).toContainText("Loaded saved progress from this browser.");
+    await expect(page.getByRole("status")).toContainText("Progress saved in this portal session.");
     await expect(page.getByText("Start With the Story").first()).toBeVisible();
     await expect(page.getByRole("region", { name: "Private badge progress" })).toContainText("1 earned so far");
     await page.reload();
     await expect(page.getByText("1 of 8 guides signed off")).toBeVisible();
-    await expect(page.getByRole("status")).toContainText("Loaded saved progress from this browser.");
+    await expect(page.getByRole("status")).toContainText("Progress saved in this portal session.");
     await page.goto("/student");
     await expect(page.getByRole("region", { name: "Private Bible reading progress" })).toContainText("1 of 8 How to Read guides signed off");
     await expect(page.getByRole("region", { name: "Private Bible reading progress" })).toContainText("Latest badge: Start With the Story.");
@@ -152,7 +152,12 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page.getByText("Ask honestly. Then wrestle with better questions while your leader prepares the group conversation.")).toBeVisible();
     await expect(page.getByLabel("What are you wondering?")).toBeVisible();
     await expect(page.getByText("Metanarrative movement")).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Ask and wrestle with it" })).toBeDisabled();
+    await page.getByLabel("What are you wondering?").fill("Why did God put the tree in the garden?");
+    await page.getByLabel("Passage, if you have one").fill("Genesis 3");
+    await page.getByRole("button", { name: "Ask and wrestle with it" }).click();
+    await expect(page.getByRole("status").filter({ hasText: "Saved. Use the rhythm below" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Question next step" })).toContainText("Wrestle with your question");
+    await expect(page.getByRole("heading", { name: "Why did God put the tree in the garden?" })).toBeVisible();
   });
 
   test("builder pages generate local previews without saving or sending", async ({ page }) => {

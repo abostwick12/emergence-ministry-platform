@@ -68,6 +68,8 @@ function insights(overrides: Partial<ScriptureTrialInsights> = {}): ScriptureTri
   return {
     readiness: {
       liveStorage: true,
+      localStorage: false,
+      canSubmit: true,
       gloo: true,
       slack: false,
       message: "Live storage is ready."

@@ -15,9 +15,7 @@ type HowToReadGuidePageProps = {
   };
 };
 
-export function generateStaticParams() {
-  return howToReadModules.map((module) => ({ moduleId: module.id }));
-}
+export const dynamic = "force-dynamic";
 
 export default async function HowToReadGuidePage({ params }: HowToReadGuidePageProps) {
   const guide = getHowToReadModule(params.moduleId);

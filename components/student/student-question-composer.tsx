@@ -22,9 +22,9 @@ export function StudentQuestionComposer({ readiness, onCreated }: StudentQuestio
   const [question, setQuestion] = useState("");
   const [scriptureReference, setScriptureReference] = useState("");
   const [status, setStatus] = useState(
-    readiness.liveStorage
+    readiness.canSubmit
       ? "Ask the real question. You will get a guided way to wrestle with it while your leader reviews it."
-      : "Live question submission needs a signed-in student account."
+      : readiness.message
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -67,7 +67,7 @@ export function StudentQuestionComposer({ readiness, onCreated }: StudentQuestio
       <label className="student-question-field">
         <span>What are you wondering?</span>
         <textarea
-          disabled={!readiness.liveStorage || isSubmitting}
+          disabled={!readiness.canSubmit || isSubmitting}
           onChange={(event) => setQuestion(event.target.value)}
           placeholder="Ask the question you actually want your group to wrestle with."
           value={question}
@@ -77,7 +77,7 @@ export function StudentQuestionComposer({ readiness, onCreated }: StudentQuestio
       <label className="student-question-field">
         <span>Passage, if you have one</span>
         <input
-          disabled={!readiness.liveStorage || isSubmitting}
+          disabled={!readiness.canSubmit || isSubmitting}
           onChange={(event) => setScriptureReference(event.target.value)}
           placeholder="Romans 8:18"
           type="text"
@@ -86,7 +86,7 @@ export function StudentQuestionComposer({ readiness, onCreated }: StudentQuestio
       </label>
 
       <div className="student-question-actions">
-        <button className="button primary" disabled={!readiness.liveStorage || isSubmitting} type="submit">
+        <button className="button primary" disabled={!readiness.canSubmit || isSubmitting} type="submit">
           {isSubmitting ? "Saving..." : "Ask and wrestle with it"}
         </button>
         <p role="status">{status}</p>

@@ -16,13 +16,16 @@ export default async function AuthenticatedLayout({ children }: { children: Reac
   const session = await getServerSession();
   if (!session) redirect("/login");
   const shellAccess = await resolveAppShellAccess(session);
+  const sessionRole = session.user.role === "leader" || session.user.role === "student" || session.user.role === "parent" ? session.user.role : "admin";
 
   return (
-    <RoleProvider initialRole={session.user.role === "leader" ? "leader" : "admin"}>
+    <RoleProvider initialRole={sessionRole}>
       <EventCardProvider>
         <AppShell
+          canManageEvents={sessionRole === "admin" || sessionRole === "leader"}
           devAuth={devAuth}
           shellAccess={shellAccess}
+          sessionRole={sessionRole}
           showCommandCenter={isCommandCenterUser(session)}
           showLeaderDiscipleship={session.user.role === "admin" || session.user.role === "leader"}
           showStudentPortal={canAccessStudentHub(session.user.role)}
