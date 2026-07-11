@@ -28,12 +28,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid email or password." }, { status: 401 });
   }
 
+  const profile = await getLoginProfile(data.session.access_token, data.user.id);
   const response = NextResponse.json({
     user: {
       id: data.user.id,
       email: data.user.email,
-      fullName: data.user.user_metadata?.full_name ?? data.user.email,
-      role: data.user.user_metadata?.role ?? "staff"
+      fullName: profile?.fullName ?? metadataString(data.user.user_metadata, "full_name") ?? data.user.email,
+      role: profile?.role ?? metadataString(data.user.app_metadata, "role") ?? metadataString(data.user.user_metadata, "role") ?? "staff"
     }
   });
   setAuthCookies(response, {
@@ -41,4 +42,28 @@ export async function POST(request: Request) {
     refreshToken: data.session.refresh_token
   });
   return response;
+}
+
+async function getLoginProfile(accessToken: string, userId: string) {
+  try {
+    const supabase = getSupabaseAuthClient(accessToken);
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("full_name,role")
+      .eq("id", userId)
+      .maybeSingle<{ full_name: string | null; role: string | null }>();
+
+    if (error) return null;
+    return {
+      fullName: data?.full_name?.trim() || undefined,
+      role: data?.role?.trim() || undefined
+    };
+  } catch {
+    return null;
+  }
+}
+
+function metadataString(metadata: Record<string, unknown> | undefined, key: string) {
+  const value = metadata?.[key];
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }

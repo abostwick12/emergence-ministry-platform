@@ -110,6 +110,29 @@ type StudentGroupMemberRow = {
   joined_at: string;
 };
 
+type ExistingStudentProfileRow = {
+  email: string | null;
+  full_name: string | null;
+  role: string | null;
+};
+
+type SupabaseAuthUser = {
+  id: string;
+  email?: string | null;
+  app_metadata?: Record<string, unknown> | null;
+  user_metadata?: Record<string, unknown> | null;
+};
+
+type JoinedStudentIdentity = {
+  userId: string;
+  email: string;
+  fullName: string;
+  session?: {
+    accessToken: string;
+    refreshToken: string;
+  };
+};
+
 const MAX_GROUP_NAME_LENGTH = 80;
 const MAX_DISPLAY_NAME_LENGTH = 80;
 const MAX_INVITE_LABEL_LENGTH = 80;
@@ -304,35 +327,52 @@ export async function joinStudentGroupWithInvite(input: JoinStudentGroupInput): 
     user_metadata: {
       full_name: fullName,
       role: "student"
+    },
+    app_metadata: {
+      role: "student"
     }
   });
 
-  let userId = created.data.user?.id;
-  if (created.error || !userId) {
+  let identity: JoinedStudentIdentity | undefined;
+  if (created.data.user?.id) {
+    identity = {
+      userId: created.data.user.id,
+      email: created.data.user.email ?? email,
+      fullName
+    };
+  } else {
     const signInExisting = await auth.auth.signInWithPassword({ email, password });
     if (signInExisting.error || !signInExisting.data.user || !signInExisting.data.session) {
       return {
         ok: false,
         status: 409,
-        error: "That email may already have an account. Try logging in, or ask your leader for help."
+        error: "That email may already have an account. Use the password for that student account, or ask your leader for help."
       };
     }
-    userId = signInExisting.data.user.id;
+
+    const existingStudent = await resolveExistingStudentIdentity(supabase, signInExisting.data.user, fullName);
+    if (!existingStudent.ok) return existingStudent.result;
+    identity = {
+      ...existingStudent.identity,
+      session: {
+        accessToken: signInExisting.data.session.access_token,
+        refreshToken: signInExisting.data.session.refresh_token
+      }
+    };
   }
 
-  await updateStudentAuthMetadata(supabase, userId, fullName);
   await upsertStudentProfile(supabase, {
-    id: userId,
+    id: identity.userId,
     ministryId: invite.ministry_id,
-    email,
-    fullName
+    email: identity.email,
+    fullName: identity.fullName
   });
 
   const existingMembership = await supabase
     .from("student_group_members")
     .select("id,status")
     .eq("group_id", group.id)
-    .eq("user_id", userId)
+    .eq("user_id", identity.userId)
     .maybeSingle<{ id: string; status: string }>();
 
   throwIfSupabaseError(existingMembership.error);
@@ -341,8 +381,8 @@ export async function joinStudentGroupWithInvite(input: JoinStudentGroupInput): 
     {
       ministry_id: invite.ministry_id,
       group_id: group.id,
-      user_id: userId,
-      display_name: fullName,
+      user_id: identity.userId,
+      display_name: identity.fullName,
       status: "active"
     },
     { onConflict: "group_id,user_id" }
@@ -358,8 +398,29 @@ export async function joinStudentGroupWithInvite(input: JoinStudentGroupInput): 
     throwIfSupabaseError(usage.error);
   }
 
-  const signedIn = await auth.auth.signInWithPassword({ email, password });
-  if (signedIn.error || !signedIn.data.session || !signedIn.data.user.email) {
+  if (!identity.session) {
+    const signedIn = await auth.auth.signInWithPassword({ email, password });
+    if (signedIn.error || !signedIn.data.session || !signedIn.data.user.email) {
+      return {
+        ok: false,
+        status: 409,
+        error: "Your student access was created, but sign-in did not finish. Use the login page with this email and password."
+      };
+    }
+
+    identity = {
+      userId: signedIn.data.user.id,
+      email: signedIn.data.user.email,
+      fullName: identity.fullName,
+      session: {
+        accessToken: signedIn.data.session.access_token,
+        refreshToken: signedIn.data.session.refresh_token
+      }
+    };
+  }
+
+  const session = identity.session;
+  if (!session) {
     return {
       ok: false,
       status: 409,
@@ -370,13 +431,13 @@ export async function joinStudentGroupWithInvite(input: JoinStudentGroupInput): 
   return {
     ok: true,
     session: {
-      accessToken: signedIn.data.session.access_token,
-      refreshToken: signedIn.data.session.refresh_token
+      accessToken: session.accessToken,
+      refreshToken: session.refreshToken
     },
     user: {
-      id: signedIn.data.user.id,
-      email: signedIn.data.user.email,
-      fullName,
+      id: identity.userId,
+      email: identity.email,
+      fullName: identity.fullName,
       role: "student"
     },
     redirectTo: "/student"
@@ -473,16 +534,6 @@ async function loadInvite(code: string): Promise<
   };
 }
 
-async function updateStudentAuthMetadata(supabase: ReturnType<typeof getSupabaseAdminClient>, userId: string, fullName: string) {
-  const result = await supabase.auth.admin.updateUserById(userId, {
-    user_metadata: {
-      full_name: fullName,
-      role: "student"
-    }
-  });
-  if (result.error) throw new StudentGroupError("Student access was created, but profile metadata could not be updated.", 500, "auth_metadata_failed");
-}
-
 async function upsertStudentProfile(
   supabase: ReturnType<typeof getSupabaseAdminClient>,
   input: { id: string; ministryId: string; email: string; fullName: string }
@@ -498,6 +549,55 @@ async function upsertStudentProfile(
     { onConflict: "id" }
   );
   throwIfSupabaseError(result.error);
+}
+
+async function resolveExistingStudentIdentity(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+  user: SupabaseAuthUser,
+  fallbackFullName: string
+): Promise<{ ok: true; identity: Omit<JoinedStudentIdentity, "session"> } | { ok: false; result: JoinStudentGroupResult }> {
+  const profile = await supabase
+    .from("profiles")
+    .select("email,full_name,role")
+    .eq("id", user.id)
+    .maybeSingle<ExistingStudentProfileRow>();
+
+  throwIfSupabaseError(profile.error);
+
+  const profileRole = normalizeRole(profile.data?.role);
+  const appRole = normalizeRole(metadataString(user.app_metadata, "role"));
+
+  if ((profileRole && profileRole !== "student") || (!profileRole && appRole !== "student")) {
+    return {
+      ok: false,
+      result: {
+        ok: false,
+        status: 409,
+        error: "That email is already connected to another Lead Emergence account. Log in normally, or ask your leader which email to use for Student Portal access."
+      }
+    };
+  }
+
+  const email = normalizeEmail(profile.data?.email ?? user.email ?? "");
+  if (!email) {
+    return {
+      ok: false,
+      result: {
+        ok: false,
+        status: 409,
+        error: "That student account is missing an email address. Ask your leader for help before joining this group."
+      }
+    };
+  }
+
+  return {
+    ok: true,
+    identity: {
+      userId: user.id,
+      email,
+      fullName: profile.data?.full_name?.trim() || metadataString(user.user_metadata, "full_name") || fallbackFullName
+    }
+  };
 }
 
 function toLeaderState(
@@ -573,6 +673,15 @@ function normalizeOptionalText(value: string | undefined | null, maxLength: numb
 function normalizeEmail(value: string) {
   const email = value.trim().toLowerCase();
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : "";
+}
+
+function normalizeRole(value: string | null | undefined) {
+  return (value ?? "").trim().toLowerCase();
+}
+
+function metadataString(metadata: Record<string, unknown> | null | undefined, key: string) {
+  const value = metadata?.[key];
+  return typeof value === "string" ? value.trim() : "";
 }
 
 function normalizeMaxUses(value: number | null | undefined) {

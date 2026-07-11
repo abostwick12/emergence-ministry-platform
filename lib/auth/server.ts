@@ -120,7 +120,7 @@ export async function getServerSession(): Promise<AuthSession | null> {
       id: data.user.id,
       email: data.user.email,
       fullName: profile?.fullName ?? data.user.user_metadata?.full_name ?? data.user.email,
-      role: profile?.role ?? data.user.user_metadata?.role ?? "staff"
+      role: profile?.role ?? metadataString(data.user.app_metadata, "role") ?? metadataString(data.user.user_metadata, "role") ?? "staff"
     },
     accessToken,
     isMock: false
@@ -144,6 +144,11 @@ async function getSessionProfile(accessToken: string, userId: string) {
   } catch {
     return null;
   }
+}
+
+function metadataString(metadata: Record<string, unknown> | undefined, key: string) {
+  const value = metadata?.[key];
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
 export function unauthorizedResponse() {
