@@ -1,29 +1,51 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { StudentQuestionComposer } from "@/components/student/student-question-composer";
+import { StudentReflectionPanel } from "@/components/student/student-reflection-panel";
 import type { DiscussionWorkflowState } from "@/lib/scripture/discussion-workflow";
-import type { StudentQuestionNextStep } from "@/lib/scripture/student-home";
+import { buildQuestionNextStep, type StudentQuestionNextStep } from "@/lib/scripture/student-home";
+import type { StudentQuestionReflection } from "@/lib/scripture/student-reflections";
 import type { StudentDiscussionPrompt } from "@/lib/scripture/types";
 
 type StudentQuestionsExperienceProps = {
+  initialReflections: Record<string, StudentQuestionReflection>;
   initialState: DiscussionWorkflowState;
 };
 
-export function StudentQuestionsExperience({ initialState }: StudentQuestionsExperienceProps) {
+export function StudentQuestionsExperience({ initialReflections, initialState }: StudentQuestionsExperienceProps) {
   const [prompts, setPrompts] = useState(initialState.prompts);
-  const [latestNextStep, setLatestNextStep] = useState<StudentQuestionNextStep | null>(null);
+  const [nextSteps, setNextSteps] = useState<Record<string, StudentQuestionNextStep>>({});
+  const [reflections, setReflections] = useState(initialReflections);
+  const [selectedPromptId, setSelectedPromptId] = useState(initialState.prompts[0]?.id ?? "");
+  const selectedPrompt = prompts.find((prompt) => prompt.id === selectedPromptId) ?? prompts[0];
+  const selectedNextStep = useMemo(() => {
+    if (!selectedPrompt) return null;
+    return nextSteps[selectedPrompt.id] ?? buildQuestionNextStep(selectedPrompt);
+  }, [nextSteps, selectedPrompt]);
 
   function addCreatedPrompt(prompt: StudentDiscussionPrompt, nextStep: StudentQuestionNextStep) {
     setPrompts((current) => [prompt, ...current.filter((item) => item.id !== prompt.id)].slice(0, 5));
-    setLatestNextStep(nextStep);
+    setNextSteps((current) => ({ ...current, [prompt.id]: nextStep }));
+    setSelectedPromptId(prompt.id);
+  }
+
+  function updateReflection(reflection: StudentQuestionReflection) {
+    setReflections((current) => ({ ...current, [reflection.promptId]: reflection }));
   }
 
   return (
     <div className="student-ask-page">
       <StudentQuestionComposer onCreated={addCreatedPrompt} readiness={initialState.readiness} />
-      {latestNextStep ? <StudentQuestionNextStepPreview nextStep={latestNextStep} /> : null}
+      {selectedPrompt && selectedNextStep ? (
+        <StudentQuestionNextStepPreview
+          nextStep={selectedNextStep}
+          onReflectionSaved={updateReflection}
+          prompt={selectedPrompt}
+          reflection={reflections[selectedPrompt.id]}
+        />
+      ) : null}
       <section className="student-feed-section">
         <div className="student-feed-section-heading">
           <h2>Your recent questions</h2>
@@ -37,7 +59,12 @@ export function StudentQuestionsExperience({ initialState }: StudentQuestionsExp
                   <h3>{prompt.question}</h3>
                   <p>{prompt.status === "pending_review" ? "Sent to your leader for review." : prompt.status.replace(/_/g, " ")}</p>
                 </div>
-                <span className="pill blue">{prompt.status === "pending_review" ? "With leader" : prompt.status.replace(/_/g, " ")}</span>
+                <div className="student-feed-row-actions">
+                  <span className="pill blue">{prompt.status === "pending_review" ? "With leader" : prompt.status.replace(/_/g, " ")}</span>
+                  <button className="button secondary" onClick={() => setSelectedPromptId(prompt.id)} type="button">
+                    Open path
+                  </button>
+                </div>
               </article>
             ))}
           </div>
@@ -52,7 +79,17 @@ export function StudentQuestionsExperience({ initialState }: StudentQuestionsExp
   );
 }
 
-function StudentQuestionNextStepPreview({ nextStep }: { nextStep: StudentQuestionNextStep }) {
+function StudentQuestionNextStepPreview({
+  nextStep,
+  onReflectionSaved,
+  prompt,
+  reflection
+}: {
+  nextStep: StudentQuestionNextStep;
+  onReflectionSaved: (reflection: StudentQuestionReflection) => void;
+  prompt: StudentDiscussionPrompt;
+  reflection?: StudentQuestionReflection;
+}) {
   return (
     <section className="student-next-step" aria-live="polite" aria-label="Question next step">
       <div className="student-next-step-copy">
@@ -82,6 +119,7 @@ function StudentQuestionNextStepPreview({ nextStep }: { nextStep: StudentQuestio
           <p className="student-next-step-together">{nextStep.wrestleTogetherPrompt}</p>
         </div>
       </div>
+      <StudentReflectionPanel onSaved={onReflectionSaved} prompt={prompt} reflection={reflection} />
     </section>
   );
 }

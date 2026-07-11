@@ -27,14 +27,31 @@ type SaveLocalPromptInput = {
   knowledgeContext: StudentDiscussionKnowledgeContext[];
 };
 
-const localState = new Map<string, LocalStudentState>();
+const localStudentStateKey = Symbol.for("lead-emergence.local-student-state");
+type LocalStudentStateGlobal = typeof globalThis & {
+  [localStudentStateKey]?: Map<string, LocalStudentState>;
+};
+
+const localState =
+  (globalThis as LocalStudentStateGlobal)[localStudentStateKey] ??
+  ((globalThis as LocalStudentStateGlobal)[localStudentStateKey] = new Map<string, LocalStudentState>());
 
 export function shouldUseLocalStudentState(session: AuthSession) {
   return session.isMock || !session.accessToken || !isSupabaseConfigured();
 }
 
 export function listLocalStudentDiscussionPrompts(session: AuthSession) {
-  return [...stateFor(session).prompts].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const state = stateFor(session);
+  return state.prompts
+    .map((prompt) => {
+      const reflection = state.reflections[prompt.id];
+      return {
+        ...prompt,
+        studentReflectionCount: reflection?.reflectedAt ? 1 : 0,
+        studentLastReflectedAt: reflection?.reflectedAt
+      };
+    })
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
 export function saveLocalStudentDiscussionPrompt(session: AuthSession, input: SaveLocalPromptInput) {

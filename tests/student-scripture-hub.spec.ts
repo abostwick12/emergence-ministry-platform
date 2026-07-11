@@ -120,13 +120,21 @@ test.describe("Student Scripture Hub shell", () => {
 
     await page.goto("/student/scripture/resources");
     await expect(page.getByRole("heading", { name: "The Big Story of Scripture" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Where are we in the story?" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Four moves before all the details" })).toBeVisible();
+    await expect(page.getByRole("list", { name: "Guided Bible storyline path" })).toContainText("God creates and blesses");
+    await expect(page.getByRole("list", { name: "Guided Bible storyline path" })).toContainText("Connect to Jesus through the text's story");
     await expect(page.getByRole("heading", { name: "Start with Genesis and Exodus" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Today's storyline practice" })).toContainText("Pick Genesis or Exodus");
     await expect(page.getByRole("heading", { name: "Genesis: beginnings and promise" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Exodus: rescue and formation" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Open the next layer when you are ready" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Old Testament flyover" })).toHaveCount(0);
+    await page.getByText("Open the Old and New Testament flyover").click();
     await expect(page.getByRole("heading", { name: "Old Testament flyover" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "New Testament flyover" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Themes to trace as you read" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Covenant" })).toHaveCount(0);
+    await page.getByText("Open themes to trace as you read").click();
+    await expect(page.getByRole("heading", { name: "Covenant" })).toBeVisible();
     await expect(page.getByText("Genesis and Exodus introduce the major categories")).toBeVisible();
     await expect(page.getByText("Leader notes")).toHaveCount(0);
     await expect(page.getByText(/full academic/i)).toHaveCount(0);
@@ -137,6 +145,8 @@ test.describe("Student Scripture Hub shell", () => {
     await page.getByLabel("Scripture reference").fill("John 3:16");
     await page.getByRole("button", { name: "Look Up" }).click();
     await expect(page.getByRole("region", { name: "Scripture lookup" }).getByRole("alert")).toContainText("Scripture lookup is offline.");
+    await expect(page.getByRole("heading", { name: "Avoiding proof-texting" })).toHaveCount(0);
+    await page.getByText("Open reading skill cards").click();
     await expect(page.getByRole("heading", { name: "Avoiding proof-texting" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Avoiding forced typology" })).toBeVisible();
 
@@ -158,6 +168,25 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page.getByRole("status").filter({ hasText: "Saved. Use the rhythm below" })).toBeVisible();
     await expect(page.getByRole("region", { name: "Question next step" })).toContainText("Wrestle with your question");
     await expect(page.getByRole("heading", { name: "Why did God put the tree in the garden?" })).toBeVisible();
+    const privateReflection = page.getByRole("region", { name: "Private reflection" });
+    await privateReflection.getByLabel("Private note").fill("I am noticing that hiding from God is part of the story.");
+    await privateReflection.getByRole("button", { name: "Save note" }).click();
+    await expect(privateReflection.getByRole("status")).toContainText("Private note saved.");
+    await privateReflection.getByRole("button", { name: "I reflected on this" }).click();
+    await expect(privateReflection.getByRole("status")).toContainText("Reflection saved. Bring this with you to group.");
+    await page.reload();
+    await expect(page.getByRole("heading", { name: "Why did God put the tree in the garden?" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Private reflection" }).getByLabel("Private note")).toHaveValue(
+      "I am noticing that hiding from God is part of the story."
+    );
+    await expect(page.getByRole("region", { name: "Private reflection" }).getByRole("button", { name: "Reflected" })).toBeVisible();
+
+    await page.goto("/student/scripture/review");
+    await expect(page).toHaveURL(/\/discipleship$/);
+    await expect(page.getByRole("heading", { name: "Discussion Review" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Tonight discussion prep" })).toContainText("Reflected");
+    await expect(page.getByText("Why did God put the tree in the garden?").first()).toBeVisible();
+    await expect(page.getByText("I am noticing that hiding from God is part of the story.")).toHaveCount(0);
   });
 
   test("builder pages generate local previews without saving or sending", async ({ page }) => {

@@ -4,7 +4,7 @@ const scriptureTabs = [
   { href: "/student/scripture/questions", label: "Questions", id: "questions" },
   { href: "/student/scripture/plans", label: "Reading Plans", id: "plans" },
   { href: "/student/scripture/how-to-read", label: "How to Read", id: "how-to-read" },
-  { href: "/student/scripture/resources", label: "Resources", id: "resources" }
+  { href: "/student/scripture/resources", label: "Big Story", id: "resources" }
 ] as const;
 
 type StudentScriptureTab = (typeof scriptureTabs)[number]["id"];

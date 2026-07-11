@@ -36,6 +36,37 @@ const movementNotes: Record<(typeof storylineMap)[number], string> = {
 
 const visibleThemes = themeIndex.filter((theme) => ["covenant", "kingdom", "temple", "exile", "sacrifice", "new-creation"].includes(theme.id));
 
+const storylinePath = [
+  {
+    title: "God creates and blesses",
+    movements: ["Creation", "Covenant"],
+    read: "Genesis 1-2, Genesis 12",
+    notice: "What is good, gifted, and promised?",
+    practice: "Name one thing God gives before anyone earns it."
+  },
+  {
+    title: "Trust breaks and people wander",
+    movements: ["Fall", "Exile"],
+    read: "Genesis 3, 2 Kings 17",
+    notice: "Where does sin fracture trust, worship, and home?",
+    practice: "Ask what is broken before asking what to do."
+  },
+  {
+    title: "God rescues and forms a people",
+    movements: ["Exodus", "Law", "Land", "Kingdom", "Return"],
+    read: "Exodus 1-20, 2 Samuel 7",
+    notice: "How does God rescue, teach, and stay present?",
+    practice: "Look for rescue before turning the passage into advice."
+  },
+  {
+    title: "Jesus fulfills and renews",
+    movements: ["Messiah", "Church", "New Creation"],
+    read: "Luke 4, Acts 2, Revelation 21",
+    notice: "How does Jesus bring the story to its center and future?",
+    practice: "Connect to Jesus through the text's story, not a shortcut."
+  }
+] as const;
+
 export default function ScriptureResourcesPage({ searchParams }: ScriptureResourcesPageProps) {
   const requestedReference = Array.isArray(searchParams?.reference) ? searchParams.reference[0] : searchParams?.reference;
 
@@ -59,24 +90,33 @@ export default function ScriptureResourcesPage({ searchParams }: ScriptureResour
           </div>
         </section>
 
-        <section className="student-big-story-section" aria-labelledby="story-map-title">
+        <section className="student-big-story-section student-storyline-path-section" aria-labelledby="story-path-title">
           <div className="student-big-story-heading">
-            <p className="eyebrow">The Map</p>
-            <h2 id="story-map-title">Where are we in the story?</h2>
-            <p>Use this as a quick orientation before zooming into a chapter, verse, theme, or hard question.</p>
+            <p className="eyebrow">Work Through It</p>
+            <h2 id="story-path-title">Four moves before all the details</h2>
+            <p>Start with one move, read the suggested passages, then answer the practice prompt before opening the deeper map.</p>
           </div>
-          <ol className="student-big-story-map" aria-label="Bible storyline movements">
-            {storylineMap.map((movement, index) => (
-              <li key={movement}>
-                <span>{index + 1}</span>
-                <strong>{movement}</strong>
-                <p>{movementNotes[movement]}</p>
+          <ol className="student-storyline-path" aria-label="Guided Bible storyline path">
+            {storylinePath.map((step, index) => (
+              <li key={step.title}>
+                <div className="student-storyline-step-number">{index + 1}</div>
+                <div className="student-storyline-step-copy">
+                  <span>{step.movements.join(" / ")}</span>
+                  <strong>{step.title}</strong>
+                  <p>{step.notice}</p>
+                </div>
+                <div className="student-storyline-step-practice">
+                  <small>Read</small>
+                  <p>{step.read}</p>
+                  <small>Try</small>
+                  <p>{step.practice}</p>
+                </div>
               </li>
             ))}
           </ol>
         </section>
 
-        <section className="student-big-story-section" aria-labelledby="foundation-title">
+        <section className="student-big-story-section student-big-story-workspace" aria-labelledby="foundation-title">
           <div className="student-big-story-heading">
             <p className="eyebrow">Start Here</p>
             <h2 id="foundation-title">Start with Genesis and Exodus</h2>
@@ -85,6 +125,10 @@ export default function ScriptureResourcesPage({ searchParams }: ScriptureResour
               worship, covenant, and the presence of God.
             </p>
           </div>
+          <section className="student-big-story-today" aria-label="Today's storyline practice">
+            <strong>Today&apos;s move</strong>
+            <p>Pick Genesis or Exodus, read one chapter path, then write one honest question before moving on.</p>
+          </section>
           <div className="student-big-story-foundation">
             {foundationBooks.map((book) => (
               <FoundationBookCard book={book} key={book.id} />
@@ -92,30 +136,37 @@ export default function ScriptureResourcesPage({ searchParams }: ScriptureResour
           </div>
         </section>
 
-        <section className="student-big-story-section" aria-labelledby="flyover-title">
-          <div className="student-big-story-heading">
-            <p className="eyebrow">Then Fly Over</p>
-            <h2 id="flyover-title">Fly over the rest before getting lost in details</h2>
-            <p>
-              This is not everything a student could learn. It is the first map: enough to know where a passage sits and
-              what questions to bring to the text.
-            </p>
+        <section className="student-big-story-section student-big-story-depth" aria-labelledby="depth-title">
+          <div>
+            <p className="eyebrow">Go Deeper</p>
+            <h2 id="depth-title">Open the next layer when you are ready</h2>
+            <p>Use these as optional layers after the four-move path feels familiar.</p>
           </div>
-          <FlyoverRail title="Old Testament flyover" items={oldTestamentFlyovers} />
-          <FlyoverRail title="New Testament flyover" items={newTestamentFlyovers} />
-        </section>
-
-        <section className="student-big-story-section" aria-labelledby="theme-title">
-          <div className="student-big-story-heading">
-            <p className="eyebrow">Themes to Trace</p>
-            <h2 id="theme-title">Themes to trace as you read</h2>
-            <p>These themes are handles, not secret codes. They help students notice how Scripture holds together.</p>
-          </div>
-          <div className="student-big-story-themes">
-            {visibleThemes.map((theme) => (
-              <ThemeCard theme={theme} key={theme.id} />
-            ))}
-          </div>
+          <details>
+            <summary>Open the full storyline map</summary>
+            <ol className="student-big-story-map" aria-label="Bible storyline movements">
+              {storylineMap.map((movement, index) => (
+                <li key={movement}>
+                  <span>{index + 1}</span>
+                  <strong>{movement}</strong>
+                  <p>{movementNotes[movement]}</p>
+                </li>
+              ))}
+            </ol>
+          </details>
+          <details>
+            <summary>Open the Old and New Testament flyover</summary>
+            <FlyoverRail title="Old Testament flyover" items={oldTestamentFlyovers} />
+            <FlyoverRail title="New Testament flyover" items={newTestamentFlyovers} />
+          </details>
+          <details>
+            <summary>Open themes to trace as you read</summary>
+            <div className="student-big-story-themes">
+              {visibleThemes.map((theme) => (
+                <ThemeCard theme={theme} key={theme.id} />
+              ))}
+            </div>
+          </details>
         </section>
       </div>
 
@@ -127,19 +178,22 @@ export default function ScriptureResourcesPage({ searchParams }: ScriptureResour
           <h2>Simple tools for reading carefully together</h2>
           <p>Use these when a passage feels confusing, familiar, or easy to use too quickly.</p>
         </div>
-        <div className="student-resource-grid">
-          {scriptureResources.map((resource) => (
-            <article className="student-resource-card" key={resource.id}>
-              <p className="eyebrow">{resource.title}</p>
-              <h3>{resource.title}</h3>
-              <p>{resource.summary}</p>
-              <div>
-                <strong>Try this</strong>
-                <p>{resource.studentPractice}</p>
-              </div>
-            </article>
-          ))}
-        </div>
+        <details className="student-resource-details">
+          <summary>Open reading skill cards</summary>
+          <div className="student-resource-grid">
+            {scriptureResources.map((resource) => (
+              <article className="student-resource-card" key={resource.id}>
+                <p className="eyebrow">{resource.title}</p>
+                <h3>{resource.title}</h3>
+                <p>{resource.summary}</p>
+                <div>
+                  <strong>Try this</strong>
+                  <p>{resource.studentPractice}</p>
+                </div>
+              </article>
+            ))}
+          </div>
+        </details>
       </section>
     </>
   );
