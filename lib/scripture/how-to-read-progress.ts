@@ -10,6 +10,8 @@ import {
 } from "@/lib/scripture/student-local-state";
 
 const validModuleIds = new Set(howToReadModules.map((module) => module.id));
+const MISSING_STUDENT_PROFILE_MESSAGE =
+  "Your student profile is not connected to a ministry yet. Join through your group invite again, or ask your leader for a fresh invite.";
 
 export type StudentHowToReadProgress = {
   completedModuleIds: string[];
@@ -76,7 +78,7 @@ export async function saveStudentHowToReadProgress(session: AuthSession, input: 
     throw new StudentHowToReadProgressError("Saved progress is not configured yet.", 503, "live_storage_not_configured");
   }
 
-  const ministryId = await resolveMinistryScope(session);
+  const ministryId = await requireStudentMinistryScope(session);
   const completedAt = input.completed ? new Date().toISOString() : null;
   const supabase = getSupabaseAuthClient(session.accessToken);
   const result = await supabase
@@ -118,6 +120,14 @@ function emptyProgress(storage: StudentHowToReadProgress["storage"]): StudentHow
     shareWithGroup: false,
     storage
   };
+}
+
+async function requireStudentMinistryScope(session: AuthSession) {
+  const ministryId = await resolveMinistryScope(session);
+  if (!ministryId && session.user.role.trim().toLowerCase() === "student") {
+    throw new StudentHowToReadProgressError(MISSING_STUDENT_PROFILE_MESSAGE, 409, "missing_student_profile");
+  }
+  return ministryId;
 }
 
 function normalizeModuleId(value: string) {

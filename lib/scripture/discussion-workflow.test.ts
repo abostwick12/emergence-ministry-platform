@@ -54,7 +54,13 @@ vi.mock("@/lib/student/groups", () => ({
   getPrimaryStudentGroupId: getPrimaryStudentGroupIdMock
 }));
 
-import { decideStudentDiscussionPrompt, getApprovedStudentDiscussionFeed, getStudentDiscussionWorkflowState } from "@/lib/scripture/discussion-workflow";
+import {
+  createStudentDiscussionPrompt,
+  decideStudentDiscussionPrompt,
+  DiscussionWorkflowError,
+  getApprovedStudentDiscussionFeed,
+  getStudentDiscussionWorkflowState
+} from "@/lib/scripture/discussion-workflow";
 
 describe("approved student discussion feed", () => {
   beforeEach(() => {
@@ -173,6 +179,28 @@ describe("student discussion workflow state", () => {
     });
     expect(client.eventSelect).toHaveBeenCalledWith("prompt_id,action,actor_user_id,created_at");
     expect(JSON.stringify(state.prompts[0])).not.toContain("private_note");
+  });
+});
+
+describe("student discussion live submission", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    isSupabaseConfiguredMock.mockReturnValue(true);
+    isSupabaseAdminConfiguredMock.mockReturnValue(true);
+    isGlooConfiguredMock.mockReturnValue(false);
+    getStudentKnowledgeMatchesMock.mockResolvedValue([]);
+    formatStudentKnowledgeContextForGlooMock.mockReturnValue("");
+    getPrimaryStudentGroupIdMock.mockResolvedValue(undefined);
+  });
+
+  it("fails clearly when a live student session is missing its signup-created profile", async () => {
+    resolveMinistryScopeMock.mockResolvedValue(undefined);
+
+    await expect(createStudentDiscussionPrompt(session(), { question: "Why did God put the tree in the garden?" })).rejects.toMatchObject({
+      code: "missing_student_profile",
+      status: 409
+    } satisfies Partial<DiscussionWorkflowError>);
+    expect(getSupabaseAuthClientMock).not.toHaveBeenCalled();
   });
 });
 

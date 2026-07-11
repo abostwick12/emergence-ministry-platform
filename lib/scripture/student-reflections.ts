@@ -9,6 +9,8 @@ import {
 } from "@/lib/scripture/student-local-state";
 
 const MAX_PRIVATE_NOTE_LENGTH = 1200;
+const MISSING_STUDENT_PROFILE_MESSAGE =
+  "Your student profile is not connected to a ministry yet. Join through your group invite again, or ask your leader for a fresh invite.";
 
 export type StudentQuestionReflection = {
   promptId: string;
@@ -76,7 +78,7 @@ export async function saveStudentQuestionReflection(session: AuthSession, input:
     throw new StudentQuestionReflectionError("Live student reflection storage is not available.", 503, "live_storage_not_configured");
   }
 
-  const ministryId = await resolveMinistryScope(session);
+  const ministryId = await requireStudentMinistryScope(session);
   const now = new Date().toISOString();
   const reflectedAt = input.reflected ? now : null;
   const supabase = getSupabaseAuthClient(session.accessToken);
@@ -146,6 +148,14 @@ function normalizePrivateNote(value: string) {
     throw new StudentQuestionReflectionError("Private note must be 1200 characters or fewer.", 400, "note_too_long");
   }
   return trimmed;
+}
+
+async function requireStudentMinistryScope(session: AuthSession) {
+  const ministryId = await resolveMinistryScope(session);
+  if (!ministryId && session.user.role.trim().toLowerCase() === "student") {
+    throw new StudentQuestionReflectionError(MISSING_STUDENT_PROFILE_MESSAGE, 409, "missing_student_profile");
+  }
+  return ministryId;
 }
 
 export class StudentQuestionReflectionError extends Error {
