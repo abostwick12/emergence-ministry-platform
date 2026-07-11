@@ -116,6 +116,8 @@ type StudentReflectionSummary = {
 const MAX_QUESTION_LENGTH = 1200;
 const MAX_NOTES_LENGTH = 1200;
 const MAX_DISCUSSION_PROMPT_LENGTH = 1800;
+const MISSING_STUDENT_PROFILE_MESSAGE =
+  "Your student profile is not connected to a ministry yet. Join through your group invite again, or ask your leader for a fresh invite.";
 
 export function getStudentDiscussionReadiness(session: AuthSession): DiscussionReadiness {
   if (shouldUseLocalStudentState(session)) {
@@ -239,7 +241,7 @@ export async function createStudentDiscussionPrompt(session: AuthSession, input:
     });
   }
 
-  const ministryId = await resolveMinistryScope(session);
+  const ministryId = await requireStudentMinistryScope(session);
   const groupId = await getPrimaryStudentGroupId(session);
   const knowledgeContext = await getStudentKnowledgeMatches(session, {
     question,
@@ -721,6 +723,14 @@ function fallbackReason(reason: string) {
 
 function ministryScopeColumns(ministryId: string | undefined): { ministry_id?: string } {
   return ministryId ? { ministry_id: ministryId } : {};
+}
+
+async function requireStudentMinistryScope(session: AuthSession) {
+  const ministryId = await resolveMinistryScope(session);
+  if (!ministryId && session.user.role.trim().toLowerCase() === "student") {
+    throw new DiscussionWorkflowError(MISSING_STUDENT_PROFILE_MESSAGE, 409, "missing_student_profile");
+  }
+  return ministryId;
 }
 
 function throwIfSupabaseError(error: { message: string } | null) {

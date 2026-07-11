@@ -117,6 +117,16 @@ describe("student how to read progress", () => {
       status: 400
     } satisfies Partial<StudentHowToReadProgressError>);
   });
+
+  it("fails clearly when a live student session is missing its signup-created profile", async () => {
+    resolveMinistryScopeMock.mockResolvedValue(undefined);
+
+    await expect(saveStudentHowToReadProgress(session(), { moduleId: "what-is-the-bible", completed: true })).rejects.toMatchObject({
+      code: "missing_student_profile",
+      status: 409
+    } satisfies Partial<StudentHowToReadProgressError>);
+    expect(getSupabaseAuthClientMock).not.toHaveBeenCalled();
+  });
 });
 
 function progressQuery(rows: Array<Record<string, unknown>>) {
