@@ -3,8 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthSession } from "@/lib/auth/server";
 import type { StudentDiscussionPrompt } from "@/lib/scripture/types";
 
-const { createStudentDiscussionPromptMock, getServerSessionMock } = vi.hoisted(() => ({
+const { createStudentDiscussionPromptMock, getServerSessionMock, getStudentKnowledgeMatchesMock, saveStudentQuestionRecommendationsMock } = vi.hoisted(() => ({
   createStudentDiscussionPromptMock: vi.fn(),
+  getStudentKnowledgeMatchesMock: vi.fn(),
+  saveStudentQuestionRecommendationsMock: vi.fn(),
   getServerSessionMock: vi.fn<() => Promise<AuthSession | null>>()
 }));
 
@@ -22,6 +24,15 @@ vi.mock("@/lib/scripture/discussion-workflow", async () => {
   return {
     ...actual,
     createStudentDiscussionPrompt: createStudentDiscussionPromptMock
+  };
+});
+
+vi.mock("@/lib/scripture/knowledge", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/scripture/knowledge")>("@/lib/scripture/knowledge");
+  return {
+    ...actual,
+    getStudentKnowledgeMatches: getStudentKnowledgeMatchesMock,
+    saveStudentQuestionRecommendations: saveStudentQuestionRecommendationsMock
   };
 });
 
@@ -50,7 +61,11 @@ function jsonRequest(body: unknown) {
 
 beforeEach(() => {
   createStudentDiscussionPromptMock.mockReset();
+  getStudentKnowledgeMatchesMock.mockReset();
   getServerSessionMock.mockReset();
+  saveStudentQuestionRecommendationsMock.mockReset();
+  getStudentKnowledgeMatchesMock.mockResolvedValue([]);
+  saveStudentQuestionRecommendationsMock.mockResolvedValue(undefined);
 });
 
 describe("student discussion route", () => {
@@ -91,6 +106,37 @@ describe("student discussion route", () => {
       question: "How do I trust God when prayer feels quiet?",
       scriptureReference: undefined
     });
+  });
+
+  it("still returns next steps when knowledge matching is unavailable after the prompt is saved", async () => {
+    getServerSessionMock.mockResolvedValue(session());
+    createStudentDiscussionPromptMock.mockResolvedValue(prompt());
+    getStudentKnowledgeMatchesMock.mockRejectedValue(new Error("knowledge table unavailable"));
+
+    const response = await discussionPOST(jsonRequest({ question: "Why did God put the tree in the garden?" }));
+    const payload = (await response.json()) as { ok: boolean; nextStep: { title: string; wrestleTogetherPrompt: string } };
+
+    expect(response.status).toBe(201);
+    expect(payload).toMatchObject({
+      ok: true,
+      nextStep: {
+        title: "Wrestle with your question",
+        wrestleTogetherPrompt: "Bring this to group: What does the garden story show about God's gifts, human trust, and God's pursuit after failure?"
+      }
+    });
+  });
+
+  it("does not fail the student submission when recommendation persistence is unavailable", async () => {
+    getServerSessionMock.mockResolvedValue(session());
+    createStudentDiscussionPromptMock.mockResolvedValue(prompt());
+    saveStudentQuestionRecommendationsMock.mockRejectedValue(new Error("recommendation table unavailable"));
+
+    const response = await discussionPOST(jsonRequest({ question: "Why did God put the tree in the garden?" }));
+    const payload = (await response.json()) as { ok: boolean; prompt: StudentDiscussionPrompt };
+
+    expect(response.status).toBe(201);
+    expect(payload.ok).toBe(true);
+    expect(payload.prompt.id).toBe("prompt_1");
   });
 });
 

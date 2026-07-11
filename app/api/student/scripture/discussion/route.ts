@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { getServerSession, unauthorizedResponse } from "@/lib/auth/server";
+import { getServerSession, unauthorizedResponse, type AuthSession } from "@/lib/auth/server";
 import {
   createStudentDiscussionPrompt,
   DiscussionWorkflowError,
@@ -8,6 +8,7 @@ import {
 } from "@/lib/scripture/discussion-workflow";
 import { getStudentKnowledgeMatches, saveStudentQuestionRecommendations } from "@/lib/scripture/knowledge";
 import { buildQuestionNextStep } from "@/lib/scripture/student-home";
+import type { StudentDiscussionPrompt } from "@/lib/scripture/types";
 import { resolveStudentHubAccess } from "@/lib/student/access";
 
 type CreateDiscussionRequestBody = {
@@ -57,13 +58,38 @@ export async function POST(request: Request) {
       question: body.question,
       scriptureReference: body.scriptureReference
     });
-    const knowledgeMatches = prompt.knowledgeContext?.length ? prompt.knowledgeContext : await getStudentKnowledgeMatches(access.session, prompt);
-    const nextStep = buildQuestionNextStep(prompt, knowledgeMatches);
-    await saveStudentQuestionRecommendations(access.session, prompt.id, nextStep, knowledgeMatches);
+    const nextStep = await buildResilientQuestionNextStep(access.session, prompt);
     return NextResponse.json({ ok: true, prompt, nextStep }, { status: 201 });
   } catch (error) {
     return discussionErrorResponse(error);
   }
+}
+
+async function buildResilientQuestionNextStep(session: AuthSession, prompt: StudentDiscussionPrompt) {
+  let knowledgeMatches = prompt.knowledgeContext ?? [];
+  if (!knowledgeMatches.length) {
+    try {
+      knowledgeMatches = await getStudentKnowledgeMatches(session, prompt);
+    } catch (error) {
+      console.warn("[student-discussion] knowledge matching unavailable after prompt save", {
+        promptId: prompt.id,
+        reason: error instanceof Error ? error.message : "unknown"
+      });
+      knowledgeMatches = [];
+    }
+  }
+
+  const nextStep = buildQuestionNextStep(prompt, knowledgeMatches);
+  try {
+    await saveStudentQuestionRecommendations(session, prompt.id, nextStep, knowledgeMatches);
+  } catch (error) {
+    console.warn("[student-discussion] recommendation save unavailable after prompt save", {
+      promptId: prompt.id,
+      reason: error instanceof Error ? error.message : "unknown"
+    });
+  }
+
+  return nextStep;
 }
 
 function discussionErrorResponse(error: unknown) {
@@ -71,5 +97,8 @@ function discussionErrorResponse(error: unknown) {
     return NextResponse.json({ ok: false, code: error.code, error: error.message }, { status: error.status });
   }
 
+  console.error("[student-discussion] workflow unavailable", {
+    reason: error instanceof Error ? error.message : "unknown"
+  });
   return NextResponse.json({ ok: false, code: "workflow_error", error: "Student discussion workflow is unavailable." }, { status: 500 });
 }

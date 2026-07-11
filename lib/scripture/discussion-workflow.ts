@@ -261,7 +261,7 @@ export async function createStudentDiscussionPrompt(session: AuthSession, input:
   throwIfSupabaseError(result.error);
   if (!result.data) throw new DiscussionWorkflowError("The discussion prompt was not saved.", 500, "missing_saved_prompt");
 
-  await logPromptEvent(session, result.data.id, "submitted", { aiStatus: row.ai_status });
+  await logPromptEventBestEffort(session, result.data.id, "submitted", { aiStatus: row.ai_status });
   return {
     ...toPrompt(result.data),
     knowledgeContext
@@ -473,6 +473,18 @@ async function logPromptEvent(session: AuthSession, promptId: string, action: st
     details
   });
   throwIfSupabaseError(result.error);
+}
+
+async function logPromptEventBestEffort(session: AuthSession, promptId: string, action: string, details: Record<string, unknown>) {
+  try {
+    await logPromptEvent(session, promptId, action, details);
+  } catch (error) {
+    console.warn("[scripture] prompt event logging unavailable after prompt save", {
+      promptId,
+      action,
+      reason: error instanceof Error ? error.message : "unknown"
+    });
+  }
 }
 
 async function getStudentPromptEventSummaries(session: AuthSession, promptIds: string[]) {
