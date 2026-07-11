@@ -1285,7 +1285,8 @@ html:has(.app-shell:not(.app-shell-camp)) body {
 
   .app-shell:not(.app-shell-camp) .app-scroll-region {
     overflow: visible;
-    padding: 18px 16px 86px;
+    padding: 18px 16px 128px;
+    scroll-padding-bottom: 128px;
     background: transparent;
   }
 
