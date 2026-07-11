@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 
 import { ScriptureKnowledgeControlRoom } from "@/components/student/scripture-knowledge-control-room";
 import { ScriptureLeaderReview } from "@/components/student/scripture-leader-review";
@@ -22,7 +23,7 @@ export default async function DiscipleshipPage() {
   }
 
   const state = await getStudentDiscussionWorkflowState(access.session);
-  const groupState = await getStudentGroupLeaderState(access.session);
+  const groupState = await getStudentGroupLeaderState(access.session, getRequestOrigin());
   const knowledgeState = await getKnowledgeControlRoomState(access.session);
   const trialInsights = await getScriptureTrialInsights(access.session, state);
   return (
@@ -32,4 +33,13 @@ export default async function DiscipleshipPage() {
       <ScriptureLeaderReview initialGroupState={groupState} initialState={state} />
     </div>
   );
+}
+
+function getRequestOrigin() {
+  const requestHeaders = headers();
+  const host = requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host");
+  if (!host) return "";
+
+  const protocol = requestHeaders.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
+  return `${protocol}://${host}`;
 }
