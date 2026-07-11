@@ -3,10 +3,10 @@ import { ScriptureBuilderForm } from "@/components/student/scripture-builder-for
 export default function NewStudentLedStudyPage() {
   return (
     <>
-      <section className="panel grid gap-3 bg-white">
+      <section className="panel grid gap-3">
         <p className="eyebrow">New Student-Led Study</p>
         <h1 className="title">Shape a discussion that starts with the text and stays humble.</h1>
-        <p className="m-0 max-w-3xl text-base font-semibold leading-7 text-slate-600">
+        <p className="scripture-builder-copy">
           This page models a student-led Bible study builder for preview and leader review only. It does not publish, message,
           save, submit, or process student content.
         </p>

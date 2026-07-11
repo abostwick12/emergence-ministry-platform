@@ -38,7 +38,7 @@ export function ScriptureCard({ eyebrow, title, description, href, actionLabel, 
 
   if (href) {
     return (
-      <Link className="card grid gap-4 text-inherit no-underline transition hover:border-blue-300 hover:bg-blue-50" href={href}>
+      <Link className="card grid gap-4 text-inherit no-underline transition scripture-card-link" href={href}>
         {body}
       </Link>
     );
