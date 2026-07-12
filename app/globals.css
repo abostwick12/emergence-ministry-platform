@@ -12188,6 +12188,7 @@ html:has(.app-shell-camp) body {
 }
 
 .student-big-story-map,
+.student-storyline-path,
 .student-big-story-foundation,
 .student-flyover-grid,
 .student-big-story-themes,
@@ -12196,6 +12197,111 @@ html:has(.app-shell-camp) body {
   gap: 12px;
   margin: 0;
   padding: 0;
+}
+
+.student-storyline-path-section {
+  gap: 16px;
+}
+
+.student-storyline-path {
+  list-style: none;
+}
+
+.student-storyline-path li {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 0.95fr) minmax(220px, 0.75fr);
+  gap: 14px;
+  align-items: start;
+  border: 1px solid rgba(56, 189, 248, 0.16);
+  border-radius: var(--radius-md);
+  background: linear-gradient(145deg, rgba(19, 48, 82, 0.5), rgba(7, 23, 43, 0.68));
+  padding: 16px;
+}
+
+.student-storyline-step-number {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(125, 211, 252, 0.28);
+  border-radius: var(--radius-sm);
+  background: rgba(14, 165, 233, 0.14);
+  color: #e0f2fe;
+  font-weight: 950;
+}
+
+.student-storyline-step-copy,
+.student-storyline-step-practice {
+  display: grid;
+  gap: 7px;
+}
+
+.student-storyline-step-copy span,
+.student-storyline-step-practice small {
+  color: #7dd3fc;
+  font-size: var(--text-xs);
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.student-storyline-step-copy strong {
+  color: #f8fafc;
+  font-size: var(--text-xl);
+  line-height: 1.16;
+}
+
+.student-storyline-step-copy p,
+.student-storyline-step-practice p,
+.student-big-story-today p,
+.student-big-story-depth p {
+  margin: 0;
+  color: #cbd5e1;
+  font-weight: 650;
+  line-height: 1.52;
+}
+
+.student-storyline-step-practice {
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.035);
+  padding: 12px;
+}
+
+.student-big-story-workspace,
+.student-big-story-depth {
+  display: grid;
+  gap: 16px;
+}
+
+.student-big-story-today {
+  display: grid;
+  gap: 6px;
+  border: 1px solid rgba(125, 211, 252, 0.24);
+  border-radius: var(--radius-md);
+  background: rgba(14, 165, 233, 0.11);
+  padding: 14px;
+}
+
+.student-big-story-today strong,
+.student-big-story-depth summary {
+  color: #e0f2fe;
+  font-weight: 950;
+}
+
+.student-big-story-depth details {
+  border: 1px solid rgba(56, 189, 248, 0.16);
+  border-radius: var(--radius-md);
+  background: rgba(7, 23, 43, 0.54);
+  padding: 14px;
+}
+
+.student-big-story-depth summary {
+  cursor: pointer;
+}
+
+.student-big-story-depth details > :not(summary) {
+  margin-top: 14px;
 }
 
 .student-big-story-map {
@@ -12406,6 +12512,23 @@ html:has(.app-shell-camp) body {
   margin-top: 18px;
 }
 
+.student-resource-details {
+  border: 1px solid rgba(56, 189, 248, 0.16);
+  border-radius: var(--radius-md);
+  background: rgba(7, 23, 43, 0.54);
+  padding: 14px;
+}
+
+.student-resource-details summary {
+  cursor: pointer;
+  color: #e0f2fe;
+  font-weight: 950;
+}
+
+.student-resource-details .student-resource-grid {
+  margin-top: 14px;
+}
+
 .student-resource-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -12421,6 +12544,7 @@ html:has(.app-shell-camp) body {
 
 @media (max-width: 1100px) {
   .student-big-story-map,
+  .student-storyline-path li,
   .student-flyover-grid,
   .student-big-story-themes {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -12435,6 +12559,7 @@ html:has(.app-shell-camp) body {
 @media (max-width: 760px) {
   .student-big-story-hero,
   .student-big-story-map,
+  .student-storyline-path li,
   .student-foundation-movements,
   .student-flyover-grid,
   .student-big-story-themes,
