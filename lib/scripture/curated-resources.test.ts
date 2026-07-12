@@ -40,6 +40,7 @@ describe("student curated resources", () => {
       title: "Walk the garden slowly",
       summary: "A student practice for garden questions.",
       body: "Take a quiet walk before reading Genesis 2-3.",
+      journeyStage: "practice",
       scriptureReferences: "Genesis 2, Genesis 3",
       themes: "garden, trust",
       questionPatterns: "tree, eden",
@@ -51,6 +52,7 @@ describe("student curated resources", () => {
 
     expect(created).toMatchObject({
       kind: "practice",
+      journeyStage: "practice",
       title: "Walk the garden slowly",
       scriptureReferences: ["Genesis 2", "Genesis 3"],
       themes: ["garden", "trust"],
@@ -77,6 +79,7 @@ describe("student curated resources", () => {
   it("matches student questions to active resources without source metadata", async () => {
     const resource = await createStudentCuratedResource(leaderSession(), {
       kind: "guide",
+      journeyStage: "read",
       title: "Garden trust guide",
       summary: "Read Genesis by noticing gift before command.",
       body: "The student-facing help stays short and does not expose papers.",
@@ -103,9 +106,30 @@ describe("student curated resources", () => {
     expect(matches[0]).not.toHaveProperty("citation");
   });
 
+  it("balances matched resources across journey phases", async () => {
+    const resources = await Promise.all([
+      createStudentCuratedResource(leaderSession(), resourceInput("ask", "Name the real question", 1)),
+      createStudentCuratedResource(leaderSession(), resourceInput("read", "Read Genesis in context", 2)),
+      createStudentCuratedResource(leaderSession(), resourceInput("reflect", "Notice the tension", 3)),
+      createStudentCuratedResource(leaderSession(), resourceInput("practice", "Walk the garden", 4)),
+      createStudentCuratedResource(leaderSession(), resourceInput("discuss", "Bring it to the circle", 5))
+    ]);
+
+    const matches = matchCuratedResourcesToPrompt(
+      {
+        question: "Why did God put the tree in the garden?",
+        scriptureReference: "Genesis 3"
+      },
+      resources
+    );
+
+    expect(matches.map((resource) => resource.journeyStage)).toEqual(["ask", "read", "reflect", "practice", "discuss"]);
+  });
+
   it("attaches curated resources to student journeys instead of exposing academic source slots", async () => {
     const curated = await createStudentCuratedResource(leaderSession(), {
       kind: "reading_tool",
+      journeyStage: "read",
       title: "Context before answer",
       summary: "Read around the passage before rushing to answer.",
       body: "Look at the paragraph before and after the passage.",
@@ -172,14 +196,35 @@ describe("student curated resources", () => {
 
   it("creates a separate RLS-protected table from knowledge sources", () => {
     const migration = readFileSync("supabase/migrations/20260712120000_student_curated_resources.sql", "utf8");
+    const stageMigration = readFileSync("supabase/migrations/20260712143000_student_curated_resource_stages.sql", "utf8");
 
     expect(migration).toContain("create table if not exists public.student_curated_resources");
     expect(migration).toContain("students can select active curated resources");
     expect(migration).toContain("leaders can manage student curated resources");
     expect(migration).not.toContain("references public.knowledge_sources");
     expect(migration).not.toContain("references public.knowledge_chunks");
+    expect(stageMigration).toContain("add column if not exists journey_stage");
+    expect(stageMigration).toContain("student_curated_resources_journey_stage_check");
+    expect(stageMigration).toContain("'practice'");
   });
 });
+
+function resourceInput(journeyStage: "ask" | "read" | "reflect" | "practice" | "discuss", title: string, sortOrder: number) {
+  return {
+    kind: "guide",
+    journeyStage,
+    title,
+    summary: "A short student-facing help for garden questions.",
+    body: "Read Genesis 2-3 slowly and keep the question close to the text.",
+    scriptureReferences: ["Genesis 2", "Genesis 3"],
+    themes: ["garden", "trust"],
+    questionPatterns: ["tree", "garden"],
+    practicePrompt: "Write one honest sentence before moving on.",
+    href: "/student/scripture/resources",
+    sortOrder,
+    isActive: true
+  };
+}
 
 function leaderSession(): AuthSession {
   return {

@@ -35,6 +35,7 @@ export async function POST(request: Request) {
   try {
     const resource = await createStudentCuratedResource(access.session, {
       kind: stringValue(body.kind),
+      journeyStage: stringValue(body.journeyStage),
       title: stringValue(body.title),
       summary: stringValue(body.summary),
       body: stringValue(body.body),

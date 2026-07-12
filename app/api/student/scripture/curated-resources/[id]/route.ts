@@ -29,6 +29,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
   try {
     const resource = await updateStudentCuratedResource(access.session, params.id, {
       kind: stringValue(body.kind),
+      journeyStage: stringValue(body.journeyStage),
       title: stringValue(body.title),
       summary: stringValue(body.summary),
       body: stringValue(body.body),
