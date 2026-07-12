@@ -61,6 +61,7 @@ import {
   getApprovedStudentDiscussionFeed,
   getStudentDiscussionWorkflowState
 } from "@/lib/scripture/discussion-workflow";
+import { resetLocalStudentStateForTests } from "@/lib/scripture/student-local-state";
 
 describe("approved student discussion feed", () => {
   beforeEach(() => {
@@ -201,6 +202,47 @@ describe("student discussion live submission", () => {
       status: 409
     } satisfies Partial<DiscussionWorkflowError>);
     expect(getSupabaseAuthClientMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("local student discussion workflow", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetLocalStudentStateForTests();
+    isSupabaseConfiguredMock.mockReturnValue(false);
+    isSupabaseAdminConfiguredMock.mockReturnValue(false);
+    isGlooConfiguredMock.mockReturnValue(false);
+    getStudentKnowledgeMatchesMock.mockResolvedValue([]);
+    formatStudentKnowledgeContextForGlooMock.mockReturnValue("");
+  });
+
+  it("lets a locally submitted student question move through leader approval and the group feed", async () => {
+    const prompt = await createStudentDiscussionPrompt(session(), {
+      question: "Why did God put the tree in the garden?",
+      scriptureReference: "Genesis 3"
+    });
+
+    const approved = await decideStudentDiscussionPrompt(leaderSession(), prompt.id, {
+      action: "approve",
+      leaderNotes: "Use this Wednesday.",
+      discussionPrompt: "Where does Genesis 3 show trust breaking and God still pursuing?"
+    });
+    const feed = await getApprovedStudentDiscussionFeed(session());
+
+    expect(approved).toMatchObject({
+      id: prompt.id,
+      status: "approved",
+      approvedByUserId: "usr_leader"
+    });
+    expect(feed).toEqual([
+      expect.objectContaining({
+        id: prompt.id,
+        discussionPrompt: "Where does Genesis 3 show trust breaking and God still pursuing?",
+        status: "approved"
+      })
+    ]);
+    expect(getSupabaseAuthClientMock).not.toHaveBeenCalled();
+    expect(getSupabaseAdminClientMock).not.toHaveBeenCalled();
   });
 });
 

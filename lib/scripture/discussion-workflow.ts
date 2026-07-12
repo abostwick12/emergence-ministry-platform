@@ -6,6 +6,8 @@ import { formatStudentKnowledgeContextForGloo, getStudentKnowledgeMatches } from
 import { buildLocalDiscussionDraft, buildLocalDiscussionDraftForPrompt } from "@/lib/scripture/local-discussion-draft";
 import { deliverDiscussionPromptToSlack, isSlackDiscussionDeliveryConfigured } from "@/lib/scripture/slack";
 import {
+  decideLocalStudentDiscussionPrompt,
+  listLocalApprovedStudentDiscussionPrompts,
   listLocalStudentDiscussionPrompts,
   saveLocalStudentDiscussionPrompt,
   shouldUseLocalStudentState
@@ -179,7 +181,7 @@ export async function getStudentDiscussionWorkflowState(session: AuthSession): P
 export async function getApprovedStudentDiscussionFeed(session: AuthSession): Promise<StudentGroupDiscussionItem[]> {
   const readiness = getStudentDiscussionReadiness(session);
   if (!readiness.liveStorage && readiness.localStorage) {
-    return [];
+    return listLocalApprovedStudentDiscussionPrompts(session);
   }
   if (!readiness.liveStorage || !isSupabaseAdminConfigured()) {
     return [];
@@ -310,6 +312,14 @@ export async function decideStudentDiscussionPrompt(session: AuthSession, id: st
   assertLeader(session);
   const readiness = getStudentDiscussionReadiness(session);
   if (!readiness.liveStorage) {
+    if (readiness.localStorage) {
+      try {
+        return decideLocalStudentDiscussionPrompt(session, id, input);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Local student discussion workflow is unavailable.";
+        throw new DiscussionWorkflowError(message, message.includes("not found") ? 404 : 409, "local_decision_error");
+      }
+    }
     throw new DiscussionWorkflowError(readiness.message, 503, "live_storage_not_configured");
   }
 

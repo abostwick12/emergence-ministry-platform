@@ -165,7 +165,7 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page.getByRole("heading", { name: "Review the source library" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Discussion Review" })).toBeVisible();
     await expect(page.getByText("No real submissions yet.")).toBeVisible();
-    await expect(page.getByRole("status")).toContainText("Connect student access before review can begin.");
+    await expect(page.getByRole("status")).toContainText("Review student questions before anything is shared.");
     const resourceManager = page.getByRole("region", { name: "Student resource manager" });
     await expect(resourceManager.getByRole("heading", { name: "Publish the student-facing helps" })).toBeVisible();
     await resourceManager.getByLabel("Journey phase").selectOption({ label: "Practice" });
@@ -254,8 +254,23 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page).toHaveURL(/\/discipleship$/);
     await expect(page.getByRole("heading", { name: "Discussion Review" })).toBeVisible();
     await expect(page.getByRole("region", { name: "Tonight discussion prep" })).toContainText("Reflected");
+    const reviewDetail = page.getByRole("article", { name: "Selected discussion review" });
+    await expect(reviewDetail.getByRole("heading", { name: "Why did God put the tree in the garden?" })).toBeVisible();
+    await reviewDetail.getByRole("button", { name: "Approve" }).click();
+    await expect(page.getByRole("status").filter({ hasText: "Leader decision saved." })).toBeVisible();
+    await reviewDetail.getByRole("button", { name: "Open guide" }).click();
+    const leaderGuide = page.getByRole("region", { name: "Wrestle Together leader guide" });
+    await expect(leaderGuide).toContainText("Session Flow");
+    await leaderGuide.getByLabel("Start Here").check();
+    await expect(leaderGuide).toContainText("1 of 5 steps checked");
+    await leaderGuide.getByLabel("Private follow-up note").fill("Discussed with the group and needs one check-in.");
+    await leaderGuide.getByRole("button", { name: "Mark discussed" }).click();
+    await expect(page.getByRole("status").filter({ hasText: "Discussion marked for leader follow-through." })).toBeVisible();
     await expect(page.getByText("Why did God put the tree in the garden?").first()).toBeVisible();
     await expect(page.getByText("I am noticing that hiding from God is part of the story.")).toHaveCount(0);
+    await page.goto("/student");
+    await expect(page.getByRole("heading", { name: "Wrestle together" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Student home feed" })).toContainText("Why did God put the tree in the garden?");
   });
 
   test("builder pages generate local previews without saving or sending", async ({ page }) => {

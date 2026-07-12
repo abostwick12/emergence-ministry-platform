@@ -3,8 +3,9 @@ import { randomUUID } from "crypto";
 import { isSupabaseConfigured } from "@/lib/auth/config";
 import type { AuthSession } from "@/lib/auth/server";
 import type { StudentQuestionReflection } from "@/lib/scripture/student-reflections";
-import type { LocalDiscussionDraft } from "@/lib/scripture/local-discussion-draft";
-import type { StudentDiscussionKnowledgeContext, StudentDiscussionPrompt } from "@/lib/scripture/types";
+import { buildLocalDiscussionDraftForPrompt, type LocalDiscussionDraft } from "@/lib/scripture/local-discussion-draft";
+import type { StudentGroupDiscussionItem } from "@/lib/scripture/student-home";
+import type { StudentDiscussionKnowledgeContext, StudentDiscussionPrompt, StudentDiscussionStatus } from "@/lib/scripture/types";
 import type { StudentHowToReadProgress } from "@/lib/scripture/how-to-read-progress";
 
 type LocalStudentState = {
@@ -25,6 +26,20 @@ type SaveLocalPromptInput = {
   metanarrativeMovement: StudentDiscussionPrompt["metanarrativeMovement"];
   draft: LocalDiscussionDraft;
   knowledgeContext: StudentDiscussionKnowledgeContext[];
+};
+
+type LocalDiscussionDecisionInput = {
+  action:
+    | "approve"
+    | "request_changes"
+    | "archive"
+    | "post"
+    | "regenerate"
+    | "use_local_draft"
+    | "mark_discussed"
+    | "flag_follow_up";
+  leaderNotes?: string;
+  discussionPrompt?: string;
 };
 
 const localStudentStateKey = Symbol.for("lead-emergence.local-student-state");
@@ -52,6 +67,21 @@ export function listLocalStudentDiscussionPrompts(session: AuthSession) {
       };
     })
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export function listLocalApprovedStudentDiscussionPrompts(session: AuthSession): StudentGroupDiscussionItem[] {
+  return listLocalStudentDiscussionPrompts(session)
+    .filter((prompt) => (prompt.status === "approved" || prompt.status === "posted") && Boolean(prompt.discussionPrompt))
+    .slice(0, 6)
+    .map((prompt) => ({
+      id: prompt.id,
+      groupId: prompt.groupId,
+      question: prompt.question,
+      scriptureReference: prompt.scriptureReference,
+      discussionPrompt: prompt.discussionPrompt,
+      status: prompt.status as Extract<StudentDiscussionStatus, "approved" | "posted">,
+      createdAt: prompt.createdAt
+    }));
 }
 
 export function saveLocalStudentDiscussionPrompt(session: AuthSession, input: SaveLocalPromptInput) {
@@ -90,6 +120,71 @@ export function saveLocalStudentDiscussionPrompt(session: AuthSession, input: Sa
   state.prompts.unshift(prompt);
   state.prompts = state.prompts.slice(0, 20);
   return prompt;
+}
+
+export function decideLocalStudentDiscussionPrompt(session: AuthSession, id: string, input: LocalDiscussionDecisionInput) {
+  const state = stateFor(session);
+  const prompt = state.prompts.find((item) => item.id === id);
+  if (!prompt) throw new Error("Discussion prompt not found.");
+
+  const now = new Date().toISOString();
+  const leaderNotes = normalizeLocalText(input.leaderNotes) || prompt.leaderNotes;
+  const discussionPrompt = normalizeLocalText(input.discussionPrompt) || prompt.discussionPrompt;
+  const updated: StudentDiscussionPrompt = {
+    ...prompt,
+    leaderNotes,
+    discussionPrompt,
+    updatedAt: now
+  };
+
+  if (input.action === "regenerate" || input.action === "use_local_draft") {
+    const localDraft = buildLocalDiscussionDraftForPrompt(prompt);
+    updated.aiStatus = "not_configured";
+    updated.aiModelReason = "Local student portal mode. Knowledge-guided draft saved without an external AI call.";
+    updated.topicTags = localDraft.topicTags;
+    updated.escalationReason = localDraft.escalationReason;
+    updated.safetyLabel = localDraft.safetyLabel;
+    updated.safetyNotes = localDraft.safetyNotes;
+    updated.discussionPrompt = localDraft.discussionPrompt;
+  }
+
+  if (input.action === "approve") {
+    if (!updated.discussionPrompt.trim()) throw new Error("Write a discussion prompt before approving this question.");
+    updated.status = "approved";
+    updated.approvedByUserId = session.user.id;
+    updated.approvedAt = now;
+  }
+
+  if (input.action === "request_changes") {
+    updated.status = "changes_requested";
+  }
+
+  if (input.action === "archive") {
+    updated.status = "archived";
+  }
+
+  if (input.action === "post") {
+    if (prompt.status !== "approved") throw new Error("Only approved discussion prompts can be shared.");
+    updated.status = "posted";
+    updated.postedAt = now;
+    updated.deliveryChannel = "Local preview";
+    updated.deliveryStatus = "not_configured";
+    updated.deliveryMessage = "Local preview only. No Slack message was sent.";
+  }
+
+  if (input.action === "mark_discussed") {
+    if (prompt.status !== "approved" && prompt.status !== "posted") throw new Error("Approve the prompt before marking it discussed.");
+    updated.leaderDiscussedAt = now;
+  }
+
+  if (input.action === "flag_follow_up") {
+    if (prompt.status === "archived") throw new Error("Archived prompts cannot be updated for group discussion.");
+    updated.leaderFollowUpFlaggedAt = now;
+    updated.leaderFollowUpFlagCount = (prompt.leaderFollowUpFlagCount ?? 0) + 1;
+  }
+
+  state.prompts = state.prompts.map((item) => (item.id === id ? updated : item));
+  return updated;
 }
 
 export function getLocalStudentQuestionReflections(session: AuthSession, promptIds: string[]) {
@@ -142,7 +237,7 @@ export function resetLocalStudentStateForTests() {
 }
 
 function stateFor(session: AuthSession) {
-  const key = session.user.id;
+  const key = shouldUseLocalStudentState(session) ? "local-dev-ministry" : session.user.id;
   const existing = localState.get(key);
   if (existing) return existing;
 
@@ -156,4 +251,8 @@ function stateFor(session: AuthSession) {
   };
   localState.set(key, state);
   return state;
+}
+
+function normalizeLocalText(value: string | undefined) {
+  return (value ?? "").normalize("NFKC").replace(/\s+/g, " ").trim();
 }
