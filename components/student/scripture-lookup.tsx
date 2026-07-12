@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Headphones, Pause } from "lucide-react";
 
 type LookupState =
   | { status: "idle"; message: string }
@@ -18,6 +19,7 @@ export function ScriptureLookup({ initialReference = "" }: { initialReference?: 
   const hasRunInitialLookup = useRef(false);
   const [reference, setReference] = useState(normalizedInitialReference);
   const [state, setState] = useState<LookupState>(initialState);
+  const [isListening, setIsListening] = useState(false);
 
   const runLookup = useCallback(async (requestedReference: string) => {
     if (!requestedReference) {
@@ -64,9 +66,32 @@ export function ScriptureLookup({ initialReference = "" }: { initialReference?: 
     void runLookup(normalizedInitialReference);
   }, [normalizedInitialReference, runLookup]);
 
+  useEffect(() => {
+    return () => {
+      if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    };
+  }, []);
+
   async function submitLookup(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     await runLookup(reference.trim());
+  }
+
+  function toggleListen() {
+    if (state.status !== "success" || !("speechSynthesis" in window)) return;
+
+    if (isListening) {
+      window.speechSynthesis.cancel();
+      setIsListening(false);
+      return;
+    }
+
+    const utterance = new SpeechSynthesisUtterance(`${state.passage.reference}. ${state.passage.content}`);
+    utterance.onend = () => setIsListening(false);
+    utterance.onerror = () => setIsListening(false);
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
+    setIsListening(true);
   }
 
   return (
@@ -109,11 +134,19 @@ export function ScriptureLookup({ initialReference = "" }: { initialReference?: 
 
       {state.status === "success" ? (
         <article className="scripture-lookup-result" aria-label="Scripture lookup result">
-          <div>
-            <p className="eyebrow">Lookup result</p>
-            <h3>{state.passage.reference}</h3>
+          <div className="scripture-lookup-result-heading">
+            <div>
+              <p className="eyebrow">Scripture window</p>
+              <h3>{state.passage.reference}</h3>
+            </div>
+            <button className="button compact" onClick={toggleListen} type="button">
+              {isListening ? <Pause aria-hidden="true" size={16} /> : <Headphones aria-hidden="true" size={16} />}
+              {isListening ? "Pause" : "Listen"}
+            </button>
           </div>
-          <p className="scripture-lookup-content">{state.passage.content}</p>
+          <div className="scripture-lookup-reader-window">
+            <p className="scripture-lookup-content">{state.passage.content}</p>
+          </div>
           <p className="scripture-lookup-id">Passage ID: {state.passage.id}</p>
         </article>
       ) : null}

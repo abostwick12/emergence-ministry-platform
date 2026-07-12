@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import type { StudentQuestionReflection } from "@/lib/scripture/student-reflections";
 import type { StudentDiscussionPrompt } from "@/lib/scripture/types";
@@ -21,7 +21,13 @@ export function StudentReflectionPanel({ onSaved, prompt, reflection }: StudentR
   const [privateNote, setPrivateNote] = useState(reflection?.privateNote ?? "");
   const [isReflected, setIsReflected] = useState(Boolean(reflection?.reflectedAt));
   const [isSaving, setIsSaving] = useState(false);
-  const [status, setStatus] = useState(reflection?.reflectedAt ? "You marked this as reflected." : "Private to you.");
+  const [status, setStatus] = useState(reflection?.reflectedAt ? "Reflection saved. Bring this with you to group." : "Private to you.");
+
+  useEffect(() => {
+    setPrivateNote(reflection?.privateNote ?? "");
+    setIsReflected(Boolean(reflection?.reflectedAt));
+    setStatus(reflection?.reflectedAt ? "Reflection saved. Bring this with you to group." : reflection?.privateNote ? "Private note saved." : "Private to you.");
+  }, [prompt.id, reflection?.privateNote, reflection?.reflectedAt]);
 
   async function saveReflection(reflected: boolean) {
     setIsSaving(true);

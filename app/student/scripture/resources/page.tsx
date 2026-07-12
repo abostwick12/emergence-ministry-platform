@@ -1,5 +1,6 @@
 import { ScriptureLookup } from "@/components/student/scripture-lookup";
 import { StudentScriptureTabs } from "@/components/student/student-scripture-tabs";
+import { StudentStudyToolRail } from "@/components/student/student-study-tool-rail";
 import { scriptureResources } from "@/lib/scripture/mock-data";
 import {
   foundationBooks,
@@ -67,6 +68,105 @@ const storylinePath = [
   }
 ] as const;
 
+const storyJourney = [
+  {
+    id: "creation-fall",
+    title: "Creation and Fall",
+    range: "Genesis 1-11",
+    icon: "Tree",
+    tone: "origin",
+    steps: [
+      { label: "Read", title: "Genesis 1-3", detail: "Ask what God gives, what humans are made for, and where trust breaks." },
+      { label: "Question", title: "What is good before anything goes wrong?", detail: "Name gifts before naming the problem." },
+      { label: "Practice", title: "Creation walk", detail: "Notice creation and pray one sentence of gratitude." }
+    ]
+  },
+  {
+    id: "abraham",
+    title: "Covenant with Abraham",
+    range: "Genesis 12-50",
+    icon: "Promise",
+    tone: "presence",
+    steps: [
+      { label: "Read", title: "Genesis 12, 15, 22", detail: "Trace promise, trust, blessing, and God's provision." },
+      { label: "Question", title: "Who is the blessing meant to reach?", detail: "Watch how one family is called for the nations." },
+      { label: "Context", title: "Promise before possession", detail: "Abraham receives promises before he sees the whole outcome." }
+    ]
+  },
+  {
+    id: "exodus",
+    title: "Exodus from Egypt",
+    range: "Exodus 1-18",
+    icon: "Rescue",
+    tone: "formation",
+    steps: [
+      { label: "Read", title: "Exodus 3, 12, 14", detail: "Notice God hearing, rescuing, judging false powers, and making a people." },
+      { label: "Question", title: "What does God rescue people from and for?", detail: "Hold deliverance and worship together." },
+      { label: "Practice", title: "Prayer of rescue", detail: "Name one place you need God's help and one way rescue could lead to worship." }
+    ]
+  },
+  {
+    id: "sinai",
+    title: "Covenant at Sinai",
+    range: "Exodus 19 - Leviticus",
+    icon: "Law",
+    tone: "formation",
+    steps: [
+      { label: "Read", title: "Exodus 19-20", detail: "Read commands inside rescue, identity, and covenant." },
+      { label: "Question", title: "What kind of people is God forming?", detail: "Ask how holiness connects to love for God and neighbor." },
+      { label: "Tip", title: "Do not start with rule-keeping", detail: "Start with God's rescue and presence before application." }
+    ]
+  },
+  {
+    id: "land-kingdom",
+    title: "Land and Kingdom",
+    range: "Joshua - 2 Kings",
+    icon: "Crown",
+    tone: "kingdom",
+    steps: [
+      { label: "Read", title: "Joshua 1, 2 Samuel 7, 1 Kings 8", detail: "Watch promise, place, kingship, temple, and failure." },
+      { label: "Question", title: "What kind of king do people need?", detail: "Notice the gap between God's rule and human power." },
+      { label: "Context", title: "Promises under pressure", detail: "The land and kingdom expose the need for deeper faithfulness." }
+    ]
+  },
+  {
+    id: "wisdom-prophets",
+    title: "Wisdom and Prophets",
+    range: "Job - Malachi",
+    icon: "Voice",
+    tone: "restoration",
+    steps: [
+      { label: "Read", title: "Psalm 13, Isaiah 40, Micah 6", detail: "Let wisdom and prophets teach lament, hope, justice, and worship." },
+      { label: "Question", title: "What pain or warning is being named?", detail: "Do not rush lament or prophetic warning into a quick lesson." },
+      { label: "Practice", title: "Honest prayer", detail: "Pray one sentence of lament and one sentence of hope." }
+    ]
+  },
+  {
+    id: "jesus-kingdom",
+    title: "Jesus and the Kingdom",
+    range: "Matthew - Acts",
+    icon: "Cross",
+    tone: "fulfillment",
+    steps: [
+      { label: "Read", title: "Mark 1, Luke 4, John 1, Acts 2", detail: "Watch Jesus fulfill Israel's story and send Spirit-formed witnesses." },
+      { label: "Question", title: "How does Jesus bring the story to its center?", detail: "Look for fulfillment through teaching, cross, resurrection, and Spirit." },
+      { label: "Practice", title: "Witness with humility", detail: "Name one way your group can embody good news this week." }
+    ]
+  },
+  {
+    id: "new-creation",
+    title: "People of the Kingdom and New Creation",
+    range: "Romans - Revelation",
+    icon: "Home",
+    tone: "renewal",
+    steps: [
+      { label: "Read", title: "Romans 8, Ephesians 2, Revelation 21", detail: "Trace new humanity, patient hope, and creation renewed." },
+      { label: "Question", title: "What is God renewing?", detail: "Keep Christian hope bigger than escaping the world." },
+      { label: "Practice", title: "Hope inventory", detail: "Name one broken thing you are waiting for God to renew." }
+    ]
+  }
+] as const;
+
 export default function ScriptureResourcesPage({ searchParams }: ScriptureResourcesPageProps) {
   const requestedReference = Array.isArray(searchParams?.reference) ? searchParams.reference[0] : searchParams?.reference;
 
@@ -116,6 +216,38 @@ export default function ScriptureResourcesPage({ searchParams }: ScriptureResour
           </ol>
         </section>
 
+        <section className="student-big-story-section student-story-journey" aria-labelledby="story-journey-title">
+          <div className="student-big-story-heading">
+            <p className="eyebrow">Your Journey</p>
+            <h2 id="story-journey-title">Move through the Bible without getting lost</h2>
+            <p>Open one movement at a time. Each one gives a short reading path, questions, context, and a practice.</p>
+          </div>
+          <div className="student-story-journey-list">
+            {storyJourney.map((section) => (
+              <details className={`student-story-journey-row ${section.tone}`} key={section.id}>
+                <summary>
+                  <span className="student-story-journey-icon">{section.icon}</span>
+                  <span>
+                    <strong>{section.title}</strong>
+                    <small>{section.range}</small>
+                  </span>
+                </summary>
+                <ol className="student-story-journey-steps">
+                  {section.steps.map((step) => (
+                    <li key={`${section.id}-${step.title}`}>
+                      <span>{step.label}</span>
+                      <div>
+                        <strong>{step.title}</strong>
+                        <p>{step.detail}</p>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              </details>
+            ))}
+          </div>
+        </section>
+
         <section className="student-big-story-section student-big-story-workspace" aria-labelledby="foundation-title">
           <div className="student-big-story-heading">
             <p className="eyebrow">Start Here</p>
@@ -142,11 +274,15 @@ export default function ScriptureResourcesPage({ searchParams }: ScriptureResour
             <h2 id="depth-title">Open the next layer when you are ready</h2>
             <p>Use these as optional layers after the four-move path feels familiar.</p>
           </div>
-          <details>
-            <summary>Open the full storyline map</summary>
-            <ol className="student-big-story-map" aria-label="Bible storyline movements">
+          <details className="student-atlas-layer storyline">
+            <summary>
+              <span className="student-atlas-badge">Story map</span>
+              <strong>Open the full storyline map</strong>
+              <small>12 movements from creation to new creation</small>
+            </summary>
+            <ol className="student-big-story-map student-storyline-map" aria-label="Bible storyline movements">
               {storylineMap.map((movement, index) => (
-                <li key={movement}>
+                <li className={`student-storyline-map-card ${movementTone(movement)}`} key={movement}>
                   <span>{index + 1}</span>
                   <strong>{movement}</strong>
                   <p>{movementNotes[movement]}</p>
@@ -154,13 +290,21 @@ export default function ScriptureResourcesPage({ searchParams }: ScriptureResour
               ))}
             </ol>
           </details>
-          <details>
-            <summary>Open the Old and New Testament flyover</summary>
-            <FlyoverRail title="Old Testament flyover" items={oldTestamentFlyovers} />
-            <FlyoverRail title="New Testament flyover" items={newTestamentFlyovers} />
+          <details className="student-atlas-layer flyover">
+            <summary>
+              <span className="student-atlas-badge">Flyover</span>
+              <strong>Open the Old and New Testament flyover</strong>
+              <small>Book clusters without losing the whole story</small>
+            </summary>
+            <FlyoverRail title="Old Testament flyover" items={oldTestamentFlyovers} tone="old" />
+            <FlyoverRail title="New Testament flyover" items={newTestamentFlyovers} tone="new" />
           </details>
-          <details>
-            <summary>Open themes to trace as you read</summary>
+          <details className="student-atlas-layer themes">
+            <summary>
+              <span className="student-atlas-badge">Themes</span>
+              <strong>Open themes to trace as you read</strong>
+              <small>Recurring threads with beginnings and fulfillment</small>
+            </summary>
             <div className="student-big-story-themes">
               {visibleThemes.map((theme) => (
                 <ThemeCard theme={theme} key={theme.id} />
@@ -176,24 +320,9 @@ export default function ScriptureResourcesPage({ searchParams }: ScriptureResour
         <div className="student-big-story-heading">
           <p className="eyebrow">Reading Skills</p>
           <h2>Simple tools for reading carefully together</h2>
-          <p>Use these when a passage feels confusing, familiar, or easy to use too quickly.</p>
+          <p>Swipe the short cards, then open one when you need examples or an exercise.</p>
         </div>
-        <details className="student-resource-details">
-          <summary>Open reading skill cards</summary>
-          <div className="student-resource-grid">
-            {scriptureResources.map((resource) => (
-              <article className="student-resource-card" key={resource.id}>
-                <p className="eyebrow">{resource.title}</p>
-                <h3>{resource.title}</h3>
-                <p>{resource.summary}</p>
-                <div>
-                  <strong>Try this</strong>
-                  <p>{resource.studentPractice}</p>
-                </div>
-              </article>
-            ))}
-          </div>
-        </details>
+        <StudentStudyToolRail resources={scriptureResources} />
       </section>
     </>
   );
@@ -257,13 +386,13 @@ function FoundationBookCard({ book }: { book: StorylineFoundationBook }) {
   );
 }
 
-function FlyoverRail({ items, title }: { items: StorylineFlyover[]; title: string }) {
+function FlyoverRail({ items, title, tone }: { items: StorylineFlyover[]; title: string; tone: "old" | "new" }) {
   return (
     <section className="student-flyover" aria-label={title}>
       <h3>{title}</h3>
       <div className="student-flyover-grid">
         {items.map((item) => (
-          <article key={item.id}>
+          <article className={`student-flyover-card ${tone}`} key={item.id}>
             <span>{item.covers}</span>
             <strong>{item.title.replace(" Flyover", "")}</strong>
             <p>{item.bigIdea}</p>
@@ -276,7 +405,7 @@ function FlyoverRail({ items, title }: { items: StorylineFlyover[]; title: strin
 
 function ThemeCard({ theme }: { theme: StorylineTheme }) {
   return (
-    <article className="student-theme-card">
+    <article className={`student-theme-card ${themeTone(theme)}`}>
       <h3>{theme.title}</h3>
       <p>{theme.fulfilled}</p>
       <dl>
@@ -291,4 +420,18 @@ function ThemeCard({ theme }: { theme: StorylineTheme }) {
       </dl>
     </article>
   );
+}
+
+function movementTone(movement: (typeof storylineMap)[number]) {
+  if (movement === "Creation" || movement === "Covenant") return "origin";
+  if (movement === "Fall" || movement === "Exile") return "rupture";
+  if (movement === "Messiah" || movement === "Church" || movement === "New Creation") return "fulfillment";
+  return "formation";
+}
+
+function themeTone(theme: StorylineTheme) {
+  if (theme.id === "covenant" || theme.id === "temple") return "presence";
+  if (theme.id === "exile" || theme.id === "sacrifice") return "restoration";
+  if (theme.id === "kingdom") return "kingdom";
+  return "renewal";
 }
