@@ -6,6 +6,7 @@ import {
   DiscussionWorkflowError,
   getStudentDiscussionWorkflowState
 } from "@/lib/scripture/discussion-workflow";
+import { listStudentCuratedResources } from "@/lib/scripture/curated-resources";
 import { getStudentKnowledgeMatches, saveStudentQuestionRecommendations } from "@/lib/scripture/knowledge";
 import { buildQuestionNextStep } from "@/lib/scripture/student-home";
 import type { StudentDiscussionPrompt } from "@/lib/scripture/types";
@@ -79,7 +80,8 @@ async function buildResilientQuestionNextStep(session: AuthSession, prompt: Stud
     }
   }
 
-  const nextStep = buildQuestionNextStep(prompt, knowledgeMatches);
+  const curatedResources = await listStudentCuratedResources(session);
+  const nextStep = buildQuestionNextStep(prompt, knowledgeMatches, { curatedResources });
   try {
     await saveStudentQuestionRecommendations(session, prompt.id, nextStep, knowledgeMatches);
   } catch (error) {

@@ -1,5 +1,6 @@
 import { StudentHomeFeed } from "@/components/student/student-home-feed";
 import { getServerSession } from "@/lib/auth/server";
+import { listStudentCuratedResources } from "@/lib/scripture/curated-resources";
 import { getSavedStudentQuestionRecommendations } from "@/lib/scripture/knowledge";
 import { getApprovedStudentDiscussionFeed, getStudentDiscussionWorkflowState } from "@/lib/scripture/discussion-workflow";
 import { getStudentHowToReadProgress } from "@/lib/scripture/how-to-read-progress";
@@ -20,7 +21,8 @@ export default async function StudentPortalPage() {
   const savedRecommendations = await getSavedStudentQuestionRecommendations(access.session, recentPromptIds);
   const reflections = await getStudentQuestionReflections(access.session, recentPromptIds);
   const howToReadProgress = await getStudentHowToReadProgress(access.session);
-  const feed = buildStudentHomeFeed(state.prompts, access.session.user.id, approvedGroupPrompts, savedRecommendations);
+  const curatedResources = await listStudentCuratedResources(access.session);
+  const feed = buildStudentHomeFeed(state.prompts, access.session.user.id, approvedGroupPrompts, savedRecommendations, curatedResources);
 
   return (
     <StudentHomeFeed
