@@ -70,7 +70,11 @@ export function ScriptureLeaderReview({ initialGroupState, initialState }: Scrip
   const [isCreatingInvite, setIsCreatingInvite] = useState(false);
   const [diagnostic, setDiagnostic] = useState<GlooDiagnosticResult | undefined>();
   const [isRunningDiagnostic, setIsRunningDiagnostic] = useState(false);
-  const [status, setStatus] = useState(initialState.readiness.liveStorage ? "Review student questions before anything is shared." : "Connect student access before review can begin.");
+  const [status, setStatus] = useState(
+    initialState.readiness.liveStorage || initialState.readiness.localStorage
+      ? "Review student questions before anything is shared."
+      : initialState.readiness.message
+  );
 
   const activeTabConfig = reviewTabs.find((tab) => tab.id === activeTab) ?? reviewTabs[0];
   const filteredPrompts = useMemo(() => prompts.filter(activeTabConfig.matches), [activeTabConfig, prompts]);
@@ -200,7 +204,7 @@ export function ScriptureLeaderReview({ initialGroupState, initialState }: Scrip
 
       {activeGuidePrompt ? (
         <LeaderDiscussionGuide
-          liveStorageReady={initialState.readiness.liveStorage}
+          reviewReady={initialState.readiness.liveStorage || initialState.readiness.localStorage}
           onClose={() => setActiveGuideId("")}
           onDecide={decidePrompt}
           prompt={activeGuidePrompt}
@@ -254,7 +258,7 @@ export function ScriptureLeaderReview({ initialGroupState, initialState }: Scrip
           <LeaderReviewDetail
             key={selectedPrompt.id}
             glooReady={initialState.readiness.gloo}
-            liveStorageReady={initialState.readiness.liveStorage}
+            reviewReady={initialState.readiness.liveStorage || initialState.readiness.localStorage}
             onDecide={decidePrompt}
             onOpenGuide={openDiscussionGuide}
             prompt={selectedPrompt}
@@ -421,26 +425,53 @@ function GlooDiagnosticPanel({
 }
 
 function LeaderDiscussionGuide({
-  liveStorageReady,
+  reviewReady,
   onClose,
   onDecide,
   prompt,
   savingAction
 }: {
-  liveStorageReady: boolean;
+  reviewReady: boolean;
   onClose: () => void;
   onDecide: (id: string, action: ReviewAction, leaderNotes: string, discussionPrompt: string) => Promise<void>;
   prompt: StudentDiscussionPrompt;
   savingAction: ReviewAction | "";
 }) {
   const [followUpNote, setFollowUpNote] = useState(prompt.leaderNotes);
-  const canSave = liveStorageReady && !savingAction;
+  const [checkedSteps, setCheckedSteps] = useState<Set<string>>(() => new Set());
+  const [copyStatus, setCopyStatus] = useState("");
+  const canSave = reviewReady && !savingAction;
   const isReady = prompt.status === "approved" || prompt.status === "posted";
   const guide = buildDiscussionGuide(prompt);
+  const completedSteps = checkedSteps.size;
 
   useEffect(() => {
     setFollowUpNote(prompt.leaderNotes);
+    setCheckedSteps(new Set());
+    setCopyStatus("");
   }, [prompt]);
+
+  async function copyGuide() {
+    setCopyStatus("");
+    try {
+      await navigator.clipboard.writeText(formatDiscussionGuideForCopy(prompt, guide));
+      setCopyStatus("Guide copied for leader notes.");
+    } catch {
+      setCopyStatus("Copy is not available in this browser.");
+    }
+  }
+
+  function toggleStep(stepId: string) {
+    setCheckedSteps((current) => {
+      const next = new Set(current);
+      if (next.has(stepId)) {
+        next.delete(stepId);
+      } else {
+        next.add(stepId);
+      }
+      return next;
+    });
+  }
 
   return (
     <section className="leader-discussion-guide" aria-label="Wrestle Together leader guide">
@@ -452,6 +483,9 @@ function LeaderDiscussionGuide({
         </div>
         <div className="leader-discussion-guide-actions">
           <ReviewPill status={prompt.status} />
+          <button className="button" onClick={copyGuide} type="button">
+            Copy guide
+          </button>
           <button className="button" onClick={onClose} type="button">
             Close guide
           </button>
@@ -470,6 +504,22 @@ function LeaderDiscussionGuide({
         <MetaTile label="Discussed" value={prompt.leaderDiscussedAt ? formatShortDate(prompt.leaderDiscussedAt) : "Not yet"} />
         <MetaTile label="Follow-up" value={prompt.leaderFollowUpFlagCount ? `${prompt.leaderFollowUpFlagCount} flagged` : "None"} />
       </div>
+
+      <section className="leader-discussion-session-plan" aria-label="Leader session checklist">
+        <div>
+          <p className="eyebrow">Session Flow</p>
+          <h3>{completedSteps} of {guide.sections.length} steps checked</h3>
+        </div>
+        <div className="leader-discussion-session-steps">
+          {guide.sections.map((section) => (
+            <label key={section.label}>
+              <input checked={checkedSteps.has(section.label)} onChange={() => toggleStep(section.label)} type="checkbox" />
+              <span>{section.label}</span>
+            </label>
+          ))}
+        </div>
+        <p role="status">{copyStatus || "Use this checklist while leading; it stays private in this browser session."}</p>
+      </section>
 
       <div className="leader-discussion-guide-grid">
         {guide.sections.map((section) => (
@@ -741,14 +791,14 @@ function GlooDiagnosticResultView({ diagnostic }: { diagnostic: GlooDiagnosticRe
 
 function LeaderReviewDetail({
   glooReady,
-  liveStorageReady,
+  reviewReady,
   onDecide,
   onOpenGuide,
   prompt,
   savingAction
 }: {
   glooReady: boolean;
-  liveStorageReady: boolean;
+  reviewReady: boolean;
   onDecide: (id: string, action: ReviewAction, leaderNotes: string, discussionPrompt: string) => Promise<void>;
   onOpenGuide: (prompt: StudentDiscussionPrompt) => void;
   prompt: StudentDiscussionPrompt;
@@ -768,7 +818,7 @@ function LeaderReviewDetail({
       ? "Provider draft"
       : "Saved guided draft"
     : "Guided local draft";
-  const canSave = liveStorageReady && !savingAction;
+  const canSave = reviewReady && !savingAction;
   const canApprove = canSave && discussionPrompt.trim().length > 0 && prompt.status !== "posted";
   const canPost = canSave && prompt.status === "approved";
   const canRegenerate = canSave && glooReady && prompt.status !== "posted";
@@ -1151,6 +1201,26 @@ function buildDiscussionGuide(prompt: StudentDiscussionPrompt) {
       }
     ]
   };
+}
+
+function formatDiscussionGuideForCopy(prompt: StudentDiscussionPrompt, guide: ReturnType<typeof buildDiscussionGuide>) {
+  const lines = [
+    `Wrestle Together Guide`,
+    `Question: ${prompt.question}`,
+    `Passage: ${prompt.scriptureReference || "Choose together"}`,
+    `Leader-approved prompt: ${prompt.discussionPrompt || prompt.question}`,
+    ""
+  ];
+
+  for (const section of guide.sections) {
+    lines.push(`${section.label}: ${section.title}`);
+    for (const item of section.items) {
+      lines.push(`- ${item}`);
+    }
+    lines.push("");
+  }
+
+  return lines.join("\n").trim();
 }
 
 function tabForPrompt(prompt: StudentDiscussionPrompt): ReviewTab["id"] {

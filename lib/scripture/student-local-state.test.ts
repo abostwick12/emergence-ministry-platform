@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import type { AuthSession } from "@/lib/auth/server";
 import {
+  decideLocalStudentDiscussionPrompt,
+  listLocalApprovedStudentDiscussionPrompts,
   listLocalStudentDiscussionPrompts,
   resetLocalStudentStateForTests,
   saveLocalStudentDiscussionPrompt,
@@ -44,6 +46,69 @@ describe("local student state", () => {
     expect(JSON.stringify(prompts[0])).not.toContain("private journal thought");
     expect(JSON.stringify(prompts[0])).not.toContain("privateNote");
   });
+
+  it("supports the local leader approve, share, discussed, and follow-up cycle", () => {
+    const prompt = saveLocalStudentDiscussionPrompt(session(), {
+      question: "Why did God put the tree in the garden?",
+      scriptureReference: "Genesis 3",
+      metanarrativeMovement: "Fall",
+      draft: {
+        discussionPrompt: "What does Genesis 3 show about trust, failure, and God's pursuit?",
+        escalationReason: "",
+        safetyLabel: "safe",
+        safetyNotes: "Ready for leader review.",
+        topicTags: ["garden"]
+      },
+      knowledgeContext: []
+    });
+
+    const approved = decideLocalStudentDiscussionPrompt(leaderSession(), prompt.id, {
+      action: "approve",
+      leaderNotes: "Use this for Wednesday.",
+      discussionPrompt: "Where does Genesis 3 show trust breaking and God still pursuing?"
+    });
+    expect(approved).toMatchObject({
+      status: "approved",
+      approvedByUserId: "usr_leader",
+      leaderNotes: "Use this for Wednesday."
+    });
+    expect(listLocalApprovedStudentDiscussionPrompts(session())).toEqual([
+      expect.objectContaining({
+        id: prompt.id,
+        discussionPrompt: "Where does Genesis 3 show trust breaking and God still pursuing?",
+        status: "approved"
+      })
+    ]);
+
+    const discussed = decideLocalStudentDiscussionPrompt(leaderSession(), prompt.id, {
+      action: "mark_discussed",
+      leaderNotes: "Discussed with group.",
+      discussionPrompt: approved.discussionPrompt
+    });
+    expect(discussed.leaderDiscussedAt).toEqual(expect.any(String));
+
+    const flagged = decideLocalStudentDiscussionPrompt(leaderSession(), prompt.id, {
+      action: "flag_follow_up",
+      leaderNotes: "Check in with the student next week.",
+      discussionPrompt: approved.discussionPrompt
+    });
+    expect(flagged).toMatchObject({
+      leaderFollowUpFlaggedAt: expect.any(String),
+      leaderFollowUpFlagCount: 1
+    });
+
+    const shared = decideLocalStudentDiscussionPrompt(leaderSession(), prompt.id, {
+      action: "post",
+      leaderNotes: flagged.leaderNotes,
+      discussionPrompt: approved.discussionPrompt
+    });
+    expect(shared).toMatchObject({
+      status: "posted",
+      deliveryChannel: "Local preview",
+      deliveryStatus: "not_configured",
+      deliveryMessage: "Local preview only. No Slack message was sent."
+    });
+  });
 });
 
 function session(): AuthSession {
@@ -55,6 +120,19 @@ function session(): AuthSession {
       email: "student@example.test",
       fullName: "Student User",
       role: "student"
+    }
+  };
+}
+
+function leaderSession(): AuthSession {
+  return {
+    isMock: true,
+    accessToken: "",
+    user: {
+      id: "usr_leader",
+      email: "leader@example.test",
+      fullName: "Leader User",
+      role: "leader"
     }
   };
 }
