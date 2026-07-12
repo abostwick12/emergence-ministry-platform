@@ -1,6 +1,6 @@
 "use client";
 
-import { Award, BookOpen, CheckCircle2, Heart, MessageCircle, PenLine, Search, Sparkles, Users, type LucideIcon } from "lucide-react";
+import { Award, BookOpen, CheckCircle2, Compass, Heart, Library, MessageCircle, PenLine, Search, Sparkles, Users, X, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -139,8 +139,7 @@ export function StudentHomeFeed({
       <section className="student-feed-main" aria-label="Student home feed">
         <div className="student-feed-welcome">
           <p className="eyebrow">Student Portal</p>
-          <h1>Welcome back, {firstName}.</h1>
-          <p>Ask real questions, keep reading, and bring better conversations to your group.</p>
+          <h1>Continue your journey, {firstName}.</h1>
         </div>
 
         <section className="student-progress-card" aria-label="Private Bible reading progress">
@@ -153,11 +152,7 @@ export function StudentHomeFeed({
               <h2>
                 {howToReadCompletedCount} of {howToReadModules.length} How to Read guides signed off
               </h2>
-              <p>
-                {latestHowToReadBadge
-                  ? `Latest badge: ${latestHowToReadBadge}. Keep going at a pace that helps you actually understand.`
-                  : "Sign off the first guide when you are ready. This is here to help you see your growth, not to rush you."}
-              </p>
+              {latestHowToReadBadge ? <p>Latest badge: {latestHowToReadBadge}.</p> : null}
             </div>
           </div>
           <div className="student-progress-card-actions">
@@ -181,7 +176,7 @@ export function StudentHomeFeed({
             <span className="student-help-icon" aria-hidden="true">
               <BookOpen size={17} />
             </span>
-            <h2>Scripture Study Tool</h2>
+            <h2>Bible App Reader</h2>
           </div>
           <form
             className="student-tool-search"
@@ -198,11 +193,11 @@ export function StudentHomeFeed({
               id="student-home-scripture-reference"
               name="reference"
               onChange={(event) => setLookupReference(event.target.value)}
-              placeholder="Look up a passage through the resources below."
+              placeholder="John 1"
               type="text"
               value={lookupReference}
             />
-            <button type="submit">Look Up</button>
+            <button type="submit">Open</button>
           </form>
           <div className="student-tool-chips" aria-label="Starter passages">
             {starterPassages.map((label) => (
@@ -230,7 +225,7 @@ export function StudentHomeFeed({
         <FeedSection
           title="Wrestle together"
           emptyTitle="Nothing approved yet."
-          emptyBody="Leader-approved discussion prompts will appear here when they are ready."
+          emptyBody="Approved prompts will appear here."
         >
           {initialFeed.forGroup.map((prompt) => (
             <DiscussionFeedRow
@@ -245,7 +240,7 @@ export function StudentHomeFeed({
           ))}
         </FeedSection>
 
-        <FeedSection title="Your recent questions" emptyTitle="No questions sent yet." emptyBody="When you send a real question, it will show here while your leader reviews it.">
+        <FeedSection title="Your recent questions" emptyTitle="No questions sent yet." emptyBody="Saved questions will appear here.">
           {recentQuestions.map((prompt) => (
             <QuestionFeedRow
               isActive={prompt.id === activePromptId}
@@ -266,8 +261,8 @@ export function StudentHomeFeed({
 
         <section className="student-feed-rail-card" aria-label="Keep reading">
           <div>
-            <p className="eyebrow">Keep reading</p>
-            <h2>Picked for where you are</h2>
+            <p className="eyebrow">Journey rhythm</p>
+            <h2>Keep moving</h2>
           </div>
           <div className="student-feed-rail-list">
             {keepReading.map((item) => (
@@ -293,7 +288,6 @@ function GroupDiscussionFollowThroughCard({
         <div>
           <p className="eyebrow">Wrestle Together</p>
           <h2>{prompt.discussionPrompt || prompt.question}</h2>
-          <p>This is the leader-approved conversation path for your group. Read, reflect, and come ready to listen well.</p>
         </div>
         <span className="pill green">{prompt.status === "posted" ? "Shared" : "Ready"}</span>
       </div>
@@ -387,13 +381,13 @@ function StudentResourceSteps({ steps }: { steps: StudentResourceStep[] }) {
   if (!steps.length) return null;
 
   return (
-    <section className="student-resource-steps" aria-label="Personal next steps from approved resources">
+    <section className="student-resource-steps" aria-label="Personal next steps">
       <div className="student-resource-steps-heading">
         <div>
           <p className="eyebrow">Your next steps</p>
           <h3>Read, reflect, and bring it back</h3>
         </div>
-        <span>{steps.some((step) => step.sourceLabel === "Approved library") ? "Approved resources" : "Guided path"}</span>
+        <span>Guided path</span>
       </div>
       <div className="student-resource-step-grid">
         {steps.map((step) => (
@@ -434,30 +428,58 @@ function StorylineContextCard({ match }: { match: StudentQuestionNextStep["story
 }
 
 function KnowledgePathCard({ matches }: { matches: StudentQuestionNextStep["knowledgeMatches"] }) {
-  if (!matches.length) return null;
+  const [isOpen, setIsOpen] = useState(false);
+  const resourceCount = matches.length;
 
   return (
-    <section className="student-knowledge-path" aria-label="Knowledge path">
+    <section className="student-knowledge-path student-related-resource-menu" aria-label="Related resources">
       <div className="student-knowledge-path-heading">
         <div>
-          <p className="eyebrow">Study path</p>
-          <h3>Picked from approved resources</h3>
+          <p className="eyebrow">Related resources</p>
+          <h3>Leader-curated helps</h3>
         </div>
-        <span>{matches.some((match) => match.sourceChunkId) ? "Approved library" : "Starter guide"}</span>
+        <button className="button compact" onClick={() => setIsOpen(true)} type="button">
+          <Library aria-hidden="true" size={15} />
+          Open menu
+        </button>
       </div>
 
-      <div className="student-knowledge-path-list">
-        {matches.slice(0, 3).map((match) => (
-          <article className="student-knowledge-source" key={match.id}>
-            <div className="student-knowledge-source-heading">
-              <span>{match.sourceChunkId ? "Approved resource" : "Starter guide"}</span>
-              {match.scriptureReferences[0] ? <small>{match.scriptureReferences[0]}</small> : null}
-            </div>
-            <h4>{match.title}</h4>
-            <p>{match.description}</p>
-          </article>
-        ))}
+      <div className="student-related-resource-preview">
+        <Compass aria-hidden="true" size={18} />
+        <span>{resourceCount ? `${resourceCount} resource ${resourceCount === 1 ? "slot" : "slots"}` : "No loaded resources yet"}</span>
       </div>
+
+      {isOpen ? (
+        <div className="student-related-resource-popover" role="dialog" aria-modal="true" aria-label="Related resources menu">
+          <div className="student-related-resource-dialog">
+            <div className="student-study-tool-popover-heading">
+              <div>
+                <p className="eyebrow">Related resources</p>
+                <h3>Curated for this journey</h3>
+              </div>
+              <button className="button icon" onClick={() => setIsOpen(false)} title="Close related resources" type="button">
+                <X aria-hidden="true" size={18} />
+                <span className="sr-only">Close related resources</span>
+              </button>
+            </div>
+            <div className="student-related-resource-dialog-list">
+              {matches.length ? (
+                matches.slice(0, 3).map((match, index) => (
+                  <article className="student-related-resource-slot" key={match.id}>
+                    <span>Resource slot {index + 1}</span>
+                    <h4>{match.scriptureReferences[0] ?? "Student-facing guide"}</h4>
+                  </article>
+                ))
+              ) : (
+                <article className="student-related-resource-slot">
+                  <span>Empty slot</span>
+                  <h4>No related resources loaded yet</h4>
+                </article>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

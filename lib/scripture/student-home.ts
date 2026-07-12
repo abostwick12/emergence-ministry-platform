@@ -49,6 +49,8 @@ export type StudentJourneyReading = {
 export type StudentJourneyKeyword = {
   term: string;
   transliteration?: string;
+  originalLanguage?: string;
+  lexicalUrl?: string;
   meaning: string;
   invitation: string;
 };
@@ -326,8 +328,8 @@ function fillFallbackItems(items: StudentKeepReadingItem[]) {
     {
       id: "lookup-scripture",
       label: "Look it up",
-      title: "Scripture lookup",
-      description: "Open a passage before group so the conversation starts with the text.",
+      title: "Bible App reader",
+      description: "Open a passage with YouVersion tools before group so the conversation starts with Scripture.",
       href: "/student/scripture/resources"
     },
     resourceItem(contextResource, "Read carefully")
@@ -402,7 +404,7 @@ function buildResourceSteps({
   storylineMatch: StorylineQuestionMatch;
   wrestleTogetherPrompt: string;
 }): StudentResourceStep[] {
-  const sourceLabel = primaryKnowledge?.sourceChunkId ? "Approved library" : "Starter guide";
+  const sourceLabel = primaryKnowledge?.sourceChunkId ? "Leader-curated guide" : "Starter guide";
   const groupPrompt = stripBringToGroupPrefix(wrestleTogetherPrompt);
 
   return [
@@ -509,18 +511,24 @@ function buildJourneyJournal(
         {
           term: "work / serve",
           transliteration: "abad",
+          originalLanguage: "עָבַד",
+          lexicalUrl: "https://www.blueletterbible.org/lexicon/h5647/kjv/wlc/0-1/",
           meaning: "The garden task is more than busywork. The word can carry the sense of serving.",
           invitation: "Ask how human vocation might be worshipful service before it becomes toil."
         },
         {
           term: "keep / guard",
           transliteration: "shamar",
+          originalLanguage: "שָׁמַר",
+          lexicalUrl: "https://www.blueletterbible.org/lexicon/h8104/kjv/wlc/0-1/",
           meaning: "Humans are invited to keep, watch, and guard what God gives.",
           invitation: "Reflect on what it means that trust includes guarding God's good gift."
         },
         {
           term: "wind / breeze of the day",
           transliteration: "ruach hayom",
+          originalLanguage: "רוּחַ הַיּוֹם",
+          lexicalUrl: "https://www.blueletterbible.org/lexicon/h7307/kjv/wlc/0-1/",
           meaning: "Genesis describes God drawing near in the garden. Read carefully and avoid overclaiming the phrase.",
           invitation: "Let the scene invite imagination about God's nearness without turning every detail into a theory."
         }

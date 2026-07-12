@@ -42,7 +42,7 @@ describe("student home feed personalization", () => {
 
     expect(feed.recentQuestions).toEqual([]);
     expect(feed.forGroup).toEqual([]);
-    expect(feed.keepReading.map((item) => item.title)).toEqual(["Beginnings and Covenant", "Asking better questions", "Scripture lookup"]);
+    expect(feed.keepReading.map((item) => item.title)).toEqual(["Beginnings and Covenant", "Asking better questions", "Bible App reader"]);
   });
 
   it("shows approved ministry prompts in the group feed", () => {
@@ -325,7 +325,7 @@ describe("student home feed personalization", () => {
       expect.objectContaining({
         id: "read",
         title: "Romans 8 and patient hope",
-        sourceLabel: "Approved library"
+        sourceLabel: "Leader-curated guide"
       }),
       expect.objectContaining({
         id: "journal",
@@ -401,7 +401,7 @@ describe("student home feed personalization", () => {
     expect(feed.questionNextSteps[0].resourceSteps[0]).toMatchObject({
       label: "Read this next",
       title: "Romans 8 and patient hope",
-      sourceLabel: "Approved library"
+      sourceLabel: "Leader-curated guide"
     });
   });
 

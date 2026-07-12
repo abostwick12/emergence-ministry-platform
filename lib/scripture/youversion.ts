@@ -1,5 +1,7 @@
 const DEFAULT_YOUVERSION_API_BASE_URL = "https://api.youversion.com";
 const DEFAULT_BIBLE_ID = 3034;
+const DEFAULT_BIBLE_COM_VERSION_ID = 111;
+const DEFAULT_BIBLE_COM_VERSION_CODE = "NIV";
 const MISSING_CONFIG_MESSAGE = "Scripture lookup is offline. You can still use the reading resources and starter passages.";
 const MAX_REFERENCE_LENGTH = 80;
 const PASSAGE_ID_PATTERN = /^(?:[1-3])?[A-Z]{3}\.(?:INTRO\d*|\d{1,3})(?:\.\d{1,3})?$/;
@@ -28,6 +30,17 @@ export type YouVersionPassage = {
 export type YouVersionLookupResult =
   | { ok: true; passage: YouVersionPassage; passageId: string }
   | { ok: false; code: "not_configured" | "invalid_reference" | "not_found" | "provider_error"; message: string; status: number };
+
+export type YouVersionReaderLink =
+  | {
+      ok: true;
+      inputReference: string;
+      displayReference: string;
+      passageId: string;
+      versionCode: string;
+      url: string;
+    }
+  | { ok: false; message: string };
 
 type YouVersionPassageResponse = {
   id?: unknown;
@@ -112,7 +125,7 @@ const scriptureBooks: ScriptureBook[] = [
 const booksByName = new Map(scriptureBooks.flatMap((book) => book.names.map((name) => [normalizeBookName(name), book.usfm])));
 
 export function readYouVersionConfig(env: Partial<NodeJS.ProcessEnv> = process.env): YouVersionConfig {
-  const appKey = env.YOUVERSION_APP_KEY?.trim();
+  const appKey = (env.YVP_APP_KEY ?? env.YOUVERSION_APP_KEY)?.trim();
   const apiBaseUrl = normalizeApiBaseUrl(env.YOUVERSION_API_BASE_URL) ?? DEFAULT_YOUVERSION_API_BASE_URL;
   const bibleId = DEFAULT_BIBLE_ID;
 
@@ -194,6 +207,37 @@ export async function lookupYouVersionPassage(input: { reference: unknown; signa
   };
 }
 
+export function buildYouVersionReaderLink(input: unknown): YouVersionReaderLink {
+  if (typeof input !== "string") {
+    return { ok: false, message: "A Scripture reference is required." };
+  }
+
+  const reference = normalizeReaderReference(input);
+  if (!reference) {
+    return { ok: false, message: "Enter a Scripture reference first." };
+  }
+
+  if (reference.length > MAX_REFERENCE_LENGTH) {
+    return { ok: false, message: "Scripture reference is too long." };
+  }
+
+  const passageId = toPassageId(reference);
+  if (!passageId) {
+    return { ok: false, message: "Use a chapter or verse reference, like John 1 or John 3:16." };
+  }
+
+  const versionCode = DEFAULT_BIBLE_COM_VERSION_CODE;
+  const url = new URL(`https://www.bible.com/bible/${DEFAULT_BIBLE_COM_VERSION_ID}/${passageId}.${versionCode}`);
+  return {
+    ok: true,
+    inputReference: input.trim(),
+    displayReference: reference,
+    passageId,
+    versionCode,
+    url: url.toString()
+  };
+}
+
 function buildPassageUrl(apiBaseUrl: string, bibleId: number, passageId: string) {
   const baseUrl = apiBaseUrl.endsWith("/v1") ? apiBaseUrl : `${apiBaseUrl}/v1`;
   const url = new URL(`${baseUrl}/bibles/${bibleId}/passages/${encodeURIComponent(passageId)}`);
@@ -228,6 +272,21 @@ function toPassageId(reference: string) {
   if (!book) return undefined;
 
   return [book, rawChapter, rawVerse].filter(Boolean).join(".");
+}
+
+function normalizeReaderReference(input: string) {
+  const sanitized = input
+    .normalize("NFKC")
+    .replace(/[^\w\s.:;-]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!sanitized) return "";
+  const verseRangeStart = sanitized.match(/^(.+?\s+\d{1,3}):(\d{1,3})\s*-\s*\d{1,3}$/);
+  if (verseRangeStart) return `${verseRangeStart[1]}:${verseRangeStart[2]}`;
+  const chapterRangeStart = sanitized.match(/^(.+?)\s+(\d{1,3})\s*-\s*\d{1,3}$/);
+  if (chapterRangeStart) return `${chapterRangeStart[1]} ${chapterRangeStart[2]}`;
+  return sanitized;
 }
 
 function normalizeBookName(value: string) {

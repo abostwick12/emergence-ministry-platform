@@ -16,7 +16,7 @@ vi.mock("@/lib/auth/server", async () => {
 });
 
 import { POST as scriptureLookupPOST } from "@/app/api/student/scripture/lookup/route";
-import { lookupYouVersionPassage, readYouVersionConfig, sanitizeScriptureReference } from "@/lib/scripture/youversion";
+import { buildYouVersionReaderLink, lookupYouVersionPassage, readYouVersionConfig, sanitizeScriptureReference } from "@/lib/scripture/youversion";
 
 function session(role = "student"): AuthSession {
   return {
@@ -59,7 +59,7 @@ describe("YouVersion config and reference normalization", () => {
 
   it("uses the configured server-only app key and trims the API base URL", () => {
     const config = readYouVersionConfig({
-      YOUVERSION_APP_KEY: " app-key ",
+      YVP_APP_KEY: " app-key ",
       YOUVERSION_API_BASE_URL: "https://api.example.test/v1/"
     });
 
@@ -81,6 +81,21 @@ describe("YouVersion config and reference normalization", () => {
     expect(sanitizeScriptureReference("")).toMatchObject({ ok: false });
     expect(sanitizeScriptureReference("John")).toMatchObject({ ok: false });
     expect(sanitizeScriptureReference("John 3:16<script>")).toMatchObject({ ok: false });
+  });
+
+  it("builds Bible App reader links from natural references without exposing text", () => {
+    expect(buildYouVersionReaderLink("John 1")).toMatchObject({
+      ok: true,
+      displayReference: "John 1",
+      passageId: "JHN.1",
+      versionCode: "NIV",
+      url: "https://www.bible.com/bible/111/JHN.1.NIV"
+    });
+    expect(buildYouVersionReaderLink("Genesis 1-3")).toMatchObject({
+      ok: true,
+      displayReference: "Genesis 1",
+      passageId: "GEN.1"
+    });
   });
 });
 
