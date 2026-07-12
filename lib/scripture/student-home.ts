@@ -30,6 +30,55 @@ export type StudentResourceStep = {
   sourceLabel: string;
 };
 
+export type StudentJourneyQuestion = {
+  id: string;
+  label: string;
+  prompt: string;
+  placeholder: string;
+};
+
+export type StudentJourneyReading = {
+  id: string;
+  reference: string;
+  lookupReference: string;
+  title: string;
+  guidance: string;
+  practice: string;
+};
+
+export type StudentJourneyKeyword = {
+  term: string;
+  transliteration?: string;
+  meaning: string;
+  invitation: string;
+};
+
+export type StudentGuidedPrayer = {
+  title: string;
+  durationLabel: string;
+  backgroundHint: string;
+  prompts: string[];
+};
+
+export type StudentJourneyPractice = {
+  title: string;
+  summary: string;
+  steps: string[];
+  reflectionPrompt: string;
+  guidedPrayer?: StudentGuidedPrayer;
+};
+
+export type StudentJourneyJournal = {
+  id: string;
+  title: string;
+  subtitle: string;
+  openingPrompt: string;
+  followUpQuestions: StudentJourneyQuestion[];
+  readingPath: StudentJourneyReading[];
+  keyWords: StudentJourneyKeyword[];
+  spiritualPractice: StudentJourneyPractice;
+};
+
 export type StudentQuestionNextStep = {
   promptId: string;
   label: string;
@@ -46,6 +95,7 @@ export type StudentQuestionNextStep = {
   resource: StudentKeepReadingItem;
   resourceSteps: StudentResourceStep[];
   storylineMatch: StorylineQuestionMatch;
+  journeyJournal: StudentJourneyJournal;
 };
 
 export type StudentHomeFeed = {
@@ -112,6 +162,7 @@ export function buildQuestionNextStep(prompt: ReadingSource & { id?: string }, k
   const wrestleTogetherPrompt = wrestleTogetherPromptForPrompt(prompt, primaryKnowledge);
   const readingPlan = primaryKnowledge ? knowledgeItem(primaryKnowledge, primaryKnowledge.label) : storylineItem(storylineMatch);
   const nextResource = secondaryKnowledge ? knowledgeItem(secondaryKnowledge, "Keep digging") : resourceItem(resource, "Practice this");
+  const journeyJournal = buildJourneyJournal(prompt, storylineMatch, primaryKnowledge);
 
   return {
     promptId: prompt.id ?? "current-question",
@@ -139,7 +190,8 @@ export function buildQuestionNextStep(prompt: ReadingSource & { id?: string }, k
       storylineMatch,
       wrestleTogetherPrompt
     }),
-    storylineMatch
+    storylineMatch,
+    journeyJournal
   };
 }
 
@@ -248,7 +300,8 @@ function savedRecommendationsToNextStep(
       storylineMatch: fallback.storylineMatch,
       wrestleTogetherPrompt: wrestleTogether?.title || fallback.wrestleTogetherPrompt
     }),
-    storylineMatch: fallback.storylineMatch
+    storylineMatch: fallback.storylineMatch,
+    journeyJournal: fallback.journeyJournal
   };
 }
 
@@ -384,6 +437,289 @@ function buildResourceSteps({
       sourceLabel: "Wrestle together"
     }
   ];
+}
+
+function buildJourneyJournal(
+  prompt: ReadingSource,
+  storylineMatch: StorylineQuestionMatch,
+  primaryKnowledge?: StudentKnowledgeMatch
+): StudentJourneyJournal {
+  const text = promptSearchText(prompt);
+  if (/\b(garden|eden|tree|evil|genesis|creation)\b/.test(text)) {
+    return {
+      id: "garden-question-journey",
+      title: "Garden Question Journey",
+      subtitle: "Walk slowly through Genesis 1-3 before settling for a quick answer.",
+      openingPrompt: "Start by naming the explanations you have heard, then read the garden story as a story about gift, vocation, trust, rupture, and God's pursuit.",
+      followUpQuestions: [
+        {
+          id: "heard-before",
+          label: "What answers have you heard before?",
+          prompt: "Name the explanations people usually give for the tree, the command, and human choice.",
+          placeholder: "It was a test, free will, choice, conflict..."
+        },
+        {
+          id: "still-incomplete",
+          label: "Why do those answers still feel incomplete?",
+          prompt: "What do those explanations miss about God's character, the good garden, or human vocation?",
+          placeholder: "They do not explain why the story begins with so much abundance..."
+        },
+        {
+          id: "notice-gifts",
+          label: "What do you notice before the command?",
+          prompt: "List the gifts, blessings, and responsibilities God gives before the warning about the tree appears.",
+          placeholder: "Image of God, food, blessing, work, keeping the garden..."
+        }
+      ],
+      readingPath: [
+        {
+          id: "genesis-1-image",
+          reference: "Genesis 1:26-31",
+          lookupReference: "Genesis 1:26",
+          title: "Gift and image before the problem",
+          guidance: "Notice blessing, image, vocation, food, and God's repeated judgment that creation is good.",
+          practice: "Write one sentence about what God gives before anyone has earned it."
+        },
+        {
+          id: "genesis-2-vocation",
+          reference: "Genesis 2:4-17",
+          lookupReference: "Genesis 2:15",
+          title: "The garden as vocation and trust",
+          guidance: "Read the command inside abundance. Pay attention to the work of serving and guarding the garden.",
+          practice: "Ask what trust would look like before sin enters the scene."
+        },
+        {
+          id: "genesis-3-rupture",
+          reference: "Genesis 3:1-13",
+          lookupReference: "Genesis 3",
+          title: "Desire, hiding, and God's pursuit",
+          guidance: "Notice the movement from questioning God's goodness to shame, hiding, and God seeking them.",
+          practice: "Name one place where distrust changes how people see God, themselves, or each other."
+        },
+        {
+          id: "genesis-3-mercy",
+          reference: "Genesis 3:14-24",
+          lookupReference: "Genesis 3:14",
+          title: "Judgment, mercy, and hope",
+          guidance: "Look for both real consequences and signs that God has not abandoned the story.",
+          practice: "Write one question you still want to bring to your leader or group."
+        }
+      ],
+      keyWords: [
+        {
+          term: "work / serve",
+          transliteration: "abad",
+          meaning: "The garden task is more than busywork. The word can carry the sense of serving.",
+          invitation: "Ask how human vocation might be worshipful service before it becomes toil."
+        },
+        {
+          term: "keep / guard",
+          transliteration: "shamar",
+          meaning: "Humans are invited to keep, watch, and guard what God gives.",
+          invitation: "Reflect on what it means that trust includes guarding God's good gift."
+        },
+        {
+          term: "wind / breeze of the day",
+          transliteration: "ruach hayom",
+          meaning: "Genesis describes God drawing near in the garden. Read carefully and avoid overclaiming the phrase.",
+          invitation: "Let the scene invite imagination about God's nearness without turning every detail into a theory."
+        }
+      ],
+      spiritualPractice: {
+        title: "Walk the garden slowly",
+        summary: "Take a silent walk, pay attention to creation, and imagine what it would mean to walk with God without hiding.",
+        steps: [
+          "Walk without music or scrolling for five minutes.",
+          "Name three gifts in creation before asking your question again.",
+          "Ask God where distrust or fear may be shaping the way you hear His command.",
+          "End by praying one honest sentence about trust."
+        ],
+        reflectionPrompt: "What would trust feel like if God's command came inside abundance, not scarcity?",
+        guidedPrayer: {
+          title: "Pause in the garden",
+          durationLabel: "2 minute prayer",
+          backgroundHint: "Quiet evening walk",
+          prompts: [
+            "Slowly inhale and remember that God made a good world.",
+            "As you exhale, release the pressure to solve the whole question at once.",
+            "Ask: God, what have You given before You command?",
+            "Invite God to meet you without hiding."
+          ]
+        }
+      }
+    };
+  }
+
+  const primaryPassage = prompt.scriptureReference || primaryKnowledge?.scriptureReferences?.[0] || storylineMatch.keyPassages[0] || "Genesis 1";
+  const followUpQuestions = uniqueQuestions([...wrestleQuestionsForPrompt(prompt), ...storylineMatch.studentQuestions], 3);
+  const passages = uniqueQuestions([primaryPassage, ...storylineMatch.keyPassages], 3);
+  const topic = topicLabelForPrompt(prompt) || storylineMatch.title.toLowerCase();
+
+  return {
+    id: `journey-${storylineMatch.id}`,
+    title: `${storylineMatch.title} Journey`,
+    subtitle: "A guided way to read, ask better questions, pray, and bring something thoughtful to group.",
+    openingPrompt: `Do not rush to an answer. Start with Scripture, then notice what this question reveals about ${topic}, God's character, people, brokenness, and hope.`,
+    followUpQuestions: followUpQuestions.map((question, index) => ({
+      id: `follow-up-${index + 1}`,
+      label: index === 0 ? "What are you really asking?" : index === 1 ? "What feels unresolved?" : "What should you look for?",
+      prompt: question,
+      placeholder: index === 0 ? "I am wondering..." : index === 1 ? "This still feels hard because..." : "I want to notice..."
+    })),
+    readingPath: passages.map((reference, index) => ({
+      id: `reading-${index + 1}`,
+      reference,
+      lookupReference: lookupReferenceFor(reference),
+      title: index === 0 ? "Start with the closest passage" : index === 1 ? "Trace the storyline" : "Bring it toward hope",
+      guidance: readingGuidanceFor(storylineMatch, index),
+      practice: readingPracticeFor(storylineMatch, index)
+    })),
+    keyWords: keyWordsForJourney(storylineMatch),
+    spiritualPractice: practiceForJourney(prompt, storylineMatch)
+  };
+}
+
+function readingGuidanceFor(storylineMatch: StorylineQuestionMatch, index: number) {
+  if (index === 0) return `Read slowly and ask what ${storylineMatch.startsHere} contributes before applying it to yourself.`;
+  if (index === 1) return `Watch how this question develops through ${storylineMatch.developsThrough}.`;
+  return `Ask how this finds its center or hope in Christ: ${storylineMatch.fulfilledInChrist}`;
+}
+
+function readingPracticeFor(storylineMatch: StorylineQuestionMatch, index: number) {
+  if (index === 0) return "Underline repeated words, commands, promises, people, places, and emotional turns.";
+  if (index === 1) return `Write one connection to ${storylineMatch.title} without forcing a shortcut.`;
+  return "Turn one observation into a question you can bring to your group.";
+}
+
+function keyWordsForJourney(storylineMatch: StorylineQuestionMatch): StudentJourneyKeyword[] {
+  const shared = [
+    {
+      term: "context",
+      meaning: "The passage sits inside a book, audience, covenant moment, and storyline.",
+      invitation: "Ask what is happening before asking what it means for you."
+    },
+    {
+      term: "faithful response",
+      meaning: "Application grows out of what the passage actually shows.",
+      invitation: "Name a response that fits the text instead of using the text for a pre-decided answer."
+    }
+  ];
+
+  if (storylineMatch.id === "wisdom-suffering") {
+    return [
+      {
+        term: "lament",
+        meaning: "Biblical faith makes room for honest grief and unanswered questions before God.",
+        invitation: "Try praying one honest sentence before trying to explain the pain."
+      },
+      ...shared
+    ];
+  }
+
+  if (storylineMatch.id === "presence-temple") {
+    return [
+      {
+        term: "presence",
+        meaning: "Scripture traces God's desire to dwell with His people while taking holiness seriously.",
+        invitation: "Look for nearness, holiness, mediation, and worship in the passage."
+      },
+      ...shared
+    ];
+  }
+
+  if (storylineMatch.id === "kingdom-messiah") {
+    return [
+      {
+        term: "kingdom",
+        meaning: "God's kingdom is His faithful reign, not just a place or a private feeling.",
+        invitation: "Ask what kind of power, justice, or victory the passage is showing."
+      },
+      ...shared
+    ];
+  }
+
+  return shared;
+}
+
+function practiceForJourney(prompt: ReadingSource, storylineMatch: StorylineQuestionMatch): StudentJourneyPractice {
+  const text = promptSearchText(prompt);
+
+  if (/\b(suffer\w*|pain|grief|death|trauma|hard things|depression|panic|anxiety|worry|lament)\b/.test(text)) {
+    return {
+      title: "Practice honest lament",
+      summary: "Bring the question to God without pretending it is smaller than it is.",
+      steps: [
+        "Name the pain or confusion in one plain sentence.",
+        "Read the first guided passage again and notice where Scripture gives you honest language.",
+        "Ask one trusted person to help you carry the question this week."
+      ],
+      reflectionPrompt: "What answer would feel too quick, and what hope does Scripture still allow you to hold?",
+      guidedPrayer: {
+        title: "Breathe and tell the truth",
+        durationLabel: "3 minute prayer",
+        backgroundHint: "Stillness and lament",
+        prompts: [
+          "Slowly inhale: God is near.",
+          "As you exhale, let yourself tell the truth without fixing it.",
+          "Pray: God, help me be honest about what hurts.",
+          "Ask for one sign of courage to bring this into wise community."
+        ]
+      }
+    };
+  }
+
+  if (/\b(pray|prayer|trust|faith|believe)\b/.test(text) || storylineMatch.id === "spirit-church") {
+    return {
+      title: "Pray from the passage",
+      summary: "Let the reading shape a prayer of praise, confession, request, and trust.",
+      steps: [
+        "Choose one phrase from the passage.",
+        "Turn it into a sentence of prayer.",
+        "Sit quietly for one minute before writing what you noticed."
+      ],
+      reflectionPrompt: "How did the passage change the way you prayed?",
+      guidedPrayer: {
+        title: "Invite God into this moment",
+        durationLabel: "2 minute prayer",
+        backgroundHint: "Quiet focus",
+        prompts: [
+          "Slowly inhale.",
+          "As you exhale, let go of tension or stress.",
+          "Repeat as needed, and invite God into this moment.",
+          "Pray one sentence from the Scripture you just read."
+        ]
+      }
+    };
+  }
+
+  return {
+    title: "Read, pause, respond",
+    summary: "Move from careful reading to a simple embodied response before group.",
+    steps: [
+      "Read the first passage out loud or listen to it once.",
+      "Write one observation, one question, and one possible response.",
+      "Pray one sentence asking God for humility and wisdom."
+    ],
+    reflectionPrompt: `What does this journey help you notice about ${storylineMatch.title.toLowerCase()}?`,
+    guidedPrayer: {
+      title: "A slow reading prayer",
+      durationLabel: "2 minute prayer",
+      backgroundHint: "Open Bible and quiet breath",
+      prompts: [
+        "Inhale and ask God for attention.",
+        "Exhale the need to rush to an answer.",
+        "Ask: What are You showing me in this passage?",
+        "Ask for humility to bring your question to group."
+      ]
+    }
+  };
+}
+
+function lookupReferenceFor(reference: string) {
+  const withoutRange = reference.replace(/-\d{1,3}(?::\d{1,3})?/g, "");
+  const verseRange = withoutRange.replace(/:(\d{1,3})-\d{1,3}/g, ":$1");
+  const commaSplit = verseRange.split(",")[0]?.trim();
+  return commaSplit || "Genesis 1";
 }
 
 function stripBringToGroupPrefix(value: string) {

@@ -54,6 +54,7 @@ test.describe("Student Scripture Hub shell", () => {
   });
 
   test("authenticated users can browse the Scripture Hub pages", async ({ page }) => {
+    test.setTimeout(60_000);
     await login(page);
 
     await page.goto("/student");
@@ -73,9 +74,11 @@ test.describe("Student Scripture Hub shell", () => {
 
     await page.goto("/student/scripture/plans");
     await expect(page.getByRole("heading", { name: "Example reading plans for whole-Scripture familiarity." })).toBeVisible();
-    await expect(page.getByText("Beginnings and Covenant")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Beginnings and Covenant" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Example reading plans" })).toContainText("Day 1");
+    await expect(page.getByRole("region", { name: "Day 1 plan" })).toContainText("Consider while reading");
+    await expect(page.getByRole("region", { name: "Day 1 plan" })).toContainText("Ground the reading");
     await expect(page.getByRole("navigation", { name: "Student Scripture Hub sections" }).getByRole("link", { name: "How to Read", exact: true })).toBeVisible();
-    await expect(page.getByText("Creation", { exact: true })).toHaveCount(0);
     await expect(page.getByText("No live Bible text or external provider is required")).toHaveCount(0);
 
     await page.goto("/student/scripture/how-to-read");
@@ -123,6 +126,10 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page.getByRole("heading", { name: "Four moves before all the details" })).toBeVisible();
     await expect(page.getByRole("list", { name: "Guided Bible storyline path" })).toContainText("God creates and blesses");
     await expect(page.getByRole("list", { name: "Guided Bible storyline path" })).toContainText("Connect to Jesus through the text's story");
+    await expect(page.getByRole("heading", { name: "Move through the Bible without getting lost" })).toBeVisible();
+    await expect(page.getByText("Creation and Fall")).toBeVisible();
+    await page.getByText("Creation and Fall").click();
+    await expect(page.getByText("Genesis 1-3")).toBeVisible();
     await expect(page.getByRole("heading", { name: "Start with Genesis and Exodus" })).toBeVisible();
     await expect(page.getByRole("region", { name: "Today's storyline practice" })).toContainText("Pick Genesis or Exodus");
     await expect(page.getByRole("heading", { name: "Genesis: beginnings and promise" })).toBeVisible();
@@ -141,14 +148,14 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page.getByText(/metanarrative/i)).toHaveCount(0);
     await expect(page.getByText("every doctrine")).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "Simple tools for reading carefully together" })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Context/ }).first()).toBeVisible();
+    await page.getByRole("button", { name: /Avoiding proof-texting/ }).click();
+    await expect(page.getByRole("dialog", { name: "Avoiding proof-texting study tool" })).toContainText("Before quoting a verse");
+    await page.getByRole("button", { name: "Close study tool" }).click();
     await expect(page.getByRole("heading", { name: "Look up a Scripture reference" })).toBeVisible();
     await page.getByLabel("Scripture reference").fill("John 3:16");
     await page.getByRole("button", { name: "Look Up" }).click();
     await expect(page.getByRole("region", { name: "Scripture lookup" }).getByRole("alert")).toContainText("Scripture lookup is offline.");
-    await expect(page.getByRole("heading", { name: "Avoiding proof-texting" })).toHaveCount(0);
-    await page.getByText("Open reading skill cards").click();
-    await expect(page.getByRole("heading", { name: "Avoiding proof-texting" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Avoiding forced typology" })).toBeVisible();
 
     await page.goto("/student/scripture/review");
     await expect(page).toHaveURL(/\/discipleship$/);
@@ -168,7 +175,19 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page.getByRole("status").filter({ hasText: "Saved. Use the rhythm below" })).toBeVisible();
     await expect(page.getByRole("region", { name: "Question next step" })).toContainText("Wrestle with your question");
     await expect(page.getByRole("heading", { name: "Why did God put the tree in the garden?" })).toBeVisible();
+    const journey = page.getByRole("region", { name: "Journey journal" });
+    await expect(journey).toContainText("Garden Question Journey");
+    await expect(journey).toContainText("Genesis 1:26-31");
+    await expect(journey).toContainText("shamar");
+    await expect(journey).toContainText("Pause in the garden");
+    await journey.getByLabel("What answers have you heard before?").fill("It was a test, free will, and choice.");
+    await journey.getByLabel("Why do those answers still feel incomplete?").fill("They do not explain why the garden starts with abundance.");
+    await journey.getByRole("button", { name: "Mark Genesis 1:26-31 read" }).click();
+    await journey.getByLabel("Practice completed").check();
+    await journey.getByRole("button", { name: "Save journal to private note" }).click();
+    await expect(journey.getByText("Journey saved to your private note.")).toBeVisible();
     const privateReflection = page.getByRole("region", { name: "Private reflection" });
+    await expect(privateReflection.getByLabel("Private note")).toHaveValue(/It was a test/);
     await privateReflection.getByLabel("Private note").fill("I am noticing that hiding from God is part of the story.");
     await privateReflection.getByRole("button", { name: "Save note" }).click();
     await expect(privateReflection.getByRole("status")).toContainText("Private note saved.");
@@ -176,6 +195,9 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(privateReflection.getByRole("status")).toContainText("Reflection saved. Bring this with you to group.");
     await page.reload();
     await expect(page.getByRole("heading", { name: "Why did God put the tree in the garden?" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Journey journal" }).getByLabel("What answers have you heard before?")).toHaveValue(
+      "It was a test, free will, and choice."
+    );
     await expect(page.getByRole("region", { name: "Private reflection" }).getByLabel("Private note")).toHaveValue(
       "I am noticing that hiding from God is part of the story."
     );
@@ -278,6 +300,7 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page.getByRole("status")).toContainText("Scripture lookup loaded.");
     await expect(page.getByRole("heading", { name: "John 3:16" })).toBeVisible();
     await expect(page.getByText("Mock lookup content for John 3:16.")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Listen" })).toBeVisible();
 
     await page.unroute("**/api/student/scripture/lookup");
     await page.route("**/api/student/scripture/lookup", async (route) => {

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 
 import { StudentQuestionComposer } from "@/components/student/student-question-composer";
+import { StudentJourneyJournal } from "@/components/student/student-journey-journal";
 import { StudentReflectionPanel } from "@/components/student/student-reflection-panel";
 import type { DiscussionWorkflowState } from "@/lib/scripture/discussion-workflow";
 import { buildQuestionNextStep, type StudentQuestionNextStep } from "@/lib/scripture/student-home";
@@ -119,6 +120,7 @@ function StudentQuestionNextStepPreview({
           <p className="student-next-step-together">{nextStep.wrestleTogetherPrompt}</p>
         </div>
       </div>
+      <StudentJourneyJournal journey={nextStep.journeyJournal} onReflectionSaved={onReflectionSaved} prompt={prompt} reflection={reflection} />
       <StudentReflectionPanel onSaved={onReflectionSaved} prompt={prompt} reflection={reflection} />
     </section>
   );

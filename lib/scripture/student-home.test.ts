@@ -255,6 +255,30 @@ describe("student home feed personalization", () => {
       expect.arrayContaining(["God, help me be honest about what I am really asking."])
     );
     expect(nextStep.wrestleTogetherPrompt).toContain("garden story");
+    expect(nextStep.journeyJournal).toMatchObject({
+      title: "Garden Question Journey",
+      readingPath: expect.arrayContaining([
+        expect.objectContaining({
+          reference: "Genesis 1:26-31"
+        }),
+        expect.objectContaining({
+          reference: "Genesis 2:4-17"
+        })
+      ]),
+      spiritualPractice: expect.objectContaining({
+        title: "Walk the garden slowly",
+        guidedPrayer: expect.objectContaining({
+          title: "Pause in the garden"
+        })
+      })
+    });
+    expect(nextStep.journeyJournal.keyWords).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          transliteration: "shamar"
+        })
+      ])
+    );
   });
 
   it("uses knowledge matches before generic next-step recommendations", () => {
@@ -315,6 +339,16 @@ describe("student home feed personalization", () => {
     ]);
     expect(nextStep.digQuestions).toEqual(["Where does Romans 8 name pain without pretending it is small?"]);
     expect(nextStep.wrestleTogetherPrompt).toContain("honest pain");
+    expect(nextStep.journeyJournal.title).toBe("Wisdom, lament, and faithful complexity Journey");
+    expect(nextStep.journeyJournal.followUpQuestions.length).toBeGreaterThan(0);
+    expect(nextStep.journeyJournal.readingPath).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          reference: "Romans 8:18"
+        })
+      ])
+    );
+    expect(nextStep.journeyJournal.spiritualPractice.guidedPrayer?.title).toBe("Breathe and tell the truth");
   });
 
   it("keeps the matched knowledge path available after saved recommendations rehydrate", () => {
