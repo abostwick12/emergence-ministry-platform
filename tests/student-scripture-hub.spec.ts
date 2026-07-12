@@ -33,7 +33,7 @@ test.describe("Student Scripture Hub shell", () => {
     await page.goto("/dashboard");
     await discipleshipLink.click();
     await expect(page).toHaveURL(/\/discipleship$/);
-    await expect(page.getByRole("heading", { name: "Build the discipleship brain" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Review the source library" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Prepare a group video package" })).toBeVisible();
     await expect(page.getByLabel("Upload text resource")).toBeVisible();
     await expect(page.getByLabel("Resource format")).toBeVisible();
@@ -162,10 +162,23 @@ test.describe("Student Scripture Hub shell", () => {
 
     await page.goto("/student/scripture/review");
     await expect(page).toHaveURL(/\/discipleship$/);
-    await expect(page.getByRole("heading", { name: "Build the discipleship brain" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Review the source library" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Discussion Review" })).toBeVisible();
     await expect(page.getByText("No real submissions yet.")).toBeVisible();
     await expect(page.getByRole("status")).toContainText("Connect student access before review can begin.");
+    const resourceManager = page.getByRole("region", { name: "Student resource manager" });
+    await expect(resourceManager.getByRole("heading", { name: "Publish the student-facing helps" })).toBeVisible();
+    await resourceManager.getByLabel("Title").fill("Garden trust practice");
+    await resourceManager.getByLabel("Short summary").fill("A quiet practice for garden questions.");
+    await resourceManager.getByLabel("Full details").fill("Read Genesis 2-3 by noticing God's gifts before you name the problem.");
+    await resourceManager.getByLabel("Practice prompt").fill("Name three gifts in creation before asking why the tree is there.");
+    await resourceManager.getByLabel("Scripture").fill("Genesis 2, Genesis 3");
+    await resourceManager.getByLabel("Themes").fill("garden, trust, creation");
+    await resourceManager.getByLabel("Question match words").fill("tree, eden, garden");
+    await resourceManager.getByLabel("Sort order").fill("0");
+    await resourceManager.getByRole("button", { name: "Create Resource" }).click();
+    await expect(resourceManager).toContainText("Garden trust practice");
+    await expect(page.getByText("Student resource is active in matching.")).toBeVisible();
 
     await page.goto("/student/scripture/questions");
     await expect(page.getByRole("heading", { name: "What should we talk about next?" })).toBeVisible();
@@ -221,6 +234,16 @@ test.describe("Student Scripture Hub shell", () => {
       "I am noticing that hiding from God is part of the story."
     );
     await expect(page.getByRole("region", { name: "Private reflection" }).getByRole("button", { name: "Reflected" })).toBeVisible();
+    await page.goto("/student");
+    await expect(page.getByRole("region", { name: "Question journey" }).getByRole("heading", { name: "Why did God put the tree in the garden?" })).toBeVisible();
+    const relatedResources = page.getByRole("region", { name: "Related resources" }).first();
+    await relatedResources.getByRole("button", { name: "Open menu" }).click();
+    const relatedDialog = page.getByRole("dialog", { name: "Related resources menu" });
+    await expect(relatedDialog).toContainText("Garden trust practice");
+    await expect(relatedDialog).toContainText("Read Genesis 2-3 by noticing God's gifts");
+    await expect(relatedDialog).toContainText("Name three gifts in creation before asking why the tree is there.");
+    await expect(relatedDialog).not.toContainText("Private academic paper");
+    await relatedDialog.getByRole("button", { name: "Close related resources" }).click();
 
     await page.goto("/student/scripture/review");
     await expect(page).toHaveURL(/\/discipleship$/);

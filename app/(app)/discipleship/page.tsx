@@ -4,7 +4,9 @@ import { headers } from "next/headers";
 import { ScriptureKnowledgeControlRoom } from "@/components/student/scripture-knowledge-control-room";
 import { ScriptureLeaderReview } from "@/components/student/scripture-leader-review";
 import { ScriptureTrialInsightsPanel } from "@/components/student/scripture-trial-insights";
+import { StudentCuratedResourceManager } from "@/components/student/student-curated-resource-manager";
 import { getServerSession } from "@/lib/auth/server";
+import { getStudentCuratedResourceState } from "@/lib/scripture/curated-resources";
 import { getKnowledgeControlRoomState } from "@/lib/scripture/knowledge-control-room";
 import { getStudentDiscussionWorkflowState } from "@/lib/scripture/discussion-workflow";
 import { getScriptureTrialInsights } from "@/lib/scripture/trial-insights";
@@ -25,11 +27,13 @@ export default async function DiscipleshipPage() {
   const state = await getStudentDiscussionWorkflowState(access.session);
   const groupState = await getStudentGroupLeaderState(access.session, getRequestOrigin());
   const knowledgeState = await getKnowledgeControlRoomState(access.session);
+  const curatedResourceState = await getStudentCuratedResourceState(access.session, { includeInactive: true });
   const trialInsights = await getScriptureTrialInsights(access.session, state);
   return (
     <div className="discipleship-workspace-stack">
       <ScriptureTrialInsightsPanel groupState={groupState} insights={trialInsights} />
       <ScriptureKnowledgeControlRoom initialDiscussionState={state} initialState={knowledgeState} />
+      <StudentCuratedResourceManager initialState={curatedResourceState} />
       <ScriptureLeaderReview initialGroupState={groupState} initialState={state} />
     </div>
   );

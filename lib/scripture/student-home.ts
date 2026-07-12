@@ -1,4 +1,5 @@
 import { scripturePlans, scriptureResources } from "@/lib/scripture/mock-data";
+import { matchCuratedResourcesToPrompt, type StudentCuratedResource } from "@/lib/scripture/curated-resource-shared";
 import type { StudentKnowledgeMatch, StudentSavedQuestionRecommendation } from "@/lib/scripture/knowledge";
 import { matchQuestionToStoryline, type StorylineQuestionMatch } from "@/lib/scripture/storyline-guide";
 import type { ScripturePlan, ScriptureResource, StudentDiscussionPrompt, StudentDiscussionStatus } from "@/lib/scripture/types";
@@ -88,6 +89,7 @@ export type StudentQuestionNextStep = {
   summary: string;
   careNote?: string;
   knowledgeMatches: StudentKnowledgeMatch[];
+  curatedResources: StudentCuratedResource[];
   wrestleQuestions: string[];
   digQuestions: string[];
   journalPrompts: string[];
@@ -119,14 +121,18 @@ export function buildStudentHomeFeed(
   prompts: StudentDiscussionPrompt[],
   userId: string,
   approvedGroupPrompts: StudentGroupDiscussionItem[] = toGroupDiscussionItems(prompts),
-  savedRecommendations: Record<string, StudentSavedQuestionRecommendation[]> = {}
+  savedRecommendations: Record<string, StudentSavedQuestionRecommendation[]> = {},
+  curatedResources: StudentCuratedResource[] = []
 ): StudentHomeFeed {
   const recentQuestions = prompts.filter((prompt) => prompt.submittedByUserId === userId).slice(0, 4);
   const forGroup = approvedGroupPrompts.slice(0, 4);
   const questionNextSteps = recentQuestions.map((prompt) => {
-    return savedRecommendationsToNextStep(prompt, savedRecommendations[prompt.id]) ?? buildQuestionNextStep(prompt, prompt.knowledgeContext ?? []);
+    return (
+      savedRecommendationsToNextStep(prompt, savedRecommendations[prompt.id], curatedResources) ??
+      buildQuestionNextStep(prompt, prompt.knowledgeContext ?? [], { curatedResources })
+    );
   });
-  const groupNextSteps = forGroup.map((prompt) => buildGroupDiscussionNextStep(prompt));
+  const groupNextSteps = forGroup.map((prompt) => buildGroupDiscussionNextStep(prompt, { curatedResources }));
 
   return {
     forGroup,
@@ -151,7 +157,11 @@ export function toGroupDiscussionItems(prompts: StudentDiscussionPrompt[]): Stud
     }));
 }
 
-export function buildQuestionNextStep(prompt: ReadingSource & { id?: string }, knowledgeMatches: StudentKnowledgeMatch[] = []): StudentQuestionNextStep {
+export function buildQuestionNextStep(
+  prompt: ReadingSource & { id?: string },
+  knowledgeMatches: StudentKnowledgeMatch[] = [],
+  options: { curatedResources?: StudentCuratedResource[] } = {}
+): StudentQuestionNextStep {
   const resource = resourceForPrompt(prompt) ?? scriptureResources.find((item) => item.id === "better-questions") ?? scriptureResources[0];
   const topic = topicLabelForPrompt(prompt);
   const primaryKnowledge = knowledgeMatches[0];
@@ -165,6 +175,14 @@ export function buildQuestionNextStep(prompt: ReadingSource & { id?: string }, k
   const readingPlan = primaryKnowledge ? knowledgeItem(primaryKnowledge, primaryKnowledge.label) : storylineItem(storylineMatch);
   const nextResource = secondaryKnowledge ? knowledgeItem(secondaryKnowledge, "Keep digging") : resourceItem(resource, "Practice this");
   const journeyJournal = buildJourneyJournal(prompt, storylineMatch, primaryKnowledge);
+  const curatedResources = matchCuratedResourcesToPrompt(
+    {
+      question: prompt.question,
+      scriptureReference: prompt.scriptureReference,
+      topicTags: prompt.topicTags
+    },
+    options.curatedResources ?? []
+  );
 
   return {
     promptId: prompt.id ?? "current-question",
@@ -176,6 +194,7 @@ export function buildQuestionNextStep(prompt: ReadingSource & { id?: string }, k
       "Your leader can still shape this for group discussion, but you do not have to wait to start seeking carefully.",
     careNote: careNoteForPrompt(prompt),
     knowledgeMatches: knowledgeMatches.slice(0, 3),
+    curatedResources,
     wrestleQuestions,
     digQuestions,
     journalPrompts,
@@ -197,12 +216,15 @@ export function buildQuestionNextStep(prompt: ReadingSource & { id?: string }, k
   };
 }
 
-export function buildGroupDiscussionNextStep(prompt: StudentGroupDiscussionItem): StudentQuestionNextStep {
+export function buildGroupDiscussionNextStep(
+  prompt: StudentGroupDiscussionItem,
+  options: { curatedResources?: StudentCuratedResource[] } = {}
+): StudentQuestionNextStep {
   const base = buildQuestionNextStep({
     id: prompt.id,
     question: `${prompt.question} ${prompt.discussionPrompt}`,
     scriptureReference: prompt.scriptureReference
-  });
+  }, [], options);
 
   return {
     ...base,
@@ -259,7 +281,8 @@ function buildKeepReadingItems(
 
 function savedRecommendationsToNextStep(
   prompt: StudentDiscussionPrompt,
-  recommendations: StudentSavedQuestionRecommendation[] | undefined
+  recommendations: StudentSavedQuestionRecommendation[] | undefined,
+  curatedResources: StudentCuratedResource[] = []
 ): StudentQuestionNextStep | undefined {
   if (!recommendations?.length) return undefined;
 
@@ -271,7 +294,7 @@ function savedRecommendationsToNextStep(
   const wrestleTogether = sorted.find((item) => item.kind === "wrestle_together");
   const readingPlan = sorted.find((item) => item.kind === "reading_plan");
   const resource = sorted.find((item) => item.kind === "resource" || item.kind === "scripture_lookup");
-  const fallback = buildQuestionNextStep(prompt, prompt.knowledgeContext ?? []);
+  const fallback = buildQuestionNextStep(prompt, prompt.knowledgeContext ?? [], { curatedResources });
   const firstRecommendation = sorted[0];
   const readingPlanItem = readingPlan ? recommendationItem(readingPlan, prompt.id) : fallback.readingPlan;
   const resourceItem = resource ? recommendationItem(resource, prompt.id) : fallback.resource;
@@ -286,6 +309,7 @@ function savedRecommendationsToNextStep(
       "These next steps were saved from your question so you can wrestle, read, reflect, and pray while your leader reviews it.",
     careNote: fallback.careNote,
     knowledgeMatches: fallback.knowledgeMatches,
+    curatedResources: fallback.curatedResources,
     wrestleQuestions: wrestleQuestions.length ? wrestleQuestions : fallback.wrestleQuestions,
     digQuestions: digQuestions.length ? digQuestions : fallback.digQuestions,
     journalPrompts: journalPrompts.length ? journalPrompts : fallback.journalPrompts,

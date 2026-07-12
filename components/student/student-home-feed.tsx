@@ -309,7 +309,7 @@ function GroupDiscussionFollowThroughCard({
         <p>{nextStep.summary}</p>
       </div>
       <StorylineContextCard match={nextStep.storylineMatch} />
-      <KnowledgePathCard matches={nextStep.knowledgeMatches} />
+      <RelatedResourcesMenu resources={nextStep.curatedResources} />
       <StudentResourceSteps steps={nextStep.resourceSteps} />
       <StudentNextStepRhythm nextStep={nextStep} />
       <p className="student-next-step-care">
@@ -364,7 +364,7 @@ function StudentQuestionJourneyCard({
         <p>{nextStep.summary}</p>
       </div>
       <StorylineContextCard match={nextStep.storylineMatch} />
-      <KnowledgePathCard matches={nextStep.knowledgeMatches} />
+      <RelatedResourcesMenu resources={nextStep.curatedResources} />
       <StudentResourceSteps steps={nextStep.resourceSteps} />
       <StudentNextStepRhythm nextStep={nextStep} />
       <StudentReflectionPanel onSaved={onReflectionSaved} prompt={prompt} reflection={reflection} />
@@ -427,9 +427,9 @@ function StorylineContextCard({ match }: { match: StudentQuestionNextStep["story
   );
 }
 
-function KnowledgePathCard({ matches }: { matches: StudentQuestionNextStep["knowledgeMatches"] }) {
+function RelatedResourcesMenu({ resources }: { resources: StudentQuestionNextStep["curatedResources"] }) {
   const [isOpen, setIsOpen] = useState(false);
-  const resourceCount = matches.length;
+  const primaryResource = resources[0];
 
   return (
     <section className="student-knowledge-path student-related-resource-menu" aria-label="Related resources">
@@ -446,7 +446,8 @@ function KnowledgePathCard({ matches }: { matches: StudentQuestionNextStep["know
 
       <div className="student-related-resource-preview">
         <Compass aria-hidden="true" size={18} />
-        <span>{resourceCount ? `${resourceCount} resource ${resourceCount === 1 ? "slot" : "slots"}` : "No loaded resources yet"}</span>
+        <span>{primaryResource ? primaryResource.title : "No loaded resources yet"}</span>
+        {primaryResource ? <p>{primaryResource.summary}</p> : null}
       </div>
 
       {isOpen ? (
@@ -463,17 +464,25 @@ function KnowledgePathCard({ matches }: { matches: StudentQuestionNextStep["know
               </button>
             </div>
             <div className="student-related-resource-dialog-list">
-              {matches.length ? (
-                matches.slice(0, 3).map((match, index) => (
-                  <article className="student-related-resource-slot" key={match.id}>
-                    <span>Resource slot {index + 1}</span>
-                    <h4>{match.scriptureReferences[0] ?? "Student-facing guide"}</h4>
+              {resources.length ? (
+                resources.slice(0, 3).map((resource) => (
+                  <article className="student-related-resource-slot" key={resource.id}>
+                    <span>{resourceLabel(resource.kind)}</span>
+                    <h4>{resource.title}</h4>
+                    <p>{resource.body}</p>
+                    {resource.practicePrompt ? <strong>{resource.practicePrompt}</strong> : null}
+                    {resource.href ? (
+                      <Link className="student-related-resource-link" href={resource.href}>
+                        Open
+                      </Link>
+                    ) : null}
                   </article>
                 ))
               ) : (
                 <article className="student-related-resource-slot">
                   <span>Empty slot</span>
                   <h4>No related resources loaded yet</h4>
+                  <p>Your leader can add short guides, practices, prayers, and discussion helps for this journey.</p>
                 </article>
               )}
             </div>
@@ -482,6 +491,24 @@ function KnowledgePathCard({ matches }: { matches: StudentQuestionNextStep["know
       ) : null}
     </section>
   );
+}
+
+function resourceLabel(kind: StudentQuestionNextStep["curatedResources"][number]["kind"]) {
+  switch (kind) {
+    case "video":
+      return "Video";
+    case "prayer":
+      return "Prayer";
+    case "reading_tool":
+      return "Reading tool";
+    case "practice":
+      return "Practice";
+    case "discussion_prompt":
+      return "Discussion prompt";
+    case "guide":
+    default:
+      return "Guide";
+  }
 }
 
 function JourneyMeta({ label, value }: { label: string; value: string }) {

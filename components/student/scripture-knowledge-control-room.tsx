@@ -29,7 +29,7 @@ type TestBenchResponse = {
 };
 
 const visibilityActions: Array<{ visibility: KnowledgeVisibility; label: string; note: string }> = [
-  { visibility: "student_visible", label: "Make Student Visible", note: "Available to question follow-up and Keep Reading." },
+  { visibility: "student_visible", label: "Use for Matching", note: "Can inform follow-up, but publish student-facing helps below." },
   { visibility: "leader_only", label: "Leader Only", note: "Usable for leader preparation, hidden from students." },
   { visibility: "scholar_citation_only", label: "Citation Only", note: "Kept as scholar context without student retrieval." },
   { visibility: "private_review", label: "Back to Review", note: "Held until a leader checks it again." }
@@ -158,7 +158,7 @@ export function ScriptureKnowledgeControlRoom({ initialDiscussionState, initialS
       }
 
       setSources((current) => current.map((source) => (source.id === payload.source!.id ? payload.source! : source)));
-      setStatus(visibility === "student_visible" ? "Source is now available for student question follow-up." : "Source visibility updated.");
+      setStatus(visibility === "student_visible" ? "Source can now inform matching. Publish student-facing helps below." : "Source visibility updated.");
     } catch {
       setStatus("The source visibility could not be updated.");
     } finally {
@@ -233,8 +233,8 @@ export function ScriptureKnowledgeControlRoom({ initialDiscussionState, initialS
       <div className="knowledge-control-hero">
         <div>
           <p className="eyebrow">Resource Hub</p>
-          <h1>Build the discipleship brain</h1>
-          <p>Add trusted material, prepare group video packages, review extracted chunks, then choose what can shape student-facing follow-up.</p>
+          <h1>Review the source library</h1>
+          <p>Add trusted material, prepare group video packages, review extracted chunks, then publish student-facing helps separately.</p>
         </div>
         <div className="knowledge-control-stats" aria-label="Knowledge source counts">
           <StatTile label="Sources" value={stats.totalSources} />
