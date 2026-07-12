@@ -168,6 +168,7 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page.getByRole("status")).toContainText("Connect student access before review can begin.");
     const resourceManager = page.getByRole("region", { name: "Student resource manager" });
     await expect(resourceManager.getByRole("heading", { name: "Publish the student-facing helps" })).toBeVisible();
+    await resourceManager.getByLabel("Journey phase").selectOption({ label: "Practice" });
     await resourceManager.getByLabel("Title").fill("Garden trust practice");
     await resourceManager.getByLabel("Short summary").fill("A quiet practice for garden questions.");
     await resourceManager.getByLabel("Full details").fill("Read Genesis 2-3 by noticing God's gifts before you name the problem.");
@@ -179,6 +180,9 @@ test.describe("Student Scripture Hub shell", () => {
     await resourceManager.getByRole("button", { name: "Create Resource" }).click();
     await expect(resourceManager).toContainText("Garden trust practice");
     await expect(page.getByText("Student resource is active in matching.")).toBeVisible();
+    await resourceManager.getByLabel("Student question").fill("Why did God put the tree in the garden?");
+    await resourceManager.getByLabel("Passage").fill("Genesis 3");
+    await expect(resourceManager.getByLabel("Matched student resources")).toContainText("Garden trust practice");
 
     await page.goto("/student/scripture/questions");
     await expect(page.getByRole("heading", { name: "What should we talk about next?" })).toBeVisible();
@@ -239,6 +243,7 @@ test.describe("Student Scripture Hub shell", () => {
     const relatedResources = page.getByRole("region", { name: "Related resources" }).first();
     await relatedResources.getByRole("button", { name: "Open menu" }).click();
     const relatedDialog = page.getByRole("dialog", { name: "Related resources menu" });
+    await relatedDialog.getByRole("tab", { name: /Practice/ }).click();
     await expect(relatedDialog).toContainText("Garden trust practice");
     await expect(relatedDialog).toContainText("Read Genesis 2-3 by noticing God's gifts");
     await expect(relatedDialog).toContainText("Name three gifts in creation before asking why the tree is there.");

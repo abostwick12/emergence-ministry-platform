@@ -2,13 +2,15 @@
 
 import type { FormEvent } from "react";
 import { useMemo, useState } from "react";
-import { Archive, Edit3, Library, Plus, Save } from "lucide-react";
+import { Archive, Edit3, Library, Plus, Save, Search } from "lucide-react";
 
 import type {
   StudentCuratedResource,
   StudentCuratedResourceKind,
+  StudentCuratedResourceStage,
   StudentCuratedResourceState
 } from "@/lib/scripture/curated-resource-shared";
+import { matchCuratedResourcesToPrompt, studentCuratedResourceStageLabels } from "@/lib/scripture/curated-resource-shared";
 
 type StudentCuratedResourceManagerProps = {
   initialState: StudentCuratedResourceState;
@@ -29,13 +31,36 @@ const kindLabels: Record<StudentCuratedResourceKind, string> = {
   discussion_prompt: "Discussion prompt"
 };
 
+const stageDescriptions: Record<StudentCuratedResourceStage, string> = {
+  ask: "Question",
+  read: "Reading",
+  reflect: "Reflection",
+  practice: "Practice",
+  discuss: "Group"
+};
+
 export function StudentCuratedResourceManager({ initialState }: StudentCuratedResourceManagerProps) {
   const [resources, setResources] = useState(initialState.resources);
   const [status, setStatus] = useState(initialState.readiness.message);
   const [editingId, setEditingId] = useState("");
+  const [previewQuestion, setPreviewQuestion] = useState("");
+  const [previewReference, setPreviewReference] = useState("");
   const [saving, setSaving] = useState(false);
   const [archivingId, setArchivingId] = useState("");
   const activeResources = useMemo(() => resources.filter((resource) => resource.isActive), [resources]);
+  const previewMatches = useMemo(
+    () =>
+      previewQuestion.trim() || previewReference.trim()
+        ? matchCuratedResourcesToPrompt(
+            {
+              question: previewQuestion,
+              scriptureReference: previewReference
+            },
+            activeResources
+          )
+        : [],
+    [activeResources, previewQuestion, previewReference]
+  );
   const draftResources = resources.length - activeResources.length;
   const editingResource = resources.find((resource) => resource.id === editingId);
 
@@ -118,6 +143,14 @@ export function StudentCuratedResourceManager({ initialState }: StudentCuratedRe
         {status}
       </p>
 
+      <MatchingPreviewPanel
+        matches={previewMatches}
+        onQuestionChange={setPreviewQuestion}
+        onReferenceChange={setPreviewReference}
+        question={previewQuestion}
+        reference={previewReference}
+      />
+
       <div className="student-curated-resource-grid">
         <ResourceForm key={editingResource?.id ?? "new"} onSubmit={submitResource} resource={editingResource} saving={saving} />
 
@@ -140,7 +173,10 @@ export function StudentCuratedResourceManager({ initialState }: StudentCuratedRe
                   <span>{kindLabels[resource.kind]}</span>
                   <h3>{resource.title}</h3>
                   <p>{resource.summary}</p>
-                  <small>{resource.scriptureReferences.concat(resource.themes).slice(0, 5).join(" / ") || "Matches broad student questions"}</small>
+                  <small>
+                    {studentCuratedResourceStageLabels[resource.journeyStage]} -{" "}
+                    {resource.scriptureReferences.concat(resource.themes).slice(0, 5).join(" / ") || "Matches broad student questions"}
+                  </small>
                 </div>
                 <div className="student-curated-resource-actions">
                   <button className="button compact" onClick={() => setEditingId(resource.id)} type="button">
@@ -161,6 +197,63 @@ export function StudentCuratedResourceManager({ initialState }: StudentCuratedRe
             </div>
           )}
         </div>
+      </div>
+    </section>
+  );
+}
+
+function MatchingPreviewPanel({
+  matches,
+  onQuestionChange,
+  onReferenceChange,
+  question,
+  reference
+}: {
+  matches: StudentCuratedResource[];
+  onQuestionChange: (value: string) => void;
+  onReferenceChange: (value: string) => void;
+  question: string;
+  reference: string;
+}) {
+  return (
+    <section className="student-curated-resource-preview" aria-label="Student resource matching preview">
+      <div className="student-curated-resource-preview-head">
+        <div>
+          <p className="eyebrow">Match Preview</p>
+          <h2>Test the student journey menu</h2>
+        </div>
+        <Search aria-hidden="true" size={22} />
+      </div>
+
+      <div className="student-curated-resource-preview-grid">
+        <label className="leader-review-field">
+          <span>Student question</span>
+          <input
+            className="input"
+            onChange={(event) => onQuestionChange(event.target.value)}
+            placeholder="Why did God put the tree in the garden?"
+            value={question}
+          />
+        </label>
+
+        <label className="leader-review-field">
+          <span>Passage</span>
+          <input className="input" onChange={(event) => onReferenceChange(event.target.value)} placeholder="Genesis 3" value={reference} />
+        </label>
+      </div>
+
+      <div className="student-curated-resource-preview-results" aria-label="Matched student resources">
+        {matches.length ? (
+          matches.map((resource) => (
+            <article key={resource.id}>
+              <span>{stageDescriptions[resource.journeyStage]}</span>
+              <h3>{resource.title}</h3>
+              <p>{resource.summary}</p>
+            </article>
+          ))
+        ) : (
+          <p>Type a sample question to preview which student-facing helps will appear.</p>
+        )}
       </div>
     </section>
   );
@@ -198,6 +291,19 @@ function ResourceForm({
           </select>
         </label>
 
+        <label className="leader-review-field">
+          <span>Journey phase</span>
+          <select className="input" defaultValue={resource?.journeyStage ?? "read"} name="journeyStage">
+            {Object.entries(studentCuratedResourceStageLabels).map(([stage, label]) => (
+              <option key={stage} value={stage}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <div className="knowledge-source-field-grid">
         <label className="leader-review-field">
           <span>Sort order</span>
           <input className="input" defaultValue={resource?.sortOrder ?? 20} min="0" name="sortOrder" type="number" />
@@ -273,6 +379,7 @@ function ResourceStat({ label, value }: { label: string; value: number | string 
 function formPayload(data: FormData) {
   return {
     kind: String(data.get("kind") || "guide"),
+    journeyStage: String(data.get("journeyStage") || "read"),
     title: String(data.get("title") || ""),
     summary: String(data.get("summary") || ""),
     body: String(data.get("body") || ""),

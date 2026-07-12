@@ -6,13 +6,16 @@ import { getSupabaseAuthClient } from "@/lib/auth/server";
 import { resolveMinistryScope } from "@/lib/ministry/scope";
 import {
   studentCuratedResourceKinds,
+  studentCuratedResourceStages,
   type StudentCuratedResource,
   type StudentCuratedResourceKind,
+  type StudentCuratedResourceStage,
   type StudentCuratedResourceState
 } from "@/lib/scripture/curated-resource-shared";
 
 export type UpsertStudentCuratedResourceInput = {
   kind?: string;
+  journeyStage?: string;
   title?: string;
   summary?: string;
   body?: string;
@@ -28,6 +31,7 @@ export type UpsertStudentCuratedResourceInput = {
 type StudentCuratedResourceRow = {
   id: string;
   kind: StudentCuratedResourceKind;
+  journey_stage: StudentCuratedResourceStage | null;
   title: string;
   summary: string;
   body: string;
@@ -92,7 +96,7 @@ export async function listStudentCuratedResources(session: AuthSession, options:
     let query = supabase
       .from("student_curated_resources")
       .select(
-        "id,kind,title,summary,body,scripture_references,themes,question_patterns,practice_prompt,href,sort_order,is_active,created_at,updated_at"
+        "id,kind,journey_stage,title,summary,body,scripture_references,themes,question_patterns,practice_prompt,href,sort_order,is_active,created_at,updated_at"
       )
       .order("sort_order", { ascending: true })
       .order("updated_at", { ascending: false })
@@ -135,6 +139,7 @@ export async function createStudentCuratedResource(session: AuthSession, input: 
     .insert({
       ...ministryScopeColumns(ministryId),
       kind: normalized.kind,
+      journey_stage: normalized.journeyStage,
       title: normalized.title,
       summary: normalized.summary,
       body: normalized.body,
@@ -148,7 +153,7 @@ export async function createStudentCuratedResource(session: AuthSession, input: 
       created_by_user_id: session.user.id
     })
     .select(
-      "id,kind,title,summary,body,scripture_references,themes,question_patterns,practice_prompt,href,sort_order,is_active,created_at,updated_at"
+      "id,kind,journey_stage,title,summary,body,scripture_references,themes,question_patterns,practice_prompt,href,sort_order,is_active,created_at,updated_at"
     )
     .single<StudentCuratedResourceRow>();
   throwIfResourceError(result.error, "The resource could not be saved.");
@@ -181,6 +186,7 @@ export async function updateStudentCuratedResource(session: AuthSession, id: str
     .from("student_curated_resources")
     .update({
       kind: normalized.kind,
+      journey_stage: normalized.journeyStage,
       title: normalized.title,
       summary: normalized.summary,
       body: normalized.body,
@@ -194,7 +200,7 @@ export async function updateStudentCuratedResource(session: AuthSession, id: str
     })
     .eq("id", id)
     .select(
-      "id,kind,title,summary,body,scripture_references,themes,question_patterns,practice_prompt,href,sort_order,is_active,created_at,updated_at"
+      "id,kind,journey_stage,title,summary,body,scripture_references,themes,question_patterns,practice_prompt,href,sort_order,is_active,created_at,updated_at"
     )
     .single<StudentCuratedResourceRow>();
   throwIfResourceError(result.error, "The resource could not be updated.");
@@ -223,7 +229,7 @@ export async function archiveStudentCuratedResource(session: AuthSession, id: st
     .update({ is_active: false })
     .eq("id", id)
     .select(
-      "id,kind,title,summary,body,scripture_references,themes,question_patterns,practice_prompt,href,sort_order,is_active,created_at,updated_at"
+      "id,kind,journey_stage,title,summary,body,scripture_references,themes,question_patterns,practice_prompt,href,sort_order,is_active,created_at,updated_at"
     )
     .single<StudentCuratedResourceRow>();
   throwIfResourceError(result.error, "The resource could not be archived.");
@@ -262,6 +268,7 @@ function seedCuratedResources(): StudentCuratedResource[] {
     {
       id: "launch-curated-garden-trust",
       kind: "practice",
+      journeyStage: "practice",
       title: "Walk the garden slowly",
       summary: "A short creation walk for questions about trust, choice, and the garden.",
       body: "Take a quiet walk. Notice created things before you try to solve the question. Then read Genesis 2-3 and ask what God gives before the command appears.",
@@ -278,6 +285,7 @@ function seedCuratedResources(): StudentCuratedResource[] {
     {
       id: "launch-curated-lament-prayer",
       kind: "prayer",
+      journeyStage: "reflect",
       title: "Pray without rushing grief",
       summary: "A guided lament rhythm for suffering, anxiety, and unanswered questions.",
       body: "Read Psalm 13 slowly. Let the questions stay honest, then name one thing you can still ask God to hold with you.",
@@ -294,6 +302,7 @@ function seedCuratedResources(): StudentCuratedResource[] {
     {
       id: "launch-curated-context-tool",
       kind: "reading_tool",
+      journeyStage: "read",
       title: "Read around the question",
       summary: "A context tool for any passage that feels confusing or too familiar.",
       body: "Read the paragraph before and after the passage. Write one sentence about what is happening before you decide what it means for you.",
@@ -313,6 +322,7 @@ function seedCuratedResources(): StudentCuratedResource[] {
 function normalizeCuratedResourceInput(input: UpsertStudentCuratedResourceInput) {
   return {
     kind: normalizeKind(input.kind),
+    journeyStage: normalizeStage(input.journeyStage),
     title: requiredText(input.title, "Title", 120),
     summary: requiredText(input.summary, "Short summary", 260),
     body: requiredText(input.body, "Full details", 1400),
@@ -330,6 +340,12 @@ function normalizeKind(value: string | undefined): StudentCuratedResourceKind {
   const kind = (value ?? "guide").trim() as StudentCuratedResourceKind;
   if (studentCuratedResourceKinds.includes(kind)) return kind;
   throw new StudentCuratedResourceError("Resource type is not supported.", 400, "invalid_kind");
+}
+
+function normalizeStage(value: string | undefined): StudentCuratedResourceStage {
+  const stage = (value ?? "read").trim() as StudentCuratedResourceStage;
+  if (studentCuratedResourceStages.includes(stage)) return stage;
+  throw new StudentCuratedResourceError("Journey phase is not supported.", 400, "invalid_stage");
 }
 
 function requiredText(value: string | undefined, label: string, maxLength: number) {
@@ -372,6 +388,7 @@ function toCuratedResource(row: StudentCuratedResourceRow): StudentCuratedResour
   return {
     id: row.id,
     kind: row.kind,
+    journeyStage: row.journey_stage ?? "read",
     title: row.title,
     summary: row.summary,
     body: row.body,

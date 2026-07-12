@@ -9,6 +9,11 @@ import { StudentQuestionComposer } from "@/components/student/student-question-c
 import { StudentReflectionPanel } from "@/components/student/student-reflection-panel";
 import type { DiscussionWorkflowState } from "@/lib/scripture/discussion-workflow";
 import { howToReadModules, studentHowToReadLocalProgressKey } from "@/lib/scripture/how-to-read";
+import {
+  studentCuratedResourceStageLabels,
+  studentCuratedResourceStages,
+  type StudentCuratedResourceStage
+} from "@/lib/scripture/curated-resource-shared";
 import type { StudentQuestionReflection } from "@/lib/scripture/student-reflections";
 import type {
   StudentGroupDiscussionItem,
@@ -429,6 +434,10 @@ function StorylineContextCard({ match }: { match: StudentQuestionNextStep["story
 
 function RelatedResourcesMenu({ resources }: { resources: StudentQuestionNextStep["curatedResources"] }) {
   const [isOpen, setIsOpen] = useState(false);
+  const resourceGroups = useMemo(() => groupResourcesByStage(resources), [resources]);
+  const [activeStage, setActiveStage] = useState<StudentCuratedResourceStage | undefined>(resourceGroups[0]?.stage);
+  const selectedStage = activeStage && resourceGroups.some((group) => group.stage === activeStage) ? activeStage : resourceGroups[0]?.stage;
+  const selectedResources = resourceGroups.find((group) => group.stage === selectedStage)?.resources ?? [];
   const primaryResource = resources[0];
 
   return (
@@ -463,11 +472,30 @@ function RelatedResourcesMenu({ resources }: { resources: StudentQuestionNextSte
                 <span className="sr-only">Close related resources</span>
               </button>
             </div>
+            {resourceGroups.length ? (
+              <div className="student-related-resource-tabs" role="tablist" aria-label="Journey resource phases">
+                {resourceGroups.map((group) => (
+                  <button
+                    aria-selected={selectedStage === group.stage}
+                    className={selectedStage === group.stage ? "student-related-resource-tab active" : "student-related-resource-tab"}
+                    key={group.stage}
+                    onClick={() => setActiveStage(group.stage)}
+                    role="tab"
+                    type="button"
+                  >
+                    {studentCuratedResourceStageLabels[group.stage]}
+                    <span>{group.resources.length}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
             <div className="student-related-resource-dialog-list">
-              {resources.length ? (
-                resources.slice(0, 3).map((resource) => (
+              {selectedResources.length ? (
+                selectedResources.map((resource) => (
                   <article className="student-related-resource-slot" key={resource.id}>
-                    <span>{resourceLabel(resource.kind)}</span>
+                    <span>
+                      {studentCuratedResourceStageLabels[resource.journeyStage]} / {resourceLabel(resource.kind)}
+                    </span>
                     <h4>{resource.title}</h4>
                     <p>{resource.body}</p>
                     {resource.practicePrompt ? <strong>{resource.practicePrompt}</strong> : null}
@@ -491,6 +519,15 @@ function RelatedResourcesMenu({ resources }: { resources: StudentQuestionNextSte
       ) : null}
     </section>
   );
+}
+
+function groupResourcesByStage(resources: StudentQuestionNextStep["curatedResources"]) {
+  return studentCuratedResourceStages
+    .map((stage) => ({
+      stage,
+      resources: resources.filter((resource) => resource.journeyStage === stage)
+    }))
+    .filter((group) => group.resources.length > 0);
 }
 
 function resourceLabel(kind: StudentQuestionNextStep["curatedResources"][number]["kind"]) {

@@ -1,10 +1,21 @@
 export const studentCuratedResourceKinds = ["guide", "video", "prayer", "reading_tool", "practice", "discussion_prompt"] as const;
+export const studentCuratedResourceStages = ["ask", "read", "reflect", "practice", "discuss"] as const;
 
 export type StudentCuratedResourceKind = (typeof studentCuratedResourceKinds)[number];
+export type StudentCuratedResourceStage = (typeof studentCuratedResourceStages)[number];
+
+export const studentCuratedResourceStageLabels: Record<StudentCuratedResourceStage, string> = {
+  ask: "Ask",
+  read: "Read",
+  reflect: "Reflect",
+  practice: "Practice",
+  discuss: "Discuss"
+};
 
 export type StudentCuratedResource = {
   id: string;
   kind: StudentCuratedResourceKind;
+  journeyStage: StudentCuratedResourceStage;
   title: string;
   summary: string;
   body: string;
@@ -32,7 +43,8 @@ export type StudentCuratedResourceState = {
   };
 };
 
-const MAX_RESOURCES_FOR_STUDENTS = 3;
+const MAX_RESOURCES_FOR_STUDENTS = 6;
+const MAX_RESOURCES_PER_STAGE = 2;
 
 export function matchCuratedResourcesToPrompt(
   prompt: { question: string; scriptureReference?: string; topicTags?: string[] },
@@ -51,7 +63,7 @@ export function matchCuratedResourcesToPrompt(
     .sort((a, b) => b.score - a.score || a.resource.sortOrder - b.resource.sortOrder)
     .map((item) => item.resource);
 
-  return scored.slice(0, MAX_RESOURCES_FOR_STUDENTS);
+  return balanceResourcesByStage(scored);
 }
 
 function scoreResource(resource: StudentCuratedResource, queryText: string, queryTokens: Set<string>, index: number) {
@@ -77,6 +89,25 @@ function scoreResource(resource: StudentCuratedResource, queryText: string, quer
   }
 
   return score;
+}
+
+function balanceResourcesByStage(resources: StudentCuratedResource[]) {
+  const selected: StudentCuratedResource[] = [];
+
+  for (const stage of studentCuratedResourceStages) {
+    const stageResources = resources.filter((resource) => resource.journeyStage === stage).slice(0, MAX_RESOURCES_PER_STAGE);
+    for (const resource of stageResources) {
+      if (!selected.some((item) => item.id === resource.id)) selected.push(resource);
+      if (selected.length >= MAX_RESOURCES_FOR_STUDENTS) return selected;
+    }
+  }
+
+  for (const resource of resources) {
+    if (!selected.some((item) => item.id === resource.id)) selected.push(resource);
+    if (selected.length >= MAX_RESOURCES_FOR_STUDENTS) break;
+  }
+
+  return selected;
 }
 
 function tokenize(input: string) {

@@ -8651,6 +8651,47 @@ html:has(.app-shell-camp) body {
   line-height: 1.18;
 }
 
+.student-related-resource-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 1px 6px;
+  scrollbar-width: thin;
+}
+
+.student-related-resource-tab {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: var(--text-xs);
+  font-weight: 900;
+  min-height: 34px;
+  padding: 7px 10px;
+}
+
+.student-related-resource-tab.active {
+  border-color: color-mix(in srgb, var(--primary) 55%, var(--line));
+  background: color-mix(in srgb, var(--primary) 16%, transparent);
+  color: var(--text);
+}
+
+.student-related-resource-tab span {
+  display: inline-grid;
+  min-width: 19px;
+  min-height: 19px;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: inherit;
+  font-size: 0.68rem;
+}
+
 .student-related-resource-dialog-list {
   display: grid;
   gap: 10px;
@@ -10926,6 +10967,7 @@ html:has(.app-shell-camp) body {
 .knowledge-source-form,
 .knowledge-source-card,
 .resource-video-workspace,
+.student-curated-resource-preview,
 .student-curated-resource-form,
 .student-curated-resource-list {
   border: 1px solid var(--line);
@@ -11011,6 +11053,69 @@ html:has(.app-shell-camp) body {
   grid-template-columns: minmax(300px, 0.95fr) minmax(0, 1.05fr);
   gap: 18px;
   align-items: start;
+}
+
+.student-curated-resource-preview {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+}
+
+.student-curated-resource-preview-head,
+.student-curated-resource-preview-results article {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.student-curated-resource-preview-head h2,
+.student-curated-resource-preview-results h3 {
+  margin: 3px 0 0;
+  color: var(--text);
+  line-height: 1.15;
+}
+
+.student-curated-resource-preview-head h2 {
+  font-size: var(--text-2xl);
+}
+
+.student-curated-resource-preview-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(180px, 0.7fr);
+  gap: 12px;
+}
+
+.student-curated-resource-preview-results {
+  display: grid;
+  gap: 10px;
+}
+
+.student-curated-resource-preview-results article {
+  border: 1px solid color-mix(in srgb, var(--primary) 24%, var(--line));
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  padding: 12px;
+}
+
+.student-curated-resource-preview-results span {
+  flex: 0 0 auto;
+  border: 1px solid color-mix(in srgb, var(--success) 30%, var(--line));
+  border-radius: 999px;
+  color: var(--success);
+  font-size: var(--text-xs);
+  font-weight: 950;
+  letter-spacing: 0.04em;
+  padding: 6px 8px;
+  text-transform: uppercase;
+}
+
+.student-curated-resource-preview-results p {
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 750;
+  line-height: 1.45;
 }
 
 .student-curated-resource-form,
@@ -11803,6 +11908,7 @@ html:has(.app-shell-camp) body {
   .leader-workspace-grid,
   .knowledge-control-grid,
   .student-curated-resource-grid,
+  .student-curated-resource-preview-grid,
   .knowledge-test-bench,
   .knowledge-control-stats,
   .student-curated-resource-stats,
