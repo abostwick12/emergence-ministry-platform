@@ -23,9 +23,9 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page.getByRole("heading", { name: "Student Portal" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "How to Read the Bible" })).toBeVisible();
     await expect(page.getByRole("region", { name: "Private Bible reading progress" })).toContainText("0 of 8 How to Read guides signed off");
-    await expect(page.getByRole("heading", { name: "Scripture Study Tool" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Bible App Reader" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "What should we talk about next?" })).toBeVisible();
-    await expect(page.getByRole("region", { name: "Keep reading" })).toBeVisible();
+    await expect(page.getByRole("complementary", { name: "Student actions and keep reading" })).toBeVisible();
     await page.getByRole("link", { name: /How to Read the Bible/ }).click();
     await expect(page).toHaveURL(/\/student\/scripture\/how-to-read$/);
     await expect(page.getByRole("heading", { name: "Learn to read the Bible with care." })).toBeVisible();
@@ -59,7 +59,7 @@ test.describe("Student Scripture Hub shell", () => {
 
     await page.goto("/student");
     await expect(page.getByRole("heading", { name: "Student Portal" })).toBeVisible();
-    await expect(page.getByText("Ask honestly. Then wrestle with better questions while your leader prepares the group conversation.")).toBeVisible();
+    await expect(page.getByRole("region", { name: "Student home feed" })).toContainText("Continue your journey");
     await expect(page.getByRole("heading", { name: "How to Read the Bible" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Understanding Context" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Asking Good Questions" })).toBeVisible();
@@ -142,7 +142,6 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page.getByRole("heading", { name: "Covenant" })).toHaveCount(0);
     await page.getByText("Open themes to trace as you read").click();
     await expect(page.getByRole("heading", { name: "Covenant" })).toBeVisible();
-    await expect(page.getByText("Genesis and Exodus introduce the major categories")).toBeVisible();
     await expect(page.getByText("Leader notes")).toHaveCount(0);
     await expect(page.getByText(/full academic/i)).toHaveCount(0);
     await expect(page.getByText(/metanarrative/i)).toHaveCount(0);
@@ -152,10 +151,14 @@ test.describe("Student Scripture Hub shell", () => {
     await page.getByRole("button", { name: /Avoiding proof-texting/ }).click();
     await expect(page.getByRole("dialog", { name: "Avoiding proof-texting study tool" })).toContainText("Before quoting a verse");
     await page.getByRole("button", { name: "Close study tool" }).click();
-    await expect(page.getByRole("heading", { name: "Look up a Scripture reference" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Open Scripture without leaving the journey." })).toBeVisible();
     await page.getByLabel("Scripture reference").fill("John 3:16");
-    await page.getByRole("button", { name: "Look Up" }).click();
-    await expect(page.getByRole("region", { name: "Scripture lookup" }).getByRole("alert")).toContainText("Scripture lookup is offline.");
+    await page.getByRole("button", { name: "Open Reader" }).click();
+    await expect(page.getByRole("status")).toContainText("Bible App reader opened.");
+    await expect(page.getByRole("region", { name: "YouVersion Bible reader" }).getByRole("link", { name: "Open" })).toHaveAttribute(
+      "href",
+      "https://www.bible.com/bible/111/JHN.3.16.NIV"
+    );
 
     await page.goto("/student/scripture/review");
     await expect(page).toHaveURL(/\/discipleship$/);
@@ -177,11 +180,27 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page.getByRole("heading", { name: "Why did God put the tree in the garden?" })).toBeVisible();
     const journey = page.getByRole("region", { name: "Journey journal" });
     await expect(journey).toContainText("Garden Question Journey");
+    await expect(journey).toContainText("Fork in the road");
+    await expect(journey.getByRole("button", { name: /Word study/ })).toBeVisible();
+    await expect(journey.getByRole("button", { name: /Inductive reading/ })).toBeVisible();
+    await expect(journey).toContainText("Current phase - reflection");
     await expect(journey).toContainText("Genesis 1:26-31");
     await expect(journey).toContainText("shamar");
-    await expect(journey).toContainText("Pause in the garden");
+    await expect(journey).toContainText("שָׁמַר");
+    await expect(journey.getByRole("link", { name: "שָׁמַר" })).toHaveAttribute(
+      "href",
+      "https://www.blueletterbible.org/lexicon/h8104/kjv/wlc/0-1/"
+    );
     await journey.getByLabel("What answers have you heard before?").fill("It was a test, free will, and choice.");
     await journey.getByLabel("Why do those answers still feel incomplete?").fill("They do not explain why the garden starts with abundance.");
+    await journey.getByRole("button", { name: "Open YouVersion" }).first().click();
+    await expect(journey.getByRole("region", { name: "YouVersion Bible reader" }).getByRole("link", { name: "Open" })).toHaveAttribute(
+      "href",
+      "https://www.bible.com/bible/111/GEN.1.26.NIV"
+    );
+    await journey.getByRole("button", { name: /Guided prayer/ }).click();
+    await expect(journey).toContainText("Pause in the garden");
+    await expect(journey).toContainText("2 minute prayer");
     await journey.getByRole("button", { name: "Mark Genesis 1:26-31 read" }).click();
     await journey.getByLabel("Practice completed").check();
     await journey.getByRole("button", { name: "Save journal to private note" }).click();
@@ -257,62 +276,45 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page.getByRole("status")).toContainText("Planning worksheet only");
   });
 
-  test("scripture lookup renders success and provider error states from the server route", async ({ page }) => {
+  test("scripture reader opens YouVersion surfaces without rendering raw API text", async ({ page }) => {
     await login(page);
-
-    await page.route("**/api/student/scripture/lookup", async (route) => {
-      const body = JSON.parse(route.request().postData() ?? "{}") as { reference?: string };
-      const reference = body.reference ?? "John 3:16";
-
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          ok: true,
-          passageId: reference,
-          passage: {
-            id: reference,
-            reference,
-            content: `Mock lookup content for ${reference}.`
-          }
-        })
-      });
-    });
 
     await page.goto("/student");
     const homeTool = page.getByRole("region", { name: "Scripture study shortcuts" });
     await homeTool.getByLabel("Scripture reference").fill("Psalm 23");
-    await homeTool.getByRole("button", { name: "Look Up" }).click();
+    await homeTool.getByRole("button", { name: "Open" }).click();
     await expect(page).toHaveURL(/\/student\/scripture\/resources\?reference=Psalm(\+|%20)23/);
-    await expect(page.getByRole("status")).toContainText("Scripture lookup loaded.");
+    await expect(page.getByRole("status")).toContainText("Bible App reader opened.");
     await expect(page.getByRole("heading", { name: "Psalm 23" })).toBeVisible();
-    await expect(page.getByText("Mock lookup content for Psalm 23.")).toBeVisible();
+    await expect(page.getByRole("region", { name: "YouVersion Bible reader" }).getByRole("link", { name: "Open" })).toHaveAttribute(
+      "href",
+      "https://www.bible.com/bible/111/PSA.23.NIV"
+    );
 
     await page.goto("/student");
     await page.getByRole("link", { name: "Genesis 1" }).click();
     await expect(page).toHaveURL(/\/student\/scripture\/resources\?reference=Genesis(\+|%20)1/);
     await expect(page.getByRole("heading", { name: "Genesis 1" })).toBeVisible();
-    await expect(page.getByText("Mock lookup content for Genesis 1.")).toBeVisible();
+    await expect(page.getByRole("region", { name: "YouVersion Bible reader" }).getByRole("link", { name: "Open" })).toHaveAttribute(
+      "href",
+      "https://www.bible.com/bible/111/GEN.1.NIV"
+    );
 
     await page.goto("/student/scripture/resources");
     await page.getByLabel("Scripture reference").fill("John 3:16");
-    await page.getByRole("button", { name: "Look Up" }).click();
-    await expect(page.getByRole("status")).toContainText("Scripture lookup loaded.");
+    await page.getByRole("button", { name: "Open Reader" }).click();
+    await expect(page.getByRole("status")).toContainText("Bible App reader opened.");
     await expect(page.getByRole("heading", { name: "John 3:16" })).toBeVisible();
-    await expect(page.getByText("Mock lookup content for John 3:16.")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Listen" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "YouVersion Bible reader" }).getByRole("link", { name: "Open" })).toHaveAttribute(
+      "href",
+      "https://www.bible.com/bible/111/JHN.3.16.NIV"
+    );
+    await expect(page.getByText("Mock lookup content")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Listen" })).toHaveCount(0);
 
-    await page.unroute("**/api/student/scripture/lookup");
-    await page.route("**/api/student/scripture/lookup", async (route) => {
-      await route.fulfill({
-        status: 502,
-        contentType: "application/json",
-        body: JSON.stringify({ ok: false, code: "provider_error", error: "Scripture lookup is temporarily unavailable." })
-      });
-    });
-
-    await page.getByRole("button", { name: "Look Up" }).click();
-    await expect(page.getByRole("region", { name: "Scripture lookup" }).getByRole("alert")).toContainText("Scripture lookup is temporarily unavailable.");
+    await page.getByLabel("Scripture reference").fill("John");
+    await page.getByRole("button", { name: "Open Reader" }).click();
+    await expect(page.getByRole("region", { name: "Scripture lookup" }).getByRole("alert")).toContainText("Use a chapter or verse reference");
   });
 });
 

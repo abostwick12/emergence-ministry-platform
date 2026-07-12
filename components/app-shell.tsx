@@ -109,7 +109,6 @@ const pageTitles: Record<string, string> = {
 };
 
 const pageSubtitles: Record<string, string> = {
-  "/student": "A space for discipleship - study Scripture, ask questions, and grow in community.",
   "/discipleship": "Move beyond attendance into formation - Scripture as a whole story, studied in community.",
   "/command-center": "Coordinate AI-supported ministry decisions with a clear audit trail."
 };

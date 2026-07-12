@@ -6,7 +6,6 @@ import {
   foundationBooks,
   newTestamentFlyovers,
   oldTestamentFlyovers,
-  storylineGuardrail,
   storylineMap,
   themeIndex,
   type StorylineFlyover,
@@ -174,19 +173,16 @@ export default function ScriptureResourcesPage({ searchParams }: ScriptureResour
     <>
       <StudentScriptureTabs active="resources" />
 
+      <ScriptureLookup initialReference={requestedReference ?? ""} />
+
       <div className="storyline-guide student-big-story">
         <section className="student-big-story-hero" aria-labelledby="big-story-title">
           <div className="student-big-story-hero-copy">
             <p className="eyebrow">Bible Storyline Guide</p>
             <h1 id="big-story-title" className="title">The Big Story of Scripture</h1>
-            <p>
-              The Bible is not a pile of disconnected verses. It is one unfolding story about God creating, people
-              turning away, God rescuing, and Jesus bringing the story to its center.
-            </p>
           </div>
           <div className="student-big-story-note" aria-label="Big story guardrail">
             <strong>Start simple.</strong>
-            <p>{storylineGuardrail}</p>
           </div>
         </section>
 
@@ -194,7 +190,6 @@ export default function ScriptureResourcesPage({ searchParams }: ScriptureResour
           <div className="student-big-story-heading">
             <p className="eyebrow">Work Through It</p>
             <h2 id="story-path-title">Four moves before all the details</h2>
-            <p>Start with one move, read the suggested passages, then answer the practice prompt before opening the deeper map.</p>
           </div>
           <ol className="student-storyline-path" aria-label="Guided Bible storyline path">
             {storylinePath.map((step, index) => (
@@ -220,7 +215,6 @@ export default function ScriptureResourcesPage({ searchParams }: ScriptureResour
           <div className="student-big-story-heading">
             <p className="eyebrow">Your Journey</p>
             <h2 id="story-journey-title">Move through the Bible without getting lost</h2>
-            <p>Open one movement at a time. Each one gives a short reading path, questions, context, and a practice.</p>
           </div>
           <div className="student-story-journey-list">
             {storyJourney.map((section) => (
@@ -252,10 +246,6 @@ export default function ScriptureResourcesPage({ searchParams }: ScriptureResour
           <div className="student-big-story-heading">
             <p className="eyebrow">Start Here</p>
             <h2 id="foundation-title">Start with Genesis and Exodus</h2>
-            <p>
-              These books give students the basic vocabulary for the rest of Scripture: creation, sin, promise, rescue,
-              worship, covenant, and the presence of God.
-            </p>
           </div>
           <section className="student-big-story-today" aria-label="Today's storyline practice">
             <strong>Today&apos;s move</strong>
@@ -272,7 +262,6 @@ export default function ScriptureResourcesPage({ searchParams }: ScriptureResour
           <div>
             <p className="eyebrow">Go Deeper</p>
             <h2 id="depth-title">Open the next layer when you are ready</h2>
-            <p>Use these as optional layers after the four-move path feels familiar.</p>
           </div>
           <details className="student-atlas-layer storyline">
             <summary>
@@ -314,13 +303,10 @@ export default function ScriptureResourcesPage({ searchParams }: ScriptureResour
         </section>
       </div>
 
-      <ScriptureLookup initialReference={requestedReference ?? ""} />
-
       <section className="student-resource-tools" aria-label="Scripture study resources">
         <div className="student-big-story-heading">
           <p className="eyebrow">Reading Skills</p>
           <h2>Simple tools for reading carefully together</h2>
-          <p>Swipe the short cards, then open one when you need examples or an exercise.</p>
         </div>
         <StudentStudyToolRail resources={scriptureResources} />
       </section>
