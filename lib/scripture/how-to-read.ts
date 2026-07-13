@@ -6,6 +6,7 @@ export type HowToReadModule = {
   minutes: number;
   summary: string;
   videoLabel: string;
+  videoEmbedUrl?: string;
   infographicLabel: string;
   badge: string;
   tools: string[];
@@ -26,7 +27,8 @@ export const howToReadModules: HowToReadModule[] = [
     minutes: 6,
     summary:
       "The Bible is one library of many books that tells the story of God, people, rescue, and renewal. This guide helps students know what they are holding before they start reading.",
-    videoLabel: "Intro video slot",
+    videoLabel: "What Is the Bible video",
+    videoEmbedUrl: "https://www.youtube.com/embed/ak06MSETeo4",
     infographicLabel: "Bible library map",
     badge: "Start With the Story",
     tools: ["One library, many books", "God's story before my hot take", "Read with humility"],
@@ -43,7 +45,8 @@ export const howToReadModules: HowToReadModule[] = [
     minutes: 8,
     summary:
       "Learn the main storyline so the Bible feels less like random verses and more like a connected story moving from creation to new creation.",
-    videoLabel: "Storyline video slot",
+    videoLabel: "The Bible's Big Story",
+    videoEmbedUrl: "https://www.youtube.com/embed/7_CGP-12AE0",
     infographicLabel: "Whole-Bible timeline",
     badge: "See the Big Picture",
     tools: ["Creation", "Fall", "Covenant", "Jesus", "New creation"],

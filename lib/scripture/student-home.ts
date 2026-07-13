@@ -12,6 +12,7 @@ export type StudentGroupDiscussionItem = {
   discussionPrompt: string;
   status: Extract<StudentDiscussionStatus, "approved" | "posted">;
   createdAt: string;
+  leaderDiscussedAt?: string;
 };
 
 export type StudentKeepReadingItem = {
@@ -153,7 +154,8 @@ export function toGroupDiscussionItems(prompts: StudentDiscussionPrompt[]): Stud
       scriptureReference: prompt.scriptureReference,
       discussionPrompt: prompt.discussionPrompt,
       status: prompt.status as Extract<StudentDiscussionStatus, "approved" | "posted">,
-      createdAt: prompt.createdAt
+      createdAt: prompt.createdAt,
+      ...(prompt.leaderDiscussedAt ? { leaderDiscussedAt: prompt.leaderDiscussedAt } : {})
     }));
 }
 
@@ -220,6 +222,7 @@ export function buildGroupDiscussionNextStep(
   prompt: StudentGroupDiscussionItem,
   options: { curatedResources?: StudentCuratedResource[] } = {}
 ): StudentQuestionNextStep {
+  const wasDiscussed = Boolean(prompt.leaderDiscussedAt);
   const base = buildQuestionNextStep({
     id: prompt.id,
     question: `${prompt.question} ${prompt.discussionPrompt}`,
@@ -229,9 +232,11 @@ export function buildGroupDiscussionNextStep(
   return {
     ...base,
     promptId: prompt.id,
-    label: prompt.status === "posted" ? "Shared with your group" : "Next for your group",
-    title: "Keep walking this out",
-    summary: "This leader-approved question is for your group. Read, reflect, and come ready to listen and respond together.",
+    label: wasDiscussed ? "Discussed with your group" : prompt.status === "posted" ? "Shared with your group" : "Next for your group",
+    title: wasDiscussed ? "Practice what you heard" : "Keep walking this out",
+    summary: wasDiscussed
+      ? "Your group has discussed this question. Return to Scripture, choose one practice, and notice the fruit forming this week."
+      : "This leader-approved question is for your group. Read, reflect, and come ready to listen and respond together.",
     wrestleTogetherPrompt: prompt.discussionPrompt || base.wrestleTogetherPrompt
   };
 }

@@ -2,6 +2,7 @@ import { ScriptureLookup } from "@/components/student/scripture-lookup";
 import { StudentScriptureTabs } from "@/components/student/student-scripture-tabs";
 import { StudentStudyToolRail } from "@/components/student/student-study-tool-rail";
 import { scriptureResources } from "@/lib/scripture/mock-data";
+import { getEmbeddableVideoUrl } from "@/lib/scripture/video-embed";
 import {
   foundationBooks,
   newTestamentFlyovers,
@@ -35,6 +36,7 @@ const movementNotes: Record<(typeof storylineMap)[number], string> = {
 };
 
 const visibleThemes = themeIndex.filter((theme) => ["covenant", "kingdom", "temple", "exile", "sacrifice", "new-creation"].includes(theme.id));
+const bigStoryVideoUrl = getEmbeddableVideoUrl("https://www.youtube.com/embed/7_CGP-12AE0");
 
 const storylinePath = [
   {
@@ -183,6 +185,18 @@ export default function ScriptureResourcesPage({ searchParams }: ScriptureResour
           </div>
           <div className="student-big-story-note" aria-label="Big story guardrail">
             <strong>Start simple.</strong>
+          </div>
+        </section>
+
+        <section className="student-big-story-section student-big-story-video" aria-label="Bible big story video">
+          <div className="how-to-read-guide-video">
+            <iframe
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen
+              referrerPolicy="strict-origin-when-cross-origin"
+              src={bigStoryVideoUrl}
+              title="The Bible's Big Story"
+            />
           </div>
         </section>
 

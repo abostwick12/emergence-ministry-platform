@@ -33,7 +33,7 @@ export default async function DiscipleshipPage() {
     <div className="discipleship-workspace-stack">
       <ScriptureTrialInsightsPanel groupState={groupState} insights={trialInsights} />
       <ScriptureKnowledgeControlRoom initialDiscussionState={state} initialState={knowledgeState} />
-      <StudentCuratedResourceManager initialState={curatedResourceState} />
+      <StudentCuratedResourceManager canManageVideoEmbeds={access.role === "admin"} initialState={curatedResourceState} />
       <ScriptureLeaderReview initialGroupState={groupState} initialState={state} />
     </div>
   );

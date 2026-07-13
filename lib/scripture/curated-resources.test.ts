@@ -194,6 +194,34 @@ describe("student curated resources", () => {
     expect(feed.questionNextSteps[0].curatedResources[0]).not.toHaveProperty("sourceChunkId");
   });
 
+  it("allows only admins to create student video embeds", async () => {
+    const videoInput = {
+      kind: "video",
+      journeyStage: "read",
+      title: "What is the Bible?",
+      summary: "A short explainer video.",
+      body: "Watch before working through the guide.",
+      scriptureReferences: "2 Timothy 3",
+      themes: "bible, scripture",
+      questionPatterns: "what is the bible",
+      practicePrompt: "Write one question after watching.",
+      href: "<iframe src=\"https://www.youtube.com/embed/ak06MSETeo4\"></iframe>",
+      sortOrder: 1,
+      isActive: true
+    };
+
+    await expect(createStudentCuratedResource(leaderSession(), videoInput)).rejects.toMatchObject({
+      code: "admin_video_only",
+      status: 403
+    });
+
+    await expect(createStudentCuratedResource(adminSession(), videoInput)).resolves.toMatchObject({
+      kind: "video",
+      title: "What is the Bible?",
+      href: "https://www.youtube.com/embed/ak06MSETeo4"
+    });
+  });
+
   it("creates a separate RLS-protected table from knowledge sources", () => {
     const migration = readFileSync("supabase/migrations/20260712120000_student_curated_resources.sql", "utf8");
     const stageMigration = readFileSync("supabase/migrations/20260712143000_student_curated_resource_stages.sql", "utf8");
@@ -235,6 +263,19 @@ function leaderSession(): AuthSession {
       email: "leader@example.test",
       fullName: "Leader User",
       role: "leader"
+    }
+  };
+}
+
+function adminSession(): AuthSession {
+  return {
+    isMock: true,
+    accessToken: undefined,
+    user: {
+      id: "usr_admin",
+      email: "admin@example.test",
+      fullName: "Admin User",
+      role: "admin"
     }
   };
 }

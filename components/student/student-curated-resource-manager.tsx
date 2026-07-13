@@ -11,9 +11,11 @@ import type {
   StudentCuratedResourceState
 } from "@/lib/scripture/curated-resource-shared";
 import { matchCuratedResourcesToPrompt, studentCuratedResourceStageLabels } from "@/lib/scripture/curated-resource-shared";
+import { getEmbeddableVideoUrl } from "@/lib/scripture/video-embed";
 
 type StudentCuratedResourceManagerProps = {
   initialState: StudentCuratedResourceState;
+  canManageVideoEmbeds: boolean;
 };
 
 type ResourceResponse = {
@@ -39,7 +41,7 @@ const stageDescriptions: Record<StudentCuratedResourceStage, string> = {
   discuss: "Group"
 };
 
-export function StudentCuratedResourceManager({ initialState }: StudentCuratedResourceManagerProps) {
+export function StudentCuratedResourceManager({ canManageVideoEmbeds, initialState }: StudentCuratedResourceManagerProps) {
   const [resources, setResources] = useState(initialState.resources);
   const [status, setStatus] = useState(initialState.readiness.message);
   const [editingId, setEditingId] = useState("");
@@ -152,7 +154,13 @@ export function StudentCuratedResourceManager({ initialState }: StudentCuratedRe
       />
 
       <div className="student-curated-resource-grid">
-        <ResourceForm key={editingResource?.id ?? "new"} onSubmit={submitResource} resource={editingResource} saving={saving} />
+        <ResourceForm
+          canManageVideoEmbeds={canManageVideoEmbeds}
+          key={editingResource?.id ?? "new"}
+          onSubmit={submitResource}
+          resource={editingResource}
+          saving={saving}
+        />
 
         <div className="student-curated-resource-list">
           <div className="student-curated-resource-list-head">
@@ -260,14 +268,21 @@ function MatchingPreviewPanel({
 }
 
 function ResourceForm({
+  canManageVideoEmbeds,
   onSubmit,
   resource,
   saving
 }: {
+  canManageVideoEmbeds: boolean;
   onSubmit: (event: FormEvent<HTMLFormElement>) => Promise<void>;
   resource?: StudentCuratedResource;
   saving: boolean;
 }) {
+  const initialKind = resource?.kind === "video" && !canManageVideoEmbeds ? "guide" : resource?.kind ?? "guide";
+  const [kind, setKind] = useState<StudentCuratedResourceKind>(initialKind);
+  const isVideo = kind === "video";
+  const availableKindEntries = Object.entries(kindLabels).filter(([resourceKind]) => canManageVideoEmbeds || resourceKind !== "video");
+
   return (
     <form className="student-curated-resource-form" onSubmit={onSubmit}>
       <input name="id" type="hidden" value={resource?.id ?? ""} />
@@ -282,9 +297,9 @@ function ResourceForm({
       <div className="knowledge-source-field-grid">
         <label className="leader-review-field">
           <span>Type</span>
-          <select className="input" defaultValue={resource?.kind ?? "guide"} name="kind">
-            {Object.entries(kindLabels).map(([kind, label]) => (
-              <option key={kind} value={kind}>
+          <select className="input" name="kind" onChange={(event) => setKind(event.target.value as StudentCuratedResourceKind)} value={kind}>
+            {availableKindEntries.map(([resourceKind, label]) => (
+              <option key={resourceKind} value={resourceKind}>
                 {label}
               </option>
             ))}
@@ -349,8 +364,13 @@ function ResourceForm({
 
       <div className="knowledge-source-field-grid">
         <label className="leader-review-field">
-          <span>Open link</span>
-          <input className="input" defaultValue={resource?.href ?? ""} name="href" placeholder="/student/scripture/resources" />
+          <span>{isVideo ? "Embed URL or iframe code" : "Open link"}</span>
+          <input
+            className="input"
+            defaultValue={resource?.href ?? ""}
+            name="href"
+            placeholder={isVideo ? "Paste a YouTube/Vimeo URL or iframe embed code" : "/student/scripture/resources"}
+          />
         </label>
 
         <label className="student-curated-resource-toggle">
@@ -377,8 +397,11 @@ function ResourceStat({ label, value }: { label: string; value: number | string 
 }
 
 function formPayload(data: FormData) {
+  const kind = String(data.get("kind") || "guide");
+  const href = String(data.get("href") || "");
+
   return {
-    kind: String(data.get("kind") || "guide"),
+    kind,
     journeyStage: String(data.get("journeyStage") || "read"),
     title: String(data.get("title") || ""),
     summary: String(data.get("summary") || ""),
@@ -387,7 +410,7 @@ function formPayload(data: FormData) {
     themes: String(data.get("themes") || ""),
     questionPatterns: String(data.get("questionPatterns") || ""),
     practicePrompt: String(data.get("practicePrompt") || ""),
-    href: String(data.get("href") || ""),
+    href: kind === "video" ? getEmbeddableVideoUrl(href) || href : href,
     sortOrder: String(data.get("sortOrder") || "0"),
     isActive: data.get("isActive") === "true"
   };
