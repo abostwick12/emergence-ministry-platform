@@ -5,13 +5,17 @@ import { usePathname } from "next/navigation";
 import {
   Bell,
   BookOpen,
+  BookOpenText,
   Bot,
   CalendarDays,
   DollarSign,
+  GraduationCap,
   LayoutDashboard,
+  Library,
   ListChecks,
   MessageSquareText,
   Music,
+  NotebookPen,
   Search,
   Settings,
   TentTree,
@@ -33,18 +37,18 @@ const roleLabels: Record<Role, string> = {
 
 const primaryLinks = [
   { href: "/dashboard", label: "Dashboard" },
-  { href: "/camp", label: "Camp" },
   { href: "/events", label: "Events" },
-  { href: "/worship", label: "Worship" },
   { href: "/student", label: "Student Portal" },
+  { href: "/student/scripture/questions", label: "Journey Journal" },
+  { href: "/discipleship", label: "Discipleship" },
+  { href: "/camp", label: "Camp" },
+  { href: "/worship", label: "Worship" },
   { href: "/tasks", label: "Tasks" },
   { href: "/communications", label: "Communications" },
   { href: "/people", label: "People" },
   { href: "/budget", label: "Budget" },
   { href: "/settings", label: "Settings" }
 ];
-
-const leaderDiscipleshipLink = { href: "/discipleship", label: "Discipleship" };
 
 const mobileLinks = [
   { href: "/dashboard", label: "Dashboard" },
@@ -77,8 +81,12 @@ const navIcons: Record<string, LucideIcon> = {
   "/camp": TentTree,
   "/events": CalendarDays,
   "/worship": Music,
-  "/student": BookOpen,
-  "/discipleship": BookOpen,
+  "/student": GraduationCap,
+  "/student/scripture/questions": NotebookPen,
+  "/student/scripture/plans": CalendarDays,
+  "/student/scripture/resources": BookOpen,
+  "/student/scripture/how-to-read": Library,
+  "/discipleship": BookOpenText,
   "/tasks": ListChecks,
   "/communications": MessageSquareText,
   "/people": Users,
@@ -98,6 +106,10 @@ const pageTitles: Record<string, string> = {
   "/events": "Events",
   "/worship": "Worship",
   "/student": "Student Portal",
+  "/student/scripture/questions": "Journey Journal",
+  "/student/scripture/resources": "Scripture",
+  "/student/scripture/plans": "Reading Plans",
+  "/student/scripture/how-to-read": "How to Read",
   "/tasks": "Tasks",
   "/communications": "Communications",
   "/people": "People",
@@ -109,11 +121,18 @@ const pageTitles: Record<string, string> = {
 };
 
 const pageSubtitles: Record<string, string> = {
+  "/student": "One step at a time. Ask honestly, read slowly, and keep walking the journey.",
+  "/student/scripture/questions": "A quiet place to wrestle with questions, Scripture, practices, and the fruit forming over time.",
+  "/student/scripture/resources": "Passages, story guides, and reading tools tied to where you are in the journey.",
+  "/student/scripture/plans": "Guided reading paths with clear progress so students do not get lost in endless resources.",
+  "/student/scripture/how-to-read": "Simple tools for reading Scripture carefully without rushing to an answer.",
   "/discipleship": "Move beyond attendance into formation - Scripture as a whole story, studied in community.",
   "/command-center": "Coordinate AI-supported ministry decisions with a clear audit trail."
 };
 
 function isLinkActive(pathname: string, href: string): boolean {
+  if (href === "/student") return pathname === "/student";
+  if (href === "/discipleship") return pathname === "/discipleship";
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
@@ -130,14 +149,24 @@ export function getAppShellNavigation({
   showLeaderDiscipleship: boolean;
   showStudentPortal: boolean;
 }) {
-  const studentAwareLinks = showStudentPortal ? primaryLinks : primaryLinks.filter((link) => link.href !== "/student");
-  const discipleshipAwareLinks = showLeaderDiscipleship ? [...studentAwareLinks, leaderDiscipleshipLink] : studentAwareLinks;
+  const studentAwareLinks = showStudentPortal
+    ? primaryLinks
+    : primaryLinks.filter((link) => !link.href.startsWith("/student"));
+  const discipleshipAwareLinks = showLeaderDiscipleship
+    ? studentAwareLinks
+    : studentAwareLinks.filter((link) => link.href !== "/discipleship");
   const allPrimaryLinks = showCommandCenter ? [...discipleshipAwareLinks, { href: "/command-center", label: "Command Center" }] : discipleshipAwareLinks;
-  const studentPortalOnlyLinks = [{ href: "/student", label: "Student Portal" }];
+  const studentPortalOnlyLinks = [
+    { href: "/student", label: "Student Portal" },
+    { href: "/student/scripture/questions", label: "Journey Journal" },
+    { href: "/student/scripture/resources", label: "Scripture" },
+    { href: "/student/scripture/plans", label: "Plans" },
+    { href: "/student/scripture/how-to-read", label: "How to Read" }
+  ];
 
   return {
     primaryLinks: isStudentShell ? studentPortalOnlyLinks : campOnly ? allPrimaryLinks.filter((link) => link.href === "/camp") : allPrimaryLinks,
-    mobileLinks: isStudentShell ? studentPortalOnlyLinks : campOnly ? [{ href: "/camp", label: "Camp" }] : mobileLinks,
+    mobileLinks: isStudentShell ? studentPortalOnlyLinks.slice(0, 4) : campOnly ? [{ href: "/camp", label: "Camp" }] : mobileLinks,
     mobileMoreLinks: isStudentShell || campOnly ? [] : mobileMoreLinksFor(allPrimaryLinks)
   };
 }

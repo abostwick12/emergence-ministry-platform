@@ -1,4 +1,4 @@
-import { expect, type Page, test } from "@playwright/test";
+﻿import { expect, type Page, test } from "@playwright/test";
 
 test.describe("Student Scripture Hub shell", () => {
   test("public join links explain the student launch path or fail closed", async ({ page }) => {
@@ -21,12 +21,13 @@ test.describe("Student Scripture Hub shell", () => {
     await portalLink.click();
     await expect(page).toHaveURL(/\/student$/);
     await expect(page.getByRole("heading", { name: "Student Portal" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "How to Read the Bible" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Expand your path" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "How to Read resources" })).toBeVisible();
     await expect(page.getByRole("region", { name: "Private Bible reading progress" })).toContainText("0 of 8 How to Read guides signed off");
     await expect(page.getByRole("heading", { name: "Bible App Reader" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "What should we talk about next?" })).toBeVisible();
     await expect(page.getByRole("complementary", { name: "Student actions and keep reading" })).toBeVisible();
-    await page.getByRole("link", { name: /How to Read the Bible/ }).click();
+    await page.getByRole("link", { name: /How to Read resources/ }).click();
     await expect(page).toHaveURL(/\/student\/scripture\/how-to-read$/);
     await expect(page.getByRole("heading", { name: "Learn to read the Bible with care." })).toBeVisible();
 
@@ -60,9 +61,9 @@ test.describe("Student Scripture Hub shell", () => {
     await page.goto("/student");
     await expect(page.getByRole("heading", { name: "Student Portal" })).toBeVisible();
     await expect(page.getByRole("region", { name: "Student home feed" })).toContainText("Continue your journey");
-    await expect(page.getByRole("heading", { name: "How to Read the Bible" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Understanding Context" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Asking Good Questions" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Expand your path" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Study Builder" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "How to Read resources" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Review Queue", exact: true })).toHaveCount(0);
     await expect(page.getByRole("link", { name: "Leader Review", exact: true })).toHaveCount(0);
     await expect(page.getByText("Metanarrative movement")).toHaveCount(0);
@@ -192,52 +193,30 @@ test.describe("Student Scripture Hub shell", () => {
     await page.getByLabel("What are you wondering?").fill("Why did God put the tree in the garden?");
     await page.getByLabel("Passage, if you have one").fill("Genesis 3");
     await page.getByRole("button", { name: "Ask and wrestle with it" }).click();
-    await expect(page.getByRole("status").filter({ hasText: "Saved. Use the rhythm below" })).toBeVisible();
-    await expect(page.getByRole("region", { name: "Question next step" })).toContainText("Wrestle with your question");
-    await expect(page.getByRole("heading", { name: "Why did God put the tree in the garden?" })).toBeVisible();
-    const journey = page.getByRole("region", { name: "Journey journal" });
-    await expect(journey).toContainText("Garden Question Journey");
-    await expect(journey).toContainText("Fork in the road");
-    await expect(journey.getByRole("button", { name: /Word study/ })).toBeVisible();
-    await expect(journey.getByRole("button", { name: /Inductive reading/ })).toBeVisible();
-    await expect(journey).toContainText("Current phase - reflection");
+    await expect(page.getByRole("region", { name: "Journey journal selector" })).toContainText("Why did God put the tree in the garden?");
+    const journey = page.getByRole("region", { name: "Journey journal entry" });
+    await expect(journey).toContainText("Scripture the app suggested");
+    await expect(journey).toContainText("Questions around your question");
+    await expect(journey).toContainText("Spiritual practices to try");
+    await expect(journey).toContainText("Living it out");
     await expect(journey).toContainText("Genesis 1:26-31");
     await expect(journey).toContainText("shamar");
     await expect(journey).toContainText("שָׁמַר");
-    await expect(journey.getByRole("link", { name: "שָׁמַר" })).toHaveAttribute(
+    await expect(journey.getByRole("link", { name: /שָׁמַר/ })).toHaveAttribute(
       "href",
       "https://www.blueletterbible.org/lexicon/h8104/kjv/wlc/0-1/"
     );
-    await journey.getByLabel("What answers have you heard before?").fill("It was a test, free will, and choice.");
-    await journey.getByLabel("Why do those answers still feel incomplete?").fill("They do not explain why the garden starts with abundance.");
-    await journey.getByRole("button", { name: "Open YouVersion" }).first().click();
-    await expect(journey.getByRole("region", { name: "YouVersion Bible reader" }).getByRole("link", { name: "Open" })).toHaveAttribute(
-      "href",
-      "https://www.bible.com/bible/111/GEN.1.26.NIV"
-    );
-    await journey.getByRole("button", { name: /Guided prayer/ }).click();
+    await journey.getByPlaceholder(/What did you notice/).fill("It was a test, free will, and choice.");
+    await journey.getByPlaceholder(/Which of these presses/).fill("They do not explain why the garden starts with abundance.");
+    await journey.getByText("Open practice details").click();
     await expect(journey).toContainText("Pause in the garden");
     await expect(journey).toContainText("2 minute prayer");
-    await journey.getByRole("button", { name: "Mark Genesis 1:26-31 read" }).click();
-    await journey.getByLabel("Practice completed").check();
-    await journey.getByRole("button", { name: "Save journal to private note" }).click();
-    await expect(journey.getByText("Journey saved to your private note.")).toBeVisible();
-    const privateReflection = page.getByRole("region", { name: "Private reflection" });
-    await expect(privateReflection.getByLabel("Private note")).toHaveValue(/It was a test/);
-    await privateReflection.getByLabel("Private note").fill("I am noticing that hiding from God is part of the story.");
-    await privateReflection.getByRole("button", { name: "Save note" }).click();
-    await expect(privateReflection.getByRole("status")).toContainText("Private note saved.");
-    await privateReflection.getByRole("button", { name: "I reflected on this" }).click();
-    await expect(privateReflection.getByRole("status")).toContainText("Reflection saved. Bring this with you to group.");
+    await journey.getByPlaceholder(/Which practice will you try/).fill("I will take a quiet walk before small group.");
+    await journey.getByRole("button", { name: "Save entry" }).click();
+    await expect(journey.getByText("Entry saved.")).toBeVisible();
     await page.reload();
-    await expect(page.getByRole("heading", { name: "Why did God put the tree in the garden?" })).toBeVisible();
-    await expect(page.getByRole("region", { name: "Journey journal" }).getByLabel("What answers have you heard before?")).toHaveValue(
-      "It was a test, free will, and choice."
-    );
-    await expect(page.getByRole("region", { name: "Private reflection" }).getByLabel("Private note")).toHaveValue(
-      "I am noticing that hiding from God is part of the story."
-    );
-    await expect(page.getByRole("region", { name: "Private reflection" }).getByRole("button", { name: "Reflected" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Journey journal selector" })).toContainText("Why did God put the tree in the garden?");
+    await expect(page.getByRole("region", { name: "Journey journal entry" })).toContainText("Saved to your private note.");
     await page.goto("/student");
     await expect(page.getByRole("region", { name: "Question journey" }).getByRole("heading", { name: "Why did God put the tree in the garden?" })).toBeVisible();
     const relatedResources = page.getByRole("region", { name: "Related resources" }).first();

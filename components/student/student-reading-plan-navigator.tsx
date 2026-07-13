@@ -89,19 +89,22 @@ export function StudentReadingPlanNavigator({ plans }: StudentReadingPlanNavigat
         </div>
 
         <div className="student-plan-day-rail" role="tablist" aria-label={`${selectedPlan.title} days`}>
-          {days.map((day, index) => (
-            <button
-              aria-selected={index === selectedDayIndex}
-              className={`student-plan-day ${index === selectedDayIndex ? "active" : ""}`}
-              key={day}
-              onClick={() => setSelectedDayIndex(index)}
-              role="tab"
-              type="button"
-            >
-              <strong>{index + 1}</strong>
-              <span>{shortDayLabel(day)}</span>
-            </button>
-          ))}
+          {days.map((day, index) => {
+            const isComplete = completed[selectedPlan.id]?.includes(dayKey(index)) ?? false;
+            return (
+              <button
+                aria-selected={index === selectedDayIndex}
+                className={`student-plan-day ${index === selectedDayIndex ? "active" : ""} ${isComplete ? "complete" : ""}`}
+                key={day}
+                onClick={() => setSelectedDayIndex(index)}
+                role="tab"
+                type="button"
+              >
+                <strong>{index + 1}</strong>
+                <span>{shortDayLabel(day)}</span>
+              </button>
+            );
+          })}
         </div>
 
         <section className="student-plan-day-panel" aria-label={`Day ${selectedDayIndex + 1} plan`}>
