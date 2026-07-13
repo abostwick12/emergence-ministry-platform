@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRole } from "@/components/role-context";
 import { useEventCard } from "@/components/event-card-context";
@@ -52,6 +52,7 @@ export default function MinistryWorkspace({ view }: { view: WorkspaceView }) {
   const [isLoading, setIsLoading] = useState(true);
   const [notice, setNotice] = useState("Preview adapters active. Live provider credentials are not required.");
   const [expandedEventIds, setExpandedEventIds] = useState<string[]>(["evt_winter_retreat"]);
+  const initialLoadStartedRef = useRef(false);
 
   async function loadOverview() {
     setLoadError("");
@@ -72,6 +73,8 @@ export default function MinistryWorkspace({ view }: { view: WorkspaceView }) {
   }
 
   useEffect(() => {
+    if (initialLoadStartedRef.current) return;
+    initialLoadStartedRef.current = true;
     void loadOverview();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

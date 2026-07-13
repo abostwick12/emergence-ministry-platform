@@ -21,6 +21,7 @@ export function StudentQuestionsExperience({ initialReflections, initialState }:
   const [reflections, setReflections] = useState(initialReflections);
   const [archivedPromptIds, setArchivedPromptIds] = useState<Set<string>>(new Set());
   const [entrySequences, setEntrySequences] = useState<Record<string, number[]>>({});
+  const [localStateLoaded, setLocalStateLoaded] = useState(false);
   const [activeEntryByPrompt, setActiveEntryByPrompt] = useState<Record<string, number>>({});
   const [selectedPromptId, setSelectedPromptId] = useState(initialState.prompts[0]?.id ?? "");
   const [isComposerOpen, setIsComposerOpen] = useState(!initialState.prompts[0]);
@@ -37,15 +38,18 @@ export function StudentQuestionsExperience({ initialReflections, initialState }:
   useEffect(() => {
     setArchivedPromptIds(readArchivedPromptIds());
     setEntrySequences(readEntrySequences());
+    setLocalStateLoaded(true);
   }, []);
 
   useEffect(() => {
+    if (!localStateLoaded) return;
     window.localStorage.setItem(studentQuestionArchiveStorageKey, JSON.stringify(Array.from(archivedPromptIds)));
-  }, [archivedPromptIds]);
+  }, [archivedPromptIds, localStateLoaded]);
 
   useEffect(() => {
+    if (!localStateLoaded) return;
     window.localStorage.setItem(studentJourneyEntriesStorageKey, JSON.stringify(entrySequences));
-  }, [entrySequences]);
+  }, [entrySequences, localStateLoaded]);
 
   useEffect(() => {
     if (!selectedPrompt && activePrompts[0]) setSelectedPromptId(activePrompts[0].id);
@@ -147,7 +151,7 @@ export function StudentQuestionsExperience({ initialReflections, initialState }:
               ) : null}
             </div>
           </details>
-          <div className="student-journal-entry-rail" aria-label="Journey entries">
+          <div className="student-journal-entry-rail" role="group" aria-label="Journey entries">
             {selectedEntries.map((sequence) => (
               <button
                 className={sequence === activeEntrySequence ? "active" : ""}
@@ -174,7 +178,7 @@ export function StudentQuestionsExperience({ initialReflections, initialState }:
           reflection={reflections[selectedPrompt.id]}
         />
       ) : null}
-      <section className="student-feed-section student-journey-history">
+      <section className="student-feed-section student-journey-history" aria-label="Journey History">
         <div className="student-feed-section-heading">
           <h2>Journey History</h2>
         </div>
@@ -208,7 +212,7 @@ export function StudentQuestionsExperience({ initialReflections, initialState }:
         )}
       </section>
       {archivedPrompts.length ? (
-        <section className="student-feed-section">
+        <section className="student-feed-section" aria-label="Archived questions">
           <div className="student-feed-section-heading">
             <h2>Archived questions</h2>
           </div>

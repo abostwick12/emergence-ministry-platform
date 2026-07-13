@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useRouter } from "next/navigation";
 import { EmmaEventIntelligencePanel } from "@/components/emma-event-intelligence-panel";
 import { useEventCard } from "@/components/event-card-context";
 import { useRole } from "@/components/role-context";
@@ -198,7 +197,6 @@ function MasterEventCardInner({
   const [isDirty, setIsDirty] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const { activeRole } = useRole();
-  const router = useRouter();
   const [stubStatus, setStubStatus] = useState<Record<string, "idle" | "running" | "done">>({
     drive: "idle",
     calendar: "idle",
@@ -353,7 +351,6 @@ function MasterEventCardInner({
         setSaveSuccess("Event information saved.");
         setIsDirty(false);
         onRefresh?.();
-        router.refresh();
       }
     } finally {
       setIsSaving(false);
@@ -400,7 +397,6 @@ function MasterEventCardInner({
       setSaveSuccess(`Created "${ws.event.title}" and generated baseline tasks.`);
       setIsDirty(false);
       onRefresh?.();
-      router.refresh();
 
       // Run stub actions for checked toggles
       if (currentStep1.createDrive) {
