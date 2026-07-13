@@ -208,7 +208,12 @@ export async function getApprovedStudentDiscussionFeed(session: AuthSession): Pr
   const result = await query.returns<ApprovedStudentDiscussionRow[]>();
 
   throwIfSupabaseError(result.error);
-  return (result.data ?? []).map(toGroupDiscussionItem);
+  const rows = result.data ?? [];
+  const eventSummaries = await getStudentPromptEventSummaries(
+    session,
+    rows.map((row) => row.id)
+  );
+  return rows.map((row) => toGroupDiscussionItem(row, eventSummaries[row.id]));
 }
 
 export async function createStudentDiscussionPrompt(session: AuthSession, input: CreateStudentDiscussionInput) {
@@ -622,7 +627,7 @@ function toPrompt(row: StudentDiscussionPromptRow): StudentDiscussionPrompt {
   };
 }
 
-function toGroupDiscussionItem(row: ApprovedStudentDiscussionRow): StudentGroupDiscussionItem {
+function toGroupDiscussionItem(row: ApprovedStudentDiscussionRow, summary?: StudentReflectionSummary): StudentGroupDiscussionItem {
   return {
     id: row.id,
     groupId: row.group_id ?? undefined,
@@ -630,7 +635,8 @@ function toGroupDiscussionItem(row: ApprovedStudentDiscussionRow): StudentGroupD
     scriptureReference: row.scripture_reference ?? "",
     discussionPrompt: row.discussion_prompt ?? "",
     status: row.status,
-    createdAt: row.created_at
+    createdAt: row.created_at,
+    ...(summary?.leaderDiscussedAt ? { leaderDiscussedAt: summary.leaderDiscussedAt } : {})
   };
 }
 

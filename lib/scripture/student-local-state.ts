@@ -80,7 +80,8 @@ export function listLocalApprovedStudentDiscussionPrompts(session: AuthSession):
       scriptureReference: prompt.scriptureReference,
       discussionPrompt: prompt.discussionPrompt,
       status: prompt.status as Extract<StudentDiscussionStatus, "approved" | "posted">,
-      createdAt: prompt.createdAt
+      createdAt: prompt.createdAt,
+      ...(prompt.leaderDiscussedAt ? { leaderDiscussedAt: prompt.leaderDiscussedAt } : {})
     }));
 }
 

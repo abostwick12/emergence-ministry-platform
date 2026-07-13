@@ -23,6 +23,7 @@ import type {
   StudentResourceStep
 } from "@/lib/scripture/student-home";
 import type { StudentDiscussionPrompt } from "@/lib/scripture/types";
+import { getEmbeddableVideoUrl } from "@/lib/scripture/video-embed";
 
 type StudentHomeFeedProps = {
   initialState: DiscussionWorkflowState;
@@ -80,9 +81,11 @@ export function StudentHomeFeed({
   const [questionNextSteps, setQuestionNextSteps] = useState(initialFeed.questionNextSteps);
   const [reflections, setReflections] = useState(initialReflections);
   const [lookupReference, setLookupReference] = useState("");
+  const initialGroupPrompt = initialFeed.forGroup.find((prompt) => prompt.leaderDiscussedAt) ?? initialFeed.forGroup[0];
+  const initialJourneyType = initialGroupPrompt?.leaderDiscussedAt || !initialFeed.recentQuestions[0] ? "group" : "question";
   const [activePromptId, setActivePromptId] = useState(initialFeed.recentQuestions[0]?.id);
-  const [activeGroupPromptId, setActiveGroupPromptId] = useState(initialFeed.forGroup[0]?.id);
-  const [activeJourneyType, setActiveJourneyType] = useState<"question" | "group">(initialFeed.recentQuestions[0] ? "question" : "group");
+  const [activeGroupPromptId, setActiveGroupPromptId] = useState(initialGroupPrompt?.id);
+  const [activeJourneyType, setActiveJourneyType] = useState<"question" | "group">(initialJourneyType);
   const firstName = userName.split(" ")[0] || userName;
   const activePrompt = activeJourneyType === "question" ? recentQuestions.find((prompt) => prompt.id === activePromptId) : undefined;
   const activeNextStep = activePrompt ? nextStepForPrompt(activePrompt.id) : undefined;
@@ -303,8 +306,10 @@ function GroupDiscussionFollowThroughCard({
       <div className="student-question-journey-meta" aria-label="Group discussion status">
         <JourneyMeta label="Passage" value={prompt.scriptureReference || "Open together"} />
         <JourneyMeta label="Review" value="Leader approved" />
-        <JourneyMeta label="Next" value="Wrestle together" />
+        <JourneyMeta label="Next" value={prompt.leaderDiscussedAt ? "Practice it this week" : "Wrestle together"} />
       </div>
+
+      <GroupDiscussionProgress prompt={prompt} />
 
       <div className="student-question-journey-response">
         <span>Original question</span>
@@ -324,6 +329,34 @@ function GroupDiscussionFollowThroughCard({
         <strong>Bring this back:</strong> Write down one thing you noticed, one question you still have, and one way your group can respond together.
       </p>
     </section>
+  );
+}
+
+function GroupDiscussionProgress({ prompt }: { prompt: StudentGroupDiscussionItem }) {
+  const steps = [
+    { label: "Asked", complete: true },
+    { label: "Reviewed", complete: true },
+    { label: prompt.status === "posted" ? "Shared" : "Ready", complete: true },
+    { label: "Discussed", complete: Boolean(prompt.leaderDiscussedAt) },
+    { label: "Practice", complete: Boolean(prompt.leaderDiscussedAt) }
+  ];
+
+  return (
+    <div className="student-group-progress" aria-label="Group discussion journey progress" role="group">
+      <ol>
+        {steps.map((step, index) => (
+          <li className={step.complete ? "is-complete" : ""} key={`${step.label}-${index}`}>
+            <span aria-hidden="true" />
+            <strong>{step.label}</strong>
+          </li>
+        ))}
+      </ol>
+      <p>
+        {prompt.leaderDiscussedAt
+          ? "Discussed with your group. Keep practicing what came up."
+          : "Ready for group conversation. Bring what you notice back with you."}
+      </p>
+    </div>
   );
 }
 
@@ -500,9 +533,10 @@ function RelatedResourcesMenu({ resources }: { resources: StudentQuestionNextSte
                       {studentCuratedResourceStageLabels[resource.journeyStage]} / {resourceLabel(resource.kind)}
                     </span>
                     <h4>{resource.title}</h4>
+                    <StudentRelatedResourceVideo resource={resource} />
                     <p>{resource.body}</p>
                     {resource.practicePrompt ? <strong>{resource.practicePrompt}</strong> : null}
-                    {resource.href ? (
+                    {resource.href && resource.kind !== "video" ? (
                       <Link className="student-related-resource-link" href={resource.href}>
                         Open
                       </Link>
@@ -521,6 +555,24 @@ function RelatedResourcesMenu({ resources }: { resources: StudentQuestionNextSte
         </div>
       ) : null}
     </section>
+  );
+}
+
+function StudentRelatedResourceVideo({ resource }: { resource: StudentQuestionNextStep["curatedResources"][number] }) {
+  if (resource.kind !== "video") return null;
+  const embedUrl = getEmbeddableVideoUrl(resource.href);
+  if (!embedUrl) return null;
+
+  return (
+    <div className="student-related-resource-video">
+      <iframe
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+        allowFullScreen
+        referrerPolicy="strict-origin-when-cross-origin"
+        src={embedUrl}
+        title={resource.title}
+      />
+    </div>
   );
 }
 
@@ -747,6 +799,7 @@ function EmptyFeedState({ title, body }: { title: string; body: string }) {
 }
 
 function statusText(prompt: StudentDiscussionPrompt) {
+  if (prompt.leaderDiscussedAt) return "Discussed with your group. Keep practicing what came up.";
   if (prompt.status === "changes_requested") return "Your leader asked for a little more shaping.";
   if (prompt.status === "approved") return "Approved for group discussion.";
   if (prompt.status === "posted") return "Shared with the group.";
@@ -761,6 +814,7 @@ function statusLabel(status: StudentDiscussionPrompt["status"]) {
 }
 
 function journeySummary(prompt: StudentDiscussionPrompt) {
+  if (prompt.leaderDiscussedAt) return "Your group has discussed this question. Keep practicing what you heard and watch for fruit.";
   if (prompt.status === "changes_requested") return "Your leader asked for more shaping. Keep naming what you are really asking.";
   if (prompt.status === "approved") return "Your leader approved this for group discussion. Keep reading before you wrestle together.";
   if (prompt.status === "posted") return "This has been shared for group discussion. Come ready to listen and respond.";

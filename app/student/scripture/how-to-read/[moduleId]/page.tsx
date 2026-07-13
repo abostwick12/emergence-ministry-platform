@@ -7,6 +7,7 @@ import { StudentScriptureTabs } from "@/components/student/student-scripture-tab
 import { getServerSession } from "@/lib/auth/server";
 import { getHowToReadModule, howToReadModules } from "@/lib/scripture/how-to-read";
 import { getStudentHowToReadProgress } from "@/lib/scripture/how-to-read-progress";
+import { getEmbeddableVideoUrl } from "@/lib/scripture/video-embed";
 import { resolveStudentHubAccess } from "@/lib/student/access";
 
 type HowToReadGuidePageProps = {
@@ -54,7 +55,7 @@ export default async function HowToReadGuidePage({ params }: HowToReadGuidePageP
         </section>
 
         <section className="how-to-read-guide-media" aria-label="Media and infographic slots">
-          <MediaSlot icon={<PlayCircle size={18} aria-hidden="true" />} label="Video" title={guide.videoLabel} />
+          <MediaSlot embedUrl={guide.videoEmbedUrl} icon={<PlayCircle size={18} aria-hidden="true" />} label="Video" title={guide.videoLabel} />
           <MediaSlot icon={<Headphones size={18} aria-hidden="true" />} label="Audio" title="Podcast or audio guide slot" />
           <MediaSlot icon={<ImageIcon size={18} aria-hidden="true" />} label="Infographic" title={guide.infographicLabel} />
         </section>
@@ -122,14 +123,28 @@ export default async function HowToReadGuidePage({ params }: HowToReadGuidePageP
   );
 }
 
-function MediaSlot({ icon, label, title }: { icon: ReactNode; label: string; title: string }) {
+function MediaSlot({ embedUrl, icon, label, title }: { embedUrl?: string; icon: ReactNode; label: string; title: string }) {
+  const videoUrl = getEmbeddableVideoUrl(embedUrl);
+
   return (
     <div className="how-to-read-guide-media-slot">
-      <span className="how-to-read-guide-media-icon">{icon}</span>
+      {videoUrl ? (
+        <div className="how-to-read-guide-video">
+          <iframe
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowFullScreen
+            referrerPolicy="strict-origin-when-cross-origin"
+            src={videoUrl}
+            title={title}
+          />
+        </div>
+      ) : (
+        <span className="how-to-read-guide-media-icon">{icon}</span>
+      )}
       <div>
         <p className="eyebrow">{label}</p>
         <h2>{title}</h2>
-        <p>Coming later. This slot is ready for your short teaching, audio, or visual summary.</p>
+        <p>{videoUrl ? "Watch this, then use the questions below to process it." : "Coming later. This slot is ready for your short teaching, audio, or visual summary."}</p>
       </div>
     </div>
   );

@@ -86,7 +86,22 @@ describe("approved student discussion feed", () => {
         created_at: "2026-07-08T00:00:00.000Z"
       }
     ]);
+    const eventClient = workflowStateClient([], [
+      {
+        prompt_id: "prompt_1",
+        action: "leader_discussed",
+        actor_user_id: "usr_leader",
+        created_at: "2026-07-09T00:00:00.000Z"
+      },
+      {
+        prompt_id: "prompt_1",
+        action: "leader_follow_up_flagged",
+        actor_user_id: "usr_leader",
+        created_at: "2026-07-09T01:00:00.000Z"
+      }
+    ]);
     getSupabaseAdminClientMock.mockReturnValue(admin.client);
+    getSupabaseAuthClientMock.mockReturnValue(eventClient.client);
 
     const feed = await getApprovedStudentDiscussionFeed(session());
 
@@ -98,10 +113,12 @@ describe("approved student discussion feed", () => {
         scriptureReference: "Psalm 13",
         discussionPrompt: "Where does this psalm give us language for honest trust?",
         status: "approved",
-        createdAt: "2026-07-08T00:00:00.000Z"
+        createdAt: "2026-07-08T00:00:00.000Z",
+        leaderDiscussedAt: "2026-07-09T00:00:00.000Z"
       }
     ]);
     expect(admin.select).toHaveBeenCalledWith("id,group_id,question,scripture_reference,discussion_prompt,status,created_at");
+    expect(eventClient.eventSelect).toHaveBeenCalledWith("prompt_id,action,actor_user_id,created_at");
     expect(admin.query.eq).toHaveBeenCalledWith("ministry_id", "ministry_1");
     expect(admin.query.in).toHaveBeenCalledWith("status", ["approved", "posted"]);
     expect(admin.query.not).toHaveBeenCalledWith("discussion_prompt", "is", null);

@@ -12,6 +12,7 @@ import {
   type StudentCuratedResourceStage,
   type StudentCuratedResourceState
 } from "@/lib/scripture/curated-resource-shared";
+import { getEmbeddableVideoUrl } from "@/lib/scripture/video-embed";
 
 export type UpsertStudentCuratedResourceInput = {
   kind?: string;
@@ -117,6 +118,7 @@ export async function listStudentCuratedResources(session: AuthSession, options:
 export async function createStudentCuratedResource(session: AuthSession, input: UpsertStudentCuratedResourceInput) {
   assertCuratedResourceLeader(session);
   const normalized = normalizeCuratedResourceInput(input);
+  assertCanManageVideoResource(session, normalized.kind);
 
   if (shouldUseLocalCuratedResources(session)) {
     const resources = await getLocalResources(session);
@@ -164,6 +166,7 @@ export async function createStudentCuratedResource(session: AuthSession, input: 
 export async function updateStudentCuratedResource(session: AuthSession, id: string, input: UpsertStudentCuratedResourceInput) {
   assertCuratedResourceLeader(session);
   const normalized = normalizeCuratedResourceInput(input);
+  assertCanManageVideoResource(session, normalized.kind);
 
   if (shouldUseLocalCuratedResources(session)) {
     const resources = await getLocalResources(session);
@@ -320,8 +323,11 @@ function seedCuratedResources(): StudentCuratedResource[] {
 }
 
 function normalizeCuratedResourceInput(input: UpsertStudentCuratedResourceInput) {
+  const kind = normalizeKind(input.kind);
+  const href = normalizeResourceHref(kind, input.href);
+
   return {
-    kind: normalizeKind(input.kind),
+    kind,
     journeyStage: normalizeStage(input.journeyStage),
     title: requiredText(input.title, "Title", 120),
     summary: requiredText(input.summary, "Short summary", 260),
@@ -330,7 +336,7 @@ function normalizeCuratedResourceInput(input: UpsertStudentCuratedResourceInput)
     themes: normalizeList(input.themes).slice(0, 14),
     questionPatterns: normalizeList(input.questionPatterns).slice(0, 14),
     practicePrompt: optionalText(input.practicePrompt, 360),
-    href: optionalText(input.href, 500),
+    href,
     sortOrder: normalizeSortOrder(input.sortOrder),
     isActive: normalizeBoolean(input.isActive)
   };
@@ -411,6 +417,23 @@ function ministryScopeColumns(ministryId: string | undefined) {
 function assertCuratedResourceLeader(session: AuthSession) {
   if (!LEADER_ROLES.has((session.user.role ?? "").trim().toLowerCase())) {
     throw new StudentCuratedResourceError("Only leaders can manage student resources.", 403, "not_allowed");
+  }
+}
+
+function normalizeResourceHref(kind: StudentCuratedResourceKind, href: string | undefined) {
+  const normalized = optionalText(href, 500);
+  if (kind !== "video") return normalized;
+
+  const embedUrl = getEmbeddableVideoUrl(normalized);
+  if (!embedUrl) {
+    throw new StudentCuratedResourceError("Add a valid YouTube or Vimeo embed URL for video resources.", 400, "invalid_video_embed");
+  }
+  return embedUrl;
+}
+
+function assertCanManageVideoResource(session: AuthSession, kind: StudentCuratedResourceKind) {
+  if (kind === "video" && (session.user.role ?? "").trim().toLowerCase() !== "admin") {
+    throw new StudentCuratedResourceError("Only admins can add or update student video embeds.", 403, "admin_video_only");
   }
 }
 
