@@ -18,8 +18,9 @@ export default async function StudentLayout({ children }: { children: React.Reac
     redirect(access.destination);
   }
 
+  const isStudentSession = access.role === "student";
   const canManageEvents = access.role === "admin" || access.role === "leader";
-  const shellAccess = await resolveAppShellAccess(access.session);
+  const shellAccess = isStudentSession ? { kind: "full" as const } : await resolveAppShellAccess(access.session);
 
   return (
     <RoleProvider initialRole={access.role}>
@@ -28,7 +29,8 @@ export default async function StudentLayout({ children }: { children: React.Reac
           canManageEvents={canManageEvents}
           devAuth={devAuth}
           shellAccess={shellAccess}
-          showCommandCenter={isCommandCenterUser(access.session)}
+          sessionRole={access.role}
+          showCommandCenter={!isStudentSession && isCommandCenterUser(access.session)}
           showLeaderDiscipleship={canManageEvents}
           showStudentPortal
           user={{ name: access.session.user.fullName, email: access.session.user.email }}

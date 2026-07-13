@@ -206,6 +206,9 @@ test.describe("Student Scripture Hub shell", () => {
       "href",
       "https://www.blueletterbible.org/lexicon/h8104/kjv/wlc/0-1/"
     );
+    const journeyEntries = page.getByRole("group", { name: "Journey entries" });
+    await journeyEntries.getByRole("button", { name: "Add entry" }).click();
+    await expect(journeyEntries.getByRole("button", { name: "2" })).toBeVisible();
     await journey.getByPlaceholder(/What did you notice/).fill("It was a test, free will, and choice.");
     await journey.getByPlaceholder(/Which of these presses/).fill("They do not explain why the garden starts with abundance.");
     await journey.getByText("Open practice details").click();
@@ -216,7 +219,16 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(journey.getByText("Entry saved.")).toBeVisible();
     await page.reload();
     await expect(page.getByRole("region", { name: "Journey journal selector" })).toContainText("Why did God put the tree in the garden?");
+    await expect(page.getByRole("group", { name: "Journey entries" }).getByRole("button", { name: "2" })).toBeVisible();
     await expect(page.getByRole("region", { name: "Journey journal entry" })).toContainText("Saved to your private note.");
+    const history = page.getByRole("region", { name: "Journey History" });
+    await history.getByRole("button", { name: "Archive" }).click();
+    await expect(page.getByRole("heading", { name: "Archived questions" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Archived questions" })).toContainText("Why did God put the tree in the garden?");
+    await page.reload();
+    await expect(page.getByRole("region", { name: "Archived questions" })).toContainText("Why did God put the tree in the garden?");
+    await page.getByRole("region", { name: "Archived questions" }).getByRole("button", { name: "Restore" }).click();
+    await expect(page.getByRole("region", { name: "Journey journal selector" })).toContainText("Why did God put the tree in the garden?");
     await page.goto("/student");
     await expect(page.getByRole("region", { name: "Question journey" }).getByRole("heading", { name: "Why did God put the tree in the garden?" })).toBeVisible();
     const relatedResources = page.getByRole("region", { name: "Related resources" }).first();

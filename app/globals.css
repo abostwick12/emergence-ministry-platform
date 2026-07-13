@@ -4,6 +4,9 @@
 
 :root {
   color-scheme: light;
+  --font-platform-sans: Inter;
+  --font-platform-serif: "Cormorant Garamond";
+  --font-platform-mono: "JetBrains Mono";
 
   /* ── Core semantic colors ──────────────────────────────────── */
   --bg: #f6f7f9;

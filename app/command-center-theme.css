@@ -12,6 +12,9 @@
 
 .command-center-shell {
   --cc-radius: 0.625rem;
+  --font-cc-sans: Inter;
+  --font-cc-mono: "JetBrains Mono";
+  --font-cc-serif: Fraunces;
 
   --cc-ivory: oklch(0.985 0.006 85);
   --cc-bone: oklch(0.965 0.008 82);

@@ -12,16 +12,20 @@ export default async function StudentPortalPage() {
   const access = resolveStudentHubAccess(await getServerSession());
   if (!access.allowed) return null;
 
-  const state = await getStudentDiscussionWorkflowState(access.session);
-  const approvedGroupPrompts = await getApprovedStudentDiscussionFeed(access.session);
+  const [state, approvedGroupPrompts, howToReadProgress, curatedResources] = await Promise.all([
+    getStudentDiscussionWorkflowState(access.session),
+    getApprovedStudentDiscussionFeed(access.session),
+    getStudentHowToReadProgress(access.session),
+    listStudentCuratedResources(access.session)
+  ]);
   const recentPromptIds = state.prompts
     .filter((prompt) => prompt.submittedByUserId === access.session.user.id)
     .slice(0, 4)
     .map((prompt) => prompt.id);
-  const savedRecommendations = await getSavedStudentQuestionRecommendations(access.session, recentPromptIds);
-  const reflections = await getStudentQuestionReflections(access.session, recentPromptIds);
-  const howToReadProgress = await getStudentHowToReadProgress(access.session);
-  const curatedResources = await listStudentCuratedResources(access.session);
+  const [savedRecommendations, reflections] = await Promise.all([
+    getSavedStudentQuestionRecommendations(access.session, recentPromptIds),
+    getStudentQuestionReflections(access.session, recentPromptIds)
+  ]);
   const feed = buildStudentHomeFeed(state.prompts, access.session.user.id, approvedGroupPrompts, savedRecommendations, curatedResources);
 
   return (
