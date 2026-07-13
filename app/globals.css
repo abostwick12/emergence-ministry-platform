@@ -813,6 +813,90 @@ textarea:focus-visible {
   font-weight: 800;
 }
 
+.platform-route-loading {
+  pointer-events: none;
+}
+
+.platform-loading-panel {
+  position: relative;
+  min-height: 92px;
+  overflow: hidden;
+}
+
+.platform-loading-panel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 0%, rgba(22, 217, 245, 0.05) 42%, rgba(255, 255, 255, 0.08) 50%, transparent 62%);
+  transform: translateX(-100%);
+  animation: platform-loading-sheen 1.5s ease-in-out infinite;
+}
+
+.platform-loading-line,
+.platform-loading-block,
+.platform-loading-list span {
+  display: block;
+  border: 1px solid rgba(129, 164, 214, 0.1);
+  border-radius: 999px;
+  background: rgba(129, 164, 214, 0.1);
+}
+
+.platform-loading-line {
+  width: min(100%, 520px);
+  height: 12px;
+}
+
+.platform-loading-line.short {
+  width: min(42%, 210px);
+}
+
+.platform-loading-line.title {
+  width: min(68%, 420px);
+  height: 22px;
+}
+
+.platform-loading-block {
+  min-height: 98px;
+  border-radius: 12px;
+}
+
+.platform-loading-block.tall {
+  min-height: 154px;
+}
+
+.platform-loading-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+  gap: 12px;
+}
+
+.platform-loading-list {
+  display: grid;
+  gap: 10px;
+}
+
+.platform-loading-list span {
+  height: 54px;
+  border-radius: 12px;
+}
+
+.platform-loading-panel > * + * {
+  margin-top: 14px;
+}
+
+@keyframes platform-loading-sheen {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .platform-loading-panel::after {
+    animation: none;
+    transform: none;
+  }
+}
+
 .workflow-command-panel {
   display: grid;
   gap: 12px;

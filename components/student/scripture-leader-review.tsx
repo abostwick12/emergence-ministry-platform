@@ -70,6 +70,7 @@ export function ScriptureLeaderReview({ initialGroupState, initialState }: Scrip
   const [isCreatingInvite, setIsCreatingInvite] = useState(false);
   const [diagnostic, setDiagnostic] = useState<GlooDiagnosticResult | undefined>();
   const [isRunningDiagnostic, setIsRunningDiagnostic] = useState(false);
+  const [isInteractive, setIsInteractive] = useState(false);
   const [status, setStatus] = useState(
     initialState.readiness.liveStorage || initialState.readiness.localStorage
       ? "Review student questions before anything is shared."
@@ -82,6 +83,11 @@ export function ScriptureLeaderReview({ initialGroupState, initialState }: Scrip
   const activeGuidePrompt = prompts.find((prompt) => prompt.id === activeGuideId);
   const visibleSelectedId = selectedPrompt?.id ?? "";
   const stats = useMemo(() => buildReviewStats(prompts), [prompts]);
+  const reviewReady = isInteractive && (initialState.readiness.liveStorage || initialState.readiness.localStorage);
+
+  useEffect(() => {
+    setIsInteractive(true);
+  }, []);
 
   useEffect(() => {
     if (!filteredPrompts.length) return;
@@ -204,7 +210,7 @@ export function ScriptureLeaderReview({ initialGroupState, initialState }: Scrip
 
       {activeGuidePrompt ? (
         <LeaderDiscussionGuide
-          reviewReady={initialState.readiness.liveStorage || initialState.readiness.localStorage}
+          reviewReady={reviewReady}
           onClose={() => setActiveGuideId("")}
           onDecide={decidePrompt}
           prompt={activeGuidePrompt}
@@ -258,7 +264,7 @@ export function ScriptureLeaderReview({ initialGroupState, initialState }: Scrip
           <LeaderReviewDetail
             key={selectedPrompt.id}
             glooReady={initialState.readiness.gloo}
-            reviewReady={initialState.readiness.liveStorage || initialState.readiness.localStorage}
+            reviewReady={reviewReady}
             onDecide={decidePrompt}
             onOpenGuide={openDiscussionGuide}
             prompt={selectedPrompt}
