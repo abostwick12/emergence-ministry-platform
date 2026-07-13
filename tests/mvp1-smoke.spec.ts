@@ -330,15 +330,27 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await expect(modal.getByText(/Preview only.*not sent/).first()).toBeVisible();
   });
 
-  test("placeholder pages render preview-mode and future integration language", async ({ page }) => {
+  test("ministry hub pages render launch-ready workspaces", async ({ page }) => {
     await login(page);
 
     for (const route of [
-      ["/communications", "Communication Drafts", "Draft and approval space for parent emails"],
-      ["/people", "Ministry Roster", "Planning Center-ready roster visibility"],
-      ["/files", "Ministry Files", "Google Drive-ready file organization"],
-      ["/budget", "Budget Workspace", "Budget visibility for event planning"],
-      ["/settings", "Platform Settings", "Secrets are never exposed in the UI."]
+      ["/communications", "Communication Drafts", "Event Copy Queue"],
+      ["/people", "Ministry Roster", "Team Load"],
+      ["/budget", "Budget Workspace", "Event Budgets"],
+      ["/settings", "Platform Settings", "Launch Controls"]
+    ] as const) {
+      await page.goto(route[0]);
+      await expect(page.getByRole("heading", { name: route[1] })).toBeVisible();
+      await expect(page.getByText(route[2])).toBeVisible();
+      await expect(page.getByText("Preview-only sending").first()).toBeVisible();
+    }
+  });
+
+  test("remaining inactive pages keep explicit future integration language", async ({ page }) => {
+    await login(page);
+
+    for (const route of [
+      ["/files", "Ministry Files", "Google Drive-ready file organization"]
     ] as const) {
       await page.goto(route[0]);
       await expect(page.getByRole("heading", { name: route[1] })).toBeVisible();

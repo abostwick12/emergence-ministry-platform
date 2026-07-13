@@ -304,6 +304,38 @@ export async function updateMinistryEvent(session: AuthSession, eventId: string,
   return getEventWorkspace(session, eventId);
 }
 
+export async function addMinistryExpense(
+  session: AuthSession,
+  input: { eventId: string; categoryId: string; amount: number; description: string }
+) {
+  const amount = Number(input.amount);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new Error("Expense amount must be greater than zero.");
+  }
+
+  if (shouldUseMock(session)) {
+    return mockStore.addExpense({ ...input, amount });
+  }
+
+  const overview = await getOverview(session);
+  const event = overview.events.find((item) => item.id === input.eventId);
+  if (!event) {
+    throw new Error("Event not found.");
+  }
+
+  const updatedActual = Number(event.budgetActual ?? 0) + amount;
+  await updateMinistryEvent(session, input.eventId, { budgetActual: updatedActual });
+
+  return {
+    id: `budget_actual_${input.eventId}_${Date.now()}`,
+    eventId: input.eventId,
+    categoryId: input.categoryId,
+    amount,
+    description: input.description,
+    timestamp: new Date().toISOString()
+  } satisfies EventExpense;
+}
+
 export async function updateMinistryTask(session: AuthSession, taskId: string, input: Partial<ActiveTask>) {
   if (shouldUseMock(session)) {
     return mockStore.updateTask(taskId, input);
