@@ -29,6 +29,7 @@ type JournalDraft = {
 };
 
 type StudentJourneyJournalProps = {
+  entrySequence?: number;
   journey: StudentQuestionNextStep["journeyJournal"];
   onReflectionSaved: (reflection: StudentQuestionReflection) => void;
   prompt: StudentDiscussionPrompt;
@@ -43,8 +44,8 @@ const emptyDraft: JournalDraft = {
   studyPath: "word"
 };
 
-export function StudentJourneyJournal({ journey, onReflectionSaved, prompt, reflection }: StudentJourneyJournalProps) {
-  const storageKey = `lead-emergence:student-journey-journal:${prompt.id}`;
+export function StudentJourneyJournal({ entrySequence = 1, journey, onReflectionSaved, prompt, reflection }: StudentJourneyJournalProps) {
+  const storageKey = `lead-emergence:student-journey-journal:${prompt.id}:entry-${entrySequence}`;
   const [draft, setDraft] = useState<JournalDraft>(emptyDraft);
   const [readerState, setReaderState] = useState<ReaderState>({ status: "idle", message: "Open a reading to load the YouVersion companion." });
   const [hasLoadedDraft, setHasLoadedDraft] = useState(false);
@@ -128,8 +129,8 @@ export function StudentJourneyJournal({ journey, onReflectionSaved, prompt, refl
     <section className="student-journey-journal" aria-label="Journey journal">
       <div className="student-journey-header">
         <div>
-          <p className="eyebrow">Journey Journal</p>
-          <h3>{journey.title}</h3>
+          <p className="eyebrow">Journey Journal / Entry {entrySequence}</p>
+          <h3>{entrySequence > 1 ? `${journey.title}: deeper pass ${entrySequence}` : journey.title}</h3>
         </div>
         <span className="pill blue">{progressLabel}</span>
       </div>

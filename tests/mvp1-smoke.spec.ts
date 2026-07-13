@@ -352,7 +352,8 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await page.goto("/student");
 
     await expect(page.getByRole("heading", { name: "Student Portal" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "How to Read the Bible" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Expand your path" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "How to Read resources" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Bible App Reader" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "What should we talk about next?" })).toBeVisible();
     await expect(page.getByRole("complementary", { name: "Student actions and keep reading" })).toBeVisible();

@@ -14719,3 +14719,1404 @@ html:has(.app-shell-camp) body {
     min-width: 0;
   }
 }
+
+/* ── Lovable UI System Integration ────────────────────────────────────────
+   Scoped away from Camp and Command Center. This turns the existing Lead
+   Emergence workflows into the ministry-compass visual language. */
+body:has(.app-shell:not(.app-shell-camp)),
+body:has(.login-shell),
+body:has(.student-join-shell) {
+  color-scheme: dark;
+  --bg: #070d1b;
+  --surface: rgba(14, 25, 44, 0.82);
+  --surface-2: rgba(18, 34, 58, 0.74);
+  --text: #eef6ff;
+  --muted: #8ea0b7;
+  --line: rgba(129, 164, 214, 0.18);
+  --primary: #16d9f5;
+  --primary-soft: rgba(22, 217, 245, 0.12);
+  --success: #36d399;
+  --warning: #d9b75f;
+  --danger: #fb7185;
+  --platform-cyan: #16d9f5;
+  --platform-gold: #d9b75f;
+  --platform-bg: #070d1b;
+  --platform-panel: rgba(14, 25, 44, 0.72);
+  --platform-border: rgba(129, 164, 214, 0.18);
+  --platform-muted: #8ea0b7;
+  --platform-shadow: 0 24px 70px rgba(0, 0, 0, 0.38);
+  --platform-cyan-glow: 0 0 14px rgba(22, 217, 245, 0.55), 0 0 34px rgba(22, 217, 245, 0.18);
+  background:
+    radial-gradient(680px 420px at 24% 0%, rgba(22, 217, 245, 0.12), transparent 60%),
+    radial-gradient(720px 460px at 100% 72%, rgba(217, 183, 95, 0.06), transparent 62%),
+    linear-gradient(180deg, #070d1b 0%, #050914 100%);
+}
+
+body:has(.app-shell:not(.app-shell-camp)),
+body:has(.login-shell) {
+  font-family: var(--font-platform-sans), Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+body:has(.app-shell:not(.app-shell-camp)) h1,
+body:has(.app-shell:not(.app-shell-camp)) h2,
+body:has(.app-shell:not(.app-shell-camp)) h3,
+body:has(.login-shell) h1,
+body:has(.login-shell) h2,
+body:has(.login-shell) h3 {
+  font-family: var(--font-platform-serif), Georgia, serif;
+  letter-spacing: 0;
+}
+
+.app-shell:not(.app-shell-camp) {
+  grid-template-columns: 252px minmax(0, 1fr);
+  background:
+    linear-gradient(to right, rgba(22, 217, 245, 0.055) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(22, 217, 245, 0.045) 1px, transparent 1px),
+    radial-gradient(circle at 38% 100%, rgba(22, 217, 245, 0.07), transparent 34%),
+    linear-gradient(180deg, #070d1b 0%, #050914 100%);
+  background-size: 48px 48px, 48px 48px, auto, auto;
+  color: var(--text);
+}
+
+.app-shell:not(.app-shell-camp) .app-shell-parchment,
+.app-shell:not(.app-shell-camp) .app-shell-night-sky,
+.app-shell:not(.app-shell-camp) .app-top-art-clip {
+  display: none;
+}
+
+.app-shell:not(.app-shell-camp) .app-sidebar {
+  z-index: 40;
+  padding: 28px 14px 16px;
+  background: rgba(5, 10, 22, 0.95);
+  border-right: 1px solid rgba(129, 164, 214, 0.15);
+  box-shadow: 18px 0 50px rgba(0, 0, 0, 0.2);
+}
+
+.app-shell:not(.app-shell-camp) .brand-lead {
+  margin: 0 8px 28px;
+}
+
+.app-shell:not(.app-shell-camp) .brand-lead-name {
+  transform: none;
+}
+
+.app-shell:not(.app-shell-camp) .brand-lead-light,
+.app-shell:not(.app-shell-camp) .brand-lead-bold {
+  font-family: var(--font-platform-serif), Georgia, serif;
+  font-size: 22px;
+  font-style: italic;
+  font-weight: 600;
+}
+
+.app-shell:not(.app-shell-camp) .brand-lead-light {
+  color: #f7fbff;
+}
+
+.app-shell:not(.app-shell-camp) .brand-lead-bold {
+  color: var(--platform-cyan);
+  text-shadow: var(--platform-cyan-glow);
+}
+
+.app-shell:not(.app-shell-camp) .brand-lead-sub,
+.app-shell:not(.app-shell-camp) .eyebrow,
+.app-shell:not(.app-shell-camp) .pill,
+.app-shell:not(.app-shell-camp) .student-scripture-tab,
+.app-shell:not(.app-shell-camp) .student-feed-row span:first-child,
+.app-shell:not(.app-shell-camp) .student-keep-reading-link span,
+.app-shell:not(.app-shell-camp) .student-question-journey-meta span,
+.app-shell:not(.app-shell-camp) .student-question-journey-response span,
+.app-shell:not(.app-shell-camp) .student-related-resource-slot span,
+.app-shell:not(.app-shell-camp) .student-plan-choice small,
+.app-shell:not(.app-shell-camp) .student-plan-day span {
+  font-family: var(--font-platform-mono), ui-monospace, SFMono-Regular, monospace;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.app-shell:not(.app-shell-camp) .brand-lead-sub {
+  color: rgba(22, 217, 245, 0.7);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.app-shell:not(.app-shell-camp) .app-nav-list {
+  gap: 4px;
+  margin-top: 0;
+}
+
+.app-shell:not(.app-shell-camp) .app-nav-link {
+  position: relative;
+  min-height: 38px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(209, 221, 238, 0.78);
+  font-size: 13px;
+  font-weight: 700;
+  padding: 0 12px;
+  box-shadow: none;
+}
+
+.app-shell:not(.app-shell-camp) .app-nav-link::before {
+  content: "";
+  position: absolute;
+  inset: 6px auto 6px 0;
+  width: 3px;
+  border-radius: 0 999px 999px 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.app-shell:not(.app-shell-camp) .app-nav-link:hover:not(.active) {
+  transform: translateX(1px);
+  background: rgba(255, 255, 255, 0.035);
+  border-color: rgba(129, 164, 214, 0.1);
+  color: #f7fbff;
+}
+
+.app-shell:not(.app-shell-camp) .app-nav-link.active {
+  background: rgba(22, 217, 245, 0.08);
+  border-color: rgba(22, 217, 245, 0.14);
+  color: var(--platform-cyan);
+  box-shadow: inset 0 0 18px rgba(22, 217, 245, 0.035);
+}
+
+.app-shell:not(.app-shell-camp) .app-nav-link.active::before {
+  background: var(--platform-cyan);
+  box-shadow: var(--platform-cyan-glow);
+}
+
+.app-shell:not(.app-shell-camp) .app-nav-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.app-shell:not(.app-shell-camp) .role-control {
+  display: flex;
+  gap: 5px;
+  margin: auto 4px 10px;
+  border: 1px solid rgba(129, 164, 214, 0.16);
+  border-radius: 10px;
+  background: rgba(18, 34, 58, 0.78);
+  padding: 4px;
+}
+
+.app-shell:not(.app-shell-camp) .role-pill {
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--platform-muted);
+  font-family: var(--font-platform-mono), ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.app-shell:not(.app-shell-camp) .role-pill.active {
+  background: rgba(129, 164, 214, 0.12);
+  color: #f7fbff;
+}
+
+.app-shell:not(.app-shell-camp) .sidebar-add-event,
+.app-shell:not(.app-shell-camp) .button.primary {
+  border-color: transparent;
+  background: var(--platform-cyan);
+  color: #06111f;
+  font-weight: 900;
+  box-shadow: 0 0 22px rgba(22, 217, 245, 0.28);
+}
+
+.app-shell:not(.app-shell-camp) .sidebar-add-event {
+  width: calc(100% - 8px);
+  min-height: 42px;
+  margin: 0 4px 18px;
+  border-radius: 10px;
+}
+
+.app-shell:not(.app-shell-camp) .sidebar-profile {
+  margin: 0 4px;
+  border-top: 1px solid rgba(129, 164, 214, 0.12);
+  padding-top: 14px;
+}
+
+.app-shell:not(.app-shell-camp) .sidebar-avatar {
+  width: 32px;
+  height: 32px;
+  background: rgba(22, 217, 245, 0.12);
+  color: var(--platform-cyan);
+  box-shadow: inset 0 0 16px rgba(22, 217, 245, 0.14);
+}
+
+.app-shell:not(.app-shell-camp) .sidebar-profile-text strong {
+  color: #f7fbff;
+  font-size: 12px;
+}
+
+.app-shell:not(.app-shell-camp) .sidebar-profile-text .muted,
+.app-shell:not(.app-shell-camp) .sidebar-profile-logout {
+  color: var(--platform-muted);
+  font-size: 10px;
+}
+
+.app-shell:not(.app-shell-camp) .sidebar-wash-bottom {
+  display: none;
+}
+
+.app-shell:not(.app-shell-camp) .app-main {
+  background:
+    radial-gradient(560px 360px at 70% 4%, rgba(22, 217, 245, 0.075), transparent 62%),
+    linear-gradient(180deg, rgba(5, 9, 20, 0.28), rgba(5, 9, 20, 0.76));
+}
+
+.app-shell:not(.app-shell-camp) .app-header {
+  height: auto;
+  min-height: 118px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  border-bottom: 1px solid rgba(129, 164, 214, 0.13);
+  background: rgba(7, 13, 27, 0.78);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  padding: 28px 40px 24px;
+}
+
+.app-shell:not(.app-shell-camp) .app-header-text {
+  position: relative;
+  padding: 0 0 0 24px;
+  text-align: left;
+}
+
+.app-shell:not(.app-shell-camp) .app-header-text::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 2px;
+  bottom: 2px;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--platform-cyan);
+  box-shadow: var(--platform-cyan-glow);
+}
+
+.app-shell:not(.app-shell-camp) .app-header-title {
+  color: #f7fbff;
+  font-family: var(--font-platform-serif), Georgia, serif;
+  font-size: clamp(34px, 4.2vw, 48px);
+  font-weight: 500;
+  line-height: 0.98;
+  text-transform: uppercase;
+}
+
+.app-shell:not(.app-shell-camp) .app-header-title-compact {
+  font-size: clamp(30px, 3.8vw, 42px);
+  padding-top: 0;
+  text-transform: uppercase;
+}
+
+.app-shell:not(.app-shell-camp) .app-header-welcome {
+  max-width: 640px;
+  margin-top: 8px;
+  color: var(--platform-muted);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.app-shell:not(.app-shell-camp) .app-header-right {
+  position: static;
+  flex: none;
+  padding-top: 0;
+}
+
+.app-shell:not(.app-shell-camp) .app-search-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  width: min(260px, 32vw);
+  border: 1px solid rgba(129, 164, 214, 0.17);
+  border-radius: 999px;
+  background: rgba(18, 34, 58, 0.54);
+  color: var(--platform-muted);
+  padding: 0 14px;
+}
+
+.app-shell:not(.app-shell-camp) .app-search-pill input {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: #f7fbff;
+  outline: 0;
+}
+
+.app-shell:not(.app-shell-camp) .hub-bell {
+  border-color: rgba(129, 164, 214, 0.17);
+  background: rgba(18, 34, 58, 0.54);
+  color: var(--platform-muted);
+}
+
+.app-shell:not(.app-shell-camp) .hub-bell-badge {
+  background: var(--platform-cyan);
+  color: #06111f;
+}
+
+.app-shell:not(.app-shell-camp) .app-content {
+  padding: 34px 40px 80px;
+}
+
+.app-shell:not(.app-shell-camp) .panel,
+.app-shell:not(.app-shell-camp) .card,
+.app-shell:not(.app-shell-camp) .topbar,
+.app-shell:not(.app-shell-camp) .student-feed-welcome,
+.app-shell:not(.app-shell-camp) .student-progress-card,
+.app-shell:not(.app-shell-camp) .student-question-composer,
+.app-shell:not(.app-shell-camp) .student-next-step,
+.app-shell:not(.app-shell-camp) .student-question-journey,
+.app-shell:not(.app-shell-camp) .student-feed-section,
+.app-shell:not(.app-shell-camp) .student-feed-rail,
+.app-shell:not(.app-shell-camp) .student-scripture-tool,
+.app-shell:not(.app-shell-camp) .student-reading-help,
+.app-shell:not(.app-shell-camp) .student-curated-resource-hero,
+.app-shell:not(.app-shell-camp) .resource-video-workspace,
+.app-shell:not(.app-shell-camp) .student-curated-resource-preview,
+.app-shell:not(.app-shell-camp) .student-curated-resource-form,
+.app-shell:not(.app-shell-camp) .student-curated-resource-list,
+.app-shell:not(.app-shell-camp) .leader-student-invites,
+.app-shell:not(.app-shell-camp) .leader-student-journey-context,
+.app-shell:not(.app-shell-camp) .scripture-trial-insights,
+.app-shell:not(.app-shell-camp) .knowledge-control-room,
+.app-shell:not(.app-shell-camp) .scripture-leader-review,
+.app-shell:not(.app-shell-camp) .student-journey-journal,
+.app-shell:not(.app-shell-camp) .student-big-story-hero,
+.app-shell:not(.app-shell-camp) .student-big-story-section,
+.app-shell:not(.app-shell-camp) .student-resource-tools {
+  position: relative;
+  border: 1px solid rgba(129, 164, 214, 0.16);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 80px),
+    rgba(14, 25, 44, 0.72);
+  box-shadow: var(--platform-shadow);
+  color: var(--text);
+}
+
+.app-shell:not(.app-shell-camp) .panel::before,
+.app-shell:not(.app-shell-camp) .card::before,
+.app-shell:not(.app-shell-camp) .student-feed-row::before,
+.app-shell:not(.app-shell-camp) .student-keep-reading-link::before,
+.app-shell:not(.app-shell-camp) .student-study-tool-card::before,
+.app-shell:not(.app-shell-camp) .student-plan-day::before,
+.app-shell:not(.app-shell-camp) .student-story-journey-row::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  border-radius: inherit;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.22), transparent);
+  pointer-events: none;
+}
+
+.app-shell:not(.app-shell-camp) .panel:hover,
+.app-shell:not(.app-shell-camp) .card:hover,
+.app-shell:not(.app-shell-camp) .student-reading-help:hover,
+.app-shell:not(.app-shell-camp) .student-feed-row:hover,
+.app-shell:not(.app-shell-camp) .student-keep-reading-link:hover,
+.app-shell:not(.app-shell-camp) .student-study-tool-card:hover,
+.app-shell:not(.app-shell-camp) .student-plan-choice:hover,
+.app-shell:not(.app-shell-camp) .student-plan-day:hover {
+  border-color: rgba(22, 217, 245, 0.34);
+  box-shadow: 0 0 0 1px rgba(22, 217, 245, 0.06), 0 0 36px rgba(22, 217, 245, 0.08);
+}
+
+.app-shell:not(.app-shell-camp) .button {
+  min-height: 38px;
+  border-color: rgba(129, 164, 214, 0.16);
+  border-radius: 9px;
+  background: rgba(18, 34, 58, 0.62);
+  color: #f7fbff;
+  font-weight: 800;
+}
+
+.app-shell:not(.app-shell-camp) .button:hover:not(:disabled) {
+  border-color: rgba(22, 217, 245, 0.36);
+  background: rgba(22, 217, 245, 0.08);
+  color: var(--platform-cyan);
+}
+
+.app-shell:not(.app-shell-camp) .input,
+.app-shell:not(.app-shell-camp) input:not([type="checkbox"]):not([type="radio"]),
+.app-shell:not(.app-shell-camp) select,
+.app-shell:not(.app-shell-camp) textarea {
+  border-color: rgba(129, 164, 214, 0.16);
+  border-radius: 9px;
+  background: rgba(6, 13, 27, 0.58);
+  color: #f7fbff;
+}
+
+.app-shell:not(.app-shell-camp) textarea::placeholder,
+.app-shell:not(.app-shell-camp) input::placeholder {
+  color: rgba(142, 160, 183, 0.72);
+}
+
+.app-shell:not(.app-shell-camp) .eyebrow {
+  color: var(--platform-cyan);
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.app-shell:not(.app-shell-camp) .title,
+.app-shell:not(.app-shell-camp) .section-title {
+  color: #f7fbff;
+  font-family: var(--font-platform-serif), Georgia, serif;
+  font-weight: 500;
+}
+
+.app-shell:not(.app-shell-camp) .muted,
+.app-shell:not(.app-shell-camp) .student-feed-welcome p,
+.app-shell:not(.app-shell-camp) .student-question-composer-copy p,
+.app-shell:not(.app-shell-camp) .student-progress-card p,
+.app-shell:not(.app-shell-camp) .student-feed-row p,
+.app-shell:not(.app-shell-camp) .student-keep-reading-link p,
+.app-shell:not(.app-shell-camp) .student-question-journey-response p,
+.app-shell:not(.app-shell-camp) .student-next-step-copy p,
+.app-shell:not(.app-shell-camp) .student-journey-header p,
+.app-shell:not(.app-shell-camp) .student-journey-opening p,
+.app-shell:not(.app-shell-camp) .student-journey-question p,
+.app-shell:not(.app-shell-camp) .student-journey-reading-card p,
+.app-shell:not(.app-shell-camp) .student-journey-keyword-card p {
+  color: var(--platform-muted);
+}
+
+.app-shell:not(.app-shell-camp) .pill {
+  border-color: rgba(129, 164, 214, 0.16);
+  background: rgba(18, 34, 58, 0.7);
+  color: var(--platform-cyan);
+}
+
+.app-shell:not(.app-shell-camp) .pill.amber {
+  color: var(--platform-gold);
+}
+
+.app-shell:not(.app-shell-camp) .student-feed {
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  align-items: start;
+}
+
+.app-shell:not(.app-shell-camp) .student-reading-helps {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.app-shell:not(.app-shell-camp) .student-expand-path-heading {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: -4px;
+}
+
+.app-shell:not(.app-shell-camp) .student-expand-path-heading h2 {
+  margin: 0;
+  color: rgba(247, 251, 255, 0.82);
+  font-family: var(--font-platform-serif), Georgia, serif;
+  font-size: 22px;
+  font-weight: 500;
+}
+
+.app-shell:not(.app-shell-camp) .student-expand-path-heading::after {
+  content: "";
+  height: 1px;
+  flex: 1;
+  background: rgba(129, 164, 214, 0.16);
+}
+
+.app-shell:not(.app-shell-camp) .student-feed-welcome {
+  padding-left: 24px;
+}
+
+.app-shell:not(.app-shell-camp) .student-feed-welcome::after,
+.app-shell:not(.app-shell-camp) .student-question-journey-header::after,
+.app-shell:not(.app-shell-camp) .student-journey-header::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 18px;
+  bottom: 18px;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--platform-cyan);
+  box-shadow: var(--platform-cyan-glow);
+}
+
+.app-shell:not(.app-shell-camp) .student-feed-welcome h1,
+.app-shell:not(.app-shell-camp) .student-question-composer h1,
+.app-shell:not(.app-shell-camp) .student-question-journey-header h2,
+.app-shell:not(.app-shell-camp) .student-next-step-copy h2,
+.app-shell:not(.app-shell-camp) .student-journey-header h3 {
+  color: #f7fbff;
+  font-family: var(--font-platform-serif), Georgia, serif;
+  font-weight: 500;
+}
+
+.app-shell:not(.app-shell-camp) .student-feed-row,
+.app-shell:not(.app-shell-camp) .student-keep-reading-link,
+.app-shell:not(.app-shell-camp) .student-next-step-panel,
+.app-shell:not(.app-shell-camp) .student-resource-step,
+.app-shell:not(.app-shell-camp) .student-related-resource-preview,
+.app-shell:not(.app-shell-camp) .student-related-resource-slot,
+.app-shell:not(.app-shell-camp) .student-storyline-context,
+.app-shell:not(.app-shell-camp) .student-storyline-context-grid > div,
+.app-shell:not(.app-shell-camp) .student-journey-opening,
+.app-shell:not(.app-shell-camp) .student-journey-question,
+.app-shell:not(.app-shell-camp) .student-journey-practice,
+.app-shell:not(.app-shell-camp) .student-scripture-companion,
+.app-shell:not(.app-shell-camp) .student-journey-reading-card,
+.app-shell:not(.app-shell-camp) .student-journey-keyword-card,
+.app-shell:not(.app-shell-camp) .student-study-tool-card,
+.app-shell:not(.app-shell-camp) .student-plan-choice,
+.app-shell:not(.app-shell-camp) .student-plan-day,
+.app-shell:not(.app-shell-camp) .student-plan-cover,
+.app-shell:not(.app-shell-camp) .student-plan-actions article,
+.app-shell:not(.app-shell-camp) .student-story-journey-row,
+.app-shell:not(.app-shell-camp) .student-atlas-layer,
+.app-shell:not(.app-shell-camp) .student-foundation-book,
+.app-shell:not(.app-shell-camp) .student-flyover article,
+.app-shell:not(.app-shell-camp) .student-theme-card,
+.app-shell:not(.app-shell-camp) .student-resource-card {
+  position: relative;
+  border: 1px solid rgba(129, 164, 214, 0.15);
+  border-radius: 11px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 58px),
+    rgba(18, 34, 58, 0.5);
+  color: var(--text);
+}
+
+.app-shell:not(.app-shell-camp) .student-help-icon,
+.app-shell:not(.app-shell-camp) .student-next-step-panel-title svg,
+.app-shell:not(.app-shell-camp) .student-story-journey-icon {
+  border: 1px solid rgba(22, 217, 245, 0.18);
+  background: rgba(6, 13, 27, 0.52);
+  color: var(--platform-cyan);
+  box-shadow: inset 0 0 14px rgba(22, 217, 245, 0.09);
+}
+
+.app-shell:not(.app-shell-camp) .student-scripture-tabs {
+  border-bottom: 1px solid rgba(129, 164, 214, 0.14);
+}
+
+.app-shell:not(.app-shell-camp) .student-journal-control {
+  display: grid;
+  gap: 12px;
+  border: 1px solid rgba(129, 164, 214, 0.16);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 70px),
+    rgba(14, 25, 44, 0.72);
+  padding: 14px;
+  box-shadow: var(--platform-shadow);
+}
+
+.app-shell:not(.app-shell-camp) .student-journal-dropdown {
+  position: relative;
+  z-index: 6;
+}
+
+.app-shell:not(.app-shell-camp) .student-journal-dropdown > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid rgba(129, 164, 214, 0.16);
+  border-radius: 12px;
+  background: rgba(6, 13, 27, 0.42);
+  color: #f7fbff;
+  cursor: pointer;
+  list-style: none;
+  padding: 14px 16px;
+}
+
+.app-shell:not(.app-shell-camp) .student-journal-dropdown > summary::-webkit-details-marker {
+  display: none;
+}
+
+.app-shell:not(.app-shell-camp) .student-journal-dropdown summary strong,
+.app-shell:not(.app-shell-camp) .student-journal-dropdown-menu strong {
+  display: block;
+  color: #f7fbff;
+  font-family: var(--font-platform-serif), Georgia, serif;
+  font-size: 19px;
+  font-weight: 500;
+  line-height: 1.16;
+}
+
+.app-shell:not(.app-shell-camp) .student-journal-dropdown summary span,
+.app-shell:not(.app-shell-camp) .student-journal-dropdown-menu span {
+  display: block;
+  margin-top: 4px;
+  color: var(--platform-muted);
+  font-size: 11px;
+}
+
+.app-shell:not(.app-shell-camp) .student-journal-dropdown-menu {
+  position: absolute;
+  z-index: 20;
+  left: 0;
+  right: 0;
+  top: calc(100% + 8px);
+  display: grid;
+  gap: 6px;
+  max-height: min(420px, 60vh);
+  overflow: auto;
+  border: 1px solid rgba(129, 164, 214, 0.18);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 70px),
+    #08101f;
+  padding: 10px;
+  box-shadow: var(--platform-shadow);
+}
+
+.app-shell:not(.app-shell-camp) .student-journal-dropdown-menu button {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  cursor: pointer;
+  padding: 10px;
+  text-align: left;
+}
+
+.app-shell:not(.app-shell-camp) .student-journal-dropdown-menu button:hover,
+.app-shell:not(.app-shell-camp) .student-journal-dropdown-menu button.active {
+  border-color: rgba(22, 217, 245, 0.18);
+  background: rgba(22, 217, 245, 0.08);
+}
+
+.app-shell:not(.app-shell-camp) .student-journal-entry-rail {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: max-content;
+  gap: 8px;
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 2px 2px 8px;
+}
+
+.app-shell:not(.app-shell-camp) .student-journal-entry-rail button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-width: 44px;
+  min-height: 42px;
+  border: 1px solid rgba(129, 164, 214, 0.16);
+  border-radius: 11px;
+  background: rgba(6, 13, 27, 0.42);
+  color: var(--platform-muted);
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.app-shell:not(.app-shell-camp) .student-journal-entry-rail button.active {
+  border-color: rgba(22, 217, 245, 0.58);
+  background: rgba(22, 217, 245, 0.12);
+  color: var(--platform-cyan);
+  box-shadow: var(--platform-cyan-glow);
+}
+
+.app-shell:not(.app-shell-camp) .student-journal-entry-rail button.add-entry {
+  min-width: 124px;
+  color: #f7fbff;
+}
+
+.app-shell:not(.app-shell-camp) .student-new-question-drawer {
+  border: 1px solid rgba(129, 164, 214, 0.14);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 70px),
+    rgba(10, 20, 38, 0.64);
+  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+}
+
+.app-shell:not(.app-shell-camp) .student-new-question-drawer > button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 54px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  padding: 0 18px;
+  color: #f7fbff;
+  font-family: var(--font-platform-mono), ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.app-shell:not(.app-shell-camp) .student-new-question-drawer .student-question-composer {
+  margin: 0;
+  border: 0;
+  border-top: 1px solid rgba(129, 164, 214, 0.12);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-journal {
+  display: grid;
+  gap: 34px;
+  max-width: 880px;
+  margin-inline: auto;
+  padding: 18px 0 6px;
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-road {
+  position: sticky;
+  top: 98px;
+  z-index: 4;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(96px, 1fr);
+  gap: 10px;
+  border: 1px solid rgba(129, 164, 214, 0.14);
+  border-radius: 14px;
+  background: rgba(5, 10, 22, 0.86);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+  padding: 10px;
+  overflow-x: auto;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-road span {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 38px;
+  border: 1px solid rgba(129, 164, 214, 0.12);
+  border-radius: 10px;
+  background: rgba(10, 20, 38, 0.64);
+  color: var(--platform-muted);
+  font-family: var(--font-platform-mono), ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-road span::after {
+  content: "";
+  position: absolute;
+  right: -11px;
+  width: 11px;
+  height: 1px;
+  background: rgba(129, 164, 214, 0.16);
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-road span:last-child::after {
+  display: none;
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-road i {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: rgba(129, 164, 214, 0.1);
+  color: var(--platform-muted);
+  font-style: normal;
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-road span.complete {
+  border-color: rgba(22, 217, 245, 0.42);
+  background: rgba(22, 217, 245, 0.1);
+  color: var(--platform-cyan);
+  box-shadow: 0 0 22px rgba(22, 217, 245, 0.1);
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-road span.complete::after {
+  background: rgba(22, 217, 245, 0.55);
+  box-shadow: 0 0 12px rgba(22, 217, 245, 0.34);
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-road span.complete i {
+  background: rgba(22, 217, 245, 0.14);
+  color: var(--platform-cyan);
+  box-shadow: inset 0 0 12px rgba(22, 217, 245, 0.18);
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-section {
+  position: relative;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 18px;
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-section::before {
+  content: "";
+  position: absolute;
+  left: 20px;
+  top: 44px;
+  bottom: -34px;
+  width: 1px;
+  background: linear-gradient(180deg, rgba(22, 217, 245, 0.45), rgba(22, 217, 245, 0.04));
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-section:last-of-type::before {
+  display: none;
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-section-heading {
+  display: contents;
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-section-heading > span {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 1px solid rgba(22, 217, 245, 0.24);
+  border-radius: 999px;
+  background: rgba(7, 15, 30, 0.96);
+  color: var(--platform-cyan);
+  box-shadow: var(--platform-cyan-glow);
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-section-heading > div {
+  min-width: 0;
+  padding-top: 2px;
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-section-heading h2 {
+  margin: 4px 0 0;
+  color: #f7fbff;
+  font-family: var(--font-platform-serif), Georgia, serif;
+  font-size: clamp(24px, 4vw, 33px);
+  font-weight: 500;
+  line-height: 1.05;
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-section-body {
+  grid-column: 2;
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+  border: 1px solid rgba(129, 164, 214, 0.15);
+  border-radius: 14px;
+  background:
+    radial-gradient(520px 170px at 0% 0%, rgba(22, 217, 245, 0.08), transparent 62%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 80px),
+    rgba(9, 18, 34, 0.78);
+  box-shadow: 0 20px 52px rgba(0, 0, 0, 0.24);
+  padding: 18px;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-section-body:hover {
+  border-color: rgba(22, 217, 245, 0.28);
+  box-shadow: 0 0 0 1px rgba(22, 217, 245, 0.05), 0 20px 58px rgba(0, 0, 0, 0.3), 0 0 40px rgba(22, 217, 245, 0.06);
+  transform: translateY(-1px);
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-section textarea {
+  min-height: 142px;
+  width: 100%;
+  resize: vertical;
+  border: 1px solid rgba(129, 164, 214, 0.14);
+  border-radius: 12px;
+  background: rgba(5, 10, 22, 0.46);
+  color: #f7fbff;
+  font: inherit;
+  line-height: 1.55;
+  padding: 16px;
+  outline: none;
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-section textarea:focus {
+  border-color: rgba(22, 217, 245, 0.52);
+  box-shadow: 0 0 0 3px rgba(22, 217, 245, 0.09);
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-card-row,
+.app-shell:not(.app-shell-camp) .student-lovable-keyword-row,
+.app-shell:not(.app-shell-camp) .student-lovable-practice-grid {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(190px, 1fr);
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-mini-card,
+.app-shell:not(.app-shell-camp) .student-lovable-keyword-card,
+.app-shell:not(.app-shell-camp) .student-lovable-practice-grid button {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-height: 98px;
+  border: 1px solid rgba(129, 164, 214, 0.14);
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 52px),
+    rgba(15, 29, 51, 0.62);
+  color: var(--text);
+  padding: 14px;
+  text-align: left;
+  text-decoration: none;
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-mini-card:hover,
+.app-shell:not(.app-shell-camp) .student-lovable-keyword-card:hover,
+.app-shell:not(.app-shell-camp) .student-lovable-practice-grid button:hover,
+.app-shell:not(.app-shell-camp) .student-lovable-practice-grid button.active {
+  border-color: rgba(22, 217, 245, 0.34);
+  background:
+    radial-gradient(220px 90px at 0% 0%, rgba(22, 217, 245, 0.11), transparent 64%),
+    rgba(15, 29, 51, 0.74);
+  box-shadow: 0 0 28px rgba(22, 217, 245, 0.07);
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-mini-card strong,
+.app-shell:not(.app-shell-camp) .student-lovable-keyword-card strong,
+.app-shell:not(.app-shell-camp) .student-lovable-practice-grid strong {
+  color: #f7fbff;
+  font-family: var(--font-platform-serif), Georgia, serif;
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-mini-card span,
+.app-shell:not(.app-shell-camp) .student-lovable-keyword-card p,
+.app-shell:not(.app-shell-camp) .student-lovable-practice-grid span {
+  color: var(--platform-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-keyword-card {
+  min-height: 154px;
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-keyword-card > span {
+  color: var(--platform-gold);
+  font-family: var(--font-platform-serif), Georgia, serif;
+  font-size: 30px;
+  line-height: 1;
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-keyword-card em {
+  color: #f7fbff;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-keyword-card p {
+  margin: 0;
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-question-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-question-list li {
+  border: 1px solid rgba(129, 164, 214, 0.12);
+  border-radius: 10px;
+  background: rgba(5, 10, 22, 0.38);
+  color: #d8e5f5;
+  font-family: var(--font-platform-serif), Georgia, serif;
+  font-size: 18px;
+  font-style: italic;
+  line-height: 1.35;
+  padding: 13px 15px;
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-popout {
+  border: 1px solid rgba(190, 146, 64, 0.22);
+  border-radius: 12px;
+  background: rgba(190, 146, 64, 0.07);
+  overflow: hidden;
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-popout summary {
+  cursor: pointer;
+  list-style: none;
+  color: var(--platform-gold);
+  font-family: var(--font-platform-mono), ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  padding: 13px 15px;
+  text-transform: uppercase;
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-popout summary::-webkit-details-marker {
+  display: none;
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-popout ol {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  border-top: 1px solid rgba(190, 146, 64, 0.16);
+  color: #d8e5f5;
+  line-height: 1.55;
+  padding: 0 18px 16px 36px;
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-save-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  border-top: 1px solid rgba(129, 164, 214, 0.14);
+  padding-top: 22px;
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-save-row p {
+  margin: 0;
+  color: var(--platform-muted);
+  font-family: var(--font-platform-mono), ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-save-row button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 44px;
+  border: 0;
+  border-radius: 11px;
+  background: var(--platform-cyan);
+  color: #04111f;
+  cursor: pointer;
+  font-family: var(--font-platform-mono), ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  padding: 0 20px;
+  text-transform: uppercase;
+  box-shadow: 0 0 30px rgba(22, 217, 245, 0.22);
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-save-row button:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
+.app-shell:not(.app-shell-camp) .student-scripture-tab {
+  color: var(--platform-muted);
+}
+
+.app-shell:not(.app-shell-camp) .student-scripture-tab[aria-current="page"],
+.app-shell:not(.app-shell-camp) .student-scripture-tab:hover,
+.app-shell:not(.app-shell-camp) .student-scripture-tab:focus-visible {
+  color: var(--platform-cyan);
+  border-bottom-color: var(--platform-cyan);
+  box-shadow: 0 10px 20px -18px var(--platform-cyan);
+}
+
+.app-shell:not(.app-shell-camp) .student-journey-road::before {
+  background: linear-gradient(180deg, rgba(22, 217, 245, 0.92), rgba(22, 217, 245, 0.12));
+  box-shadow: var(--platform-cyan-glow);
+}
+
+.app-shell:not(.app-shell-camp) .student-journey-road-step.muted .student-journey-road-marker {
+  border-color: rgba(129, 164, 214, 0.16);
+  background: rgba(18, 34, 58, 0.75);
+  color: var(--platform-muted);
+  box-shadow: none;
+}
+
+.app-shell:not(.app-shell-camp) .student-journey-road-marker,
+.app-shell:not(.app-shell-camp) .student-journey-road-step.current .student-journey-road-marker,
+.app-shell:not(.app-shell-camp) .student-journey-road-marker.fork-marker {
+  border-color: rgba(22, 217, 245, 0.44);
+  background: rgba(22, 217, 245, 0.12);
+  color: var(--platform-cyan);
+  box-shadow: var(--platform-cyan-glow);
+}
+
+.app-shell:not(.app-shell-camp) .student-journey-fork-card {
+  border-color: rgba(22, 217, 245, 0.18);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 64px),
+    rgba(18, 34, 58, 0.56);
+}
+
+.app-shell:not(.app-shell-camp) .student-journey-fork-options button.active,
+.app-shell:not(.app-shell-camp) .student-plan-choice.active,
+.app-shell:not(.app-shell-camp) .student-plan-day.active {
+  border-color: rgba(22, 217, 245, 0.58);
+  background: rgba(22, 217, 245, 0.1);
+  box-shadow: var(--platform-cyan-glow);
+}
+
+.app-shell:not(.app-shell-camp) .student-plan-day.complete {
+  border-color: rgba(54, 211, 153, 0.5);
+  background:
+    linear-gradient(180deg, rgba(54, 211, 153, 0.12), transparent 70px),
+    rgba(18, 34, 58, 0.58);
+  color: #dffdf0;
+}
+
+.app-shell:not(.app-shell-camp) .student-plan-day.complete strong {
+  color: var(--success);
+  text-shadow: 0 0 16px rgba(54, 211, 153, 0.36);
+}
+
+.app-shell:not(.app-shell-camp) .student-related-resource-popover,
+.app-shell:not(.app-shell-camp) .student-study-tool-popover,
+.event-card-backdrop {
+  background: rgba(2, 6, 23, 0.72);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.app-shell:not(.app-shell-camp) .student-related-resource-dialog,
+.app-shell:not(.app-shell-camp) .student-study-tool-popover-card,
+.event-card-modal {
+  border: 1px solid rgba(129, 164, 214, 0.18);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent 96px),
+    rgba(10, 20, 38, 0.96);
+  color: var(--text);
+  box-shadow: 0 34px 90px rgba(0, 0, 0, 0.46);
+}
+
+.login-shell,
+.student-join-shell {
+  background:
+    linear-gradient(to right, rgba(22, 217, 245, 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(22, 217, 245, 0.05) 1px, transparent 1px),
+    radial-gradient(660px 460px at 50% 0%, rgba(22, 217, 245, 0.14), transparent 62%),
+    linear-gradient(180deg, #070d1b, #050914);
+  background-size: 48px 48px, 48px 48px, auto, auto;
+}
+
+.login-card,
+.student-join-card {
+  border-color: rgba(129, 164, 214, 0.18);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent 90px),
+    rgba(14, 25, 44, 0.88);
+  color: var(--text);
+  box-shadow: var(--platform-shadow);
+}
+
+.login-card .brand-mark,
+.student-join-card .brand-mark {
+  background: rgba(22, 217, 245, 0.12);
+  color: var(--platform-cyan);
+  box-shadow: inset 0 0 18px rgba(22, 217, 245, 0.14);
+}
+
+.login-card .title,
+.student-join-card h1 {
+  color: #f7fbff;
+  font-family: var(--font-platform-serif), Georgia, serif;
+  font-weight: 500;
+}
+
+@media (max-width: 980px) {
+  .app-shell:not(.app-shell-camp) {
+    display: block;
+    min-height: 100vh;
+    height: auto;
+    overflow: visible;
+  }
+
+  .app-shell:not(.app-shell-camp) .app-sidebar {
+    display: none;
+  }
+
+  .app-shell:not(.app-shell-camp) .app-main {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
+
+  .app-shell:not(.app-shell-camp) .app-header {
+    position: sticky;
+    top: 0;
+    min-height: 96px;
+    padding: calc(env(safe-area-inset-top, 0px) + 18px) 18px 18px;
+  }
+
+  .app-shell:not(.app-shell-camp) .app-header-title,
+  .app-shell:not(.app-shell-camp) .app-header-title-compact {
+    font-size: clamp(26px, 10vw, 36px);
+  }
+
+  .app-shell:not(.app-shell-camp) .app-header-right {
+    display: none;
+  }
+
+  .app-shell:not(.app-shell-camp) .app-content {
+    padding: 18px 16px 108px;
+  }
+
+  .app-shell:not(.app-shell-camp) .student-feed,
+  .app-shell:not(.app-shell-camp) .student-journey-layout,
+  .app-shell:not(.app-shell-camp) .student-plan-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .app-shell:not(.app-shell-camp) .student-reading-helps {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .app-shell:not(.app-shell-camp) .student-scripture-companion {
+    position: static;
+    max-height: none;
+  }
+
+  .app-shell:not(.app-shell-camp) .student-lovable-journal {
+    gap: 28px;
+    max-width: none;
+  }
+
+  .app-shell:not(.app-shell-camp) .student-lovable-road {
+    top: 96px;
+    grid-auto-columns: minmax(118px, max-content);
+  }
+
+  .app-shell:not(.app-shell-camp) .student-lovable-section {
+    grid-template-columns: 34px minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .app-shell:not(.app-shell-camp) .student-lovable-section::before {
+    left: 16px;
+  }
+
+  .app-shell:not(.app-shell-camp) .student-lovable-section-heading > span {
+    width: 34px;
+    height: 34px;
+  }
+
+  .app-shell:not(.app-shell-camp) .student-lovable-section-heading h2 {
+    font-size: 24px;
+  }
+
+  .app-shell:not(.app-shell-camp) .student-lovable-section-body {
+    padding: 14px;
+  }
+
+  .app-shell:not(.app-shell-camp) .student-lovable-card-row,
+  .app-shell:not(.app-shell-camp) .student-lovable-keyword-row,
+  .app-shell:not(.app-shell-camp) .student-lovable-practice-grid {
+    grid-auto-columns: minmax(260px, 82vw);
+  }
+
+  .app-shell:not(.app-shell-camp) .student-lovable-save-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .app-shell:not(.app-shell-camp) .mobile-bottom-nav {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
+    z-index: 60;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 4px;
+    border: 1px solid rgba(129, 164, 214, 0.18);
+    border-radius: 18px;
+    background: rgba(5, 10, 22, 0.94);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+    padding: 8px;
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+  }
+
+  .app-shell:not(.app-shell-camp) .mobile-nav-link {
+    display: grid;
+    place-items: center;
+    gap: 3px;
+    min-height: 48px;
+    border-radius: 13px;
+    color: var(--platform-muted);
+    font-size: 10px;
+    font-weight: 800;
+    text-decoration: none;
+  }
+
+  .app-shell:not(.app-shell-camp) .mobile-nav-link.active {
+    background: rgba(22, 217, 245, 0.1);
+    color: var(--platform-cyan);
+  }
+
+  .app-shell:not(.app-shell-camp) .mobile-more-menu {
+    display: block;
+    position: relative;
+  }
+
+  .app-shell:not(.app-shell-camp) .mobile-more-menu > summary {
+    list-style: none;
+  }
+
+  .app-shell:not(.app-shell-camp) .mobile-more-menu[open] .mobile-more-panel {
+    position: fixed;
+    left: 16px;
+    right: 16px;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 82px);
+    display: grid;
+    gap: 8px;
+    max-height: min(60vh, 460px);
+    overflow: auto;
+    border: 1px solid rgba(129, 164, 214, 0.18);
+    border-radius: 16px;
+    background: rgba(8, 16, 31, 0.98);
+    padding: 12px;
+    box-shadow: var(--platform-shadow);
+  }
+}
+
+@media (max-width: 540px) {
+  .app-shell:not(.app-shell-camp) .student-journey-road-step {
+    grid-template-columns: 30px minmax(0, 1fr);
+  }
+
+  .app-shell:not(.app-shell-camp) .student-journey-road-marker {
+    width: 28px;
+    height: 28px;
+  }
+
+  .app-shell:not(.app-shell-camp) .student-journey-reading-rail,
+  .app-shell:not(.app-shell-camp) .student-journey-keyword-rail,
+  .app-shell:not(.app-shell-camp) .student-study-tool-rail,
+  .app-shell:not(.app-shell-camp) .student-plan-picker {
+    grid-auto-columns: minmax(230px, 84vw);
+  }
+}

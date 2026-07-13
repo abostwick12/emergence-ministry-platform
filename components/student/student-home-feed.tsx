@@ -35,21 +35,21 @@ type StudentHomeFeedProps = {
 
 const readingHelps = [
   {
-    title: "How to Read the Bible",
-    description: "Start with the whole story before zooming into a single verse.",
+    title: "Study Builder",
+    description: "Move from observation to discussion with a simple path you can lead from.",
+    icon: Compass,
+    href: "/student/scripture/how-to-read"
+  },
+  {
+    title: "The whole story",
+    description: "See where today's passage sits from Genesis to Revelation.",
     icon: BookOpen,
-    href: "/student/scripture/how-to-read"
+    href: "/student/scripture/resources"
   },
   {
-    title: "Understanding Context",
-    description: "Ask who wrote it, who received it, and what was happening around them.",
+    title: "How to Read resources",
+    description: "Short tools for context, observation, prayer, and careful application.",
     icon: Sparkles,
-    href: "/student/scripture/how-to-read"
-  },
-  {
-    title: "Asking Good Questions",
-    description: "Look for what it shows about God, people, and faithful response.",
-    icon: Users,
     href: "/student/scripture/how-to-read"
   }
 ] as const;
@@ -128,6 +128,9 @@ export function StudentHomeFeed({
   return (
     <div className="student-feed">
       <section className="student-reading-helps" aria-label="Bible reading helps">
+        <div className="student-expand-path-heading">
+          <h2>Expand your path</h2>
+        </div>
         {readingHelps.map((help) => (
           <Link className="student-reading-help" href={help.href} key={help.title}>
             <span className="student-help-icon" aria-hidden="true">

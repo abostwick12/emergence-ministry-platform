@@ -12,8 +12,19 @@ describe("app shell navigation", () => {
       showStudentPortal: true
     });
 
-    expect(navigation.primaryLinks).toEqual([{ href: "/student", label: "Student Portal" }]);
-    expect(navigation.mobileLinks).toEqual([{ href: "/student", label: "Student Portal" }]);
+    expect(navigation.primaryLinks).toEqual([
+      { href: "/student", label: "Student Portal" },
+      { href: "/student/scripture/questions", label: "Journey Journal" },
+      { href: "/student/scripture/resources", label: "Scripture" },
+      { href: "/student/scripture/plans", label: "Plans" },
+      { href: "/student/scripture/how-to-read", label: "How to Read" }
+    ]);
+    expect(navigation.mobileLinks).toEqual([
+      { href: "/student", label: "Student Portal" },
+      { href: "/student/scripture/questions", label: "Journey Journal" },
+      { href: "/student/scripture/resources", label: "Scripture" },
+      { href: "/student/scripture/plans", label: "Plans" }
+    ]);
     expect(navigation.mobileMoreLinks).toEqual([]);
   });
 
@@ -28,16 +39,17 @@ describe("app shell navigation", () => {
 
     expect(navigation.primaryLinks.map((link) => link.href)).toEqual([
       "/dashboard",
-      "/camp",
       "/events",
-      "/worship",
       "/student",
+      "/student/scripture/questions",
+      "/discipleship",
+      "/camp",
+      "/worship",
       "/tasks",
       "/communications",
       "/people",
       "/budget",
       "/settings",
-      "/discipleship",
       "/command-center"
     ]);
   });

@@ -207,6 +207,7 @@ function MasterEventCardInner({
     comms: "idle"
   });
   const dialogRef = useRef<HTMLDivElement>(null);
+  const step1Ref = useRef<Step1State | null>(null);
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -221,11 +222,15 @@ function MasterEventCardInner({
       const wsRes = await fetch(`/api/events/${eventId}`, { cache: "no-store" });
       if (wsRes.ok) {
         const ws = (await wsRes.json()) as EventWorkspace;
+        const nextStep1 = buildInitialStep1(ws.event, overview.users[0]?.id);
         setWorkspace(ws);
-        setStep1(buildInitialStep1(ws.event, overview.users[0]?.id));
+        step1Ref.current = nextStep1;
+        setStep1(nextStep1);
       }
     } else {
-      setStep1(buildInitialStep1(undefined, overview.users[0]?.id));
+      const nextStep1 = buildInitialStep1(undefined, overview.users[0]?.id);
+      step1Ref.current = nextStep1;
+      setStep1(nextStep1);
     }
     setIsLoading(false);
   }, [mode, eventId]);
@@ -257,7 +262,11 @@ function MasterEventCardInner({
   }, [isDirty, onClose]);
 
   function updateStep1<K extends keyof Step1State>(key: K, value: Step1State[K]) {
-    setStep1((current) => current ? { ...current, [key]: value } : current);
+    setStep1((current) => {
+      const next = current ? { ...current, [key]: value } : current;
+      step1Ref.current = next;
+      return next;
+    });
     setIsDirty(true);
     setSaveError("");
     setSaveSuccess("");
@@ -267,19 +276,25 @@ function MasterEventCardInner({
     setStep1((current) => {
       if (!current) return current;
       const newEnd = current.endTouched ? current.endTime : alignEndToStartDate(value, current.endTime);
-      return { ...current, startTime: value, endTime: newEnd };
+      const next = { ...current, startTime: value, endTime: newEnd };
+      step1Ref.current = next;
+      return next;
     });
     setIsDirty(true);
   }
 
   function handleEndChange(value: string) {
-    setStep1((current) => current ? { ...current, endTime: value, endTouched: true } : current);
+    setStep1((current) => {
+      const next = current ? { ...current, endTime: value, endTouched: true } : current;
+      step1Ref.current = next;
+      return next;
+    });
     setIsDirty(true);
   }
 
-  function validateStep1(): string {
-    if (!step1?.title.trim()) return "Event name is required.";
-    if (!step1.startTime) return "Start date and time are required.";
+  function validateStep1(snapshot = step1Ref.current ?? step1): string {
+    if (!snapshot?.title.trim()) return "Event name is required.";
+    if (!snapshot.startTime) return "Start date and time are required.";
     return "";
   }
 
@@ -298,26 +313,27 @@ function MasterEventCardInner({
   }
 
   async function saveEventInfo() {
-    if (!step1) return;
+    const currentStep1 = step1Ref.current ?? step1;
+    if (!currentStep1) return;
     setSaveError("");
     setIsSaving(true);
     try {
-      const startIso = new Date(step1.startTime).toISOString();
-      const endIso = step1.endTime ? new Date(step1.endTime).toISOString() : startIso;
+      const startIso = new Date(currentStep1.startTime).toISOString();
+      const endIso = currentStep1.endTime ? new Date(currentStep1.endTime).toISOString() : startIso;
       const body: Record<string, unknown> = {
-        title: step1.title,
-        description: step1.description,
+        title: currentStep1.title,
+        description: currentStep1.description,
         startTime: startIso,
         endTime: endIso,
-        location: step1.location || undefined,
-        targetGroup: step1.targetGroup || undefined,
-        budgetTarget: step1.budgetTarget ? Number(step1.budgetTarget) : undefined,
-        budgetActual: step1.budgetActual ? Number(step1.budgetActual) : undefined,
-        volunteersNeeded: step1.volunteersNeeded ? Number(step1.volunteersNeeded) : undefined,
-        priority: step1.priority,
-        contactOwnerId: step1.contactOwnerId || undefined,
-        status: step1.status,
-        notes: step1.notes || undefined
+        location: currentStep1.location || undefined,
+        targetGroup: currentStep1.targetGroup || undefined,
+        budgetTarget: currentStep1.budgetTarget ? Number(currentStep1.budgetTarget) : undefined,
+        budgetActual: currentStep1.budgetActual ? Number(currentStep1.budgetActual) : undefined,
+        volunteersNeeded: currentStep1.volunteersNeeded ? Number(currentStep1.volunteersNeeded) : undefined,
+        priority: currentStep1.priority,
+        contactOwnerId: currentStep1.contactOwnerId || undefined,
+        status: currentStep1.status,
+        notes: currentStep1.notes || undefined
       };
 
       const url = mode === "edit" && eventId ? `/api/events/${eventId}` : null;
@@ -345,31 +361,32 @@ function MasterEventCardInner({
   }
 
   async function handleCreate() {
-    if (!step1) return;
-    const err = validateStep1();
+    const currentStep1 = step1Ref.current ?? step1;
+    if (!currentStep1) return;
+    const err = validateStep1(currentStep1);
     if (err) { setSaveError(err); return; }
 
     setSaveError("");
     setIsSaving(true);
     try {
-      const startIso = new Date(step1.startTime).toISOString();
-      const endIso = step1.endTime ? new Date(step1.endTime).toISOString() : startIso;
+      const startIso = new Date(currentStep1.startTime).toISOString();
+      const endIso = currentStep1.endTime ? new Date(currentStep1.endTime).toISOString() : startIso;
       const res = await fetch("/api/events", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: step1.title,
-          type: step1.type,
-          description: step1.description,
+          title: currentStep1.title,
+          type: currentStep1.type,
+          description: currentStep1.description,
           startTime: startIso,
           endTime: endIso,
-          location: step1.location || undefined,
-          targetGroup: step1.targetGroup || undefined,
-          budgetTarget: step1.budgetTarget ? Number(step1.budgetTarget) : undefined,
-          budgetActual: step1.budgetActual ? Number(step1.budgetActual) : undefined,
-          volunteersNeeded: step1.volunteersNeeded ? Number(step1.volunteersNeeded) : undefined,
-          priority: step1.priority,
-          contactOwnerId: step1.contactOwnerId || undefined
+          location: currentStep1.location || undefined,
+          targetGroup: currentStep1.targetGroup || undefined,
+          budgetTarget: currentStep1.budgetTarget ? Number(currentStep1.budgetTarget) : undefined,
+          budgetActual: currentStep1.budgetActual ? Number(currentStep1.budgetActual) : undefined,
+          volunteersNeeded: currentStep1.volunteersNeeded ? Number(currentStep1.volunteersNeeded) : undefined,
+          priority: currentStep1.priority,
+          contactOwnerId: currentStep1.contactOwnerId || undefined
         })
       });
 
@@ -386,13 +403,13 @@ function MasterEventCardInner({
       router.refresh();
 
       // Run stub actions for checked toggles
-      if (step1.createDrive) {
+      if (currentStep1.createDrive) {
         await fetch(`/api/events/${ws.event.id}/generate-drive-folder`, { method: "POST" });
       }
-      if (step1.createProPresenter) {
+      if (currentStep1.createProPresenter) {
         await fetch(`/api/events/${ws.event.id}/generate-propresenter`, { method: "POST" });
       }
-      if (step1.generateComms) {
+      if (currentStep1.generateComms) {
         await fetch(`/api/events/${ws.event.id}/generate-communications`, { method: "POST" });
       }
 
