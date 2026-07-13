@@ -18,6 +18,7 @@ import {
   Sparkles,
   UsersRound
 } from "lucide-react";
+import { MinistryEmmaPanel } from "@/components/ministry-emma-panel";
 import type { ActiveTask, ActivityLog, EventExpense, MinistryEvent, User } from "@/lib/types";
 import { formatDate, money } from "@/lib/utils";
 
@@ -185,6 +186,10 @@ function CommunicationsWorkspace({ overview }: { overview: MinistryOverview }) {
       <LaunchMetric icon={<Bell aria-hidden="true" />} label="Needs review" value={String(reviewNeeded)} detail="Missing details before drafts are useful" tone="gold" />
       <LaunchMetric icon={<UsersRound aria-hidden="true" />} label="Owner gaps" value={String(missingOwner)} detail="Events without a communication owner" tone="violet" />
 
+      <div className="ministry-launch-span-3">
+        <MinistryEmmaPanel page="communications" overview={overview} />
+      </div>
+
       <article className="ministry-launch-panel ministry-launch-span-2">
         <SectionHead eyebrow="Event Copy Queue" title="What needs attention before people hear about it" />
         <div className="ministry-launch-list">
@@ -235,6 +240,10 @@ function PeopleWorkspace({ overview }: { overview: MinistryOverview }) {
       <LaunchMetric icon={<ShieldCheck aria-hidden="true" />} label="Staff accounts" value={String(owners.length)} detail="Admin and leader profiles in this workspace" tone="cyan" />
       <LaunchMetric icon={<Clock3 aria-hidden="true" />} label="Open tasks" value={String(openTasks.length)} detail="Assignments still moving" tone="gold" />
       <LaunchMetric icon={<UsersRound aria-hidden="true" />} label="Coverage gaps" value={String(unassignedTasks.length)} detail="Tasks without a known profile owner" tone="violet" />
+
+      <div className="ministry-launch-span-3">
+        <MinistryEmmaPanel page="people" overview={overview} />
+      </div>
 
       <article className="ministry-launch-panel ministry-launch-span-2">
         <SectionHead eyebrow="Team Load" title="Who is carrying active work" />
@@ -324,6 +333,10 @@ function BudgetWorkspace({ overview, refresh }: { overview: MinistryOverview; re
       <LaunchMetric icon={<ReceiptText aria-hidden="true" />} label="Recorded" value={money(totals.spent)} detail="Actuals visible in this workspace" tone="gold" />
       <LaunchMetric icon={<Sparkles aria-hidden="true" />} label="Remaining" value={money(totals.remaining)} detail="Target minus recorded spend" tone={totals.remaining < 0 ? "violet" : "cyan"} />
 
+      <div className="ministry-launch-span-3">
+        <MinistryEmmaPanel page="budget" overview={overview} />
+      </div>
+
       <article className="ministry-launch-panel ministry-launch-span-2">
         <SectionHead eyebrow="Event Budgets" title="Targets and recorded actuals" />
         <div className="ministry-budget-stack">
@@ -394,6 +407,10 @@ function SettingsWorkspace({ overview, user, canManageCampAccess }: { overview: 
       <LaunchMetric icon={<ShieldCheck aria-hidden="true" />} label="Current role" value={(user?.role ?? "guest").toUpperCase()} detail={user?.email ?? "No active session profile"} tone="cyan" />
       <LaunchMetric icon={<CheckCircle2 aria-hidden="true" />} label="Workflows" value={String(overview.events.length)} detail="Events available to operational pages" tone="gold" />
       <LaunchMetric icon={<Sparkles aria-hidden="true" />} label="Camp access" value={canManageCampAccess ? "Admin" : "Scoped"} detail="Camp settings remain in the Camp visual system below" tone="violet" />
+
+      <div className="ministry-launch-span-3">
+        <MinistryEmmaPanel page="settings" overview={overview} />
+      </div>
 
       <article className="ministry-launch-panel ministry-launch-span-3">
         <SectionHead eyebrow="Launch Controls" title="What is live, preview-only, or protected" />

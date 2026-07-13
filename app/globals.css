@@ -15712,9 +15712,187 @@ body:has(.login-shell) h3 {
   margin-top: auto;
 }
 
+.ministry-emma-panel {
+  position: relative;
+  display: grid;
+  gap: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(22, 217, 245, 0.2);
+  border-radius: 14px;
+  background:
+    linear-gradient(135deg, rgba(22, 217, 245, 0.1), transparent 42%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 110px),
+    rgba(8, 20, 37, 0.84);
+  box-shadow: var(--platform-shadow);
+  padding: 20px;
+}
+
+.ministry-emma-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(125, 211, 252, 0.52), transparent);
+  pointer-events: none;
+}
+
+.ministry-emma-header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+}
+
+.ministry-emma-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 1px solid rgba(22, 217, 245, 0.24);
+  border-radius: 12px;
+  background: rgba(22, 217, 245, 0.1);
+  color: var(--platform-cyan);
+}
+
+.ministry-emma-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.ministry-emma-header h3 {
+  margin: 4px 0 0;
+  color: #f7fbff;
+  font-family: var(--font-platform-serif), Georgia, serif;
+  font-size: 24px;
+  font-weight: 500;
+}
+
+.ministry-emma-guardrails,
+.ministry-emma-prompts,
+.ministry-emma-actions-list,
+.ministry-emma-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.ministry-emma-guardrails .pill,
+.ministry-emma-footer svg,
+.ministry-emma-actions-list svg,
+.ministry-emma-message-title svg {
+  color: var(--platform-cyan);
+}
+
+.ministry-emma-guardrails .pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ministry-emma-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+  gap: 16px;
+}
+
+.ministry-emma-thread,
+.ministry-emma-controls {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.ministry-emma-message {
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(129, 164, 214, 0.16);
+  border-radius: 12px;
+  background: rgba(6, 13, 27, 0.42);
+  padding: 14px;
+}
+
+.ministry-emma-message.user {
+  border-color: rgba(245, 184, 79, 0.24);
+  background: rgba(245, 184, 79, 0.08);
+}
+
+.ministry-emma-message-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #f7fbff;
+}
+
+.ministry-emma-message p,
+.ministry-emma-message ul,
+.ministry-emma-message small,
+.ministry-emma-footer {
+  margin: 0;
+  color: var(--platform-muted);
+  line-height: 1.45;
+}
+
+.ministry-emma-message ul {
+  padding-left: 18px;
+}
+
+.ministry-emma-actions-list span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(129, 164, 214, 0.13);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #e5f6ff;
+  padding: 6px 9px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.ministry-emma-actions-list svg {
+  width: 14px;
+  height: 14px;
+}
+
+.ministry-emma-field {
+  display: grid;
+  gap: 7px;
+}
+
+.ministry-emma-toggle {
+  margin: 0;
+}
+
+.ministry-emma-controls .button.primary {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ministry-emma-controls .button.primary svg {
+  width: 16px;
+  height: 16px;
+}
+
+.ministry-emma-footer {
+  border-top: 1px solid rgba(129, 164, 214, 0.14);
+  padding-top: 12px;
+  font-size: 13px;
+}
+
+.ministry-emma-footer svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
 @media (max-width: 1000px) {
   .ministry-launch-grid,
-  .ministry-launch-setting-grid {
+  .ministry-launch-setting-grid,
+  .ministry-emma-layout {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -15735,8 +15913,18 @@ body:has(.login-shell) h3 {
 
   .ministry-launch-grid,
   .ministry-launch-card-list,
-  .ministry-launch-setting-grid {
+  .ministry-launch-setting-grid,
+  .ministry-emma-layout {
     grid-template-columns: 1fr;
+  }
+
+  .ministry-emma-header {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .ministry-emma-guardrails {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
   }
 
   .ministry-launch-row {
