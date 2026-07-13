@@ -24,10 +24,13 @@ export default async function DiscipleshipPage() {
     redirect("/student");
   }
 
-  const state = await getStudentDiscussionWorkflowState(access.session);
-  const groupState = await getStudentGroupLeaderState(access.session, getRequestOrigin());
-  const knowledgeState = await getKnowledgeControlRoomState(access.session);
-  const curatedResourceState = await getStudentCuratedResourceState(access.session, { includeInactive: true });
+  const requestOrigin = getRequestOrigin();
+  const [state, groupState, knowledgeState, curatedResourceState] = await Promise.all([
+    getStudentDiscussionWorkflowState(access.session),
+    getStudentGroupLeaderState(access.session, requestOrigin),
+    getKnowledgeControlRoomState(access.session),
+    getStudentCuratedResourceState(access.session, { includeInactive: true })
+  ]);
   const trialInsights = await getScriptureTrialInsights(access.session, state);
   return (
     <div className="discipleship-workspace-stack">

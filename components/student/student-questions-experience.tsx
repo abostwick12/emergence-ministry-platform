@@ -273,18 +273,17 @@ function StudentLovableJournalEntry({
   ];
 
   async function saveEntry() {
+    const privateNote = [
+      `Entry ${entrySequence}: ${nextStep.journeyJournal.title}`,
+      scriptureReflection ? `Scripture:\n${scriptureReflection}` : "",
+      questionReflection ? `Questions:\n${questionReflection}` : "",
+      practiceReflection ? `Practice (${selectedPractice}):\n${practiceReflection}` : "",
+      livingReflection ? `Living it out:\n${livingReflection}` : "",
+      fruitReflection ? `Fruit forming:\n${fruitReflection}` : ""
+    ].filter(Boolean).join("\n\n").slice(0, 1200);
     setIsSaving(true);
-    setStatus("Saving entry...");
+    setStatus("Saved locally. Syncing...");
     try {
-      const privateNote = [
-        `Entry ${entrySequence}: ${nextStep.journeyJournal.title}`,
-        scriptureReflection ? `Scripture:\n${scriptureReflection}` : "",
-        questionReflection ? `Questions:\n${questionReflection}` : "",
-        practiceReflection ? `Practice (${selectedPractice}):\n${practiceReflection}` : "",
-        livingReflection ? `Living it out:\n${livingReflection}` : "",
-        fruitReflection ? `Fruit forming:\n${fruitReflection}` : ""
-      ].filter(Boolean).join("\n\n").slice(0, 1200);
-
       const response = await fetch("/api/student/scripture/reflections", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -292,13 +291,13 @@ function StudentLovableJournalEntry({
       });
       const payload = (await response.json()) as { ok?: boolean; error?: string; reflection?: StudentQuestionReflection };
       if (!response.ok || !payload.ok || !payload.reflection) {
-        setStatus(payload.error ?? "Entry could not be saved.");
+        setStatus(payload.error ?? "Entry could not be saved. Your text is still here.");
         return;
       }
       onReflectionSaved(payload.reflection);
       setStatus("Entry saved.");
     } catch {
-      setStatus("Entry could not be saved.");
+      setStatus("Entry could not be saved. Your text is still here.");
     } finally {
       setIsSaving(false);
     }

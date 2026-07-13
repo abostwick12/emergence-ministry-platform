@@ -30,8 +30,10 @@ export function StudentReflectionPanel({ onSaved, prompt, reflection }: StudentR
   }, [prompt.id, reflection?.privateNote, reflection?.reflectedAt]);
 
   async function saveReflection(reflected: boolean) {
+    const previousIsReflected = isReflected;
     setIsSaving(true);
-    setStatus(reflected ? "Saving your reflection..." : "Saving your private note...");
+    setIsReflected(reflected || previousIsReflected);
+    setStatus(reflected ? "Reflection saved. Syncing..." : "Private note saved. Syncing...");
     try {
       const response = await fetch("/api/student/scripture/reflections", {
         method: "PATCH",
@@ -40,6 +42,7 @@ export function StudentReflectionPanel({ onSaved, prompt, reflection }: StudentR
       });
       const payload = (await response.json()) as ReflectionResponse;
       if (!response.ok || !payload.ok || !payload.reflection) {
+        setIsReflected(previousIsReflected);
         setStatus(payload.error ?? "Reflection could not be saved.");
         return;
       }
@@ -49,7 +52,8 @@ export function StudentReflectionPanel({ onSaved, prompt, reflection }: StudentR
       setPrivateNote(payload.reflection.privateNote);
       setStatus(payload.reflection.reflectedAt ? "Reflection saved. Bring this with you to group." : "Private note saved.");
     } catch {
-      setStatus("Reflection could not be saved.");
+      setIsReflected(previousIsReflected);
+      setStatus("Reflection could not be saved. Your text is still here.");
     } finally {
       setIsSaving(false);
     }
