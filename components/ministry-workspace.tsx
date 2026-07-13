@@ -4,6 +4,7 @@ import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "
 import Link from "next/link";
 import { useRole } from "@/components/role-context";
 import { useEventCard } from "@/components/event-card-context";
+import { MinistryEmmaPanel } from "@/components/ministry-emma-panel";
 import { MinistryCalendar } from "@/components/ministry-calendar";
 import { eventTypeLabels } from "@/lib/templates";
 import { formatDate, formatDateTime, money } from "@/lib/utils";
@@ -198,6 +199,8 @@ export default function MinistryWorkspace({ view }: { view: WorkspaceView }) {
               </section>
             )}
 
+            <MinistryEmmaPanel page="events" overview={overview} />
+
             <EventsWorkspace
               events={overview.events}
               tasks={overview.tasks}
@@ -212,7 +215,10 @@ export default function MinistryWorkspace({ view }: { view: WorkspaceView }) {
           </div>
         </section>
       ) : (
-        <TasksWorkspace tasks={visibleTasks} events={overview.events} users={activeUsers} onUpdate={updateTask} />
+        <section className="grid workflow-stack">
+          <MinistryEmmaPanel page="tasks" overview={{ ...overview, tasks: visibleTasks }} />
+          <TasksWorkspace tasks={visibleTasks} events={overview.events} users={activeUsers} onUpdate={updateTask} />
+        </section>
       )}
     </div>
   );
@@ -529,6 +535,8 @@ function DashboardWorkspace({
               hint="Awaiting Review"
             />
           </section>
+
+          <MinistryEmmaPanel page="dashboard" overview={overview} />
 
           <MinistryCalendar events={overview.events} />
         </div>

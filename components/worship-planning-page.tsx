@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { MinistryEmmaPanel } from "@/components/ministry-emma-panel";
 
 type AssignmentStatus = "confirmed" | "needs_reply" | "tentative";
 type SlideStatus = "ready" | "needs_update" | "not_started";
@@ -156,6 +157,16 @@ export function WorshipPlanningPage() {
           <strong>{readySlides}/{slides.length}</strong>
         </article>
       </div>
+
+      <MinistryEmmaPanel
+        page="worship"
+        staticSignals={[
+          `${confirmedCount} of ${assignments.length} worship assignments are confirmed.`,
+          `${needsReplyCount} student assignment${needsReplyCount === 1 ? "" : "s"} still need replies.`,
+          `${readySlides} of ${slides.length} slide item${slides.length === 1 ? "" : "s"} are ready.`,
+          "GroupMe and ProPresenter actions are preview-only in this workspace."
+        ]}
+      />
 
       <div className="worship-layout">
         <section className="worship-section liquid-card-strong" aria-label="Student schedule">
