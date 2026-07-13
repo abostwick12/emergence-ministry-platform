@@ -15194,6 +15194,7 @@ body:has(.login-shell) h3 {
 
 .app-shell:not(.app-shell-camp) .app-header-text {
   position: relative;
+  min-width: 0;
   padding: 0 0 0 24px;
   text-align: left;
 }
@@ -15217,6 +15218,7 @@ body:has(.login-shell) h3 {
   font-weight: 500;
   line-height: 0.98;
   text-transform: uppercase;
+  overflow-wrap: anywhere;
 }
 
 .app-shell:not(.app-shell-camp) .app-header-title-compact {
@@ -16512,9 +16514,19 @@ body:has(.login-shell) h3 {
     padding: calc(env(safe-area-inset-top, 0px) + 18px) 18px 18px;
   }
 
+  .app-shell:not(.app-shell-camp) .app-header-text {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+
   .app-shell:not(.app-shell-camp) .app-header-title,
   .app-shell:not(.app-shell-camp) .app-header-title-compact {
-    font-size: clamp(26px, 10vw, 36px);
+    font-size: clamp(16px, 4.8vw, 18px);
+    line-height: 1;
+    max-width: calc(100vw - 58px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .app-shell:not(.app-shell-camp) .app-header-right {
@@ -16581,6 +16593,10 @@ body:has(.login-shell) h3 {
   .app-shell:not(.app-shell-camp) .student-lovable-save-row {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .app-shell:not(.app-shell-camp) .student-journey-history {
+    margin-top: 72px;
   }
 
   .app-shell:not(.app-shell-camp) .mobile-bottom-nav {
@@ -16659,5 +16675,17 @@ body:has(.login-shell) h3 {
   .app-shell:not(.app-shell-camp) .student-study-tool-rail,
   .app-shell:not(.app-shell-camp) .student-plan-picker {
     grid-auto-columns: minmax(230px, 84vw);
+  }
+}
+
+@media (max-width: 980px) {
+  .app-shell:not(.app-shell-camp) header.app-header .app-header-title,
+  .app-shell:not(.app-shell-camp) header.app-header .app-header-title-compact {
+    font-size: clamp(16px, 4.8vw, 18px);
+    line-height: 1;
+    max-width: calc(100vw - 58px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }

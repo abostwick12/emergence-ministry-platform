@@ -313,7 +313,7 @@ export function AppShell({
             <div className="app-header-right">
               <label className="app-search-pill" aria-label="Search coming soon">
                 <Search className="app-search-icon" aria-hidden="true" />
-                <input disabled placeholder="Search..." type="search" />
+                <input disabled placeholder="Search..." suppressHydrationWarning type="search" />
               </label>
               {process.env.NODE_ENV === "development" && !isProductionLaunchPath ? (
                 <>

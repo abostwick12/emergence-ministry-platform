@@ -195,7 +195,7 @@ function CommunicationsWorkspace({ overview }: { overview: MinistryOverview }) {
                 key={event.id}
                 icon={<MessageSquareText aria-hidden="true" />}
                 title={event.title}
-                meta={`${formatDate(event.startTime)} · ${ownerName(event.contactOwnerId, overview.users)}`}
+                meta={`${formatDate(event.startTime)} - ${ownerName(event.contactOwnerId, overview.users)}`}
                 badge={missing.length ? `${missing.length} missing` : "Ready"}
                 badgeTone={missing.length ? "amber" : "green"}
                 href="/events"
@@ -244,7 +244,7 @@ function PeopleWorkspace({ overview }: { overview: MinistryOverview }) {
               key={user.id}
               icon={<UsersRound aria-hidden="true" />}
               title={displayName(user)}
-              meta={`${user.role} · ${user.email}`}
+              meta={`${user.role} - ${user.email}`}
               badge={`${assignedTaskCounts.get(user.id) ?? 0} tasks`}
               badgeTone={(assignedTaskCounts.get(user.id) ?? 0) > 4 ? "amber" : "blue"}
               href="/tasks"
@@ -335,7 +335,7 @@ function BudgetWorkspace({ overview, refresh }: { overview: MinistryOverview; re
               <div className="ministry-budget-row" key={event.id}>
                 <div>
                   <strong>{event.title}</strong>
-                  <span>{target ? `${money(spent)} of ${money(target)}` : `${money(spent)} recorded · no target yet`}</span>
+                  <span>{target ? `${money(spent)} of ${money(target)}` : `${money(spent)} recorded - no target yet`}</span>
                 </div>
                 <div className="ministry-budget-track" aria-label={`${event.title} budget progress`}>
                   <span style={{ width: `${percent}%` }} />
@@ -398,7 +398,7 @@ function SettingsWorkspace({ overview, user, canManageCampAccess }: { overview: 
       <article className="ministry-launch-panel ministry-launch-span-3">
         <SectionHead eyebrow="Launch Controls" title="What is live, preview-only, or protected" />
         <div className="ministry-launch-setting-grid">
-          <SettingCard title="Profile and role" detail={user?.fullName ? `${user.fullName} · ${user.email}` : user?.email ?? "Signed-in profile"} state="Live" />
+          <SettingCard title="Profile and role" detail={user?.fullName ? `${user.fullName} - ${user.email}` : user?.email ?? "Signed-in profile"} state="Live" />
           <SettingCard title="Event workflow" detail="Master Event Card, generated tasks, activity log, and budget actuals are active." state="Live" />
           <SettingCard title="Communications" detail="Draft previews can be generated from events. Nothing sends email, text, or GroupMe." state="Preview" />
           <SettingCard title="Provider adapters" detail="Planning Center, Google, ProPresenter, and AI remain behind adapter boundaries." state="Stub" />
