@@ -158,6 +158,24 @@ test.describe("MVP event automation navigation smoke tests", () => {
     expect(pageHasHorizontalScroll).toBe(false);
   });
 
+  test("ministry EMMA chat uses the server-backed audit route", async ({ page }) => {
+    await login(page);
+    await page.goto("/events");
+
+    const emma = page.locator(".ministry-emma-panel").first();
+    await expect(emma.getByRole("heading", { name: "Events Assistant" })).toBeVisible();
+
+    await emma.getByLabel("Message EMMA").fill("Which tasks need follow-up?");
+    const emmaResponse = page.waitForResponse(
+      (response) => response.url().endsWith("/api/ai/emma") && response.request().method() === "POST"
+    );
+    await emma.getByRole("button", { name: /Ask EMMA/ }).click();
+    expect((await emmaResponse).status()).toBe(200);
+
+    await expect(emma.getByText(/Request .* Run/)).toBeVisible();
+    await expect(emma.getByText(/Audited deterministic fallback|Provider/)).toBeVisible();
+  });
+
   test("event row expands into compact task tree and opens modal on Open event", async ({ page }) => {
     await login(page);
     await page.goto("/events");
