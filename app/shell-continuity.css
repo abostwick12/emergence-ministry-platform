@@ -1884,3 +1884,844 @@ html:has(.app-shell:not(.app-shell-camp)) body {
     padding-bottom: 56px;
   }
 }
+
+/* Lovable ministry workspace polish: one header rail, fixed EMMA chat, and dark operational cards. */
+.app-shell:not(.app-shell-camp) .app-header-title,
+.app-shell:not(.app-shell-camp) .app-header-title-compact,
+.app-shell:not(.app-shell-camp) .app-header-welcome {
+  padding-left: 0;
+}
+
+.app-shell:not(.app-shell-camp) .app-header-title::before,
+.app-shell:not(.app-shell-camp) .app-header-title-compact::before {
+  display: none;
+}
+
+.app-shell:not(.app-shell-camp) .workspace-page {
+  gap: 24px;
+}
+
+.app-shell:not(.app-shell-camp) .workspace-notice {
+  display: none;
+}
+
+.app-shell:not(.app-shell-camp) .workflow-stack {
+  gap: 24px;
+}
+
+.app-shell:not(.app-shell-camp) .ministry-emma-panel {
+  border-color: rgba(22, 217, 245, 0.34);
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 10% 0%, rgba(22, 217, 245, 0.16), transparent 32%),
+    linear-gradient(145deg, rgba(13, 39, 67, 0.88), rgba(5, 15, 31, 0.94));
+  padding: 26px;
+}
+
+.app-shell:not(.app-shell-camp) .ministry-emma-layout {
+  grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.9fr);
+  align-items: start;
+  min-height: 320px;
+}
+
+.app-shell:not(.app-shell-camp) .ministry-emma-thread {
+  height: 320px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 8px;
+  scrollbar-width: thin;
+}
+
+.app-shell:not(.app-shell-camp) .ministry-emma-thread::-webkit-scrollbar,
+.app-shell:not(.app-shell-camp) .event-summary-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 11px;
+}
+
+.app-shell:not(.app-shell-camp) .ministry-emma-thread::-webkit-scrollbar-thumb,
+.app-shell:not(.app-shell-camp) .event-summary-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.72);
+}
+
+.app-shell:not(.app-shell-camp) .ministry-emma-controls {
+  position: sticky;
+  top: 12px;
+}
+
+.app-shell:not(.app-shell-camp) .ministry-emma-message {
+  border-radius: 12px;
+  background: rgba(6, 13, 27, 0.46);
+}
+
+.app-shell:not(.app-shell-camp) .ministry-emma-message.user {
+  border-color: rgba(245, 184, 79, 0.34);
+  background: rgba(245, 184, 79, 0.10);
+}
+
+.app-shell:not(.app-shell-camp) .events-lovable-workspace {
+  display: grid;
+  gap: 32px;
+}
+
+.app-shell:not(.app-shell-camp) .events-lovable-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 22px;
+}
+
+.app-shell:not(.app-shell-camp) .events-lovable-tabs,
+.app-shell:not(.app-shell-camp) .ministry-budget-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.app-shell:not(.app-shell-camp) .event-filter-tab {
+  min-height: 38px;
+  border: 1px solid rgba(129, 164, 214, 0.18);
+  border-radius: 999px;
+  background: transparent;
+  color: #9fb2ca;
+  cursor: pointer;
+  padding: 0 22px;
+  font-weight: 800;
+}
+
+.app-shell:not(.app-shell-camp) .event-filter-tab.active {
+  border-color: rgba(22, 217, 245, 0.42);
+  background: rgba(22, 217, 245, 0.16);
+  color: var(--platform-cyan);
+  box-shadow: 0 0 22px rgba(22, 217, 245, 0.13);
+}
+
+.app-shell:not(.app-shell-camp) .events-create-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  border-radius: 14px;
+  padding-inline: 22px;
+}
+
+.app-shell:not(.app-shell-camp) .events-create-button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.app-shell:not(.app-shell-camp) .event-lovable-list {
+  display: grid;
+  gap: 26px;
+}
+
+.app-shell:not(.app-shell-camp) .event-row-card {
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--event-row-accent) 52%, rgba(129, 164, 214, 0.18));
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at 14% 0%, color-mix(in srgb, var(--event-row-accent) 17%, transparent), transparent 42%),
+    linear-gradient(145deg, rgba(10, 26, 48, 0.94), rgba(4, 12, 25, 0.98));
+  box-shadow:
+    0 26px 70px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.app-shell:not(.app-shell-camp) .event-row-card::before {
+  width: 3px;
+}
+
+.app-shell:not(.app-shell-camp) .event-card-row.event-lovable-card-row {
+  display: grid;
+  grid-template-columns: minmax(250px, 0.72fr) minmax(370px, 1.28fr) minmax(190px, 0.44fr);
+  min-height: 256px;
+  background: transparent;
+}
+
+.app-shell:not(.app-shell-camp) .event-identity-section {
+  gap: 28px;
+  border-right: 1px solid rgba(129, 164, 214, 0.18);
+  padding: 42px 36px;
+}
+
+.app-shell:not(.app-shell-camp) .event-status-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.app-shell:not(.app-shell-camp) .event-type-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  border: 1px solid color-mix(in srgb, var(--event-row-accent) 64%, rgba(255, 255, 255, 0.12));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--event-row-accent) 16%, transparent);
+  color: var(--platform-cyan);
+  padding: 0 12px;
+  font-family: var(--font-platform-mono), ui-monospace, monospace;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.app-shell:not(.app-shell-camp) .event-state-label {
+  color: #9fb2ca;
+  font-family: var(--font-platform-mono), ui-monospace, monospace;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.22em;
+}
+
+.app-shell:not(.app-shell-camp) .event-row-title .button.ghost {
+  color: #f7fbff;
+  font-family: var(--font-platform-serif), Georgia, serif;
+  font-size: clamp(30px, 3vw, 47px);
+  font-weight: 500;
+  line-height: 1.15;
+  text-decoration: none;
+}
+
+.app-shell:not(.app-shell-camp) .lovable-event-meta {
+  display: grid;
+  gap: 13px;
+}
+
+.app-shell:not(.app-shell-camp) .lovable-event-meta span {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #8fa4bd;
+  font-size: 18px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.app-shell:not(.app-shell-camp) .lovable-event-meta svg {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  color: var(--platform-cyan);
+}
+
+.app-shell:not(.app-shell-camp) .event-summary-shell {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 34px;
+  border-right: 1px solid rgba(129, 164, 214, 0.18);
+  padding: 38px 28px 28px;
+}
+
+.app-shell:not(.app-shell-camp) .event-summary-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.app-shell:not(.app-shell-camp) .event-summary-heading h3 {
+  margin: 0;
+  color: #f7fbff;
+  font-size: 28px;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.app-shell:not(.app-shell-camp) .summary-toggle-button {
+  position: static;
+  min-height: 66px;
+  border-radius: 8px;
+  padding: 0 22px;
+  color: #f7fbff;
+  font-size: 24px;
+}
+
+.app-shell:not(.app-shell-camp) .event-summary-scroll {
+  gap: 16px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0 0 18px;
+}
+
+.app-shell:not(.app-shell-camp) .summary-field {
+  flex: 0 0 196px;
+  min-height: 150px;
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(22, 217, 245, 0.14), transparent 44%),
+    rgba(8, 28, 52, 0.74);
+  padding: 24px;
+}
+
+.app-shell:not(.app-shell-camp) .summary-field.warning {
+  background:
+    radial-gradient(circle at 12% 0%, rgba(245, 158, 11, 0.18), transparent 44%),
+    rgba(48, 34, 19, 0.72);
+}
+
+.app-shell:not(.app-shell-camp) .summary-label {
+  color: var(--platform-cyan);
+  font-size: 15px;
+  letter-spacing: 0;
+}
+
+.app-shell:not(.app-shell-camp) .summary-field strong {
+  color: #f7fbff;
+  font-size: 25px;
+  line-height: 1.12;
+}
+
+.app-shell:not(.app-shell-camp) .event-operations-rail {
+  display: grid;
+  align-content: start;
+  gap: 24px;
+  min-width: 0;
+  padding: 38px 24px;
+}
+
+.app-shell:not(.app-shell-camp) .event-rail-metric {
+  display: grid;
+  gap: 16px;
+  border-bottom: 1px solid rgba(129, 164, 214, 0.18);
+  padding-bottom: 26px;
+}
+
+.app-shell:not(.app-shell-camp) .event-rail-metric > div:first-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.app-shell:not(.app-shell-camp) .event-rail-metric span,
+.app-shell:not(.app-shell-camp) .event-rail-footer span {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: #8fa4bd;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.app-shell:not(.app-shell-camp) .event-rail-metric span:first-child {
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+
+.app-shell:not(.app-shell-camp) .event-rail-metric svg,
+.app-shell:not(.app-shell-camp) .event-rail-footer svg {
+  width: 22px;
+  height: 22px;
+  color: #7dd3fc;
+}
+
+.app-shell:not(.app-shell-camp) .event-rail-metric strong {
+  color: #f7fbff;
+  font-size: 17px;
+  white-space: nowrap;
+}
+
+.app-shell:not(.app-shell-camp) .event-rail-warning {
+  color: #fb923c !important;
+}
+
+.app-shell:not(.app-shell-camp) .event-rail-ready {
+  color: #34d399 !important;
+}
+
+.app-shell:not(.app-shell-camp) .event-rail-progress {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(129, 164, 214, 0.13);
+}
+
+.app-shell:not(.app-shell-camp) .event-rail-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--platform-cyan);
+  box-shadow: var(--platform-cyan-glow);
+}
+
+.app-shell:not(.app-shell-camp) .event-rail-footer {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  color: #8fa4bd;
+}
+
+.app-shell:not(.app-shell-camp) .ministry-launch-page,
+.app-shell:not(.app-shell-camp) .worship-page {
+  display: grid;
+  gap: 24px;
+}
+
+.app-shell:not(.app-shell-camp) .ministry-launch-hero,
+.app-shell:not(.app-shell-camp) .worship-hero {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.app-shell:not(.app-shell-camp) .ministry-budget-dashboard {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.app-shell:not(.app-shell-camp) .ministry-budget-dashboard .ministry-launch-span-2,
+.app-shell:not(.app-shell-camp) .ministry-budget-dashboard .ministry-launch-span-3 {
+  grid-column: 1 / -1;
+}
+
+.app-shell:not(.app-shell-camp) .ministry-budget-actions .button {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  border-radius: 12px;
+  padding-inline: 18px;
+}
+
+.app-shell:not(.app-shell-camp) .budget-filter-chip {
+  opacity: 0.82;
+}
+
+.app-shell:not(.app-shell-camp) .ministry-budget-overview-panel {
+  gap: 28px;
+  padding: 28px;
+}
+
+.app-shell:not(.app-shell-camp) .ministry-budget-overview-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.app-shell:not(.app-shell-camp) .ministry-budget-overview-head > strong {
+  color: #f7fbff;
+  font-size: 18px;
+}
+
+.app-shell:not(.app-shell-camp) .ministry-budget-overview-head > strong span {
+  color: #8fa4bd;
+  font-weight: 500;
+}
+
+.app-shell:not(.app-shell-camp) .ministry-budget-stack {
+  gap: 22px;
+}
+
+.app-shell:not(.app-shell-camp) .ministry-budget-row {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.app-shell:not(.app-shell-camp) .ministry-budget-row > div:first-child {
+  display: flex;
+  justify-content: space-between;
+}
+
+.app-shell:not(.app-shell-camp) .ministry-budget-row strong {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.app-shell:not(.app-shell-camp) .ministry-budget-row strong::before {
+  content: "";
+  width: 11px;
+  height: 11px;
+  border-radius: 999px;
+  background: var(--platform-cyan);
+  box-shadow: var(--platform-cyan-glow);
+}
+
+.app-shell:not(.app-shell-camp) .budget-color-1 strong::before { background: #facc15; }
+.app-shell:not(.app-shell-camp) .budget-color-2 strong::before { background: #4ade80; }
+.app-shell:not(.app-shell-camp) .budget-color-3 strong::before { background: #fb923c; }
+.app-shell:not(.app-shell-camp) .budget-color-4 strong::before { background: #22d3ee; }
+
+.app-shell:not(.app-shell-camp) .ministry-budget-track {
+  height: 8px;
+}
+
+.app-shell:not(.app-shell-camp) .ministry-budget-overall-track {
+  height: 12px;
+}
+
+.app-shell:not(.app-shell-camp) .ministry-budget-search {
+  justify-self: end;
+  min-width: 260px;
+  border: 1px solid rgba(129, 164, 214, 0.18);
+  border-radius: 999px;
+  background: rgba(6, 13, 27, 0.42);
+  color: #8fa4bd;
+  padding: 12px 16px;
+}
+
+.app-shell:not(.app-shell-camp) .ministry-budget-ledger-row {
+  display: grid;
+  grid-template-columns: 110px minmax(180px, 1fr) minmax(140px, 0.8fr) minmax(120px, 0.7fr) 110px;
+  gap: 14px;
+  border-bottom: 1px solid rgba(129, 164, 214, 0.12);
+  color: #8fa4bd;
+  padding: 12px 0;
+}
+
+.app-shell:not(.app-shell-camp) .ministry-budget-ledger-row strong {
+  color: #f7fbff;
+}
+
+.app-shell:not(.app-shell-camp) .worship-page {
+  border-color: rgba(129, 164, 214, 0.16);
+  border-radius: 14px;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
+.app-shell:not(.app-shell-camp) .worship-page > .worship-hero {
+  display: none;
+}
+
+.app-shell:not(.app-shell-camp) .worship-kpi-row,
+.app-shell:not(.app-shell-camp) .worship-layout {
+  gap: 24px;
+}
+
+.app-shell:not(.app-shell-camp) .worship-mini-card,
+.app-shell:not(.app-shell-camp) .worship-section {
+  border: 1px solid rgba(129, 164, 214, 0.16);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 70px),
+    rgba(14, 25, 44, 0.74);
+  box-shadow: var(--platform-shadow);
+}
+
+.app-shell:not(.app-shell-camp) .worship-lovable-service {
+  display: grid;
+  gap: 30px;
+}
+
+.app-shell:not(.app-shell-camp) .worship-lovable-tabs {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.app-shell:not(.app-shell-camp) .worship-lovable-tabs button {
+  min-height: 32px;
+  border: 1px solid rgba(129, 164, 214, 0.22);
+  border-radius: 999px;
+  background: transparent;
+  color: #8fa4bd;
+  cursor: pointer;
+  padding: 0 16px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.app-shell:not(.app-shell-camp) .worship-lovable-tabs button.active {
+  border-color: rgba(22, 217, 245, 0.42);
+  background: rgba(22, 217, 245, 0.16);
+  color: var(--platform-cyan);
+}
+
+.app-shell:not(.app-shell-camp) .worship-next-service {
+  display: grid;
+  gap: 6px;
+  margin-left: auto;
+  text-align: right;
+}
+
+.app-shell:not(.app-shell-camp) .worship-next-service span,
+.app-shell:not(.app-shell-camp) .worship-service-strip span,
+.app-shell:not(.app-shell-camp) .worship-setlist-row.header span,
+.app-shell:not(.app-shell-camp) .worship-team-card small {
+  color: #8fa4bd;
+  font-family: var(--font-platform-mono), ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.app-shell:not(.app-shell-camp) .worship-next-service strong {
+  color: #f7fbff;
+  font-family: var(--font-platform-serif), Georgia, serif;
+  font-size: 17px;
+  font-weight: 500;
+}
+
+.app-shell:not(.app-shell-camp) .worship-next-service small {
+  color: #8fa4bd;
+  font-weight: 800;
+}
+
+.app-shell:not(.app-shell-camp) .worship-service-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid rgba(129, 164, 214, 0.18);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 70px),
+    rgba(14, 25, 44, 0.74);
+  box-shadow: var(--platform-shadow);
+}
+
+.app-shell:not(.app-shell-camp) .worship-service-strip > div {
+  display: grid;
+  gap: 8px;
+  min-height: 106px;
+  border-right: 1px solid rgba(129, 164, 214, 0.15);
+  padding: 22px;
+}
+
+.app-shell:not(.app-shell-camp) .worship-service-strip > div:last-child {
+  border-right: 0;
+}
+
+.app-shell:not(.app-shell-camp) .worship-service-strip strong {
+  color: #f7fbff;
+  font-family: var(--font-platform-serif), Georgia, serif;
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.app-shell:not(.app-shell-camp) .worship-service-strip small {
+  color: #8fa4bd;
+  font-weight: 700;
+}
+
+.app-shell:not(.app-shell-camp) .worship-lovable-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 386px;
+  gap: 24px;
+  align-items: start;
+}
+
+.app-shell:not(.app-shell-camp) .worship-setlist-panel,
+.app-shell:not(.app-shell-camp) .worship-team-panel {
+  overflow: hidden;
+  border: 1px solid rgba(129, 164, 214, 0.18);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 70px),
+    rgba(14, 25, 44, 0.74);
+  box-shadow: var(--platform-shadow);
+}
+
+.app-shell:not(.app-shell-camp) .worship-setlist-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 22px;
+}
+
+.app-shell:not(.app-shell-camp) .worship-setlist-head h3 {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  color: #f7fbff;
+  font-family: var(--font-platform-serif), Georgia, serif;
+  font-size: 20px;
+  font-weight: 500;
+}
+
+.app-shell:not(.app-shell-camp) .worship-setlist-head h3 svg {
+  width: 18px;
+  height: 18px;
+  color: var(--platform-cyan);
+}
+
+.app-shell:not(.app-shell-camp) .worship-setlist-head > div {
+  display: flex;
+  gap: 8px;
+}
+
+.app-shell:not(.app-shell-camp) .worship-setlist-head .button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-shell:not(.app-shell-camp) .worship-setlist-table {
+  border-top: 1px solid rgba(129, 164, 214, 0.14);
+}
+
+.app-shell:not(.app-shell-camp) .worship-setlist-row {
+  display: grid;
+  grid-template-columns: 52px minmax(170px, 1.1fr) 50px 62px minmax(120px, 0.8fr) minmax(105px, 0.7fr) minmax(160px, 0.8fr);
+  align-items: center;
+  gap: 14px;
+  min-height: 70px;
+  border-top: 1px solid rgba(129, 164, 214, 0.12);
+  padding: 0 22px;
+}
+
+.app-shell:not(.app-shell-camp) .worship-setlist-row.header {
+  min-height: 48px;
+  border-top: 0;
+}
+
+.app-shell:not(.app-shell-camp) .worship-setlist-row.pad {
+  background: rgba(22, 217, 245, 0.08);
+}
+
+.app-shell:not(.app-shell-camp) .worship-setlist-row > span {
+  min-width: 0;
+  color: #b7c7db;
+  font-weight: 800;
+}
+
+.app-shell:not(.app-shell-camp) .worship-setlist-row strong {
+  display: block;
+  color: #f7fbff;
+  font-weight: 900;
+}
+
+.app-shell:not(.app-shell-camp) .worship-setlist-row small {
+  display: block;
+  margin-top: 3px;
+  color: #8fa4bd;
+  font-size: 12px;
+}
+
+.app-shell:not(.app-shell-camp) .worship-file-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.app-shell:not(.app-shell-camp) .worship-file-chips small {
+  border: 1px solid rgba(129, 164, 214, 0.20);
+  border-radius: 5px;
+  margin: 0;
+  padding: 3px 6px;
+}
+
+.app-shell:not(.app-shell-camp) .worship-team-list {
+  display: grid;
+  gap: 10px;
+  max-height: 520px;
+  overflow-y: auto;
+  padding: 0 22px 22px;
+}
+
+.app-shell:not(.app-shell-camp) .worship-team-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid rgba(129, 164, 214, 0.14);
+  border-radius: 12px;
+  background: rgba(6, 13, 27, 0.32);
+  padding: 12px;
+}
+
+.app-shell:not(.app-shell-camp) .worship-team-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: rgba(22, 217, 245, 0.09);
+  color: var(--platform-cyan);
+}
+
+.app-shell:not(.app-shell-camp) .worship-team-card strong {
+  color: #f7fbff;
+}
+
+.app-shell:not(.app-shell-camp) .worship-team-card small {
+  display: block;
+  margin-top: 3px;
+}
+
+.app-shell:not(.app-shell-camp) .worship-team-status {
+  border: 1px solid rgba(16, 185, 129, 0.24);
+  border-radius: 6px;
+  background: rgba(16, 185, 129, 0.14);
+  color: #34d399;
+  padding: 4px 8px;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.app-shell:not(.app-shell-camp) .worship-team-status.pending {
+  border-color: rgba(245, 158, 11, 0.28);
+  background: rgba(245, 158, 11, 0.12);
+  color: #fb923c;
+}
+
+.app-shell:not(.app-shell-camp) .worship-team-status.open {
+  border-color: rgba(244, 63, 94, 0.28);
+  background: rgba(244, 63, 94, 0.12);
+  color: #fb7185;
+}
+
+@media (max-width: 1080px) {
+  .app-shell:not(.app-shell-camp) .event-card-row.event-lovable-card-row {
+    grid-template-columns: minmax(260px, 0.8fr) minmax(360px, 1.2fr);
+  }
+
+  .app-shell:not(.app-shell-camp) .event-operations-rail {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    border-top: 1px solid rgba(129, 164, 214, 0.16);
+  }
+}
+
+@media (max-width: 900px) {
+  .app-shell:not(.app-shell-camp) .events-lovable-toolbar,
+  .app-shell:not(.app-shell-camp) .ministry-budget-overview-head {
+    display: grid;
+  }
+
+  .app-shell:not(.app-shell-camp) .event-card-row.event-lovable-card-row,
+  .app-shell:not(.app-shell-camp) .ministry-budget-dashboard,
+  .app-shell:not(.app-shell-camp) .worship-kpi-row,
+  .app-shell:not(.app-shell-camp) .worship-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .app-shell:not(.app-shell-camp) .event-identity-section,
+  .app-shell:not(.app-shell-camp) .event-summary-shell,
+  .app-shell:not(.app-shell-camp) .event-operations-rail {
+    border-right: 0;
+    padding: 26px;
+  }
+
+  .app-shell:not(.app-shell-camp) .ministry-emma-layout {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+
+  .app-shell:not(.app-shell-camp) .ministry-emma-thread {
+    height: 360px;
+  }
+
+  .app-shell:not(.app-shell-camp) .ministry-emma-controls {
+    position: static;
+  }
+
+  .app-shell:not(.app-shell-camp) .ministry-budget-ledger-row {
+    grid-template-columns: 1fr;
+  }
+}
