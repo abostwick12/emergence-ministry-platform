@@ -66,6 +66,14 @@ export function answerMinistryEmmaPrompt({
     return answerStaticPage(page, staticSignals);
   }
 
+  if (page === "files") {
+    return answerFiles();
+  }
+
+  if (page === "worship") {
+    return answerWorship();
+  }
+
   if (page === "budget" || normalizedPrompt.includes("budget") || normalizedPrompt.includes("cost")) {
     return answerBudget(overview);
   }
@@ -218,6 +226,30 @@ function answerSettings(overview: MinistryEmmaOverview): MinistryEmmaResponse {
       "Provider secrets, live sends, and student-sensitive contexts are not exposed through ministry pages."
     ],
     nextActions: ["Review pending EMMA proposals.", "Keep preview-only labels on communication outputs.", "Verify provider readiness before enabling live integrations."]
+  };
+}
+
+function answerFiles(): MinistryEmmaResponse {
+  return {
+    summary: "EMMA sees Files as a preview-only organization surface until Google Drive actions are explicitly approved.",
+    points: [
+      "Event folders, forms, slides, receipts, and leader resources are the planned file lanes.",
+      "Drive folder creation and file movement should stay behind the adapter boundary.",
+      "EMMA can recommend organization steps without creating or moving files."
+    ],
+    nextActions: ["Name the needed event folder structure.", "Attach file needs to event workspaces.", "Keep Drive actions disabled until approved."]
+  };
+}
+
+function answerWorship(): MinistryEmmaResponse {
+  return {
+    summary: "EMMA sees Worship as a rehearsal-prep workspace with assignments, slides, and message drafts kept preview-only.",
+    points: [
+      "Student worship assignments can be reviewed without sending live messages.",
+      "GroupMe copy remains a draft until a human sends it outside EMMA.",
+      "ProPresenter updates stay behind the stub adapter."
+    ],
+    nextActions: ["Resolve students who still need confirmation.", "Review slide items marked not ready.", "Keep GroupMe and ProPresenter actions preview-only."]
   };
 }
 

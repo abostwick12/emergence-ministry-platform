@@ -55,7 +55,7 @@ export async function createEmmaProposalFromWorkflowResult(
       });
     }
 
-    const proposalType = assertAllowedProposalType(input.proposalType);
+    const proposalType = assertAllowedEventSummaryProposalType(input.proposalType);
     const request = await getAiRequest(session, input.requestId);
     const run = await getAiRun(session, input.runId);
 
@@ -124,7 +124,7 @@ function assertCanCreateProposal(session: AuthSession): void {
   }
 }
 
-function assertAllowedProposalType(value: string | undefined): EmmaProposalType {
+function assertAllowedEventSummaryProposalType(value: string | undefined): Extract<EmmaProposalType, "event_summary_recommendation"> {
   if (!value) {
     throw emmaErrors.validation("Unknown EMMA proposal type.");
   }
@@ -134,5 +134,8 @@ function assertAllowedProposalType(value: string | undefined): EmmaProposalType 
   if (!ALLOWED_PROPOSAL_TYPES.has(value)) {
     throw emmaErrors.validation("Unknown EMMA proposal type.");
   }
-  return value as EmmaProposalType;
+  if (value !== "event_summary_recommendation") {
+    throw emmaErrors.workflowDisabled("This EMMA proposal type is not enabled for event summaries.");
+  }
+  return value;
 }
