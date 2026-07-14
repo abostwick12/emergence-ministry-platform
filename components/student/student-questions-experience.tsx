@@ -303,16 +303,21 @@ function StudentLovableJournalEntry({
     }
   }
 
+  const firstIncompletePhase = phases.findIndex((phase) => !phase.complete);
+  const currentPhaseIndex = firstIncompletePhase === -1 ? phases.length - 1 : firstIncompletePhase;
+
   return (
     <section className="student-lovable-journal" aria-label="Journey journal entry">
-      <div className="student-lovable-road" aria-label="Entry progress">
+      <ol className="student-lovable-road" aria-label="Entry progress">
         {phases.map((phase, index) => (
-          <span className={phase.complete ? "complete" : ""} key={phase.label}>
-            <i>{phase.complete ? <Check aria-hidden="true" size={12} /> : index + 1}</i>
-            {phase.label}
-          </span>
+          <li key={phase.label} aria-current={index === currentPhaseIndex ? "step" : undefined}>
+            <span className={phase.complete ? "complete" : ""}>
+              <i>{phase.complete ? <Check aria-hidden="true" size={12} /> : index + 1}</i>
+              {phase.label}
+            </span>
+          </li>
         ))}
-      </div>
+      </ol>
 
       <LovableJournalSection
         icon={BookOpen}
