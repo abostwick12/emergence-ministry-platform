@@ -129,6 +129,7 @@ export function PlanningCenterIntegrationControl({ compact = false }: { compact?
   const label = loading ? "Loading" : statusLabel(status.displayStatus);
   const detail = loading ? "Checking Planning Center connection..." : statusDetail(status);
   const wrapperClass = compact ? "stub-control planning-center-control compact" : "ministry-launch-setting-card planning-center-control";
+  const pillClass = status.displayStatus === "connected" ? "pill" : "pill stub";
 
   return (
     <div className={wrapperClass}>
@@ -137,7 +138,7 @@ export function PlanningCenterIntegrationControl({ compact = false }: { compact?
         <p>{detail}</p>
         {message ? <p className="muted" role="status">{message}</p> : null}
       </div>
-      <span className="pill">{label}</span>
+      <span className={pillClass}>{label}</span>
       {canConnect ? (
         <a className="button primary" href="/api/integrations/planning-center/connect" aria-label="Connect Planning Center">
           Connect
