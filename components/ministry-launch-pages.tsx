@@ -19,6 +19,7 @@ import {
   UsersRound
 } from "lucide-react";
 import { MinistryEmmaPanel } from "@/components/ministry-emma-panel";
+import { PlanningCenterIntegrationControl } from "@/components/planning-center-integration-control";
 import type { MinistryEmmaPage } from "@/lib/emma/ministry-page-assistant";
 import type { ActiveTask, ActivityLog, EventExpense, MinistryEvent, User } from "@/lib/types";
 import { formatDate, money } from "@/lib/utils";
@@ -489,7 +490,8 @@ function SettingsWorkspace({ overview, user, canManageCampAccess }: { overview: 
           <SettingCard title="Profile and role" detail={user?.fullName ? `${user.fullName} - ${user.email}` : user?.email ?? "Signed-in profile"} state="Live" />
           <SettingCard title="Event workflow" detail="Master Event Card, generated tasks, activity log, and budget actuals are active." state="Live" />
           <SettingCard title="Communications" detail="Draft previews can be generated from events. Nothing sends email, text, or GroupMe." state="Preview" />
-          <SettingCard title="Provider adapters" detail="Planning Center, Google, ProPresenter, and AI remain behind adapter boundaries." state="Stub" />
+          <PlanningCenterIntegrationControl />
+          <SettingCard title="Provider adapters" detail="Google, ProPresenter, and AI remain behind adapter boundaries until each live provider is approved." state="Protected" />
           <SettingCard title="Secrets" detail="API keys and provider credentials are never shown in the app UI." state="Protected" />
           <SettingCard title="Student access" detail="Student users stay in the student portal navigation, separate from staff menus." state="Live" />
         </div>

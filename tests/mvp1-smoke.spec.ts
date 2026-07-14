@@ -588,9 +588,10 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await expect(modal.getByLabel("Event Name")).toHaveValue("Winter Retreat");
     await modal.getByRole("button", { name: /Next: Tasks/ }).click();
 
-    for (const label of ["Google Drive Folder", "Google Calendar Sync", "ProPresenter Playlist", "Planning Center Share", "Communication Package"]) {
+    for (const label of ["Google Drive Folder", "Google Calendar Sync", "ProPresenter Playlist", "Communication Package"]) {
       await expect(modal.getByRole("button", { name: `Run ${label} stub action` })).toBeVisible();
     }
+    await expect(modal.getByText("Planning Center").first()).toBeVisible();
 
     await modal.getByRole("button", { name: "Run Google Drive Folder stub action" }).click();
     await expect(

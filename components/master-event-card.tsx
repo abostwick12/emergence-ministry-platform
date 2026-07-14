@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { EmmaEventIntelligencePanel } from "@/components/emma-event-intelligence-panel";
 import { useEventCard } from "@/components/event-card-context";
+import { PlanningCenterIntegrationControl } from "@/components/planning-center-integration-control";
 import { useRole } from "@/components/role-context";
 import { eventTypeLabels, defaultTemplateTasks } from "@/lib/templates";
 import { formatDate, formatDateTime } from "@/lib/utils";
@@ -201,7 +202,6 @@ function MasterEventCardInner({
     drive: "idle",
     calendar: "idle",
     propresenter: "idle",
-    planning_center: "idle",
     comms: "idle"
   });
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -456,7 +456,7 @@ function MasterEventCardInner({
     }
   }
 
-  async function runStub(type: "drive" | "calendar" | "propresenter" | "planning_center" | "comms") {
+  async function runStub(type: "drive" | "calendar" | "propresenter" | "comms") {
     if (!workspace) return;
     setStubStatus((current) => ({ ...current, [type]: "running" }));
 
@@ -467,12 +467,7 @@ function MasterEventCardInner({
       comms: "generate-communications"
     };
 
-    if (type === "planning_center") {
-      // Planning Center has no dedicated route yet — log stub only
-      await new Promise((resolve) => setTimeout(resolve, 600));
-    } else {
-      await fetch(`/api/events/${workspace.event.id}/${pathMap[type]}`, { method: "POST" });
-    }
+    await fetch(`/api/events/${workspace.event.id}/${pathMap[type]}`, { method: "POST" });
 
     setStubStatus((current) => ({ ...current, [type]: "done" }));
     onRefresh?.();
@@ -877,7 +872,7 @@ function Step2Panel({
   onUpdateTask: (taskId: string, patch: Partial<ActiveTask>) => Promise<void>;
   onAddTask: () => Promise<void>;
   onNewTaskTitleChange: (value: string) => void;
-  onRunStub: (type: "drive" | "calendar" | "propresenter" | "planning_center" | "comms") => Promise<void>;
+  onRunStub: (type: "drive" | "calendar" | "propresenter" | "comms") => Promise<void>;
   showEmmaEventIntelligence: boolean;
 }) {
   const tasks = workspace?.tasks ?? [];
@@ -946,9 +941,9 @@ function Step2Panel({
       </section>
 
       <section className="event-card-section">
-        <h3 className="section-title">Integration Actions <span className="pill stub">Stub Mode</span></h3>
+        <h3 className="section-title">Integration Actions</h3>
         <p className="muted event-card-section-note">
-          All actions are Stub Mode only. No external API calls are made.
+          Google Drive, Google Calendar, ProPresenter, and communications remain Stub Mode. Planning Center is read-only and syncs only when manually triggered.
         </p>
         <div className="integration-stub-grid">
           <StubControl
@@ -968,11 +963,7 @@ function Step2Panel({
             doneLabel={workspace?.event.proPresenterPlaylistId ? "Playlist ready (stub)" : undefined}
             onRun={() => void onRunStub("propresenter")}
           />
-          <StubControl
-            label="Planning Center Share"
-            status={stubStatus.planning_center}
-            onRun={() => void onRunStub("planning_center")}
-          />
+          <PlanningCenterIntegrationControl compact />
           <StubControl
             label="Communication Package"
             status={stubStatus.comms}
