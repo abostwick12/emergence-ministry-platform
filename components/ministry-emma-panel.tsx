@@ -7,33 +7,24 @@ import {
   ministryEmmaPageLabels,
   ministryEmmaPromptTemplates,
   selectDefaultEmmaEvent,
-  shouldRunAuditedEventSummary,
   type MinistryEmmaOverview,
   type MinistryEmmaPage,
   type MinistryEmmaResponse
 } from "@/lib/emma/ministry-page-assistant";
 import { formatDate } from "@/lib/utils";
 
-type EmmaEventResult = {
+type EmmaChatResult = {
   ok: true;
+  response: MinistryEmmaResponse;
   requestId: string;
   runId: string;
-  status: string;
-  summary: string;
-  keyPoints: string[];
-  missingInformation: string[];
+  providerMode: "live_provider" | "audited_fallback";
+  provider: string;
+  model: string;
   proposalCreated: boolean;
   proposalId: string | null;
-};
-
-type EmmaPageProposalResult = {
-  ok: true;
-  proposalCreated: true;
-  proposalId: string;
-  requestId: string;
-  runId: string;
-  summary: string;
   executed: false;
+  warnings?: string[];
 };
 
 type EmmaMessage = {
@@ -98,9 +89,6 @@ export function MinistryEmmaPanel({
     thread.scrollTo({ top: thread.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
-  const selectedEvent = overview?.events.find((event) => event.id === selectedEventId) ?? null;
-  const canRunEventSummary = Boolean(selectedEvent);
-
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const trimmedPrompt = prompt.trim();
@@ -110,92 +98,53 @@ export function MinistryEmmaPanel({
     setIsRunning(true);
 
     try {
-      if (overview && shouldRunAuditedEventSummary(trimmedPrompt) && selectedEventId) {
-        await runAuditedSummary(trimmedPrompt, selectedEventId);
-      } else {
-        const response = answerMinistryEmmaPrompt({ overview, page, prompt: trimmedPrompt, staticSignals: stableStaticSignals });
-        const proposalAudit = createProposal ? await createPageProposal(trimmedPrompt) : null;
-        setMessages((current) => [
-          ...current,
-          toEmmaMessage(
-            response,
-            proposalAudit ??
-              (createProposal
-                ? "EMMA proposal was not created. Page guidance stayed local and no action was executed."
-                : "EMMA page guidance")
-          )
-        ]);
-      }
+      await runServerChat(trimmedPrompt);
     } finally {
       setIsRunning(false);
     }
   }
 
-  async function createPageProposal(trimmedPrompt: string): Promise<string | null> {
+  async function runServerChat(trimmedPrompt: string) {
     try {
-      const response = await fetch("/api/emma/page-proposals", {
+      const response = await fetch("/api/ai/emma", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           page,
           prompt: trimmedPrompt,
-          selectedEventId: selectedEventId || undefined
+          selectedEventId: selectedEventId || undefined,
+          createProposal
         })
       });
-      const payload = (await response.json().catch(() => ({}))) as Partial<EmmaPageProposalResult> & { ok?: boolean };
-      if (!response.ok || payload.ok !== true || !payload.proposalId || !payload.requestId || !payload.runId) {
-        return null;
-      }
-      return `Proposal ${payload.proposalId} / Request ${payload.requestId} / Run ${payload.runId}`;
-    } catch {
-      return null;
-    }
-  }
+      const payload = (await response.json().catch(() => ({}))) as Partial<EmmaChatResult> & { ok?: boolean; error?: string };
 
-  async function runAuditedSummary(trimmedPrompt: string, eventId: string) {
-    try {
-      const response = await fetch(`/api/events/${eventId}/emma/summary`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ createProposal })
-      });
-      const payload = (await response.json().catch(() => ({}))) as Partial<EmmaEventResult> & { ok?: boolean; error?: string };
       if (!response.ok || payload.ok !== true) {
+        const fallback = answerMinistryEmmaPrompt({ overview, page, prompt: trimmedPrompt, staticSignals: stableStaticSignals });
         setMessages((current) => [
           ...current,
-          {
-            id: createId("emma"),
-            author: "emma",
-            body: "EMMA could not run the audited event summary from this page. Admin-only summaries fail safely and no action was executed.",
-            points: selectedEvent ? [`Selected event: ${selectedEvent.title}`, `Request: ${trimmedPrompt}`] : [`Request: ${trimmedPrompt}`],
-            nextActions: ["Use page-level guidance here.", "Open the event card from Events if admin review is needed."]
-          }
+          toEmmaMessage(
+            fallback,
+            "EMMA server chat failed safely. Local fallback was shown and no action was executed."
+          )
         ]);
         return;
       }
 
       setMessages((current) => [
         ...current,
-        {
-          id: createId("emma"),
-          author: "emma",
-          body: payload.summary ?? "EMMA returned a safe event summary.",
-          points: payload.keyPoints ?? [],
-          nextActions: payload.missingInformation?.length
-            ? payload.missingInformation.map((item) => `Fill missing ${item}.`)
-            : ["Review summary with the event owner.", "Keep communication outputs preview-only until approved."],
-          audit: `Request ${payload.requestId} / Run ${payload.runId}${payload.proposalCreated ? ` / Proposal ${payload.proposalId ?? "created"}` : ""}`
-        }
+        toEmmaMessage(
+          payload.response ?? answerMinistryEmmaPrompt({ overview, page, prompt: trimmedPrompt, staticSignals: stableStaticSignals }),
+          buildChatAudit(payload as EmmaChatResult)
+        )
       ]);
     } catch {
+      const fallback = answerMinistryEmmaPrompt({ overview, page, prompt: trimmedPrompt, staticSignals: stableStaticSignals });
       setMessages((current) => [
         ...current,
-        {
-          id: createId("emma"),
-          author: "emma",
-          body: "EMMA summary failed safely. No provider output, proposal, send, or write was completed.",
-          nextActions: ["Try again after the workspace is reachable.", "Use deterministic page guidance in the meantime."]
-        }
+        toEmmaMessage(
+          fallback,
+          "EMMA server chat was unreachable. Local fallback was shown and no action was executed."
+        )
       ]);
     }
   }
@@ -273,7 +222,7 @@ export function MinistryEmmaPanel({
           ) : null}
 
           <label className="toggle-row ministry-emma-toggle">
-            <input type="checkbox" checked={createProposal} disabled={isRunning || (shouldRunAuditedEventSummary(prompt) && !canRunEventSummary)} onChange={(event) => setCreateProposal(event.target.checked)} />
+            <input type="checkbox" checked={createProposal} disabled={isRunning} onChange={(event) => setCreateProposal(event.target.checked)} />
             <span>Create inert recommendation proposal</span>
           </label>
 
@@ -306,6 +255,16 @@ function toEmmaMessage(response: MinistryEmmaResponse, audit?: string): EmmaMess
     nextActions: response.nextActions,
     audit
   };
+}
+
+function buildChatAudit(payload: EmmaChatResult): string {
+  const providerLabel =
+    payload.providerMode === "live_provider"
+      ? `Provider ${payload.provider} / ${payload.model}`
+      : "Audited deterministic fallback";
+  return `Request ${payload.requestId} / Run ${payload.runId} / ${providerLabel}${
+    payload.proposalCreated ? ` / Proposal ${payload.proposalId ?? "created"}` : ""
+  }`;
 }
 
 function createId(prefix: string): string {

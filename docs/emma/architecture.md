@@ -591,3 +591,20 @@ run with sanitized errors.
 Provider/API testing against Gemini requires `EMMA_PROVIDER_MODE=gemini` and a
 server-only `GEMINI_API_KEY`. Mock mode remains the default for CI and local
 tests.
+
+## Implementation Status: Server-Backed Ministry Chat
+
+Ministry page EMMA panels now submit user prompts through `/api/ai/emma`.
+The route rechecks authenticated Emerge Operations access, loads the current
+ministry overview server-side, minimizes the prompt context, and either:
+
+- runs the `ministry_page_chat` provider contract through the audited provider
+  pipeline when `EMMA_PROVIDER_MODE=gemini` and server-only `GEMINI_API_KEY`
+  are configured; or
+- creates an audited deterministic fallback run with `skillKey:
+  ministry_page_chat_fallback` when a live provider is not configured.
+
+The route returns request/run ids to the UI, can create only inert
+`ministry_page_recommendation` proposals, and never executes writes, sends,
+syncs, or external integration actions. `GET /api/ai/emma` reports readiness
+without exposing provider secrets.

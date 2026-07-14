@@ -38,6 +38,18 @@ type SettingsUser = {
   role?: string;
 } | null;
 
+type EmmaReadinessState =
+  | { status: "loading" }
+  | { status: "ready"; readiness: {
+      liveProviderConfigured: boolean;
+      provider: string;
+      model: string;
+      audit: string;
+      status: "live" | "fallback";
+      message: string;
+    } }
+  | { status: "error"; message: string };
+
 const emptyOverview: MinistryOverview = {
   events: [],
   tasks: [],
@@ -491,12 +503,57 @@ function SettingsWorkspace({ overview, user, canManageCampAccess }: { overview: 
           <SettingCard title="Event workflow" detail="Master Event Card, generated tasks, activity log, and budget actuals are active." state="Live" />
           <SettingCard title="Communications" detail="Draft previews can be generated from events. Nothing sends email, text, or GroupMe." state="Preview" />
           <PlanningCenterIntegrationControl />
+          <EmmaReadinessSettingCard />
           <SettingCard title="Provider adapters" detail="Google, ProPresenter, and AI remain behind adapter boundaries until each live provider is approved." state="Protected" />
           <SettingCard title="Secrets" detail="API keys and provider credentials are never shown in the app UI." state="Protected" />
           <SettingCard title="Student access" detail="Student users stay in the student portal navigation, separate from staff menus." state="Live" />
         </div>
       </article>
     </div>
+  );
+}
+
+function EmmaReadinessSettingCard() {
+  const [state, setState] = useState<EmmaReadinessState>({ status: "loading" });
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/ai/emma", { cache: "no-store" })
+      .then(async (response) => {
+        const payload = (await response.json().catch(() => ({}))) as {
+          ok?: boolean;
+          readiness?: Extract<EmmaReadinessState, { status: "ready" }>["readiness"];
+          error?: string;
+        };
+        if (!active) return;
+        if (!response.ok || payload.ok !== true || !payload.readiness) {
+          setState({ status: "error", message: payload.error ?? "EMMA readiness could not be checked." });
+          return;
+        }
+        setState({ status: "ready", readiness: payload.readiness });
+      })
+      .catch(() => {
+        if (active) setState({ status: "error", message: "EMMA readiness could not be checked." });
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (state.status === "loading") {
+    return <SettingCard title="EMMA ministry chat" detail="Checking server-backed AI readiness..." state="Checking" />;
+  }
+
+  if (state.status === "error") {
+    return <SettingCard title="EMMA ministry chat" detail={state.message} state="Needs setup" />;
+  }
+
+  return (
+    <SettingCard
+      title="EMMA ministry chat"
+      detail={`${state.readiness.message} Audit: ${state.readiness.audit}. Model: ${state.readiness.model}.`}
+      state={state.readiness.liveProviderConfigured ? "Live" : "Fallback"}
+    />
   );
 }
 
