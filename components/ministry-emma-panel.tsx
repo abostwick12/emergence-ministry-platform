@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Bot, CheckCircle2, FileText, Send, ShieldCheck, Sparkles } from "lucide-react";
 import {
   answerMinistryEmmaPrompt,
@@ -61,6 +61,7 @@ export function MinistryEmmaPanel({
   const [prompt, setPrompt] = useState(ministryEmmaPromptTemplates[page][0]);
   const [createProposal, setCreateProposal] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
+  const threadRef = useRef<HTMLDivElement>(null);
   const [messages, setMessages] = useState<EmmaMessage[]>(() => [
     toEmmaMessage(
       answerMinistryEmmaPrompt({
@@ -90,6 +91,12 @@ export function MinistryEmmaPanel({
       )
     ]);
   }, [overview, page, stableStaticSignals]);
+
+  useEffect(() => {
+    const thread = threadRef.current;
+    if (!thread) return;
+    thread.scrollTo({ top: thread.scrollHeight, behavior: "smooth" });
+  }, [messages]);
 
   const selectedEvent = overview?.events.find((event) => event.id === selectedEventId) ?? null;
   const canRunEventSummary = Boolean(selectedEvent);
@@ -213,7 +220,7 @@ export function MinistryEmmaPanel({
       </div>
 
       <div className="ministry-emma-layout">
-        <div className="ministry-emma-thread" aria-live="polite">
+        <div className="ministry-emma-thread" ref={threadRef} aria-live="polite">
           {messages.map((message) => (
             <article className={message.author === "user" ? "ministry-emma-message user" : "ministry-emma-message"} key={message.id}>
               <div className="ministry-emma-message-title">

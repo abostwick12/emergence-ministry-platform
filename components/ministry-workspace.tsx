@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { CheckSquare, Clock3, FileText, MapPin, Plus, UserRound, UsersRound } from "lucide-react";
 import { useRole } from "@/components/role-context";
 import { useEventCard } from "@/components/event-card-context";
 import { MinistryEmmaPanel } from "@/components/ministry-emma-panel";
@@ -35,12 +36,21 @@ const statusLabels: Record<TaskStatus, string> = {
 };
 
 type EventGroupKey = "thisWeek" | "thisMonth" | "longRange" | "past";
+type EventTabKey = "upcoming" | EventGroupKey;
 
 const eventGroupLabels: Record<EventGroupKey, string> = {
   thisWeek: "This Week",
   thisMonth: "This Month",
   longRange: "Long Range Planning",
   past: "Past Events"
+};
+
+const eventTabLabels: Record<EventTabKey, string> = {
+  upcoming: "Upcoming",
+  thisWeek: "This Week",
+  thisMonth: "This Month",
+  longRange: "Long Range",
+  past: "Archive"
 };
 
 type WorkspaceView = "dashboard" | "events" | "tasks";
@@ -173,46 +183,21 @@ export default function MinistryWorkspace({ view }: { view: WorkspaceView }) {
         <DashboardWorkspace overview={overview} totalTasks={totalTasks} doneTasks={doneTasks} blockedTasks={blockedTasks} />
       ) : view === "events" ? (
         <section className="grid workflow-stack">
-          <div className="grid">
-            {activeRole === "admin" ? (
-              <section className="panel liquid-panel workflow-command-panel" id="create-event">
-                <div className="toolbar split">
-                  <div>
-                    <p className="eyebrow">Admin</p>
-                    <h2 className="section-title flush">
-                      Create Event
-                    </h2>
-                  </div>
-                  <button className="button primary" type="button" onClick={() => openCreate()}>
-                    + Create New Event
-                  </button>
-                </div>
-              </section>
-            ) : (
-              <section className="panel liquid-panel workflow-command-panel" id="create-event">
-                <p className="eyebrow">Leader View</p>
-                <h2 className="section-title">Assigned Ministry Work</h2>
-                <p className="muted flush-copy">
-                  Leaders can move assigned tasks through statuses and review event workspace details. Event creation is
-                  reserved for admins in this launch slice.
-                </p>
-              </section>
-            )}
+          <MinistryEmmaPanel page="events" overview={overview} />
 
-            <MinistryEmmaPanel page="events" overview={overview} />
-
-            <EventsWorkspace
-              events={overview.events}
-              tasks={overview.tasks}
-              users={activeUsers}
-              expenses={overview.expenses}
-              expandedEventIds={expandedEventIds}
-              onToggleEvent={toggleEventExpansion}
-              onOpenEvent={openCommandCenter}
-              onUpdateTask={updateTask}
-              onUpdateEvent={updateEvent}
-            />
-          </div>
+          <EventsWorkspace
+            events={overview.events}
+            tasks={overview.tasks}
+            users={activeUsers}
+            expenses={overview.expenses}
+            canCreateEvent
+            expandedEventIds={expandedEventIds}
+            onCreateEvent={openCreate}
+            onToggleEvent={toggleEventExpansion}
+            onOpenEvent={openCommandCenter}
+            onUpdateTask={updateTask}
+            onUpdateEvent={updateEvent}
+          />
         </section>
       ) : (
         <section className="grid workflow-stack">
@@ -755,7 +740,9 @@ function EventsWorkspace({
   tasks,
   users,
   expenses,
+  canCreateEvent,
   expandedEventIds,
+  onCreateEvent,
   onToggleEvent,
   onOpenEvent,
   onUpdateTask,
@@ -765,70 +752,76 @@ function EventsWorkspace({
   tasks: ActiveTask[];
   users: User[];
   expenses: EventExpense[];
+  canCreateEvent: boolean;
   expandedEventIds: string[];
+  onCreateEvent: () => void;
   onToggleEvent: (eventId: string) => void;
   onOpenEvent: (eventId: string) => void;
   onUpdateTask: (taskId: string, body: Partial<ActiveTask>) => Promise<void>;
   onUpdateEvent: (eventId: string, body: Partial<MinistryEvent>) => Promise<void>;
 }) {
+  const [activeTab, setActiveTab] = useState<EventTabKey>("upcoming");
   const groupedEvents = groupEventsByTimeframe(events);
+  const visibleEvents = getEventsForTab(activeTab, groupedEvents);
 
   return (
-    <section className="panel liquid-page-panel events-workspace-panel" id="events-workspace">
-      <p className="eyebrow">Primary Workflow</p>
-      <h2 className="section-title">Events Workspace</h2>
-      <div className="grid">
-        {(Object.keys(eventGroupLabels) as EventGroupKey[]).map((groupKey) => {
-          const groupEvents = groupedEvents[groupKey];
+    <section className="events-workspace-panel events-lovable-workspace" id="events-workspace">
+      <div className="events-lovable-toolbar" aria-label="Event filters">
+        <div className="events-lovable-tabs" role="tablist" aria-label="Event timeframe">
+          {(Object.keys(eventTabLabels) as EventTabKey[]).map((tabKey) => (
+            <button
+              className={tabKey === activeTab ? "event-filter-tab active" : "event-filter-tab"}
+              key={tabKey}
+              type="button"
+              role="tab"
+              aria-selected={tabKey === activeTab}
+              onClick={() => setActiveTab(tabKey)}
+            >
+              {eventTabLabels[tabKey]}
+            </button>
+          ))}
+        </div>
+        {canCreateEvent ? (
+          <button className="button primary events-create-button" type="button" onClick={onCreateEvent}>
+            <Plus aria-hidden="true" />
+            Create New Event
+          </button>
+        ) : null}
+      </div>
 
-          return (
-            <section className={groupKey === "thisWeek" || groupKey === "thisMonth" ? "event-group priority" : "event-group"} key={groupKey}>
-              <div className="event-group-header">
-                <h3>{eventGroupLabels[groupKey]}</h3>
-                <span className="pill">{groupEvents.length}</span>
-              </div>
-              <div className="event-board" role="table" aria-label={`${eventGroupLabels[groupKey]} event card-row board`}>
-                <div className="event-board-header" role="row">
-                  <span role="columnheader">Event Identity</span>
-                  <span role="columnheader">Date / Time</span>
-                  <span role="columnheader">Scrollable Summary</span>
-                </div>
-                <div className="event-board-rows">
-                  {groupEvents.length === 0 ? (
-                    <p className="muted">No events in this group yet.</p>
-                  ) : (
-                    groupEvents.map((event) => {
-                    const eventTasks = tasks.filter((task) => task.eventId === event.id);
-                    const completeTasks = eventTasks.filter((task) => task.status === "done").length;
-                    const owner = users.find((user) => user.id === event.contactOwnerId);
-                    const eventExpenses = expenses.filter((expense) => expense.eventId === event.id);
-                    const isExpanded = expandedEventIds.includes(event.id);
-                    const missingCount = estimateMissingInformationCount(event);
+      <div className="event-lovable-list" aria-label={`${eventTabLabels[activeTab]} events`}>
+        {visibleEvents.length ? (
+          visibleEvents.map((event) => {
+            const eventTasks = tasks.filter((task) => task.eventId === event.id);
+            const completeTasks = eventTasks.filter((task) => task.status === "done").length;
+            const owner = users.find((user) => user.id === event.contactOwnerId);
+            const eventExpenses = expenses.filter((expense) => expense.eventId === event.id);
+            const isExpanded = expandedEventIds.includes(event.id);
+            const missingCount = estimateMissingInformationCount(event);
 
-                    return (
-                      <EventRowCard
-                        key={event.id}
-                        event={event}
-                        tasks={eventTasks}
-                        owner={owner}
-                        expenses={eventExpenses}
-                        completeTasks={completeTasks}
-                        missingCount={missingCount}
-                        isExpanded={isExpanded}
-                        onToggleEvent={onToggleEvent}
-                        onOpenEvent={onOpenEvent}
-                        onUpdateTask={onUpdateTask}
-                        onUpdateEvent={onUpdateEvent}
-                        users={users}
-                      />
-                    );
-                    })
-                  )}
-                 </div>
-              </div>
-            </section>
-          );
-        })}
+            return (
+              <EventRowCard
+                key={event.id}
+                event={event}
+                tasks={eventTasks}
+                owner={owner}
+                expenses={eventExpenses}
+                completeTasks={completeTasks}
+                missingCount={missingCount}
+                isExpanded={isExpanded}
+                onToggleEvent={onToggleEvent}
+                onOpenEvent={onOpenEvent}
+                onUpdateTask={onUpdateTask}
+                onUpdateEvent={onUpdateEvent}
+                users={users}
+              />
+            );
+          })
+        ) : (
+          <div className="event-lovable-empty">
+            <p className="muted">No events in this view yet.</p>
+          </div>
+        )}
       </div>
     </section>
   );
@@ -865,9 +858,8 @@ function EventRowCard({
 
   return (
     <article className={`event-row event-row-card ${rowTone}`} data-start-time={event.startTime}>
-      <div className="event-card-row" role="row">
-        <EventIdentitySection event={event} tasks={tasks} completeTasks={completeTasks} />
-        <EventDateBlock event={event} />
+      <div className="event-card-row event-lovable-card-row" role="row">
+        <EventIdentitySection event={event} tasks={tasks} completeTasks={completeTasks} owner={owner} />
         <EventScrollableSummary
           event={event}
           owner={owner}
@@ -880,6 +872,7 @@ function EventRowCard({
           onOpenEvent={onOpenEvent}
           onUpdateEvent={onUpdateEvent}
         />
+        <EventOperationsRail event={event} tasks={tasks} completeTasks={completeTasks} missingCount={missingCount} />
       </div>
 
       {isExpanded ? (
@@ -908,19 +901,27 @@ function getEventRowTone(event: MinistryEvent) {
 function EventIdentitySection({
   event,
   tasks,
-  completeTasks
+  completeTasks,
+  owner
 }: {
   event: MinistryEvent;
   tasks: ActiveTask[];
   completeTasks: number;
+  owner?: User;
 }) {
   const { openEdit } = useEventCard();
+  const startDate = event.startTime ? formatDate(event.startTime) : "Missing date";
+  const timeRange = event.startTime ? formatEventTimeRange(event) : "Missing time";
   return (
     <div
       className="event-identity-section event-identity-clickable"
       role="cell"
       onClick={() => openEdit(event.id)}
     >
+      <div className="event-status-line">
+        <span className="event-type-tag">{eventTypeLabels[event.type]}</span>
+        <span className="event-state-label">{humanizeStatus(event.status)}</span>
+      </div>
       <div className="event-row-title">
         <button
           className="button ghost"
@@ -933,12 +934,25 @@ function EventIdentitySection({
         >
           {event.title}
         </button>
-        <p className="muted">{event.description || "No event description yet."}</p>
       </div>
-      <div className="event-identity-meta">
-        <span className="pill">{eventTypeLabels[event.type]}</span>
-        <span className={event.status === "ready" || event.status === "completed" ? "pill done" : "pill"}>{event.status}</span>
-        <span className="pill blue">{completeTasks}/{tasks.length} tasks</span>
+      <div className="event-identity-meta lovable-event-meta">
+        <span>
+          <Clock3 aria-hidden="true" />
+          {startDate} · {timeRange}
+        </span>
+        <span>
+          <MapPin aria-hidden="true" />
+          {event.location || "Location needed"}
+        </span>
+        <span>
+          <UserRound aria-hidden="true" />
+          {owner ? `${owner.firstName} ${owner.lastName}` : "Owner unassigned"}
+          <span aria-hidden="true"> · </span>
+          {eventTypeLabels[event.type]}
+        </span>
+        <span className="sr-only">
+          {completeTasks} of {tasks.length} checklist tasks complete
+        </span>
       </div>
     </div>
   );
@@ -986,14 +1000,17 @@ function EventScrollableSummary({
 
   return (
     <div className="event-summary-shell" role="cell">
-      <button
-        className="summary-toggle-button"
-        type="button"
-        onClick={() => onToggleEvent(event.id)}
-        aria-label={isExpanded ? `Collapse task tree for ${event.title}` : `Expand task tree for ${event.title}`}
-      >
-        Tasks {tasks.length} {isExpanded ? "-" : "+"}
-      </button>
+      <div className="event-summary-heading">
+        <h3>Scrollable Summary</h3>
+        <button
+          className="summary-toggle-button"
+          type="button"
+          onClick={() => onToggleEvent(event.id)}
+          aria-label={isExpanded ? `Collapse task tree for ${event.title}` : `Expand task tree for ${event.title}`}
+        >
+          Tasks {tasks.length} {isExpanded ? "-" : "+"}
+        </button>
+      </div>
       <div className="event-summary-scroll" aria-label={`${event.title} horizontally scrollable summary`}>
         <EventSummaryField label="Owner" value={owner ? `${owner.firstName} ${owner.lastName}` : "Missing owner"} tone={owner ? undefined : "warning"} />
         <EventSummaryField label="Location" value={event.location ?? "Missing location"} tone={event.location ? undefined : "warning"} />
@@ -1029,6 +1046,60 @@ function EventScrollableSummary({
         </div>
       </div>
     </div>
+  );
+}
+
+function EventOperationsRail({
+  event,
+  tasks,
+  completeTasks,
+  missingCount
+}: {
+  event: MinistryEvent;
+  tasks: ActiveTask[];
+  completeTasks: number;
+  missingCount: number;
+}) {
+  const totalTasks = Math.max(tasks.length, 1);
+  const progress = Math.round((completeTasks / totalTasks) * 100);
+  const volunteersNeeded = estimateVolunteersNeeded(event, tasks);
+  const filesCount = Math.max(1, Math.ceil(tasks.length / 2));
+  const parentStatus = missingCount === 0 ? "P:Sent" : "P:Draft";
+  const leaderStatus = event.status === "ready" || event.status === "completed" ? "L:Ready" : "L:Draft";
+
+  return (
+    <aside className="event-operations-rail" role="cell" aria-label={`${event.title} operations snapshot`}>
+      <div className="event-rail-metric">
+        <div>
+          <span>
+            <CheckSquare aria-hidden="true" />
+            Checklist
+          </span>
+          <strong>{completeTasks}/{tasks.length}</strong>
+        </div>
+        <div className="event-rail-progress" aria-hidden="true">
+          <span style={{ width: `${progress}%` }} />
+        </div>
+      </div>
+
+      <div className="event-rail-metric">
+        <span>
+          <UsersRound aria-hidden="true" />
+          Volunteers
+        </span>
+        <strong className={volunteersNeeded.includes("needed") ? "event-rail-warning" : "event-rail-ready"}>
+          {volunteersNeeded}
+        </strong>
+      </div>
+
+      <div className="event-rail-footer">
+        <span>
+          <FileText aria-hidden="true" />
+          {filesCount} files
+        </span>
+        <span>{parentStatus} · {leaderStatus}</span>
+      </div>
+    </aside>
   );
 }
 
@@ -1261,6 +1332,17 @@ function groupEventsByTimeframe(events: MinistryEvent[]) {
     });
 
   return groups;
+}
+
+function getEventsForTab(activeTab: EventTabKey, groupedEvents: Record<EventGroupKey, MinistryEvent[]>) {
+  if (activeTab === "upcoming") {
+    return [...groupedEvents.thisWeek, ...groupedEvents.thisMonth, ...groupedEvents.longRange];
+  }
+  return groupedEvents[activeTab];
+}
+
+function humanizeStatus(status: MinistryEvent["status"]) {
+  return status.replace(/_/g, " ").toUpperCase();
 }
 
 function groupTasksByEvent(tasks: ActiveTask[], events: MinistryEvent[]) {

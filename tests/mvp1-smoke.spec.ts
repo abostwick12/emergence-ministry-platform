@@ -122,31 +122,31 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await expect(page.getByText(/Making disciples/)).toHaveCount(0);
   });
 
-  test("events page preserves the board-row Events Workspace", async ({ page }) => {
+  test("events page loads the Lovable event cards", async ({ page }) => {
     await login(page);
     await page.goto("/events");
 
     await expect(page.getByRole("heading", { name: "Events", level: 1 })).toBeVisible();
     await expect(page.locator("#create-event").getByPlaceholder("Fall Kickoff Night")).not.toBeVisible();
-    await expect(page.getByRole("heading", { name: "Events Workspace" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Events Assistant" })).toBeVisible();
 
-    for (const group of ["This Week", "This Month", "Long Range Planning", "Past Events"]) {
-      await expect(page.getByRole("heading", { name: group })).toBeVisible();
+    for (const tab of ["Upcoming", "This Week", "This Month", "Long Range", "Archive"]) {
+      await expect(page.getByRole("tab", { name: tab })).toBeVisible();
     }
 
-    const boardHeader = page.locator(".event-board-header").first();
-    for (const column of ["Event Identity", "Date / Time", "Scrollable Summary"]) {
-      await expect(boardHeader.getByText(column, { exact: true })).toBeVisible();
-    }
+    await expect(page.locator(".event-row-card").first()).toBeVisible();
 
     const winterRow = page.locator(".event-row-card", { hasText: "Winter Retreat" });
     await expect(winterRow.locator(".event-identity-section")).toBeVisible();
-    await expect(winterRow.locator(".event-date-block")).toBeVisible();
     await expect(winterRow.locator(".event-summary-scroll")).toBeVisible();
-    await expect(winterRow.getByText("Scroll summary fields sideways")).toHaveCount(0);
+    const operationsRail = winterRow.locator(".event-operations-rail");
+    await expect(operationsRail).toBeVisible();
+    await expect(winterRow.getByRole("heading", { name: "Scrollable Summary" })).toBeVisible();
+    await expect(operationsRail.getByText("Checklist", { exact: true })).toBeVisible();
+    await expect(operationsRail.getByText("Volunteers", { exact: true })).toBeVisible();
     await expect(winterRow.locator(".event-summary-scroll").getByRole("button", { name: /Notes/ })).toBeVisible();
     const rowAccentRailWidth = await winterRow.evaluate((element) => getComputedStyle(element, "::before").width);
-    expect(rowAccentRailWidth).toBe("8px");
+    expect(rowAccentRailWidth).toBe("3px");
     const summaryOwnsHorizontalScroll = await winterRow
       .locator(".event-summary-scroll")
       .evaluate((element) => element.scrollWidth > element.clientWidth);
@@ -185,7 +185,7 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await page.goto("/events");
 
     await expect(page.getByRole("dialog")).toHaveCount(0);
-    await page.getByRole("button", { name: "+ Create New Event" }).click();
+    await page.getByRole("button", { name: /Create New Event/ }).click();
 
     const modal = page.getByRole("dialog", { name: "Create New Event" });
     await expect(modal).toBeVisible();
@@ -336,13 +336,15 @@ test.describe("MVP event automation navigation smoke tests", () => {
     for (const route of [
       ["/communications", "Communication Drafts", "Event Copy Queue"],
       ["/people", "Ministry Roster", "Team Load"],
-      ["/budget", "Budget Workspace", "Event Budgets"],
+      ["/budget", "Budget Workspace", "Where the money is going"],
       ["/settings", "Platform Settings", "Launch Controls"]
     ] as const) {
       await page.goto(route[0]);
       await expect(page.getByRole("heading", { name: route[1] })).toBeVisible();
       await expect(page.getByText(route[2])).toBeVisible();
-      await expect(page.getByText("Preview-only sending").first()).toBeVisible();
+      if (route[0] !== "/budget") {
+        await expect(page.getByText("Preview-only sending").first()).toBeVisible();
+      }
     }
   });
 

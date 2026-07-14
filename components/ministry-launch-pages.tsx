@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { FormEvent, ReactNode } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowUpRight,
   Bell,
@@ -19,6 +19,7 @@ import {
   UsersRound
 } from "lucide-react";
 import { MinistryEmmaPanel } from "@/components/ministry-emma-panel";
+import type { MinistryEmmaPage } from "@/lib/emma/ministry-page-assistant";
 import type { ActiveTask, ActivityLog, EventExpense, MinistryEvent, User } from "@/lib/types";
 import { formatDate, money } from "@/lib/utils";
 
@@ -59,6 +60,7 @@ export function MinistryCommunicationsPage() {
       eyebrow="Communications"
       title="Communication Drafts"
       description="Preview what needs to be said, who owns it, and what is still missing before anything gets shared."
+      emmaPage="communications"
     >
       {(overview) => <CommunicationsWorkspace overview={overview} />}
     </LaunchDataPage>
@@ -71,6 +73,7 @@ export function MinistryPeoplePage() {
       eyebrow="People"
       title="Ministry Roster"
       description="See who is carrying the work, where assignments are uncovered, and what belongs in student or parent spaces."
+      emmaPage="people"
     >
       {(overview) => <PeopleWorkspace overview={overview} />}
     </LaunchDataPage>
@@ -83,6 +86,8 @@ export function MinistryBudgetPage() {
       eyebrow="Budget"
       title="Budget Workspace"
       description="Track event targets, recorded spend, and the next planning cost without connecting accounting yet."
+      emmaPage="budget"
+      showHero={false}
     >
       {(overview, refresh) => <BudgetWorkspace overview={overview} refresh={refresh} />}
     </LaunchDataPage>
@@ -95,6 +100,7 @@ export function MinistrySettingsPage({ user, canManageCampAccess }: { user: Sett
       eyebrow="Settings"
       title="Platform Settings"
       description="Keep access, workflow boundaries, and integration readiness visible without exposing secrets."
+      emmaPage="settings"
     >
       {(overview) => <SettingsWorkspace overview={overview} user={user} canManageCampAccess={canManageCampAccess} />}
     </LaunchDataPage>
@@ -105,11 +111,15 @@ function LaunchDataPage({
   eyebrow,
   title,
   description,
+  emmaPage,
+  showHero = true,
   children
 }: {
   eyebrow: string;
   title: string;
   description: string;
+  emmaPage: MinistryEmmaPage;
+  showHero?: boolean;
   children: (overview: MinistryOverview, refresh: () => Promise<void>) => ReactNode;
 }) {
   const [overview, setOverview] = useState<MinistryOverview>(emptyOverview);
@@ -146,20 +156,6 @@ function LaunchDataPage({
 
   return (
     <section className="ministry-launch-page" aria-labelledby={`${eyebrow.toLowerCase()}-launch-title`}>
-      <div className="ministry-launch-hero">
-        <div>
-          <p className="eyebrow">{eyebrow}</p>
-          <h2 className="section-title flush" id={`${eyebrow.toLowerCase()}-launch-title`}>
-            {title}
-          </h2>
-          <p className="muted">{description}</p>
-        </div>
-        <div className="ministry-launch-hero-actions" aria-label="Workspace status">
-          <span className="pill blue">{loading ? "Loading" : "Live workspace"}</span>
-          <span className="pill amber">Preview-only sending</span>
-        </div>
-      </div>
-
       {error ? (
         <div className="ministry-launch-alert" role="alert">
           {error}
@@ -169,7 +165,34 @@ function LaunchDataPage({
         </div>
       ) : null}
 
-      {loading ? <LaunchSkeleton /> : children(overview, loadOverview)}
+      {loading ? (
+        <LaunchSkeleton />
+      ) : (
+        <>
+          <MinistryEmmaPanel page={emmaPage} overview={overview} />
+          {!showHero ? (
+            <h2 className="sr-only" id={`${eyebrow.toLowerCase()}-launch-title`}>
+              {title}
+            </h2>
+          ) : null}
+          {showHero ? (
+            <div className="ministry-launch-hero">
+              <div>
+                <p className="eyebrow">{eyebrow}</p>
+                <h2 className="section-title flush" id={`${eyebrow.toLowerCase()}-launch-title`}>
+                  {title}
+                </h2>
+                <p className="muted">{description}</p>
+              </div>
+              <div className="ministry-launch-hero-actions" aria-label="Workspace status">
+                <span className="pill blue">Live workspace</span>
+                <span className="pill amber">Preview-only sending</span>
+              </div>
+            </div>
+          ) : null}
+          {children(overview, loadOverview)}
+        </>
+      )}
     </section>
   );
 }
@@ -185,10 +208,6 @@ function CommunicationsWorkspace({ overview }: { overview: MinistryOverview }) {
       <LaunchMetric icon={<Mail aria-hidden="true" />} label="Ready previews" value={String(ready)} detail="Events with core copy fields filled" tone="cyan" />
       <LaunchMetric icon={<Bell aria-hidden="true" />} label="Needs review" value={String(reviewNeeded)} detail="Missing details before drafts are useful" tone="gold" />
       <LaunchMetric icon={<UsersRound aria-hidden="true" />} label="Owner gaps" value={String(missingOwner)} detail="Events without a communication owner" tone="violet" />
-
-      <div className="ministry-launch-span-3">
-        <MinistryEmmaPanel page="communications" overview={overview} />
-      </div>
 
       <article className="ministry-launch-panel ministry-launch-span-2">
         <SectionHead eyebrow="Event Copy Queue" title="What needs attention before people hear about it" />
@@ -241,10 +260,6 @@ function PeopleWorkspace({ overview }: { overview: MinistryOverview }) {
       <LaunchMetric icon={<Clock3 aria-hidden="true" />} label="Open tasks" value={String(openTasks.length)} detail="Assignments still moving" tone="gold" />
       <LaunchMetric icon={<UsersRound aria-hidden="true" />} label="Coverage gaps" value={String(unassignedTasks.length)} detail="Tasks without a known profile owner" tone="violet" />
 
-      <div className="ministry-launch-span-3">
-        <MinistryEmmaPanel page="people" overview={overview} />
-      </div>
-
       <article className="ministry-launch-panel ministry-launch-span-2">
         <SectionHead eyebrow="Team Load" title="Who is carrying active work" />
         <div className="ministry-launch-list">
@@ -293,6 +308,7 @@ function BudgetWorkspace({ overview, refresh }: { overview: MinistryOverview; re
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const expenseFormRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     if (!eventId && overview.events[0]?.id) setEventId(overview.events[0].id);
@@ -303,6 +319,21 @@ function BudgetWorkspace({ overview, refresh }: { overview: MinistryOverview; re
     const spent = overview.expenses.reduce((sum, expense) => sum + Number(expense.amount ?? 0), 0);
     return { target, spent, remaining: target - spent };
   }, [overview.events, overview.expenses]);
+
+  const categoryTotals = useMemo(() => {
+    return expenseCategories.map(([id, label]) => {
+      const spent = overview.expenses
+        .filter((expense) => expense.categoryId === id)
+        .reduce((sum, expense) => sum + Number(expense.amount ?? 0), 0);
+      const planned = Math.max(
+        spent,
+        overview.events.reduce((sum, event) => sum + Number(event.budgetTarget ?? 0), 0) / expenseCategories.length
+      );
+      return { id, label, spent, planned };
+    });
+  }, [overview.events, overview.expenses]);
+
+  const projectedYearEnd = totals.spent + Math.max(0, totals.remaining) * 0.18;
 
   async function submitExpense(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -328,29 +359,47 @@ function BudgetWorkspace({ overview, refresh }: { overview: MinistryOverview; re
   }
 
   return (
-    <div className="ministry-launch-grid">
+    <div className="ministry-launch-grid ministry-budget-dashboard">
+      <div className="ministry-budget-actions ministry-launch-span-3">
+        <button
+          className="button primary"
+          type="button"
+          onClick={() => setMessage("Receipt capture preview noted. No file was uploaded or stored.")}
+        >
+          <ReceiptText aria-hidden="true" />
+          Capture receipt
+        </button>
+        <button className="button" type="button" onClick={() => expenseFormRef.current?.scrollIntoView({ behavior: "smooth", block: "center" })}>
+          + New expense
+        </button>
+        <button className="button budget-filter-chip" type="button" disabled aria-label="Budget period filter locked to this quarter">
+          This quarter
+        </button>
+      </div>
+
       <LaunchMetric icon={<CircleDollarSign aria-hidden="true" />} label="Planned" value={money(totals.target)} detail="Budget targets across events" tone="cyan" />
       <LaunchMetric icon={<ReceiptText aria-hidden="true" />} label="Recorded" value={money(totals.spent)} detail="Actuals visible in this workspace" tone="gold" />
       <LaunchMetric icon={<Sparkles aria-hidden="true" />} label="Remaining" value={money(totals.remaining)} detail="Target minus recorded spend" tone={totals.remaining < 0 ? "violet" : "cyan"} />
+      <LaunchMetric icon={<ArrowUpRight aria-hidden="true" />} label="Projected Year-End" value={money(projectedYearEnd)} detail={totals.remaining >= 0 ? "On pace" : "Over target"} tone={totals.remaining >= 0 ? "cyan" : "violet"} />
 
-      <div className="ministry-launch-span-3">
-        <MinistryEmmaPanel page="budget" overview={overview} />
-      </div>
-
-      <article className="ministry-launch-panel ministry-launch-span-2">
-        <SectionHead eyebrow="Event Budgets" title="Targets and recorded actuals" />
+      <article className="ministry-launch-panel ministry-launch-span-3 ministry-budget-overview-panel">
+        <div className="ministry-budget-overview-head">
+          <SectionHead eyebrow="Overall" title="Where the money is going" />
+          <strong>{money(totals.spent)} <span>of {money(totals.target)}</span></strong>
+        </div>
+        <div className="ministry-budget-track ministry-budget-overall-track" aria-label="Overall budget progress">
+          <span style={{ width: `${totals.target ? Math.min(100, Math.round((totals.spent / totals.target) * 100)) : 0}%` }} />
+        </div>
         <div className="ministry-budget-stack">
-          {overview.events.map((event) => {
-            const spent = overview.expenses.filter((expense) => expense.eventId === event.id).reduce((sum, expense) => sum + expense.amount, 0);
-            const target = Number(event.budgetTarget ?? 0);
-            const percent = target ? Math.min(100, Math.round((spent / target) * 100)) : 0;
+          {categoryTotals.map((category, index) => {
+            const percent = category.planned ? Math.min(100, Math.round((category.spent / category.planned) * 100)) : 0;
             return (
-              <div className="ministry-budget-row" key={event.id}>
+              <div className={`ministry-budget-row budget-color-${index % 5}`} key={category.id}>
                 <div>
-                  <strong>{event.title}</strong>
-                  <span>{target ? `${money(spent)} of ${money(target)}` : `${money(spent)} recorded - no target yet`}</span>
+                  <strong>{category.label}</strong>
+                  <span>{money(category.spent)} / {money(category.planned)}</span>
                 </div>
-                <div className="ministry-budget-track" aria-label={`${event.title} budget progress`}>
+                <div className="ministry-budget-track" aria-label={`${category.label} budget progress`}>
                   <span style={{ width: `${percent}%` }} />
                 </div>
               </div>
@@ -359,9 +408,35 @@ function BudgetWorkspace({ overview, refresh }: { overview: MinistryOverview; re
         </div>
       </article>
 
+      <article className="ministry-launch-panel ministry-launch-span-2">
+        <SectionHead eyebrow="Ledger" title="Recent expenses" />
+        <div className="ministry-budget-search" aria-label="Expense search preview">
+          Search vendor, category...
+        </div>
+        <div className="ministry-launch-list">
+          {overview.expenses.length ? (
+            overview.expenses.slice(0, 6).map((expense) => {
+              const event = overview.events.find((item) => item.id === expense.eventId);
+              const category = expenseCategories.find(([value]) => value === expense.categoryId)?.[1] ?? "General";
+              return (
+                <div className="ministry-budget-ledger-row" key={expense.id}>
+                  <span>{formatDate(expense.timestamp)}</span>
+                  <strong>{expense.description}</strong>
+                  <span>{event?.title ?? "Event"}</span>
+                  <span>{category}</span>
+                  <strong>{money(expense.amount)}</strong>
+                </div>
+              );
+            })
+          ) : (
+            <p className="muted">No expenses recorded yet.</p>
+          )}
+        </div>
+      </article>
+
       <article className="ministry-launch-panel">
         <SectionHead eyebrow="Add Cost" title="Record a planning expense" />
-        <form className="ministry-launch-form" onSubmit={(submitEvent) => void submitExpense(submitEvent)}>
+        <form className="ministry-launch-form" ref={expenseFormRef} onSubmit={(submitEvent) => void submitExpense(submitEvent)}>
           <label className="field">
             <span>Event</span>
             <select className="input" value={eventId} onChange={(changeEvent) => setEventId(changeEvent.target.value)} required>
@@ -407,10 +482,6 @@ function SettingsWorkspace({ overview, user, canManageCampAccess }: { overview: 
       <LaunchMetric icon={<ShieldCheck aria-hidden="true" />} label="Current role" value={(user?.role ?? "guest").toUpperCase()} detail={user?.email ?? "No active session profile"} tone="cyan" />
       <LaunchMetric icon={<CheckCircle2 aria-hidden="true" />} label="Workflows" value={String(overview.events.length)} detail="Events available to operational pages" tone="gold" />
       <LaunchMetric icon={<Sparkles aria-hidden="true" />} label="Camp access" value={canManageCampAccess ? "Admin" : "Scoped"} detail="Camp settings remain in the Camp visual system below" tone="violet" />
-
-      <div className="ministry-launch-span-3">
-        <MinistryEmmaPanel page="settings" overview={overview} />
-      </div>
 
       <article className="ministry-launch-panel ministry-launch-span-3">
         <SectionHead eyebrow="Launch Controls" title="What is live, preview-only, or protected" />

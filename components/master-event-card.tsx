@@ -707,12 +707,11 @@ function Step1Form({
           />
         </div>
         <div className="field">
-          <label htmlFor="ec-endTime">End Date &amp; Time <span aria-hidden="true">*</span></label>
+          <label htmlFor="ec-endTime">End Date &amp; Time</label>
           <input
             className="input"
             id="ec-endTime"
             type="datetime-local"
-            required
             value={state.endTime}
             onChange={(e) => onEndChange(e.target.value)}
           />
