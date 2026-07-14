@@ -205,7 +205,11 @@ function parseDecisionInput(rawInput: unknown): z.infer<typeof proposalDecisionS
 }
 
 function isReviewableInertProposal(proposal: { actionType: string; payload: unknown }): boolean {
-  return proposal.actionType === "none" && proposalTypeFromPayload(proposal.payload) === "event_summary_recommendation";
+  const proposalType = proposalTypeFromPayload(proposal.payload);
+  return (
+    proposal.actionType === "none" &&
+    (proposalType === "event_summary_recommendation" || proposalType === "ministry_page_recommendation")
+  );
 }
 
 function mapProposalRow(row: any): EmmaActionProposalRecord {

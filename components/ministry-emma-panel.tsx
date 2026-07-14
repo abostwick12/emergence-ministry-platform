@@ -26,6 +26,16 @@ type EmmaEventResult = {
   proposalId: string | null;
 };
 
+type EmmaPageProposalResult = {
+  ok: true;
+  proposalCreated: true;
+  proposalId: string;
+  requestId: string;
+  runId: string;
+  summary: string;
+  executed: false;
+};
+
 type EmmaMessage = {
   id: string;
   author: "user" | "emma";
@@ -97,10 +107,41 @@ export function MinistryEmmaPanel({
         await runAuditedSummary(trimmedPrompt, selectedEventId);
       } else {
         const response = answerMinistryEmmaPrompt({ overview, page, prompt: trimmedPrompt, staticSignals: stableStaticSignals });
-        setMessages((current) => [...current, toEmmaMessage(response, "EMMA page guidance")]);
+        const proposalAudit = createProposal ? await createPageProposal(trimmedPrompt) : null;
+        setMessages((current) => [
+          ...current,
+          toEmmaMessage(
+            response,
+            proposalAudit ??
+              (createProposal
+                ? "EMMA proposal was not created. Page guidance stayed local and no action was executed."
+                : "EMMA page guidance")
+          )
+        ]);
       }
     } finally {
       setIsRunning(false);
+    }
+  }
+
+  async function createPageProposal(trimmedPrompt: string): Promise<string | null> {
+    try {
+      const response = await fetch("/api/emma/page-proposals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          page,
+          prompt: trimmedPrompt,
+          selectedEventId: selectedEventId || undefined
+        })
+      });
+      const payload = (await response.json().catch(() => ({}))) as Partial<EmmaPageProposalResult> & { ok?: boolean };
+      if (!response.ok || payload.ok !== true || !payload.proposalId || !payload.requestId || !payload.runId) {
+        return null;
+      }
+      return `Proposal ${payload.proposalId} / Request ${payload.requestId} / Run ${payload.runId}`;
+    } catch {
+      return null;
     }
   }
 
@@ -224,12 +265,10 @@ export function MinistryEmmaPanel({
             </label>
           ) : null}
 
-          {overview?.events.length ? (
-            <label className="toggle-row ministry-emma-toggle">
-              <input type="checkbox" checked={createProposal} disabled={isRunning || !canRunEventSummary} onChange={(event) => setCreateProposal(event.target.checked)} />
-              <span>Create inert recommendation proposal</span>
-            </label>
-          ) : null}
+          <label className="toggle-row ministry-emma-toggle">
+            <input type="checkbox" checked={createProposal} disabled={isRunning || (shouldRunAuditedEventSummary(prompt) && !canRunEventSummary)} onChange={(event) => setCreateProposal(event.target.checked)} />
+            <span>Create inert recommendation proposal</span>
+          </label>
 
           <label className="field ministry-emma-field">
             <span>Message EMMA</span>

@@ -1,7 +1,8 @@
 import type { InternalEventSummary } from "@/lib/emma/providers/internal-event-summary";
+import type { MinistryEmmaPage, MinistryEmmaResponse } from "@/lib/emma/ministry-page-assistant";
 import type { EmmaActionProposalRecord, EmmaRiskLevel } from "@/lib/emma/types";
 
-export const EMMA_PROPOSAL_TYPES = ["event_summary_recommendation"] as const;
+export const EMMA_PROPOSAL_TYPES = ["event_summary_recommendation", "ministry_page_recommendation"] as const;
 export type EmmaProposalType = (typeof EMMA_PROPOSAL_TYPES)[number];
 
 export const BLOCKED_EMMA_PROPOSAL_TYPES = [
@@ -29,7 +30,18 @@ export interface EventSummaryRecommendationPayload {
   executed: false;
 }
 
-export interface EmmaProposalCreationResult<TPayload = EventSummaryRecommendationPayload> {
+export interface MinistryPageRecommendationPayload {
+  proposalType: "ministry_page_recommendation";
+  page: MinistryEmmaPage;
+  prompt: string;
+  response: MinistryEmmaResponse;
+  selectedEventId: string | null;
+  executed: false;
+}
+
+export type EmmaProposalPayload = EventSummaryRecommendationPayload | MinistryPageRecommendationPayload;
+
+export interface EmmaProposalCreationResult<TPayload = EmmaProposalPayload> {
   proposalCreated: boolean;
   proposal: EmmaActionProposalRecord<TPayload> | null;
   requestId: string;
