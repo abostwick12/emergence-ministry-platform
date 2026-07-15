@@ -128,10 +128,20 @@
 .worship-secondary-workspace { border-top: 1px solid var(--editorial-line); padding-top: 18px; }
 .worship-secondary-workspace > summary { cursor: pointer; color: var(--text); font-weight: 800; }
 .worship-secondary-workspace[open] > summary { margin-bottom: 18px; }
+.student-current-journey { display: grid; gap: 16px; border-top: 1px solid var(--editorial-line); padding-top: 20px; }
+.student-current-journey-heading h2 { margin: 4px 0 0; color: var(--text); font-family: var(--font-platform-serif), Georgia, serif; font-size: var(--text-xl); }
+.formation-advanced-workspace,
+.leader-advanced-diagnostics { border-top: 1px solid var(--editorial-line); padding-top: 16px; }
+.formation-advanced-workspace > summary,
+.leader-advanced-diagnostics > summary { cursor: pointer; color: var(--text); font-weight: 800; }
+.formation-advanced-workspace[open] > summary,
+.leader-advanced-diagnostics[open] > summary { margin-bottom: 18px; }
+.formation-advanced-stack { display: grid; gap: 24px; }
+.discipleship-workspace-stack > .editorial-section .leader-workspace-hero { margin-top: 0; }
 
 .app-shell-platform .sidebar-context-divider { height: 1px; margin: 0 8px 12px; background: var(--editorial-line); }
 
-.app-shell-platform .student-lovable-road {
+.app-shell.app-shell-platform .app-content .student-lovable-road {
   position: static;
   top: auto;
   z-index: auto;
@@ -145,7 +155,7 @@
   list-style: none;
   backdrop-filter: none;
 }
-.app-shell-platform .student-lovable-road li { display: contents; list-style: none; }
+.app-shell.app-shell-platform .app-content .student-lovable-road li { display: contents; list-style: none; }
 
 @media (max-width: 720px) {
   .platform-page-intro,

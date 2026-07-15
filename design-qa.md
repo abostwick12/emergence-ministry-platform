@@ -17,6 +17,16 @@ Prototype captures:
 - `test-results/lovable-polish-worship.png`
 - `test-results/lovable-polish-budget.png`
 - `test-results/lovable-polish-emma-chat-fixed.png`
+- `test-results/dashboard-editorial-1280x900.png`
+- `test-results/events-editorial-1280x900.png`
+- `test-results/worship-editorial-1280x900.png`
+- `test-results/budget-editorial-1280x900.png`
+- `test-results/student-editorial-1280x900.png`
+- `test-results/discipleship-editorial-1280x900.png`
+- `test-results/student-scripture-questions-editorial-1280x900.png`
+- `test-results/events-editorial-768x1024.png`
+- `test-results/dashboard-editorial-390x844.png`
+- `test-results/student-editorial-390x844.png`
 
 Viewport and state:
 - Desktop viewport: 1280 x 900.
@@ -32,5 +42,12 @@ Checks:
 - Page title double-neon lines are removed; only the intended single title accent remains.
 - EMMA chat thread stays fixed-size and scrolls instead of expanding the whole assistant with every prompt.
 - Event cards have no page-level horizontal overflow at the checked desktop viewport.
+- Dashboard leads with decisions, permission-safe care signals, event readiness, and EMMA capabilities; unsupported volunteer and connection counts are absent.
+- Compact EMMA briefs preserve an intentional expanded workspace and keep audit-safe/no-live-send language visible.
+- Student Portal leads with the current question/journey and next step before reading progress, Scripture tools, community context, and history.
+- Journey Journal progress is a single semantic list with one current step and computed `position: static`.
+- Discipleship leads with student care and review, then formation signals; knowledge imports, resource packaging, video tools, and connection diagnostics are progressively disclosed.
+- Worship advanced rehearsal, GroupMe, and ProPresenter tools remain functional and preview-only inside a labeled secondary workspace.
+- The 390px and 768px captures retain readable single-column flow and approved internal rails without whole-page horizontal overflow.
 
 Final result: passed.
