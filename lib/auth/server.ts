@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { authCookieNames, getMockAuthUser, isMockAuthEnabled, isSupabaseConfigured } from "./config";
+import { resolvePersonName } from "./display-name";
 
 export type AuthSession = {
   user: {
@@ -119,7 +120,7 @@ export async function getServerSession(): Promise<AuthSession | null> {
     user: {
       id: data.user.id,
       email: data.user.email,
-      fullName: profile?.fullName ?? data.user.user_metadata?.full_name ?? data.user.email,
+      fullName: resolvePersonName(profile?.fullName ?? data.user.user_metadata?.full_name, data.user.email),
       role: profile?.role ?? metadataString(data.user.app_metadata, "role") ?? metadataString(data.user.user_metadata, "role") ?? "staff"
     },
     accessToken,

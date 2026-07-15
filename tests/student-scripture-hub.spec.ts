@@ -22,12 +22,14 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page).toHaveURL(/\/student$/);
     await expect(page.getByRole("heading", { name: "Student Portal" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Expand your path" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "How to Read resources" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Lead your first study" })).toBeVisible();
+    await expect(page.getByRole("complementary", { name: "Student actions" })).toBeVisible();
+    await page.getByText("Reading progress, Bible tools, and journey history", { exact: true }).click();
     await expect(page.getByRole("region", { name: "Private Bible reading progress" })).toContainText("0 of 8 How to Read guides signed off");
     await expect(page.getByRole("heading", { name: "Bible App Reader" })).toBeVisible();
+    await page.getByText("Start a New Question", { exact: true }).click();
     await expect(page.getByRole("heading", { name: "What should we talk about next?" })).toBeVisible();
-    await expect(page.getByRole("complementary", { name: "Student actions and keep reading" })).toBeVisible();
-    await page.getByRole("link", { name: /How to Read resources/ }).click();
+    await page.getByRole("link", { name: "Ask for context, not answers" }).click();
     await expect(page).toHaveURL(/\/student\/scripture\/how-to-read$/);
     await expect(page.getByRole("heading", { name: "Learn to read the Bible with care." })).toBeVisible();
 
@@ -63,10 +65,10 @@ test.describe("Student Scripture Hub shell", () => {
 
     await page.goto("/student");
     await expect(page.getByRole("heading", { name: "Student Portal" })).toBeVisible();
-    await expect(page.getByRole("region", { name: "Student home feed" })).toContainText("Continue your journey");
+    await expect(page.getByRole("region", { name: "Student home feed" })).toContainText(/Active journey|Your next journey starts/);
     await expect(page.getByRole("heading", { name: "Expand your path" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Study Builder" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "How to Read resources" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Lead your first study" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Ask for context, not answers" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Review Queue", exact: true })).toHaveCount(0);
     await expect(page.getByRole("link", { name: "Leader Review", exact: true })).toHaveCount(0);
     await expect(page.getByText("Metanarrative movement")).toHaveCount(0);
@@ -131,6 +133,7 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page.getByText("1 of 8 guides signed off")).toBeVisible();
     await expect(page.getByRole("status")).toContainText("Progress saved in this portal session.");
     await page.goto("/student");
+    await page.getByText("Reading progress, Bible tools, and journey history", { exact: true }).click();
     await expect(page.getByRole("region", { name: "Private Bible reading progress" })).toContainText("1 of 8 How to Read guides signed off");
     await expect(page.getByRole("region", { name: "Private Bible reading progress" })).toContainText("Latest badge: Start With the Story.");
 
@@ -218,8 +221,8 @@ test.describe("Student Scripture Hub shell", () => {
     const entryProgress = journey.getByRole("list", { name: "Entry progress" });
     await expect(entryProgress.locator('[aria-current="step"]')).toHaveCount(1);
     await expect(entryProgress).toHaveCSS("position", "static");
-    await expect(journey).toContainText("Scripture the app suggested");
-    await expect(journey).toContainText("Questions around your question");
+    await expect(journey).toContainText("Scripture / Step 1");
+    await expect(journey).toContainText("Investigate / Step 2");
     await expect(journey).toContainText("Spiritual practices to try");
     await expect(journey).toContainText("Living it out");
     await expect(journey).toContainText("Genesis 1:26-31");
@@ -233,7 +236,7 @@ test.describe("Student Scripture Hub shell", () => {
     await journeyEntries.getByRole("button", { name: "Add entry" }).click();
     await expect(journeyEntries.getByRole("button", { name: "2" })).toBeVisible();
     await journey.getByPlaceholder(/What did you notice/).fill("It was a test, free will, and choice.");
-    await journey.getByPlaceholder(/Which of these presses/).fill("They do not explain why the garden starts with abundance.");
+    await journey.getByPlaceholder(/What does this word reveal/).fill("They do not explain why the garden starts with abundance.");
     await journey.getByText("Open practice details").click();
     await expect(journey).toContainText("Pause in the garden");
     await expect(journey).toContainText("2 minute prayer");
@@ -245,6 +248,7 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page.getByRole("group", { name: "Journey entries" }).getByRole("button", { name: "2" })).toBeVisible();
     await expect(page.getByRole("region", { name: "Journey journal entry" })).toContainText("Saved to your private note.");
     const history = page.getByRole("region", { name: "Journey History" });
+    await history.locator("summary").click();
     await history.getByRole("button", { name: "Archive" }).click();
     await expect(page.getByRole("heading", { name: "Archived questions" })).toBeVisible();
     await expect(page.getByRole("region", { name: "Archived questions" })).toContainText("Why did God put the tree in the garden?");
@@ -253,7 +257,8 @@ test.describe("Student Scripture Hub shell", () => {
     await page.getByRole("region", { name: "Archived questions" }).getByRole("button", { name: "Restore" }).click();
     await expect(page.getByRole("region", { name: "Journey journal selector" })).toContainText("Why did God put the tree in the garden?");
     await page.goto("/student");
-    await expect(page.getByRole("region", { name: "Question journey" }).getByRole("heading", { name: "Why did God put the tree in the garden?" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Question journey" })).toContainText("Garden Question Journey");
+    await page.getByText("Open the full journey context", { exact: true }).click();
     const relatedResources = page.getByRole("region", { name: "Related resources" }).first();
     await relatedResources.getByRole("button", { name: "Open menu" }).click();
     const relatedDialog = page.getByRole("dialog", { name: "Related resources menu" });
@@ -284,8 +289,11 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page.getByText("Why did God put the tree in the garden?").first()).toBeVisible();
     await expect(page.getByText("I am noticing that hiding from God is part of the story.")).toHaveCount(0);
     await page.goto("/student");
+    await page.getByText("Open the full journey context", { exact: true }).click();
+    await page.getByText("Reading progress, Bible tools, and journey history", { exact: true }).click();
     await expect(page.getByRole("heading", { name: "Wrestle together" })).toBeVisible();
     await expect(page.getByRole("region", { name: "Student home feed" })).toContainText("Why did God put the tree in the garden?");
+    await page.getByRole("button", { name: "Open together" }).click();
     await expect(page.getByLabel("Group discussion journey progress")).toContainText("Discussed");
     await expect(page.getByRole("region", { name: "Group discussion follow-through" })).toContainText(
       "Discussed with your group. Keep practicing what came up."
@@ -342,6 +350,7 @@ test.describe("Student Scripture Hub shell", () => {
     await login(page);
 
     await page.goto("/student");
+    await page.getByText("Reading progress, Bible tools, and journey history", { exact: true }).click();
     const homeTool = page.getByRole("region", { name: "Scripture study shortcuts" });
     await homeTool.getByLabel("Scripture reference").fill("Psalm 23");
     await homeTool.getByRole("button", { name: "Open" }).click();
@@ -354,6 +363,7 @@ test.describe("Student Scripture Hub shell", () => {
     );
 
     await page.goto("/student");
+    await page.getByText("Reading progress, Bible tools, and journey history", { exact: true }).click();
     await page.getByRole("link", { name: "Genesis 1" }).click();
     await expect(page).toHaveURL(/\/student\/scripture\/resources\?reference=Genesis(\+|%20)1/);
     await expect(page.getByRole("heading", { name: "Genesis 1" })).toBeVisible();

@@ -35,7 +35,6 @@ export default async function StudentPortalPage() {
       initialHowToReadProgressStorage={howToReadProgress.storage}
       initialReflections={reflections}
       initialState={state}
-      userName={access.session.user.fullName}
     />
   );
 }

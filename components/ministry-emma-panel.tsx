@@ -4,14 +4,11 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Bot, CheckCircle2, FileText, Send, ShieldCheck, Sparkles } from "lucide-react";
 import {
   answerMinistryEmmaPrompt,
-  ministryEmmaPageLabels,
-  ministryEmmaPromptTemplates,
-  selectDefaultEmmaEvent,
+  ministryEmmaUniversalPromptTemplates,
   type MinistryEmmaOverview,
   type MinistryEmmaPage,
   type MinistryEmmaResponse
 } from "@/lib/emma/ministry-page-assistant";
-import { formatDate } from "@/lib/utils";
 import { AssistantBrief, AssistantWorkspace } from "@/components/platform-ui";
 
 type EmmaChatResult = {
@@ -46,11 +43,10 @@ export function MinistryEmmaPanel({
   page: MinistryEmmaPage;
   staticSignals?: string[];
 }) {
-  const defaultEvent = useMemo(() => (overview ? selectDefaultEmmaEvent(overview.events) : null), [overview]);
   const staticSignalKey = staticSignals.join("\n");
   const stableStaticSignals = useMemo(() => (staticSignalKey ? staticSignalKey.split("\n") : []), [staticSignalKey]);
-  const [selectedEventId, setSelectedEventId] = useState(defaultEvent?.id ?? "");
-  const [prompt, setPrompt] = useState(ministryEmmaPromptTemplates[page][0]);
+  const [providerStatus, setProviderStatus] = useState("Checking provider");
+  const [prompt, setPrompt] = useState("");
   const [createProposal, setCreateProposal] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
@@ -60,7 +56,7 @@ export function MinistryEmmaPanel({
       answerMinistryEmmaPrompt({
         overview,
         page,
-        prompt: ministryEmmaPromptTemplates[page][0],
+        prompt: ministryEmmaUniversalPromptTemplates[0],
         staticSignals: stableStaticSignals
       }),
       "EMMA is ready."
@@ -68,16 +64,33 @@ export function MinistryEmmaPanel({
   ]);
 
   useEffect(() => {
-    if (!selectedEventId && defaultEvent?.id) setSelectedEventId(defaultEvent.id);
-  }, [defaultEvent?.id, selectedEventId]);
-
+    let active = true;
+    fetch("/api/ai/emma", { cache: "no-store" })
+      .then(async (response) => {
+        const payload = (await response.json().catch(() => ({}))) as {
+          readiness?: { liveProviderConfigured?: boolean; model?: string };
+        };
+        if (!active) return;
+        setProviderStatus(
+          response.ok && payload.readiness?.liveProviderConfigured
+            ? `${payload.readiness.model ?? "Gemini"} live`
+            : "Safe fallback"
+        );
+      })
+      .catch(() => {
+        if (active) setProviderStatus("Safe fallback");
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
   useEffect(() => {
     setMessages([
       toEmmaMessage(
         answerMinistryEmmaPrompt({
           overview,
           page,
-          prompt: ministryEmmaPromptTemplates[page][0],
+          prompt: ministryEmmaUniversalPromptTemplates[0],
           staticSignals: stableStaticSignals
         }),
         "EMMA is ready."
@@ -114,7 +127,6 @@ export function MinistryEmmaPanel({
         body: JSON.stringify({
           page,
           prompt: trimmedPrompt,
-          selectedEventId: selectedEventId || undefined,
           createProposal
         })
       });
@@ -162,13 +174,14 @@ export function MinistryEmmaPanel({
         </span>
         <div>
           <p className="eyebrow">EMMA</p>
-          <h3 id={`ministry-emma-${page}-title`}>{ministryEmmaPageLabels[page]} Assistant</h3>
+          <h3 id={`ministry-emma-${page}-title`}>EMMA Ministry Assistant</h3>
         </div>
         <div className="ministry-emma-guardrails" aria-label="EMMA guardrails">
           <span className="pill">
             <ShieldCheck aria-hidden="true" />
             Audit safe
           </span>
+          <span className={providerStatus === "Safe fallback" ? "pill stub" : "pill emma-live-status"}>{providerStatus}</span>
           <span className="pill stub">No live sends</span>
         </div>
       </div>
@@ -225,34 +238,23 @@ export function MinistryEmmaPanel({
 
         <form className="ministry-emma-controls" onSubmit={(event) => void submit(event)}>
           <div className="ministry-emma-prompts" aria-label="EMMA prompts">
-            {ministryEmmaPromptTemplates[page].map((template) => (
+            {ministryEmmaUniversalPromptTemplates.map((template) => (
               <button className="button compact-button" key={template} type="button" onClick={() => setPrompt(template)}>
                 {template}
               </button>
             ))}
           </div>
 
-          {overview?.events.length ? (
-            <label className="field ministry-emma-field">
-              <span>Selected event</span>
-              <select className="input" value={selectedEventId} onChange={(event) => setSelectedEventId(event.target.value)}>
-                {overview.events.map((event) => (
-                  <option key={event.id} value={event.id}>
-                    {event.title} - {formatDate(event.startTime)}
-                  </option>
-                ))}
-              </select>
+          <details className="ministry-emma-options">
+            <summary>Recommendation options</summary>
+            <label className="toggle-row ministry-emma-toggle">
+              <input type="checkbox" checked={createProposal} disabled={isRunning} onChange={(event) => setCreateProposal(event.target.checked)} />
+              <span>Save an inert recommendation proposal for review</span>
             </label>
-          ) : null}
-
-          <label className="toggle-row ministry-emma-toggle">
-            <input type="checkbox" checked={createProposal} disabled={isRunning} onChange={(event) => setCreateProposal(event.target.checked)} />
-            <span>Create inert recommendation proposal</span>
-          </label>
-
+          </details>
           <label className="field ministry-emma-field">
-            <span>Message EMMA</span>
-            <textarea className="input" rows={3} value={prompt} onChange={(event) => setPrompt(event.target.value)} />
+            <span className="sr-only">Message EMMA</span>
+            <textarea className="input" rows={4} value={prompt} placeholder="Ask about ministry planning, people, priorities, Scripture, or a decision..." onChange={(event) => setPrompt(event.target.value)} />
           </label>
 
           <button className="button primary" type="submit" disabled={isRunning || !prompt.trim()}>
@@ -287,9 +289,10 @@ function buildChatAudit(payload: EmmaChatResult): string {
     payload.providerMode === "live_provider"
       ? `Provider ${payload.provider} / ${payload.model}`
       : "Audited deterministic fallback";
+  const warning = payload.warnings?.length ? ` / ${payload.warnings.join(" ")}` : "";
   return `Request ${payload.requestId} / Run ${payload.runId} / ${providerLabel}${
     payload.proposalCreated ? ` / Proposal ${payload.proposalId ?? "created"}` : ""
-  }`;
+  }${warning}`;
 }
 
 function createId(prefix: string): string {

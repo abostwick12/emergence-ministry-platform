@@ -3,7 +3,7 @@
 import { Award, BookOpen, CheckCircle2, Compass, Heart, Library, MessageCircle, PenLine, Search, Sparkles, Users, X, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { StudentQuestionComposer } from "@/components/student/student-question-composer";
 import { StudentReflectionPanel } from "@/components/student/student-reflection-panel";
@@ -31,25 +31,24 @@ type StudentHomeFeedProps = {
   initialHowToReadCompletedModuleIds: string[];
   initialHowToReadProgressStorage: "server" | "local" | "unavailable";
   initialReflections: Record<string, StudentQuestionReflection>;
-  userName: string;
 };
 
 const readingHelps = [
   {
-    title: "Study Builder",
-    description: "Move from observation to discussion with a simple path you can lead from.",
+    title: "Lead your first study",
+    description: "Move from observation to discussion with a simple path you can lead with confidence.",
     icon: Compass,
     href: "/student/scripture/how-to-read"
   },
   {
-    title: "The whole story",
-    description: "See where today's passage sits from Genesis to Revelation.",
+    title: "The whole story, Genesis → Revelation",
+    description: "See where today's passage sits in the arc of Scripture.",
     icon: BookOpen,
     href: "/student/scripture/resources"
   },
   {
-    title: "How to Read resources",
-    description: "Short tools for context, observation, prayer, and careful application.",
+    title: "Ask for context, not answers",
+    description: "Use literary background, observation, and questions that move you deeper into the passage.",
     icon: Sparkles,
     href: "/student/scripture/how-to-read"
   }
@@ -68,10 +67,10 @@ export function StudentHomeFeed({
   initialFeed,
   initialHowToReadCompletedModuleIds,
   initialHowToReadProgressStorage,
-  initialReflections,
-  userName
+  initialReflections
 }: StudentHomeFeedProps) {
   const router = useRouter();
+  const questionLaunchRef = useRef<HTMLDetailsElement>(null);
   const validHowToReadModuleIds = useMemo(() => new Set(howToReadModules.map((module) => module.id)), []);
   const [howToReadCompletedIds, setHowToReadCompletedIds] = useState<Set<string>>(() =>
     sanitizeHowToReadProgress(initialHowToReadCompletedModuleIds, validHowToReadModuleIds)
@@ -82,11 +81,10 @@ export function StudentHomeFeed({
   const [reflections, setReflections] = useState(initialReflections);
   const [lookupReference, setLookupReference] = useState("");
   const initialGroupPrompt = initialFeed.forGroup.find((prompt) => prompt.leaderDiscussedAt) ?? initialFeed.forGroup[0];
-  const initialJourneyType = initialGroupPrompt?.leaderDiscussedAt || !initialFeed.recentQuestions[0] ? "group" : "question";
+  const initialJourneyType = initialFeed.recentQuestions[0] ? "question" : "group";
   const [activePromptId, setActivePromptId] = useState(initialFeed.recentQuestions[0]?.id);
   const [activeGroupPromptId, setActiveGroupPromptId] = useState(initialGroupPrompt?.id);
   const [activeJourneyType, setActiveJourneyType] = useState<"question" | "group">(initialJourneyType);
-  const firstName = userName.split(" ")[0] || userName;
   const activePrompt = activeJourneyType === "question" ? recentQuestions.find((prompt) => prompt.id === activePromptId) : undefined;
   const activeNextStep = activePrompt ? nextStepForPrompt(activePrompt.id) : undefined;
   const activeGroupPrompt = activeJourneyType === "group" ? initialFeed.forGroup.find((prompt) => prompt.id === activeGroupPromptId) : undefined;
@@ -108,6 +106,7 @@ export function StudentHomeFeed({
     setActivePromptId(prompt.id);
     setActiveJourneyType("question");
     setKeepReading((current) => mergeKeepReading(current, [nextPromptStep.readingPlan, nextPromptStep.resource]));
+    if (questionLaunchRef.current) questionLaunchRef.current.open = false;
   }
 
   function updateReflection(reflection: StudentQuestionReflection) {
@@ -129,35 +128,15 @@ export function StudentHomeFeed({
   }
 
   return (
-    <div className="student-feed">
-      <section className="student-reading-helps" aria-label="Bible reading helps">
-        <div className="student-expand-path-heading">
-          <h2>Expand your path</h2>
-        </div>
-        {readingHelps.map((help) => (
-          <Link className="student-reading-help" href={help.href} key={help.title}>
-            <span className="student-help-icon" aria-hidden="true">
-              <help.icon size={17} />
-            </span>
-            <div>
-              <h2>{help.title}</h2>
-              <p>{help.description}</p>
-            </div>
-          </Link>
-        ))}
-      </section>
+    <section className="student-feed student-lovable-home" aria-label="Student home feed">
+      <nav className="student-portal-tabs" aria-label="Student portal sections">
+        <Link aria-current="page" href="/student">Questions</Link>
+        <Link href="/student/scripture/resources">Scripture</Link>
+        <Link href="/student/scripture/how-to-read">How to Read</Link>
+      </nav>
 
-      <section className="student-feed-main" aria-label="Student home feed">
-        <div className="student-feed-welcome">
-          <p className="eyebrow">Student Portal</p>
-          <h1>Continue your journey, {firstName}.</h1>
-        </div>
-
-        <section className="student-current-journey" aria-label="Current journey and next step">
-          <div className="student-current-journey-heading">
-            <p className="eyebrow">Current journey</p>
-            <h2>Your question, Scripture, and next step</h2>
-          </div>
+      <section className="student-home-main-grid" aria-label="Active journey">
+        <section className="student-current-journey">
           {activePrompt && activeNextStep ? (
             <StudentQuestionJourneyCard
               key={activePrompt.id}
@@ -176,125 +155,94 @@ export function StudentHomeFeed({
           )}
         </section>
 
-        <section className="student-progress-card" aria-label="Private Bible reading progress">
-          <div className="student-progress-card-main">
-            <span className="student-help-icon" aria-hidden="true">
-              <Award size={17} />
-            </span>
-            <div>
-              <p className="eyebrow">Private progress</p>
-              <h2>
-                {howToReadCompletedCount} of {howToReadModules.length} How to Read guides signed off
-              </h2>
-              {latestHowToReadBadge ? <p>Latest badge: {latestHowToReadBadge}.</p> : null}
-            </div>
-          </div>
-          <div className="student-progress-card-actions">
-            <div className="student-progress-mini-meter" aria-label={`${howToReadCompletedCount} of ${howToReadModules.length} How to Read guides complete`}>
-              {howToReadModules.map((module) => (
-                <span className={howToReadCompletedIds.has(module.id) ? "complete" : ""} key={module.id} />
+        <aside className="student-feed-rail student-lovable-rail" aria-label="Student actions">
+          <section className="student-wisdom-well">
+            <p className="eyebrow">Wisdom well</p>
+            <blockquote>&quot;Be still, and know that I am God.&quot;</blockquote>
+            <span>Psalm 46:10</span>
+            <Link href="/student/scripture/resources?reference=Psalm%2046%3A10">Examine in context</Link>
+          </section>
+          <details className="student-question-launch" ref={questionLaunchRef}>
+            <summary>Start a New Question</summary>
+            <StudentQuestionComposer readiness={initialState.readiness} onCreated={addPrompt} />
+          </details>
+          <details className="student-keep-moving">
+            <summary>Keep moving</summary>
+            <div className="student-feed-rail-list">
+              {keepReading.map((item) => (
+                <KeepReadingLink item={item} key={item.id} />
               ))}
             </div>
-            <Link className="button secondary" href="/student/scripture/how-to-read">
-              {howToReadCompletedCount > 0 ? "Continue" : "Start"}
-            </Link>
-          </div>
-          <div className="student-progress-next-guide">
-            <CheckCircle2 size={15} aria-hidden="true" />
-            <span>Next guide: {nextHowToReadGuide.title}</span>
-          </div>
-        </section>
-
-        <section className="student-scripture-tool" aria-label="Scripture study shortcuts">
-          <div className="student-tool-heading">
-            <span className="student-help-icon" aria-hidden="true">
-              <BookOpen size={17} />
-            </span>
-            <h2>Bible App Reader</h2>
-          </div>
-          <form
-            className="student-tool-search"
-            onSubmit={(event) => {
-              event.preventDefault();
-              openLookup(lookupReference);
-            }}
-          >
-            <Search size={17} aria-hidden="true" />
-            <label className="sr-only" htmlFor="student-home-scripture-reference">
-              Scripture reference
-            </label>
-            <input
-              id="student-home-scripture-reference"
-              name="reference"
-              onChange={(event) => setLookupReference(event.target.value)}
-              placeholder="John 1"
-              type="text"
-              value={lookupReference}
-            />
-            <button type="submit">Open</button>
-          </form>
-          <div className="student-tool-chips" aria-label="Starter passages">
-            {starterPassages.map((label) => (
-              <Link href={`/student/scripture/resources?reference=${encodeURIComponent(label)}`} key={label}>
-                {label}
-              </Link>
-            ))}
-          </div>
-        </section>
-
-        <FeedSection
-          title="Wrestle together"
-          emptyTitle="Nothing approved yet."
-          emptyBody="Approved prompts will appear here."
-        >
-          {initialFeed.forGroup.map((prompt) => (
-            <DiscussionFeedRow
-              isActive={activeJourneyType === "group" && prompt.id === activeGroupPromptId}
-              key={prompt.id}
-              onOpen={() => {
-                setActiveGroupPromptId(prompt.id);
-                setActiveJourneyType("group");
-              }}
-              prompt={prompt}
-            />
-          ))}
-        </FeedSection>
-
-        <FeedSection title="Your recent questions" emptyTitle="No questions sent yet." emptyBody="Saved questions will appear here.">
-          {recentQuestions.map((prompt) => (
-            <QuestionFeedRow
-              isActive={prompt.id === activePromptId}
-              key={prompt.id}
-              nextStep={nextStepForPrompt(prompt.id)}
-              onOpenJourney={() => {
-                setActivePromptId(prompt.id);
-                setActiveJourneyType("question");
-              }}
-              prompt={prompt}
-            />
-          ))}
-        </FeedSection>
+          </details>
+        </aside>
       </section>
 
-      <aside className="student-feed-rail" aria-label="Student actions and keep reading">
-        <StudentQuestionComposer readiness={initialState.readiness} onCreated={addPrompt} />
+      <section className="student-reading-helps" aria-label="Expand your path">
+        <div className="student-expand-path-heading">
+          <h2>Expand your path</h2>
+        </div>
+        {readingHelps.map((help) => (
+          <Link className="student-reading-help" href={help.href} key={help.title}>
+            <span className="student-help-icon" aria-hidden="true">
+              <help.icon size={17} />
+            </span>
+            <div>
+              <h2>{help.title}</h2>
+              <p>{help.description}</p>
+            </div>
+          </Link>
+        ))}
+      </section>
 
-        <section className="student-feed-rail-card" aria-label="Keep reading">
-          <div>
-            <p className="eyebrow">Journey rhythm</p>
-            <h2>Keep moving</h2>
-          </div>
-          <div className="student-feed-rail-list">
-            {keepReading.map((item) => (
-              <KeepReadingLink item={item} key={item.id} />
+      <details className="student-home-secondary">
+        <summary>Reading progress, Bible tools, and journey history</summary>
+        <div className="student-home-secondary-grid">
+          <section className="student-progress-card" aria-label="Private Bible reading progress">
+            <div className="student-progress-card-main">
+              <span className="student-help-icon" aria-hidden="true"><Award size={17} /></span>
+              <div>
+                <p className="eyebrow">Private progress</p>
+                <h2>{howToReadCompletedCount} of {howToReadModules.length} How to Read guides signed off</h2>
+                {latestHowToReadBadge ? <p>Latest badge: {latestHowToReadBadge}.</p> : null}
+              </div>
+            </div>
+            <div className="student-progress-card-actions">
+              <div className="student-progress-mini-meter" aria-label={`${howToReadCompletedCount} of ${howToReadModules.length} How to Read guides complete`}>
+                {howToReadModules.map((module) => <span className={howToReadCompletedIds.has(module.id) ? "complete" : ""} key={module.id} />)}
+              </div>
+              <Link className="button secondary" href="/student/scripture/how-to-read">{howToReadCompletedCount > 0 ? "Continue" : "Start"}</Link>
+            </div>
+            <div className="student-progress-next-guide"><CheckCircle2 size={15} aria-hidden="true" /><span>Next guide: {nextHowToReadGuide.title}</span></div>
+          </section>
+
+          <section className="student-scripture-tool" aria-label="Scripture study shortcuts">
+            <div className="student-tool-heading"><span className="student-help-icon" aria-hidden="true"><BookOpen size={17} /></span><h2>Bible App Reader</h2></div>
+            <form className="student-tool-search" onSubmit={(event) => { event.preventDefault(); openLookup(lookupReference); }}>
+              <Search size={17} aria-hidden="true" />
+              <label className="sr-only" htmlFor="student-home-scripture-reference">Scripture reference</label>
+              <input id="student-home-scripture-reference" name="reference" onChange={(event) => setLookupReference(event.target.value)} placeholder="John 1" type="text" value={lookupReference} />
+              <button type="submit">Open</button>
+            </form>
+            <div className="student-tool-chips" aria-label="Starter passages">
+              {starterPassages.map((label) => <Link href={`/student/scripture/resources?reference=${encodeURIComponent(label)}`} key={label}>{label}</Link>)}
+            </div>
+          </section>
+
+          <FeedSection title="Wrestle together" emptyTitle="Nothing approved yet." emptyBody="Approved prompts will appear here.">
+            {initialFeed.forGroup.map((prompt) => (
+              <DiscussionFeedRow isActive={activeJourneyType === "group" && prompt.id === activeGroupPromptId} key={prompt.id} onOpen={() => { setActiveGroupPromptId(prompt.id); setActiveJourneyType("group"); }} prompt={prompt} />
             ))}
-          </div>
-        </section>
-      </aside>
-    </div>
+          </FeedSection>
+          <FeedSection title="Your recent questions" emptyTitle="No questions sent yet." emptyBody="Saved questions will appear here.">
+            {recentQuestions.map((prompt) => (
+              <QuestionFeedRow isActive={prompt.id === activePromptId} key={prompt.id} nextStep={nextStepForPrompt(prompt.id)} onOpenJourney={() => { setActivePromptId(prompt.id); setActiveJourneyType("question"); }} prompt={prompt} />
+            ))}
+          </FeedSection>
+        </div>
+      </details>
+    </section>
   );
 }
-
 function GroupDiscussionFollowThroughCard({
   nextStep,
   prompt
@@ -381,52 +329,55 @@ function StudentQuestionJourneyCard({
   reflection?: StudentQuestionReflection;
 }) {
   const hasLeaderResponse = prompt.status === "approved" || prompt.status === "posted";
+  const reading = nextStep.journeyJournal.readingPath[0];
+  const practice = nextStep.journeyJournal.spiritualPractice;
+  const progressStep = reflection?.reflectedAt ? 5 : hasLeaderResponse ? 4 : 3;
 
   return (
-    <section className="student-question-journey" aria-label="Question journey">
-      <div className="student-question-journey-header">
-        <div>
-          <p className="eyebrow">Question Journey</p>
-          <h2>{prompt.question}</h2>
-          <p>{journeySummary(prompt)}</p>
-        </div>
+    <section className="student-question-journey student-active-journey-card" aria-label="Question journey">
+      <div className="student-active-journey-overview">
+        <p className="eyebrow">Active journey</p>
+        <h2>{nextStep.journeyJournal.title}</h2>
+        <p>{journeySummary(prompt)}</p>
         <span className={prompt.status === "changes_requested" ? "pill amber" : "pill blue"}>{statusLabel(prompt.status)}</span>
+        <div className="student-active-progress" aria-label={`Step ${progressStep} of 5`}>
+          <progress max={5} value={progressStep} />
+          <small>Step {progressStep} / 5</small>
+        </div>
+        <Link className="student-continue-reflection" href="/student/scripture/questions">Continue reflection</Link>
       </div>
 
-      <div className="student-question-journey-meta" aria-label="Question status">
-        <JourneyMeta label="Passage" value={prompt.scriptureReference || "No passage selected"} />
-        <JourneyMeta label="Submitted" value={formatQuestionDate(prompt.createdAt)} />
-        <JourneyMeta label="Next" value={hasLeaderResponse ? "Bring it to group" : "Keep wrestling while it is with your leader"} />
-      </div>
+      <aside className="student-last-step-flyover" aria-label="Last journey step">
+        <div>
+          <p className="eyebrow">Practice in progress</p>
+          <h3>{practice.title}</h3>
+          <p>{practice.summary}</p>
+        </div>
+        <div>
+          <p className="eyebrow">Last reading</p>
+          <strong>{reading?.reference ?? prompt.scriptureReference ?? "Choose a passage"}</strong>
+          <span>{reading?.title ?? nextStep.title}</span>
+        </div>
+      </aside>
 
-      <div className="student-question-journey-response">
-        <span>{hasLeaderResponse ? "Leader-approved prompt" : "With your leader"}</span>
-        <p>
-          {hasLeaderResponse && prompt.discussionPrompt
-            ? prompt.discussionPrompt
-            : "Your leader can shape this into a careful group conversation. Use the rhythm below while you wait."}
-        </p>
-      </div>
-
-      <div className="student-next-step-copy">
-        <p className="eyebrow">{nextStep.label}</p>
-        <h2>{nextStep.title}</h2>
-        <p>{nextStep.summary}</p>
-      </div>
-      <StorylineContextCard match={nextStep.storylineMatch} />
-      <RelatedResourcesMenu resources={nextStep.curatedResources} />
-      <StudentResourceSteps steps={nextStep.resourceSteps} />
-      <StudentNextStepRhythm nextStep={nextStep} />
-      <StudentReflectionPanel onSaved={onReflectionSaved} prompt={prompt} reflection={reflection} />
-      {nextStep.careNote ? (
-        <p className="student-next-step-care">
-          <strong>Bring this with you:</strong> {nextStep.careNote}
-        </p>
-      ) : null}
+      <details className="student-active-journey-details">
+        <summary>Open the full journey context</summary>
+        <div className="student-active-journey-detail-grid">
+          <div className="student-question-journey-response">
+            <span>{hasLeaderResponse ? "Leader-approved prompt" : "With your leader"}</span>
+            <p>{hasLeaderResponse && prompt.discussionPrompt ? prompt.discussionPrompt : "Your leader can shape this into a careful group conversation while you keep reading and practicing."}</p>
+          </div>
+          <StorylineContextCard match={nextStep.storylineMatch} />
+          <RelatedResourcesMenu resources={nextStep.curatedResources} />
+          <StudentResourceSteps steps={nextStep.resourceSteps} />
+          <StudentNextStepRhythm nextStep={nextStep} />
+          <StudentReflectionPanel onSaved={onReflectionSaved} prompt={prompt} reflection={reflection} />
+          {nextStep.careNote ? <p className="student-next-step-care"><strong>Bring this with you:</strong> {nextStep.careNote}</p> : null}
+        </div>
+      </details>
     </section>
   );
 }
-
 function StudentResourceSteps({ steps }: { steps: StudentResourceStep[] }) {
   if (!steps.length) return null;
 

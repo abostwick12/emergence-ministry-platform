@@ -124,7 +124,7 @@ test.describe("MVP event automation navigation smoke tests", () => {
 
     await expect(page.getByRole("heading", { name: "Events", level: 1 })).toBeVisible();
     await expect(page.locator("#create-event").getByPlaceholder("Fall Kickoff Night")).not.toBeVisible();
-    await expect(page.getByRole("heading", { name: "Events Assistant" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "EMMA Ministry Assistant" })).toBeVisible();
 
     for (const tab of ["Upcoming", "This Week", "This Month", "Long Range", "Archive"]) {
       await expect(page.getByRole("tab", { name: tab })).toBeVisible();
@@ -137,7 +137,7 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await expect(winterRow.locator(".event-summary-scroll")).toBeVisible();
     const operationsRail = winterRow.locator(".event-operations-rail");
     await expect(operationsRail).toBeVisible();
-    await expect(winterRow.getByRole("heading", { name: "Scrollable Summary" })).toBeVisible();
+    await expect(winterRow.getByRole("heading", { name: "Event Targets" })).toBeVisible();
     await expect(operationsRail.getByText("Checklist", { exact: true })).toBeVisible();
     await expect(operationsRail.getByText("Volunteers", { exact: true })).toBeVisible();
     await expect(winterRow.locator(".event-summary-scroll").getByRole("button", { name: /Notes/ })).toBeVisible();
@@ -187,7 +187,7 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await page.goto("/events");
 
     const emma = page.locator(".ministry-emma-panel").first();
-    await expect(emma.getByRole("heading", { name: "Events Assistant" })).toBeVisible();
+    await expect(emma.getByRole("heading", { name: "EMMA Ministry Assistant" })).toBeVisible();
     await expect(emma.getByRole("button", { name: "Ask EMMA" })).toHaveAttribute("aria-expanded", "false");
     await emma.getByRole("button", { name: "Ask EMMA" }).click();
     await expect(emma.getByRole("button", { name: "Close workspace" })).toHaveAttribute("aria-expanded", "true");
@@ -262,16 +262,18 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await page.goto("/tasks");
 
     const tasksWorkspace = page.locator(".tasks-workspace");
-    await expect(tasksWorkspace.getByRole("heading", { name: "Tasks" })).toBeVisible();
-    await expect(tasksWorkspace.getByRole("button", { name: "Kanban View" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Tasks", exact: true })).toBeVisible();
+    await expect(tasksWorkspace.getByRole("button", { name: "Kanban", exact: true })).toBeVisible();
     for (const lane of ["To do", "In progress", "Stuck", "Done"]) {
       await expect(tasksWorkspace.locator(".lane-title", { hasText: lane })).toBeVisible();
     }
-    await expect(tasksWorkspace.locator(".task-card").first().getByRole("button", { name: /Notes/ })).toBeVisible();
-    await expect(tasksWorkspace.getByRole("button", { name: "Open event" }).first()).toBeVisible();
+    const firstTask = tasksWorkspace.locator(".task-card").first();
+    await firstTask.getByText("Manage task", { exact: true }).click();
+    await expect(firstTask.getByRole("button", { name: /Notes/ })).toBeVisible();
+    await expect(firstTask.getByRole("button", { name: "Open event" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Events Workspace" })).toHaveCount(0);
 
-    await tasksWorkspace.getByRole("button", { name: "List View" }).click();
+    await tasksWorkspace.getByRole("button", { name: "List", exact: true }).click();
     await expect(tasksWorkspace.getByRole("columnheader", { name: "Task" })).toBeVisible();
     await expect(tasksWorkspace.getByRole("columnheader", { name: "Notes" })).toBeVisible();
     await expect(tasksWorkspace.locator(".task-event-group-row", { hasText: "Winter Retreat" })).toBeVisible();
@@ -281,7 +283,7 @@ test.describe("MVP event automation navigation smoke tests", () => {
   test("task status and due date updates still create activity entries", async ({ page }) => {
     await login(page);
     await page.goto("/tasks");
-    await page.locator(".tasks-workspace").getByRole("button", { name: "List View" }).click();
+    await page.locator(".tasks-workspace").getByRole("button", { name: "List", exact: true }).click();
 
     const taskRow = page.locator("tr", { hasText: "Confirm venue contract and deposit" });
     const dueDateInput = taskRow.getByLabel("Due date for Confirm venue contract and deposit");
@@ -333,7 +335,7 @@ test.describe("MVP event automation navigation smoke tests", () => {
 
     // Save task notes via task list view
     await page.goto("/tasks");
-    await page.locator(".tasks-workspace").getByRole("button", { name: "List View" }).click();
+    await page.locator(".tasks-workspace").getByRole("button", { name: "List", exact: true }).click();
     const taskRow = page.locator("tr", { hasText: "Confirm venue contract and deposit" });
     await taskRow.getByRole("button", { name: /Notes/ }).click();
     await taskRow.getByLabel(/Internal notes for Confirm venue contract and deposit task/).fill(`Reviewed task notes ${Date.now()}`);
@@ -382,7 +384,7 @@ test.describe("MVP event automation navigation smoke tests", () => {
       ["/communications", "Communication Drafts", "Event Copy Queue"],
       ["/people", "Ministry Roster", "Team Load"],
       ["/budget", "Budget Workspace", "Where the money is going"],
-      ["/settings", "Platform Settings", "Launch Controls"]
+      ["/settings", "Platform Settings", "Connected services"]
     ] as const) {
       await page.goto(route[0]);
       await expect(page.getByRole("heading", { name: route[1] })).toBeVisible();
@@ -412,10 +414,12 @@ test.describe("MVP event automation navigation smoke tests", () => {
 
     await expect(page.getByRole("heading", { name: "Student Portal" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Expand your path" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "How to Read resources" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Active journey" })).toBeVisible();
+    await expect(page.getByRole("complementary", { name: "Student actions" })).toBeVisible();
+    await page.getByText("Reading progress, Bible tools, and journey history", { exact: true }).click();
     await expect(page.getByRole("heading", { name: "Bible App Reader" })).toBeVisible();
+    await page.getByText("Start a New Question", { exact: true }).click();
     await expect(page.getByRole("heading", { name: "What should we talk about next?" })).toBeVisible();
-    await expect(page.getByRole("complementary", { name: "Student actions and keep reading" })).toBeVisible();
   });
 
   test("Parent route is an inactive placeholder", async ({ page }) => {
@@ -662,7 +666,9 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await login(page);
     await page.goto("/tasks");
 
-    await page.locator(".tasks-workspace").getByRole("button", { name: "Open event" }).first().click();
+    const taskCard = page.locator(".tasks-workspace .task-card").first();
+    await taskCard.getByText("Manage task", { exact: true }).click();
+    await taskCard.getByRole("button", { name: "Open event" }).click();
 
     const modal = page.getByRole("dialog");
     await expect(modal).toBeVisible();

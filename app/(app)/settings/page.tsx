@@ -1,7 +1,7 @@
-import { CampAccessAdminPanel } from "@/components/camp/camp-access-admin";
 import { EmmaAdminTestPanel } from "@/components/emma-admin-test-panel";
 import { EmmaProposalReviewPanel } from "@/components/emma-proposal-review-panel";
 import { MinistrySettingsPage } from "@/components/ministry-launch-pages";
+import { WebsiteAccessPanel } from "@/components/website-access-panel";
 import { getServerSession } from "@/lib/auth/server";
 import { isCampAccessAdmin } from "@/lib/camp/access-admin";
 
@@ -13,7 +13,6 @@ export default async function SettingsPage() {
   return (
     <div className="grid">
       <MinistrySettingsPage
-        canManageCampAccess={canManageCampAccess}
         user={
           session
             ? {
@@ -24,12 +23,15 @@ export default async function SettingsPage() {
             : null
         }
       />
-      {canManageCampAccess ? <CampAccessAdminPanel /> : null}
+      <WebsiteAccessPanel canManageCampAccess={canManageCampAccess} canManagePlatformAccess={isAdmin} />
       {isAdmin ? (
-        <>
-          <EmmaAdminTestPanel />
-          <EmmaProposalReviewPanel />
-        </>
+        <details className="settings-admin-diagnostics">
+          <summary>Advanced EMMA review and diagnostics</summary>
+          <div>
+            <EmmaAdminTestPanel />
+            <EmmaProposalReviewPanel />
+          </div>
+        </details>
       ) : null}
     </div>
   );
