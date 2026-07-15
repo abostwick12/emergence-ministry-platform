@@ -234,7 +234,7 @@ export function AppShell({
   const shellAccessIssue = shellAccess.kind === "full" ? null : shellAccess;
 
   return (
-    <div className={isCampRoute ? "app-shell app-shell-camp" : "app-shell"}>
+    <div className={isCampRoute ? "app-shell app-shell-camp" : "app-shell app-shell-platform"}>
       {!isCampRoute ? (
         <>
           <div className="app-shell-parchment" aria-hidden="true" />
@@ -275,6 +275,8 @@ export function AppShell({
                   ))}
                 </div>
 
+                <div className="sidebar-context-divider" aria-hidden="true" />
+
                 <button
                   className="button primary sidebar-add-event"
                   type="button"
@@ -283,6 +285,7 @@ export function AppShell({
                 >
                   + Add Event
                 </button>
+                <div className="sidebar-context-divider" aria-hidden="true" />
               </>
             ) : null}
 

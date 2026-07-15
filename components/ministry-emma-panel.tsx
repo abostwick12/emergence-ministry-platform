@@ -12,6 +12,7 @@ import {
   type MinistryEmmaResponse
 } from "@/lib/emma/ministry-page-assistant";
 import { formatDate } from "@/lib/utils";
+import { AssistantBrief, AssistantWorkspace } from "@/components/platform-ui";
 
 type EmmaChatResult = {
   ok: true;
@@ -51,6 +52,7 @@ export function MinistryEmmaPanel({
   const [selectedEventId, setSelectedEventId] = useState(defaultEvent?.id ?? "");
   const [prompt, setPrompt] = useState(ministryEmmaPromptTemplates[page][0]);
   const [createProposal, setCreateProposal] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const threadRef = useRef<HTMLDivElement>(null);
   const [messages, setMessages] = useState<EmmaMessage[]>(() => [
@@ -149,6 +151,9 @@ export function MinistryEmmaPanel({
     }
   }
 
+  const latestEmmaMessage = [...messages].reverse().find((message) => message.author === "emma") ?? messages[0];
+  const workspaceId = `ministry-emma-${page}-workspace`;
+
   return (
     <section className="ministry-emma-panel" aria-labelledby={`ministry-emma-${page}-title`}>
       <div className="ministry-emma-header">
@@ -167,6 +172,25 @@ export function MinistryEmmaPanel({
           <span className="pill stub">No live sends</span>
         </div>
       </div>
+
+      <AssistantBrief
+        summary={latestEmmaMessage.body}
+        points={latestEmmaMessage.points?.slice(0, 3) ?? []}
+        nextAction={latestEmmaMessage.nextActions?.[0]}
+        action={(
+          <button
+            aria-controls={workspaceId}
+            aria-expanded={isExpanded}
+            className="button primary"
+            type="button"
+            onClick={() => setIsExpanded((current) => !current)}
+          >
+            {isExpanded ? "Close workspace" : "Ask EMMA"}
+          </button>
+        )}
+      />
+
+      <AssistantWorkspace id={workspaceId} hidden={!isExpanded}>
 
       <div className="ministry-emma-layout">
         <div className="ministry-emma-thread" ref={threadRef} aria-live="polite">
@@ -242,6 +266,7 @@ export function MinistryEmmaPanel({
         <FileText aria-hidden="true" />
         <span>EMMA may summarize and recommend. Application code and human review still control writes, sends, and integrations.</span>
       </div>
+      </AssistantWorkspace>
     </section>
   );
 }

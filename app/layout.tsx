@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import "./shell-continuity.css";
+import "./platform-editorial.css";
 
 export const metadata: Metadata = {
   title: "Lead Emergence — Automated Platform",

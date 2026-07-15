@@ -164,6 +164,9 @@ test.describe("MVP event automation navigation smoke tests", () => {
 
     const emma = page.locator(".ministry-emma-panel").first();
     await expect(emma.getByRole("heading", { name: "Events Assistant" })).toBeVisible();
+    await expect(emma.getByRole("button", { name: "Ask EMMA" })).toHaveAttribute("aria-expanded", "false");
+    await emma.getByRole("button", { name: "Ask EMMA" }).click();
+    await expect(emma.getByRole("button", { name: "Close workspace" })).toHaveAttribute("aria-expanded", "true");
 
     await emma.getByLabel("Message EMMA").fill("Which tasks need follow-up?");
     const emmaResponse = page.waitForResponse(
