@@ -19,6 +19,7 @@ import {
   UsersRound
 } from "lucide-react";
 import { MinistryEmmaPanel } from "@/components/ministry-emma-panel";
+import { EditorialSection, PageIntro } from "@/components/platform-ui";
 import { PlanningCenterIntegrationControl } from "@/components/planning-center-integration-control";
 import type { MinistryEmmaPage } from "@/lib/emma/ministry-page-assistant";
 import type { ActiveTask, ActivityLog, EventExpense, MinistryEvent, User } from "@/lib/types";
@@ -182,27 +183,29 @@ function LaunchDataPage({
         <LaunchSkeleton />
       ) : (
         <>
-          <MinistryEmmaPanel page={emmaPage} overview={overview} />
           {!showHero ? (
             <h2 className="sr-only" id={`${eyebrow.toLowerCase()}-launch-title`}>
               {title}
             </h2>
           ) : null}
           {showHero ? (
-            <div className="ministry-launch-hero">
-              <div>
-                <p className="eyebrow">{eyebrow}</p>
-                <h2 className="section-title flush" id={`${eyebrow.toLowerCase()}-launch-title`}>
-                  {title}
-                </h2>
-                <p className="muted">{description}</p>
-              </div>
-              <div className="ministry-launch-hero-actions" aria-label="Workspace status">
+            <PageIntro
+              eyebrow={eyebrow}
+              title={title}
+              description={description}
+              actions={<div className="ministry-launch-hero-actions" aria-label="Workspace status">
                 <span className="pill blue">Live workspace</span>
                 <span className="pill amber">Preview-only sending</span>
-              </div>
-            </div>
+              </div>}
+            />
           ) : null}
+          {showHero ? (
+            <EditorialSection eyebrow="Interpret" title="EMMA brief" description="A concise read of the current production workspace; expand only when you want to ask a follow-up.">
+              <MinistryEmmaPanel page={emmaPage} overview={overview} />
+            </EditorialSection>
+          ) : (
+            <MinistryEmmaPanel page={emmaPage} overview={overview} />
+          )}
           {children(overview, loadOverview)}
         </>
       )}

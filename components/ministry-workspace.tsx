@@ -7,6 +7,8 @@ import { useRole } from "@/components/role-context";
 import { useEventCard } from "@/components/event-card-context";
 import { MinistryEmmaPanel } from "@/components/ministry-emma-panel";
 import { MinistryCalendar } from "@/components/ministry-calendar";
+import { ActionQueue, ActionRow, EditorialSection, PageIntro, QuietState, StatusBadge } from "@/components/platform-ui";
+import type { DashboardAttention } from "@/lib/dashboard-attention";
 import { eventTypeLabels } from "@/lib/templates";
 import { formatDate, formatDateTime, money } from "@/lib/utils";
 import type {
@@ -27,6 +29,7 @@ type Overview = {
 };
 
 const statuses: TaskStatus[] = ["todo", "in_progress", "blocked", "done"];
+const taskLaneStatuses: TaskStatus[] = ["blocked", "todo", "in_progress", "done"];
 
 const statusLabels: Record<TaskStatus, string> = {
   todo: "To do",
@@ -57,6 +60,7 @@ type WorkspaceView = "dashboard" | "events" | "tasks";
 
 export default function MinistryWorkspace({ view }: { view: WorkspaceView }) {
   const [overview, setOverview] = useState<Overview | null>(null);
+  const [dashboardAttention, setDashboardAttention] = useState<DashboardAttention | null>(null);
   const [loadError, setLoadError] = useState("");
   const { activeRole } = useRole();
   const { openCreate, openEdit, state: cardState } = useEventCard();
@@ -80,6 +84,11 @@ export default function MinistryWorkspace({ view }: { view: WorkspaceView }) {
       return;
     }
     setOverview(data);
+    if (view === "dashboard") {
+      const attentionResponse = await fetch("/api/dashboard/attention", { cache: "no-store" });
+      const attentionData = (await attentionResponse.json().catch(() => null)) as DashboardAttention | null;
+      setDashboardAttention(attentionResponse.ok ? attentionData : null);
+    }
     setIsLoading(false);
   }
 
@@ -180,7 +189,7 @@ export default function MinistryWorkspace({ view }: { view: WorkspaceView }) {
       ) : isLoading || !overview ? (
         <section className="panel liquid-panel workspace-loading">Loading ministry workspace...</section>
       ) : view === "dashboard" ? (
-        <DashboardWorkspace overview={overview} totalTasks={totalTasks} doneTasks={doneTasks} blockedTasks={blockedTasks} />
+        <DashboardWorkspace overview={overview} attention={dashboardAttention} totalTasks={totalTasks} doneTasks={doneTasks} blockedTasks={blockedTasks} />
       ) : view === "events" ? (
         <section className="grid workflow-stack">
           <MinistryEmmaPanel page="events" overview={overview} />
@@ -217,6 +226,15 @@ function isOverview(value: Partial<Overview>): value is Overview {
     && Array.isArray(value.expenses)
     && Array.isArray(value.activity)
   );
+}
+
+function sortTasksByUrgency(tasks: ActiveTask[]) {
+  const rank: Record<TaskStatus, number> = { blocked: 0, todo: 1, in_progress: 2, done: 3 };
+  return [...tasks].sort((first, second) => {
+    const statusDifference = rank[first.status] - rank[second.status];
+    if (statusDifference) return statusDifference;
+    return new Date(first.dueDate).getTime() - new Date(second.dueDate).getTime();
+  });
 }
 
 function IconCalendar() {
@@ -472,11 +490,13 @@ function DashboardWaveFooter() {
 
 function DashboardWorkspace({
   overview,
+  attention,
   totalTasks,
   doneTasks,
   blockedTasks
 }: {
   overview: Overview;
+  attention: DashboardAttention | null;
   totalTasks: number;
   doneTasks: number;
   blockedTasks: number;
@@ -499,40 +519,121 @@ function DashboardWorkspace({
   const nextEvents = upcomingEvents.slice(0, 3);
 
   return (
-    <section className="grid dashboard-snapshot dashboard-watercolor">
+    <section className="grid dashboard-snapshot dashboard-watercolor editorial-dashboard">
+      <PageIntro
+        eyebrow="Ministry overview"
+        title="What needs your attention today"
+        description="Decisions, people, and event readiness are ordered by what needs human follow-through—not by inventory size."
+      />
+
+      <EditorialSection
+        eyebrow="Decide and unblock"
+        title="Needs Your Attention"
+        description="Blocked, overdue, and near-term work from the production task plan."
+        accent="cyan"
+      >
+        {attention?.decisions.length ? (
+          <ActionQueue label="Decisions needing attention">
+            {attention.decisions.map((item) => (
+              <ActionRow
+                key={item.id}
+                title={item.title}
+                summary={item.summary}
+                meta={item.meta}
+                tone={item.tone}
+                action={<Link className="button compact-button" href={item.href}>Review</Link>}
+              />
+            ))}
+          </ActionQueue>
+        ) : (
+          <QuietState title="No urgent decisions">Blocked, overdue, and near-term work will appear here when production data supports it.</QuietState>
+        )}
+      </EditorialSection>
+
       <div className="dashboard-main-grid">
         <div className="dashboard-left-col">
-          <section className="kpi-grid" aria-label="Dashboard metrics">
-            <WatercolorKpiCard icon={<IconCalendar />} label="Upcoming Events" value={upcomingEvents.length.toString()} hint="This Week" />
-            <WatercolorKpiCard icon={<IconCheck />} label="Tasks Due Soon" value={dueThisWeek.length.toString()} hint="Due in 7 Days" />
-            <WatercolorKpiCard icon={<IconAlert />} label="Stuck Tasks" value={blockedTasks.toString()} hint="Needs Attention" tone="warning" />
-            <WatercolorKpiCard
-              wide
-              visual={<TaskCompletionRing done={doneTasks} total={totalTasks} />}
-              label="Task Completion"
-              hint="Tasks Completed This Week"
-            />
-            <WatercolorKpiCard
-              wide
-              icon={<IconChat />}
-              label="Communication Reviews Pending"
-              value={communicationPreviewsPending.length.toString()}
-              hint="Awaiting Review"
-            />
-          </section>
+          <EditorialSection
+            eyebrow="Care"
+            title="People to Follow Up With"
+            description="Permission-safe student-care signals; question content stays inside the review workspace."
+            accent="gold"
+          >
+            {attention?.people.length ? (
+              <ActionQueue label="People needing follow-up">
+                {attention.people.map((item) => (
+                  <ActionRow
+                    key={item.id}
+                    title={item.title}
+                    summary={item.summary}
+                    meta={item.meta}
+                    tone={item.tone}
+                    action={<Link className="button compact-button" href={item.href}>Open care queue</Link>}
+                  />
+                ))}
+              </ActionQueue>
+            ) : (
+              <QuietState title={attention?.studentCare.available ? "No care signals waiting" : "Care signals unavailable"}>
+                {attention?.studentCare.message ?? "Student-care availability could not be confirmed. Ministry operations remain available."}
+              </QuietState>
+            )}
+          </EditorialSection>
 
-          <MinistryEmmaPanel page="dashboard" overview={overview} />
+          <EditorialSection
+            eyebrow="Prepare"
+            title="Upcoming Event Readiness"
+            description="Readiness is interpreted from tracked tasks and supported event details."
+          >
+            {attention?.eventReadiness.length ? (
+              <ActionQueue label="Upcoming event readiness">
+                {attention.eventReadiness.map((item) => (
+                  <ActionRow
+                    key={item.id}
+                    title={item.title}
+                    summary={item.summary}
+                    meta={item.meta}
+                    tone={item.tone}
+                    action={<Link className="button compact-button" href={item.href}>Open event</Link>}
+                  />
+                ))}
+              </ActionQueue>
+            ) : (
+              <QuietState title="No upcoming events">Upcoming production events will appear here.</QuietState>
+            )}
+          </EditorialSection>
 
-          <MinistryCalendar events={overview.events} />
+          <EditorialSection
+            eyebrow="Interpret and prepare"
+            title="EMMA Can Handle"
+            description="EMMA can summarize and recommend; people still approve every write, send, and integration action."
+          >
+            {attention?.emma.length ? (
+              <div className="dashboard-emma-capabilities" aria-label="EMMA capabilities">
+                {attention.emma.map((item) => <StatusBadge key={item.id} tone={item.tone}>{item.title}</StatusBadge>)}
+              </div>
+            ) : null}
+            <MinistryEmmaPanel page="dashboard" overview={overview} />
+          </EditorialSection>
+
+          <EditorialSection eyebrow="Calendar" title="Calendar and schedule" description="The existing event calendar remains the supporting operational overview.">
+            <MinistryCalendar events={overview.events} />
+          </EditorialSection>
         </div>
 
-        <aside className="dashboard-rail" aria-label="Ministry pulse and upcoming events">
-          <MinistryPulse eventsThisWeek={5} volunteers={47} teams={8} connections={12} />
+        <aside className="dashboard-rail" aria-label="Supporting ministry overview">
+          <section className="panel pulse-panel dashboard-supported-summary" aria-label="Tracked ministry summary">
+            <p className="eyebrow">Tracked now</p>
+            <h2 className="section-title flush">Supporting overview</h2>
+            <div className="dashboard-supported-stats">
+              <span><strong>{upcomingEvents.length}</strong> upcoming events</span>
+              <span><strong>{dueThisWeek.length}</strong> tasks due in seven days</span>
+              <span><strong>{blockedTasks}</strong> blocked tasks</span>
+              <span><strong>{doneTasks}/{totalTasks}</strong> tracked tasks complete</span>
+              <span><strong>{communicationPreviewsPending.length}</strong> event previews need planning details</span>
+            </div>
+          </section>
           <NextOnCalendar events={nextEvents} />
         </aside>
       </div>
-
-      <DashboardWaveFooter />
     </section>
   );
 }
@@ -550,7 +651,7 @@ function TasksWorkspace({
 }) {
   const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
   const [statusFilter, setStatusFilter] = useState<TaskStatus | "all">("all");
-  const filteredTasks = statusFilter === "all" ? tasks : tasks.filter((task) => task.status === statusFilter);
+  const filteredTasks = sortTasksByUrgency(statusFilter === "all" ? tasks : tasks.filter((task) => task.status === statusFilter));
   const groupedFilteredTasks = groupTasksByEvent(filteredTasks, events);
 
   return (
@@ -582,7 +683,7 @@ function TasksWorkspace({
 
       {viewMode === "kanban" ? (
         <div className="kanban task-board">
-          {statuses.map((status) => (
+          {taskLaneStatuses.map((status) => (
             <div className="kanban-column task-lane" key={status}>
               <div className="toolbar split">
                 <strong className="lane-title">{statusLabels[status]}</strong>
@@ -592,8 +693,7 @@ function TasksWorkspace({
               </div>
               <div className="task-lane-scroll">
                 {tasks.filter((task) => task.status === status).length ? (
-                  tasks
-                    .filter((task) => task.status === status)
+                  sortTasksByUrgency(tasks.filter((task) => task.status === status))
                     .map((task) => (
                       <TaskCard
                         key={task.id}

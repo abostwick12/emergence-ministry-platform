@@ -96,7 +96,7 @@ test.describe("MVP event automation navigation smoke tests", () => {
     }
   });
 
-  test("dashboard renders the watercolor snapshot with calendar and pulse", async ({ page }) => {
+  test("dashboard prioritizes decisions, care, readiness, and supporting calendar context", async ({ page }) => {
     await login(page);
 
     await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible();
@@ -104,19 +104,15 @@ test.describe("MVP event automation navigation smoke tests", () => {
     // No visible "Emerge" wording outside the "Lead Emergence" brand mark.
     await expect(page.getByText("Emerge Ministry Hub")).toHaveCount(0);
 
-    const metrics = page.getByLabel("Dashboard metrics");
-    for (const label of ["Upcoming Events", "Tasks Due Soon", "Stuck Tasks", "Task Completion", "Communication Reviews Pending"]) {
-      await expect(metrics.getByText(label, { exact: true })).toBeVisible();
+    for (const label of ["Needs Your Attention", "People to Follow Up With", "Upcoming Event Readiness", "EMMA Can Handle"]) {
+      await expect(page.getByRole("heading", { name: label, exact: true })).toBeVisible();
     }
 
     await expect(page.getByRole("heading", { name: "Ministry Calendar" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Ministry Pulse" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Next on the Calendar" })).toBeVisible();
-
-    const pulse = page.getByLabel("Ministry Pulse");
-    for (const label of ["Events This Week", "Volunteers Serving", "New Connections"]) {
-      await expect(pulse.getByText(label, { exact: true })).toBeVisible();
-    }
+    await expect(page.getByRole("heading", { name: "Supporting overview" })).toBeVisible();
+    await expect(page.getByText("Volunteers Serving", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("New Connections", { exact: true })).toHaveCount(0);
 
     // Footer quote removed; the bottom watercolor wave remains.
     await expect(page.getByText(/Making disciples/)).toHaveCount(0);
