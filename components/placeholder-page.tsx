@@ -1,4 +1,5 @@
 import { MinistryEmmaPanel } from "@/components/ministry-emma-panel";
+import { EditorialSection, PageIntro, StatusBadge } from "@/components/platform-ui";
 import type { MinistryEmmaPage } from "@/lib/emma/ministry-page-assistant";
 
 type PlaceholderPageProps = {
@@ -21,29 +22,24 @@ export function PlaceholderPage({
   emmaSignals
 }: PlaceholderPageProps) {
   return (
-    <section className="panel placeholder-page liquid-page-panel">
-      <div className="toolbar split placeholder-page-header">
-        <div>
-          <p className="eyebrow">{eyebrow}</p>
-          <h2 className="section-title flush">
-            {title}
-          </h2>
+    <section className="placeholder-page editorial-placeholder-page">
+      <PageIntro eyebrow={eyebrow} title={title} description={description} actions={<StatusBadge>{stubLabel}</StatusBadge>} />
+      {emmaPage ? (
+        <EditorialSection eyebrow="Interpret" title="EMMA brief" description="Recommendations stay inside the current preview and provider boundaries.">
+          <MinistryEmmaPanel page={emmaPage} staticSignals={emmaSignals} />
+        </EditorialSection>
+      ) : null}
+      <EditorialSection eyebrow="Planned areas" title="Workspace map" description="These areas stay explicitly inactive until their workflows and provider boundaries are approved.">
+        <div className="placeholder-capability-list">
+          {sections.map((section) => (
+            <article className="placeholder-capability-row" key={section}>
+              <strong>{section}</strong>
+              <p>Planned capability. No live file or provider action is available here yet.</p>
+              <StatusBadge>Not live yet</StatusBadge>
+            </article>
+          ))}
         </div>
-        <span className="pill stub">{stubLabel}</span>
-      </div>
-      <p className="muted">{description}</p>
-      {emmaPage ? <MinistryEmmaPanel page={emmaPage} staticSignals={emmaSignals} /> : null}
-      <div className="grid grid-3">
-        {sections.map((section) => (
-          <article className="card placeholder-card liquid-card" key={section}>
-            <strong>{section}</strong>
-            <p className="muted">
-              Planned capability. This area will stay preview-only until the matching workflow and provider boundary are approved.
-            </p>
-            <span className="pill placeholder-card-status">Not live yet</span>
-          </article>
-        ))}
-      </div>
+      </EditorialSection>
     </section>
   );
 }
