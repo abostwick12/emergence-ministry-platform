@@ -266,6 +266,8 @@ export function WorshipPlanningPage() {
         </div>
       </div>
 
+      <details className="worship-secondary-workspace">
+        <summary>Advanced rehearsal, GroupMe, and ProPresenter tools</summary>
       <div className="worship-kpi-row" aria-label="Worship planning metrics">
         <article className="worship-mini-card liquid-card">
           <span>Students Confirmed</span>
@@ -396,6 +398,7 @@ export function WorshipPlanningPage() {
           ))}
         </div>
       </section>
+      </details>
     </section>
   );
 }

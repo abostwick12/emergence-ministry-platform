@@ -15,7 +15,7 @@ export default async function AuthenticatedLayout({ children }: { children: Reac
   const devAuth = isDevAuthActive();
   const session = await getServerSession();
   if (!session) redirect("/login");
-  const shellAccess = await resolveAppShellAccess(session);
+  const shellAccess = session.isMock ? { kind: "full" as const } : await resolveAppShellAccess(session);
   const sessionRole = session.user.role === "leader" || session.user.role === "student" || session.user.role === "parent" ? session.user.role : "admin";
 
   return (
