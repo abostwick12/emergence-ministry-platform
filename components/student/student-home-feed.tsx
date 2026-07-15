@@ -153,6 +153,29 @@ export function StudentHomeFeed({
           <h1>Continue your journey, {firstName}.</h1>
         </div>
 
+        <section className="student-current-journey" aria-label="Current journey and next step">
+          <div className="student-current-journey-heading">
+            <p className="eyebrow">Current journey</p>
+            <h2>Your question, Scripture, and next step</h2>
+          </div>
+          {activePrompt && activeNextStep ? (
+            <StudentQuestionJourneyCard
+              key={activePrompt.id}
+              nextStep={activeNextStep}
+              onReflectionSaved={updateReflection}
+              prompt={activePrompt}
+              reflection={reflections[activePrompt.id]}
+            />
+          ) : activeGroupPrompt && activeGroupNextStep ? (
+            <GroupDiscussionFollowThroughCard key={activeGroupPrompt.id} nextStep={activeGroupNextStep} prompt={activeGroupPrompt} />
+          ) : (
+            <div className="student-feed-empty">
+              <strong>Your next journey starts with a real question.</strong>
+              <p>Ask what you are actually wrestling with, then return here for Scripture, reflection, and leader context.</p>
+            </div>
+          )}
+        </section>
+
         <section className="student-progress-card" aria-label="Private Bible reading progress">
           <div className="student-progress-card-main">
             <span className="student-help-icon" aria-hidden="true">
@@ -218,20 +241,6 @@ export function StudentHomeFeed({
             ))}
           </div>
         </section>
-
-        {activePrompt && activeNextStep ? (
-          <StudentQuestionJourneyCard
-            key={activePrompt.id}
-            nextStep={activeNextStep}
-            onReflectionSaved={updateReflection}
-            prompt={activePrompt}
-            reflection={reflections[activePrompt.id]}
-          />
-        ) : null}
-
-        {activeGroupPrompt && activeGroupNextStep ? (
-          <GroupDiscussionFollowThroughCard key={activeGroupPrompt.id} nextStep={activeGroupNextStep} prompt={activeGroupPrompt} />
-        ) : null}
 
         <FeedSection
           title="Wrestle together"

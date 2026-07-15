@@ -113,9 +113,35 @@
 .assistant-brief-copy p span { color: var(--platform-cyan); font-family: var(--font-platform-mono), ui-monospace, monospace; font-size: var(--text-xs); font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
 .assistant-workspace { margin-top: 18px; border-top: 1px solid var(--editorial-line); padding-top: 18px; }
 
+.editorial-dashboard { gap: 0; }
+.editorial-dashboard .dashboard-main-grid { align-items: start; }
+.editorial-dashboard .dashboard-left-col { gap: 0; }
+.dashboard-emma-capabilities { display: flex; flex-wrap: wrap; gap: 8px; }
+.dashboard-supported-summary { display: grid; gap: 18px; }
+.dashboard-supported-stats { display: grid; gap: 0; }
+.dashboard-supported-stats span { display: flex; justify-content: space-between; gap: 16px; border-top: 1px solid var(--editorial-line); padding: 12px 0; color: var(--muted); }
+.dashboard-supported-stats strong { color: var(--text); }
+.editorial-placeholder-page { display: grid; gap: 0; }
+.placeholder-capability-list { display: grid; }
+.placeholder-capability-row { display: grid; grid-template-columns: minmax(150px, .7fr) minmax(0, 1.4fr) auto; gap: 18px; align-items: center; border-top: 1px solid var(--editorial-line); padding: 16px 0; }
+.placeholder-capability-row p { margin: 0; color: var(--muted); }
+.worship-secondary-workspace { border-top: 1px solid var(--editorial-line); padding-top: 18px; }
+.worship-secondary-workspace > summary { cursor: pointer; color: var(--text); font-weight: 800; }
+.worship-secondary-workspace[open] > summary { margin-bottom: 18px; }
+.student-current-journey { display: grid; gap: 16px; border-top: 1px solid var(--editorial-line); padding-top: 20px; }
+.student-current-journey-heading h2 { margin: 4px 0 0; color: var(--text); font-family: var(--font-platform-serif), Georgia, serif; font-size: var(--text-xl); }
+.formation-advanced-workspace,
+.leader-advanced-diagnostics { border-top: 1px solid var(--editorial-line); padding-top: 16px; }
+.formation-advanced-workspace > summary,
+.leader-advanced-diagnostics > summary { cursor: pointer; color: var(--text); font-weight: 800; }
+.formation-advanced-workspace[open] > summary,
+.leader-advanced-diagnostics[open] > summary { margin-bottom: 18px; }
+.formation-advanced-stack { display: grid; gap: 24px; }
+.discipleship-workspace-stack > .editorial-section .leader-workspace-hero { margin-top: 0; }
+
 .app-shell-platform .sidebar-context-divider { height: 1px; margin: 0 8px 12px; background: var(--editorial-line); }
 
-.app-shell-platform .student-lovable-road {
+.app-shell.app-shell-platform .app-content .student-lovable-road {
   position: static;
   top: auto;
   z-index: auto;
@@ -129,7 +155,7 @@
   list-style: none;
   backdrop-filter: none;
 }
-.app-shell-platform .student-lovable-road li { display: contents; list-style: none; }
+.app-shell.app-shell-platform .app-content .student-lovable-road li { display: contents; list-style: none; }
 
 @media (max-width: 720px) {
   .platform-page-intro,
@@ -137,4 +163,5 @@
   .assistant-brief { align-items: stretch; grid-template-columns: minmax(0, 1fr); flex-direction: column; }
   .action-row { grid-template-columns: 3px minmax(0, 1fr); }
   .action-row-action { grid-column: 2; }
+  .placeholder-capability-row { grid-template-columns: minmax(0, 1fr); gap: 8px; }
 }
