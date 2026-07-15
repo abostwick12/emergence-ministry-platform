@@ -20,7 +20,7 @@ export default async function StudentLayout({ children }: { children: React.Reac
 
   const isStudentSession = access.role === "student";
   const canManageEvents = access.role === "admin" || access.role === "leader";
-  const shellAccess = isStudentSession ? { kind: "full" as const } : await resolveAppShellAccess(access.session);
+  const shellAccess = isStudentSession || access.session.isMock ? { kind: "full" as const } : await resolveAppShellAccess(access.session);
 
   return (
     <RoleProvider initialRole={access.role}>

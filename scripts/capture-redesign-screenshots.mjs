@@ -11,16 +11,21 @@ try {
   await page.getByRole("button", { name: "Log in" }).click();
   await page.waitForURL(/\/dashboard$/);
 
-  for (const route of ["dashboard", "events", "worship", "budget"]) {
+  for (const route of ["dashboard", "events", "worship", "budget", "student", "discipleship", "student/scripture/questions"]) {
+    const fileName = route.replaceAll("/", "-");
     await page.goto(`${baseUrl}/${route}`);
     await page.waitForLoadState("networkidle");
-    await page.screenshot({ path: `test-results/${route}-editorial-1280x900.png`, fullPage: true });
+    await page.screenshot({ path: `test-results/${fileName}-editorial-1280x900.png`, fullPage: true });
   }
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${baseUrl}/dashboard`);
   await page.waitForLoadState("networkidle");
   await page.screenshot({ path: "test-results/dashboard-editorial-390x844.png", fullPage: true });
+
+  await page.goto(`${baseUrl}/student`);
+  await page.waitForLoadState("networkidle");
+  await page.screenshot({ path: "test-results/student-editorial-390x844.png", fullPage: true });
 
   await page.setViewportSize({ width: 768, height: 1024 });
   await page.goto(`${baseUrl}/events`);
