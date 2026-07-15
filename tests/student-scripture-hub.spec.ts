@@ -34,6 +34,8 @@ test.describe("Student Scripture Hub shell", () => {
     await page.goto("/dashboard");
     await discipleshipLink.click();
     await expect(page).toHaveURL(/\/discipleship$/);
+    await expect(page.getByRole("heading", { name: "Discussion Review" })).toBeVisible();
+    await page.getByText("Open knowledge and resource administration", { exact: true }).click();
     await expect(page.getByRole("heading", { name: "Review the source library" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Prepare a group video package" })).toBeVisible();
     await expect(page.getByLabel("Upload text resource")).toBeVisible();
@@ -46,9 +48,9 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page.getByText("Preview ready. This did not save a student question or publish anything.")).toBeVisible();
     await expect(page.getByRole("complementary", { name: "Knowledge brain preview" })).toContainText("Questions to dig into");
     await expect(page.getByRole("complementary", { name: "Knowledge brain preview" })).toContainText("Keep Reading");
-    await expect(page.getByRole("heading", { name: "Discussion Review" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Invite students to your group" })).toBeVisible();
     await expect(page.getByText("Create one launch link")).toBeVisible();
+    await page.getByText("AI draft connection diagnostics", { exact: true }).click();
     await expect(page.getByRole("heading", { name: "Test the draft connection" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Run Connection Test" })).toBeVisible();
     await expect(page.getByRole("tab", { name: /Needs review/ })).toBeVisible();
@@ -166,6 +168,7 @@ test.describe("Student Scripture Hub shell", () => {
 
     await page.goto("/student/scripture/review");
     await expect(page).toHaveURL(/\/discipleship$/);
+    await page.getByText("Open knowledge and resource administration", { exact: true }).click();
     await expect(page.getByRole("heading", { name: "Review the source library" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Discussion Review" })).toBeVisible();
     await expect(page.getByText("No real submissions yet.")).toBeVisible();
@@ -198,6 +201,9 @@ test.describe("Student Scripture Hub shell", () => {
     await page.getByRole("button", { name: "Ask and wrestle with it" }).click();
     await expect(page.getByRole("region", { name: "Journey journal selector" })).toContainText("Why did God put the tree in the garden?");
     const journey = page.getByRole("region", { name: "Journey journal entry" });
+    const entryProgress = journey.getByRole("list", { name: "Entry progress" });
+    await expect(entryProgress.locator('[aria-current="step"]')).toHaveCount(1);
+    await expect(entryProgress).toHaveCSS("position", "static");
     await expect(journey).toContainText("Scripture the app suggested");
     await expect(journey).toContainText("Questions around your question");
     await expect(journey).toContainText("Spiritual practices to try");

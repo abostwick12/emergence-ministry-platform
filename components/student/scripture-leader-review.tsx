@@ -197,12 +197,15 @@ export function ScriptureLeaderReview({ initialGroupState, initialState }: Scrip
         {status}
       </p>
 
-      <GlooDiagnosticPanel
-        diagnostic={diagnostic}
-        isRunning={isRunningDiagnostic}
-        onRun={runDiagnostic}
-        readiness={initialState.readiness}
-      />
+      <details className="leader-advanced-diagnostics">
+        <summary>AI draft connection diagnostics</summary>
+        <GlooDiagnosticPanel
+          diagnostic={diagnostic}
+          isRunning={isRunningDiagnostic}
+          onRun={runDiagnostic}
+          readiness={initialState.readiness}
+        />
+      </details>
 
       <StudentInvitePanel groupState={groupState} isCreating={isCreatingInvite} onCreate={createStudentInvite} />
 
