@@ -26,6 +26,7 @@ import { useRole } from "@/components/role-context";
 import { useEventCard } from "@/components/event-card-context";
 import { UnifiedDashboardBrandArt } from "@/components/unified-dashboard-brand-art";
 import type { AppShellAccessState } from "@/lib/camp/shell-access";
+import { firstNameForPerson } from "@/lib/auth/display-name";
 import type { Role } from "@/lib/types";
 
 const roleLabels: Record<Role, string> = {
@@ -59,14 +60,6 @@ const mobileLinks = [
 
 function mobileMoreLinksFor(links: { href: string; label: string }[]) {
   return links.filter((link) => !mobileLinks.some((mobileLink) => mobileLink.href === link.href));
-}
-
-function resolveDisplayName(user?: { name?: string; email?: string }): string {
-  const name = user?.name?.trim();
-  if (name) return name;
-  const email = user?.email?.trim();
-  if (email) return email.split("@")[0];
-  return "Team Member";
 }
 
 function initialsForUser(displayName: string): string {
@@ -121,6 +114,16 @@ const pageTitles: Record<string, string> = {
 };
 
 const pageSubtitles: Record<string, string> = {
+  "/dashboard": "See what needs human attention, protect what can wait, and keep ministry moving with clarity.",
+  "/events": "Plan every gathering around purpose, readiness, and the people it is meant to serve.",
+  "/worship": "Shape services where songs, people, rehearsal, and story move together with purpose.",
+  "/tasks": "Turn ministry vision into visible next steps, clear ownership, and work that keeps moving.",
+  "/communications": "Prepare thoughtful ministry communication with clear review boundaries before anything is sent.",
+  "/people": "Know who is serving, where care is needed, and how each person can take a meaningful next step.",
+  "/budget": "Steward resources visibly so every dollar supports the ministry purpose it was given for.",
+  "/settings": "Shape access, integrations, and safeguards so the platform serves people responsibly.",
+  "/files": "Keep ministry resources connected to the work, people, and decisions they support.",
+
   "/student": "One step at a time. Ask honestly, read slowly, and keep walking the journey.",
   "/student/scripture/questions": "A quiet place to wrestle with questions, Scripture, practices, and the fruit forming over time.",
   "/student/scripture/resources": "Passages, story guides, and reading tools tied to where you are in the journey.",
@@ -193,8 +196,8 @@ export function AppShell({
   user?: { name?: string; email?: string };
 }) {
   const pathname = usePathname();
-  const displayName = resolveDisplayName(user);
-  const userInitials = initialsForUser(displayName);
+  const firstName = firstNameForPerson(user?.name, user?.email);
+  const userInitials = initialsForUser(firstName);
   const { activeRole, setActiveRole } = useRole();
   const { openCreate } = useEventCard();
   const isCampRoute = pathname.startsWith("/camp");
@@ -221,7 +224,7 @@ export function AppShell({
           ? "Command Center"
           : "Dashboard");
   const subtitle = pathname === "/dashboard"
-    ? `Welcome back, ${displayName.split(" ")[0]}! Here's what's going on across the ministry.`
+    ? `Welcome back, ${firstName}. ${pageSubtitles["/dashboard"]}`
     : pageSubtitles[pathname] ??
       (pathname.startsWith("/student")
         ? pageSubtitles["/student"]
@@ -292,7 +295,7 @@ export function AppShell({
             <div className="sidebar-profile">
               <span className="sidebar-avatar" aria-hidden="true">{userInitials}</span>
               <span className="sidebar-profile-text">
-                <strong>{displayName}</strong>
+                <strong>{firstName}</strong>
                 <span className="muted">{roleLabels[sessionRole ?? activeRole]}</span>
               </span>
               <a className="sidebar-profile-logout" href="/api/auth/logout">

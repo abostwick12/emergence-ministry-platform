@@ -16,6 +16,7 @@ import type {
 } from "@/lib/types";
 import { addDays, uid } from "@/lib/utils";
 import type { AuthSession } from "@/lib/auth/server";
+import { resolvePersonName } from "@/lib/auth/display-name";
 import { getSupabaseAuthClient } from "@/lib/auth/server";
 import { isSupabaseConfigured } from "@/lib/auth/config";
 import { resolveMinistryScope } from "@/lib/ministry/scope";
@@ -559,11 +560,12 @@ async function createActivityLog(session: AuthSession, eventId: string, taskId: 
 
 function toUsers(rows: SupabaseProfileRow[], session: AuthSession): User[] {
   if (!rows.length) {
+    const [firstName, ...lastName] = resolvePersonName(session.user.fullName, session.user.email, "Staff Member").split(" ");
     return [
       {
         id: session.user.id,
-        firstName: session.user.fullName.split(" ")[0] || "Staff",
-        lastName: session.user.fullName.split(" ").slice(1).join(" ") || "User",
+        firstName: firstName || "Staff",
+        lastName: lastName.join(" "),
         email: session.user.email,
         role: toRole(session.user.role)
       }
@@ -571,12 +573,12 @@ function toUsers(rows: SupabaseProfileRow[], session: AuthSession): User[] {
   }
 
   return rows.map((row) => {
-    const [firstName, ...lastName] = (row.full_name || row.email || "Staff User").split(" ");
+    const [firstName, ...lastName] = resolvePersonName(row.full_name, row.email, "Staff Member").split(" ");
     return {
       id: row.id,
       ministryId: row.ministry_id ?? undefined,
       firstName,
-      lastName: lastName.join(" ") || "User",
+      lastName: lastName.join(" "),
       email: row.email ?? "",
       role: toRole(row.role)
     };

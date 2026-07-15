@@ -108,7 +108,7 @@ export function MinistryBudgetPage() {
   );
 }
 
-export function MinistrySettingsPage({ user, canManageCampAccess }: { user: SettingsUser; canManageCampAccess: boolean }) {
+export function MinistrySettingsPage({ user }: { user: SettingsUser }) {
   return (
     <LaunchDataPage
       eyebrow="Settings"
@@ -116,7 +116,7 @@ export function MinistrySettingsPage({ user, canManageCampAccess }: { user: Sett
       description="Keep access, workflow boundaries, and integration readiness visible without exposing secrets."
       emmaPage="settings"
     >
-      {(overview) => <SettingsWorkspace overview={overview} user={user} canManageCampAccess={canManageCampAccess} />}
+      {(overview) => <SettingsWorkspace overview={overview} user={user} />}
     </LaunchDataPage>
   );
 }
@@ -492,30 +492,24 @@ function BudgetWorkspace({ overview, refresh }: { overview: MinistryOverview; re
   );
 }
 
-function SettingsWorkspace({ overview, user, canManageCampAccess }: { overview: MinistryOverview; user: SettingsUser; canManageCampAccess: boolean }) {
+function SettingsWorkspace({ overview, user }: { overview: MinistryOverview; user: SettingsUser }) {
   return (
-    <div className="ministry-launch-grid">
-      <LaunchMetric icon={<ShieldCheck aria-hidden="true" />} label="Current role" value={(user?.role ?? "guest").toUpperCase()} detail={user?.email ?? "No active session profile"} tone="cyan" />
-      <LaunchMetric icon={<CheckCircle2 aria-hidden="true" />} label="Workflows" value={String(overview.events.length)} detail="Events available to operational pages" tone="gold" />
-      <LaunchMetric icon={<Sparkles aria-hidden="true" />} label="Camp access" value={canManageCampAccess ? "Admin" : "Scoped"} detail="Camp settings remain in the Camp visual system below" tone="violet" />
+    <div className="ministry-launch-grid settings-readiness-grid">
+      <LaunchMetric icon={<ShieldCheck aria-hidden="true" />} label="Current role" value={(user?.role ?? "guest").toUpperCase()} detail={user?.fullName ?? "No active session profile"} tone="cyan" />
+      <LaunchMetric icon={<CheckCircle2 aria-hidden="true" />} label="Active workflows" value={String(overview.events.length)} detail="Events currently available to operational pages" tone="gold" />
+      <LaunchMetric icon={<UsersRound aria-hidden="true" />} label="Signed in as" value={user?.fullName?.split(" ")[0] ?? "Guest"} detail={user?.email ?? "No authenticated email"} tone="violet" />
 
-      <article className="ministry-launch-panel ministry-launch-span-3">
-        <SectionHead eyebrow="Launch Controls" title="What is live, preview-only, or protected" />
-        <div className="ministry-launch-setting-grid">
-          <SettingCard title="Profile and role" detail={user?.fullName ? `${user.fullName} - ${user.email}` : user?.email ?? "Signed-in profile"} state="Live" />
-          <SettingCard title="Event workflow" detail="Master Event Card, generated tasks, activity log, and budget actuals are active." state="Live" />
-          <SettingCard title="Communications" detail="Draft previews can be generated from events. Nothing sends email, text, or GroupMe." state="Preview" />
+      <article className="ministry-launch-panel ministry-launch-span-3 settings-readiness-panel">
+        <SectionHead eyebrow="Connected services" title="Live readiness with real controls only" />
+        <p className="settings-readiness-copy">Connect or review the services the platform can actually verify. Preview-only sends and protected provider boundaries remain descriptive, never disguised as launch buttons.</p>
+        <div className="ministry-launch-setting-grid settings-readiness-controls">
           <PlanningCenterIntegrationControl />
           <EmmaReadinessSettingCard />
-          <SettingCard title="Provider adapters" detail="Google, ProPresenter, and AI remain behind adapter boundaries until each live provider is approved." state="Protected" />
-          <SettingCard title="Secrets" detail="API keys and provider credentials are never shown in the app UI." state="Protected" />
-          <SettingCard title="Student access" detail="Student users stay in the student portal navigation, separate from staff menus." state="Live" />
         </div>
       </article>
     </div>
   );
 }
-
 function EmmaReadinessSettingCard() {
   const [state, setState] = useState<EmmaReadinessState>({ status: "loading" });
 

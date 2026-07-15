@@ -273,6 +273,14 @@ describe("audited provider execution", () => {
     expect(result.ok).toBe(true);
   });
 
+  it("selects the live Gemini default when a key is configured without a separate mode flag", async () => {
+    process.env.GEMINI_API_KEY = "configured-key";
+
+    await expect(resolveProviderSelection(session())).resolves.toMatchObject({
+      providerId: "gemini",
+      model: "gemini-3.5-flash"
+    });
+  });
   it("does not allow launch runtime to select the mock EMMA provider", async () => {
     process.env.VERCEL_ENV = "preview";
 

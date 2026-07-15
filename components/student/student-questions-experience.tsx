@@ -1,14 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Archive, BookOpen, Check, ChevronDown, Feather, Footprints, HelpCircle, Leaf, Plus, RotateCcw, Sprout } from "lucide-react";
+import { Archive, BookOpen, Check, ChevronDown, Feather, Footprints, GitFork, Leaf, Plus, RotateCcw, Sprout } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { StudentQuestionComposer } from "@/components/student/student-question-composer";
+import { YouVersionReaderWindow } from "@/components/student/youversion-reader-window";
 import type { DiscussionWorkflowState } from "@/lib/scripture/discussion-workflow";
 import { buildQuestionNextStep, type StudentQuestionNextStep } from "@/lib/scripture/student-home";
 import type { StudentQuestionReflection } from "@/lib/scripture/student-reflections";
 import type { StudentDiscussionPrompt } from "@/lib/scripture/types";
+import { buildYouVersionReaderLink } from "@/lib/scripture/youversion";
 
 type StudentQuestionsExperienceProps = {
   initialReflections: Record<string, StudentQuestionReflection>;
@@ -178,10 +180,14 @@ export function StudentQuestionsExperience({ initialReflections, initialState }:
           reflection={reflections[selectedPrompt.id]}
         />
       ) : null}
-      <section className="student-feed-section student-journey-history" aria-label="Journey History">
-        <div className="student-feed-section-heading">
-          <h2>Journey History</h2>
-        </div>
+      <details aria-label="Journey History" className="student-feed-section student-journey-history" role="region">
+        <summary>
+          <span>
+            <span className="eyebrow">Journey history</span>
+            <strong>{activePrompts.length} active {activePrompts.length === 1 ? "journey" : "journeys"}</strong>
+          </span>
+          <ChevronDown aria-hidden="true" size={18} />
+        </summary>
         {activePrompts.length ? (
           <div className="student-feed-list">
             {activePrompts.slice(0, 5).map((prompt) => (
@@ -193,24 +199,16 @@ export function StudentQuestionsExperience({ initialReflections, initialState }:
                 </div>
                 <div className="student-feed-row-actions">
                   <span className="pill blue">{prompt.status === "pending_review" ? "With leader" : prompt.status.replace(/_/g, " ")}</span>
-                  <button className="button secondary" onClick={() => setSelectedPromptId(prompt.id)} type="button">
-                    Open
-                  </button>
-                  <button className="button compact" onClick={() => archivePrompt(prompt.id)} type="button">
-                    <Archive aria-hidden="true" size={15} />
-                    Archive
-                  </button>
+                  <button className="button secondary" onClick={() => setSelectedPromptId(prompt.id)} type="button">Open</button>
+                  <button className="button compact" onClick={() => archivePrompt(prompt.id)} type="button"><Archive aria-hidden="true" size={15} />Archive</button>
                 </div>
               </article>
             ))}
           </div>
         ) : (
-          <div className="student-feed-empty">
-            <strong>No questions sent yet.</strong>
-            <p>When you send a real question, it will show here while your leader reviews it.</p>
-          </div>
+          <div className="student-feed-empty"><strong>No questions sent yet.</strong><p>When you send a real question, it will show here while your leader reviews it.</p></div>
         )}
-      </section>
+      </details>
       {archivedPrompts.length ? (
         <section className="student-feed-section" aria-label="Archived questions">
           <div className="student-feed-section-heading">
@@ -258,15 +256,19 @@ function StudentLovableJournalEntry({
   const [livingReflection, setLivingReflection] = useState("");
   const [fruitReflection, setFruitReflection] = useState("");
   const [selectedPractice, setSelectedPractice] = useState<"embodied" | "guided">("embodied");
+  const [studyPath, setStudyPath] = useState<"word" | "inductive">("word");
+  const [selectedReadingId, setSelectedReadingId] = useState(nextStep.journeyJournal.readingPath[0]?.id ?? "");
   const [isSaving, setIsSaving] = useState(false);
   const [status, setStatus] = useState(reflection?.privateNote ? "Saved to your private note." : "Autosaved locally until you save the entry.");
   const practice = nextStep.journeyJournal.spiritualPractice;
-  const guidedPrayer = practice.guidedPrayer;
   const readingCards = nextStep.journeyJournal.readingPath.slice(0, 3);
+  const selectedReading = readingCards.find((reading) => reading.id === selectedReadingId) ?? readingCards[0];
+  const selectedReader = selectedReading ? buildYouVersionReaderLink(selectedReading.lookupReference) : undefined;
+  const guidedPrayer = practice.guidedPrayer;
   const keyWords = nextStep.journeyJournal.keyWords.slice(0, 3);
   const phases = [
     { label: "Scripture", complete: Boolean(scriptureReflection.trim()) },
-    { label: "Questions", complete: Boolean(questionReflection.trim()) },
+    { label: "Investigate", complete: Boolean(questionReflection.trim()) },
     { label: "Practice", complete: Boolean(practiceReflection.trim()) },
     { label: "Life", complete: Boolean(livingReflection.trim()) },
     { label: "Fruit", complete: Boolean(fruitReflection.trim()) }
@@ -321,29 +323,18 @@ function StudentLovableJournalEntry({
 
       <LovableJournalSection
         icon={BookOpen}
-        eyebrow="Scripture the app suggested"
-        title="Sit with the passage before you speak back."
+        eyebrow="Scripture / Step 1"
+        title="Read the passage in YouVersion before you speak back."
       >
-        <div className="student-lovable-card-row">
+        <div className="student-scripture-recommendations" role="group" aria-label="Recommended Scripture passages">
           {readingCards.map((reading) => (
-            <a className="student-lovable-mini-card" href={`/student/scripture/resources?reference=${encodeURIComponent(reading.lookupReference)}`} key={reading.id}>
+            <button className={selectedReading?.id === reading.id ? "active" : ""} key={reading.id} onClick={() => setSelectedReadingId(reading.id)} type="button">
               <strong>{reading.reference}</strong>
               <span>{reading.title}</span>
-            </a>
+            </button>
           ))}
         </div>
-        {keyWords.length ? (
-          <div className="student-lovable-keyword-row" aria-label="Hebrew word study cards">
-            {keyWords.map((word) => (
-              <a className="student-lovable-keyword-card" href={word.lexicalUrl} key={word.transliteration} rel="noreferrer" target="_blank">
-                <span>{word.originalLanguage}</span>
-                <strong>{word.transliteration}</strong>
-                <em>{word.term}</em>
-                <p>{word.invitation}</p>
-              </a>
-            ))}
-          </div>
-        ) : null}
+        <YouVersionReaderWindow link={selectedReader?.ok ? selectedReader : undefined} title="Choose a recommended passage" />
         <textarea
           onChange={(event) => setScriptureReflection(event.target.value)}
           placeholder="What did you notice? What word or phrase lingered? What is God stirring as you read slowly?"
@@ -353,23 +344,43 @@ function StudentLovableJournalEntry({
       </LovableJournalSection>
 
       <LovableJournalSection
-        icon={HelpCircle}
-        eyebrow="Questions around your question"
-        title="Wrestle honestly - the answer often lives inside a better question."
+        icon={GitFork}
+        eyebrow="Investigate / Step 2"
+        title="Choose one way to look more closely."
       >
-        <ul className="student-lovable-question-list">
-          {nextStep.wrestleQuestions.slice(0, 3).map((question) => (
-            <li key={question}>&quot;{question}&quot;</li>
-          ))}
-        </ul>
+        <div className="student-lovable-investigate-grid" role="group" aria-label="Choose an investigation path">
+          <button className={studyPath === "word" ? "active" : ""} onClick={() => setStudyPath("word")} type="button">
+            <strong>Word study</strong>
+            <span>Slow down around one meaningful word and its biblical context.</span>
+          </button>
+          <button className={studyPath === "inductive" ? "active" : ""} onClick={() => setStudyPath("inductive")} type="button">
+            <strong>Inductive study</strong>
+            <span>Observe what is there, interpret in context, then respond carefully.</span>
+          </button>
+        </div>
+        {studyPath === "word" && keyWords.length ? (
+          <div className="student-lovable-keyword-row" aria-label="Word study cards">
+            {keyWords.map((word) => (
+              <a className="student-lovable-keyword-card" href={word.lexicalUrl} key={word.transliteration} rel="noreferrer" target="_blank">
+                <span>{word.originalLanguage}</span>
+                <strong>{word.transliteration}</strong>
+                <em>{word.term}</em>
+                <p>{word.invitation}</p>
+              </a>
+            ))}
+          </div>
+        ) : (
+          <ul className="student-lovable-question-list">
+            {nextStep.wrestleQuestions.slice(0, 3).map((question) => <li key={question}>&quot;{question}&quot;</li>)}
+          </ul>
+        )}
         <textarea
           onChange={(event) => setQuestionReflection(event.target.value)}
-          placeholder="Which of these presses on something real? Write toward it, not away from it."
+          placeholder={studyPath === "word" ? "What does this word reveal in this passage?" : "What do you observe, what does it mean in context, and how will you respond?"}
           rows={5}
           value={questionReflection}
         />
       </LovableJournalSection>
-
       <LovableJournalSection
         icon={Sprout}
         eyebrow="Spiritual practices to try"

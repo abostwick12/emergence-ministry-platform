@@ -175,14 +175,14 @@ describe("ministry page server-backed EMMA chat", () => {
         ...process.env,
         EMMA_PROVIDER_MODE: "gemini",
         GEMINI_API_KEY: "secret-key",
-        EMMA_DEFAULT_MODEL: "gemini-2.0-flash"
+        EMMA_DEFAULT_MODEL: "gemini-3.5-flash"
       }
     });
 
     expect(readiness).toMatchObject({
       liveProviderConfigured: true,
       provider: "gemini",
-      model: "gemini-2.0-flash",
+      model: "gemini-3.5-flash",
       status: "live"
     });
     expect(JSON.stringify(readiness)).not.toContain("secret-key");

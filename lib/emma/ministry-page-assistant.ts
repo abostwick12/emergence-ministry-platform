@@ -38,6 +38,12 @@ export const ministryEmmaPageLabels: Record<MinistryEmmaPage, string> = {
   worship: "Worship"
 };
 
+export const ministryEmmaUniversalPromptTemplates = [
+  "Help me think through a ministry decision.",
+  "What should our team prioritize this week?",
+  "Where could we simplify without losing the ministry purpose?"
+] as const;
+
 export const ministryEmmaPromptTemplates: Record<MinistryEmmaPage, string[]> = {
   dashboard: ["What needs attention today?", "Summarize selected event", "Where are the workflow gaps?"],
   events: ["Summarize selected event", "What event information is missing?", "What should I open first?"],
@@ -151,7 +157,7 @@ function answerTasks(overview: MinistryEmmaOverview): MinistryEmmaResponse {
       overdue[0] ? `Oldest overdue task: ${overdue[0].taskTitle}.` : "No overdue open tasks are visible.",
       unassigned.length ? `${unassigned.length} task${plural(unassigned.length)} need a known profile owner.` : "Task ownership is mapped to known profiles."
     ],
-    nextActions: ["Filter to stuck work.", "Assign owner gaps.", "Use selected event summary before changing a larger plan."]
+    nextActions: ["Filter to stuck work.", "Assign owner gaps.", "Break the oldest overdue item into a clear next step."]
   };
 }
 

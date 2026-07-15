@@ -149,7 +149,7 @@ export function WorshipPlanningPage() {
   }
 
   return (
-    <section className="worship-page liquid-page-panel liquid-workspace" aria-label="Worship Planning">
+    <section className="worship-page worship-lovable-page" aria-label="Worship Planning">
       <MinistryEmmaPanel
         page="worship"
         staticSignals={[
@@ -207,10 +207,10 @@ export function WorshipPlanningPage() {
               <div>
                 <button className="button compact-button" type="button" onClick={prepareSlideUpdate}>
                   <Download aria-hidden="true" />
-                  Send charts
+                  Preview charts
                 </button>
                 <button className="button compact-button primary" type="button" onClick={prepareSlideUpdate}>
-                  Add song
+                  Add song preview
                 </button>
               </div>
             </div>
@@ -267,7 +267,10 @@ export function WorshipPlanningPage() {
       </div>
 
       <details className="worship-secondary-workspace">
-        <summary>Advanced rehearsal, GroupMe, and ProPresenter tools</summary>
+        <summary>
+          <span>Advanced production tools</span>
+          <small>Rehearsal, preview-only communication, and presentation readiness</small>
+        </summary>
       <div className="worship-kpi-row" aria-label="Worship planning metrics">
         <article className="worship-mini-card liquid-card">
           <span>Students Confirmed</span>

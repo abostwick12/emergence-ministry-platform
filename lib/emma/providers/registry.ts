@@ -7,7 +7,7 @@ import { createGeminiProvider } from "./gemini-provider";
 import { createMockEmmaProvider } from "./mock-provider";
 import type { EmmaProvider, EmmaProviderId } from "./types";
 
-export const DEFAULT_GEMINI_MODEL = "gemini-2.0-flash";
+export const DEFAULT_GEMINI_MODEL = "gemini-3.5-flash";
 export const DEFAULT_MOCK_MODEL = "mock-emma-model";
 
 export interface ProviderSelection {
@@ -40,7 +40,7 @@ export async function resolveProviderSelection(
     maxOutputTokens?: number;
   }
 ): Promise<ProviderSelection> {
-  const mode = normalizeProviderMode(process.env.EMMA_PROVIDER_MODE);
+  const mode = normalizeProviderMode(process.env.EMMA_PROVIDER_MODE, process.env.GEMINI_API_KEY);
   const featureConfig =
     input?.featureKey && isSupabaseConfigured() && !session.isMock ? await getAiFeatureConfig(session, input.featureKey) : null;
 
@@ -72,8 +72,10 @@ export async function resolveProviderSelection(
   };
 }
 
-function normalizeProviderMode(value: string | undefined): "mock" | "gemini" {
-  return value === "gemini" ? "gemini" : "mock";
+function normalizeProviderMode(value: string | undefined, geminiApiKey: string | undefined): "mock" | "gemini" {
+  if (value === "mock") return "mock";
+  if (value === "gemini") return "gemini";
+  return geminiApiKey?.trim() ? "gemini" : "mock";
 }
 
 function normalizeProviderId(value: string | null | undefined): EmmaProviderId | undefined {

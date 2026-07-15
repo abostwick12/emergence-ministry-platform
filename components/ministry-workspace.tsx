@@ -2,12 +2,12 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { CheckSquare, Clock3, FileText, MapPin, Plus, UserRound, UsersRound } from "lucide-react";
+import { CheckSquare, Clock3, FileText, MapPin, Plus, Search, UserRound, UsersRound } from "lucide-react";
 import { useRole } from "@/components/role-context";
 import { useEventCard } from "@/components/event-card-context";
 import { MinistryEmmaPanel } from "@/components/ministry-emma-panel";
 import { MinistryCalendar } from "@/components/ministry-calendar";
-import { ActionQueue, ActionRow, EditorialSection, PageIntro, QuietState, StatusBadge } from "@/components/platform-ui";
+import { ActionQueue, ActionRow, EditorialSection, QuietState, StatusBadge } from "@/components/platform-ui";
 import type { DashboardAttention } from "@/lib/dashboard-attention";
 import { eventTypeLabels } from "@/lib/templates";
 import { formatDate, formatDateTime, money } from "@/lib/utils";
@@ -160,16 +160,9 @@ export default function MinistryWorkspace({ view }: { view: WorkspaceView }) {
 
   return (
     <div className="grid workspace-page">
-      {view !== "dashboard" ? (
-        <div className="panel liquid-panel workspace-notice" role="status">
-          {notice}
-        </div>
-      ) : (
-        <div className="sr-only" role="status">
-          {notice}
-        </div>
-      )}
-
+      <div className="sr-only" role="status">
+        {notice}
+      </div>
       {loadError ? (
         <section className="panel liquid-panel">
           <p className="eyebrow">Access Readiness</p>
@@ -209,9 +202,12 @@ export default function MinistryWorkspace({ view }: { view: WorkspaceView }) {
           />
         </section>
       ) : (
-        <section className="grid workflow-stack">
-          <MinistryEmmaPanel page="tasks" overview={{ ...overview, tasks: visibleTasks }} />
+        <section className="grid workflow-stack tasks-page-stack">
           <TasksWorkspace tasks={visibleTasks} events={overview.events} users={activeUsers} onUpdate={updateTask} />
+          <details className="task-emma-disclosure">
+            <summary>Ask EMMA about priorities, people, or decisions</summary>
+            <MinistryEmmaPanel page="tasks" overview={{ ...overview, tasks: visibleTasks }} />
+          </details>
         </section>
       )}
     </div>
@@ -520,12 +516,6 @@ function DashboardWorkspace({
 
   return (
     <section className="grid dashboard-snapshot dashboard-watercolor editorial-dashboard">
-      <PageIntro
-        eyebrow="Ministry overview"
-        title="What needs your attention today"
-        description="Decisions, people, and event readiness are ordered by what needs human follow-through—not by inventory size."
-      />
-
       <EditorialSection
         eyebrow="Decide and unblock"
         title="Needs Your Attention"
@@ -651,57 +641,91 @@ function TasksWorkspace({
 }) {
   const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
   const [statusFilter, setStatusFilter] = useState<TaskStatus | "all">("all");
-  const filteredTasks = sortTasksByUrgency(statusFilter === "all" ? tasks : tasks.filter((task) => task.status === statusFilter));
+  const [searchQuery, setSearchQuery] = useState("");
+  const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
+  const [dragOverStatus, setDragOverStatus] = useState<TaskStatus | null>(null);
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+  const searchedTasks = normalizedQuery
+    ? tasks.filter((task) => task.taskTitle.toLowerCase().includes(normalizedQuery) || events.find((event) => event.id === task.eventId)?.title.toLowerCase().includes(normalizedQuery))
+    : tasks;
+  const filteredTasks = sortTasksByUrgency(statusFilter === "all" ? searchedTasks : searchedTasks.filter((task) => task.status === statusFilter));
   const groupedFilteredTasks = groupTasksByEvent(filteredTasks, events);
 
   return (
-    <section className="panel tasks-workspace liquid-page-panel" id="kanban-dashboard">
-      <div className="toolbar tasks-header">
-        <div>
-          <p className="eyebrow">Task Workspace</p>
-          <h2 className="section-title flush">
-            Tasks
-          </h2>
-        </div>
+    <section className="tasks-workspace tasks-lovable-workspace" id="kanban-dashboard">
+      <div className="toolbar tasks-header tasks-lovable-toolbar">
         <div className="segmented-control" role="group" aria-label="Task view">
           <button
             className={viewMode === "kanban" ? "button primary" : "button"}
             type="button"
             onClick={() => setViewMode("kanban")}
           >
-            Kanban View
+            Kanban
           </button>
           <button
             className={viewMode === "list" ? "button primary" : "button"}
             type="button"
             onClick={() => setViewMode("list")}
           >
-            List View
+            List
           </button>
         </div>
+        <label className="tasks-search-field">
+          <Search aria-hidden="true" />
+          <span className="sr-only">Search tasks</span>
+          <input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search tasks..." type="search" />
+        </label>
       </div>
-
       {viewMode === "kanban" ? (
         <div className="kanban task-board">
           {taskLaneStatuses.map((status) => (
-            <div className="kanban-column task-lane" key={status}>
+            <div
+              className={dragOverStatus === status ? "kanban-column task-lane drag-over" : "kanban-column task-lane"}
+              key={status}
+              onDragOver={(event) => {
+                event.preventDefault();
+                setDragOverStatus(status);
+              }}
+              onDragLeave={() => setDragOverStatus((current) => current === status ? null : current)}
+              onDrop={(event) => {
+                event.preventDefault();
+                const taskId = event.dataTransfer.getData("text/plain") || draggedTaskId;
+                setDragOverStatus(null);
+                setDraggedTaskId(null);
+                if (taskId) void onUpdate(taskId, { status });
+              }}
+            >
               <div className="toolbar split">
                 <strong className="lane-title">{statusLabels[status]}</strong>
                 <span className={status === "done" ? "pill done" : status === "blocked" ? "pill blocked" : "pill"}>
-                  {tasks.filter((task) => task.status === status).length}
+                  {searchedTasks.filter((task) => task.status === status).length}
                 </span>
               </div>
               <div className="task-lane-scroll">
-                {tasks.filter((task) => task.status === status).length ? (
-                  sortTasksByUrgency(tasks.filter((task) => task.status === status))
+                {searchedTasks.filter((task) => task.status === status).length ? (
+                  sortTasksByUrgency(searchedTasks.filter((task) => task.status === status))
                     .map((task) => (
-                      <TaskCard
+                      <div
+                        className={draggedTaskId === task.id ? "task-drag-shell dragging" : "task-drag-shell"}
+                        draggable
                         key={task.id}
-                        task={task}
-                        users={users}
-                        eventTitle={events.find((event) => event.id === task.eventId)?.title ?? "Event"}
-                        onUpdate={onUpdate}
-                      />
+                        onDragStart={(event) => {
+                          event.dataTransfer.effectAllowed = "move";
+                          event.dataTransfer.setData("text/plain", task.id);
+                          setDraggedTaskId(task.id);
+                        }}
+                        onDragEnd={() => {
+                          setDraggedTaskId(null);
+                          setDragOverStatus(null);
+                        }}
+                      >
+                        <TaskCard
+                          task={task}
+                          users={users}
+                          eventTitle={events.find((event) => event.id === task.eventId)?.title ?? "Event"}
+                          onUpdate={onUpdate}
+                        />
+                      </div>
                     ))
                 ) : (
                   <p className="kanban-empty">No tasks in this lane.</p>
@@ -962,7 +986,6 @@ function EventRowCard({
         <EventIdentitySection event={event} tasks={tasks} completeTasks={completeTasks} owner={owner} />
         <EventScrollableSummary
           event={event}
-          owner={owner}
           expenses={expenses}
           tasks={tasks}
           completeTasks={completeTasks}
@@ -1071,7 +1094,6 @@ function EventDateBlock({ event }: { event: MinistryEvent }) {
 
 function EventScrollableSummary({
   event,
-  owner,
   expenses,
   tasks,
   completeTasks,
@@ -1082,7 +1104,6 @@ function EventScrollableSummary({
   onUpdateEvent
 }: {
   event: MinistryEvent;
-  owner?: User;
   expenses: EventExpense[];
   tasks: ActiveTask[];
   completeTasks: number;
@@ -1101,7 +1122,7 @@ function EventScrollableSummary({
   return (
     <div className="event-summary-shell" role="cell">
       <div className="event-summary-heading">
-        <h3>Scrollable Summary</h3>
+        <h3>Event Targets</h3>
         <button
           className="summary-toggle-button"
           type="button"
@@ -1111,9 +1132,16 @@ function EventScrollableSummary({
           Tasks {tasks.length} {isExpanded ? "-" : "+"}
         </button>
       </div>
-      <div className="event-summary-scroll" aria-label={`${event.title} horizontally scrollable summary`}>
-        <EventSummaryField label="Owner" value={owner ? `${owner.firstName} ${owner.lastName}` : "Missing owner"} tone={owner ? undefined : "warning"} />
-        <EventSummaryField label="Location" value={event.location ?? "Missing location"} tone={event.location ? undefined : "warning"} />
+      <div className="event-summary-scroll" aria-label={`${event.title} horizontally scrollable summary`}>        <div className="summary-field action-field notes-summary-field">
+          <span className="summary-label">Internal notes</span>
+          <NotesPanel
+            id={`event-row-notes-${event.id}`}
+            label={`${event.title} event`}
+            value={event.notes ?? ""}
+            compact
+            onSave={(notes) => onUpdateEvent(event.id, { notes })}
+          />
+        </div>
         <EventSummaryField label="Budget proposed" value={event.budgetTarget ? money(event.budgetTarget) : "Missing target"} tone={event.budgetTarget ? undefined : "warning"} />
         <EventSummaryField label="Budget actual" value={actualBudget ? money(actualBudget) : "$0 recorded"} />
         <EventSummaryField label="Volunteers needed" value={estimateVolunteersNeeded(event, tasks)} />
@@ -1133,16 +1161,6 @@ function EventScrollableSummary({
           <button className="button primary" type="button" onClick={() => onOpenEvent(event.id)}>
             Open event
           </button>
-        </div>
-        <div className="summary-field action-field notes-summary-field">
-          <span className="summary-label">Internal notes</span>
-          <NotesPanel
-            id={`event-row-notes-${event.id}`}
-            label={`${event.title} event`}
-            value={event.notes ?? ""}
-            compact
-            onSave={(notes) => onUpdateEvent(event.id, { notes })}
-          />
         </div>
       </div>
     </div>
@@ -1502,6 +1520,8 @@ function TaskCard({
         </div>
       </div>
 
+      <details className="task-card-management">
+        <summary>Manage task</summary>
       {isEditing ? (
         <div className="task-edit-panel">
           <div className="field">
@@ -1574,6 +1594,7 @@ function TaskCard({
           Open event
         </button>
       </div>
+      </details>
     </article>
   );
 }

@@ -10,6 +10,7 @@ import { emmaErrors, emmaFail, emmaOk } from "@/lib/emma/errors";
 import { ministryPageChatSchema, ministryPageChatSystemPrompt, type MinistryPageChatOutput } from "@/lib/emma/providers/ministry-page-chat";
 import { runEmmaProviderForRequest } from "@/lib/emma/providers/run-provider";
 import type { EmmaProviderId } from "@/lib/emma/providers/types";
+import { DEFAULT_GEMINI_MODEL } from "@/lib/emma/providers/registry";
 import {
   completeAiRun,
   createActionProposal,
@@ -85,8 +86,8 @@ export type MinistryEmmaReadiness = {
 export function getMinistryEmmaReadiness(input: { session?: AuthSession | null; env?: NodeJS.ProcessEnv } = {}): MinistryEmmaReadiness {
   const env = input.env ?? process.env;
   const liveProviderConfigured = isMinistryEmmaLiveProviderConfigured(env);
-  const providerMode = env.EMMA_PROVIDER_MODE === "gemini" ? "gemini" : "mock";
-  const model = env.EMMA_DEFAULT_MODEL?.trim() || (liveProviderConfigured ? "gemini-2.0-flash" : "deterministic-fallback");
+  const providerMode = liveProviderConfigured ? "gemini" : "mock";
+  const model = env.EMMA_DEFAULT_MODEL?.trim() || (liveProviderConfigured ? DEFAULT_GEMINI_MODEL : "deterministic-fallback");
 
   return {
     serverBacked: true,
@@ -98,7 +99,7 @@ export function getMinistryEmmaReadiness(input: { session?: AuthSession | null; 
     status: liveProviderConfigured ? "live" : "fallback",
     message: liveProviderConfigured
       ? "EMMA ministry chat is server-backed and configured for live provider responses."
-      : "EMMA ministry chat is server-backed but using audited deterministic fallback until GEMINI_API_KEY and EMMA_PROVIDER_MODE=gemini are configured."
+      : "EMMA ministry chat is server-backed but using audited deterministic fallback until GEMINI_API_KEY is configured or EMMA_PROVIDER_MODE is changed from mock."
   };
 }
 
@@ -150,7 +151,7 @@ function assertCanChat(session: AuthSession): void {
 }
 
 function isMinistryEmmaLiveProviderConfigured(env: NodeJS.ProcessEnv = process.env): boolean {
-  return env.EMMA_PROVIDER_MODE === "gemini" && Boolean(env.GEMINI_API_KEY?.trim());
+  return env.EMMA_PROVIDER_MODE !== "mock" && Boolean(env.GEMINI_API_KEY?.trim());
 }
 
 function shouldAttemptLiveProvider(session: AuthSession): boolean {
