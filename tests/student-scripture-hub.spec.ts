@@ -35,7 +35,7 @@ test.describe("Student Scripture Hub shell", () => {
     await discipleshipLink.click();
     await expect(page).toHaveURL(/\/discipleship$/);
     await expect(page.getByRole("heading", { name: "Discussion Review" })).toBeVisible();
-    await page.getByText("Open knowledge and resource administration", { exact: true }).click();
+    await page.getByText("Knowledge and resource controls", { exact: true }).click();
     await expect(page.getByRole("heading", { name: "Review the source library" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Prepare a group video package" })).toBeVisible();
     await expect(page.getByLabel("Upload text resource")).toBeVisible();
@@ -48,6 +48,7 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page.getByText("Preview ready. This did not save a student question or publish anything.")).toBeVisible();
     await expect(page.getByRole("complementary", { name: "Knowledge brain preview" })).toContainText("Questions to dig into");
     await expect(page.getByRole("complementary", { name: "Knowledge brain preview" })).toContainText("Keep Reading");
+    await page.getByText("Prep, student access, and diagnostics", { exact: true }).click();
     await expect(page.getByRole("heading", { name: "Invite students to your group" })).toBeVisible();
     await expect(page.getByText("Create one launch link")).toBeVisible();
     await page.getByText("AI draft connection diagnostics", { exact: true }).click();
@@ -92,6 +93,13 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(howToReadGuides.getByRole("heading", { name: "What Is the Bible?" })).toBeVisible();
     await expect(howToReadGuides.getByRole("heading", { name: "Literary Genres and Bible Tools" })).toBeVisible();
     await expect(howToReadGuides.getByRole("heading", { name: "How Not to Read Your Bible" })).toBeVisible();
+    await expect(howToReadGuides.locator("iframe")).toHaveCount(7);
+    await expect(howToReadGuides.locator('iframe[title="The Bible\'s Big Story"]')).toHaveAttribute("src", "https://www.youtube.com/embed/7_CGP-12AE0");
+    await expect(howToReadGuides.locator('iframe[title="Literary Styles"]')).toHaveAttribute("src", "https://www.youtube.com/embed/oUXJ8Owes8E");
+    await expect(howToReadGuides.locator('iframe[title="Old Testament Overview"]')).toHaveAttribute("src", "https://www.youtube.com/embed/ALsluAKBZ-c");
+    await expect(howToReadGuides.locator('iframe[title="New Testament Overview"]')).toHaveAttribute("src", "https://www.youtube.com/embed/Q0BrP8bqj0c");
+    await expect(howToReadGuides.locator('iframe[title="Plot and Biblical Context"]')).toHaveAttribute("src", "https://www.youtube.com/embed/dLFCE8z__hw");
+    await expect(howToReadGuides.locator('iframe[title="Ancient Jewish Meditation Literature"]')).toHaveAttribute("src", "https://www.youtube.com/embed/VhmlJBUIoLk");
     await expect(page.getByText("Short guides, simple practice, and honest questions")).toBeVisible();
     await expect(page.getByText("Lectio")).toHaveCount(0);
     await expect(page.getByText(/metanarrative/i)).toHaveCount(0);
@@ -128,7 +136,13 @@ test.describe("Student Scripture Hub shell", () => {
 
     await page.goto("/student/scripture/resources");
     await expect(page.getByRole("heading", { name: "The Big Story of Scripture" })).toBeVisible();
-    await expect(page.locator("iframe[title=\"The Bible's Big Story\"]")).toHaveAttribute("src", "https://www.youtube.com/embed/7_CGP-12AE0");
+    await expect(page.locator("iframe[title=\"The Bible's Big Story\"]")).toHaveCount(0);
+    await expect(page.locator(".student-study-tool-rail-wrap")).toHaveCSS("overflow-x", "hidden");
+    const scriptureViewport = await page.evaluate(() => ({
+      clientWidth: document.documentElement.clientWidth,
+      scrollWidth: document.documentElement.scrollWidth
+    }));
+    expect(scriptureViewport.scrollWidth).toBe(scriptureViewport.clientWidth);
     await expect(page.getByRole("heading", { name: "Four moves before all the details" })).toBeVisible();
     await expect(page.getByRole("list", { name: "Guided Bible storyline path" })).toContainText("God creates and blesses");
     await expect(page.getByRole("list", { name: "Guided Bible storyline path" })).toContainText("Connect to Jesus through the text's story");
@@ -168,7 +182,7 @@ test.describe("Student Scripture Hub shell", () => {
 
     await page.goto("/student/scripture/review");
     await expect(page).toHaveURL(/\/discipleship$/);
-    await page.getByText("Open knowledge and resource administration", { exact: true }).click();
+    await page.getByText("Knowledge and resource controls", { exact: true }).click();
     await expect(page.getByRole("heading", { name: "Review the source library" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Discussion Review" })).toBeVisible();
     await expect(page.getByText("No real submissions yet.")).toBeVisible();
@@ -253,6 +267,7 @@ test.describe("Student Scripture Hub shell", () => {
     await page.goto("/student/scripture/review");
     await expect(page).toHaveURL(/\/discipleship$/);
     await expect(page.getByRole("heading", { name: "Discussion Review" })).toBeVisible();
+    await page.getByText("Prep, student access, and diagnostics", { exact: true }).click();
     await expect(page.getByRole("region", { name: "Tonight discussion prep" })).toContainText("Reflected");
     const reviewDetail = page.getByRole("article", { name: "Selected discussion review" });
     await expect(reviewDetail.getByRole("heading", { name: "Why did God put the tree in the garden?" })).toBeVisible();

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { studentHowToReadLocalProgressKey, type HowToReadModule } from "@/lib/scripture/how-to-read";
+import { getEmbeddableVideoUrl } from "@/lib/scripture/video-embed";
 
 type HowToReadPathProps = {
   initialCompletedModuleIds?: string[];
@@ -152,6 +153,7 @@ export function HowToReadPath({ initialCompletedModuleIds = [], initialProgressS
         {modules.map((module) => {
           const isComplete = completedIds.has(module.id);
           const isCurrent = module.id === currentModule.id && !isComplete;
+          const videoUrl = getEmbeddableVideoUrl(module.videoEmbedUrl);
 
           return (
             <article className={`how-to-read-module ${isComplete ? "complete" : ""} ${isCurrent ? "current" : ""}`} key={module.id}>
@@ -171,11 +173,26 @@ export function HowToReadPath({ initialCompletedModuleIds = [], initialProgressS
                 </span>
               </div>
 
-              <div className="how-to-read-module-tools" aria-label={`${module.title} tools`}>
-                <div>
-                  <PlayCircle size={17} aria-hidden="true" />
-                  <span>{module.videoLabel}</span>
+              {videoUrl ? (
+                <div className="how-to-read-module-video">
+                  <div className="how-to-read-guide-video">
+                    <iframe
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                      allowFullScreen
+                      loading="lazy"
+                      referrerPolicy="strict-origin-when-cross-origin"
+                      src={videoUrl}
+                      title={module.videoLabel}
+                    />
+                  </div>
+                  <p>
+                    <PlayCircle size={17} aria-hidden="true" />
+                    <span>{module.videoLabel}</span>
+                  </p>
                 </div>
+              ) : null}
+
+              <div className="how-to-read-module-tools" aria-label={`${module.title} tools`}>
                 <div>
                   <ImageIcon size={17} aria-hidden="true" />
                   <span>{module.infographicLabel}</span>

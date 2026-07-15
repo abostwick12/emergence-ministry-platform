@@ -154,6 +154,34 @@ test.describe("MVP event automation navigation smoke tests", () => {
     expect(pageHasHorizontalScroll).toBe(false);
   });
 
+  test("events mobile layout removes the inherited workspace box and prevents crowded rails", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await login(page);
+    await page.goto("/events");
+
+    const workspace = page.locator(".events-lovable-workspace");
+    await expect(workspace).toBeVisible();
+    const workspaceSurface = await workspace.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return {
+        backgroundImage: style.backgroundImage,
+        borderTopWidth: style.borderTopWidth,
+        boxShadow: style.boxShadow
+      };
+    });
+    expect(workspaceSurface).toEqual({ backgroundImage: "none", borderTopWidth: "0px", boxShadow: "none" });
+
+    const filters = workspace.locator(".events-lovable-tabs");
+    await expect(filters).toHaveCSS("flex-wrap", "nowrap");
+    expect(await filters.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true);
+
+    const firstEvent = workspace.locator(".event-row-card").first();
+    await expect(firstEvent.locator(".event-operations-rail")).toHaveCSS("grid-template-columns", /.+/);
+    const railColumnCount = await firstEvent.locator(".event-operations-rail").evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" ").length);
+    expect(railColumnCount).toBe(1);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
+  });
+
   test("ministry EMMA chat uses the server-backed audit route", async ({ page }) => {
     await login(page);
     await page.goto("/events");

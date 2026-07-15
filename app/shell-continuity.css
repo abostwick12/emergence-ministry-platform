@@ -1962,6 +1962,13 @@ html:has(.app-shell:not(.app-shell-camp)) body {
 .app-shell:not(.app-shell-camp) .events-lovable-workspace {
   display: grid;
   gap: 32px;
+  border: 0;
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  padding: 0;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
 .app-shell:not(.app-shell-camp) .events-lovable-toolbar {
@@ -2723,5 +2730,126 @@ html:has(.app-shell:not(.app-shell-camp)) body {
 
   .app-shell:not(.app-shell-camp) .ministry-budget-ledger-row {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .app-shell:not(.app-shell-camp) .events-lovable-workspace {
+    gap: 20px;
+  }
+
+  .app-shell:not(.app-shell-camp) .events-lovable-toolbar {
+    gap: 14px;
+  }
+
+  .app-shell:not(.app-shell-camp) .events-lovable-tabs {
+    display: flex;
+    width: 100%;
+    flex-wrap: nowrap;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 0 0 5px;
+    scrollbar-width: none;
+    overscroll-behavior-inline: contain;
+  }
+
+  .app-shell:not(.app-shell-camp) .events-lovable-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .app-shell:not(.app-shell-camp) .event-filter-tab {
+    flex: 0 0 auto;
+    min-height: 36px;
+    padding-inline: 16px;
+    font-size: 14px;
+  }
+
+  .app-shell:not(.app-shell-camp) .events-create-button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .app-shell:not(.app-shell-camp) .event-lovable-list {
+    gap: 18px;
+  }
+
+  .app-shell:not(.app-shell-camp) .event-row-card {
+    border-radius: 20px;
+  }
+
+  .app-shell:not(.app-shell-camp) .event-identity-section {
+    gap: 20px;
+    padding: 24px 20px;
+  }
+
+  .app-shell:not(.app-shell-camp) .event-row-title .button.ghost {
+    font-size: clamp(30px, 10vw, 38px);
+    overflow-wrap: anywhere;
+  }
+
+  .app-shell:not(.app-shell-camp) .lovable-event-meta span {
+    min-width: 0;
+    align-items: flex-start;
+    font-size: 15px;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+  }
+
+  .app-shell:not(.app-shell-camp) .event-summary-shell {
+    gap: 16px;
+    padding: 22px 20px 20px;
+  }
+
+  .app-shell:not(.app-shell-camp) .event-summary-heading {
+    align-items: center;
+    gap: 10px;
+  }
+
+  .app-shell:not(.app-shell-camp) .event-summary-heading h3 {
+    font-size: 17px;
+    letter-spacing: 0.02em;
+  }
+
+  .app-shell:not(.app-shell-camp) .summary-toggle-button {
+    min-height: 40px;
+    padding-inline: 14px;
+    font-size: 14px;
+  }
+
+  .app-shell:not(.app-shell-camp) .event-summary-scroll {
+    gap: 12px;
+    scroll-snap-type: inline proximity;
+  }
+
+  .app-shell:not(.app-shell-camp) .summary-field {
+    flex-basis: min(74vw, 276px);
+    min-height: 124px;
+    scroll-snap-align: start;
+    padding: 18px;
+  }
+
+  .app-shell:not(.app-shell-camp) .summary-label {
+    font-size: 12px;
+  }
+
+  .app-shell:not(.app-shell-camp) .summary-field strong {
+    font-size: 18px;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+  }
+
+  .app-shell:not(.app-shell-camp) .event-operations-rail {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    padding: 20px;
+  }
+
+  .app-shell:not(.app-shell-camp) .event-rail-metric {
+    gap: 10px;
+    padding-bottom: 18px;
+  }
+
+  .app-shell:not(.app-shell-camp) .event-rail-footer {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

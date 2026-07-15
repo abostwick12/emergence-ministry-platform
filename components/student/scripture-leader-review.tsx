@@ -13,6 +13,7 @@ import type { StudentDiscussionPrompt, StudentDiscussionStatus } from "@/lib/scr
 import type { StudentGroupLeaderState } from "@/lib/student/groups";
 
 type ScriptureLeaderReviewProps = {
+  compact?: boolean;
   initialGroupState: StudentGroupLeaderState;
   initialState: DiscussionWorkflowState;
 };
@@ -60,7 +61,7 @@ const reviewTabs: ReviewTab[] = [
   { id: "all", label: "All", matches: () => true }
 ];
 
-export function ScriptureLeaderReview({ initialGroupState, initialState }: ScriptureLeaderReviewProps) {
+export function ScriptureLeaderReview({ compact = false, initialGroupState, initialState }: ScriptureLeaderReviewProps) {
   const [prompts, setPrompts] = useState(initialState.prompts);
   const [groupState, setGroupState] = useState(initialGroupState);
   const [activeTab, setActiveTab] = useState<ReviewTab["id"]>("needs_review");
@@ -197,19 +198,38 @@ export function ScriptureLeaderReview({ initialGroupState, initialState }: Scrip
         {status}
       </p>
 
-      <details className="leader-advanced-diagnostics">
-        <summary>AI draft connection diagnostics</summary>
-        <GlooDiagnosticPanel
-          diagnostic={diagnostic}
-          isRunning={isRunningDiagnostic}
-          onRun={runDiagnostic}
-          readiness={initialState.readiness}
-        />
-      </details>
-
-      <StudentInvitePanel groupState={groupState} isCreating={isCreatingInvite} onCreate={createStudentInvite} />
-
-      <TonightPrepPanel prompts={prompts} stats={stats} onOpenGuide={openDiscussionGuide} onOpenPrompt={openPrompt} />
+      {compact ? (
+        <details className="leader-support-workspace">
+          <summary>Prep, student access, and diagnostics</summary>
+          <div className="leader-support-workspace-body">
+            <TonightPrepPanel prompts={prompts} stats={stats} onOpenGuide={openDiscussionGuide} onOpenPrompt={openPrompt} />
+            <StudentInvitePanel groupState={groupState} isCreating={isCreatingInvite} onCreate={createStudentInvite} />
+            <details className="leader-advanced-diagnostics">
+              <summary>AI draft connection diagnostics</summary>
+              <GlooDiagnosticPanel
+                diagnostic={diagnostic}
+                isRunning={isRunningDiagnostic}
+                onRun={runDiagnostic}
+                readiness={initialState.readiness}
+              />
+            </details>
+          </div>
+        </details>
+      ) : (
+        <>
+          <details className="leader-advanced-diagnostics">
+            <summary>AI draft connection diagnostics</summary>
+            <GlooDiagnosticPanel
+              diagnostic={diagnostic}
+              isRunning={isRunningDiagnostic}
+              onRun={runDiagnostic}
+              readiness={initialState.readiness}
+            />
+          </details>
+          <StudentInvitePanel groupState={groupState} isCreating={isCreatingInvite} onCreate={createStudentInvite} />
+          <TonightPrepPanel prompts={prompts} stats={stats} onOpenGuide={openDiscussionGuide} onOpenPrompt={openPrompt} />
+        </>
+      )}
 
       {activeGuidePrompt ? (
         <LeaderDiscussionGuide
@@ -897,7 +917,9 @@ function LeaderReviewDetail({
         </section>
       ) : null}
 
-      {prompt.knowledgeContext?.length ? <LeaderKnowledgeContext matches={prompt.knowledgeContext} /> : null}
+      {prompt.knowledgeContext?.length ? (
+        <p className="sr-only">Trusted background sources informed this leader review without exposing source-library content.</p>
+      ) : null}
 
       {videoScriptOpen ? <LeaderDiscussionVideoScriptPanel onCopy={copyVideoScript} script={videoScript} status={videoCopyStatus} /> : null}
 
@@ -1089,34 +1111,6 @@ function LeaderStorylineContext({ match }: { match: StorylineQuestionMatch }) {
             ))}
           </ul>
         </div>
-      </div>
-    </section>
-  );
-}
-
-function LeaderKnowledgeContext({ matches }: { matches: NonNullable<StudentDiscussionPrompt["knowledgeContext"]> }) {
-  return (
-    <section className="leader-review-context" aria-label="Retrieved discipleship context">
-      <div>
-        <p className="eyebrow">Retrieved context</p>
-        <h3>Use this to shape the conversation</h3>
-      </div>
-      <div className="leader-review-context-list">
-        {matches.slice(0, 3).map((match) => (
-          <article className="leader-review-context-card" key={match.id}>
-            <span>{match.label}</span>
-            <strong>{match.title}</strong>
-            <p>{match.description}</p>
-            {match.scriptureReferences.length ? <small>{match.scriptureReferences.join(", ")}</small> : null}
-            {match.digQuestions.length ? (
-              <ul>
-                {match.digQuestions.slice(0, 2).map((question) => (
-                  <li key={question}>{question}</li>
-                ))}
-              </ul>
-            ) : null}
-          </article>
-        ))}
       </div>
     </section>
   );
