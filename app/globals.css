@@ -13665,6 +13665,10 @@ html:has(.app-shell-camp) body {
 
 .student-study-tool-rail-wrap {
   position: relative;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .student-study-tool-rail,

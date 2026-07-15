@@ -51,3 +51,35 @@ Checks:
 - The 390px and 768px captures retain readable single-column flow and approved internal rails without whole-page horizontal overflow.
 
 Final result: passed.
+
+## Mobile Lovable correction pass — 2026-07-14
+
+Reference screenshots:
+- Events filter and card: `C:\Users\awbostwick\.codex\codex-remote-attachments\019f629a-f634-75b1-8c4f-6be8d8700b27\3EDA96AF-6B8A-4F61-94D6-3607519EECC8\2-Photo-3.jpg`
+- Events summary crowding: `C:\Users\awbostwick\.codex\codex-remote-attachments\019f629a-f634-75b1-8c4f-6be8d8700b27\3EDA96AF-6B8A-4F61-94D6-3607519EECC8\3-Photo-4.jpg`
+- Misplaced Big Story video: `C:\Users\awbostwick\.codex\codex-remote-attachments\019f629a-f634-75b1-8c4f-6be8d8700b27\3EDA96AF-6B8A-4F61-94D6-3607519EECC8\4-Photo-5.jpg`
+- How to Read module without inline video: `C:\Users\awbostwick\.codex\codex-remote-attachments\019f629a-f634-75b1-8c4f-6be8d8700b27\3EDA96AF-6B8A-4F61-94D6-3607519EECC8\5-Photo-6.jpg`
+
+Implementation captures:
+- `test-results/mobile-qa/events-top-390x844-final.png`
+- `test-results/mobile-qa/events-card-390x844-final.png`
+- `test-results/mobile-qa/discipleship-top-390x844.png`
+- `test-results/mobile-qa/scripture-resources-390x844-final.png`
+- `test-results/mobile-qa/how-to-read-module-390x844-final.png`
+
+Viewport and state:
+- In-app Browser viewport override: 390 x 844.
+- Mock-auth staff session.
+- Routes checked: `/events`, `/discipleship`, `/student/scripture/resources`, and `/student/scripture/how-to-read`.
+- User references and implementation captures were emitted together in the same comparison inputs for Events and Scripture.
+
+Checks:
+- Events workspace computed styles are transparent with no background image, border, shadow, or backdrop filter. The filter rail remains horizontally scrollable and the page has no horizontal overflow.
+- Event identity copy wraps naturally; summary values have a 239px readable tile width at the checked state; the operations rail resolves to one column on mobile.
+- Discipleship leads with Discussion Review. Prep/access/diagnostics, Formation, and Administration are closed disclosures. Retrieved source-library cards render zero visible instances while their data remains available to interpretation logic.
+- Generic Scripture resources render zero video iframes. The study-tool rail scrolls inside its own 310px container and no longer widens the page.
+- How to Read renders seven lazy YouTube embeds inside their corresponding guide cards; the translation guide remains video-free because no direct matching BibleProject video was identified.
+- React best-practices review found no new hook, accessibility, list-key, or component-structure violations.
+- Camp and Command Center code and visual structure were not modified.
+
+Final result: passed.

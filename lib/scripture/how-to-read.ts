@@ -63,7 +63,8 @@ export const howToReadModules: HowToReadModule[] = [
     minutes: 7,
     summary:
       "Poetry, story, law, wisdom, letters, and prophecy all ask to be read with care. This guide gives students a simple way to notice what kind of writing they are reading.",
-    videoLabel: "Genres video slot",
+    videoLabel: "Literary Styles",
+    videoEmbedUrl: "https://www.youtube.com/embed/oUXJ8Owes8E",
     infographicLabel: "Bible genre cards",
     badge: "Read the Room",
     tools: ["Story", "Poetry", "Wisdom", "Prophecy", "Letters"],
@@ -80,7 +81,8 @@ export const howToReadModules: HowToReadModule[] = [
     minutes: 8,
     summary:
       "The Old Testament introduces the world of the Bible, the promises of God, the pain of sin, and the hope Jesus fulfills. Students learn to read it without skipping past it.",
-    videoLabel: "Old Testament video slot",
+    videoLabel: "Old Testament Overview",
+    videoEmbedUrl: "https://www.youtube.com/embed/ALsluAKBZ-c",
     infographicLabel: "Old Testament guide",
     badge: "Do Not Skip the Beginning",
     tools: ["Promise", "Covenant", "Wisdom", "Prophets", "Hope"],
@@ -97,7 +99,8 @@ export const howToReadModules: HowToReadModule[] = [
     minutes: 8,
     summary:
       "The New Testament shows Jesus, the first followers of Jesus, and the hope of all things made new. Students learn to read the Gospels, letters, and Revelation with patience.",
-    videoLabel: "New Testament video slot",
+    videoLabel: "New Testament Overview",
+    videoEmbedUrl: "https://www.youtube.com/embed/Q0BrP8bqj0c",
     infographicLabel: "New Testament guide",
     badge: "Follow Jesus Closely",
     tools: ["Gospels", "Acts", "Letters", "Revelation", "Hope"],
@@ -131,7 +134,8 @@ export const howToReadModules: HowToReadModule[] = [
     minutes: 6,
     summary:
       "This guide names common shortcuts: grabbing a verse out of context, making every detail about me, or using Scripture to win an argument.",
-    videoLabel: "Reading mistakes video slot",
+    videoLabel: "Plot and Biblical Context",
+    videoEmbedUrl: "https://www.youtube.com/embed/dLFCE8z__hw",
     infographicLabel: "Common shortcuts",
     badge: "Handle With Care",
     tools: ["Do not cherry-pick", "Do not rush", "Do not weaponize", "Do not make it all about me"],
@@ -148,7 +152,8 @@ export const howToReadModules: HowToReadModule[] = [
     minutes: 5,
     summary:
       "A simple routine for real life: read a small section, notice what is there, ask honest questions, pray simply, and bring what you notice to your group.",
-    videoLabel: "Reading routine video slot",
+    videoLabel: "Ancient Jewish Meditation Literature",
+    videoEmbedUrl: "https://www.youtube.com/embed/VhmlJBUIoLk",
     infographicLabel: "Simple reading routine",
     badge: "Keep Showing Up",
     tools: ["Read a little", "Notice what is repeated", "Ask one honest question", "Bring it to group"],

@@ -13,7 +13,7 @@ describe("student shell layout wiring", () => {
   it("does not run staff-only shell checks for student sessions on every student page navigation", () => {
     const source = readFileSync(join(process.cwd(), "app/student/layout.tsx"), "utf8");
 
-    expect(source).toContain('isStudentSession ? { kind: "full" as const } : await resolveAppShellAccess(access.session)');
+    expect(source).toContain('isStudentSession || access.session.isMock ? { kind: "full" as const } : await resolveAppShellAccess(access.session)');
     expect(source).toContain("showCommandCenter={!isStudentSession && isCommandCenterUser(access.session)}");
   });
 });
