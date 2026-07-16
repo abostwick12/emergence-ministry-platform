@@ -13,7 +13,7 @@ export async function POST(request: Request) {
   const access = resolveStudentHubAccess(await getServerSession());
   if (!access.allowed) return unauthorizedResponse();
   if (access.role === "student") {
-    return NextResponse.json({ error: "Only leaders can test the knowledge brain." }, { status: 403 });
+    return NextResponse.json({ error: "Only leaders can test the Meridian." }, { status: 403 });
   }
 
   let body: KnowledgeTestRequestBody;
@@ -47,5 +47,5 @@ function knowledgeTestErrorResponse(error: unknown) {
     return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
   }
 
-  return NextResponse.json({ error: "Knowledge brain preview could not be completed.", code: "preview_error" }, { status: 500 });
+  return NextResponse.json({ error: "Meridian preview could not be completed.", code: "preview_error" }, { status: 500 });
 }

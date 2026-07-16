@@ -47,7 +47,7 @@ export async function runKnowledgeTestBench(
 
 function assertKnowledgeTestLeader(session: AuthSession) {
   if (!LEADER_ROLES.has(session.user.role.trim().toLowerCase())) {
-    throw new KnowledgeTestBenchError("Only leaders can test the knowledge brain.", 403, "forbidden");
+    throw new KnowledgeTestBenchError("Only leaders can test the Meridian.", 403, "forbidden");
   }
 }
 

@@ -47,13 +47,15 @@ function devAuthFlagConfigured(): boolean {
 }
 
 export function isMockAuthEnabled() {
+  // Automated local tests / CI opt in explicitly. This remains blocked in a
+  // real production build, but it cannot be disabled by a stale local
+  // VERCEL_ENV=production value in .env.local while running `next dev`.
+  if (process.env.E2E_MOCK_AUTH === "true" && process.env.NODE_ENV !== "production") return true;
+
   // Production NEVER uses dev auth, regardless of any flag — including a stray
   // NEXT_PUBLIC_* value that leaked into a production build. This rejection is
   // checked first so the deprecated public vars can never override it.
   if (process.env.VERCEL_ENV === "production") return false;
-
-  // Automated tests / CI opt in explicitly.
-  if (process.env.E2E_MOCK_AUTH === "true") return true;
 
   // Explicit server-only opt-in (set on Vercel Preview).
   if (devAuthFlagConfigured()) return true;

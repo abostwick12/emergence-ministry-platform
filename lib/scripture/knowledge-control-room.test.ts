@@ -111,6 +111,37 @@ describe("knowledge source control room", () => {
     expect(client.chunkUpdate).toHaveBeenCalledWith({ visibility: "student_visible" });
   });
 
+  it("lets admins mark a source as internal grounding", async () => {
+    const client = updateVisibilityClient("internal_grounding");
+    getSupabaseAuthClientMock.mockReturnValue(client.client);
+
+    const source = await updateKnowledgeSourceVisibility(adminSession(), "source_1", "internal_grounding");
+
+    expect(source).toMatchObject({
+      id: "source_1",
+      visibility: "internal_grounding",
+      chunks: [
+        {
+          visibility: "internal_grounding"
+        }
+      ]
+    });
+    expect(client.sourceUpdate).toHaveBeenCalledWith({ visibility: "internal_grounding" });
+    expect(client.chunkUpdate).toHaveBeenCalledWith({ visibility: "internal_grounding" });
+  });
+
+  it("does not let non-admin leaders mark a source as internal grounding", async () => {
+    const client = updateVisibilityClient("internal_grounding");
+    getSupabaseAuthClientMock.mockReturnValue(client.client);
+
+    await expect(updateKnowledgeSourceVisibility(leaderSession(), "source_1", "internal_grounding")).rejects.toMatchObject({
+      status: 403,
+      code: "forbidden"
+    });
+    expect(client.sourceUpdate).not.toHaveBeenCalled();
+    expect(client.chunkUpdate).not.toHaveBeenCalled();
+  });
+
   it("curates source details and keeps chunk retrieval metadata in sync", async () => {
     const client = updateDetailsClient();
     getSupabaseAuthClientMock.mockReturnValue(client.client);
@@ -199,12 +230,12 @@ function createSourceClient() {
   return { client, sourceInsert, chunkInsert };
 }
 
-function updateVisibilityClient() {
+function updateVisibilityClient(visibility = "student_visible") {
   const sourceUpdate = vi.fn(() => ({
     eq: () => ({
       select: () => ({
         single: async () => ({
-          data: sourceRow({ visibility: "student_visible" }),
+          data: sourceRow({ visibility }),
           error: null
         })
       })
@@ -214,7 +245,7 @@ function updateVisibilityClient() {
     eq: () => ({
       select: () => ({
         returns: async () => ({
-          data: [chunkRow({ visibility: "student_visible" })],
+          data: [chunkRow({ visibility })],
           error: null
         })
       })
@@ -288,6 +319,19 @@ function leaderSession(): AuthSession {
       email: "leader@example.test",
       fullName: "Leader User",
       role: "leader"
+    }
+  };
+}
+
+function adminSession(): AuthSession {
+  return {
+    isMock: false,
+    accessToken: "admin-token",
+    user: {
+      id: "usr_admin",
+      email: "admin@example.test",
+      fullName: "Admin User",
+      role: "admin"
     }
   };
 }

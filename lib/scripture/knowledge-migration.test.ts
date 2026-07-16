@@ -12,6 +12,10 @@ const rabbinicRecommendationMigration = readFileSync(
   join(process.cwd(), "supabase/migrations/031_student_question_rabbinic_recommendations.sql"),
   "utf8"
 );
+const internalGroundingMigration = readFileSync(
+  join(process.cwd(), "supabase/migrations/20260716123000_internal_grounding_visibility.sql"),
+  "utf8"
+);
 
 describe("scripture knowledge RAG migration", () => {
   it("creates the launch knowledge tables with pgvector-ready chunks", () => {
@@ -48,5 +52,13 @@ describe("scripture knowledge RAG migration", () => {
     expect(rabbinicRecommendationMigration).toContain("'journal_prompt'");
     expect(rabbinicRecommendationMigration).toContain("'prayer_prompt'");
     expect(rabbinicRecommendationMigration).toContain("'wrestle_together'");
+  });
+
+  it("adds admin-only internal grounding without changing student-visible retrieval", () => {
+    expect(internalGroundingMigration).toContain("'internal_grounding'");
+    expect(internalGroundingMigration).toContain("admins can manage all ministry knowledge sources");
+    expect(internalGroundingMigration).toContain("leaders can manage non-grounding ministry knowledge sources");
+    expect(internalGroundingMigration).toContain("visibility <> 'internal_grounding'");
+    expect(migration).toContain("using (ministry_id = public.current_ministry_id() and visibility = 'student_visible')");
   });
 });

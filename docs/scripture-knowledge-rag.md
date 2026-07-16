@@ -1,6 +1,6 @@
-# Scripture Knowledge RAG Spine
+# Meridian Scripture Knowledge Spine
 
-The student Scripture flow uses a curated knowledge spine before it ever exposes retrieved material to students.
+The student Scripture flow uses the Meridian's curated knowledge spine before it ever exposes retrieved material to students.
 
 ## What Goes In
 
@@ -15,6 +15,7 @@ Do not ingest raw leadership conflict, military transition material, personal jo
 ## Visibility Levels
 
 - `student_visible`: safe for student recommendations and Keep Reading cards
+- `internal_grounding`: Admin-only Meridian grounding for theology, voice, question shape, journeys, and resource direction; never shown to students
 - `leader_only`: useful for leader review, not directly shown to students
 - `private_review`: held out of product retrieval until Andrew explicitly promotes it
 - `scholar_citation_only`: used for accountable synthesis/citation context, not copied into student-facing prose
@@ -43,7 +44,7 @@ Dry-run the importer before writing anything to Supabase:
 npm run rag:obsidian:dry-run
 ```
 
-The dry-run reads the default vault at `~/Desktop/two-hemisphere brain` and writes a preview to `tmp/obsidian-rag-launch-pack-preview.json`.
+The dry-run reads the default Meridian vault folder at `~/Desktop/two-hemisphere brain` and writes a preview to `tmp/obsidian-rag-launch-pack-preview.json`.
 
 Use a custom vault or output file when needed:
 

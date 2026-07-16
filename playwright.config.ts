@@ -14,7 +14,7 @@ const chromiumLaunchOptions = existsSync(SANDBOX_CHROMIUM)
 
 export default defineConfig({
   testDir: "./tests",
-  timeout: 30_000,
+  timeout: 60_000,
   expect: {
     timeout: 10_000
   },

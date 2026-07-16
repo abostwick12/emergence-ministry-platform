@@ -4,7 +4,7 @@ import { getSupabaseAdminClient, getSupabaseAuthClient, isSupabaseAdminConfigure
 import { resolveMinistryScope } from "@/lib/ministry/scope";
 import { measureServerOperation } from "@/lib/performance/timing";
 import { generateGlooDiscussionDraft, isGlooConfigured } from "@/lib/scripture/gloo";
-import { formatStudentKnowledgeContextForGloo, getStudentKnowledgeMatches, getStudentKnowledgeMatchesBatch } from "@/lib/scripture/knowledge";
+import { formatStudentKnowledgeContextForGloo, getInternalGroundingContext, getStudentKnowledgeMatches, getStudentKnowledgeMatchesBatch } from "@/lib/scripture/knowledge";
 import { buildLocalDiscussionDraft, buildLocalDiscussionDraftForPrompt } from "@/lib/scripture/local-discussion-draft";
 import { deliverDiscussionPromptToSlack, isSlackDiscussionDeliveryConfigured } from "@/lib/scripture/slack";
 import {
@@ -301,13 +301,18 @@ export async function createStudentDiscussionPrompt(session: AuthSession, input:
     question,
     scriptureReference: scripture.reference
   });
+  const groundingContext = await getInternalGroundingContext(session, {
+    question,
+    scriptureReference: scripture.reference
+  });
   const retrievedContext = formatStudentKnowledgeContextForGloo(knowledgeContext);
   const draft = readiness.gloo
     ? await generateGlooDiscussionDraft({
         question,
         scriptureReference: scripture.reference,
         metanarrativeMovement,
-        retrievedContext
+        retrievedContext,
+        internalGroundingContext: groundingContext
       })
     : {
         ok: false as const,
@@ -463,11 +468,13 @@ async function regenerateDiscussionDraft(session: AuthSession, prompt: StudentDi
   }
 
   const knowledgeContext = prompt.knowledgeContext?.length ? prompt.knowledgeContext : await getStudentKnowledgeMatches(session, prompt);
+  const groundingContext = await getInternalGroundingContext(session, prompt);
   const draft = await generateGlooDiscussionDraft({
     question: prompt.question,
     scriptureReference: prompt.scriptureReference,
     metanarrativeMovement: prompt.metanarrativeMovement ?? inferMetanarrativeMovement(prompt.question, prompt.scriptureReference),
-    retrievedContext: formatStudentKnowledgeContextForGloo(knowledgeContext)
+    retrievedContext: formatStudentKnowledgeContextForGloo(knowledgeContext),
+    internalGroundingContext: groundingContext
   });
   const localDraft = buildLocalDiscussionDraftForPrompt({ ...prompt, knowledgeContext });
 

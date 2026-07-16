@@ -12,7 +12,7 @@ vi.mock("@/lib/scripture/knowledge", () => ({
 
 import { KnowledgeTestBenchError, runKnowledgeTestBench } from "@/lib/scripture/knowledge-test-bench";
 
-describe("knowledge brain test bench", () => {
+describe("Meridian test bench", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getStudentKnowledgeMatchesMock.mockResolvedValue([

@@ -7,6 +7,7 @@ const {
   getSupabaseAdminClientMock,
   getSupabaseAuthClientMock,
   getPrimaryStudentGroupIdMock,
+  getInternalGroundingContextMock,
   getStudentKnowledgeMatchesMock,
   getStudentKnowledgeMatchesBatchMock,
   isGlooConfiguredMock,
@@ -19,6 +20,7 @@ const {
   getSupabaseAdminClientMock: vi.fn(),
   getSupabaseAuthClientMock: vi.fn(),
   getPrimaryStudentGroupIdMock: vi.fn(),
+  getInternalGroundingContextMock: vi.fn(),
   getStudentKnowledgeMatchesMock: vi.fn(),
   getStudentKnowledgeMatchesBatchMock: vi.fn(),
   isGlooConfiguredMock: vi.fn(),
@@ -49,6 +51,7 @@ vi.mock("@/lib/scripture/gloo", () => ({
 
 vi.mock("@/lib/scripture/knowledge", () => ({
   formatStudentKnowledgeContextForGloo: formatStudentKnowledgeContextForGlooMock,
+  getInternalGroundingContext: getInternalGroundingContextMock,
   getStudentKnowledgeMatches: getStudentKnowledgeMatchesMock,
   getStudentKnowledgeMatchesBatch: getStudentKnowledgeMatchesBatchMock
 }));
@@ -72,6 +75,7 @@ describe("approved student discussion feed", () => {
     isSupabaseConfiguredMock.mockReturnValue(true);
     isSupabaseAdminConfiguredMock.mockReturnValue(true);
     getStudentKnowledgeMatchesMock.mockResolvedValue([]);
+    getInternalGroundingContextMock.mockResolvedValue("");
     formatStudentKnowledgeContextForGlooMock.mockReturnValue("");
     resolveMinistryScopeMock.mockResolvedValue("ministry_1");
     getPrimaryStudentGroupIdMock.mockResolvedValue("group_1");
@@ -223,6 +227,7 @@ describe("student discussion live submission", () => {
     isSupabaseAdminConfiguredMock.mockReturnValue(true);
     isGlooConfiguredMock.mockReturnValue(false);
     getStudentKnowledgeMatchesMock.mockResolvedValue([]);
+    getInternalGroundingContextMock.mockResolvedValue("");
     formatStudentKnowledgeContextForGlooMock.mockReturnValue("");
     getPrimaryStudentGroupIdMock.mockResolvedValue(undefined);
   });
@@ -246,6 +251,7 @@ describe("local student discussion workflow", () => {
     isSupabaseAdminConfiguredMock.mockReturnValue(false);
     isGlooConfiguredMock.mockReturnValue(false);
     getStudentKnowledgeMatchesMock.mockResolvedValue([]);
+    getInternalGroundingContextMock.mockResolvedValue("");
     formatStudentKnowledgeContextForGlooMock.mockReturnValue("");
   });
 
@@ -286,6 +292,7 @@ describe("leader discussion draft regeneration", () => {
     isSupabaseAdminConfiguredMock.mockReturnValue(true);
     isGlooConfiguredMock.mockReturnValue(true);
     getStudentKnowledgeMatchesMock.mockResolvedValue([]);
+    getInternalGroundingContextMock.mockResolvedValue("");
     formatStudentKnowledgeContextForGlooMock.mockReturnValue("");
     resolveMinistryScopeMock.mockResolvedValue("ministry_1");
   });
@@ -341,7 +348,8 @@ describe("leader discussion draft regeneration", () => {
       question: "How do I trust God when prayer feels quiet?",
       scriptureReference: "Psalm 13",
       metanarrativeMovement: "Jesus / Kingdom Fulfilled",
-      retrievedContext: "Source 1: Psalm 13 and honest prayer"
+      retrievedContext: "Source 1: Psalm 13 and honest prayer",
+      internalGroundingContext: ""
     });
     expect(client.updates[0]).toMatchObject({
       ai_status: "generated",
