@@ -5,7 +5,7 @@ import { resolveMinistryScope } from "@/lib/ministry/scope";
 
 export const knowledgeSourceKinds = ["own_voice", "scholar_reference", "app_resource", "curated_note"] as const;
 export const knowledgeHemispheres = ["own_voice", "scholar", "platform"] as const;
-export const knowledgeVisibilities = ["student_visible", "leader_only", "private_review", "scholar_citation_only"] as const;
+export const knowledgeVisibilities = ["student_visible", "leader_only", "private_review", "scholar_citation_only", "internal_grounding"] as const;
 
 export type KnowledgeSourceKind = (typeof knowledgeSourceKinds)[number];
 export type KnowledgeHemisphere = (typeof knowledgeHemispheres)[number];
@@ -49,7 +49,11 @@ export type KnowledgeControlRoomState = {
     totalSources: number;
     reviewSources: number;
     studentVisibleSources: number;
+    internalGroundingSources: number;
     chunkCount: number;
+  };
+  permissions: {
+    canManageInternalGrounding: boolean;
   };
 };
 
@@ -128,7 +132,7 @@ export async function getKnowledgeControlRoomState(session: AuthSession): Promis
   const sources = sourceResult.data ?? [];
   const sourceIds = sources.map((source) => source.id);
   const chunkRows = sourceIds.length ? await getChunksForSources(session, sourceIds) : [];
-  return toControlRoomState(sources, chunkRows);
+  return toControlRoomState(sources, chunkRows, session);
 }
 
 export async function createKnowledgeSource(session: AuthSession, input: CreateKnowledgeSourceInput): Promise<KnowledgeSourceControlItem> {
@@ -189,6 +193,7 @@ export async function updateKnowledgeSourceVisibility(
 
   assertKnowledgeLeader(session);
   const nextVisibility = normalizeEnum(visibility, knowledgeVisibilities, "Visibility");
+  assertVisibilityAllowed(session, nextVisibility);
   const supabase = getSupabaseAuthClient(session.accessToken);
 
   const sourceResult = await supabase
@@ -277,7 +282,7 @@ async function getChunksForSources(session: AuthSession, sourceIds: string[]) {
   return result.data ?? [];
 }
 
-function toControlRoomState(sourceRows: KnowledgeSourceRow[], chunkRows: KnowledgeChunkRow[]): KnowledgeControlRoomState {
+function toControlRoomState(sourceRows: KnowledgeSourceRow[], chunkRows: KnowledgeChunkRow[], session?: AuthSession): KnowledgeControlRoomState {
   const chunksBySource = new Map<string, KnowledgeChunkRow[]>();
   for (const chunk of chunkRows) {
     const chunks = chunksBySource.get(chunk.source_id) ?? [];
@@ -296,7 +301,11 @@ function toControlRoomState(sourceRows: KnowledgeSourceRow[], chunkRows: Knowled
       totalSources: sources.length,
       reviewSources: sources.filter((source) => source.visibility === "private_review").length,
       studentVisibleSources: sources.filter((source) => source.visibility === "student_visible").length,
+      internalGroundingSources: sources.filter((source) => source.visibility === "internal_grounding").length,
       chunkCount: sources.reduce((total, source) => total + source.chunkCount, 0)
+    },
+    permissions: {
+      canManageInternalGrounding: Boolean(session && isAdmin(session))
     }
   };
 }
@@ -402,6 +411,16 @@ function assertKnowledgeLeader(session: AuthSession) {
   }
 }
 
+function assertVisibilityAllowed(session: AuthSession, visibility: KnowledgeVisibility) {
+  if (visibility === "internal_grounding" && !isAdmin(session)) {
+    throw new KnowledgeControlRoomError("Only admins can manage internal grounding sources.", 403, "forbidden");
+  }
+}
+
+function isAdmin(session: AuthSession) {
+  return session.user.role.trim().toLowerCase() === "admin";
+}
+
 function emptyKnowledgeState(message: string): KnowledgeControlRoomState {
   return {
     readiness: {
@@ -413,7 +432,11 @@ function emptyKnowledgeState(message: string): KnowledgeControlRoomState {
       totalSources: 0,
       reviewSources: 0,
       studentVisibleSources: 0,
+      internalGroundingSources: 0,
       chunkCount: 0
+    },
+    permissions: {
+      canManageInternalGrounding: false
     }
   };
 }

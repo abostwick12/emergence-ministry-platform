@@ -3,7 +3,15 @@ import os from "node:os";
 import path from "node:path";
 
 const STUDENT_VISIBLE_INPUT_VISIBILITIES = new Set(["contest-candidate", "student_visible"]);
-const PRIVATE_VISIBILITIES = new Set(["private-review", "private_review", "leader-review", "leader_only", "scholar-citation-only"]);
+const PRIVATE_VISIBILITIES = new Set([
+  "private-review",
+  "private_review",
+  "leader-review",
+  "leader_only",
+  "scholar-citation-only",
+  "internal_grounding",
+  "internal-grounding"
+]);
 const RISK_PATTERNS = [
   /\babuse\b/i,
   /\bcounsel(or|ing)\b/i,
@@ -585,7 +593,7 @@ function printHelp() {
   console.log(`Usage: node scripts/obsidian-rag-import.mjs [options]
 
 Options:
-  --vault <path>                  Obsidian vault path. Defaults to ~/Desktop/two-hemisphere brain.
+  --vault <path>                  Meridian Obsidian vault path. Defaults to the existing ~/Desktop/two-hemisphere brain folder.
   --out <path>                    Preview JSON output path. Defaults to tmp/obsidian-rag-launch-pack-preview.json.
   --dry-run                       Build preview only. Default.
   --max-sources <number|all>      Limit launch pack size. Defaults to ${DEFAULT_MAX_SOURCES}.

@@ -14,7 +14,9 @@
     "design-check": "node scripts/design-check.mjs",
     "video:landing:studio": "remotion studio remotion/landing/Root.tsx",
     "video:landing:still": "remotion still remotion/landing/Root.tsx LeadEmergenceLandingVideo --frame=90 --scale=0.25 --output=test-results/landing-video-frame.png",
-    "rag:obsidian:dry-run": "node scripts/obsidian-rag-import.mjs --dry-run"
+    "rag:obsidian:dry-run": "node scripts/obsidian-rag-import.mjs --dry-run",
+    "brain:apple-notes:dry-run": "node scripts/apple-notes-brain-compiler.mjs --dry-run",
+    "brain:apple-notes:report": "node scripts/apple-notes-brain-review-report.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

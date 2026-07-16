@@ -1,10 +1,12 @@
 import { spawn } from "node:child_process";
 
 const appUrl = "http://127.0.0.1:3000";
+const e2eEnv = buildE2EEnv();
 
 const server = spawn(process.execPath, ["node_modules/next/dist/bin/next", "dev", "--hostname", "127.0.0.1"], {
   stdio: "inherit",
-  windowsHide: true
+  windowsHide: true,
+  env: e2eEnv
 });
 
 let stopped = false;
@@ -77,7 +79,7 @@ function runPlaywright() {
       stdio: "inherit",
       windowsHide: true,
       env: {
-        ...process.env,
+        ...e2eEnv,
         E2E_SKIP_WEBSERVER: "true"
       }
     });
@@ -103,4 +105,19 @@ try {
   await stopServer();
   console.error(error);
   process.exit(1);
+}
+
+function buildE2EEnv() {
+  const env = { ...process.env };
+  if (env.E2E_MOCK_AUTH === "true") {
+    env.OPENAI_API_KEY = "";
+    env.OPENAI_MODEL = "";
+    env.SAGE_AI_PROVIDER = "";
+    env.AZURE_OPENAI_API_KEY = "";
+    env.AZURE_OPENAI_ENDPOINT = "";
+    env.AZURE_OPENAI_DEPLOYMENT = "";
+    env.AZURE_OPENAI_API_VERSION = "";
+    env.CAMP_MEDICATION_SCAN_ENABLED = "false";
+  }
+  return env;
 }

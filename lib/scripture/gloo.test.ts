@@ -125,6 +125,36 @@ describe("Gloo model policy", () => {
     );
   });
 
+  it("sends internal grounding as posture-only context, not student-facing content", async () => {
+    process.env.GLOO_AI_CLIENT_SECRET = "secret";
+    process.env.GLOO_AI_BASE_URL = "https://platform.ai.gloo.com";
+    process.env.GLOO_AI_MODEL = "GPT-5 Nano";
+
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      jsonResponse({
+        discussionPrompt: "Ask the group what the text invites them to notice.",
+        safetyLabel: "safe",
+        safetyNotes: "Leader can review before use.",
+        confidence: 0.91,
+        topicTags: ["trust"],
+        escalationRecommended: false,
+        escalationReason: ""
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await generateGlooDiscussionDraft({
+      ...baseInput,
+      internalGroundingContext: "Grounding signal 1:\nSynthesis: Ask abstract questions that deepen attention."
+    });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.messages[0].content).toContain("Never quote, summarize, cite, reveal, or assign internal grounding material to students.");
+    expect(body.messages[1].content).toContain("Internal grounding for posture only:");
+    expect(body.messages[1].content).toContain("Ask abstract questions that deepen attention.");
+    expect(body.messages[1].content).toContain("Drive toward engagement");
+  });
+
   it("falls back to the v1 chat-completions endpoint when the base route is not found", async () => {
     process.env.GLOO_AI_CLIENT_SECRET = "secret";
     process.env.GLOO_AI_BASE_URL = "https://platform.ai.gloo.com";

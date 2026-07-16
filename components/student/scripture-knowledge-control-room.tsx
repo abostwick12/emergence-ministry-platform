@@ -30,6 +30,7 @@ type TestBenchResponse = {
 
 const visibilityActions: Array<{ visibility: KnowledgeVisibility; label: string; note: string }> = [
   { visibility: "student_visible", label: "Use for Matching", note: "Can inform follow-up, but publish student-facing helps below." },
+  { visibility: "internal_grounding", label: "Internal Grounding", note: "Admin-only. Shapes theology, voice, questions, and journeys without student exposure." },
   { visibility: "leader_only", label: "Leader Only", note: "Usable for leader preparation, hidden from students." },
   { visibility: "scholar_citation_only", label: "Citation Only", note: "Kept as scholar context without student retrieval." },
   { visibility: "private_review", label: "Back to Review", note: "Held until a leader checks it again." }
@@ -190,7 +191,7 @@ export function ScriptureKnowledgeControlRoom({ initialDiscussionState, initialS
       }
 
       setSources((current) => current.map((source) => (source.id === payload.source!.id ? payload.source! : source)));
-      setStatus("Source details saved. Rerun the brain test to check the updated retrieval path.");
+      setStatus("Source details saved. Rerun the Meridian test to check the updated retrieval path.");
     } catch {
       setStatus("The source details could not be saved.");
     } finally {
@@ -215,14 +216,14 @@ export function ScriptureKnowledgeControlRoom({ initialDiscussionState, initialS
       });
       const payload = (await response.json()) as TestBenchResponse;
       if (!response.ok || !payload.ok || !payload.result) {
-        setStatus(payload.error ?? "The knowledge brain preview could not run.");
+        setStatus(payload.error ?? "The Meridian preview could not run.");
         return;
       }
 
       setTestResult(payload.result);
       setStatus("Preview ready. This did not save a student question or publish anything.");
     } catch {
-      setStatus("The knowledge brain preview could not run.");
+      setStatus("The Meridian preview could not run.");
     } finally {
       setTesting(false);
     }
@@ -239,6 +240,7 @@ export function ScriptureKnowledgeControlRoom({ initialDiscussionState, initialS
         <div className="knowledge-control-stats" aria-label="Knowledge source counts">
           <StatTile label="Sources" value={stats.totalSources} />
           <StatTile label="In review" value={stats.reviewSources} />
+          <StatTile label="Grounding" value={stats.internalGroundingSources} />
           <StatTile label="Student visible" value={stats.studentVisibleSources} />
           <StatTile label="Chunks" value={stats.chunkCount} />
         </div>
@@ -262,7 +264,7 @@ export function ScriptureKnowledgeControlRoom({ initialDiscussionState, initialS
         <form className="knowledge-test-form" onSubmit={runTestBench}>
           <div>
             <p className="eyebrow">Test bench</p>
-            <h2>Ask the brain before students do</h2>
+            <h2>Test the Meridian before students receive guidance</h2>
             <p>Preview the source matches, digging questions, and reading path a student would receive. Nothing is saved or shared.</p>
           </div>
 
@@ -281,7 +283,7 @@ export function ScriptureKnowledgeControlRoom({ initialDiscussionState, initialS
           </label>
 
           <button className="button primary" disabled={testing} type="submit">
-            {testing ? "Testing..." : "Run Brain Test"}
+            {testing ? "Testing..." : "Run Meridian Test"}
           </button>
         </form>
 
@@ -391,6 +393,7 @@ export function ScriptureKnowledgeControlRoom({ initialDiscussionState, initialS
                 key={source.id}
                 onDetailsSave={updateDetails}
                 onVisibilityChange={updateVisibility}
+                showInternalGroundingAction={initialState.permissions.canManageInternalGrounding}
                 source={source}
               />
             ))
@@ -409,7 +412,7 @@ export function ScriptureKnowledgeControlRoom({ initialDiscussionState, initialS
 function TestBenchPreview({ result }: { result: KnowledgeTestBenchResult | null }) {
   if (!result) {
     return (
-      <aside className="knowledge-test-preview" aria-label="Knowledge brain preview">
+      <aside className="knowledge-test-preview" aria-label="Meridian preview">
         <p className="eyebrow">Preview</p>
         <h3>Ready for a question</h3>
         <p>Run a test to see what sources are retrieved and what a student would be invited to explore next.</p>
@@ -418,7 +421,7 @@ function TestBenchPreview({ result }: { result: KnowledgeTestBenchResult | null 
   }
 
   return (
-    <aside className="knowledge-test-preview" aria-label="Knowledge brain preview">
+    <aside className="knowledge-test-preview" aria-label="Meridian preview">
       <p className="eyebrow">Preview</p>
       <h3>{result.nextStep.label}</h3>
       <p>{result.nextStep.summary}</p>
@@ -563,14 +566,18 @@ function SourceCard({
   isUpdating,
   onDetailsSave,
   onVisibilityChange,
+  showInternalGroundingAction,
   source
 }: {
   canWrite: boolean;
   isUpdating: boolean;
   onDetailsSave: (sourceId: string, form: HTMLFormElement) => Promise<void>;
   onVisibilityChange: (sourceId: string, visibility: KnowledgeVisibility) => Promise<void>;
+  showInternalGroundingAction: boolean;
   source: KnowledgeSourceControlItem;
 }) {
+  const actions = visibilityActions.filter((action) => action.visibility !== "internal_grounding" || showInternalGroundingAction);
+
   return (
     <article className="knowledge-source-card">
       <header className="knowledge-source-card-header">
@@ -656,7 +663,7 @@ function SourceCard({
       </details>
 
       <div className="knowledge-source-actions">
-        {visibilityActions.map((action) => (
+        {actions.map((action) => (
           <button
             className={action.visibility === "student_visible" ? "button primary" : "button"}
             disabled={!canWrite || isUpdating || source.visibility === action.visibility}
@@ -686,6 +693,7 @@ function buildStats(sources: KnowledgeSourceControlItem[], fallbackChunkCount: n
   return {
     totalSources: sources.length,
     reviewSources: sources.filter((source) => source.visibility === "private_review").length,
+    internalGroundingSources: sources.filter((source) => source.visibility === "internal_grounding").length,
     studentVisibleSources: sources.filter((source) => source.visibility === "student_visible").length,
     chunkCount: sources.length ? sources.reduce((total, source) => total + source.chunkCount, 0) : fallbackChunkCount
   };
@@ -698,6 +706,7 @@ function sourceLabel(source: KnowledgeSourceControlItem) {
 
 function visibilityClassName(visibility: KnowledgeVisibility) {
   if (visibility === "student_visible") return "pill green";
+  if (visibility === "internal_grounding") return "pill blue";
   if (visibility === "private_review") return "pill amber";
   if (visibility === "scholar_citation_only") return "pill blue";
   return "pill";
@@ -705,6 +714,7 @@ function visibilityClassName(visibility: KnowledgeVisibility) {
 
 function visibilityLabel(visibility: KnowledgeVisibility) {
   if (visibility === "student_visible") return "Student visible";
+  if (visibility === "internal_grounding") return "Internal grounding";
   if (visibility === "private_review") return "Private review";
   if (visibility === "scholar_citation_only") return "Citation only";
   return "Leader only";

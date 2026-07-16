@@ -60,7 +60,7 @@ export function ScriptureTrialInsightsPanel({ groupState, insights }: ScriptureT
       <div className="scripture-trial-grid">
         <InsightList emptyText="Tags will appear after AI drafts or leaders add discussion context." items={insights.topicCounts} title="What students are asking about" />
         <InsightList emptyText="Optional references students enter will appear here." items={insights.scriptureReferences} title="Passages surfacing" />
-        <InsightList emptyText="Knowledge matches will appear as student questions connect to the brain." items={insights.knowledgeMatches} title="Knowledge brain matches" />
+        <InsightList emptyText="Meridian matches will appear as student questions connect to the grounded source library." items={insights.knowledgeMatches} title="Meridian matches" />
       </div>
 
       <div className="scripture-trial-recent">
@@ -83,7 +83,7 @@ export function ScriptureTrialInsightsPanel({ groupState, insights }: ScriptureT
                 </div>
                 <div className="scripture-trial-question-signals" aria-label="Question signals">
                   <Signal label={labelForStatus(question.status)} />
-                  <Signal label={question.hasSavedNextSteps ? "next steps saved" : `${question.knowledgeMatchCount} brain match${question.knowledgeMatchCount === 1 ? "" : "es"}`} />
+                  <Signal label={question.hasSavedNextSteps ? "next steps saved" : `${question.knowledgeMatchCount} Meridian match${question.knowledgeMatchCount === 1 ? "" : "es"}`} />
                   <Signal label={question.studentReflectionCount ? `${question.studentReflectionCount} reflected` : "not reflected yet"} />
                   <Signal label={labelForSafety(question.safetyLabel)} />
                 </div>

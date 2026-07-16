@@ -18,6 +18,7 @@ describe("Obsidian RAG launch importer", () => {
     writeFileSync(join(ownDir, "safe-question-note.md"), safeOwnVoiceNote(), "utf8");
     writeFileSync(join(ownDir, "safe-question-note-copy.md"), safeOwnVoiceNote(), "utf8");
     writeFileSync(join(ownDir, "private-care-note.md"), privateCareNote(), "utf8");
+    writeFileSync(join(ownDir, "internal-grounding-note.md"), internalGroundingNote(), "utf8");
     writeFileSync(join(scholarDir, "scholar-note.md"), scholarNote(), "utf8");
 
     const outPath = join(fixtureRoot, "preview.json");
@@ -29,10 +30,10 @@ describe("Obsidian RAG launch importer", () => {
     const preview = JSON.parse(readFileSync(outPath, "utf8"));
 
     expect(summary.counts).toMatchObject({
-      scanned: 4,
+      scanned: 5,
       sources: 1,
       chunks: 1,
-      skipped: 3
+      skipped: 4
     });
     expect(preview.sources[0]).toMatchObject({
       title: "Student Questions as Curriculum",
@@ -46,7 +47,7 @@ describe("Obsidian RAG launch importer", () => {
     });
     expect(preview.sources[0].chunks[0].body).toContain("Honest student questions can become the starting point");
     expect(preview.skipped.map((item: { reason: string }) => item.reason)).toEqual(
-      expect.arrayContaining(["duplicate_source", "risk_filter:\\bmedical\\b", "visibility:scholar-citation-only"])
+      expect.arrayContaining(["duplicate_source", "risk_filter:\\bmedical\\b", "visibility:internal_grounding", "visibility:scholar-citation-only"])
     );
   });
 });
@@ -111,6 +112,25 @@ Private medical and care details.
 ## Own-Voice Signals
 
 - This should never be public.
+`;
+}
+
+function internalGroundingNote() {
+  return `---
+source_title: "Internal Grounding Signals"
+hemisphere: "Own Voice"
+source_category: "Youth Ministry"
+source_type: "apple_note_internal_grounding_candidate"
+visibility: "internal_grounding"
+student_exposure: "prohibited"
+---
+
+# Internal Grounding Signals
+
+## Grounding Signals
+
+- Shape questions with local ministry voice.
+- Do not quote Meridian Left Hemisphere material to students.
 `;
 }
 

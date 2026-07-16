@@ -47,6 +47,15 @@ type KnowledgeChunkRow = {
   scripture_references: string[] | null;
 };
 
+type InternalGroundingChunkRow = {
+  id: string;
+  title: string;
+  student_summary: string | null;
+  topic_tags: string[] | null;
+  concepts: string[] | null;
+  scripture_references: string[] | null;
+};
+
 type StudentQuestionRecommendationRow = {
   prompt_id: string;
   recommendation_kind: StudentQuestionRecommendationKind;
@@ -59,6 +68,7 @@ type StudentQuestionRecommendationRow = {
 };
 
 const MAX_MATCHES = 3;
+const MAX_GROUNDING_MATCHES = 5;
 
 const launchKnowledgePack: StudentKnowledgeMatch[] = [
   {
@@ -174,6 +184,37 @@ export function formatStudentKnowledgeContextForGloo(matches: StudentKnowledgeMa
         .join("\n");
     })
     .join("\n\n");
+}
+
+export async function getInternalGroundingContext(session: AuthSession, input: KnowledgeSearchInput): Promise<string> {
+  if (!isSupabaseAdminConfigured()) return "";
+
+  try {
+    const ministryId = await resolveMinistryScope(session);
+    if (!ministryId) return "";
+
+    const supabase = getSupabaseAdminClient();
+    const result = await measureServerOperation("supabase.knowledge.internal_grounding", async () => supabase
+        .from("knowledge_chunks")
+        .select("id,title,student_summary,topic_tags,concepts,scripture_references")
+        .eq("ministry_id", ministryId)
+        .eq("visibility", "internal_grounding")
+        .order("updated_at", { ascending: false })
+        .limit(80)
+        .returns<InternalGroundingChunkRow[]>());
+
+    if (result.error) {
+      console.warn("[scripture] internal grounding query failed", { message: result.error.message });
+      return "";
+    }
+
+    return formatInternalGroundingContext(rankInternalGrounding(result.data ?? [], input).slice(0, MAX_GROUNDING_MATCHES));
+  } catch (error) {
+    console.warn("[scripture] internal grounding query unavailable", {
+      reason: error instanceof Error ? error.message : "unknown"
+    });
+    return "";
+  }
 }
 
 export async function saveStudentQuestionRecommendations(
@@ -431,6 +472,64 @@ function questionsFromChunk(row: KnowledgeChunkRow) {
     "What does this reveal about God, people, brokenness, or hope?",
     "How could your group respond together without forcing a quick answer?"
   ];
+}
+
+function rankInternalGrounding(rows: InternalGroundingChunkRow[], input: KnowledgeSearchInput) {
+  const queryText = `${input.question} ${input.scriptureReference ?? ""} ${(input.topicTags ?? []).join(" ")}`;
+  const queryTokens = tokenize(queryText);
+
+  return rows
+    .map((row, index) => ({
+      row,
+      score: scoreInternalGrounding(row, queryTokens, queryText.toLowerCase(), index)
+    }))
+    .filter((item) => item.score > 0 || queryTokens.size === 0)
+    .sort((a, b) => b.score - a.score)
+    .map((item) => item.row);
+}
+
+function scoreInternalGrounding(row: InternalGroundingChunkRow, queryTokens: Set<string>, queryText: string, index: number) {
+  const tags = normalizeList(row.topic_tags);
+  const concepts = normalizeList(row.concepts);
+  const references = normalizeList(row.scripture_references);
+  const text = `${row.student_summary ?? ""} ${tags.join(" ")} ${concepts.join(" ")} ${references.join(" ")}`.toLowerCase();
+  const tokens = tokenize(text);
+  let score = Math.max(0, 5 - index) * 0.01;
+
+  for (const token of Array.from(queryTokens)) {
+    if (tokens.has(token)) score += 2;
+  }
+
+  for (const tag of [...tags, ...concepts]) {
+    if (queryText.includes(tag.toLowerCase())) score += 4;
+  }
+
+  for (const reference of references) {
+    const book = reference.toLowerCase().split(/\s+/)[0];
+    if (book && queryText.includes(book)) score += 3;
+  }
+
+  return score;
+}
+
+function formatInternalGroundingContext(rows: InternalGroundingChunkRow[]) {
+  if (!rows.length) return "";
+
+  return rows
+    .map((row, index) => {
+      const summary = limitText(row.student_summary ?? "", 520);
+      const tags = normalizeList([...(row.topic_tags ?? []), ...(row.concepts ?? [])]).slice(0, 8);
+      const references = normalizeList(row.scripture_references).slice(0, 6);
+      return [
+        `Grounding signal ${index + 1}:`,
+        summary ? `Synthesis: ${summary}` : "",
+        tags.length ? `Posture tags: ${tags.join(", ")}` : "",
+        references.length ? `Biblical neighborhood: ${references.join(", ")}` : ""
+      ]
+        .filter(Boolean)
+        .join("\n");
+    })
+    .join("\n\n");
 }
 
 function tokenize(input: string) {

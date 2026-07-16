@@ -8,6 +8,7 @@ export type GlooDiscussionDraftInput = {
   scriptureReference: string;
   metanarrativeMovement?: MetanarrativeMovement;
   retrievedContext?: string;
+  internalGroundingContext?: string;
 };
 
 export type GlooModelTier = "default" | "escalation" | "long_context";
@@ -113,7 +114,7 @@ export function selectGlooModelPolicy(
   const escalationModel = env.GLOO_AI_ESCALATION_MODEL?.trim();
   const longContextModel = env.GLOO_AI_LONG_CONTEXT_MODEL?.trim();
   const topicFlags = findSensitiveTopicFlags(input.question);
-  const contextSize = `${input.question}\n${input.scriptureReference}\n${input.retrievedContext ?? ""}`.length;
+  const contextSize = `${input.question}\n${input.scriptureReference}\n${input.retrievedContext ?? ""}\n${input.internalGroundingContext ?? ""}`.length;
 
   if (longContextModel && contextSize > 12000) {
     return {
@@ -392,7 +393,7 @@ function createGlooDraftRequestBody(input: GlooDiscussionDraftInput, selection: 
       {
         role: "system",
         content:
-          "You help student ministry leaders prepare careful, Scripture-grounded discussion prompts. Use retrieved ministry context as background, not as an authority to quote. Return only JSON with keys discussionPrompt, safetyLabel, safetyNotes, confidence, topicTags, escalationRecommended, escalationReason. The safetyLabel must be one of safe, needs_leader_care, pastoral_escalation. confidence must be a number from 0 to 1. topicTags must be short lowercase strings. Do not claim pastoral authority, do not give crisis counseling, and do not include full Bible text."
+          "You help student ministry leaders prepare careful, Scripture-grounded discussion prompts. Use retrieved student-visible ministry context as background, not as an authority to quote. Use internal grounding only for theological posture, ministry voice, question shape, culture, and artistic texture. Never quote, summarize, cite, reveal, or assign internal grounding material to students. Return only JSON with keys discussionPrompt, safetyLabel, safetyNotes, confidence, topicTags, escalationRecommended, escalationReason. The safetyLabel must be one of safe, needs_leader_care, pastoral_escalation. confidence must be a number from 0 to 1. topicTags must be short lowercase strings. Do not claim pastoral authority, do not give crisis counseling, and do not include full Bible text."
       },
       {
         role: "user",
@@ -400,9 +401,10 @@ function createGlooDraftRequestBody(input: GlooDiscussionDraftInput, selection: 
           `Student question: ${input.question}\n` +
           `Scripture reference: ${input.scriptureReference || "not selected"}\n` +
           `Quiet story-lens hint: ${input.metanarrativeMovement ?? "infer from the question and passage"}\n\n` +
-          `Retrieved ministry context:\n${input.retrievedContext || "No retrieved context available."}\n\n` +
+          `Student-visible ministry context:\n${input.retrievedContext || "No retrieved student-visible context available."}\n\n` +
+          `Internal grounding for posture only:\n${input.internalGroundingContext || "No internal grounding context available."}\n\n` +
           `Model routing: ${selection.reason}${selection.escalationReason ? ` Escalation reason: ${selection.escalationReason}` : ""}\n\n` +
-          "Draft one Socratic small-group discussion prompt for leader review. Keep it humble, conversational, and grounded in the reference without quoting the passage."
+          "Draft one Socratic small-group discussion prompt for leader review. Keep it humble, conversational, and grounded in the reference without quoting the passage. Drive toward engagement, attention, and relationship with Jesus and community rather than certainty, trivia, or content-farm answers."
       }
     ]
   });
