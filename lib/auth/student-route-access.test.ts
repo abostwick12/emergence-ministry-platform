@@ -46,6 +46,13 @@ describe("student route access", () => {
     expect(response.headers.get("x-middleware-next")).toBe("1");
     expect(fetchSpy).not.toHaveBeenCalled();
   });
+
+  it("lets the daily intelligence endpoint handle its own cron secret", async () => {
+    const response = await middleware(new NextRequest("http://localhost/api/daily-intelligence/brief"));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-middleware-next")).toBe("1");
+  });
 });
 
 function enableMockStudentAuth() {
