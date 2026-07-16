@@ -10,6 +10,7 @@
     "test": "vitest run",
     "test:unit": "vitest run",
     "test:e2e": "node scripts/run-e2e.mjs",
+    "perf:audit": "node scripts/performance-audit.mjs",
     "design-check": "node scripts/design-check.mjs",
     "video:landing:studio": "remotion studio remotion/landing/Root.tsx",
     "video:landing:still": "remotion still remotion/landing/Root.tsx LeadEmergenceLandingVideo --frame=90 --scale=0.25 --output=test-results/landing-video-frame.png",
@@ -17,6 +18,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
+    "@vercel/speed-insights": "^2.0.0",
     "exceljs": "^4.4.0",
     "gray-matter": "^4.0.3",
     "lucide-react": "^1.23.0",

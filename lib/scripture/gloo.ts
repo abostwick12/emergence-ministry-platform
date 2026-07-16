@@ -1,4 +1,7 @@
 import type { MetanarrativeMovement } from "@/lib/scripture/types";
+import { measureServerOperation } from "@/lib/performance/timing";
+
+const PROVIDER_TIMEOUT_MS = 12_000;
 
 export type GlooDiscussionDraftInput = {
   question: string;
@@ -208,7 +211,7 @@ export async function runGlooDiscussionDiagnostic(
 
   for (const url of resolveGlooChatUrls(apiBaseUrl)) {
     try {
-      const response = await fetch(url, {
+      const response = await timedGlooFetch("provider.gloo.diagnostic", url, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -331,7 +334,7 @@ async function requestGlooDiscussionDraft(
 
   let lastFailure: GlooProviderFailure | undefined;
   for (const url of resolveGlooChatUrls(apiBaseUrl)) {
-    const response = await fetch(url, {
+    const response = await timedGlooFetch("provider.gloo.generate", url, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -372,6 +375,13 @@ async function requestGlooDiscussionDraft(
 
   if (lastFailure) logGlooProviderFailure(lastFailure);
   return { ok: false, code: "provider_error", message: lastFailure?.message ?? "Gloo AI Studio did not return a usable draft." };
+}
+
+function timedGlooFetch(operation: "provider.gloo.diagnostic" | "provider.gloo.generate", url: string, init: RequestInit) {
+  return measureServerOperation(operation, () => fetch(url, {
+    ...init,
+    signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS)
+  }));
 }
 
 function createGlooDraftRequestBody(input: GlooDiscussionDraftInput, selection: GlooModelSelection) {

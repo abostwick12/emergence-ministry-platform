@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 import "./shell-continuity.css";
 import "./platform-editorial.css";
@@ -19,7 +20,10 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        {children}
+        {process.env.VERCEL_ENV === "production" || process.env.VERCEL_ENV === "preview" ? <SpeedInsights /> : null}
+      </body>
     </html>
   );
 }

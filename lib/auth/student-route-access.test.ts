@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { middleware } from "@/middleware";
 
@@ -16,13 +16,15 @@ describe("student route access", () => {
     process.env.VERCEL_ENV = originalEnv.VERCEL_ENV;
   });
 
-  it("redirects student sessions away from ministry management pages", async () => {
+  it("does not call remote auth services for authenticated management navigation", async () => {
     enableMockStudentAuth();
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
 
     const response = await middleware(mockSessionRequest("/dashboard"));
 
-    expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toBe("http://localhost/student");
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-middleware-next")).toBe("1");
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it("allows student sessions to use the student portal", async () => {
@@ -34,14 +36,15 @@ describe("student route access", () => {
     expect(response.headers.get("x-middleware-next")).toBe("1");
   });
 
-  it("blocks non-student APIs for student sessions", async () => {
+  it("leaves role authorization to protected API handlers without network calls", async () => {
     enableMockStudentAuth();
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
 
     const response = await middleware(mockSessionRequest("/api/events"));
-    const payload = await response.json() as { error: string };
 
-    expect(response.status).toBe(403);
-    expect(payload.error).toBe("Student accounts can only use Student Portal APIs.");
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-middleware-next")).toBe("1");
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });
 

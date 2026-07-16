@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect } from "react";
 import {
   Bell,
   BookOpen,
@@ -196,6 +197,7 @@ export function AppShell({
   user?: { name?: string; email?: string };
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const firstName = firstNameForPerson(user?.name, user?.email);
   const userInitials = initialsForUser(firstName);
   const { activeRole, setActiveRole } = useRole();
@@ -235,6 +237,10 @@ export function AppShell({
   const isProductionLaunchPath = pathname.startsWith("/student") || pathname.startsWith("/discipleship");
   const shouldBlockEmergeChildren = !isCampRoute && !canUseEmergeShell;
   const shellAccessIssue = shellAccess.kind === "full" ? null : shellAccess;
+
+  useEffect(() => {
+    if (shellAccess.kind === "camp_only" && !isCampRoute) router.replace("/camp");
+  }, [isCampRoute, router, shellAccess.kind]);
 
   return (
     <div className={isCampRoute ? "app-shell app-shell-camp" : "app-shell app-shell-platform"}>

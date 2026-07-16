@@ -1,5 +1,6 @@
 import type { AuthSession } from "@/lib/auth/server";
-import { isCampAccessResolutionError, resolveCampAccessForRequest } from "@/lib/camp/access-control";
+import { resolveCampAccessForAuthenticatedRequest } from "@/lib/auth/request-access";
+import { isCampAccessResolutionError } from "@/lib/camp/access-control";
 
 export type AppShellAccessState =
   | { kind: "full" }
@@ -8,7 +9,7 @@ export type AppShellAccessState =
 
 export async function resolveAppShellAccess(session: AuthSession): Promise<AppShellAccessState> {
   try {
-    const context = await resolveCampAccessForRequest(session, null);
+    const context = await resolveCampAccessForAuthenticatedRequest(session);
     return context.appAreaScope === "camp_only" ? { kind: "camp_only" } : { kind: "full" };
   } catch (error) {
     if (isCampAccessResolutionError(error)) {

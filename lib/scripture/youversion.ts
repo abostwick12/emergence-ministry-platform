@@ -1,3 +1,5 @@
+import { measureServerOperation } from "@/lib/performance/timing";
+
 const DEFAULT_YOUVERSION_API_BASE_URL = "https://api.youversion.com";
 const DEFAULT_BIBLE_ID = 3034;
 const DEFAULT_BIBLE_COM_VERSION_ID = 111;
@@ -5,6 +7,7 @@ const DEFAULT_BIBLE_COM_VERSION_CODE = "NIV";
 const MISSING_CONFIG_MESSAGE = "Scripture lookup is offline. You can still use the reading resources and starter passages.";
 const MAX_REFERENCE_LENGTH = 80;
 const PASSAGE_ID_PATTERN = /^(?:[1-3])?[A-Z]{3}\.(?:INTRO\d*|\d{1,3})(?:\.\d{1,3})?$/;
+const PROVIDER_TIMEOUT_MS = 12_000;
 
 export type YouVersionConfig =
   | {
@@ -175,13 +178,18 @@ export async function lookupYouVersionPassage(input: { reference: unknown; signa
   }
 
   const url = buildPassageUrl(config.apiBaseUrl, config.bibleId, sanitized.passageId);
-  const response = await fetch(url, {
-    headers: {
-      Accept: "application/json",
-      "X-YVP-App-Key": config.appKey
-    },
-    signal: input.signal
-  });
+  let response: Response;
+  try {
+    response = await measureServerOperation("provider.youversion.lookup", () => fetch(url, {
+      headers: {
+        Accept: "application/json",
+        "X-YVP-App-Key": config.appKey
+      },
+      signal: input.signal ?? AbortSignal.timeout(PROVIDER_TIMEOUT_MS)
+    }));
+  } catch {
+    return { ok: false, code: "provider_error", message: "Scripture lookup is temporarily unavailable.", status: 502 };
+  }
 
   if (response.status === 204 || response.status === 404) {
     return { ok: false, code: "not_found", message: "No Scripture passage was found for that reference.", status: 404 };
