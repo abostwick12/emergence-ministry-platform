@@ -1,5 +1,17 @@
 ﻿import { expect, type Page, test } from "@playwright/test";
 
+const studentHowToReadLocalProgressKey = "lead-emergence:student-how-to-read-progress";
+const howToReadModuleIds = [
+  "what-is-the-bible",
+  "big-story",
+  "genres-and-tools",
+  "old-testament",
+  "new-testament",
+  "translations",
+  "how-not-to-read",
+  "practical-tips"
+];
+
 test.describe("Student Scripture Hub shell", () => {
   test("public join links explain the student launch path or fail closed", async ({ page }) => {
     await page.goto("/join/small-group-tryout");
@@ -62,6 +74,7 @@ test.describe("Student Scripture Hub shell", () => {
   test("authenticated users can browse the Scripture Hub pages", async ({ page }) => {
     test.setTimeout(120_000);
     await login(page);
+    await resetHowToReadProgress(page);
 
     await page.goto("/student");
     await expect(page.getByRole("heading", { name: "Student Portal" })).toBeVisible();
@@ -88,7 +101,7 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page.getByText("No live Bible text or external provider is required")).toHaveCount(0);
 
     await page.goto("/student/scripture/how-to-read");
-    await page.evaluate(() => window.localStorage.removeItem("lead-emergence:student-how-to-read-progress"));
+    await page.evaluate((storageKey) => window.localStorage.removeItem(storageKey), studentHowToReadLocalProgressKey);
     await page.reload();
     await expect(page.getByRole("heading", { name: "Learn to read the Bible with care." })).toBeVisible();
     const howToReadGuides = page.getByRole("region", { name: "How to read your Bible guides" });
@@ -193,7 +206,7 @@ test.describe("Student Scripture Hub shell", () => {
     const resourceManager = page.getByRole("region", { name: "Student resource manager" });
     await expect(resourceManager.getByRole("heading", { name: "Publish the student-facing helps" })).toBeVisible();
     await resourceManager.getByRole("button", { name: "New" }).click();
-    await expect(resourceManager).toContainText("New resource draft ready.");
+    await expect(resourceManager.getByLabel("Title")).toHaveValue("");
     await resourceManager.getByLabel("Journey phase").selectOption({ label: "Practice" });
     await resourceManager.getByLabel("Title").fill("Garden trust practice");
     await resourceManager.getByLabel("Short summary").fill("A quiet practice for garden questions.");
@@ -399,4 +412,18 @@ async function login(page: Page) {
   await page.getByRole("button", { name: "Log in" }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
   await page.waitForLoadState("networkidle");
+}
+
+async function resetHowToReadProgress(page: Page) {
+  await page.evaluate((storageKey) => window.localStorage.removeItem(storageKey), studentHowToReadLocalProgressKey);
+
+  for (const moduleId of howToReadModuleIds) {
+    const response = await page.request.patch("/api/student/scripture/how-to-read-progress", {
+      data: {
+        moduleId,
+        completed: false
+      }
+    });
+    expect(response.ok()).toBe(true);
+  }
 }

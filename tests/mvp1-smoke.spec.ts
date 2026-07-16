@@ -506,9 +506,15 @@ test.describe("MVP event automation navigation smoke tests", () => {
     const end = new Date(start);
     end.setHours(21, 0, 0, 0);
 
-    await modal.getByLabel("Event Name").fill(`E2E Create Modal ${Date.now()}`);
-    await modal.getByLabel(/Start Date/).fill(toDateTimeLocalInput(start));
-    await modal.getByLabel(/End Date/).fill(toDateTimeLocalInput(end));
+    const eventName = `E2E Create Modal ${Date.now()}`;
+    const startValue = toDateTimeLocalInput(start);
+    const endValue = toDateTimeLocalInput(end);
+    await modal.getByLabel("Event Name").fill(eventName);
+    await modal.getByLabel(/Start Date/).fill(startValue);
+    await modal.getByLabel(/End Date/).fill(endValue);
+    await expect(modal.getByLabel("Event Name")).toHaveValue(eventName);
+    await expect(modal.getByLabel(/Start Date/)).toHaveValue(startValue);
+    await expect(modal.getByLabel(/End Date/)).toHaveValue(endValue);
     await modal.getByRole("button", { name: /Next: Tasks/ }).click();
     await expect(modal.getByRole("tab", { name: /Tasks & Integrations/ })).toHaveAttribute("aria-selected", "true");
     await expect(modal.getByRole("button", { name: /Save & Create Event/ })).toBeVisible();
