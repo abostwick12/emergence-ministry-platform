@@ -141,6 +141,20 @@ describe("EMERGE app-area API access", () => {
     expect(response.status).toBe(401);
   });
 
+  it.each(["student", "parent"])("blocks %s sessions at the management API boundary", async (role) => {
+    getServerSessionMock.mockResolvedValue(session(role));
+
+    const response = await eventsPOST(jsonRequest("http://localhost/api/events", {
+      title: "Blocked Role Event",
+      type: "weekly",
+      startTime: new Date().toISOString(),
+      endTime: new Date().toISOString()
+    }));
+
+    expect(response.status).toBe(403);
+    expect(resolveCampAccessForRequestMock).not.toHaveBeenCalled();
+  });
+
   it("returns a typed readiness error instead of throwing when launch Camp access cannot resolve", async () => {
     getServerSessionMock.mockResolvedValue(session("admin", false));
     resolveCampAccessForRequestMock.mockRejectedValue(new CampAccessResolutionErrorMock(

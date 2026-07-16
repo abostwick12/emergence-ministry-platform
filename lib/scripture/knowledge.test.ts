@@ -24,7 +24,11 @@ vi.mock("@/lib/ministry/scope", () => ({
   resolveMinistryScope: resolveMinistryScopeMock
 }));
 
-import { getSavedStudentQuestionRecommendations, getStudentKnowledgeMatches } from "@/lib/scripture/knowledge";
+import {
+  getSavedStudentQuestionRecommendations,
+  getStudentKnowledgeMatches,
+  getStudentKnowledgeMatchesBatch
+} from "@/lib/scripture/knowledge";
 
 describe("student knowledge matching", () => {
   beforeEach(() => {
@@ -76,6 +80,31 @@ describe("student knowledge matching", () => {
       description: "Hold suffering and hope together without rushing the conversation."
     });
     expect(query.query.eq).toHaveBeenCalledWith("visibility", "student_visible");
+  });
+
+  it("loads the visible knowledge pack once for multiple prompts", async () => {
+    isSupabaseAdminConfiguredMock.mockReturnValue(true);
+    const query = knowledgeQuery([
+      {
+        id: "chunk_1",
+        title: "Trust and hope",
+        body: "Trust can remain honest while hope grows slowly.",
+        student_summary: "Explore trust without forcing a quick answer.",
+        topic_tags: ["trust", "hope"],
+        concepts: [],
+        scripture_references: ["Psalm 13"]
+      }
+    ]);
+    getSupabaseAdminClientMock.mockReturnValue(query.client);
+
+    const matches = await getStudentKnowledgeMatchesBatch(session(), [
+      { question: "How can I trust God?", scriptureReference: "Psalm 13" },
+      { question: "Where can I find hope?", topicTags: ["hope"] }
+    ]);
+
+    expect(matches).toHaveLength(2);
+    expect(query.client.from).toHaveBeenCalledTimes(1);
+    expect(query.query.returns).toHaveBeenCalledTimes(1);
   });
 
   it("loads saved student question recommendations for recent prompts", async () => {

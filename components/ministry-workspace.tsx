@@ -9,6 +9,7 @@ import { MinistryEmmaPanel } from "@/components/ministry-emma-panel";
 import { MinistryCalendar } from "@/components/ministry-calendar";
 import { ActionQueue, ActionRow, EditorialSection, QuietState, StatusBadge } from "@/components/platform-ui";
 import type { DashboardAttention } from "@/lib/dashboard-attention";
+import type { MinistryOverview } from "@/lib/data/ministry-repository";
 import { eventTypeLabels } from "@/lib/templates";
 import { formatDate, formatDateTime, money } from "@/lib/utils";
 import type {
@@ -20,13 +21,7 @@ import type {
   User
 } from "@/lib/types";
 
-type Overview = {
-  events: MinistryEvent[];
-  tasks: ActiveTask[];
-  users: User[];
-  expenses: EventExpense[];
-  activity: ActivityLog[];
-};
+type Overview = MinistryOverview;
 
 const statuses: TaskStatus[] = ["todo", "in_progress", "blocked", "done"];
 const taskLaneStatuses: TaskStatus[] = ["blocked", "todo", "in_progress", "done"];
@@ -58,37 +53,47 @@ const eventTabLabels: Record<EventTabKey, string> = {
 
 type WorkspaceView = "dashboard" | "events" | "tasks";
 
-export default function MinistryWorkspace({ view }: { view: WorkspaceView }) {
-  const [overview, setOverview] = useState<Overview | null>(null);
-  const [dashboardAttention, setDashboardAttention] = useState<DashboardAttention | null>(null);
-  const [loadError, setLoadError] = useState("");
+export default function MinistryWorkspace({
+  view,
+  initialOverview = null,
+  initialAttention = null,
+  initialLoadError = ""
+}: {
+  view: WorkspaceView;
+  initialOverview?: Overview | null;
+  initialAttention?: DashboardAttention | null;
+  initialLoadError?: string;
+}) {
+  const [overview, setOverview] = useState<Overview | null>(initialOverview);
+  const [dashboardAttention, setDashboardAttention] = useState<DashboardAttention | null>(initialAttention);
+  const [loadError, setLoadError] = useState(initialLoadError);
   const { activeRole } = useRole();
   const { openCreate, openEdit, state: cardState } = useEventCard();
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(!initialOverview && !initialLoadError);
   const [notice, setNotice] = useState("Preview adapters active. Live provider credentials are not required.");
   const [expandedEventIds, setExpandedEventIds] = useState<string[]>(["evt_winter_retreat"]);
-  const initialLoadStartedRef = useRef(false);
+  const initialLoadStartedRef = useRef(Boolean(initialOverview || initialLoadError));
 
   async function loadOverview() {
     setLoadError("");
-    const response = await fetch("/api/events", { cache: "no-store" });
+    const response = await fetch(view === "dashboard" ? "/api/dashboard" : "/api/events", { cache: "no-store" });
     if (response.status === 401) {
       window.location.assign("/login");
       return;
     }
-    const data = (await response.json().catch(() => ({}))) as Partial<Overview> & { error?: string };
-    if (!response.ok || !isOverview(data)) {
+    const data = (await response.json().catch(() => ({}))) as (Partial<Overview> & { error?: string }) | { overview?: Partial<Overview>; attention?: DashboardAttention; error?: string };
+    const isDashboardResponse = view === "dashboard" && "overview" in data;
+    const nextOverview: Partial<Overview> | undefined = isDashboardResponse
+      ? data.overview
+      : data as Partial<Overview>;
+    if (!response.ok || !nextOverview || !isOverview(nextOverview)) {
       setOverview(null);
       setLoadError(data.error ?? "Ministry workspace access could not be verified.");
       setIsLoading(false);
       return;
     }
-    setOverview(data);
-    if (view === "dashboard") {
-      const attentionResponse = await fetch("/api/dashboard/attention", { cache: "no-store" });
-      const attentionData = (await attentionResponse.json().catch(() => null)) as DashboardAttention | null;
-      setDashboardAttention(attentionResponse.ok ? attentionData : null);
-    }
+    setOverview(nextOverview);
+    if (isDashboardResponse) setDashboardAttention(data.attention ?? null);
     setIsLoading(false);
   }
 

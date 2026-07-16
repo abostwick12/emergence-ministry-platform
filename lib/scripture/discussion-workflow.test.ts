@@ -8,6 +8,7 @@ const {
   getSupabaseAuthClientMock,
   getPrimaryStudentGroupIdMock,
   getStudentKnowledgeMatchesMock,
+  getStudentKnowledgeMatchesBatchMock,
   isGlooConfiguredMock,
   isSupabaseAdminConfiguredMock,
   isSupabaseConfiguredMock,
@@ -19,6 +20,7 @@ const {
   getSupabaseAuthClientMock: vi.fn(),
   getPrimaryStudentGroupIdMock: vi.fn(),
   getStudentKnowledgeMatchesMock: vi.fn(),
+  getStudentKnowledgeMatchesBatchMock: vi.fn(),
   isGlooConfiguredMock: vi.fn(),
   isSupabaseAdminConfiguredMock: vi.fn(),
   isSupabaseConfiguredMock: vi.fn(),
@@ -47,7 +49,8 @@ vi.mock("@/lib/scripture/gloo", () => ({
 
 vi.mock("@/lib/scripture/knowledge", () => ({
   formatStudentKnowledgeContextForGloo: formatStudentKnowledgeContextForGlooMock,
-  getStudentKnowledgeMatches: getStudentKnowledgeMatchesMock
+  getStudentKnowledgeMatches: getStudentKnowledgeMatchesMock,
+  getStudentKnowledgeMatchesBatch: getStudentKnowledgeMatchesBatchMock
 }));
 
 vi.mock("@/lib/student/groups", () => ({
@@ -152,6 +155,19 @@ describe("student discussion workflow state", () => {
         scriptureReferences: ["Romans 8:18"]
       }
     ]);
+    getStudentKnowledgeMatchesBatchMock.mockResolvedValue([[
+      {
+        id: "knowledge-romans-hope",
+        sourceChunkId: "chunk_1",
+        label: "Because you asked about suffering",
+        title: "Romans 8 and patient hope",
+        description: "Hold suffering and hope together without rushing the conversation.",
+        href: "/student/scripture/resources",
+        digQuestions: ["Where does Romans 8 name pain without pretending it is small?"],
+        topicTags: ["suffering", "hope"],
+        scriptureReferences: ["Romans 8:18"]
+      }
+    ]]);
   });
 
   it("attaches retrieved context to prompts for leader review", async () => {
@@ -169,7 +185,7 @@ describe("student discussion workflow state", () => {
         }
       ]
     });
-    expect(getStudentKnowledgeMatchesMock).toHaveBeenCalledWith(leaderSession(), expect.objectContaining({ id: "prompt_context" }));
+    expect(getStudentKnowledgeMatchesBatchMock).toHaveBeenCalledWith(leaderSession(), [expect.objectContaining({ id: "prompt_context" })]);
   });
 
   it("summarizes student reflection activity without exposing private notes", async () => {
@@ -505,6 +521,7 @@ function approvedFeedClient(rows: Array<Record<string, unknown>>) {
 function workflowStateClient(rows: Array<Record<string, unknown>>, eventRows: Array<Record<string, unknown>> = []) {
   const promptQuery = {
     order: vi.fn(() => promptQuery),
+    limit: vi.fn(() => promptQuery),
     returns: vi.fn(async () => ({ data: rows, error: null }))
   };
   const eventQuery = {

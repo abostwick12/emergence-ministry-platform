@@ -1,8 +1,10 @@
 import type { AuthSession } from "@/lib/auth/server";
+import type { DashboardCareDiscussion } from "@/lib/dashboard-attention";
 import { getSupabaseAdminClient, getSupabaseAuthClient, isSupabaseAdminConfigured } from "@/lib/auth/server";
 import { resolveMinistryScope } from "@/lib/ministry/scope";
+import { measureServerOperation } from "@/lib/performance/timing";
 import { generateGlooDiscussionDraft, isGlooConfigured } from "@/lib/scripture/gloo";
-import { formatStudentKnowledgeContextForGloo, getStudentKnowledgeMatches } from "@/lib/scripture/knowledge";
+import { formatStudentKnowledgeContextForGloo, getStudentKnowledgeMatches, getStudentKnowledgeMatchesBatch } from "@/lib/scripture/knowledge";
 import { buildLocalDiscussionDraft, buildLocalDiscussionDraftForPrompt } from "@/lib/scripture/local-discussion-draft";
 import { deliverDiscussionPromptToSlack, isSlackDiscussionDeliveryConfigured } from "@/lib/scripture/slack";
 import {
@@ -100,6 +102,15 @@ type ApprovedStudentDiscussionRow = {
   created_at: string;
 };
 
+type StudentCarePromptRow = {
+  id: string;
+  submitted_by_name: string;
+  submitted_by_email: string;
+  scripture_reference: string | null;
+  safety_label: "safe" | "needs_leader_care" | "pastoral_escalation" | "unreviewed";
+  created_at: string;
+};
+
 type StudentReflectionEventRow = {
   prompt_id: string;
   action: "student_reflected" | "leader_discussed" | "leader_follow_up_flagged";
@@ -120,6 +131,7 @@ const MAX_NOTES_LENGTH = 1200;
 const MAX_DISCUSSION_PROMPT_LENGTH = 1800;
 const MISSING_STUDENT_PROFILE_MESSAGE =
   "Your student profile is not connected to a ministry yet. Join through your group invite again, or ask your leader for a fresh invite.";
+const STUDENT_DISCUSSION_SELECT = "id,ministry_id,group_id,submitted_by_user_id,submitted_by_name,submitted_by_email,question,scripture_reference,scripture_passage_id,metanarrative_movement,ai_provider,ai_status,ai_model,ai_model_tier,ai_model_reason,ai_confidence,topic_tags,escalation_reason,safety_label,safety_notes,discussion_prompt,leader_notes,status,delivery_channel,delivery_status,delivery_message,approved_by_user_id,approved_at,posted_at,created_at,updated_at";
 
 export function getStudentDiscussionReadiness(session: AuthSession): DiscussionReadiness {
   if (shouldUseLocalStudentState(session)) {
@@ -154,11 +166,12 @@ export async function getStudentDiscussionWorkflowState(session: AuthSession): P
   }
 
   const supabase = getSupabaseAuthClient(session.accessToken);
-  const result = await supabase
-    .from("student_discussion_prompts")
-    .select("*")
-    .order("created_at", { ascending: false })
-    .returns<StudentDiscussionPromptRow[]>();
+  const result = await measureServerOperation("supabase.student.prompts", async () => supabase
+      .from("student_discussion_prompts")
+      .select(STUDENT_DISCUSSION_SELECT)
+      .order("created_at", { ascending: false })
+      .limit(50)
+      .returns<StudentDiscussionPromptRow[]>());
 
   throwIfSupabaseError(result.error);
   const prompts = (result.data ?? []).map(toPrompt);
@@ -175,6 +188,40 @@ export async function getStudentDiscussionWorkflowState(session: AuthSession): P
         ...eventSummaries[prompt.id]
       }))
     )
+  };
+}
+
+export async function getStudentCareDiscussionState(session: AuthSession): Promise<DashboardCareDiscussion> {
+  const readiness = getStudentDiscussionReadiness(session);
+  if (!readiness.liveStorage) {
+    return {
+      readiness: { message: readiness.message },
+      prompts: listLocalStudentDiscussionPrompts(session)
+        .filter((prompt) => prompt.safetyLabel === "needs_leader_care" || prompt.safetyLabel === "pastoral_escalation")
+        .slice(0, 5)
+        .map(toDashboardCarePrompt)
+    };
+  }
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const result = await measureServerOperation("supabase.student.care", async () => supabase
+      .from("student_discussion_prompts")
+      .select("id,submitted_by_name,submitted_by_email,scripture_reference,safety_label,created_at")
+      .in("safety_label", ["needs_leader_care", "pastoral_escalation"])
+      .order("created_at", { ascending: false })
+      .limit(5)
+      .returns<StudentCarePromptRow[]>());
+  throwIfSupabaseError(result.error);
+  return {
+    readiness: { message: readiness.message },
+    prompts: (result.data ?? []).map((row) => ({
+      id: row.id,
+      submittedByName: row.submitted_by_name,
+      submittedByEmail: row.submitted_by_email,
+      scriptureReference: row.scripture_reference ?? "",
+      safetyLabel: row.safety_label,
+      createdAt: row.created_at
+    }))
   };
 }
 
@@ -647,7 +694,15 @@ async function withKnowledgeContext(
   prompts: StudentDiscussionPrompt | StudentDiscussionPrompt[]
 ): Promise<StudentDiscussionPrompt | StudentDiscussionPrompt[]> {
   if (Array.isArray(prompts)) {
-    return Promise.all(prompts.map((prompt) => withKnowledgeContext(session, prompt)));
+    try {
+      const matches = await getStudentKnowledgeMatchesBatch(session, prompts);
+      return prompts.map((prompt, index) => ({ ...prompt, knowledgeContext: matches[index] ?? [] }));
+    } catch (error) {
+      console.warn("[scripture] leader knowledge context unavailable", {
+        reason: error instanceof Error ? error.name : "unknown"
+      });
+      return prompts.map((prompt) => ({ ...prompt, knowledgeContext: [] }));
+    }
   }
 
   const prompt = prompts;
@@ -666,6 +721,17 @@ async function withKnowledgeContext(
       knowledgeContext: []
     };
   }
+}
+
+function toDashboardCarePrompt(prompt: StudentDiscussionPrompt): DashboardCareDiscussion["prompts"][number] {
+  return {
+    id: prompt.id,
+    submittedByName: prompt.submittedByName,
+    submittedByEmail: prompt.submittedByEmail,
+    scriptureReference: prompt.scriptureReference,
+    safetyLabel: prompt.safetyLabel,
+    createdAt: prompt.createdAt
+  };
 }
 
 function normalizeScriptureReference(reference: string) {

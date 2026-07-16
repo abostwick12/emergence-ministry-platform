@@ -1,5 +1,4 @@
 import type { ActiveTask, MinistryEvent, User } from "@/lib/types";
-import type { DiscussionWorkflowState } from "@/lib/scripture/discussion-workflow";
 
 export type AttentionTone = "neutral" | "info" | "gold" | "warning" | "critical" | "success";
 
@@ -26,9 +25,21 @@ type OverviewInput = {
   users: User[];
 };
 
+export type DashboardCareDiscussion = {
+  readiness: { message: string };
+  prompts: Array<{
+    id: string;
+    submittedByName: string;
+    submittedByEmail: string;
+    scriptureReference: string;
+    safetyLabel: "safe" | "needs_leader_care" | "pastoral_escalation" | "unreviewed";
+    createdAt: string;
+  }>;
+};
+
 export function buildDashboardAttention(
   overview: OverviewInput,
-  discussion: DiscussionWorkflowState | null,
+  discussion: DashboardCareDiscussion | null,
   now = new Date()
 ): DashboardAttention {
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();

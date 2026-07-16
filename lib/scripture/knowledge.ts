@@ -2,6 +2,7 @@ import { isSupabaseConfigured } from "@/lib/auth/config";
 import type { AuthSession } from "@/lib/auth/server";
 import { getSupabaseAdminClient, getSupabaseAuthClient, isSupabaseAdminConfigured } from "@/lib/auth/server";
 import { resolveMinistryScope } from "@/lib/ministry/scope";
+import { measureServerOperation } from "@/lib/performance/timing";
 import type { StudentQuestionNextStep } from "@/lib/scripture/student-home";
 import type { StudentDiscussionKnowledgeContext } from "@/lib/scripture/types";
 
@@ -136,6 +137,20 @@ export async function getStudentKnowledgeMatches(session: AuthSession, input: Kn
   const liveMatches = await getLiveKnowledgeMatches(session, input);
   if (liveMatches.length > 0) return liveMatches;
   return rankKnowledgeMatches(launchKnowledgePack, input).slice(0, MAX_MATCHES);
+}
+
+export async function getStudentKnowledgeMatchesBatch(
+  session: AuthSession,
+  inputs: KnowledgeSearchInput[]
+): Promise<StudentKnowledgeMatch[][]> {
+  if (!inputs.length) return [];
+  const livePack = await getLiveKnowledgePack(session);
+  return inputs.map((input) => {
+    const liveMatches = rankKnowledgeMatches(livePack, input).slice(0, MAX_MATCHES);
+    return liveMatches.length > 0
+      ? liveMatches
+      : rankKnowledgeMatches(launchKnowledgePack, input).slice(0, MAX_MATCHES);
+  });
 }
 
 export function formatStudentKnowledgeContextForGloo(matches: StudentKnowledgeMatch[]) {
@@ -290,6 +305,10 @@ export async function getSavedStudentQuestionRecommendations(
 }
 
 async function getLiveKnowledgeMatches(session: AuthSession, input: KnowledgeSearchInput) {
+  return rankKnowledgeMatches(await getLiveKnowledgePack(session), input).slice(0, MAX_MATCHES);
+}
+
+async function getLiveKnowledgePack(session: AuthSession) {
   if (!isSupabaseAdminConfigured()) return [];
 
   try {
@@ -297,21 +316,21 @@ async function getLiveKnowledgeMatches(session: AuthSession, input: KnowledgeSea
     if (!ministryId) return [];
 
     const supabase = getSupabaseAdminClient();
-    const result = await supabase
-      .from("knowledge_chunks")
-      .select("id,title,body,student_summary,topic_tags,concepts,scripture_references")
-      .eq("ministry_id", ministryId)
-      .eq("visibility", "student_visible")
-      .order("updated_at", { ascending: false })
-      .limit(60)
-      .returns<KnowledgeChunkRow[]>();
+    const result = await measureServerOperation("supabase.knowledge.visible", async () => supabase
+        .from("knowledge_chunks")
+        .select("id,title,body,student_summary,topic_tags,concepts,scripture_references")
+        .eq("ministry_id", ministryId)
+        .eq("visibility", "student_visible")
+        .order("updated_at", { ascending: false })
+        .limit(60)
+        .returns<KnowledgeChunkRow[]>());
 
     if (result.error) {
       console.warn("[scripture] knowledge match query failed", { message: result.error.message });
       return [];
     }
 
-    return rankKnowledgeMatches((result.data ?? []).map(toKnowledgeMatch), input).slice(0, MAX_MATCHES);
+    return (result.data ?? []).map(toKnowledgeMatch);
   } catch (error) {
     console.warn("[scripture] knowledge match query unavailable", {
       reason: error instanceof Error ? error.message : "unknown"

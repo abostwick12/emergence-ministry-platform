@@ -20,6 +20,7 @@ import { resolvePersonName } from "@/lib/auth/display-name";
 import { getSupabaseAuthClient } from "@/lib/auth/server";
 import { isSupabaseConfigured } from "@/lib/auth/config";
 import { resolveMinistryScope } from "@/lib/ministry/scope";
+import { measureServerOperation } from "@/lib/performance/timing";
 import * as mockStore from "@/lib/store";
 
 // Builds an optional `{ ministry_id }` fragment for inserts. Returns an empty
@@ -30,7 +31,7 @@ function ministryScopeColumns(ministryId: string | undefined): { ministry_id?: s
   return ministryId ? { ministry_id: ministryId } : {};
 }
 
-type Overview = {
+export type MinistryOverview = {
   events: MinistryEvent[];
   tasks: ActiveTask[];
   users: User[];
@@ -120,41 +121,54 @@ function shouldUseMock(session: AuthSession) {
   return session.isMock || !isSupabaseConfigured();
 }
 
-export async function getOverview(session: AuthSession): Promise<Overview> {
-  if (shouldUseMock(session)) {
+export async function getOverview(session: AuthSession): Promise<MinistryOverview> {
+  return measureServerOperation("ministry.overview", async () => {
+    if (shouldUseMock(session)) {
+      return {
+        events: mockStore.listEvents(),
+        tasks: mockStore.listTasks(),
+        users: mockStore.listUsers(),
+        expenses: mockStore.listExpenses(),
+        activity: mockStore.listActivity()
+      };
+    }
+
+    const supabase = getSupabaseAuthClient(session.accessToken);
+    const [profileResult, eventResult, taskResult, activityResult] = await Promise.all([
+      measureServerOperation("supabase.profiles.list", async () => supabase.from("profiles")
+        .select("id,ministry_id,email,full_name,role")
+        .order("created_at", { ascending: true })
+        .returns<SupabaseProfileRow[]>()),
+      measureServerOperation("supabase.events.list", async () => supabase.from("events")
+        .select("id,ministry_id,title,ministry_area,description,vision,target_group,start_date,end_date,start_time,end_time,location,owner,status,priority,budget_target,budget_actual,volunteers_needed,communication_owner,notes,created_at,updated_at")
+        .order("start_date", { ascending: true })
+        .returns<SupabaseEventRow[]>()),
+      measureServerOperation("supabase.tasks.list", async () => supabase.from("tasks")
+        .select("id,ministry_id,event_id,title,owner,due_date,status,critical,notes")
+        .order("due_date", { ascending: true })
+        .returns<SupabaseTaskRow[]>()),
+      measureServerOperation("supabase.activity.list", async () => supabase.from("activity_logs")
+        .select("id,ministry_id,event_id,task_id,action,actor_id,created_at")
+        .order("created_at", { ascending: false })
+        .returns<SupabaseActivityRow[]>())
+    ]);
+
+    throwIfSupabaseError(profileResult.error);
+    throwIfSupabaseError(eventResult.error);
+    throwIfSupabaseError(taskResult.error);
+    throwIfSupabaseError(activityResult.error);
+
+    const users = toUsers(profileResult.data ?? [], session);
+    const events = (eventResult.data ?? []).map((event) => toMinistryEvent(event, users));
+    const tasks = (taskResult.data ?? []).map((task) => toActiveTask(task, users));
     return {
-      events: mockStore.listEvents(),
-      tasks: mockStore.listTasks(),
-      users: mockStore.listUsers(),
-      expenses: mockStore.listExpenses(),
-      activity: mockStore.listActivity()
+      events,
+      tasks,
+      users,
+      expenses: toEventExpenses(eventResult.data ?? []),
+      activity: (activityResult.data ?? []).map(toActivityLog)
     };
-  }
-
-  const supabase = getSupabaseAuthClient(session.accessToken);
-  const [profileResult, eventResult, taskResult, activityResult] = await Promise.all([
-    supabase.from("profiles").select("*").order("created_at", { ascending: true }).returns<SupabaseProfileRow[]>(),
-    supabase.from("events").select("*").order("start_date", { ascending: true }).returns<SupabaseEventRow[]>(),
-    supabase.from("tasks").select("*").order("due_date", { ascending: true }).returns<SupabaseTaskRow[]>(),
-    supabase.from("activity_logs").select("*").order("created_at", { ascending: false }).returns<SupabaseActivityRow[]>()
-  ]);
-
-  throwIfSupabaseError(profileResult.error);
-  throwIfSupabaseError(eventResult.error);
-  throwIfSupabaseError(taskResult.error);
-  throwIfSupabaseError(activityResult.error);
-
-  const users = toUsers(profileResult.data ?? [], session);
-  const events = (eventResult.data ?? []).map((event) => toMinistryEvent(event, users));
-  const tasks = (taskResult.data ?? []).map((task) => toActiveTask(task, users));
-
-  return {
-    events,
-    tasks,
-    users,
-    expenses: toEventExpenses(eventResult.data ?? []),
-    activity: (activityResult.data ?? []).map(toActivityLog)
-  };
+  });
 }
 
 export async function getEventWorkspace(session: AuthSession, eventId: string): Promise<EventWorkspace | undefined> {

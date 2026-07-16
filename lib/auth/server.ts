@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { authCookieNames, getMockAuthUser, isMockAuthEnabled, isSupabaseConfigured } from "./config";
 import { resolvePersonName } from "./display-name";
+import { measureServerOperation } from "@/lib/performance/timing";
 
 export type AuthSession = {
   user: {
@@ -83,8 +84,19 @@ export function clearAuthCookies(response: NextResponse) {
   }
 }
 
-export async function getServerSession(): Promise<AuthSession | null> {
+const sessionByCookieStore = new WeakMap<object, Promise<AuthSession | null>>();
+
+export function getServerSession(): Promise<AuthSession | null> {
   const cookieStore = cookies();
+  const key = cookieStore as object;
+  const existing = sessionByCookieStore.get(key);
+  if (existing) return existing;
+  const session = loadServerSession(cookieStore);
+  sessionByCookieStore.set(key, session);
+  return session;
+}
+
+async function loadServerSession(cookieStore: ReturnType<typeof cookies>): Promise<AuthSession | null> {
   const hasMockSession = cookieStore.get(authCookieNames.mockSession)?.value === "1";
 
   if (hasMockSession && isMockAuthEnabled()) {
@@ -99,7 +111,7 @@ export async function getServerSession(): Promise<AuthSession | null> {
   let userResult: Awaited<ReturnType<ReturnType<typeof getSupabaseAuthClient>["auth"]["getUser"]>>;
   try {
     const supabase = getSupabaseAuthClient();
-    userResult = await supabase.auth.getUser(accessToken);
+    userResult = await measureServerOperation("auth.get_user", () => supabase.auth.getUser(accessToken));
   } catch (error) {
     console.warn("[auth] Supabase session lookup failed", {
       timestamp: new Date().toISOString(),
@@ -131,11 +143,13 @@ export async function getServerSession(): Promise<AuthSession | null> {
 async function getSessionProfile(accessToken: string, userId: string) {
   try {
     const supabase = getSupabaseAuthClient(accessToken);
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("full_name,role")
-      .eq("id", userId)
-      .maybeSingle<{ full_name: string | null; role: string | null }>();
+    const { data, error } = await measureServerOperation("auth.profile", async () =>
+      supabase
+        .from("profiles")
+        .select("full_name,role")
+        .eq("id", userId)
+        .maybeSingle<{ full_name: string | null; role: string | null }>()
+    );
 
     if (error) return null;
     return {
