@@ -13,6 +13,7 @@
     "perf:audit": "node scripts/performance-audit.mjs",
     "design-check": "node scripts/design-check.mjs",
     "daily-intelligence:brief": "node scripts/run-daily-intelligence-brief.mjs",
+    "daily-intelligence:research-sweep": "node scripts/run-daily-intelligence-brief.mjs --research-sweep",
     "video:landing:studio": "remotion studio remotion/landing/Root.tsx",
     "video:landing:still": "remotion still remotion/landing/Root.tsx LeadEmergenceLandingVideo --frame=90 --scale=0.25 --output=test-results/landing-video-frame.png",
     "rag:obsidian:dry-run": "node scripts/obsidian-rag-import.mjs --dry-run"
