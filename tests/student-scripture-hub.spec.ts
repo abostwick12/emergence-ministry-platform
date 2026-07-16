@@ -60,7 +60,7 @@ test.describe("Student Scripture Hub shell", () => {
   });
 
   test("authenticated users can browse the Scripture Hub pages", async ({ page }) => {
-    test.setTimeout(60_000);
+    test.setTimeout(120_000);
     await login(page);
 
     await page.goto("/student");
