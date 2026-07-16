@@ -19,15 +19,19 @@ async function handleDailyBriefRequest(request: Request) {
   if (authError) return authError;
 
   const now = new Date();
+  const contentDay = dayName(now);
+  const forceResearchSweep = shouldForceResearchSweep(request);
   const data = await getMinistryIntelligenceData();
   const weekStart = getWeekStart(now);
   const warnings: string[] = [];
-  let resources = await loadResearchQueueForDay({ ministryId: data.ministryId, weekStart, day: dayName(now) });
+  let researchSweep: "skipped" | "scheduled" | "forced" = "skipped";
+  let resources = await loadResearchQueueForDay({ ministryId: data.ministryId, weekStart, day: contentDay });
 
-  if (dayName(now) === "monday") {
+  if (contentDay === "monday" || forceResearchSweep) {
     const sweep = await runWeeklyResearchSweep({ ministryId: data.ministryId, weekStart });
     warnings.push(...sweep.warnings);
-    resources = sweep.resources.filter((resource) => resource.day === "monday").slice(0, 5);
+    resources = sweep.resources.filter((resource) => resource.day === contentDay).slice(0, 5);
+    researchSweep = forceResearchSweep ? "forced" : "scheduled";
   }
 
   const brief = buildDailyIntelligenceBrief({ data, now, resources, warnings });
@@ -35,12 +39,12 @@ async function handleDailyBriefRequest(request: Request) {
 
   try {
     await sendDailyBriefToSlack({ text });
-    return NextResponse.json({ status: "sent", brief, preview: text });
+    return NextResponse.json({ status: "sent", researchSweep, brief, preview: text });
   } catch (error) {
     if (error instanceof DailyBriefSlackConfigError) {
-      return NextResponse.json({ status: "preview", missing: error.missing, brief, preview: text }, { status: 503 });
+      return NextResponse.json({ status: "preview", researchSweep, missing: error.missing, brief, preview: text }, { status: 503 });
     }
-    return NextResponse.json({ error: "Failed to send daily intelligence brief.", brief, preview: text }, { status: 502 });
+    return NextResponse.json({ error: "Failed to send daily intelligence brief.", researchSweep, brief, preview: text }, { status: 502 });
   }
 }
 
@@ -64,4 +68,10 @@ function getWeekStart(date: Date): string {
 
 function dayName(date: Date) {
   return (["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"] as const)[date.getDay()];
+}
+
+function shouldForceResearchSweep(request: Request) {
+  const url = new URL(request.url);
+  const value = url.searchParams.get("researchSweep")?.trim().toLowerCase();
+  return value === "force" || value === "true" || value === "1";
 }

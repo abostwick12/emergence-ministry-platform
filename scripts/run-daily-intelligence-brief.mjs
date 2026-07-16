@@ -7,6 +7,7 @@ const HELP = `Run the Lead Emergence Daily Intelligence Brief.
 
 Usage:
   npm.cmd run daily-intelligence:brief
+  npm.cmd run daily-intelligence:research-sweep
 
 Required environment:
   DAILY_INTELLIGENCE_BRIEF_URL or DAILY_BRIEFING_APP_URL
@@ -14,6 +15,10 @@ Required environment:
 
 This runner calls only /api/daily-intelligence/brief. It must not be replaced
 with the Personal Command Center briefing route.
+
+Options:
+  --research-sweep  Force the Firecrawl weekly research sweep before posting
+                    today's brief.
 `;
 
 const args = new Set(process.argv.slice(2));
@@ -21,6 +26,7 @@ if (args.has("--help") || args.has("-h")) {
   console.log(HELP.trim());
   process.exit(0);
 }
+const forceResearchSweep = args.has("--research-sweep") || args.has("--force-research-sweep");
 
 loadEnvFiles([".env.local", ".env"]);
 
@@ -41,13 +47,14 @@ if (!secret) {
   fail("Missing DAILY_BRIEFING_CRON_SECRET or CRON_SECRET. Refusing to call the protected endpoint.");
 }
 
-const endpoint = `${normalizeBaseUrl(appUrl)}/api/daily-intelligence/brief`;
+const endpoint = `${normalizeBaseUrl(appUrl)}/api/daily-intelligence/brief${forceResearchSweep ? "?researchSweep=force" : ""}`;
 if (endpoint.includes("/api/command-center/")) {
   fail(`Refusing to call the Command Center briefing route: ${endpoint}`);
 }
 
 console.log("Triggering Lead Emergence Daily Intelligence Brief.");
-console.log("Endpoint: /api/daily-intelligence/brief");
+console.log(`Endpoint: /api/daily-intelligence/brief${forceResearchSweep ? "?researchSweep=force" : ""}`);
+if (forceResearchSweep) console.log("Firecrawl research sweep: forced.");
 
 const response = await fetch(endpoint, {
   method: "POST",
@@ -68,7 +75,7 @@ if (body.status !== "sent") {
   fail(`Daily intelligence endpoint did not send the Slack brief. Response: ${summarizeBody(body)}`);
 }
 
-console.log("Lead Emergence Daily Intelligence Brief sent.");
+console.log(`Lead Emergence Daily Intelligence Brief sent.${body.researchSweep === "forced" ? " Firecrawl research sweep completed." : ""}`);
 
 function readEnv(name) {
   return process.env[name]?.trim();
