@@ -86,11 +86,13 @@ type SupabaseTaskRow = {
   priority: string | null;
   critical: boolean | null;
   file_status: string | null;
-  notes: string | null;
+  notes?: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
 };
+
+export const MINISTRY_TASK_LIST_SELECT = "id,ministry_id,event_id,title,owner,due_date,status,critical";
 
 type SupabaseActivityRow = {
   id: string;
@@ -144,7 +146,7 @@ export async function getOverview(session: AuthSession): Promise<MinistryOvervie
         .order("start_date", { ascending: true })
         .returns<SupabaseEventRow[]>()),
       measureServerOperation("supabase.tasks.list", async () => supabase.from("tasks")
-        .select("id,ministry_id,event_id,title,owner,due_date,status,critical,notes")
+        .select(MINISTRY_TASK_LIST_SELECT)
         .order("due_date", { ascending: true })
         .returns<SupabaseTaskRow[]>()),
       measureServerOperation("supabase.activity.list", async () => supabase.from("activity_logs")
@@ -366,7 +368,11 @@ export async function updateMinistryTask(session: AuthSession, taskId: string, i
   if (input.dueDate !== undefined) update.due_date = toDateOnly(new Date(input.dueDate));
   if (input.status !== undefined) update.status = input.status;
   if (input.assignedUserId !== undefined) update.owner = input.assignedUserId;
-  if (input.notes !== undefined) update.notes = input.notes ?? null;
+
+  if (Object.keys(update).length === 0) {
+    const overview = await getOverview(session);
+    return toActiveTask(currentResult.data, overview.users);
+  }
 
   const result = await supabase.from("tasks").update(update).eq("id", taskId).select("*").single<SupabaseTaskRow>();
   throwIfSupabaseError(result.error);
@@ -386,10 +392,6 @@ export async function updateMinistryTask(session: AuthSession, taskId: string, i
 
   if (input.taskTitle && input.taskTitle !== currentResult.data.title) {
     await createActivityLog(session, result.data.event_id, taskId, `Edited task title: ${input.taskTitle}`);
-  }
-
-  if (input.notes !== undefined && input.notes !== currentResult.data.notes) {
-    await createActivityLog(session, result.data.event_id, taskId, `Updated task notes: ${result.data.title}`);
   }
 
   const overview = await getOverview(session);
