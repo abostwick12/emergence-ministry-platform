@@ -106,7 +106,7 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page.getByText("Lectio")).toHaveCount(0);
     await expect(page.getByText(/metanarrative/i)).toHaveCount(0);
     await expect(page.getByText(/full academic/i)).toHaveCount(0);
-    await expect(page.getByText("0 of 8 guides signed off")).toBeVisible();
+    await expect(page.getByRole("region", { name: "Reading progress" })).toContainText("0 of 8 guides signed off");
     await expect(page.getByRole("region", { name: "Private badge progress" })).toContainText("Earn your first badge");
     await howToReadGuides.locator('a[href="/student/scripture/how-to-read/what-is-the-bible"]').click();
     await expect(page).toHaveURL(/\/student\/scripture\/how-to-read\/what-is-the-bible$/);
@@ -192,6 +192,8 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page.getByRole("status")).toContainText("Review student questions before anything is shared.");
     const resourceManager = page.getByRole("region", { name: "Student resource manager" });
     await expect(resourceManager.getByRole("heading", { name: "Publish the student-facing helps" })).toBeVisible();
+    await resourceManager.getByRole("button", { name: "New" }).click();
+    await expect(resourceManager).toContainText("New resource draft ready.");
     await resourceManager.getByLabel("Journey phase").selectOption({ label: "Practice" });
     await resourceManager.getByLabel("Title").fill("Garden trust practice");
     await resourceManager.getByLabel("Short summary").fill("A quiet practice for garden questions.");
