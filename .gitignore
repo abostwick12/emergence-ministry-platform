@@ -17,3 +17,5 @@ tmp/
 .worktrees/
 artifacts/*.png
 artifacts/*.log
+.vercel
+.env*
