@@ -30,12 +30,16 @@ export function StudentQuestionsExperience({ initialReflections, initialState }:
   const activePrompts = prompts.filter((prompt) => prompt.status !== "archived" && !archivedPromptIds.has(prompt.id));
   const archivedPrompts = prompts.filter((prompt) => prompt.status === "archived" || archivedPromptIds.has(prompt.id));
   const selectedPrompt = activePrompts.find((prompt) => prompt.id === selectedPromptId) ?? activePrompts[0];
-  const selectedEntries = selectedPrompt ? entrySequences[selectedPrompt.id] ?? [1] : [1];
-  const activeEntrySequence = selectedPrompt ? activeEntryByPrompt[selectedPrompt.id] ?? selectedEntries[0] ?? 1 : 1;
+  const rawSelectedEntries = selectedPrompt ? entrySequences[selectedPrompt.id] ?? [1] : [1];
   const selectedNextStep = useMemo(() => {
     if (!selectedPrompt) return null;
     return nextSteps[selectedPrompt.id] ?? buildQuestionNextStep(selectedPrompt);
   }, [nextSteps, selectedPrompt]);
+  const maxJournalEntries = Math.max(1, selectedNextStep?.journeyJournalEntries?.length ?? 1);
+  const selectedEntries = rawSelectedEntries.filter((sequence) => sequence <= maxJournalEntries);
+  const visibleSelectedEntries = selectedEntries.length ? selectedEntries : [1];
+  const requestedEntrySequence = selectedPrompt ? activeEntryByPrompt[selectedPrompt.id] ?? visibleSelectedEntries[0] ?? 1 : 1;
+  const activeEntrySequence = Math.min(requestedEntrySequence, maxJournalEntries);
 
   useEffect(() => {
     setArchivedPromptIds(readArchivedPromptIds());
@@ -94,8 +98,10 @@ export function StudentQuestionsExperience({ initialReflections, initialState }:
 
   function addEntry(promptId: string) {
     setEntrySequences((current) => {
-      const existing = current[promptId] ?? [1];
+      const existing = (current[promptId] ?? [1]).filter((sequence) => sequence <= maxJournalEntries);
+      if (existing.length >= maxJournalEntries) return current;
       const nextEntry = Math.max(...existing) + 1;
+      if (nextEntry > maxJournalEntries) return current;
       setActiveEntryByPrompt((entries) => ({ ...entries, [promptId]: nextEntry }));
       return { ...current, [promptId]: [...existing, nextEntry] };
     });
@@ -122,7 +128,7 @@ export function StudentQuestionsExperience({ initialReflections, initialState }:
                 <p className="eyebrow">Question Journal</p>
                 <strong>{selectedPrompt.question}</strong>
                 <span>
-                  {selectedPrompt.scriptureReference || "Open question"} / {selectedEntries.length} {selectedEntries.length === 1 ? "entry" : "entries"}
+                  {selectedPrompt.scriptureReference || "Open question"} / {visibleSelectedEntries.length} {visibleSelectedEntries.length === 1 ? "entry" : "entries"}
                 </span>
               </div>
               <ChevronDown aria-hidden="true" size={18} />
@@ -154,7 +160,7 @@ export function StudentQuestionsExperience({ initialReflections, initialState }:
             </div>
           </details>
           <div className="student-journal-entry-rail" role="group" aria-label="Journey entries">
-            {selectedEntries.map((sequence) => (
+            {visibleSelectedEntries.map((sequence) => (
               <button
                 className={sequence === activeEntrySequence ? "active" : ""}
                 key={sequence}
@@ -164,9 +170,9 @@ export function StudentQuestionsExperience({ initialReflections, initialState }:
                 {sequence}
               </button>
             ))}
-            <button className="add-entry" onClick={() => addEntry(selectedPrompt.id)} type="button">
+            <button className="add-entry" disabled={visibleSelectedEntries.length >= maxJournalEntries} onClick={() => addEntry(selectedPrompt.id)} type="button">
               <Plus aria-hidden="true" size={15} />
-              Add entry
+              {visibleSelectedEntries.length >= maxJournalEntries ? "All paths open" : "Add entry"}
             </button>
           </div>
         </section>
@@ -257,15 +263,18 @@ function StudentLovableJournalEntry({
   const [fruitReflection, setFruitReflection] = useState("");
   const [selectedPractice, setSelectedPractice] = useState<"embodied" | "guided">("embodied");
   const [studyPath, setStudyPath] = useState<"word" | "inductive">("word");
-  const [selectedReadingId, setSelectedReadingId] = useState(nextStep.journeyJournal.readingPath[0]?.id ?? "");
+  const journeyEntries = nextStep.journeyJournalEntries?.length ? nextStep.journeyJournalEntries : [nextStep.journeyJournal];
+  const activeJourney = journeyEntries[Math.min(entrySequence - 1, journeyEntries.length - 1)] ?? nextStep.journeyJournal;
+  const firstReadingId = activeJourney.readingPath[0]?.id ?? "";
+  const [selectedReadingId, setSelectedReadingId] = useState(firstReadingId);
   const [isSaving, setIsSaving] = useState(false);
   const [status, setStatus] = useState(reflection?.privateNote ? "Saved to your private note." : "Autosaved locally until you save the entry.");
-  const practice = nextStep.journeyJournal.spiritualPractice;
-  const readingCards = nextStep.journeyJournal.readingPath.slice(0, 3);
+  const practice = activeJourney.spiritualPractice;
+  const readingCards = activeJourney.readingPath.slice(0, 3);
   const selectedReading = readingCards.find((reading) => reading.id === selectedReadingId) ?? readingCards[0];
   const selectedReader = selectedReading ? buildYouVersionReaderLink(selectedReading.lookupReference) : undefined;
   const guidedPrayer = practice.guidedPrayer;
-  const keyWords = nextStep.journeyJournal.keyWords.slice(0, 3);
+  const keyWords = activeJourney.keyWords.slice(0, 3);
   const phases = [
     { label: "Scripture", complete: Boolean(scriptureReflection.trim()) },
     { label: "Investigate", complete: Boolean(questionReflection.trim()) },
@@ -274,9 +283,21 @@ function StudentLovableJournalEntry({
     { label: "Fruit", complete: Boolean(fruitReflection.trim()) }
   ];
 
+  useEffect(() => {
+    setScriptureReflection("");
+    setQuestionReflection("");
+    setPracticeReflection("");
+    setLivingReflection("");
+    setFruitReflection("");
+    setSelectedPractice("embodied");
+    setStudyPath("word");
+    setSelectedReadingId(firstReadingId);
+    setStatus(reflection?.privateNote ? "Saved to your private note." : "Autosaved locally until you save the entry.");
+  }, [activeJourney.id, entrySequence, firstReadingId, reflection?.privateNote]);
+
   async function saveEntry() {
     const privateNote = [
-      `Entry ${entrySequence}: ${nextStep.journeyJournal.title}`,
+      `Entry ${entrySequence}: ${activeJourney.title}`,
       scriptureReflection ? `Scripture:\n${scriptureReflection}` : "",
       questionReflection ? `Questions:\n${questionReflection}` : "",
       practiceReflection ? `Practice (${selectedPractice}):\n${practiceReflection}` : "",
@@ -371,7 +392,7 @@ function StudentLovableJournalEntry({
           </div>
         ) : (
           <ul className="student-lovable-question-list">
-            {nextStep.wrestleQuestions.slice(0, 3).map((question) => <li key={question}>&quot;{question}&quot;</li>)}
+            {activeJourney.followUpQuestions.slice(0, 3).map((question) => <li key={question.id}>&quot;{question.prompt}&quot;</li>)}
           </ul>
         )}
         <textarea
@@ -417,7 +438,7 @@ function StudentLovableJournalEntry({
       <LovableJournalSection
         icon={Footprints}
         eyebrow="Living it out"
-        title={nextStep.wrestleTogetherPrompt.replace(/^Bring this to group:\s*/i, "")}
+        title={entrySequence > 1 ? activeJourney.openingPrompt : nextStep.wrestleTogetherPrompt.replace(/^Bring this to group:\s*/i, "")}
       >
         <textarea
           onChange={(event) => setLivingReflection(event.target.value)}

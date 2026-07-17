@@ -101,6 +101,7 @@ export type StudentQuestionNextStep = {
   resourceSteps: StudentResourceStep[];
   storylineMatch: StorylineQuestionMatch;
   journeyJournal: StudentJourneyJournal;
+  journeyJournalEntries: StudentJourneyJournal[];
 };
 
 export type StudentHomeFeed = {
@@ -170,13 +171,20 @@ export function buildQuestionNextStep(
   const secondaryKnowledge = knowledgeMatches[1];
   const storylineMatch = matchQuestionToStoryline(prompt);
   const wrestleQuestions = wrestleQuestionsForPrompt(prompt);
-  const digQuestions = primaryKnowledge?.digQuestions?.length ? primaryKnowledge.digQuestions : uniqueQuestions([...storylineMatch.studentQuestions, ...digQuestionsForPrompt(prompt)], 3);
+  const promptDigQuestions = digQuestionsForPrompt(prompt);
+  const digQuestions = primaryKnowledge?.digQuestions?.length
+    ? primaryKnowledge.digQuestions
+    : isGospelQuestion(promptSearchText(prompt))
+      ? promptDigQuestions
+      : uniqueQuestions([...storylineMatch.studentQuestions, ...promptDigQuestions], 3);
   const journalPrompts = journalPromptsForPrompt(prompt);
   const prayerPrompts = prayerPromptsForPrompt(prompt);
   const wrestleTogetherPrompt = wrestleTogetherPromptForPrompt(prompt, primaryKnowledge);
   const readingPlan = primaryKnowledge ? knowledgeItem(primaryKnowledge, primaryKnowledge.label) : storylineItem(storylineMatch);
   const nextResource = secondaryKnowledge ? knowledgeItem(secondaryKnowledge, "Keep digging") : resourceItem(resource, "Practice this");
-  const journeyJournal = buildJourneyJournal(prompt, storylineMatch, primaryKnowledge);
+  const baseJourneyJournal = buildJourneyJournal(prompt, storylineMatch, primaryKnowledge);
+  const journeyJournalEntries = buildJourneyJournalEntries(prompt, storylineMatch, primaryKnowledge, baseJourneyJournal);
+  const journeyJournal = journeyJournalEntries[0] ?? baseJourneyJournal;
   const curatedResources = matchCuratedResourcesToPrompt(
     {
       question: prompt.question,
@@ -214,7 +222,8 @@ export function buildQuestionNextStep(
       wrestleTogetherPrompt
     }),
     storylineMatch,
-    journeyJournal
+    journeyJournal,
+    journeyJournalEntries
   };
 }
 
@@ -303,6 +312,12 @@ function savedRecommendationsToNextStep(
   const firstRecommendation = sorted[0];
   const readingPlanItem = readingPlan ? recommendationItem(readingPlan, prompt.id) : fallback.readingPlan;
   const resourceItem = resource ? recommendationItem(resource, prompt.id) : fallback.resource;
+  const journeyJournalEntries = personalizeJourneyEntries(fallback.journeyJournalEntries, {
+    wrestleQuestions,
+    digQuestions,
+    journalPrompts,
+    prayerPrompts
+  });
 
   return {
     promptId: prompt.id,
@@ -332,7 +347,8 @@ function savedRecommendationsToNextStep(
       wrestleTogetherPrompt: wrestleTogether?.title || fallback.wrestleTogetherPrompt
     }),
     storylineMatch: fallback.storylineMatch,
-    journeyJournal: fallback.journeyJournal
+    journeyJournal: journeyJournalEntries[0] ?? fallback.journeyJournal,
+    journeyJournalEntries
   };
 }
 
@@ -616,6 +632,533 @@ function buildJourneyJournal(
   };
 }
 
+function buildJourneyJournalEntries(
+  prompt: ReadingSource,
+  storylineMatch: StorylineQuestionMatch,
+  primaryKnowledge: StudentKnowledgeMatch | undefined,
+  baseJourney: StudentJourneyJournal
+): StudentJourneyJournal[] {
+  const text = promptSearchText(prompt);
+  if (isGospelQuestion(text)) return buildGospelJourneyEntries();
+
+  const primaryPassage = prompt.scriptureReference || primaryKnowledge?.scriptureReferences?.[0] || storylineMatch.keyPassages[0] || "Genesis 1";
+  const secondaryPassages = uniqueQuestions([...storylineMatch.keyPassages.slice(1), primaryPassage, ...storylineMatch.keyPassages], 3);
+  const practicePassages = uniqueQuestions([...storylineMatch.keyPassages.slice(2), primaryPassage, ...storylineMatch.keyPassages], 3);
+  const topic = topicLabelForPrompt(prompt) || storylineMatch.title.toLowerCase();
+
+  return [
+    baseJourney,
+    {
+      ...baseJourney,
+      id: `${baseJourney.id}-investigate`,
+      title: `${storylineMatch.title} Investigation`,
+      subtitle: "A second pass that looks underneath the first answer and checks context before application.",
+      openingPrompt: `Now investigate the question more carefully. Ask what the passage actually says about ${topic}, what it does not say, and what needs more context.`,
+      followUpQuestions: toJourneyQuestions(
+        uniqueQuestions([...digQuestionsForPrompt(prompt), ...storylineMatch.studentQuestions], 3),
+        "investigate",
+        ["What does the text show?", "What context matters?", "What should stay unresolved?"],
+        ["I notice...", "Before and after this passage...", "I should not rush..."]
+      ),
+      readingPath: buildReadingPathFromReferences(secondaryPassages, storylineMatch, [
+        "Read the wider context",
+        "Check the storyline connection",
+        "Hold the question near Jesus"
+      ]),
+      keyWords: investigativeKeywords(storylineMatch),
+      spiritualPractice: {
+        title: "Map the question honestly",
+        summary: "Separate what Scripture says, what you assume, and what you still need help understanding.",
+        steps: [
+          "Draw three columns: text, assumptions, and questions.",
+          "Put one observation from the passage in the text column.",
+          "Put one thing you may have assumed in the assumptions column.",
+          "Bring one unresolved question to a leader or group."
+        ],
+        reflectionPrompt: "What changed when you separated the passage from your assumptions?",
+        guidedPrayer: {
+          title: "Prayer for careful attention",
+          durationLabel: "2 minute prayer",
+          backgroundHint: "Open Bible and a notebook",
+          prompts: [
+            "Ask God for patience before you answer.",
+            "Name one assumption you are willing to let Scripture test.",
+            "Ask for wisdom to hold what is clear and what is still unresolved.",
+            "Pray for courage to bring the question into community."
+          ]
+        }
+      }
+    },
+    {
+      ...baseJourney,
+      id: `${baseJourney.id}-practice`,
+      title: `${storylineMatch.title} Practice`,
+      subtitle: "A third pass that turns careful reading into one embodied response this week.",
+      openingPrompt: `Do not leave the question as an idea only. Ask what faithful response fits this passage and this season of your life.`,
+      followUpQuestions: toJourneyQuestions(
+        uniqueQuestions([...journalPromptsForPrompt(prompt), ...wrestleQuestionsForPrompt(prompt)], 3),
+        "practice",
+        ["What is God forming?", "What response fits?", "Who should hear this?"],
+        ["I think God may be forming...", "A faithful next step could be...", "I should bring this to..."]
+      ),
+      readingPath: buildReadingPathFromReferences(practicePassages, storylineMatch, [
+        "Read for response",
+        "Read with your group in mind",
+        "Read toward hope"
+      ]),
+      keyWords: responseKeywords(storylineMatch),
+      spiritualPractice: practiceForJourney(prompt, storylineMatch)
+    },
+    {
+      ...baseJourney,
+      id: `${baseJourney.id}-community`,
+      title: `${storylineMatch.title} Community Path`,
+      subtitle: "A fourth pass that prepares one thoughtful contribution for group discussion.",
+      openingPrompt: "Prepare to bring something honest and useful to group: one observation, one question, and one response you are willing to practice.",
+      followUpQuestions: toJourneyQuestions(
+        uniqueQuestions([stripBringToGroupPrefix(wrestleTogetherPromptForPrompt(prompt, primaryKnowledge)), ...digQuestionsForPrompt(prompt)], 3),
+        "community",
+        ["What will you bring?", "What help do you need?", "What could we practice together?"],
+        ["I can bring...", "I need help with...", "Our group could..."]
+      ),
+      readingPath: buildReadingPathFromReferences(uniqueQuestions([primaryPassage, ...storylineMatch.keyPassages].reverse(), 3), storylineMatch, [
+        "Re-read the anchor passage",
+        "Listen for the group question",
+        "Name one shared practice"
+      ]),
+      keyWords: communityKeywords(),
+      spiritualPractice: {
+        title: "Prepare a group contribution",
+        summary: "Turn the journal into one humble sentence you can actually say out loud.",
+        steps: [
+          "Write one sentence that starts with: I noticed...",
+          "Write one sentence that starts with: I still wonder...",
+          "Write one sentence that starts with: I think we could practice...",
+          "Bring those three sentences to group."
+        ],
+        reflectionPrompt: "What would help your group seek a faithful answer together?",
+        guidedPrayer: {
+          title: "Prayer before group",
+          durationLabel: "2 minute prayer",
+          backgroundHint: "Quiet before conversation",
+          prompts: [
+            "Ask God for humility to listen.",
+            "Ask God for courage to be honest.",
+            "Ask God to protect the group from quick answers.",
+            "Ask God to form real fruit from the conversation."
+          ]
+        }
+      }
+    }
+  ];
+}
+
+function buildGospelJourneyEntries(): StudentJourneyJournal[] {
+  return [
+    {
+      id: "gospel-scripture-journey",
+      title: "Gospel Scripture Journey",
+      subtitle: "Start with what Scripture announces before reducing the gospel to a slogan.",
+      openingPrompt: "Ask what good news is being announced, who Jesus is, what problem He answers, and what response the announcement invites.",
+      followUpQuestions: [
+        {
+          id: "gospel-announcement",
+          label: "What is being announced?",
+          prompt: "What does the passage call good news, and who is at the center of it?",
+          placeholder: "The good news is..."
+        },
+        {
+          id: "gospel-problem",
+          label: "What problem does it answer?",
+          prompt: "What does this passage reveal about sin, death, separation, injustice, or false kingdoms?",
+          placeholder: "The problem underneath the good news is..."
+        },
+        {
+          id: "gospel-response",
+          label: "What response is invited?",
+          prompt: "Where do you see repentance, faith, allegiance, joy, witness, or worship?",
+          placeholder: "The response I see is..."
+        }
+      ],
+      readingPath: [
+        gospelReading("mark-1-good-news", "Mark 1:14-15", "Jesus announces good news", "Notice that Jesus connects gospel, kingdom, repentance, and belief.", "Write the announcement in one sentence."),
+        gospelReading("corinthians-15-center", "1 Corinthians 15:1-8", "Death and resurrection at the center", "Watch how Paul summarizes the gospel around Jesus' death, burial, resurrection, witnesses, and grace.", "Circle what Paul says is of first importance."),
+        gospelReading("romans-3-grace", "Romans 3:21-26", "Grace, justice, and faith", "Read slowly for righteousness, grace, redemption, faith, and what God does through Jesus.", "Name one word you need help understanding.")
+      ],
+      keyWords: [
+        gospelKeyword("gospel", "euangelion", "Good news announced as public reality, not merely advice or private inspiration.", "Ask what has happened in Jesus that changes reality."),
+        gospelKeyword("kingdom", "basileia", "God's reign arriving in and through Jesus.", "Ask how the gospel calls for allegiance, not just agreement."),
+        gospelKeyword("grace", "charis", "God's generous favor that rescues rather than rewards our earning.", "Ask where the passage shows gift before response.")
+      ],
+      spiritualPractice: {
+        title: "Summarize the announcement",
+        summary: "Write the gospel as news about Jesus before writing what it means for you.",
+        steps: [
+          "Write one sentence beginning: The good news is that Jesus...",
+          "Write one sentence naming the problem Jesus answers.",
+          "Write one sentence naming the response Scripture invites.",
+          "Ask a leader whether your summary stayed anchored in the passages."
+        ],
+        reflectionPrompt: "How is gospel different from advice, self-improvement, or just being nicer?",
+        guidedPrayer: {
+          title: "Receive good news",
+          durationLabel: "2 minute prayer",
+          backgroundHint: "Open hands and Scripture",
+          prompts: [
+            "Thank Jesus for what He has done before naming what you should do.",
+            "Confess where you reduce the gospel to advice or performance.",
+            "Ask for faith to receive grace honestly.",
+            "Ask for courage to keep learning the whole story."
+          ]
+        }
+      }
+    },
+    {
+      id: "gospel-investigation-journey",
+      title: "Gospel Investigation Journey",
+      subtitle: "Look underneath the word gospel and trace what it restores.",
+      openingPrompt: "Now ask how the gospel reaches guilt, shame, broken relationships, identity, mission, and creation instead of only answering one narrow question.",
+      followUpQuestions: [
+        {
+          id: "gospel-scope",
+          label: "How big is the gospel?",
+          prompt: "Where does the passage show personal rescue, a new people, mission, or new creation hope?",
+          placeholder: "The scope seems bigger because..."
+        },
+        {
+          id: "gospel-grace-works",
+          label: "How do grace and response fit?",
+          prompt: "What does the passage say God does, and what response follows because of grace?",
+          placeholder: "God acts first by..."
+        },
+        {
+          id: "gospel-reconciliation",
+          label: "What is restored?",
+          prompt: "What relationships are being reconciled: with God, others, self, or the world?",
+          placeholder: "The restoration I notice is..."
+        }
+      ],
+      readingPath: [
+        gospelReading("ephesians-2-grace", "Ephesians 2:1-10", "Grace that creates a new life", "Notice the movement from death to mercy to workmanship and good works.", "Underline what God does before any human boasting."),
+        gospelReading("corinthians-5-reconcile", "2 Corinthians 5:17-21", "Reconciliation and new creation", "Watch how new creation and reconciliation belong together in Christ.", "Write who is reconciled and who becomes a witness."),
+        gospelReading("luke-4-good-news", "Luke 4:16-21", "Good news for the poor", "Listen to the kingdom-shaped scope of Jesus' announcement.", "Name who the good news reaches in this scene.")
+      ],
+      keyWords: [
+        gospelKeyword("reconciliation", "katallage", "Restored relationship made possible by God's action in Christ.", "Ask what hostility or distance the gospel overcomes."),
+        gospelKeyword("faith", "pistis", "Trust, allegiance, and reliance rather than bare information.", "Ask what trusting Jesus would mean in real life."),
+        gospelKeyword("new creation", "kaine ktisis", "God beginning renewal in Christ, not merely improving old habits.", "Ask what has become new and what is still being made new.")
+      ],
+      spiritualPractice: {
+        title: "Draw the gospel map",
+        summary: "Map what the gospel restores so your answer is bigger than a formula.",
+        steps: [
+          "Draw four circles: God, people, creation, mission.",
+          "Place one phrase from today's readings in each circle.",
+          "Mark the circle that feels most disconnected in your life right now.",
+          "Pray one sentence asking Jesus to restore that place."
+        ],
+        reflectionPrompt: "Where did the gospel become bigger than the answer you expected?",
+        guidedPrayer: {
+          title: "Prayer for restored life",
+          durationLabel: "3 minute prayer",
+          backgroundHint: "Notebook map",
+          prompts: [
+            "Name one place you need reconciliation with God.",
+            "Name one place you need reconciliation with another person.",
+            "Ask Jesus to make you a faithful witness, not a polished performer.",
+            "Thank God that grace creates a new life."
+          ]
+        }
+      }
+    },
+    {
+      id: "gospel-practice-journey",
+      title: "Gospel Practice Journey",
+      subtitle: "Move from definition to repentance, trust, witness, and worship.",
+      openingPrompt: "Let the gospel question become personal without making it only private. Ask what Jesus is inviting you to receive, turn from, trust, and share.",
+      followUpQuestions: [
+        {
+          id: "gospel-repent",
+          label: "Where is repentance invited?",
+          prompt: "What false hope, false kingdom, or self-saving strategy might Jesus be exposing?",
+          placeholder: "I may need to turn from..."
+        },
+        {
+          id: "gospel-trust",
+          label: "Where is trust invited?",
+          prompt: "What part of Jesus' work do you need to receive rather than earn?",
+          placeholder: "I need to trust that Jesus..."
+        },
+        {
+          id: "gospel-witness",
+          label: "How could you witness humbly?",
+          prompt: "How could you explain the gospel without pressure, performance, or winning an argument?",
+          placeholder: "I could say..."
+        }
+      ],
+      readingPath: [
+        gospelReading("romans-10-response", "Romans 10:9-13", "Confession, trust, and rescue", "Notice mouth, heart, Lordship, resurrection, and the wideness of the invitation.", "Write one honest confession of trust."),
+        gospelReading("luke-15-grace", "Luke 15:11-32", "Grace that welcomes and confronts", "Read both sons carefully so grace does not become sentimental or self-righteous.", "Ask which son you relate to today."),
+        gospelReading("matthew-28-witness", "Matthew 28:18-20", "Good news becomes discipleship", "Watch authority, going, baptizing, teaching, obedience, and Jesus' presence.", "Name one way witness could become discipleship.")
+      ],
+      keyWords: [
+        gospelKeyword("repent", "metanoeo", "A reoriented mind and life in response to God's kingdom.", "Ask what Jesus is inviting you to turn from and toward."),
+        gospelKeyword("confess", "homologeo", "Openly agreeing with and naming what is true about Jesus.", "Practice saying one true sentence about Jesus without dressing it up."),
+        gospelKeyword("witness", "martys", "A person who testifies to what is true and has been seen.", "Ask how humility and truth can stay together.")
+      ],
+      spiritualPractice: {
+        title: "Practice a humble gospel witness",
+        summary: "Prepare one honest, Scripture-shaped explanation you could share with a friend.",
+        steps: [
+          "Write the gospel in three movements: Jesus is King, Jesus saves, Jesus makes new.",
+          "Add one sentence about why that is good news to you.",
+          "Remove any sentence that sounds like pressure or performance.",
+          "Share it with a trusted leader before using it with a friend."
+        ],
+        reflectionPrompt: "What would it sound like to share the gospel with humility and confidence?",
+        guidedPrayer: {
+          title: "Prayer for gospel courage",
+          durationLabel: "2 minute prayer",
+          backgroundHint: "Before a conversation",
+          prompts: [
+            "Thank Jesus for saving before you speak for Him.",
+            "Ask for humility that does not hide the truth.",
+            "Ask for courage that does not pressure people.",
+            "Pray for one friend to experience good news."
+          ]
+        }
+      }
+    },
+    {
+      id: "gospel-storyline-journey",
+      title: "Gospel Storyline Journey",
+      subtitle: "Connect the gospel to the whole Bible story instead of treating it as a detached formula.",
+      openingPrompt: "Trace the gospel from promise to Jesus to new creation: God keeps His promise, rescues through Christ, forms a people, and renews all things.",
+      followUpQuestions: [
+        {
+          id: "gospel-promise",
+          label: "What promise is fulfilled?",
+          prompt: "How does the passage connect Jesus to God's older promises?",
+          placeholder: "This connects to the promise because..."
+        },
+        {
+          id: "gospel-people",
+          label: "What people is formed?",
+          prompt: "How does the gospel create a community rather than isolated consumers?",
+          placeholder: "The people formed by the gospel..."
+        },
+        {
+          id: "gospel-hope",
+          label: "Where is the story going?",
+          prompt: "What final hope does the gospel point toward?",
+          placeholder: "The hope ahead is..."
+        }
+      ],
+      readingPath: [
+        gospelReading("genesis-12-promise", "Genesis 12:1-3", "Blessing promised for the nations", "See that the good news has roots in God's promise to bless the nations.", "Write who the blessing is meant to reach."),
+        gospelReading("acts-2-gospel", "Acts 2:36-39", "The risen Jesus calls for response", "Notice Lord, Messiah, repentance, forgiveness, Spirit, and promise.", "Name what Peter announces and what he invites."),
+        gospelReading("revelation-21-hope", "Revelation 21:1-5", "Good news ends in renewed creation", "Let the gospel end where Scripture ends: God with His people and all things made new.", "Write one hope that is bigger than escape.")
+      ],
+      keyWords: [
+        gospelKeyword("promise", "epangelia", "God's pledged purpose that He carries forward in Christ.", "Ask how the gospel fulfills more than a momentary need."),
+        gospelKeyword("people", "laos", "A people belonging to God, formed by grace for witness.", "Ask how salvation joins you to a community."),
+        gospelKeyword("hope", "elpis", "Confident expectation rooted in God's future, not wishful thinking.", "Ask what future the gospel teaches you to expect.")
+      ],
+      spiritualPractice: {
+        title: "Tell the whole-story gospel",
+        summary: "Practice a four-part gospel summary that starts in creation and ends in new creation.",
+        steps: [
+          "Write four headings: creation, fracture, Jesus, new creation.",
+          "Put one sentence under each heading.",
+          "Add one phrase from today's readings under at least two headings.",
+          "Bring the summary to group and ask what is missing."
+        ],
+        reflectionPrompt: "How does the gospel change when you connect it to the whole Bible story?",
+        guidedPrayer: {
+          title: "Prayer of whole-story hope",
+          durationLabel: "3 minute prayer",
+          backgroundHint: "Creation to new creation",
+          prompts: [
+            "Praise God as Creator.",
+            "Confess the fracture sin brings.",
+            "Thank Jesus for His death and resurrection.",
+            "Ask for hope that lives toward new creation."
+          ]
+        }
+      }
+    }
+  ];
+}
+
+function personalizeJourneyEntries(
+  entries: StudentJourneyJournal[],
+  recommendations: {
+    wrestleQuestions: string[];
+    digQuestions: string[];
+    journalPrompts: string[];
+    prayerPrompts: string[];
+  }
+): StudentJourneyJournal[] {
+  return entries.map((entry, index) => {
+    if (index === 0 && recommendations.wrestleQuestions.length) {
+      return {
+        ...entry,
+        followUpQuestions: toJourneyQuestions(recommendations.wrestleQuestions.slice(0, 3), "saved-wrestle", [
+          "What are you really asking?",
+          "What feels unresolved?",
+          "What should you look for?"
+        ])
+      };
+    }
+
+    if (index === 1 && recommendations.digQuestions.length) {
+      return {
+        ...entry,
+        followUpQuestions: toJourneyQuestions(recommendations.digQuestions.slice(0, 3), "saved-dig", [
+          "What does the guide ask?",
+          "What needs context?",
+          "What should you test?"
+        ])
+      };
+    }
+
+    if (index === 2 && recommendations.journalPrompts.length) {
+      return {
+        ...entry,
+        followUpQuestions: toJourneyQuestions(recommendations.journalPrompts.slice(0, 3), "saved-journal", [
+          "What should you write?",
+          "What is forming?",
+          "What response fits?"
+        ])
+      };
+    }
+
+    if (index === 3 && recommendations.prayerPrompts.length) {
+      return {
+        ...entry,
+        spiritualPractice: {
+          ...entry.spiritualPractice,
+          guidedPrayer: {
+            title: "Saved prayer path",
+            durationLabel: "2 minute prayer",
+            backgroundHint: "Leader-guided reflection",
+            prompts: recommendations.prayerPrompts.slice(0, 4)
+          }
+        }
+      };
+    }
+
+    return entry;
+  });
+}
+
+function toJourneyQuestions(
+  questions: string[],
+  idPrefix: string,
+  labels: string[],
+  placeholders: string[] = ["I notice...", "This matters because...", "I still wonder..."]
+): StudentJourneyQuestion[] {
+  return questions.slice(0, 3).map((question, index) => ({
+    id: `${idPrefix}-${index + 1}`,
+    label: labels[index] ?? `Question ${index + 1}`,
+    prompt: question,
+    placeholder: placeholders[index] ?? "Write honestly..."
+  }));
+}
+
+function buildReadingPathFromReferences(references: string[], storylineMatch: StorylineQuestionMatch, titles: string[]): StudentJourneyReading[] {
+  return references.slice(0, 3).map((reference, index) => ({
+    id: `reading-${index + 1}-${reference.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`,
+    reference,
+    lookupReference: lookupReferenceFor(reference),
+    title: titles[index] ?? (index === 0 ? "Start with the passage" : index === 1 ? "Trace the storyline" : "Bring it toward hope"),
+    guidance: readingGuidanceFor(storylineMatch, index),
+    practice: readingPracticeFor(storylineMatch, index)
+  }));
+}
+
+function gospelReading(id: string, reference: string, title: string, guidance: string, practice: string): StudentJourneyReading {
+  return {
+    id,
+    reference,
+    lookupReference: lookupReferenceFor(reference),
+    title,
+    guidance,
+    practice
+  };
+}
+
+function gospelKeyword(term: string, transliteration: string, meaning: string, invitation: string): StudentJourneyKeyword {
+  return {
+    term,
+    transliteration,
+    originalLanguage: "Greek",
+    lexicalUrl: `https://www.blueletterbible.org/search/search.cfm?Criteria=${encodeURIComponent(transliteration)}&t=KJV#s=s_primary_0_1`,
+    meaning,
+    invitation
+  };
+}
+
+function investigativeKeywords(storylineMatch: StorylineQuestionMatch): StudentJourneyKeyword[] {
+  return [
+    {
+      term: "context",
+      meaning: "The passage has a book, audience, covenant moment, and argument around it.",
+      invitation: "Read what comes before and after before deciding what it means."
+    },
+    {
+      term: "storyline",
+      meaning: `This question develops through ${storylineMatch.developsThrough}.`,
+      invitation: "Ask where the question begins, how it develops, and how it is fulfilled in Christ."
+    },
+    {
+      term: "limits",
+      meaning: "Faithful study names what Scripture says and what it does not fully answer yet.",
+      invitation: "Write one thing you can say with confidence and one thing you should hold humbly."
+    }
+  ];
+}
+
+function responseKeywords(storylineMatch: StorylineQuestionMatch): StudentJourneyKeyword[] {
+  return [
+    {
+      term: "response",
+      meaning: "Application should grow from the passage instead of using the passage for a pre-made point.",
+      invitation: "Name a response that fits what the text actually shows."
+    },
+    {
+      term: "formation",
+      meaning: "Scripture forms loves, habits, courage, humility, and community.",
+      invitation: `Ask what this question could form in you around ${storylineMatch.title.toLowerCase()}.`
+    },
+    {
+      term: "fruit",
+      meaning: "A faithful answer should eventually grow visible fruit, not only better wording.",
+      invitation: "Look for one small sign of love, joy, peace, patience, or courage."
+    }
+  ];
+}
+
+function communityKeywords(): StudentJourneyKeyword[] {
+  return [
+    {
+      term: "witness",
+      meaning: "Students can bring honest observations and questions that help the group seek truth together.",
+      invitation: "Prepare one sentence you can say out loud without performing."
+    },
+    {
+      term: "humility",
+      meaning: "Humility lets Scripture lead and lets other believers help you see what you missed.",
+      invitation: "Ask one question that invites help instead of proving a point."
+    },
+    {
+      term: "practice",
+      meaning: "Group discussion should lead toward a shared faithful response.",
+      invitation: "Name one practice your group could try this week."
+    }
+  ];
+}
+
 function readingGuidanceFor(storylineMatch: StorylineQuestionMatch, index: number) {
   if (index === 0) return `Read slowly and ask what ${storylineMatch.startsHere} contributes before applying it to yourself.`;
   if (index === 1) return `Watch how this question develops through ${storylineMatch.developsThrough}.`;
@@ -789,6 +1332,7 @@ function planForPrompt(prompt: ReadingSource) {
 
 function planForText(text: string) {
   const checks: Array<[string, RegExp]> = [
+    ["kingdom-waiting", /\b(gospel|good news|salvation|saved|cross|resurrection|atonement)\b/],
     ["creation-covenant", /\b(genesis|beginning|creation|created|garden|tree|eden|evil|fall|covenant|abraham|blessing)\b/],
     ["exodus-formation", /\b(exodus|deliverance|slavery|wilderness|passover|law|commandments|sinai|rescue)\b/],
     ["kingdom-waiting", /\b(king|kingdom|david|psalm|prophet|exile|isaiah|waiting|wisdom)\b/]
@@ -800,6 +1344,7 @@ function planForText(text: string) {
 function resourceForPrompt(prompt: ReadingSource) {
   const text = promptSearchText(prompt);
   const checks: Array<[string, RegExp]> = [
+    ["context", /\b(gospel|good news|salvation|saved|cross|resurrection|atonement)\b/],
     ["context", /\b(context|where|before|after|mean|meaning|passage)\b/],
     ["discussion", /\b(group|talk|discuss|conversation|question)\b/],
     ["prayer", /\b(pray|prayer|trust|worry|anxiety)\b/],
@@ -824,6 +1369,7 @@ function topicLabelForPrompt(prompt: ReadingSource) {
 
   const text = promptSearchText(prompt);
   const checks: Array<[string, RegExp]> = [
+    ["the gospel", /\b(gospel|good news|salvation|saved|cross|resurrection|atonement)\b/],
     ["trust", /\b(trust|faith|believe|prayer|pray|anxiety|worry)\b/],
     ["suffering", /\b(suffer\w*|pain|grief|death|trauma|hard things)\b/],
     ["the garden", /\b(garden|eden|tree|evil|genesis|creation)\b/],
@@ -836,6 +1382,14 @@ function topicLabelForPrompt(prompt: ReadingSource) {
 
 function digQuestionsForPrompt(prompt: ReadingSource) {
   const text = promptSearchText(prompt);
+
+  if (isGospelQuestion(text)) {
+    return [
+      "What good news is being announced, and who is at the center of it?",
+      "What problem does the gospel answer: guilt, shame, death, false kingdoms, broken relationship, or all of these?",
+      "How do Jesus' death, resurrection, kingdom, grace, repentance, and faith fit together?"
+    ];
+  }
 
   if (/\b(garden|eden|tree|evil|genesis|creation)\b/.test(text)) {
     return [
@@ -877,6 +1431,15 @@ function wrestleQuestionsForPrompt(prompt: ReadingSource) {
     "Where have you already looked for answers?"
   ];
 
+  if (isGospelQuestion(text)) {
+    return [
+      "When you hear the word gospel, what answer comes to mind first?",
+      "Does your answer sound like news about Jesus, advice for better living, or both?",
+      "What part of the gospel feels clear, and what part still feels confusing?",
+      "Where have you seen the gospel reduced to a slogan?"
+    ];
+  }
+
   if (/\b(garden|eden|tree|evil|genesis|creation)\b/.test(text)) {
     return [
       baseQuestions[0],
@@ -910,6 +1473,14 @@ function wrestleQuestionsForPrompt(prompt: ReadingSource) {
 function journalPromptsForPrompt(prompt: ReadingSource) {
   const text = promptSearchText(prompt);
 
+  if (isGospelQuestion(text)) {
+    return [
+      "Write the gospel as one sentence about what Jesus has done before writing what people should do.",
+      "Name one part of the gospel that is bigger than private forgiveness.",
+      "Write one honest question you would want a leader to help you answer from Scripture."
+    ];
+  }
+
   if (/\b(suffer\w*|pain|grief|death|trauma|hard things|depression|panic)\b/.test(text)) {
     return [
       "Write one honest sentence naming what hurts or feels unresolved.",
@@ -936,6 +1507,14 @@ function journalPromptsForPrompt(prompt: ReadingSource) {
 function prayerPromptsForPrompt(prompt: ReadingSource) {
   const text = promptSearchText(prompt);
 
+  if (isGospelQuestion(text)) {
+    return [
+      "Jesus, help me receive the gospel as good news before I turn it into advice.",
+      "Jesus, show me what Your death and resurrection accomplish.",
+      "Jesus, teach me repentance, trust, and humble witness."
+    ];
+  }
+
   if (/\b(suffer\w*|pain|grief|death|trauma|hard things|depression|panic)\b/.test(text)) {
     return [
       "God, help me be honest about what hurts.",
@@ -961,6 +1540,10 @@ function prayerPromptsForPrompt(prompt: ReadingSource) {
 
 function wrestleTogetherPromptForPrompt(prompt: ReadingSource, primaryKnowledge?: StudentKnowledgeMatch) {
   const text = promptSearchText(prompt);
+
+  if (isGospelQuestion(text)) {
+    return "Bring this to group: How would Scripture define the gospel as good news about Jesus, and what common shortcuts should we avoid?";
+  }
 
   if (/\b(suffer\w*|pain|grief|death|trauma|hard things|depression|panic)\b/.test(text)) {
     return "Bring this to group: How can we make room for honest pain while looking for God's nearness and hope together?";
@@ -992,6 +1575,10 @@ function careNoteForPrompt(prompt: ReadingSource) {
 
 function promptSearchText(prompt: ReadingSource) {
   return `${prompt.question} ${prompt.scriptureReference} ${(prompt.topicTags ?? []).join(" ")}`.toLowerCase();
+}
+
+function isGospelQuestion(text: string) {
+  return /\b(gospel|good news|salvation|saved|save me|cross|resurrection|atonement|forgiven|forgiveness)\b/.test(text);
 }
 
 function promptSearchTextForPlan(plan: ScripturePlan) {

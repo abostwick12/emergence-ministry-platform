@@ -16166,6 +16166,11 @@ body:has(.login-shell) h3 {
   box-shadow: var(--platform-cyan-glow);
 }
 
+.app-shell:not(.app-shell-camp) .student-journal-entry-rail button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
 .app-shell:not(.app-shell-camp) .student-journal-entry-rail button.add-entry {
   min-width: 124px;
   color: #f7fbff;
@@ -16726,7 +16731,7 @@ body:has(.login-shell) h3 {
   }
 
   .app-shell:not(.app-shell-camp) .app-content {
-    padding: 18px 16px 108px;
+    padding: 18px 16px calc(168px + env(safe-area-inset-bottom, 0px));
   }
 
   .app-shell:not(.app-shell-camp) .student-feed,
@@ -16747,6 +16752,7 @@ body:has(.login-shell) h3 {
   .app-shell:not(.app-shell-camp) .student-lovable-journal {
     gap: 28px;
     max-width: none;
+    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
   }
 
   .app-shell:not(.app-shell-camp) .student-lovable-road {
@@ -16779,7 +16785,8 @@ body:has(.login-shell) h3 {
   .app-shell:not(.app-shell-camp) .student-lovable-card-row,
   .app-shell:not(.app-shell-camp) .student-lovable-keyword-row,
   .app-shell:not(.app-shell-camp) .student-lovable-practice-grid {
-    grid-auto-columns: minmax(260px, 82vw);
+    grid-auto-columns: minmax(240px, 78vw);
+    scroll-padding-inline: 8px;
   }
 
   .app-shell:not(.app-shell-camp) .student-lovable-save-row {
@@ -16853,6 +16860,28 @@ body:has(.login-shell) h3 {
 }
 
 @media (max-width: 540px) {
+  .app-shell:not(.app-shell-camp) .student-ask-page {
+    padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .app-shell:not(.app-shell-camp) .student-journal-control {
+    margin-inline: -2px;
+  }
+
+  .app-shell:not(.app-shell-camp) .student-lovable-section-body {
+    overflow: visible;
+  }
+
+  .app-shell:not(.app-shell-camp) .student-lovable-card-row,
+  .app-shell:not(.app-shell-camp) .student-lovable-keyword-row,
+  .app-shell:not(.app-shell-camp) .student-lovable-practice-grid {
+    grid-auto-flow: row;
+    grid-auto-columns: auto;
+    grid-template-columns: minmax(0, 1fr);
+    overflow-x: visible;
+    padding-bottom: 0;
+  }
+
   .app-shell:not(.app-shell-camp) .student-journey-road-step {
     grid-template-columns: 30px minmax(0, 1fr);
   }
