@@ -178,12 +178,12 @@ For Supabase migrations:
 - verify the target environment before applying
 - report exactly what changed
 
-## Required Verification
+## Required Validation
 
 Before marking code complete, run:
 
 ```bash
-npm install
+npm ci
 npm run design-check
 npm run typecheck
 npm run lint
@@ -191,7 +191,13 @@ npm run build
 npm run test:e2e
 ```
 
-If dependencies are already installed and unchanged, `npm install` may be skipped, but the reason should be stated.
+If dependencies are already installed and unchanged, `npm ci` may be skipped, but the reason should be stated.
+
+If Playwright browsers are missing, run:
+
+```bash
+npx playwright install --with-deps chromium
+```
 
 `npm run design-check` scans changed `app/` and `components/` files for retired class names, CSS Modules, and inline-style overrides that now have modifier classes. It exits non-zero on a violation. Fix violations before continuing — do not push past them.
 
@@ -199,10 +205,11 @@ Do not claim work is ready when required checks have not run.
 
 If a check fails:
 
-- stop
+- investigate
 - report the exact failure
-- fix the root cause
-- rerun the affected checks
+- repair only issues introduced by the task
+- rerun validation
+- do not skip tests
 
 Do not weaken tests merely to make them pass. Update tests only when intended behavior changes, and preserve equivalent coverage.
 
