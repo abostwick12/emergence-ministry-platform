@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { DiscussionWorkflowState } from "@/lib/scripture/discussion-workflow";
 import { buildDiscussionVideoScript, formatDiscussionVideoScriptForCopy, type DiscussionVideoScript } from "@/lib/scripture/discussion-video";
 import type { GlooDiagnosticResult } from "@/lib/scripture/gloo";
-import { buildLocalDiscussionDraftForPrompt } from "@/lib/scripture/local-discussion-draft";
+import { buildLeaderReviewDraft, buildLocalDiscussionDraftForPrompt, type LeaderReviewDraft } from "@/lib/scripture/local-discussion-draft";
 import { buildQuestionNextStep, type StudentQuestionNextStep } from "@/lib/scripture/student-home";
 import { matchQuestionToStoryline, type StorylineQuestionMatch } from "@/lib/scripture/storyline-guide";
 import type { StudentDiscussionPrompt, StudentDiscussionStatus } from "@/lib/scripture/types";
@@ -25,6 +25,7 @@ type ReviewAction =
   | "post"
   | "regenerate"
   | "use_local_draft"
+  | "promote_canonical"
   | "mark_discussed"
   | "flag_follow_up";
 
@@ -288,10 +289,11 @@ export function ScriptureLeaderReview({ compact = false, initialGroupState, init
           <LeaderReviewDetail
             key={selectedPrompt.id}
             aiReady={aiReady}
-            reviewReady={reviewReady}
-            onDecide={decidePrompt}
-            onOpenGuide={openDiscussionGuide}
-            prompt={selectedPrompt}
+              reviewReady={reviewReady}
+              canPromoteCanonical={initialState.readiness.liveStorage}
+              onDecide={decidePrompt}
+              onOpenGuide={openDiscussionGuide}
+              prompt={selectedPrompt}
             savingAction={savingAction}
           />
         ) : (
@@ -821,6 +823,7 @@ function GlooDiagnosticResultView({ diagnostic }: { diagnostic: GlooDiagnosticRe
 
 function LeaderReviewDetail({
   aiReady,
+  canPromoteCanonical,
   reviewReady,
   onDecide,
   onOpenGuide,
@@ -828,6 +831,7 @@ function LeaderReviewDetail({
   savingAction
 }: {
   aiReady: boolean;
+  canPromoteCanonical: boolean;
   reviewReady: boolean;
   onDecide: (id: string, action: ReviewAction, leaderNotes: string, discussionPrompt: string) => Promise<void>;
   onOpenGuide: (prompt: StudentDiscussionPrompt) => void;
@@ -842,15 +846,11 @@ function LeaderReviewDetail({
   const storylineMatch = useMemo(() => matchQuestionToStoryline(prompt), [prompt]);
   const studentNextStep = useMemo(() => buildQuestionNextStep(prompt, prompt.knowledgeContext ?? []), [prompt]);
   const videoScript = useMemo(() => buildDiscussionVideoScript({ ...prompt, discussionPrompt }), [discussionPrompt, prompt]);
-  const reviewDraft = guidanceText(prompt, localDraft.discussionPrompt);
-  const draftSource = prompt.discussionPrompt
-    ? prompt.aiStatus === "generated"
-      ? "Provider draft"
-      : "Saved guided draft"
-    : "Guided fallback draft";
+  const reviewDraft = useMemo(() => buildLeaderReviewDraft(prompt, localDraft), [localDraft, prompt]);
   const canSave = reviewReady && !savingAction;
   const canApprove = canSave && discussionPrompt.trim().length > 0 && prompt.status !== "posted";
   const canPost = canSave && prompt.status === "approved";
+  const canPromote = canSave && canPromoteCanonical && (prompt.status === "approved" || prompt.status === "posted");
   const canRegenerate = canSave && aiReady && prompt.status !== "posted";
   const canSaveLocalDraft = canSave && prompt.status !== "posted";
   const canPrepareVideo = prompt.status === "approved" || prompt.status === "posted";
@@ -893,13 +893,10 @@ function LeaderReviewDetail({
       <LeaderStorylineContext match={storylineMatch} />
       <LeaderStudentJourneyContext nextStep={studentNextStep} prompt={prompt} />
 
-      <section className="leader-review-guidance" aria-label="Draft and care notes">
-        <div>
-          <p className="eyebrow">{draftSource}</p>
-          <p>{reviewDraft}</p>
-        </div>
+      <section className="leader-review-guidance" aria-label="Structured leader review draft">
+        <StructuredReviewDraft draft={reviewDraft} />
         <div className="leader-review-guidance-actions">
-          <button className="button" disabled={!reviewDraft || !canSave} onClick={() => setDiscussionPrompt(reviewDraft)} type="button">
+          <button className="button" disabled={!reviewDraft.suggestedPrompt || !canSave} onClick={() => setDiscussionPrompt(reviewDraft.suggestedPrompt)} type="button">
             Use draft
           </button>
           <button className="button" disabled={!canSaveLocalDraft} onClick={() => onDecide(prompt.id, "use_local_draft", leaderNotes, discussionPrompt)} type="button">
@@ -946,6 +943,14 @@ function LeaderReviewDetail({
         <button className="button" disabled={!canPost} onClick={() => onDecide(prompt.id, "post", leaderNotes, discussionPrompt)} type="button">
           {savingAction === "post" ? "Posting..." : "Post to Slack"}
         </button>
+        <button
+          className="button"
+          disabled={!canPromote}
+          onClick={() => onDecide(prompt.id, "promote_canonical", leaderNotes, discussionPrompt)}
+          type="button"
+        >
+          {savingAction === "promote_canonical" ? "Promoting..." : "Promote to Meridian"}
+        </button>
         <button className="button" disabled={prompt.status !== "approved" && prompt.status !== "posted"} onClick={() => onOpenGuide(prompt)} type="button">
           Open guide
         </button>
@@ -963,6 +968,54 @@ function LeaderReviewDetail({
         </button>
       </div>
     </article>
+  );
+}
+
+function StructuredReviewDraft({ draft }: { draft: LeaderReviewDraft }) {
+  return (
+    <div className="leader-review-structured-draft">
+      <div className="leader-review-structured-heading">
+        <div>
+          <p className="eyebrow">{draft.sourceLabel}</p>
+          <h3>Leader review draft</h3>
+        </div>
+        <span>Evidence: {draft.evidenceCoverage}</span>
+      </div>
+
+      <div className="leader-review-structured-grid">
+        <ReviewDraftBlock label="Theological anchor" value={draft.theologicalAnchor} />
+        <ReviewDraftBlock label="Safety / care note" value={draft.safetyCareNote} />
+      </div>
+
+      <div className="leader-review-structured-grid">
+        <ReviewDraftList label="Evidence used" values={draft.evidenceUsed} />
+        <ReviewDraftList label="Socratic questions" values={draft.socraticQuestions} />
+      </div>
+
+      <ReviewDraftBlock label="Tension note" value={draft.tensionNote} />
+    </div>
+  );
+}
+
+function ReviewDraftBlock({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="leader-review-draft-block">
+      <span>{label}</span>
+      <p>{value}</p>
+    </div>
+  );
+}
+
+function ReviewDraftList({ label, values }: { label: string; values: string[] }) {
+  return (
+    <div className="leader-review-draft-block">
+      <span>{label}</span>
+      <ul>
+        {values.map((value) => (
+          <li key={value}>{value}</li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -1242,11 +1295,6 @@ function nextActionLabel(prompt: StudentDiscussionPrompt) {
   return "Review before group";
 }
 
-function guidanceText(prompt: StudentDiscussionPrompt, localDraft: string) {
-  if (prompt.discussionPrompt) return prompt.discussionPrompt;
-  return localDraft;
-}
-
 function careText(prompt: StudentDiscussionPrompt) {
   if (prompt.safetyLabel === "pastoral_escalation") return "Pastoral care";
   if (prompt.safetyLabel === "needs_leader_care" || prompt.escalationReason) return "Careful framing";
@@ -1272,6 +1320,7 @@ function emptyText(tab: ReviewTab["id"]) {
 function statusForSaving(action: ReviewAction) {
   if (action === "use_local_draft") return "Saving a knowledge-guided fallback draft...";
   if (action === "regenerate") return "Requesting a fresh AI draft...";
+  if (action === "promote_canonical") return "Promoting this approved prompt into Meridian knowledge...";
   if (action === "post") return "Posting the approved prompt...";
   if (action === "mark_discussed") return "Marking this prompt discussed...";
   if (action === "flag_follow_up") return "Flagging private follow-up...";
@@ -1281,6 +1330,7 @@ function statusForSaving(action: ReviewAction) {
 function statusForSaved(action: ReviewAction) {
   if (action === "use_local_draft") return "Knowledge-guided fallback draft saved for leader review.";
   if (action === "regenerate") return "AI draft regenerated for leader review.";
+  if (action === "promote_canonical") return "Approved prompt promoted into Meridian knowledge.";
   if (action === "post") return "Approved prompt posted and logged.";
   if (action === "mark_discussed") return "Discussion marked for leader follow-through.";
   if (action === "flag_follow_up") return "Private follow-up flagged for a leader.";

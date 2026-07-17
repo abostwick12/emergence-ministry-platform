@@ -9935,8 +9935,7 @@ html:has(.app-shell-camp) body {
 }
 
 .leader-review-guidance {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
   gap: 14px;
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
@@ -9962,6 +9961,82 @@ html:has(.app-shell-camp) body {
   font-weight: 900;
   padding: 6px 10px;
   white-space: nowrap;
+}
+
+.leader-review-structured-draft {
+  display: grid;
+  flex: 1;
+  gap: 12px;
+  min-width: 0;
+}
+
+.leader-review-structured-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.leader-review-structured-heading h3 {
+  margin: 4px 0 0;
+  color: var(--text);
+  font-size: var(--text-lg);
+  line-height: 1.2;
+}
+
+.leader-review-structured-heading > span {
+  height: fit-content;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--warning);
+  font-size: var(--text-xs);
+  font-weight: 900;
+  padding: 6px 10px;
+  white-space: nowrap;
+}
+
+.leader-review-structured-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.leader-review-draft-block {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  padding: 12px;
+}
+
+.leader-review-draft-block span {
+  display: block;
+  height: auto;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 900;
+  padding: 0;
+  white-space: normal;
+}
+
+.leader-review-draft-block p,
+.leader-review-draft-block ul {
+  margin: 7px 0 0;
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: 750;
+  line-height: 1.55;
+}
+
+.leader-review-draft-block ul {
+  padding-left: 18px;
+}
+
+.leader-review-draft-block li + li {
+  margin-top: 5px;
 }
 
 .leader-storyline-context {
@@ -11179,7 +11254,7 @@ html:has(.app-shell-camp) body {
   flex-wrap: wrap;
   gap: 8px;
   align-content: flex-start;
-  justify-content: flex-end;
+  justify-content: flex-start;
 }
 
 .leader-review-care {
@@ -12176,6 +12251,7 @@ html:has(.app-shell-camp) body {
   .student-storyline-context-grid,
   .student-question-journey-meta,
   .leader-review-meta-grid,
+  .leader-review-structured-grid,
   .leader-storyline-context-grid,
   .leader-storyline-context-list,
   .leader-student-journey-grid,
@@ -12204,6 +12280,7 @@ html:has(.app-shell-camp) body {
   .leader-discussion-guide-heading,
   .leader-student-invites-heading,
   .leader-student-journey-heading,
+  .leader-review-structured-heading,
   .leader-video-script-heading,
   .resource-video-heading,
   .student-resource-steps-heading {

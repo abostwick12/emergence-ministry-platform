@@ -53,7 +53,81 @@ describe("student knowledge matching", () => {
     expect(matches[0].digQuestions).toContain("What kind of trust is being tested by the tree?");
   });
 
-  it("prefers student-visible live knowledge chunks when Supabase has curated matches", async () => {
+  it("routes gospel questions through the built-in gospel context map", async () => {
+    const matches = await getStudentKnowledgeMatches(session(), {
+      question: "What is the Gospel?",
+      topicTags: []
+    });
+
+    expect(matches[0]).toMatchObject({
+      id: "context-map-gospel",
+      label: "Because you asked about the gospel",
+      title: "Gospel context map",
+      topicTags: expect.arrayContaining(["gospel", "good_news", "kingdom", "new_creation"])
+    });
+    expect(matches[0].scriptureReferences).toEqual(
+      expect.arrayContaining(["Mark 1:14-15", "1 Corinthians 15:1-8", "Ephesians 2:1-10"])
+    );
+    expect(matches[0].digQuestions).toContain("What good news is being announced, and who is at the center of it?");
+  });
+
+  it("keeps the gospel context map first even when live knowledge returns another match", async () => {
+    isSupabaseAdminConfiguredMock.mockReturnValue(true);
+    const query = knowledgeQuery([
+      {
+        id: "chunk_1",
+        title: "Romans and grace",
+        body: "Romans describes grace and faith.",
+        student_summary: "Grace is received by faith.",
+        topic_tags: ["grace", "faith"],
+        concepts: [],
+        scripture_references: ["Romans 3:21-26"]
+      }
+    ]);
+    getSupabaseAdminClientMock.mockReturnValue(query.client);
+
+    const matches = await getStudentKnowledgeMatches(session(), {
+      question: "How would you explain the good news?",
+      topicTags: []
+    });
+
+    expect(matches[0].id).toBe("context-map-gospel");
+    expect(matches[1]).toMatchObject({
+      sourceChunkId: "chunk_1",
+      title: "Romans and grace"
+    });
+  });
+
+  it("routes sensitive discipleship questions through care-shaped context maps", async () => {
+    const matches = await getStudentKnowledgeMatches(session(), {
+      question: "What does God think about gender and sexuality?",
+      topicTags: []
+    });
+
+    expect(matches[0]).toMatchObject({
+      id: "context-map-sexuality-gender",
+      title: "Embodied dignity and patient care",
+      topicTags: expect.arrayContaining(["sexuality", "gender", "pastoral_care"])
+    });
+    expect(matches[0].digQuestions).toContain(
+      "Where would this question need gentleness, privacy, or direct leader care instead of public debate?"
+    );
+  });
+
+  it("routes purpose questions through a calling map instead of generic identity", async () => {
+    const matches = await getStudentKnowledgeMatches(session(), {
+      question: "How do I know my calling and what I should do with my future?",
+      topicTags: []
+    });
+
+    expect(matches[0]).toMatchObject({
+      id: "context-map-calling-purpose",
+      title: "Calling, wisdom, and faithful presence"
+    });
+    expect(matches[0].digQuestions).toContain("What faithful next step is already clear before the whole future is clear?");
+  });
+
+  it("keeps the built-in context map ahead of matching live knowledge chunks", async () => {
     isSupabaseAdminConfiguredMock.mockReturnValue(true);
     const query = knowledgeQuery([
       {
@@ -75,6 +149,10 @@ describe("student knowledge matching", () => {
     });
 
     expect(matches[0]).toMatchObject({
+      id: "context-map-lament",
+      title: "Lament and honest trust"
+    });
+    expect(matches[1]).toMatchObject({
       sourceChunkId: "chunk_1",
       title: "Romans 8 and patient hope",
       description: "Hold suffering and hope together without rushing the conversation."
