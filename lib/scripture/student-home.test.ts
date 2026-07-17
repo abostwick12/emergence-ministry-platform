@@ -281,6 +281,46 @@ describe("student home feed personalization", () => {
     );
   });
 
+  it("builds distinct gospel journey entries for repeated student journal work", () => {
+    const nextStep = buildQuestionNextStep(
+      prompt({
+        id: "question_gospel",
+        question: "What is the gospel",
+        scriptureReference: "",
+        metanarrativeMovement: undefined,
+        topicTags: []
+      })
+    );
+
+    expect(nextStep.label).toBe("Because you asked about the gospel");
+    expect(nextStep.digQuestions).toEqual(
+      expect.arrayContaining(["What good news is being announced, and who is at the center of it?"])
+    );
+    expect(nextStep.journeyJournal).toMatchObject({
+      title: "Gospel Scripture Journey",
+      readingPath: [
+        expect.objectContaining({ reference: "Mark 1:14-15" }),
+        expect.objectContaining({ reference: "1 Corinthians 15:1-8" }),
+        expect.objectContaining({ reference: "Romans 3:21-26" })
+      ]
+    });
+    expect(nextStep.journeyJournal.readingPath.map((reading) => reading.reference)).not.toContain("Matthew 13:24-30");
+    expect(nextStep.journeyJournalEntries.map((entry) => entry.title)).toEqual([
+      "Gospel Scripture Journey",
+      "Gospel Investigation Journey",
+      "Gospel Practice Journey",
+      "Gospel Storyline Journey"
+    ]);
+    expect(nextStep.journeyJournalEntries[1].readingPath.map((reading) => reading.reference)).toEqual([
+      "Ephesians 2:1-10",
+      "2 Corinthians 5:17-21",
+      "Luke 4:16-21"
+    ]);
+    expect(nextStep.journeyJournalEntries[1].followUpQuestions).not.toEqual(nextStep.journeyJournalEntries[0].followUpQuestions);
+    expect(nextStep.journeyJournalEntries[2].spiritualPractice.title).toBe("Practice a humble gospel witness");
+    expect(nextStep.wrestleTogetherPrompt).toContain("Scripture define the gospel");
+  });
+
   it("uses knowledge matches before generic next-step recommendations", () => {
     const nextStep = buildQuestionNextStep(
       prompt({
