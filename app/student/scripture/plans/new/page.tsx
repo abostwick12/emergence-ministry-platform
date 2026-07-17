@@ -7,8 +7,8 @@ export default function NewReadingPlanPage() {
         <p className="eyebrow">New Reading Plan</p>
         <h1 className="title">Build a reading plan draft around context and the whole story.</h1>
         <p className="scripture-builder-copy">
-          This static builder shows the shape of a future draft workflow. The controls below do not save, submit, publish,
-          send, or call an API in this slice.
+          Draft a leader-review reading plan through Meridian. Gloo is the primary student-page provider; Gemini or OpenAI
+          can serve as fallback when configured. Nothing is published or sent from this page.
         </p>
       </section>
 

@@ -1,5 +1,6 @@
 import type { AuthSession } from "@/lib/auth/server";
-import { getStudentKnowledgeMatches } from "@/lib/scripture/knowledge";
+import { generateGlooDiscussionDraft, isGlooConfigured, type GlooDiscussionPreview } from "@/lib/scripture/gloo";
+import { formatStudentKnowledgeContextForGloo, getInternalGroundingContext, getStudentKnowledgeMatches } from "@/lib/scripture/knowledge";
 import { buildQuestionNextStep, type StudentQuestionNextStep } from "@/lib/scripture/student-home";
 import type { StudentKnowledgeMatch } from "@/lib/scripture/knowledge";
 
@@ -13,6 +14,7 @@ export type KnowledgeTestBenchResult = {
   scriptureReference: string;
   matches: StudentKnowledgeMatch[];
   nextStep: StudentQuestionNextStep;
+  aiDraft: GlooDiscussionPreview;
   visibilityNote: string;
 };
 
@@ -34,14 +36,75 @@ export async function runKnowledgeTestBench(
   };
   const matches = await getStudentKnowledgeMatches(session, prompt);
   const nextStep = buildQuestionNextStep(prompt, matches);
+  const aiDraft = await previewGlooDraft(session, {
+    question,
+    scriptureReference,
+    matches
+  });
 
   return {
     question,
     scriptureReference,
     matches,
     nextStep,
+    aiDraft,
     visibilityNote:
       "Preview only. Nothing is saved, posted, or shown to students until a real question is submitted and a leader approves the group prompt."
+  };
+}
+
+async function previewGlooDraft(
+  session: AuthSession,
+  input: { question: string; scriptureReference: string; matches: StudentKnowledgeMatch[] }
+): Promise<GlooDiscussionPreview> {
+  if (!isGlooConfigured()) {
+    return {
+      ok: false,
+      configured: false,
+      code: "not_configured",
+      message: "Gloo AI Studio is not configured. The Meridian preview is using local knowledge-guided next steps only."
+    };
+  }
+
+  let draft: Awaited<ReturnType<typeof generateGlooDiscussionDraft>>;
+  try {
+    draft = await generateGlooDiscussionDraft({
+      question: input.question,
+      scriptureReference: input.scriptureReference,
+      retrievedContext: formatStudentKnowledgeContextForGloo(input.matches),
+      internalGroundingContext: await getInternalGroundingContext(session, {
+        question: input.question,
+        scriptureReference: input.scriptureReference
+      })
+    });
+  } catch (error) {
+    return {
+      ok: false,
+      configured: true,
+      code: "provider_error",
+      message: error instanceof Error ? error.message : "The Meridian Gloo preview could not run."
+    };
+  }
+
+  if (!draft.ok) {
+    return {
+      ok: false,
+      configured: true,
+      code: draft.code,
+      message: draft.message
+    };
+  }
+
+  return {
+    ok: true,
+    provider: "gloo",
+    model: draft.model,
+    modelTier: draft.modelTier,
+    confidence: draft.confidence,
+    discussionPrompt: draft.discussionPrompt,
+    safetyLabel: draft.safetyLabel,
+    safetyNotes: draft.safetyNotes,
+    message: "Gloo AI Studio returned a leader-review draft. This preview was not saved or shown to students."
   };
 }
 

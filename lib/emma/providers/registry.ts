@@ -5,10 +5,12 @@ import { emmaErrors } from "@/lib/emma/errors";
 import { canUseCampStubMode } from "@/lib/camp/runtime";
 import { createGeminiProvider } from "./gemini-provider";
 import { createMockEmmaProvider } from "./mock-provider";
+import { createOpenAIEmmaProvider, DEFAULT_OPENAI_EMMA_MODEL } from "./openai-provider";
 import type { EmmaProvider, EmmaProviderId } from "./types";
 
 export const DEFAULT_GEMINI_MODEL = "gemini-3.5-flash";
 export const DEFAULT_MOCK_MODEL = "mock-emma-model";
+export { DEFAULT_OPENAI_EMMA_MODEL };
 
 export interface ProviderSelection {
   providerId: EmmaProviderId;
@@ -22,6 +24,8 @@ export function getRegisteredProvider(providerId: EmmaProviderId): EmmaProvider 
   switch (providerId) {
     case "gemini":
       return createGeminiProvider();
+    case "openai":
+      return createOpenAIEmmaProvider();
     case "mock":
       return createMockEmmaProvider();
     default:
@@ -40,7 +44,7 @@ export async function resolveProviderSelection(
     maxOutputTokens?: number;
   }
 ): Promise<ProviderSelection> {
-  const mode = normalizeProviderMode(process.env.EMMA_PROVIDER_MODE, process.env.GEMINI_API_KEY);
+  const mode = normalizeProviderMode(process.env.EMMA_PROVIDER_MODE, process.env.GEMINI_API_KEY, process.env.OPENAI_API_KEY);
   const featureConfig =
     input?.featureKey && isSupabaseConfigured() && !session.isMock ? await getAiFeatureConfig(session, input.featureKey) : null;
 
@@ -51,7 +55,7 @@ export async function resolveProviderSelection(
   const providerId =
     input?.provider ??
     normalizeProviderId(featureConfig?.primaryProvider) ??
-    (mode === "gemini" ? normalizeProviderId(process.env.EMMA_DEFAULT_PROVIDER) ?? "gemini" : "mock");
+    (mode === "mock" ? "mock" : normalizeProviderId(process.env.EMMA_DEFAULT_PROVIDER) ?? mode);
 
   if (!canUseCampStubMode() && providerId === "mock") {
     throw emmaErrors.provider("EMMA launch mode requires a real provider configuration.");
@@ -61,7 +65,7 @@ export async function resolveProviderSelection(
     input?.model ??
     featureConfig?.primaryModel ??
     process.env.EMMA_DEFAULT_MODEL ??
-    (providerId === "gemini" ? DEFAULT_GEMINI_MODEL : DEFAULT_MOCK_MODEL);
+    defaultModelForProvider(providerId);
 
   return {
     providerId,
@@ -72,13 +76,26 @@ export async function resolveProviderSelection(
   };
 }
 
-function normalizeProviderMode(value: string | undefined, geminiApiKey: string | undefined): "mock" | "gemini" {
+function normalizeProviderMode(
+  value: string | undefined,
+  geminiApiKey: string | undefined,
+  openAiApiKey: string | undefined
+): "mock" | "gemini" | "openai" {
   if (value === "mock") return "mock";
-  if (value === "gemini") return "gemini";
-  return geminiApiKey?.trim() ? "gemini" : "mock";
+  if (value === "gemini") return geminiApiKey?.trim() ? "gemini" : "mock";
+  if (value === "openai") return openAiApiKey?.trim() ? "openai" : "mock";
+  if (geminiApiKey?.trim()) return "gemini";
+  if (openAiApiKey?.trim()) return "openai";
+  return "mock";
 }
 
 function normalizeProviderId(value: string | null | undefined): EmmaProviderId | undefined {
-  if (value === "mock" || value === "gemini") return value;
+  if (value === "mock" || value === "gemini" || value === "openai") return value;
   return undefined;
+}
+
+function defaultModelForProvider(providerId: EmmaProviderId) {
+  if (providerId === "gemini") return DEFAULT_GEMINI_MODEL;
+  if (providerId === "openai") return process.env.OPENAI_MODEL?.trim() || DEFAULT_OPENAI_EMMA_MODEL;
+  return DEFAULT_MOCK_MODEL;
 }

@@ -10,7 +10,7 @@ import { emmaErrors, emmaFail, emmaOk } from "@/lib/emma/errors";
 import { ministryPageChatSchema, ministryPageChatSystemPrompt, type MinistryPageChatOutput } from "@/lib/emma/providers/ministry-page-chat";
 import { runEmmaProviderForRequest } from "@/lib/emma/providers/run-provider";
 import type { EmmaProviderId } from "@/lib/emma/providers/types";
-import { DEFAULT_GEMINI_MODEL } from "@/lib/emma/providers/registry";
+import { DEFAULT_GEMINI_MODEL, DEFAULT_OPENAI_EMMA_MODEL } from "@/lib/emma/providers/registry";
 import {
   completeAiRun,
   createActionProposal,
@@ -75,8 +75,8 @@ type MinistryPageRecommendationPayload = {
 export type MinistryEmmaReadiness = {
   serverBacked: true;
   liveProviderConfigured: boolean;
-  providerMode: "gemini" | "mock";
-  provider: "gemini" | "deterministic";
+  providerMode: "gemini" | "openai" | "mock";
+  provider: "gemini" | "openai" | "deterministic";
   model: string;
   audit: "supabase" | "mock";
   status: "live" | "fallback";
@@ -85,21 +85,21 @@ export type MinistryEmmaReadiness = {
 
 export function getMinistryEmmaReadiness(input: { session?: AuthSession | null; env?: NodeJS.ProcessEnv } = {}): MinistryEmmaReadiness {
   const env = input.env ?? process.env;
-  const liveProviderConfigured = isMinistryEmmaLiveProviderConfigured(env);
-  const providerMode = liveProviderConfigured ? "gemini" : "mock";
-  const model = env.EMMA_DEFAULT_MODEL?.trim() || (liveProviderConfigured ? DEFAULT_GEMINI_MODEL : "deterministic-fallback");
+  const providerMode = resolveMinistryEmmaProviderMode(env);
+  const liveProviderConfigured = providerMode !== "mock";
+  const model = env.EMMA_DEFAULT_MODEL?.trim() || defaultMinistryEmmaModel(providerMode, env);
 
   return {
     serverBacked: true,
     liveProviderConfigured,
     providerMode,
-    provider: liveProviderConfigured ? "gemini" : "deterministic",
+    provider: providerMode === "mock" ? "deterministic" : providerMode,
     model,
     audit: input.session?.isMock ? "mock" : "supabase",
     status: liveProviderConfigured ? "live" : "fallback",
     message: liveProviderConfigured
-      ? "EMMA ministry chat is server-backed and configured for live provider responses."
-      : "EMMA ministry chat is server-backed but using audited deterministic fallback until GEMINI_API_KEY is configured or EMMA_PROVIDER_MODE is changed from mock."
+      ? `EMMA ministry chat is server-backed and configured for live ${providerMode} responses.`
+      : "EMMA ministry chat is server-backed but using audited deterministic fallback until GEMINI_API_KEY or OPENAI_API_KEY is configured, or EMMA_PROVIDER_MODE is changed from mock."
   };
 }
 
@@ -150,13 +150,24 @@ function assertCanChat(session: AuthSession): void {
   }
 }
 
-function isMinistryEmmaLiveProviderConfigured(env: NodeJS.ProcessEnv = process.env): boolean {
-  return env.EMMA_PROVIDER_MODE !== "mock" && Boolean(env.GEMINI_API_KEY?.trim());
-}
-
 function shouldAttemptLiveProvider(session: AuthSession): boolean {
   if (session.isMock) return false;
-  return isMinistryEmmaLiveProviderConfigured();
+  return resolveMinistryEmmaProviderMode() !== "mock";
+}
+
+function resolveMinistryEmmaProviderMode(env: NodeJS.ProcessEnv = process.env): "gemini" | "openai" | "mock" {
+  if (env.EMMA_PROVIDER_MODE === "mock") return "mock";
+  if (env.EMMA_PROVIDER_MODE === "gemini") return env.GEMINI_API_KEY?.trim() ? "gemini" : "mock";
+  if (env.EMMA_PROVIDER_MODE === "openai") return env.OPENAI_API_KEY?.trim() ? "openai" : "mock";
+  if (env.GEMINI_API_KEY?.trim()) return "gemini";
+  if (env.OPENAI_API_KEY?.trim()) return "openai";
+  return "mock";
+}
+
+function defaultMinistryEmmaModel(providerMode: "gemini" | "openai" | "mock", env: NodeJS.ProcessEnv) {
+  if (providerMode === "gemini") return DEFAULT_GEMINI_MODEL;
+  if (providerMode === "openai") return env.OPENAI_MODEL?.trim() || DEFAULT_OPENAI_EMMA_MODEL;
+  return "deterministic-fallback";
 }
 
 async function runLiveProviderChat({

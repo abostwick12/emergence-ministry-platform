@@ -26,6 +26,14 @@ type SaveLocalPromptInput = {
   metanarrativeMovement: StudentDiscussionPrompt["metanarrativeMovement"];
   draft: LocalDiscussionDraft;
   knowledgeContext: StudentDiscussionKnowledgeContext[];
+  ai?: {
+    provider?: StudentDiscussionPrompt["aiProvider"];
+    status: StudentDiscussionPrompt["aiStatus"];
+    model?: string;
+    modelTier?: StudentDiscussionPrompt["aiModelTier"];
+    modelReason?: string;
+    confidence?: number | null;
+  };
 };
 
 type LocalDiscussionDecisionInput = {
@@ -52,7 +60,15 @@ const localState =
   ((globalThis as LocalStudentStateGlobal)[localStudentStateKey] = new Map<string, LocalStudentState>());
 
 export function shouldUseLocalStudentState(session: AuthSession) {
+  if (!canUseLocalStudentState()) return false;
   return session.isMock || !session.accessToken || !isSupabaseConfigured();
+}
+
+export function canUseLocalStudentState(env: NodeJS.ProcessEnv = process.env) {
+  if (env.E2E_MOCK_AUTH === "true" && env.NODE_ENV !== "production") return true;
+  if (env.VERCEL_ENV === "production" || env.VERCEL_ENV === "preview") return false;
+  if (env.NODE_ENV === "production") return false;
+  return env.NODE_ENV === "test" || !isSupabaseConfigured();
 }
 
 export function listLocalStudentDiscussionPrompts(session: AuthSession) {
@@ -97,12 +113,12 @@ export function saveLocalStudentDiscussionPrompt(session: AuthSession, input: Sa
     scriptureReference: input.scriptureReference,
     scripturePassageId: input.scripturePassageId,
     metanarrativeMovement: input.metanarrativeMovement,
-    aiProvider: "gloo",
-    aiStatus: "not_configured",
-    aiModel: "",
-    aiModelTier: "default",
-    aiModelReason: "Local student portal mode. Saved in this server session until live Supabase storage is connected.",
-    aiConfidence: null,
+    aiProvider: input.ai?.provider ?? "gloo",
+    aiStatus: input.ai?.status ?? "not_configured",
+    aiModel: input.ai?.model ?? "",
+    aiModelTier: input.ai?.modelTier ?? "default",
+    aiModelReason: input.ai?.modelReason ?? "Development-only session storage. Production and preview use live Meridian storage.",
+    aiConfidence: input.ai?.confidence ?? null,
     topicTags: input.draft.topicTags,
     escalationReason: input.draft.escalationReason,
     safetyLabel: input.draft.safetyLabel,
@@ -141,7 +157,7 @@ export function decideLocalStudentDiscussionPrompt(session: AuthSession, id: str
   if (input.action === "regenerate" || input.action === "use_local_draft") {
     const localDraft = buildLocalDiscussionDraftForPrompt(prompt);
     updated.aiStatus = "not_configured";
-    updated.aiModelReason = "Local student portal mode. Knowledge-guided draft saved without an external AI call.";
+    updated.aiModelReason = "Development-only session storage. Knowledge-guided fallback draft saved without an external AI call.";
     updated.topicTags = localDraft.topicTags;
     updated.escalationReason = localDraft.escalationReason;
     updated.safetyLabel = localDraft.safetyLabel;

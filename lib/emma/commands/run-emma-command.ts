@@ -42,7 +42,7 @@ const runEmmaCommandInputSchema = z
     source: z
       .enum(["event_card", "task_action", "dashboard", "assistant_panel", "scheduled", "system", "planning_center"])
       .optional(),
-    provider: z.enum(["mock", "gemini"]).optional(),
+    provider: z.enum(["mock", "gemini", "openai"]).optional(),
     model: z.string().min(1).optional()
   })
   .strict();

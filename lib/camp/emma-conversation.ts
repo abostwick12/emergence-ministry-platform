@@ -141,7 +141,7 @@ export async function answerCampEmmaConversation(input: {
 
   let parsedJson: unknown;
   try {
-    parsedJson = JSON.parse(result.text);
+    parsedJson = JSON.parse(extractJsonObjectText(result.text));
   } catch {
     logConversationFallback("invalid_json");
     input.onDiagnostic?.({
@@ -169,6 +169,16 @@ export async function answerCampEmmaConversation(input: {
     actions: [{ label: "Open roster", href: "/camp/roster" }],
     ...(parsed.data.uncertainty ? { uncertainty: parsed.data.uncertainty } : {})
   };
+}
+
+function extractJsonObjectText(content: string) {
+  const trimmed = content.trim();
+  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  if (fenced?.[1]?.trim()) return fenced[1].trim();
+  const first = trimmed.indexOf("{");
+  const last = trimmed.lastIndexOf("}");
+  if (first >= 0 && last > first) return trimmed.slice(first, last + 1);
+  return trimmed;
 }
 
 function fallbackForUnavailableConversation(question: string): CampEmmaAnswer | null {

@@ -427,6 +427,24 @@ function TestBenchPreview({ result }: { result: KnowledgeTestBenchResult | null 
       <p>{result.nextStep.summary}</p>
 
       <div className="knowledge-test-section">
+        <span>Gloo draft</span>
+        {result.aiDraft.ok ? (
+          <>
+            <strong>{result.aiDraft.discussionPrompt}</strong>
+            <p>
+              {result.aiDraft.model} / {result.aiDraft.modelTier} / {Math.round(result.aiDraft.confidence * 100)}% confidence
+            </p>
+            <p>{result.aiDraft.safetyNotes}</p>
+          </>
+        ) : (
+          <>
+            <strong>{result.aiDraft.configured ? "Provider returned no usable draft" : "Provider not configured"}</strong>
+            <p>{result.aiDraft.message}</p>
+          </>
+        )}
+      </div>
+
+      <div className="knowledge-test-section">
         <span>Questions to dig into</span>
         <ul>
           {result.nextStep.digQuestions.slice(0, 3).map((question) => (

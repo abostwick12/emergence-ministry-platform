@@ -1,9 +1,10 @@
 import type { AuthSession } from "@/lib/auth/server";
+import { isSupabaseConfigured } from "@/lib/auth/config";
 import type { DashboardCareDiscussion } from "@/lib/dashboard-attention";
 import { getSupabaseAdminClient, getSupabaseAuthClient, isSupabaseAdminConfigured } from "@/lib/auth/server";
 import { resolveMinistryScope } from "@/lib/ministry/scope";
 import { measureServerOperation } from "@/lib/performance/timing";
-import { generateGlooDiscussionDraft, isGlooConfigured } from "@/lib/scripture/gloo";
+import { generateMeridianDiscussionDraft, getMeridianAiReadiness, type MeridianDiscussionDraftResult } from "@/lib/scripture/meridian-ai";
 import { formatStudentKnowledgeContextForGloo, getInternalGroundingContext, getStudentKnowledgeMatches, getStudentKnowledgeMatchesBatch } from "@/lib/scripture/knowledge";
 import { buildLocalDiscussionDraft, buildLocalDiscussionDraftForPrompt } from "@/lib/scripture/local-discussion-draft";
 import { deliverDiscussionPromptToSlack, isSlackDiscussionDeliveryConfigured } from "@/lib/scripture/slack";
@@ -69,7 +70,7 @@ type StudentDiscussionPromptRow = {
   scripture_reference: string | null;
   scripture_passage_id: string | null;
   metanarrative_movement: MetanarrativeMovement | null;
-  ai_provider: "gloo";
+  ai_provider: StudentDiscussionPrompt["aiProvider"];
   ai_status: "not_configured" | "pending" | "generated" | "failed";
   ai_model: string | null;
   ai_model_tier: "default" | "escalation" | "long_context" | null;
@@ -134,28 +135,41 @@ const MISSING_STUDENT_PROFILE_MESSAGE =
 const STUDENT_DISCUSSION_SELECT = "id,ministry_id,group_id,submitted_by_user_id,submitted_by_name,submitted_by_email,question,scripture_reference,scripture_passage_id,metanarrative_movement,ai_provider,ai_status,ai_model,ai_model_tier,ai_model_reason,ai_confidence,topic_tags,escalation_reason,safety_label,safety_notes,discussion_prompt,leader_notes,status,delivery_channel,delivery_status,delivery_message,approved_by_user_id,approved_at,posted_at,created_at,updated_at";
 
 export function getStudentDiscussionReadiness(session: AuthSession): DiscussionReadiness {
+  const ai = getMeridianAiReadiness();
   if (shouldUseLocalStudentState(session)) {
     return {
       liveStorage: false,
       localStorage: true,
       canSubmit: true,
-      gloo: isGlooConfigured(),
+      gloo: ai.gloo,
       slack: isSlackDiscussionDeliveryConfigured(),
-      message: "Local student portal mode is ready. Questions and progress work here without writing to live Supabase."
+      message: "Development Meridian mode is ready. Questions and progress work here without writing to live Supabase."
     };
   }
 
-  const gloo = isGlooConfigured();
+  if (!isSupabaseConfigured()) {
+    return {
+      liveStorage: false,
+      localStorage: false,
+      canSubmit: false,
+      gloo: ai.gloo,
+      slack: isSlackDiscussionDeliveryConfigured(),
+      message: "Meridian launch storage is not configured. Connect Supabase before accepting student questions."
+    };
+  }
+
   const slack = isSlackDiscussionDeliveryConfigured();
   return {
     liveStorage: true,
     localStorage: false,
-    canSubmit: true,
-    gloo,
+    canSubmit: ai.configured,
+    gloo: ai.gloo,
     slack,
-    message: gloo
-      ? "Live storage is ready. AI drafts are generated for submitted questions."
-      : "Live storage is ready. Local guided drafts are active until the AI draft connection is online."
+    message: ai.gloo
+      ? "Live storage is ready. Gloo is primary for Meridian student-question drafts, with configured fallback providers available if needed."
+      : ai.configured
+        ? "Live storage is ready. Gloo is not configured, so Meridian is using the configured Gemini/OpenAI fallback until Gloo is online."
+        : "Live storage is ready, but Meridian AI is not configured. Student question intake is paused until Gloo, Gemini, or OpenAI drafting is online."
   };
 }
 
@@ -268,30 +282,72 @@ export async function createStudentDiscussionPrompt(session: AuthSession, input:
   const scripture = normalizeScriptureReference(input.scriptureReference ?? "");
   const metanarrativeMovement = input.metanarrativeMovement ?? inferMetanarrativeMovement(question, scripture.reference);
   const readiness = getStudentDiscussionReadiness(session);
+  if (!readiness.canSubmit) {
+    throw new DiscussionWorkflowError(readiness.message, 503, readiness.liveStorage ? "ai_not_configured" : "live_storage_not_configured");
+  }
 
   if (!readiness.liveStorage) {
-    if (!readiness.canSubmit) {
-      throw new DiscussionWorkflowError(readiness.message, 503, "live_storage_not_configured");
-    }
-
+    const ai = getMeridianAiReadiness();
     const knowledgeContext = await getStudentKnowledgeMatches(session, {
       question,
       scriptureReference: scripture.reference
     });
+    const groundingContext = ai.configured
+      ? await getInternalGroundingContext(session, {
+          question,
+          scriptureReference: scripture.reference
+        }).catch(() => "")
+      : "";
+    const aiDraft = ai.configured
+      ? await generateMeridianDiscussionDraft({
+          question,
+          scriptureReference: scripture.reference,
+          metanarrativeMovement,
+          retrievedContext: formatStudentKnowledgeContextForGloo(knowledgeContext),
+          internalGroundingContext: groundingContext
+        })
+      : {
+          ok: false as const,
+          code: "not_configured" as const,
+          message: "Meridian AI drafting is offline. Knowledge-guided fallback remains available for leader review.",
+          attemptedProviders: []
+        };
     const localDraft = buildLocalDiscussionDraft({
       question,
       scriptureReference: scripture.reference,
       metanarrativeMovement,
       knowledgeContext
     });
+    const draft = aiDraft.ok
+      ? {
+          discussionPrompt: aiDraft.discussionPrompt,
+          safetyLabel: aiDraft.safetyLabel,
+          safetyNotes: aiDraft.safetyNotes,
+          topicTags: aiDraft.topicTags,
+          escalationReason: aiDraft.escalationReason
+        }
+      : localDraft;
 
     return saveLocalStudentDiscussionPrompt(session, {
       question,
       scriptureReference: scripture.reference,
       scripturePassageId: scripture.passageId,
       metanarrativeMovement,
-      draft: localDraft,
-      knowledgeContext
+      draft,
+      knowledgeContext,
+      ai: aiDraft.ok
+        ? {
+            provider: aiDraft.provider,
+            status: "generated",
+            model: aiDraft.model,
+            modelTier: aiDraft.modelTier,
+            modelReason: aiDraft.modelReason,
+            confidence: aiDraft.confidence
+          }
+        : {
+            status: aiDraft.code === "not_configured" ? "not_configured" : "failed",
+            modelReason: fallbackReason(aiDraft.message)
+          }
     });
   }
 
@@ -306,19 +362,13 @@ export async function createStudentDiscussionPrompt(session: AuthSession, input:
     scriptureReference: scripture.reference
   });
   const retrievedContext = formatStudentKnowledgeContextForGloo(knowledgeContext);
-  const draft = readiness.gloo
-    ? await generateGlooDiscussionDraft({
-        question,
-        scriptureReference: scripture.reference,
-        metanarrativeMovement,
-        retrievedContext,
-        internalGroundingContext: groundingContext
-      })
-    : {
-        ok: false as const,
-        code: "not_configured" as const,
-        message: "AI draft connection is offline. Local guided drafts remain available for leader review."
-      };
+  const draft = await generateMeridianDiscussionDraft({
+    question,
+    scriptureReference: scripture.reference,
+    metanarrativeMovement,
+    retrievedContext,
+    internalGroundingContext: groundingContext
+  });
   const localDraft = buildLocalDiscussionDraft({
     question,
     scriptureReference: scripture.reference,
@@ -336,7 +386,7 @@ export async function createStudentDiscussionPrompt(session: AuthSession, input:
     scripture_reference: scripture.reference || null,
     scripture_passage_id: scripture.passageId ?? null,
     metanarrative_movement: metanarrativeMovement,
-    ai_provider: "gloo",
+    ai_provider: providerForDraft(draft),
     ai_status: draft.ok ? "generated" : draft.code === "not_configured" ? "not_configured" : "failed",
     ai_model: draft.ok ? draft.model : null,
     ai_model_tier: draft.ok ? draft.modelTier : null,
@@ -463,13 +513,13 @@ async function saveLeaderDiscussionEvent(session: AuthSession, prompt: StudentDi
 }
 
 async function regenerateDiscussionDraft(session: AuthSession, prompt: StudentDiscussionPrompt) {
-  if (!isGlooConfigured()) {
-    return saveLocalDiscussionDraft(session, prompt, "AI draft connection is offline, so a knowledge-guided local draft was saved instead.");
+  if (!getMeridianAiReadiness().configured) {
+    return saveLocalDiscussionDraft(session, prompt, "Meridian AI drafting is offline, so a knowledge-guided fallback draft was saved instead.");
   }
 
   const knowledgeContext = prompt.knowledgeContext?.length ? prompt.knowledgeContext : await getStudentKnowledgeMatches(session, prompt);
   const groundingContext = await getInternalGroundingContext(session, prompt);
-  const draft = await generateGlooDiscussionDraft({
+  const draft = await generateMeridianDiscussionDraft({
     question: prompt.question,
     scriptureReference: prompt.scriptureReference,
     metanarrativeMovement: prompt.metanarrativeMovement ?? inferMetanarrativeMovement(prompt.question, prompt.scriptureReference),
@@ -479,6 +529,7 @@ async function regenerateDiscussionDraft(session: AuthSession, prompt: StudentDi
   const localDraft = buildLocalDiscussionDraftForPrompt({ ...prompt, knowledgeContext });
 
   const update: Partial<StudentDiscussionPromptRow> = {
+    ai_provider: providerForDraft(draft, prompt.aiProvider),
     ai_status: draft.ok ? "generated" : "failed",
     ai_model: draft.ok ? draft.model : prompt.aiModel || null,
     ai_model_tier: draft.ok ? draft.modelTier : prompt.aiModelTier,
@@ -487,7 +538,7 @@ async function regenerateDiscussionDraft(session: AuthSession, prompt: StudentDi
     topic_tags: draft.ok ? draft.topicTags : localDraft.topicTags,
     escalation_reason: draft.ok ? draft.escalationReason : localDraft.escalationReason || prompt.escalationReason,
     safety_label: draft.ok ? draft.safetyLabel : localDraft.safetyLabel,
-    safety_notes: draft.ok ? draft.safetyNotes : `${draft.message} A knowledge-guided local draft is available for leader review.`,
+    safety_notes: draft.ok ? draft.safetyNotes : `${draft.message} A knowledge-guided fallback draft is available for leader review.`,
     discussion_prompt: draft.ok ? draft.discussionPrompt : localDraft.discussionPrompt
   };
 
@@ -504,7 +555,7 @@ async function regenerateDiscussionDraft(session: AuthSession, prompt: StudentDi
   return withKnowledgeContext(session, toPrompt(result.data));
 }
 
-async function saveLocalDiscussionDraft(session: AuthSession, prompt: StudentDiscussionPrompt, reason = "Knowledge-guided local draft saved for leader review.") {
+async function saveLocalDiscussionDraft(session: AuthSession, prompt: StudentDiscussionPrompt, reason = "Knowledge-guided fallback draft saved for leader review.") {
   const knowledgeContext = prompt.knowledgeContext?.length ? prompt.knowledgeContext : await getStudentKnowledgeMatches(session, prompt);
   const localDraft = buildLocalDiscussionDraftForPrompt({ ...prompt, knowledgeContext });
   const update: Partial<StudentDiscussionPromptRow> = {
@@ -520,7 +571,7 @@ async function saveLocalDiscussionDraft(session: AuthSession, prompt: StudentDis
   const supabase = getSupabaseAuthClient(session.accessToken);
   const result = await supabase.from("student_discussion_prompts").update(update).eq("id", prompt.id).select("*").single<StudentDiscussionPromptRow>();
   throwIfSupabaseError(result.error);
-  if (!result.data) throw new DiscussionWorkflowError("The local discussion draft was not saved.", 500, "missing_local_draft_prompt");
+  if (!result.data) throw new DiscussionWorkflowError("The guided discussion draft was not saved.", 500, "missing_guided_draft_prompt");
 
   await logPromptEvent(session, prompt.id, "local_draft_saved", { reason });
   return withKnowledgeContext(session, toPrompt(result.data));
@@ -807,7 +858,11 @@ function toStatusForAction(
 }
 
 function fallbackReason(reason: string) {
-  return `Knowledge-guided local fallback: ${reason}`;
+  return `Knowledge-guided fallback: ${reason}`;
+}
+
+function providerForDraft(draft: MeridianDiscussionDraftResult, fallback: StudentDiscussionPrompt["aiProvider"] = "gloo"): StudentDiscussionPrompt["aiProvider"] {
+  return draft.ok ? draft.provider : draft.attemptedProviders?.[0] ?? fallback;
 }
 
 function ministryScopeColumns(ministryId: string | undefined): { ministry_id?: string } {

@@ -315,7 +315,7 @@ test.describe("Student Scripture Hub shell", () => {
     );
   });
 
-  test("builder pages generate local previews without saving or sending", async ({ page }) => {
+  test("builder pages prepare Meridian draft review surfaces without saving or sending", async ({ page }) => {
     await login(page);
 
     await page.goto("/student/scripture/plans/new");
@@ -331,14 +331,14 @@ test.describe("Student Scripture Hub shell", () => {
     await page.getByLabel("Discussion question").fill("Where do we see that in the text?");
     await page.getByLabel("Prayer prompt").fill("Pray from the passage.");
     await page.getByLabel("Theological guardrail notes").fill("Do not flatten Israel's story.");
-    await page.getByRole("button", { name: "Preview" }).click();
+    await expect(page.getByRole("button", { name: "Generate with Meridian" })).toBeVisible();
 
-    const planPreview = page.getByLabel("Reading Plan local preview");
+    const planPreview = page.getByLabel("Reading Plan draft preview");
     await expect(planPreview.getByRole("heading", { name: "Exodus and Formation" })).toBeVisible();
     await expect(planPreview.getByText("High school small group")).toBeVisible();
     await expect(planPreview.getByText("Metanarrative movement")).toHaveCount(0);
     await expect(planPreview.getByText("Read deliverance before application.")).toBeVisible();
-    await expect(page.getByRole("status")).toContainText("Preview generated locally");
+    await expect(page.getByRole("status")).toContainText("Planning worksheet only");
     await expect(page.getByRole("link", { name: "Open Ask" })).toBeVisible();
 
     await page.goto("/student/scripture/studies/new");
@@ -353,7 +353,7 @@ test.describe("Student Scripture Hub shell", () => {
     await page.getByLabel("Discussion question").fill("What questions should we bring to the group?");
     await page.getByLabel("Prayer prompt").fill("Pray with humility.");
     await page.getByLabel("Theological guardrail notes").fill("Name direct teaching before creative connection.");
-    const studyPreview = page.getByLabel("Student-Led Study local preview");
+    const studyPreview = page.getByLabel("Student-Led Study draft preview");
     await expect(studyPreview.getByRole("heading", { name: "What does Jesus mean by kingdom?" })).toBeVisible();
     await expect(studyPreview.getByText("Student-led study outline")).toBeVisible();
     await expect(studyPreview.getByText("Start with Mark's opening announcement.")).toBeVisible();

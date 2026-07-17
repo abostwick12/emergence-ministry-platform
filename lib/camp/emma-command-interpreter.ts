@@ -253,7 +253,7 @@ async function callDirectOpenAIModel(input: {
 function parseProviderJson(text: string, provider: "azure" | "openai", model: string, requestId?: string): ProviderInterpretResult {
   let parsedJson: unknown;
   try {
-    parsedJson = JSON.parse(text);
+    parsedJson = JSON.parse(extractJsonObjectText(text));
   } catch {
     return { ok: false, provider, failureType: "invalid_json", model, requestId };
   }
@@ -262,6 +262,16 @@ function parseProviderJson(text: string, provider: "azure" | "openai", model: st
     return { ok: false, provider, failureType: "unsupported_output", model, requestId };
   }
   return { ok: true, command: parsed.data, provider, model };
+}
+
+function extractJsonObjectText(content: string) {
+  const trimmed = content.trim();
+  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  if (fenced?.[1]?.trim()) return fenced[1].trim();
+  const first = trimmed.indexOf("{");
+  const last = trimmed.lastIndexOf("}");
+  if (first >= 0 && last > first) return trimmed.slice(first, last + 1);
+  return trimmed;
 }
 
 function normalizeInterpretedCommand(command: InterpretedEmmaCampCommand): InterpretedEmmaCampCommand {

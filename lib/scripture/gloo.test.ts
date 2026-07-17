@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { generateGlooDiscussionDraft, isGlooConfigured, runGlooDiscussionDiagnostic, selectGlooModelPolicy } from "@/lib/scripture/gloo";
+import {
+  generateGlooDiscussionDraft,
+  generateGlooReadingPlanDraft,
+  isGlooConfigured,
+  runGlooDiscussionDiagnostic,
+  selectGlooModelPolicy
+} from "@/lib/scripture/gloo";
 import type { GlooDiscussionDraftInput } from "@/lib/scripture/gloo";
 
 const baseInput: GlooDiscussionDraftInput = {
@@ -356,6 +362,157 @@ describe("Gloo model policy", () => {
         }
       ]
     });
+  });
+
+  it("parses fenced JSON draft content from Gloo-compatible providers", async () => {
+    process.env.GLOO_AI_CLIENT_SECRET = "secret";
+    process.env.GLOO_AI_BASE_URL = "https://platform.ai.gloo.com/v1";
+    process.env.GLOO_AI_MODEL = "GPT-5 Nano";
+
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content:
+                  "```json\n" +
+                  JSON.stringify({
+                    discussionPrompt: "Ask the group where the passage invites trust.",
+                    safetyLabel: "safe",
+                    safetyNotes: "Leader can review before use.",
+                    confidence: 0.86,
+                    topicTags: ["trust"],
+                    escalationRecommended: false,
+                    escalationReason: ""
+                  }) +
+                  "\n```"
+              }
+            }
+          ]
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await generateGlooDiscussionDraft(baseInput);
+
+    expect(result).toMatchObject({
+      ok: true,
+      discussionPrompt: "Ask the group where the passage invites trust."
+    });
+  });
+
+  it("parses content-part arrays from Gloo-compatible providers", async () => {
+    process.env.GLOO_AI_CLIENT_SECRET = "secret";
+    process.env.GLOO_AI_BASE_URL = "https://platform.ai.gloo.com/v1";
+    process.env.GLOO_AI_MODEL = "GPT-5 Nano";
+
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: [
+                  {
+                    text: JSON.stringify({
+                      discussionPrompt: "Ask the group what prayer teaches them to notice.",
+                      safetyLabel: "safe",
+                      safetyNotes: "Leader can review before use.",
+                      confidence: 0.9,
+                      topicTags: ["prayer"],
+                      escalationRecommended: false,
+                      escalationReason: ""
+                    })
+                  }
+                ]
+              }
+            }
+          ]
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await generateGlooDiscussionDraft(baseInput);
+
+    expect(result).toMatchObject({
+      ok: true,
+      discussionPrompt: "Ask the group what prayer teaches them to notice."
+    });
+  });
+
+  it("returns a provider error instead of throwing when the Gloo request fails", async () => {
+    process.env.GLOO_AI_CLIENT_SECRET = "secret";
+    process.env.GLOO_AI_BASE_URL = "https://platform.ai.gloo.com/v1";
+    process.env.GLOO_AI_MODEL = "GPT-5 Nano";
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValueOnce(new Error("network unavailable")));
+
+    const result = await generateGlooDiscussionDraft(baseInput);
+
+    expect(result).toEqual({
+      ok: false,
+      code: "provider_error",
+      message: "network unavailable"
+    });
+    expect(warn).toHaveBeenCalledWith(
+      "[gloo] discussion draft provider failure",
+      expect.objectContaining({
+        message: "network unavailable"
+      })
+    );
+  });
+
+  it("generates a reading-plan draft through the configured Gloo chat endpoint", async () => {
+    process.env.GLOO_AI_CLIENT_SECRET = "secret";
+    process.env.GLOO_AI_BASE_URL = "https://platform.ai.gloo.com/v1";
+    process.env.GLOO_AI_MODEL = "GPT-5 Nano";
+
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      jsonResponse({
+        title: "Exodus and Formation",
+        audience: "High school small group",
+        duration: "4 weeks",
+        primaryScripture: "Exodus 1-20",
+        movement: "Exodus / Deliverance",
+        summary: "Trace rescue before formation.",
+        contextFocus: "Read commands inside God's deliverance.",
+        weeklyRhythm: ["Day 1: Exodus 1-2", "Day 2: Exodus 3-4"],
+        discussionPrompts: ["Where do we see God hear his people?"],
+        guardrailNotes: ["Do not separate law from rescue."],
+        prayerPrompt: "Pray for trust in God's rescue.",
+        safetyNotes: "Leader should review before sharing."
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await generateGlooReadingPlanDraft({
+      title: "Exodus and Formation",
+      audience: "High school small group",
+      duration: "4 weeks",
+      primaryScripture: "Exodus 1-20",
+      contextNotes: "Rescue comes before Sinai.",
+      observationQuestion: "What repeats?",
+      interpretationQuestion: "What does this mean in context?",
+      applicationQuestion: "How should we respond?",
+      discussionQuestion: "Where do students wrestle?",
+      prayerPrompt: "Pray honestly.",
+      guardrailNotes: "Avoid moralizing."
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      provider: "gloo",
+      model: "GPT-5 Nano",
+      title: "Exodus and Formation",
+      movement: "Exodus / Deliverance",
+      weeklyRhythm: ["Day 1: Exodus 1-2", "Day 2: Exodus 3-4"]
+    });
+    expect(fetchMock).toHaveBeenCalledWith("https://platform.ai.gloo.com/v1/chat/completions", expect.any(Object));
   });
 });
 
