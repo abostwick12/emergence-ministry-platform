@@ -213,6 +213,8 @@ describe("SAGE provider config", () => {
       .toBe("https://example.openai.azure.com/openai/v1/");
     expect(normalizeAzureResponsesBaseUrl("https://example.openai.azure.com/openai/v1/"))
       .toBe("https://example.openai.azure.com/openai/v1/");
+    expect(normalizeAzureResponsesBaseUrl("https://example.services.ai.azure.com/api/projects/example-project"))
+      .toBe("https://example.services.ai.azure.com/openai/v1/");
   });
 });
 

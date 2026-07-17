@@ -132,7 +132,7 @@ describe("handleCampEmmaAction", () => {
     expect(result.message).toContain("AZURE_OPENAI_ENDPOINT");
     expect(result.message).toContain("AZURE_OPENAI_API_KEY");
     expect(result.message).toContain("AZURE_OPENAI_DEPLOYMENT");
-    expect(result.message).toContain("AZURE_OPENAI_API_VERSION");
+    expect(result.message).toContain("optional AZURE_OPENAI_API_VERSION");
     expect(result.message).toContain("OPENAI_API_KEY");
     expect(result.message).toContain("OPENAI_MODEL");
     expect(result.message).toContain("Do not prefix these with NEXT_PUBLIC_");

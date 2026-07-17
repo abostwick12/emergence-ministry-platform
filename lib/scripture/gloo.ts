@@ -2,6 +2,30 @@ import type { MetanarrativeMovement } from "@/lib/scripture/types";
 import { measureServerOperation } from "@/lib/performance/timing";
 
 const PROVIDER_TIMEOUT_MS = 12_000;
+const GLOO_TOKEN_URL = "https://platform.ai.gloo.com/oauth2/token";
+const GLOO_DEFAULT_API_BASE_URL = "https://platform.ai.gloo.com/ai/v2";
+const GLOO_TOKEN_REFRESH_BUFFER_MS = 60_000;
+
+const GLOO_MODEL_ALIASES: Record<string, string> = {
+  "gpt-5 nano": "gloo-openai-gpt-5-nano",
+  "gpt-5 mini": "gloo-openai-gpt-5-mini",
+  "gemini 2.5 flash lite": "gloo-google-gemini-2.5-flash-lite"
+};
+
+type GlooCredentials = {
+  accessToken: string;
+  clientId: string;
+  clientSecret: string;
+  apiBaseUrl: string;
+};
+
+type GlooAccessTokenPayload = {
+  access_token?: unknown;
+  expires_in?: unknown;
+};
+
+let cachedGlooAccessToken: { clientId: string; accessToken: string; expiresAtMs: number } | undefined;
+let pendingGlooAccessToken: { clientId: string; promise: Promise<string> } | undefined;
 
 export type GlooDiscussionDraftInput = {
   question: string;
@@ -171,7 +195,7 @@ type GlooProviderFailure = {
 export function isGlooConfigured(env: Partial<NodeJS.ProcessEnv> = process.env) {
   const credentials = getGlooCredentials(env);
   return Boolean(
-    credentials.apiKey &&
+    hasGlooCredentials(credentials) &&
       credentials.apiBaseUrl &&
       getPrimaryGlooModel(env)
   );
@@ -184,8 +208,8 @@ export function selectGlooModelPolicy(
   const primaryModel = getPrimaryGlooModel(env);
   if (!primaryModel) return undefined;
 
-  const escalationModel = env.GLOO_AI_ESCALATION_MODEL?.trim();
-  const longContextModel = env.GLOO_AI_LONG_CONTEXT_MODEL?.trim();
+  const escalationModel = normalizeGlooModelId(env.GLOO_AI_ESCALATION_MODEL);
+  const longContextModel = normalizeGlooModelId(env.GLOO_AI_LONG_CONTEXT_MODEL);
   const topicFlags = findSensitiveTopicFlags(input.question);
   const contextSize = `${input.question}\n${input.scriptureReference}\n${input.retrievedContext ?? ""}\n${input.internalGroundingContext ?? ""}`.length;
 
@@ -219,10 +243,11 @@ export function selectGlooModelPolicy(
 }
 
 export async function generateGlooDiscussionDraft(input: GlooDiscussionDraftInput): Promise<GlooDiscussionDraftResult> {
-  const { apiKey, apiBaseUrl } = getGlooCredentials(process.env);
+  const credentials = getGlooCredentials(process.env);
+  const { apiBaseUrl } = credentials;
   const selection = selectGlooModelPolicy(input);
 
-  if (!apiKey || !apiBaseUrl || !selection) {
+  if (!hasGlooCredentials(credentials) || !apiBaseUrl || !selection) {
     return {
       ok: false,
       code: "not_configured",
@@ -230,10 +255,13 @@ export async function generateGlooDiscussionDraft(input: GlooDiscussionDraftInpu
     };
   }
 
-  const firstDraft = await requestGlooDiscussionDraft(input, apiBaseUrl, apiKey, selection);
+  const accessToken = await resolveGlooAccessTokenSafely(credentials);
+  if (!accessToken.ok) return accessToken.result;
+
+  const firstDraft = await requestGlooDiscussionDraft(input, apiBaseUrl, accessToken.token, selection);
   if (!firstDraft.ok) return firstDraft;
 
-  const escalationModel = process.env.GLOO_AI_ESCALATION_MODEL?.trim();
+  const escalationModel = normalizeGlooModelId(process.env.GLOO_AI_ESCALATION_MODEL);
   if (selection.tier === "default" && escalationModel && needsProviderEscalation(firstDraft)) {
     const escalatedSelection: GlooModelSelection = {
       model: escalationModel,
@@ -242,26 +270,30 @@ export async function generateGlooDiscussionDraft(input: GlooDiscussionDraftInpu
       escalationReason: firstDraft.escalationReason || `confidence ${firstDraft.confidence}; safety ${firstDraft.safetyLabel}`,
       topicFlags: firstDraft.topicTags
     };
-    return requestGlooDiscussionDraft(input, apiBaseUrl, apiKey, escalatedSelection);
+    return requestGlooDiscussionDraft(input, apiBaseUrl, accessToken.token, escalatedSelection);
   }
 
   return firstDraft;
 }
 
 export async function generateGlooReadingPlanDraft(input: GlooReadingPlanDraftInput): Promise<GlooReadingPlanDraftResult> {
-  const { apiKey, apiBaseUrl } = getGlooCredentials(process.env);
+  const credentials = getGlooCredentials(process.env);
+  const { apiBaseUrl } = credentials;
   const selection = selectGlooModelPolicy({
     question: `${input.title}\n${input.contextNotes}\n${input.guardrailNotes}`,
     scriptureReference: input.primaryScripture
   });
 
-  if (!apiKey || !apiBaseUrl || !selection) {
+  if (!hasGlooCredentials(credentials) || !apiBaseUrl || !selection) {
     return {
       ok: false,
       code: "not_configured",
       message: "AI reading-plan drafting is offline. Configure Gloo AI Studio before launch."
     };
   }
+
+  const accessToken = await resolveGlooAccessTokenSafely(credentials);
+  if (!accessToken.ok) return accessToken.result;
 
   const body = createGlooReadingPlanRequestBody(input, selection);
   let lastFailure: GlooProviderFailure | undefined;
@@ -271,7 +303,7 @@ export async function generateGlooReadingPlanDraft(input: GlooReadingPlanDraftIn
       response = await timedGlooFetch("provider.gloo.generate", url, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${apiKey}`,
+          Authorization: `Bearer ${accessToken.token}`,
           "Content-Type": "application/json"
         },
         body
@@ -292,7 +324,6 @@ export async function generateGlooReadingPlanDraft(input: GlooReadingPlanDraftIn
         statusText: response.statusText,
         url: redactGlooUrl(url)
       };
-      if (response.status === 404 && shouldTryNextGlooUrl(apiBaseUrl)) continue;
       logGlooProviderFailure(lastFailure);
       return { ok: false, code: "provider_error", message: lastFailure.message };
     }
@@ -335,21 +366,22 @@ export async function runGlooDiscussionDiagnostic(
   },
   env: Partial<NodeJS.ProcessEnv> = process.env
 ): Promise<GlooDiagnosticResult> {
-  const { apiKey, apiBaseUrl } = getGlooCredentials(env);
+  const credentials = getGlooCredentials(env);
+  const { apiBaseUrl } = credentials;
   const primaryModel = getPrimaryGlooModel(env);
   const selection = selectGlooModelPolicy(input, env);
   const base: Omit<GlooDiagnosticResult, "ok" | "configured" | "message" | "attempts"> = {
-    credentialsConfigured: Boolean(apiKey),
+    credentialsConfigured: hasGlooCredentials(credentials),
     baseUrlConfigured: Boolean(apiBaseUrl),
     primaryModelConfigured: Boolean(primaryModel),
     primaryModel,
-    escalationModel: env.GLOO_AI_ESCALATION_MODEL?.trim() ?? "",
-    longContextModel: env.GLOO_AI_LONG_CONTEXT_MODEL?.trim() ?? "",
+    escalationModel: normalizeGlooModelId(env.GLOO_AI_ESCALATION_MODEL),
+    longContextModel: normalizeGlooModelId(env.GLOO_AI_LONG_CONTEXT_MODEL),
     selectedModel: selection?.model ?? "",
     selectedTier: selection?.tier ?? ""
   };
 
-  if (!apiKey || !apiBaseUrl || !selection) {
+  if (!hasGlooCredentials(credentials) || !apiBaseUrl || !selection) {
     return {
       ...base,
       ok: false,
@@ -361,13 +393,23 @@ export async function runGlooDiscussionDiagnostic(
 
   const body = createGlooDraftRequestBody(input, selection);
   const attempts: GlooDiagnosticAttempt[] = [];
+  const accessToken = await resolveGlooAccessTokenForDiagnostic(credentials);
+  if (!accessToken.ok) {
+    return {
+      ...base,
+      ok: false,
+      configured: true,
+      message: accessToken.attempt.message,
+      attempts: [accessToken.attempt]
+    };
+  }
 
   for (const url of resolveGlooChatUrls(apiBaseUrl)) {
     try {
       const response = await timedGlooFetch("provider.gloo.diagnostic", url, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${apiKey}`,
+          Authorization: `Bearer ${accessToken.token}`,
           "Content-Type": "application/json"
         },
         body
@@ -382,7 +424,6 @@ export async function runGlooDiscussionDiagnostic(
           message: providerStatusMessage(response.status)
         };
         attempts.push(attempt);
-        if (response.status === 404 && shouldTryNextGlooUrl(apiBaseUrl)) continue;
         return {
           ...base,
           ok: false,
@@ -480,7 +521,7 @@ export async function runGlooDiscussionDiagnostic(
 async function requestGlooDiscussionDraft(
   input: GlooDiscussionDraftInput,
   apiBaseUrl: string,
-  apiKey: string,
+  accessToken: string,
   selection: GlooModelSelection
 ): Promise<GlooDiscussionDraftResult> {
   const body = createGlooDraftRequestBody(input, selection);
@@ -492,7 +533,7 @@ async function requestGlooDiscussionDraft(
       response = await timedGlooFetch("provider.gloo.generate", url, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${apiKey}`,
+          Authorization: `Bearer ${accessToken}`,
           "Content-Type": "application/json"
         },
         body
@@ -513,7 +554,6 @@ async function requestGlooDiscussionDraft(
         statusText: response.statusText,
         url: redactGlooUrl(url)
       };
-      if (response.status === 404 && shouldTryNextGlooUrl(apiBaseUrl)) continue;
       logGlooProviderFailure(lastFailure);
       return { ok: false, code: "provider_error", message: lastFailure.message };
     }
@@ -548,7 +588,11 @@ async function requestGlooDiscussionDraft(
   return { ok: false, code: "provider_error", message: lastFailure?.message ?? "Gloo AI Studio did not return a usable draft." };
 }
 
-function timedGlooFetch(operation: "provider.gloo.diagnostic" | "provider.gloo.generate", url: string, init: RequestInit) {
+function timedGlooFetch(
+  operation: "provider.gloo.authenticate" | "provider.gloo.diagnostic" | "provider.gloo.generate",
+  url: string,
+  init: RequestInit
+) {
   return measureServerOperation(operation, () => fetch(url, {
     ...init,
     signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS)
@@ -638,32 +682,18 @@ function needsProviderEscalation(draft: Extract<GlooDiscussionDraftResult, { ok:
 
 function resolveGlooChatUrls(apiBaseUrl: string) {
   const trimmed = apiBaseUrl.replace(/\/+$/, "");
-  const urls = new Set<string>();
   if (trimmed.endsWith("/chat/completions")) return [trimmed];
-  if (trimmed.endsWith("/v1")) return [`${trimmed}/chat/completions`];
-  if (trimmed.endsWith("/api/v1")) return [`${trimmed}/chat/completions`];
-
-  urls.add(`${trimmed}/chat/completions`);
-  urls.add(`${trimmed}/v1/chat/completions`);
-  urls.add(`${trimmed}/api/chat/completions`);
-  urls.add(`${trimmed}/api/v1/chat/completions`);
 
   try {
     const parsed = new URL(trimmed);
     if (parsed.hostname === "platform.ai.gloo.com") {
-      urls.add("https://api.ai.gloo.com/v1/chat/completions");
-      urls.add("https://api.ai.gloo.com/chat/completions");
+      return [`${parsed.origin}/ai/v2/chat/completions`];
     }
   } catch {
     // Invalid URLs are handled by fetch and logged through the provider failure path.
   }
 
-  return Array.from(urls);
-}
-
-function shouldTryNextGlooUrl(apiBaseUrl: string) {
-  const trimmed = apiBaseUrl.replace(/\/+$/, "");
-  return !trimmed.endsWith("/chat/completions") && !trimmed.endsWith("/v1");
+  return [`${trimmed}/chat/completions`];
 }
 
 function providerStatusMessage(status: number) {
@@ -807,14 +837,153 @@ function normalizeText(value: unknown, maxLength: number) {
 }
 
 function getPrimaryGlooModel(env: Partial<NodeJS.ProcessEnv>) {
-  return env.GLOO_AI_MODEL?.trim() || env.GLOO_AI_STUDIO_MODEL?.trim() || "";
+  return normalizeGlooModelId(env.GLOO_AI_MODEL || env.GLOO_AI_STUDIO_MODEL);
 }
 
-function getGlooCredentials(env: Partial<NodeJS.ProcessEnv>) {
+function getGlooCredentials(env: Partial<NodeJS.ProcessEnv>): GlooCredentials {
+  const clientId = env.GLOO_AI_CLIENT_ID?.trim() || "";
+  const clientSecret = env.GLOO_AI_CLIENT_SECRET?.trim() || "";
   return {
-    apiKey: env.GLOO_AI_STUDIO_API_KEY?.trim() || env.GLOO_AI_CLIENT_SECRET?.trim() || "",
-    apiBaseUrl: env.GLOO_AI_STUDIO_API_BASE_URL?.trim() || env.GLOO_AI_BASE_URL?.trim() || ""
+    accessToken: env.GLOO_AI_STUDIO_API_KEY?.trim() || (!clientId ? clientSecret : ""),
+    clientId,
+    clientSecret,
+    apiBaseUrl: env.GLOO_AI_STUDIO_API_BASE_URL?.trim() || env.GLOO_AI_BASE_URL?.trim() || GLOO_DEFAULT_API_BASE_URL
   };
+}
+
+function hasGlooCredentials(credentials: GlooCredentials) {
+  return Boolean(credentials.accessToken || (credentials.clientId && credentials.clientSecret));
+}
+
+function normalizeGlooModelId(value: string | undefined) {
+  const trimmed = value?.trim() || "";
+  return GLOO_MODEL_ALIASES[trimmed.toLowerCase()] || trimmed;
+}
+
+async function resolveGlooAccessTokenSafely(credentials: GlooCredentials): Promise<
+  | { ok: true; token: string }
+  | { ok: false; result: Extract<GlooDiscussionDraftResult, { ok: false }> }
+> {
+  try {
+    return { ok: true, token: await resolveGlooAccessToken(credentials) };
+  } catch (error) {
+    const failure = glooAuthenticationFailure(error);
+    logGlooProviderFailure(failure);
+    return { ok: false, result: { ok: false, code: "provider_error", message: failure.message } };
+  }
+}
+
+async function resolveGlooAccessTokenForDiagnostic(credentials: GlooCredentials): Promise<
+  | { ok: true; token: string }
+  | { ok: false; attempt: GlooDiagnosticAttempt }
+> {
+  try {
+    return { ok: true, token: await resolveGlooAccessToken(credentials) };
+  } catch (error) {
+    const failure = glooAuthenticationFailure(error);
+    return {
+      ok: false,
+      attempt: {
+        url: GLOO_TOKEN_URL,
+        ok: false,
+        status: failure.status,
+        statusText: failure.statusText,
+        message: failure.message
+      }
+    };
+  }
+}
+
+async function resolveGlooAccessToken(credentials: GlooCredentials) {
+  if (credentials.accessToken) return credentials.accessToken;
+  if (!credentials.clientId || !credentials.clientSecret) {
+    throw new GlooAuthenticationError("Gloo AI Studio client credentials are incomplete.");
+  }
+
+  const now = Date.now();
+  if (
+    cachedGlooAccessToken?.clientId === credentials.clientId &&
+    cachedGlooAccessToken.expiresAtMs - GLOO_TOKEN_REFRESH_BUFFER_MS > now
+  ) {
+    return cachedGlooAccessToken.accessToken;
+  }
+
+  if (pendingGlooAccessToken?.clientId === credentials.clientId) {
+    return pendingGlooAccessToken.promise;
+  }
+
+  const promise = requestGlooAccessToken(credentials);
+  pendingGlooAccessToken = { clientId: credentials.clientId, promise };
+  try {
+    return await promise;
+  } finally {
+    if (pendingGlooAccessToken?.promise === promise) pendingGlooAccessToken = undefined;
+  }
+}
+
+async function requestGlooAccessToken(credentials: GlooCredentials) {
+  const response = await timedGlooFetch("provider.gloo.authenticate", GLOO_TOKEN_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${Buffer.from(`${credentials.clientId}:${credentials.clientSecret}`, "utf8").toString("base64")}`,
+      "Content-Type": "application/x-www-form-urlencoded"
+    },
+    body: "grant_type=client_credentials&scope=api%2Faccess"
+  });
+
+  if (!response.ok) {
+    throw new GlooAuthenticationError(
+      response.status === 401 || response.status === 403
+        ? "Gloo AI Studio rejected the configured client credentials."
+        : `Gloo AI Studio token exchange returned HTTP ${response.status}.`,
+      response.status,
+      response.statusText
+    );
+  }
+
+  let payload: GlooAccessTokenPayload;
+  try {
+    payload = (await response.json()) as GlooAccessTokenPayload;
+  } catch {
+    throw new GlooAuthenticationError("Gloo AI Studio returned an unreadable access token response.");
+  }
+
+  const accessToken = typeof payload.access_token === "string" ? payload.access_token.trim() : "";
+  const expiresIn = typeof payload.expires_in === "number" && payload.expires_in > 0 ? payload.expires_in : 3600;
+  if (!accessToken) throw new GlooAuthenticationError("Gloo AI Studio did not return an access token.");
+
+  cachedGlooAccessToken = {
+    clientId: credentials.clientId,
+    accessToken,
+    expiresAtMs: Date.now() + expiresIn * 1000
+  };
+  return accessToken;
+}
+
+class GlooAuthenticationError extends Error {
+  constructor(
+    message: string,
+    readonly status?: number,
+    readonly statusText?: string
+  ) {
+    super(message);
+    this.name = "GlooAuthenticationError";
+  }
+}
+
+function glooAuthenticationFailure(error: unknown): GlooProviderFailure {
+  if (error instanceof GlooAuthenticationError) {
+    return { message: error.message, status: error.status, statusText: error.statusText, url: GLOO_TOKEN_URL };
+  }
+  return {
+    message: error instanceof Error ? limitText(error.message, 240) : "Gloo AI Studio token exchange failed.",
+    url: GLOO_TOKEN_URL
+  };
+}
+
+export function resetGlooAccessTokenCacheForTests() {
+  cachedGlooAccessToken = undefined;
+  pendingGlooAccessToken = undefined;
 }
 
 function normalizeConfidence(value: unknown) {

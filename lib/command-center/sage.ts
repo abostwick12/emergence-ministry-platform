@@ -4,6 +4,10 @@ import type { AiConversationMessage, PersonalTask, SageMemory } from "@/lib/comm
 // actual client via a dynamic `import("openai")` at call time.
 import type OpenAI from "openai";
 
+import { DEFAULT_AZURE_OPENAI_API_VERSION, normalizeAzureResponsesBaseUrl } from "@/lib/ai/azure-openai";
+
+export { DEFAULT_AZURE_OPENAI_API_VERSION, normalizeAzureResponsesBaseUrl } from "@/lib/ai/azure-openai";
+
 // A minimal structural type instead of zod's ZodType<T> directly -- ZodType's
 // Input/Output type params can otherwise cause TypeScript to widen T (e.g.
 // dropping defaults) when schemas mix required output fields with
@@ -14,7 +18,6 @@ type SafeParseSchema<T> = {
 };
 
 export const DEFAULT_SAGE_MODEL = "gpt-4o-mini";
-export const DEFAULT_AZURE_OPENAI_API_VERSION = "2024-10-21";
 export const SAGE_TASK_AWARE_CHAT_SKILL = "command_center.task_aware_chat";
 
 export type SageProvider = "openai" | "azure";
@@ -209,13 +212,6 @@ export function readSageRuntimeConfig(env: NodeJS.ProcessEnv = process.env): Sag
   const apiKey = env.OPENAI_API_KEY?.trim();
   const model = env.OPENAI_MODEL?.trim() || DEFAULT_SAGE_MODEL;
   return { apiKey, model, configured: Boolean(apiKey) };
-}
-
-export function normalizeAzureResponsesBaseUrl(endpoint: string): string {
-  const trimmed = endpoint.trim().replace(/\/+$/, "");
-  if (trimmed.endsWith("/openai/v1")) return `${trimmed}/`;
-  if (trimmed.endsWith("/openai")) return `${trimmed}/v1/`;
-  return `${trimmed}/openai/v1/`;
 }
 
 function errorRecord(error: unknown): Record<string, unknown> {
