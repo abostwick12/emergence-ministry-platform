@@ -242,6 +242,58 @@ describe("student discussion live submission", () => {
     } satisfies Partial<DiscussionWorkflowError>);
     expect(getSupabaseAuthClientMock).not.toHaveBeenCalled();
   });
+
+  it("accepts live student questions with a knowledge-guided draft when AI is offline", async () => {
+    getMeridianAiReadinessMock.mockReturnValue(aiReadiness());
+    resolveMinistryScopeMock.mockResolvedValue("ministry_1");
+    getPrimaryStudentGroupIdMock.mockResolvedValue("group_1");
+    getStudentKnowledgeMatchesMock.mockResolvedValue([
+      {
+        id: "context-map-gospel",
+        label: "Because you asked about the gospel",
+        title: "Gospel context map",
+        description: "Steer gospel questions through Scripture's announcement about Jesus.",
+        href: "/student/scripture/resources",
+        digQuestions: ["What good news is being announced, and who is at the center of it?"],
+        topicTags: ["gospel", "good_news"],
+        scriptureReferences: ["Mark 1:15"]
+      }
+    ]);
+    const client = liveSubmissionClient();
+    getSupabaseAuthClientMock.mockReturnValue(client.client);
+
+    const prompt = await createStudentDiscussionPrompt(session(), {
+      question: "What is the Gospel?",
+      scriptureReference: "Mark 1:15"
+    });
+
+    expect(prompt).toMatchObject({
+      groupId: "group_1",
+      aiStatus: "not_configured",
+      aiProvider: "gloo",
+      aiModel: "",
+      aiConfidence: null,
+      status: "pending_review",
+      discussionPrompt: "What good news is being announced, and who is at the center of it?",
+      safetyLabel: "safe",
+      topicTags: ["gospel", "good_news"]
+    });
+    expect(generateMeridianDiscussionDraftMock).not.toHaveBeenCalled();
+    expect(getInternalGroundingContextMock).not.toHaveBeenCalled();
+    expect(client.insertedPrompt).toMatchObject({
+      ministry_id: "ministry_1",
+      group_id: "group_1",
+      ai_status: "not_configured",
+      ai_model: null,
+      ai_confidence: null,
+      status: "pending_review",
+      discussion_prompt: "What good news is being announced, and who is at the center of it?"
+    });
+    expect(client.insertedEvent).toMatchObject({
+      action: "submitted",
+      details: { aiStatus: "not_configured" }
+    });
+  });
 });
 
 describe("local student discussion workflow", () => {
@@ -336,6 +388,7 @@ describe("local student discussion workflow", () => {
     });
     expect(getSupabaseAuthClientMock).not.toHaveBeenCalled();
   });
+
 });
 
 describe("leader discussion draft regeneration", () => {
@@ -561,6 +614,106 @@ describe("leader discussion draft regeneration", () => {
   });
 });
 
+describe("canonical student resource promotion", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    isSupabaseConfiguredMock.mockReturnValue(true);
+    isSupabaseAdminConfiguredMock.mockReturnValue(true);
+    getMeridianAiReadinessMock.mockReturnValue(aiReadiness({ gloo: true }));
+    getStudentKnowledgeMatchesMock.mockResolvedValue([]);
+    getInternalGroundingContextMock.mockResolvedValue("");
+    formatStudentKnowledgeContextForGlooMock.mockReturnValue("");
+    resolveMinistryScopeMock.mockResolvedValue("ministry_1");
+  });
+
+  it("promotes an approved prompt into student-visible Meridian knowledge", async () => {
+    const client = promotionClient(
+      discussionRow({
+        id: "prompt_canonical",
+        status: "approved",
+        question: "What is the Gospel?",
+        scripture_reference: "Mark 1:15",
+        discussion_prompt: "What good news is being announced, and who is at the center of it?",
+        topic_tags: ["gospel", "good_news"]
+      })
+    );
+    getSupabaseAuthClientMock.mockReturnValue(client.client);
+
+    const prompt = await decideStudentDiscussionPrompt(leaderSession(), "prompt_canonical", { action: "promote_canonical" });
+
+    expect(prompt).toMatchObject({
+      id: "prompt_canonical",
+      status: "approved"
+    });
+    expect(client.insertedSource).toMatchObject({
+      ministry_id: "ministry_1",
+      title: "Student Question: What is the Gospel?",
+      source_kind: "curated_note",
+      hemisphere: "own_voice",
+      visibility: "student_visible",
+      source_uri: "student-discussion:prompt_canonical",
+      tags: ["gospel", "good_news", "student_question", "leader_approved"],
+      created_by_user_id: "usr_leader"
+    });
+    expect(client.insertedChunk).toMatchObject({
+      ministry_id: "ministry_1",
+      source_id: "source_1",
+      chunk_index: 0,
+      visibility: "student_visible",
+      student_summary: "What good news is being announced, and who is at the center of it?",
+      topic_tags: ["gospel", "good_news", "student_question", "leader_approved"],
+      scripture_references: ["Mark 1:15"]
+    });
+    expect(String(client.insertedChunk.body)).toContain("Original student question: What is the Gospel?");
+    expect(String(client.insertedChunk.body)).toContain("Leader-approved framing: What good news is being announced");
+    expect(client.events[0]).toMatchObject({
+      prompt_id: "prompt_canonical",
+      action: "canonical_resource_promoted",
+      details: {
+        sourceId: "source_1",
+        chunkId: "chunk_1"
+      }
+    });
+  });
+
+  it("logs promotion without duplicating a canonical source when one already exists", async () => {
+    const client = promotionClient(
+      discussionRow({
+        id: "prompt_existing_source",
+        status: "posted",
+        discussion_prompt: "Where does Scripture invite us to trust Jesus?"
+      }),
+      { existingSourceId: "source_existing" }
+    );
+    getSupabaseAuthClientMock.mockReturnValue(client.client);
+
+    await decideStudentDiscussionPrompt(leaderSession(), "prompt_existing_source", { action: "promote_canonical" });
+
+    expect(client.insertedSource).toEqual({});
+    expect(client.insertedChunk).toEqual({});
+    expect(client.events[0]).toMatchObject({
+      prompt_id: "prompt_existing_source",
+      action: "canonical_resource_promoted",
+      details: {
+        sourceId: "source_existing",
+        existing: true
+      }
+    });
+  });
+
+  it("requires approval before canonical promotion", async () => {
+    const client = promotionClient(discussionRow({ id: "prompt_pending", status: "pending_review" }));
+    getSupabaseAuthClientMock.mockReturnValue(client.client);
+
+    await expect(decideStudentDiscussionPrompt(leaderSession(), "prompt_pending", { action: "promote_canonical" })).rejects.toMatchObject({
+      code: "prompt_not_approved",
+      status: 409
+    } satisfies Partial<DiscussionWorkflowError>);
+    expect(client.insertedSource).toEqual({});
+    expect(client.insertedChunk).toEqual({});
+  });
+});
+
 function approvedFeedClient(rows: Array<Record<string, unknown>>) {
   const query = {
     eq: vi.fn(() => query),
@@ -597,6 +750,56 @@ function workflowStateClient(rows: Array<Record<string, unknown>>, eventRows: Ar
     from: vi.fn((table: string) => ({ select: table === "student_discussion_prompt_events" ? eventSelect : select }))
   };
   return { client, select, eventSelect, promptQuery, eventQuery };
+}
+
+function liveSubmissionClient() {
+  let insertedPrompt: Record<string, unknown> = {};
+  let insertedEvent: Record<string, unknown> = {};
+  const client = {
+    from(table: string) {
+      if (table === "student_discussion_prompts") {
+        return {
+          insert: (payload: Record<string, unknown>) => {
+            insertedPrompt = payload;
+            return {
+              select: () => ({
+                single: async () => ({
+                  data: discussionRow({
+                    id: "prompt_live_offline",
+                    ...payload,
+                    created_at: "2026-07-08T00:00:00.000Z",
+                    updated_at: "2026-07-08T00:00:00.000Z"
+                  }),
+                  error: null
+                })
+              })
+            };
+          }
+        };
+      }
+
+      if (table === "student_discussion_prompt_events") {
+        return {
+          insert: async (payload: Record<string, unknown>) => {
+            insertedEvent = payload;
+            return { data: null, error: null };
+          }
+        };
+      }
+
+      return {};
+    }
+  };
+
+  return {
+    client,
+    get insertedPrompt() {
+      return insertedPrompt;
+    },
+    get insertedEvent() {
+      return insertedEvent;
+    }
+  };
 }
 
 function session(): AuthSession {
@@ -706,6 +909,85 @@ function regenerationClient(existingRow: Record<string, unknown>) {
   };
 
   return { client, updates, events };
+}
+
+function promotionClient(existingRow: Record<string, unknown>, options: { existingSourceId?: string } = {}) {
+  const events: Array<Record<string, unknown>> = [];
+  let insertedSource: Record<string, unknown> = {};
+  let insertedChunk: Record<string, unknown> = {};
+  const client = {
+    from(table: string) {
+      if (table === "student_discussion_prompts") {
+        return {
+          select: () => ({
+            eq: () => ({
+              single: async () => ({ data: existingRow, error: null })
+            })
+          })
+        };
+      }
+
+      if (table === "knowledge_sources") {
+        return {
+          select: () => ({
+            eq: () => ({
+              eq: () => ({
+                limit: () => ({
+                  maybeSingle: async () => ({
+                    data: options.existingSourceId ? { id: options.existingSourceId } : null,
+                    error: null
+                  })
+                })
+              })
+            })
+          }),
+          insert: (payload: Record<string, unknown>) => {
+            insertedSource = payload;
+            return {
+              select: () => ({
+                single: async () => ({ data: { id: "source_1" }, error: null })
+              })
+            };
+          }
+        };
+      }
+
+      if (table === "knowledge_chunks") {
+        return {
+          insert: (payload: Record<string, unknown>) => {
+            insertedChunk = payload;
+            return {
+              select: () => ({
+                single: async () => ({ data: { id: "chunk_1" }, error: null })
+              })
+            };
+          }
+        };
+      }
+
+      if (table === "student_discussion_prompt_events") {
+        return {
+          insert: async (payload: Record<string, unknown>) => {
+            events.push(payload);
+            return { data: null, error: null };
+          }
+        };
+      }
+
+      return {};
+    }
+  };
+
+  return {
+    client,
+    events,
+    get insertedSource() {
+      return insertedSource;
+    },
+    get insertedChunk() {
+      return insertedChunk;
+    }
+  };
 }
 
 function aiReadiness(overrides: Partial<ReturnType<typeof baseAiReadiness>> = {}) {

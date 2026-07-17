@@ -70,83 +70,253 @@ type StudentQuestionRecommendationRow = {
 const MAX_MATCHES = 3;
 const MAX_GROUNDING_MATCHES = 5;
 
-const launchKnowledgePack: StudentKnowledgeMatch[] = [
+const gospelContextMap: StudentKnowledgeMatch = {
+  id: "context-map-gospel",
+  label: "Because you asked about the gospel",
+  title: "Gospel context map",
+  description:
+    "Steer gospel questions through Scripture's announcement about Jesus before reducing the gospel to advice, self-improvement, private forgiveness, or a slogan. Hold together Jesus as King, Jesus saves, Jesus makes new, and Jesus forms a people for witness.",
+  href: "/student/scripture/resources",
+  topicTags: [
+    "gospel",
+    "good_news",
+    "jesus",
+    "kingdom",
+    "cross",
+    "resurrection",
+    "grace",
+    "salvation",
+    "new_creation",
+    "witness"
+  ],
+  scriptureReferences: [
+    "Mark 1:14-15",
+    "1 Corinthians 15:1-8",
+    "Romans 3:21-26",
+    "Ephesians 2:1-10",
+    "2 Corinthians 5:17-21"
+  ],
+  digQuestions: [
+    "What good news is being announced, and who is at the center of it?",
+    "What problem does the gospel answer: guilt, shame, death, false kingdoms, broken relationship, or all of these?",
+    "How does the gospel call us to receive, trust, turn, belong, and witness without reducing it to performance?"
+  ]
+};
+
+const gardenContextMap: StudentKnowledgeMatch = {
+  id: "launch-garden-trust",
+  label: "Because you asked about the garden",
+  title: "Trust before the tree",
+  description: "Start with what God gives in Genesis before moving to the command, failure, and God's pursuit after sin.",
+  href: "/student/scripture/plans",
+  topicTags: ["garden", "creation", "trust", "evil", "genesis"],
+  scriptureReferences: ["Genesis 2", "Genesis 3"],
+  digQuestions: [
+    "What good gifts appear before the command in the garden?",
+    "What kind of trust is being tested by the tree?",
+    "Where does God move toward people after failure instead of abandoning them?"
+  ]
+};
+
+const lamentContextMap: StudentKnowledgeMatch = {
+  id: "context-map-lament",
+  label: "Because you asked about pain",
+  title: "Lament and honest trust",
+  description:
+    "Steer pain, grief, anxiety, and suffering questions through Scripture's permission to tell the truth, seek God's nearness, and resist forced quick answers.",
+  href: "/student/scripture/resources",
+  topicTags: ["suffering", "grief", "pain", "lament", "anxiety", "trust"],
+  scriptureReferences: ["Psalm 13", "Psalm 22", "Romans 8:18-28", "John 11:32-36"],
+  digQuestions: [
+    "Where does Scripture give people room to tell the truth about pain?",
+    "What does this passage reveal about God's nearness when life hurts?",
+    "What would faithful hope look like without pretending the pain is small?"
+  ]
+};
+
+const doubtContextMap: StudentKnowledgeMatch = {
+  id: "context-map-doubt",
+  label: "Because you asked honestly",
+  title: "Honest questions without panic",
+  description:
+    "Steer doubt and deconstruction questions toward patient honesty, Scripture-shaped inquiry, wise community, and care for the question underneath the first question.",
+  href: "/student/scripture/resources",
+  topicTags: ["doubt", "questions", "confused", "deconstruction", "honest", "faith"],
+  scriptureReferences: ["Mark 9:24", "John 20:24-29", "Psalm 73", "Jude 22"],
+  digQuestions: [
+    "What question seems to be underneath the first question?",
+    "What would you need to understand from Scripture before answering too quickly?",
+    "Who could help carry this question with honesty, humility, and care?"
+  ]
+};
+
+const exodusContextMap: StudentKnowledgeMatch = {
+  id: "launch-exodus-formation",
+  label: "Next for your group",
+  title: "Rescue that forms a people",
+  description: "Exodus connects deliverance, worship, covenant, and community identity instead of treating rescue as an isolated moment.",
+  href: "/student/scripture/plans",
+  topicTags: ["exodus", "deliverance", "wilderness", "formation", "worship"],
+  scriptureReferences: ["Exodus 1", "Exodus 12", "Exodus 20"],
+  digQuestions: [
+    "What does God rescue his people from?",
+    "What does God rescue his people for?",
+    "How does worship shape the community after deliverance?"
+  ]
+};
+
+const identityContextMap: StudentKnowledgeMatch = {
+  id: "context-map-identity",
+  label: "Because you asked about identity",
+  title: "Belonging before performance",
+  description:
+    "Steer identity, worth, belonging, and comparison questions through image of God, union with Christ, adoption, embodied community, and gift before performance.",
+  href: "/student/scripture/resources",
+  topicTags: ["identity", "belonging", "worth", "purpose", "image", "adoption"],
+  scriptureReferences: ["Genesis 1:26-28", "Ephesians 1:3-14", "Galatians 3:26-28", "1 Peter 2:9-10"],
+  digQuestions: [
+    "What does this passage say is given before anything is achieved?",
+    "What false measure of worth is being challenged?",
+    "How could the group practice belonging instead of comparison?"
+  ]
+};
+
+const sexualityGenderContextMap: StudentKnowledgeMatch = {
+  id: "context-map-sexuality-gender",
+  label: "Because you asked about sexuality or gender",
+  title: "Embodied dignity and patient care",
+  description:
+    "Steer sexuality and gender questions through human dignity, embodied discipleship, holiness, compassion, and leader care. Do not flatten a person into an issue or force a public group debate.",
+  href: "/student/scripture/resources",
+  topicTags: ["sexuality", "gender", "body", "dignity", "holiness", "pastoral_care"],
+  scriptureReferences: ["Genesis 1:26-28", "Psalm 139:13-16", "Matthew 19:4-6", "1 Corinthians 6:18-20"],
+  digQuestions: [
+    "What does Scripture say is true about human dignity before it addresses behavior?",
+    "Where would this question need gentleness, privacy, or direct leader care instead of public debate?",
+    "How can we talk about holiness and compassion without turning people into projects?"
+  ]
+};
+
+const hellJudgmentContextMap: StudentKnowledgeMatch = {
+  id: "context-map-hell-judgment",
+  label: "Because you asked about judgment",
+  title: "Judgment, mercy, and God's justice",
+  description:
+    "Steer hell, wrath, and judgment questions through God's goodness, justice against evil, mercy in Christ, and the seriousness of human response without using fear as a shortcut.",
+  href: "/student/scripture/resources",
+  topicTags: ["hell", "judgment", "wrath", "justice", "mercy", "repentance"],
+  scriptureReferences: ["John 3:16-21", "Romans 2:1-11", "Revelation 21:1-8", "2 Peter 3:9"],
+  digQuestions: [
+    "What evil or injustice would be hard to call good if God never judged it?",
+    "Where does this passage hold together warning, mercy, and God's patience?",
+    "How can we take judgment seriously without using fear to manipulate people?"
+  ]
+};
+
+const scriptureViolenceContextMap: StudentKnowledgeMatch = {
+  id: "context-map-scripture-violence",
+  label: "Because you asked about violence in Scripture",
+  title: "Violence, judgment, and the whole story",
+  description:
+    "Steer violence, conquest, slavery, and hard Old Testament questions through context, genre, God's patience and judgment, the Bible's whole story, and humility about unresolved tensions.",
+  href: "/student/scripture/resources",
+  topicTags: ["violence", "old_testament", "judgment", "conquest", "slavery", "tension"],
+  scriptureReferences: ["Genesis 15:13-16", "Exodus 34:6-7", "Micah 6:8", "Matthew 5:38-48"],
+  digQuestions: [
+    "What context would we need before deciding what this passage is doing?",
+    "Where do you feel the tension between God's justice, mercy, and human violence?",
+    "How does Jesus shape the way we read hard passages without pretending they are easy?"
+  ]
+};
+
+const prayerContextMap: StudentKnowledgeMatch = {
+  id: "context-map-prayer",
+  label: "Because you asked about prayer",
+  title: "Prayer as honest communion",
+  description:
+    "Steer prayer questions through relationship with God, honest speech, waiting, dependence, and formation rather than treating prayer like a technique for guaranteed outcomes.",
+  href: "/student/scripture/resources",
+  topicTags: ["prayer", "waiting", "trust", "silence", "dependence", "communion"],
+  scriptureReferences: ["Matthew 6:9-13", "Psalm 13", "Luke 11:1-13", "Romans 8:26-27"],
+  digQuestions: [
+    "What does this passage show prayer is for besides getting an outcome?",
+    "Where does Scripture make room for waiting, silence, or repeated asking?",
+    "How could prayer form trust even before circumstances change?"
+  ]
+};
+
+const callingPurposeContextMap: StudentKnowledgeMatch = {
+  id: "context-map-calling-purpose",
+  label: "Because you asked about purpose",
+  title: "Calling, wisdom, and faithful presence",
+  description:
+    "Steer calling and purpose questions through belonging to God, wisdom, gifts, ordinary faithfulness, vocation, and love of neighbor before rushing to a dramatic life plan.",
+  href: "/student/scripture/resources",
+  topicTags: ["calling", "purpose", "vocation", "gifts", "wisdom", "faithfulness"],
+  scriptureReferences: ["Micah 6:8", "Romans 12:1-8", "Colossians 3:17", "Ephesians 2:10"],
+  digQuestions: [
+    "What faithful next step is already clear before the whole future is clear?",
+    "Where do your gifts, responsibilities, and love of neighbor overlap right now?",
+    "How does belonging to God change the pressure to discover one perfect life plan?"
+  ]
+};
+
+const contextMapRoutes: Array<{ map: StudentKnowledgeMatch; pattern: RegExp }> = [
   {
-    id: "launch-garden-trust",
-    label: "Because you asked about the garden",
-    title: "Trust before the tree",
-    description: "Start with what God gives in Genesis before moving to the command, failure, and God's pursuit after sin.",
-    href: "/student/scripture/plans",
-    topicTags: ["garden", "creation", "trust", "evil", "genesis"],
-    scriptureReferences: ["Genesis 2", "Genesis 3"],
-    digQuestions: [
-      "What good gifts appear before the command in the garden?",
-      "What kind of trust is being tested by the tree?",
-      "Where does God move toward people after failure instead of abandoning them?"
-    ]
+    map: gospelContextMap,
+    pattern: /\b(gospel|good news|salvation|saved|save me|cross|resurrection|atonement|forgiven|forgiveness|grace through faith)\b/
   },
   {
-    id: "launch-lament-trust",
-    label: "Because you asked about pain",
-    title: "Lament and honest trust",
-    description: "Scripture gives students language for grief without rushing them into a clean answer.",
-    href: "/student/scripture/resources",
-    topicTags: ["suffering", "grief", "pain", "lament", "trust"],
-    scriptureReferences: ["Psalm 13", "Romans 8:18"],
-    digQuestions: [
-      "Where does the passage make room for honest grief?",
-      "What does it reveal about God's nearness when life hurts?",
-      "What response would be faithful without forcing a quick answer?"
-    ]
+    map: lamentContextMap,
+    pattern: /\b(suffer|suffering|pain|grief|grieving|death|trauma|tragedy|loss|anxiety|depression|lament)\b/
   },
   {
-    id: "launch-doubt-questions",
-    label: "Because you asked honestly",
-    title: "Better questions before quick answers",
-    description: "Move from what is happening, to why it matters, to what it reveals, before deciding how to respond.",
-    href: "/student/scripture/resources",
-    topicTags: ["doubt", "questions", "confused", "deconstruction", "honest"],
-    scriptureReferences: [],
-    digQuestions: [
-      "What is the question underneath the first question?",
-      "What would you need to understand from Scripture before answering?",
-      "Who should help carry this question with wisdom and care?"
-    ]
+    map: doubtContextMap,
+    pattern: /\b(doubt\w*|deconstruct\w*|unbelief|faith crisis|walk away|confus\w*|skeptic\w*)\b/
   },
   {
-    id: "launch-exodus-formation",
-    label: "Next for your group",
-    title: "Rescue that forms a people",
-    description: "Exodus connects deliverance, worship, covenant, and community identity instead of treating rescue as an isolated moment.",
-    href: "/student/scripture/plans",
-    topicTags: ["exodus", "deliverance", "wilderness", "formation", "worship"],
-    scriptureReferences: ["Exodus 1", "Exodus 12", "Exodus 20"],
-    digQuestions: [
-      "What does God rescue his people from?",
-      "What does God rescue his people for?",
-      "How does worship shape the community after deliverance?"
-    ]
+    map: identityContextMap,
+    pattern: /\b(identity|belong|worth|image of god|comparison|performance)\b/
   },
   {
-    id: "launch-identity-belonging",
-    label: "Because you asked about identity",
-    title: "Belonging before performance",
-    description: "Read identity questions through what God says is true before reducing them to achievement, reputation, or comparison.",
-    href: "/student/scripture/resources",
-    topicTags: ["identity", "belonging", "worth", "purpose", "image"],
-    scriptureReferences: ["Genesis 1:26-28", "Ephesians 1"],
-    digQuestions: [
-      "What does this passage say is given before anything is achieved?",
-      "What false measure of worth is being challenged?",
-      "How could the group practice belonging instead of comparison?"
-    ]
+    map: sexualityGenderContextMap,
+    pattern: /\b(sexuality|gender|lgbt|gay|lesbian|trans|same-sex|same sex|body|porn|purity)\b/
+  },
+  {
+    map: hellJudgmentContextMap,
+    pattern: /\b(hell|judg(e)?ment|wrath|condemn|damnation|punish|punishment)\b/
+  },
+  {
+    map: scriptureViolenceContextMap,
+    pattern: /\b(violence|genocide|slavery|conquest|canaan|canaanite|war|kill|killing|old testament violence)\b/
+  },
+  {
+    map: prayerContextMap,
+    pattern: /\b(pray|prayer|praying|silence|unanswered|ask god|talk to god)\b/
+  },
+  {
+    map: callingPurposeContextMap,
+    pattern: /\b(calling|purpose|vocation|career|future|gifts|what should i do with my life)\b/
   }
+];
+
+const launchKnowledgePack: StudentKnowledgeMatch[] = [
+  gospelContextMap,
+  lamentContextMap,
+  doubtContextMap,
+  identityContextMap,
+  sexualityGenderContextMap,
+  hellJudgmentContextMap,
+  scriptureViolenceContextMap,
+  prayerContextMap,
+  callingPurposeContextMap,
+  gardenContextMap,
+  exodusContextMap
 ];
 
 export async function getStudentKnowledgeMatches(session: AuthSession, input: KnowledgeSearchInput): Promise<StudentKnowledgeMatch[]> {
   const liveMatches = await getLiveKnowledgeMatches(session, input);
-  if (liveMatches.length > 0) return liveMatches;
-  return rankKnowledgeMatches(launchKnowledgePack, input).slice(0, MAX_MATCHES);
+  return applyContextMaps(input, liveMatches.length > 0 ? liveMatches : rankKnowledgeMatches(launchKnowledgePack, input));
 }
 
 export async function getStudentKnowledgeMatchesBatch(
@@ -157,9 +327,7 @@ export async function getStudentKnowledgeMatchesBatch(
   const livePack = await getLiveKnowledgePack(session);
   return inputs.map((input) => {
     const liveMatches = rankKnowledgeMatches(livePack, input).slice(0, MAX_MATCHES);
-    return liveMatches.length > 0
-      ? liveMatches
-      : rankKnowledgeMatches(launchKnowledgePack, input).slice(0, MAX_MATCHES);
+    return applyContextMaps(input, liveMatches.length > 0 ? liveMatches : rankKnowledgeMatches(launchKnowledgePack, input));
   });
 }
 
@@ -431,6 +599,34 @@ function rankKnowledgeMatches(matches: StudentKnowledgeMatch[], input: Knowledge
     .map((item) => item.match);
 }
 
+function applyContextMaps(input: KnowledgeSearchInput, matches: StudentKnowledgeMatch[]) {
+  const contextMaps = contextMapsForInput(input);
+  return uniqueKnowledgeMatches([...contextMaps, ...matches]).slice(0, MAX_MATCHES);
+}
+
+function contextMapsForInput(input: KnowledgeSearchInput) {
+  const text = searchText(input);
+  return contextMapRoutes.filter((route) => route.pattern.test(text)).map((route) => route.map);
+}
+
+function isGospelContextQuestion(input: KnowledgeSearchInput) {
+  return contextMapRoutes[0]?.pattern.test(searchText(input)) ?? false;
+}
+
+function searchText(input: KnowledgeSearchInput) {
+  return `${input.question} ${input.scriptureReference ?? ""} ${(input.topicTags ?? []).join(" ")}`.toLowerCase();
+}
+
+function uniqueKnowledgeMatches(matches: StudentKnowledgeMatch[]) {
+  const seen = new Set<string>();
+  return matches.filter((match) => {
+    const key = match.sourceChunkId ? `chunk:${match.sourceChunkId}` : `id:${match.id}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function scoreMatch(match: StudentKnowledgeMatch, queryTokens: Set<string>, queryText: string, index: number) {
   const matchText = `${match.title} ${match.description} ${match.topicTags.join(" ")} ${match.scriptureReferences.join(" ")}`.toLowerCase();
   const matchTokens = tokenize(matchText);
@@ -455,16 +651,24 @@ function scoreMatch(match: StudentKnowledgeMatch, queryTokens: Set<string>, quer
 function questionsFromChunk(row: KnowledgeChunkRow) {
   const body = row.body.toLowerCase();
 
+  if (isGospelContextQuestion({
+    question: body,
+    scriptureReference: row.scripture_references?.join(" "),
+    topicTags: row.topic_tags ?? []
+  })) {
+    return gospelContextMap.digQuestions;
+  }
+
   if (/\b(garden|eden|tree|creation)\b/.test(body)) {
-    return launchKnowledgePack[0].digQuestions;
+    return gardenContextMap.digQuestions;
   }
 
   if (/\b(lament|grief|suffering|pain)\b/.test(body)) {
-    return launchKnowledgePack[1].digQuestions;
+    return lamentContextMap.digQuestions;
   }
 
   if (/\b(exodus|deliverance|wilderness)\b/.test(body)) {
-    return launchKnowledgePack[3].digQuestions;
+    return exodusContextMap.digQuestions;
   }
 
   return [

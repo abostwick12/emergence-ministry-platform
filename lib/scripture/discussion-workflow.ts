@@ -53,6 +53,7 @@ export type DecideStudentDiscussionInput = {
     | "post"
     | "regenerate"
     | "use_local_draft"
+    | "promote_canonical"
     | "mark_discussed"
     | "flag_follow_up";
   leaderNotes?: string;
@@ -127,6 +128,14 @@ type StudentReflectionSummary = {
   leaderFollowUpFlagCount?: number;
 };
 
+type PromotedKnowledgeSourceRow = {
+  id: string;
+};
+
+type PromotedKnowledgeChunkRow = {
+  id: string;
+};
+
 const MAX_QUESTION_LENGTH = 1200;
 const MAX_NOTES_LENGTH = 1200;
 const MAX_DISCUSSION_PROMPT_LENGTH = 1800;
@@ -162,14 +171,14 @@ export function getStudentDiscussionReadiness(session: AuthSession): DiscussionR
   return {
     liveStorage: true,
     localStorage: false,
-    canSubmit: ai.configured,
+    canSubmit: true,
     gloo: ai.gloo,
     slack,
     message: ai.gloo
       ? "Live storage is ready. Gloo is primary for Meridian student-question drafts, with configured fallback providers available if needed."
       : ai.configured
         ? "Live storage is ready. Gloo is not configured, so Meridian is using the configured Gemini/OpenAI fallback until Gloo is online."
-        : "Live storage is ready, but Meridian AI is not configured. Student question intake is paused until Gloo, Gemini, or OpenAI drafting is online."
+        : "Live storage is ready. Meridian AI drafting is offline, so student questions will use knowledge-guided fallback drafts for leader review."
   };
 }
 
@@ -357,18 +366,28 @@ export async function createStudentDiscussionPrompt(session: AuthSession, input:
     question,
     scriptureReference: scripture.reference
   });
-  const groundingContext = await getInternalGroundingContext(session, {
-    question,
-    scriptureReference: scripture.reference
-  });
+  const ai = getMeridianAiReadiness();
+  const groundingContext = ai.configured
+    ? await getInternalGroundingContext(session, {
+        question,
+        scriptureReference: scripture.reference
+      }).catch(() => "")
+    : "";
   const retrievedContext = formatStudentKnowledgeContextForGloo(knowledgeContext);
-  const draft = await generateMeridianDiscussionDraft({
-    question,
-    scriptureReference: scripture.reference,
-    metanarrativeMovement,
-    retrievedContext,
-    internalGroundingContext: groundingContext
-  });
+  const draft = ai.configured
+    ? await generateMeridianDiscussionDraft({
+        question,
+        scriptureReference: scripture.reference,
+        metanarrativeMovement,
+        retrievedContext,
+        internalGroundingContext: groundingContext
+      })
+    : {
+        ok: false as const,
+        code: "not_configured" as const,
+        message: "Meridian AI drafting is offline. Knowledge-guided fallback remains available for leader review.",
+        attemptedProviders: []
+      };
   const localDraft = buildLocalDiscussionDraft({
     question,
     scriptureReference: scripture.reference,
@@ -419,9 +438,17 @@ export async function decideStudentDiscussionPrompt(session: AuthSession, id: st
   assertLeader(session);
   const readiness = getStudentDiscussionReadiness(session);
   if (!readiness.liveStorage) {
+    const localAction = input.action;
+    if (localAction === "promote_canonical") {
+      throw new DiscussionWorkflowError("Canonical promotion requires live Meridian storage.", 503, "live_storage_not_configured");
+    }
     if (readiness.localStorage) {
       try {
-        return decideLocalStudentDiscussionPrompt(session, id, input);
+        return decideLocalStudentDiscussionPrompt(session, id, {
+          action: localAction,
+          leaderNotes: input.leaderNotes,
+          discussionPrompt: input.discussionPrompt
+        });
       } catch (error) {
         const message = error instanceof Error ? error.message : "Local student discussion workflow is unavailable.";
         throw new DiscussionWorkflowError(message, message.includes("not found") ? 404 : 409, "local_decision_error");
@@ -441,6 +468,10 @@ export async function decideStudentDiscussionPrompt(session: AuthSession, id: st
 
   if (input.action === "post") {
     return postApprovedPrompt(session, prompt);
+  }
+
+  if (input.action === "promote_canonical") {
+    return promotePromptToCanonicalResource(session, prompt);
   }
 
   if (input.action === "mark_discussed" || input.action === "flag_follow_up") {
@@ -610,6 +641,89 @@ async function postApprovedPrompt(session: AuthSession, prompt: StudentDiscussio
   }
 
   return toPrompt(result.data);
+}
+
+async function promotePromptToCanonicalResource(session: AuthSession, prompt: StudentDiscussionPrompt) {
+  if (prompt.status !== "approved" && prompt.status !== "posted") {
+    throw new DiscussionWorkflowError("Approve the prompt before promoting it into Meridian knowledge.", 409, "prompt_not_approved");
+  }
+
+  const approvedPrompt = normalizeOptionalText(prompt.discussionPrompt, MAX_DISCUSSION_PROMPT_LENGTH);
+  if (!approvedPrompt) {
+    throw new DiscussionWorkflowError("Write a leader-approved prompt before promoting this question.", 409, "missing_discussion_prompt");
+  }
+
+  const ministryId = await resolveMinistryScope(session);
+  if (!ministryId) {
+    throw new DiscussionWorkflowError("A ministry scope is required before promoting this question into Meridian knowledge.", 409, "missing_ministry_scope");
+  }
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const sourceUri = `student-discussion:${prompt.id}`;
+  const existing = await supabase
+    .from("knowledge_sources")
+    .select("id")
+    .eq("ministry_id", ministryId)
+    .eq("source_uri", sourceUri)
+    .limit(1)
+    .maybeSingle<PromotedKnowledgeSourceRow>();
+  throwIfSupabaseError(existing.error);
+
+  if (existing.data?.id) {
+    await logPromptEvent(session, prompt.id, "canonical_resource_promoted", {
+      sourceId: existing.data.id,
+      existing: true
+    });
+    return withKnowledgeContext(session, prompt);
+  }
+
+  const topicTags = normalizeCanonicalTags([...prompt.topicTags, "student_question", "leader_approved"]);
+  const title = truncateCanonicalText(`Student Question: ${prompt.question}`, 180);
+  const sourceResult = await supabase
+    .from("knowledge_sources")
+    .insert({
+      ...ministryScopeColumns(ministryId),
+      title,
+      source_kind: "curated_note",
+      hemisphere: "own_voice",
+      visibility: "student_visible",
+      source_uri: sourceUri,
+      citation: `Leader-approved student question ${prompt.id}`,
+      summary: truncateCanonicalText(approvedPrompt, 700),
+      tags: topicTags,
+      created_by_user_id: session.user.id
+    })
+    .select("id")
+    .single<PromotedKnowledgeSourceRow>();
+  throwIfSupabaseError(sourceResult.error);
+  if (!sourceResult.data) throw new DiscussionWorkflowError("The canonical knowledge source was not created.", 500, "missing_promoted_source");
+
+  const chunkResult = await supabase
+    .from("knowledge_chunks")
+    .insert({
+      ...ministryScopeColumns(ministryId),
+      source_id: sourceResult.data.id,
+      chunk_index: 0,
+      title,
+      body: canonicalKnowledgeBody(prompt, approvedPrompt),
+      student_summary: truncateCanonicalText(approvedPrompt, 780),
+      topic_tags: topicTags,
+      concepts: topicTags,
+      scripture_references: prompt.scriptureReference ? [prompt.scriptureReference] : [],
+      visibility: "student_visible"
+    })
+    .select("id")
+    .single<PromotedKnowledgeChunkRow>();
+  throwIfSupabaseError(chunkResult.error);
+  if (!chunkResult.data) throw new DiscussionWorkflowError("The canonical knowledge chunk was not created.", 500, "missing_promoted_chunk");
+
+  await logPromptEvent(session, prompt.id, "canonical_resource_promoted", {
+    sourceId: sourceResult.data.id,
+    chunkId: chunkResult.data.id,
+    topicTags
+  });
+
+  return withKnowledgeContext(session, prompt);
 }
 
 async function getPromptById(session: AuthSession, id: string) {
@@ -845,7 +959,10 @@ function assertLeader(session: AuthSession) {
 }
 
 function toStatusForAction(
-  action: Exclude<DecideStudentDiscussionInput["action"], "post" | "regenerate" | "use_local_draft" | "mark_discussed" | "flag_follow_up">
+  action: Exclude<
+    DecideStudentDiscussionInput["action"],
+    "post" | "regenerate" | "use_local_draft" | "promote_canonical" | "mark_discussed" | "flag_follow_up"
+  >
 ): StudentDiscussionStatus {
   switch (action) {
     case "approve":
@@ -867,6 +984,32 @@ function providerForDraft(draft: MeridianDiscussionDraftResult, fallback: Studen
 
 function ministryScopeColumns(ministryId: string | undefined): { ministry_id?: string } {
   return ministryId ? { ministry_id: ministryId } : {};
+}
+
+function normalizeCanonicalTags(tags: string[]) {
+  return Array.from(new Set(tags.map((tag) => tag.trim().toLowerCase().replace(/\s+/g, "_")).filter(Boolean))).slice(0, 10);
+}
+
+function canonicalKnowledgeBody(prompt: StudentDiscussionPrompt, approvedPrompt: string) {
+  return truncateCanonicalText(
+    [
+      `Original student question: ${prompt.question}`,
+      prompt.scriptureReference ? `Scripture reference: ${prompt.scriptureReference}` : "",
+      prompt.metanarrativeMovement ? `Story lens: ${prompt.metanarrativeMovement}` : "",
+      `Leader-approved framing: ${approvedPrompt}`,
+      prompt.safetyNotes ? `Leader care note: ${prompt.safetyNotes}` : "",
+      prompt.topicTags.length ? `Topic tags: ${prompt.topicTags.join(", ")}` : ""
+    ]
+      .filter(Boolean)
+      .join("\n\n"),
+    3900
+  );
+}
+
+function truncateCanonicalText(value: string, maxLength: number) {
+  const normalized = value.normalize("NFKC").replace(/\s+/g, " ").trim();
+  if (normalized.length <= maxLength) return normalized;
+  return `${normalized.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
 }
 
 async function requireStudentMinistryScope(session: AuthSession) {
