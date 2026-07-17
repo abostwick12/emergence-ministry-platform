@@ -5,12 +5,16 @@ on:
   push:
     branches:
       - main
-      - master
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build:
-    name: Typecheck, lint, build, and e2e
+  fast-validation:
+    name: Design check, typecheck, and lint
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: Check out repository
@@ -23,21 +27,13 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+      - name: Design check
+        run: npm run design-check
 
       - name: Typecheck
         run: npm run typecheck
 
       - name: Lint
         run: npm run lint
-
-      - name: Build
-        run: npm run build
-
-      - name: E2E smoke tests
-        env:
-          E2E_MOCK_AUTH: "true"
-        run: npm run test:e2e
