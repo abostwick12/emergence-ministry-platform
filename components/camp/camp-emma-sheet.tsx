@@ -18,6 +18,15 @@ type CampEmmaResponse = {
   mode?: CampEmmaMode;
   access?: string;
   answer?: CampEmmaAnswer;
+  providerDiagnostic?: {
+    providerSelected: "azure" | "openai" | "none";
+    providerFailureReason?: string;
+    providerErrorStatus?: number;
+    providerErrorCode?: string;
+    azureEndpointPresent: boolean;
+    azureDeploymentPresent: boolean;
+    azureApiVersionPresent: boolean;
+  };
   error?: string;
 };
 
@@ -129,6 +138,8 @@ export function CampEmmaSheet({ open, onClose }: CampEmmaSheetProps) {
         return;
       }
       appendMessage({ role: "emma", answer: payload.answer });
+      const providerNote = providerDiagnosticMessage(payload.providerDiagnostic);
+      if (providerNote) appendMessage({ role: "emma", tone: "muted", text: providerNote });
     } catch {
       appendMessage({
         role: "emma",
@@ -443,6 +454,19 @@ function userFacingActionMessage(result: CampEmmaActionResponse): string {
     return "I can still help with Camp search questions, but EMMA actions are not ready because the action audit tables could not be verified.";
   }
   return "message" in result ? result.message : "I couldn't process that safely. Please try again or use the roster directly.";
+}
+
+function providerDiagnosticMessage(diagnostic: CampEmmaResponse["providerDiagnostic"]): string {
+  if (!diagnostic) return "";
+  if (!diagnostic.providerFailureReason && diagnostic.providerSelected !== "none") {
+    return `Live EMMA model response used: ${diagnostic.providerSelected}.`;
+  }
+  if (diagnostic.providerSelected === "none") {
+    return "Live EMMA model is not configured in this environment; deterministic Camp fallback answered instead.";
+  }
+  const status = diagnostic.providerErrorStatus ? ` HTTP ${diagnostic.providerErrorStatus}` : "";
+  const code = diagnostic.providerErrorCode ? ` (${diagnostic.providerErrorCode})` : "";
+  return `Live EMMA model did not return a usable answer${status}${code}; deterministic Camp fallback answered instead.`;
 }
 
 function nextMessageId(): string {

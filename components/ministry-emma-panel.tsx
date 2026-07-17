@@ -68,12 +68,12 @@ export function MinistryEmmaPanel({
     fetch("/api/ai/emma", { cache: "no-store" })
       .then(async (response) => {
         const payload = (await response.json().catch(() => ({}))) as {
-          readiness?: { liveProviderConfigured?: boolean; model?: string };
+          readiness?: { liveProviderConfigured?: boolean; provider?: string; model?: string };
         };
         if (!active) return;
         setProviderStatus(
           response.ok && payload.readiness?.liveProviderConfigured
-            ? `${payload.readiness.model ?? "Gemini"} live`
+            ? `${payload.readiness.provider ?? "provider"} live`
             : "Safe fallback"
         );
       })
@@ -138,7 +138,7 @@ export function MinistryEmmaPanel({
           ...current,
           toEmmaMessage(
             fallback,
-            "EMMA server chat failed safely. Local fallback was shown and no action was executed."
+            "EMMA server chat failed safely. A guided fallback was shown and no action was executed."
           )
         ]);
         return;
@@ -157,7 +157,7 @@ export function MinistryEmmaPanel({
         ...current,
         toEmmaMessage(
           fallback,
-          "EMMA server chat was unreachable. Local fallback was shown and no action was executed."
+          "EMMA server chat was unreachable. A guided fallback was shown and no action was executed."
         )
       ]);
     }

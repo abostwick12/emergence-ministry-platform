@@ -2,12 +2,29 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AuthSession } from "@/lib/auth/server";
 
-const { getStudentKnowledgeMatchesMock } = vi.hoisted(() => ({
-  getStudentKnowledgeMatchesMock: vi.fn()
+const {
+  formatStudentKnowledgeContextForGlooMock,
+  generateGlooDiscussionDraftMock,
+  getInternalGroundingContextMock,
+  getStudentKnowledgeMatchesMock,
+  isGlooConfiguredMock
+} = vi.hoisted(() => ({
+  formatStudentKnowledgeContextForGlooMock: vi.fn(),
+  generateGlooDiscussionDraftMock: vi.fn(),
+  getInternalGroundingContextMock: vi.fn(),
+  getStudentKnowledgeMatchesMock: vi.fn(),
+  isGlooConfiguredMock: vi.fn()
 }));
 
 vi.mock("@/lib/scripture/knowledge", () => ({
+  formatStudentKnowledgeContextForGloo: formatStudentKnowledgeContextForGlooMock,
+  getInternalGroundingContext: getInternalGroundingContextMock,
   getStudentKnowledgeMatches: getStudentKnowledgeMatchesMock
+}));
+
+vi.mock("@/lib/scripture/gloo", () => ({
+  generateGlooDiscussionDraft: generateGlooDiscussionDraftMock,
+  isGlooConfigured: isGlooConfiguredMock
 }));
 
 import { KnowledgeTestBenchError, runKnowledgeTestBench } from "@/lib/scripture/knowledge-test-bench";
@@ -15,6 +32,22 @@ import { KnowledgeTestBenchError, runKnowledgeTestBench } from "@/lib/scripture/
 describe("Meridian test bench", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    isGlooConfiguredMock.mockReturnValue(false);
+    formatStudentKnowledgeContextForGlooMock.mockReturnValue("Source 1: Romans 8 and patient hope");
+    getInternalGroundingContextMock.mockResolvedValue("Internal posture only.");
+    generateGlooDiscussionDraftMock.mockResolvedValue({
+      ok: true,
+      provider: "gloo",
+      model: "GPT-5 Nano",
+      modelTier: "default",
+      modelReason: "Default",
+      escalationReason: "",
+      topicTags: ["hope"],
+      confidence: 0.88,
+      discussionPrompt: "Where does Romans 8 make room for honest pain and hope?",
+      safetyLabel: "safe",
+      safetyNotes: "Leader can review before use."
+    });
     getStudentKnowledgeMatchesMock.mockResolvedValue([
       {
         id: "chunk-romans-hope",
@@ -50,7 +83,42 @@ describe("Meridian test bench", () => {
     );
     expect(result.matches[0].title).toBe("Romans 8 and patient hope");
     expect(result.nextStep.readingPlan.title).toBe("Romans 8 and patient hope");
+    expect(result.aiDraft).toMatchObject({
+      ok: false,
+      configured: false,
+      code: "not_configured"
+    });
     expect(result.visibilityNote).toContain("Nothing is saved");
+  });
+
+  it("previews a Gloo draft when the provider is configured without saving a question", async () => {
+    isGlooConfiguredMock.mockReturnValue(true);
+
+    const result = await runKnowledgeTestBench(session("leader"), {
+      question: "How do I trust God when suffering feels pointless?",
+      scriptureReference: "Romans 8:18"
+    });
+
+    expect(formatStudentKnowledgeContextForGlooMock).toHaveBeenCalledWith(result.matches);
+    expect(getInternalGroundingContextMock).toHaveBeenCalledWith(
+      expect.objectContaining({ user: expect.objectContaining({ role: "leader" }) }),
+      {
+        question: "How do I trust God when suffering feels pointless?",
+        scriptureReference: "Romans 8:18"
+      }
+    );
+    expect(generateGlooDiscussionDraftMock).toHaveBeenCalledWith({
+      question: "How do I trust God when suffering feels pointless?",
+      scriptureReference: "Romans 8:18",
+      retrievedContext: "Source 1: Romans 8 and patient hope",
+      internalGroundingContext: "Internal posture only."
+    });
+    expect(result.aiDraft).toMatchObject({
+      ok: true,
+      provider: "gloo",
+      model: "GPT-5 Nano",
+      discussionPrompt: "Where does Romans 8 make room for honest pain and hope?"
+    });
   });
 
   it("blocks student accounts from the leader preview", async () => {

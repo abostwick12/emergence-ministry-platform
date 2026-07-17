@@ -66,6 +66,7 @@ export async function POST(request: Request) {
   }
 
   const conversationalAllowed = isCampEmmaConversationalAccess(access);
+  const conversationalAttempted = !medicalCommandActive && Boolean(query.trim()) && conversationalAllowed && !isRestrictedTopicQuestion(query);
   let conversationDiagnostic = {
     providerSelected: "none" as "azure" | "openai" | "none",
     azureEndpointPresent: Boolean(process.env.AZURE_OPENAI_ENDPOINT?.trim()),
@@ -88,7 +89,7 @@ export async function POST(request: Request) {
   // operational overview for free-form questions, falling back to the
   // deterministic answer above if the provider is unavailable. Medical command
   // queries stay on the deterministic medical path and never reach the model.
-  if (!medicalCommandActive && query.trim() && conversationalAllowed && !isRestrictedTopicQuestion(query)) {
+  if (conversationalAttempted) {
     const conversational = await answerCampEmmaConversation({
       question: query,
       overview,
@@ -124,7 +125,18 @@ export async function POST(request: Request) {
     ok: true,
     mode,
     access,
-    answer
+    answer,
+    providerDiagnostic: conversationalAttempted
+      ? {
+          providerSelected: conversationDiagnostic.providerSelected,
+          providerFailureReason: conversationDiagnostic.providerFailureReason,
+          providerErrorStatus: conversationDiagnostic.providerErrorStatus,
+          providerErrorCode: conversationDiagnostic.providerErrorCode,
+          azureEndpointPresent: conversationDiagnostic.azureEndpointPresent,
+          azureDeploymentPresent: conversationDiagnostic.azureDeploymentPresent,
+          azureApiVersionPresent: conversationDiagnostic.azureApiVersionPresent
+        }
+      : undefined
   });
 }
 

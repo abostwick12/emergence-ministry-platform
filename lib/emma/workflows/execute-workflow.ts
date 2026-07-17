@@ -60,7 +60,7 @@ const executeWorkflowInputSchema = z
       })
       .passthrough()
       .optional(),
-    provider: z.enum(["mock", "gemini"]).optional(),
+    provider: z.enum(["mock", "gemini", "openai"]).optional(),
     model: z.string().min(1).optional(),
     timeoutMs: z.number().int().positive().optional(),
     temperature: z.number().min(0).max(2).optional(),

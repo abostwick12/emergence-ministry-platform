@@ -57,7 +57,7 @@ function topicLines(items: ScriptureTrialInsightTopic[], emptyText: string) {
 function readinessLines(insights: ScriptureTrialInsights) {
   const lines = [
     `- Live storage: ${insights.readiness.liveStorage ? "ready for real submissions" : "setup needed before launch"}`,
-    `- AI draft connection: ${insights.readiness.gloo ? "connected" : "leader local drafts remain available"}`,
+    `- AI draft connection: ${insights.readiness.gloo ? "Gloo connected" : "Gloo setup needed; configured fallback providers can keep Meridian drafting online"}`,
     `- Slack delivery: ${insights.readiness.slack ? "connected for leader-approved posting" : "offline; leader approval still controls sharing"}`,
     `- Leader review backlog: ${insights.pendingReview} question${insights.pendingReview === 1 ? "" : "s"} waiting`,
     `- Student next-step coverage: ${insights.withSavedNextSteps} of ${insights.totalQuestions} question${insights.totalQuestions === 1 ? "" : "s"}`,

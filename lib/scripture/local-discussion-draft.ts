@@ -82,7 +82,7 @@ function safetyNotesForFlags(flags: string[], contextDescription: string | undef
     return "Use this as a leader-shaped discussion starter. Move slowly, avoid quick answers, and invite direct leader follow-up if the student needs care.";
   }
 
-  return contextDescription || "Knowledge-guided local draft prepared for leader review when the AI provider is unavailable.";
+  return contextDescription || "Knowledge-guided fallback draft prepared for leader review when the AI provider is unavailable.";
 }
 
 function safetyLabelForFlags(flags: string[]): LocalDiscussionDraft["safetyLabel"] {

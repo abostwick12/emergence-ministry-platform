@@ -31,7 +31,7 @@ export function StudentQuestionComposer({ readiness, onCreated }: StudentQuestio
   async function submitQuestion(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSubmitting(true);
-    setStatus("Saving your question and shaping next steps...");
+    setStatus("Saving your question and asking Meridian to shape leader-review next steps...");
 
     try {
       const response = await fetch("/api/student/scripture/discussion", {
@@ -48,7 +48,11 @@ export function StudentQuestionComposer({ readiness, onCreated }: StudentQuestio
       onCreated?.(payload.prompt, payload.nextStep);
       setQuestion("");
       setScriptureReference("");
-      setStatus("Saved. Use the rhythm below while your leader shapes it for group discussion.");
+      setStatus(
+        payload.prompt.aiStatus === "generated"
+          ? "Saved. Meridian drafted a leader-review conversation while you keep wrestling below."
+          : "Saved. Meridian prepared knowledge-guided next steps while your leader shapes it for group discussion."
+      );
     } catch {
       setStatus("Your question could not be saved.");
     } finally {

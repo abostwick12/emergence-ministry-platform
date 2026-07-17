@@ -3,27 +3,27 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthSession } from "@/lib/auth/server";
 
 const {
-  generateGlooDiscussionDraftMock,
+  generateMeridianDiscussionDraftMock,
+  getMeridianAiReadinessMock,
   getSupabaseAdminClientMock,
   getSupabaseAuthClientMock,
   getPrimaryStudentGroupIdMock,
   getInternalGroundingContextMock,
   getStudentKnowledgeMatchesMock,
   getStudentKnowledgeMatchesBatchMock,
-  isGlooConfiguredMock,
   isSupabaseAdminConfiguredMock,
   isSupabaseConfiguredMock,
   formatStudentKnowledgeContextForGlooMock,
   resolveMinistryScopeMock
 } = vi.hoisted(() => ({
-  generateGlooDiscussionDraftMock: vi.fn(),
+  generateMeridianDiscussionDraftMock: vi.fn(),
+  getMeridianAiReadinessMock: vi.fn(),
   getSupabaseAdminClientMock: vi.fn(),
   getSupabaseAuthClientMock: vi.fn(),
   getPrimaryStudentGroupIdMock: vi.fn(),
   getInternalGroundingContextMock: vi.fn(),
   getStudentKnowledgeMatchesMock: vi.fn(),
   getStudentKnowledgeMatchesBatchMock: vi.fn(),
-  isGlooConfiguredMock: vi.fn(),
   isSupabaseAdminConfiguredMock: vi.fn(),
   isSupabaseConfiguredMock: vi.fn(),
   formatStudentKnowledgeContextForGlooMock: vi.fn(),
@@ -44,9 +44,9 @@ vi.mock("@/lib/ministry/scope", () => ({
   resolveMinistryScope: resolveMinistryScopeMock
 }));
 
-vi.mock("@/lib/scripture/gloo", () => ({
-  generateGlooDiscussionDraft: generateGlooDiscussionDraftMock,
-  isGlooConfigured: isGlooConfiguredMock
+vi.mock("@/lib/scripture/meridian-ai", () => ({
+  generateMeridianDiscussionDraft: generateMeridianDiscussionDraftMock,
+  getMeridianAiReadiness: getMeridianAiReadinessMock
 }));
 
 vi.mock("@/lib/scripture/knowledge", () => ({
@@ -74,6 +74,7 @@ describe("approved student discussion feed", () => {
     vi.clearAllMocks();
     isSupabaseConfiguredMock.mockReturnValue(true);
     isSupabaseAdminConfiguredMock.mockReturnValue(true);
+    getMeridianAiReadinessMock.mockReturnValue(aiReadiness({ gloo: true }));
     getStudentKnowledgeMatchesMock.mockResolvedValue([]);
     getInternalGroundingContextMock.mockResolvedValue("");
     formatStudentKnowledgeContextForGlooMock.mockReturnValue("");
@@ -145,7 +146,7 @@ describe("student discussion workflow state", () => {
     vi.clearAllMocks();
     isSupabaseConfiguredMock.mockReturnValue(true);
     isSupabaseAdminConfiguredMock.mockReturnValue(true);
-    isGlooConfiguredMock.mockReturnValue(false);
+    getMeridianAiReadinessMock.mockReturnValue(aiReadiness({ gloo: true }));
     getStudentKnowledgeMatchesMock.mockResolvedValue([
       {
         id: "knowledge-romans-hope",
@@ -225,7 +226,7 @@ describe("student discussion live submission", () => {
     vi.clearAllMocks();
     isSupabaseConfiguredMock.mockReturnValue(true);
     isSupabaseAdminConfiguredMock.mockReturnValue(true);
-    isGlooConfiguredMock.mockReturnValue(false);
+    getMeridianAiReadinessMock.mockReturnValue(aiReadiness({ gloo: true }));
     getStudentKnowledgeMatchesMock.mockResolvedValue([]);
     getInternalGroundingContextMock.mockResolvedValue("");
     formatStudentKnowledgeContextForGlooMock.mockReturnValue("");
@@ -249,7 +250,7 @@ describe("local student discussion workflow", () => {
     resetLocalStudentStateForTests();
     isSupabaseConfiguredMock.mockReturnValue(false);
     isSupabaseAdminConfiguredMock.mockReturnValue(false);
-    isGlooConfiguredMock.mockReturnValue(false);
+    getMeridianAiReadinessMock.mockReturnValue(aiReadiness());
     getStudentKnowledgeMatchesMock.mockResolvedValue([]);
     getInternalGroundingContextMock.mockResolvedValue("");
     formatStudentKnowledgeContextForGlooMock.mockReturnValue("");
@@ -283,6 +284,58 @@ describe("local student discussion workflow", () => {
     expect(getSupabaseAuthClientMock).not.toHaveBeenCalled();
     expect(getSupabaseAdminClientMock).not.toHaveBeenCalled();
   });
+
+  it("uses Gloo for local/dev Meridian submissions when configured", async () => {
+    getMeridianAiReadinessMock.mockReturnValue(aiReadiness({ gloo: true }));
+    getStudentKnowledgeMatchesMock.mockResolvedValue([
+      {
+        id: "knowledge-garden",
+        sourceChunkId: "chunk_garden",
+        label: "Because you asked about the garden",
+        title: "Garden trust",
+        description: "Read Genesis 2-3 with gifts before failure.",
+        href: "/student/scripture/resources",
+        digQuestions: ["What gifts come before the warning?"],
+        topicTags: ["creation", "trust"],
+        scriptureReferences: ["Genesis 3"]
+      }
+    ]);
+    formatStudentKnowledgeContextForGlooMock.mockReturnValue("Source 1: Garden trust");
+    getInternalGroundingContextMock.mockResolvedValue("Internal posture only.");
+    generateMeridianDiscussionDraftMock.mockResolvedValue({
+      ok: true,
+      provider: "gloo",
+      model: "GPT-5 Nano",
+      modelTier: "default",
+      modelReason: "Default first-pass model for student question classification and draft generation.",
+      escalationReason: "",
+      topicTags: ["creation", "trust"],
+      confidence: 0.9,
+      discussionPrompt: "Where does Genesis 3 invite us to notice trust before failure?",
+      safetyLabel: "safe",
+      safetyNotes: "Leader can review before use."
+    });
+
+    const prompt = await createStudentDiscussionPrompt(session(), {
+      question: "Why did God put the tree in the garden?",
+      scriptureReference: "Genesis 3"
+    });
+
+    expect(prompt).toMatchObject({
+      aiStatus: "generated",
+      aiModel: "GPT-5 Nano",
+      discussionPrompt: "Where does Genesis 3 invite us to notice trust before failure?",
+      safetyLabel: "safe"
+    });
+    expect(generateMeridianDiscussionDraftMock).toHaveBeenCalledWith({
+      question: "Why did God put the tree in the garden?",
+      scriptureReference: "Genesis 3",
+      metanarrativeMovement: "Creation",
+      retrievedContext: "Source 1: Garden trust",
+      internalGroundingContext: "Internal posture only."
+    });
+    expect(getSupabaseAuthClientMock).not.toHaveBeenCalled();
+  });
 });
 
 describe("leader discussion draft regeneration", () => {
@@ -290,7 +343,7 @@ describe("leader discussion draft regeneration", () => {
     vi.clearAllMocks();
     isSupabaseConfiguredMock.mockReturnValue(true);
     isSupabaseAdminConfiguredMock.mockReturnValue(true);
-    isGlooConfiguredMock.mockReturnValue(true);
+    getMeridianAiReadinessMock.mockReturnValue(aiReadiness({ gloo: true }));
     getStudentKnowledgeMatchesMock.mockResolvedValue([]);
     getInternalGroundingContextMock.mockResolvedValue("");
     formatStudentKnowledgeContextForGlooMock.mockReturnValue("");
@@ -320,7 +373,7 @@ describe("leader discussion draft regeneration", () => {
       }
     ]);
     formatStudentKnowledgeContextForGlooMock.mockReturnValue("Source 1: Psalm 13 and honest prayer");
-    generateGlooDiscussionDraftMock.mockResolvedValue({
+    generateMeridianDiscussionDraftMock.mockResolvedValue({
       ok: true,
       provider: "gloo",
       model: "GPT-5 Mini",
@@ -344,7 +397,7 @@ describe("leader discussion draft regeneration", () => {
       discussionPrompt: "Where does Psalm 13 help us speak honestly with God when prayer feels quiet?",
       safetyLabel: "needs_leader_care"
     });
-    expect(generateGlooDiscussionDraftMock).toHaveBeenCalledWith({
+    expect(generateMeridianDiscussionDraftMock).toHaveBeenCalledWith({
       question: "How do I trust God when prayer feels quiet?",
       scriptureReference: "Psalm 13",
       metanarrativeMovement: "Jesus / Kingdom Fulfilled",
@@ -363,7 +416,7 @@ describe("leader discussion draft regeneration", () => {
   });
 
   it("saves a local guided draft when regeneration is not configured", async () => {
-    isGlooConfiguredMock.mockReturnValue(false);
+    getMeridianAiReadinessMock.mockReturnValue(aiReadiness());
     const client = regenerationClient(
       discussionRow({
         ai_status: "not_configured",
@@ -383,11 +436,11 @@ describe("leader discussion draft regeneration", () => {
       discussionPrompt: "What does the garden story show us about God's gifts, human trust, and God's pursuit after failure as you read Genesis 3?",
       safetyLabel: "safe"
     });
-    expect(generateGlooDiscussionDraftMock).not.toHaveBeenCalled();
+    expect(generateMeridianDiscussionDraftMock).not.toHaveBeenCalled();
     expect(client.updates[0]).toMatchObject({
       ai_status: "not_configured",
       discussion_prompt: "What does the garden story show us about God's gifts, human trust, and God's pursuit after failure as you read Genesis 3?",
-      ai_model_reason: expect.stringContaining("Knowledge-guided local fallback")
+      ai_model_reason: expect.stringContaining("Knowledge-guided fallback")
     });
     expect(client.events[0]).toMatchObject({
       prompt_id: "prompt_1",
@@ -406,7 +459,7 @@ describe("leader discussion draft regeneration", () => {
       })
     );
     getSupabaseAuthClientMock.mockReturnValue(client.client);
-    generateGlooDiscussionDraftMock.mockResolvedValue({
+    generateMeridianDiscussionDraftMock.mockResolvedValue({
       ok: false,
       code: "provider_error",
       message: "Gloo AI Studio did not return a usable draft."
@@ -418,7 +471,7 @@ describe("leader discussion draft regeneration", () => {
       aiStatus: "failed",
       discussionPrompt: "Where does Scripture give us room for honest pain while still helping us look for God's nearness and hope as you read Romans 8:18?",
       safetyLabel: "needs_leader_care",
-      safetyNotes: "Gloo AI Studio did not return a usable draft. A knowledge-guided local draft is available for leader review."
+      safetyNotes: "Gloo AI Studio did not return a usable draft. A knowledge-guided fallback draft is available for leader review."
     });
     expect(client.events[0]).toMatchObject({
       prompt_id: "prompt_failed_provider",
@@ -653,4 +706,23 @@ function regenerationClient(existingRow: Record<string, unknown>) {
   };
 
   return { client, updates, events };
+}
+
+function aiReadiness(overrides: Partial<ReturnType<typeof baseAiReadiness>> = {}) {
+  return {
+    ...baseAiReadiness(),
+    ...overrides,
+    configured: overrides.configured ?? Boolean(overrides.gloo || overrides.gemini || overrides.openai)
+  };
+}
+
+function baseAiReadiness() {
+  return {
+    configured: false,
+    gloo: false,
+    gemini: false,
+    openai: false,
+    fallbackProviders: [] as Array<"gemini" | "openai">,
+    primaryProvider: "" as "gloo" | "gemini" | "openai" | ""
+  };
 }

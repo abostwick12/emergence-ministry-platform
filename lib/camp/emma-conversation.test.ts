@@ -191,6 +191,25 @@ describe("answerCampEmmaConversation", () => {
     expect(result?.details).toContain("Lead: Gabe Kale");
   });
 
+  it("accepts fenced JSON model responses", async () => {
+    const result = await answerCampEmmaConversation({
+      question: "Who is on Blue Team?",
+      overview: overviewWithMedicalCamper(),
+      access: "jaci",
+      fetchImpl: fakeFetchCapturing(
+        {},
+        "```json\n" +
+          JSON.stringify({ answer: "Blue Team has 1 camper: Aviva Haldeman.", details: ["Lead: Gabe Kale"] }) +
+          "\n```"
+      )
+    });
+
+    expect(result).toMatchObject({
+      answer: "Blue Team has 1 camper: Aviva Haldeman.",
+      details: ["Lead: Gabe Kale"]
+    });
+  });
+
   it("returns null when the model returns unusable output", async () => {
     const capture: { body?: string } = {};
     const result = await answerCampEmmaConversation({

@@ -11,6 +11,7 @@ import {
   getEmmaAuditTrail
 } from "@/lib/emma/repository";
 import { createGeminiProvider } from "./gemini-provider";
+import { createOpenAIEmmaProvider } from "./openai-provider";
 import { createMockEmmaProvider } from "./mock-provider";
 import { internalEventSummarySchema, internalEventSummarySystemPrompt } from "./internal-event-summary";
 import { resolveProviderSelection } from "./registry";
@@ -31,6 +32,8 @@ function clearProviderEnv() {
   delete process.env.EMMA_PROVIDER_MODE;
   delete process.env.EMMA_DEFAULT_PROVIDER;
   delete process.env.EMMA_DEFAULT_MODEL;
+  delete process.env.OPENAI_API_KEY;
+  delete process.env.OPENAI_MODEL;
   delete process.env.VERCEL_ENV;
 }
 
@@ -186,6 +189,83 @@ describe("EMMA Gemini provider", () => {
   });
 });
 
+describe("EMMA OpenAI provider", () => {
+  it("refuses to run without OPENAI_API_KEY", async () => {
+    const provider = createOpenAIEmmaProvider({ apiKey: "" });
+    await expect(provider.generate({ systemPrompt: "system", userPrompt: "user", model: "gpt-4o-mini" })).rejects.toMatchObject({
+      code: "configuration"
+    });
+  });
+
+  it("sends a chat-completions JSON request and parses fenced JSON output", async () => {
+    let requestUrl = "";
+    let requestBody: Record<string, unknown> | null = null;
+    const provider = createOpenAIEmmaProvider({
+      apiKey: "sk-test-key",
+      fetchImpl: async (url, init) => {
+        requestUrl = String(url);
+        requestBody = JSON.parse(String(init?.body));
+        return new Response(
+          JSON.stringify({
+            model: "gpt-4o-mini",
+            choices: [
+              {
+                message: {
+                  content:
+                    "```json\n" +
+                    JSON.stringify({
+                      summary: "OpenAI EMMA response",
+                      points: ["safe point"],
+                      nextActions: ["review next step"],
+                      confidence: 0.91,
+                      warnings: []
+                    }) +
+                    "\n```"
+                }
+              }
+            ],
+            usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 }
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        );
+      }
+    });
+
+    const result = await provider.generate({
+      systemPrompt: "system",
+      userPrompt: "user",
+      model: "gpt-4o-mini",
+      temperature: 0,
+      maxOutputTokens: 400
+    });
+
+    expect(requestUrl).toBe("https://api.openai.com/v1/chat/completions");
+    expect(requestBody).toMatchObject({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: "system" },
+        { role: "user", content: "user" }
+      ],
+      temperature: 0,
+      max_tokens: 400,
+      response_format: { type: "json_object" }
+    });
+    expect(JSON.stringify(requestBody)).not.toContain("sk-test-key");
+    expect(result).toMatchObject({
+      provider: "openai",
+      model: "gpt-4o-mini",
+      output: {
+        summary: "OpenAI EMMA response",
+        points: ["safe point"],
+        nextActions: ["review next step"],
+        confidence: 0.91,
+        warnings: []
+      },
+      usage: { totalTokens: 30 }
+    });
+  });
+});
+
 describe("audited provider execution", () => {
   it("creates request, run, provider attempt, and completed run in mock mode", async () => {
     const admin = session();
@@ -281,6 +361,27 @@ describe("audited provider execution", () => {
       model: "gemini-3.5-flash"
     });
   });
+
+  it("selects OpenAI when OPENAI_API_KEY is configured without Gemini", async () => {
+    process.env.OPENAI_API_KEY = "configured-openai-key";
+
+    await expect(resolveProviderSelection(session())).resolves.toMatchObject({
+      providerId: "openai",
+      model: "gpt-4o-mini"
+    });
+  });
+
+  it("honors explicit OpenAI provider mode and OPENAI_MODEL", async () => {
+    process.env.EMMA_PROVIDER_MODE = "openai";
+    process.env.OPENAI_API_KEY = "configured-openai-key";
+    process.env.OPENAI_MODEL = "gpt-4.1-mini";
+
+    await expect(resolveProviderSelection(session())).resolves.toMatchObject({
+      providerId: "openai",
+      model: "gpt-4.1-mini"
+    });
+  });
+
   it("does not allow launch runtime to select the mock EMMA provider", async () => {
     process.env.VERCEL_ENV = "preview";
 
