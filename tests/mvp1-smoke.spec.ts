@@ -425,7 +425,7 @@ test.describe("MVP event automation navigation smoke tests", () => {
 
     for (const route of [
       ["/communications", "Communication Drafts", "Event Copy Queue"],
-      ["/people", "Ministry Roster", "Team Load"],
+      ["/people", "Ministry Roster", "Service group coverage"],
       ["/budget", "Budget Workspace", "Where the money is going"],
       ["/settings", "Platform Settings", "Connected services"]
     ] as const) {
