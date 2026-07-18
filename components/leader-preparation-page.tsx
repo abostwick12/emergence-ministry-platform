@@ -82,16 +82,12 @@ export function LeaderPreparationPage() {
           </header>
 
           <div className="leader-prep-editor-body">
-            <label className="leader-prep-title-field">
-              <span className="sr-only">Sermon title</span>
-              <textarea rows={2} value={title} onChange={(event) => setTitle(event.target.value)} />
-            </label>
+            <div className="leader-prep-title-field">
+              <textarea aria-label="Sermon title" rows={2} value={title} onChange={(event) => setTitle(event.target.value)} />
+            </div>
 
             <div className="leader-prep-meta-row">
-              <label>
-                <span className="sr-only">Scripture passage</span>
-                <input value={passage} onChange={(event) => setPassage(event.target.value)} />
-              </label>
+              <input aria-label="Scripture passage" value={passage} onChange={(event) => setPassage(event.target.value)} />
               <span>{bigIdea.split(".")[0]}</span>
             </div>
 
@@ -100,10 +96,9 @@ export function LeaderPreparationPage() {
               <textarea value={bigIdea} onChange={(event) => setBigIdea(event.target.value)} rows={2} />
             </label>
 
-            <label className="leader-prep-body-field">
-              <span className="sr-only">Sermon body</span>
-              <textarea value={body} onChange={(event) => setBody(event.target.value)} />
-            </label>
+            <div className="leader-prep-body-field">
+              <textarea aria-label="Sermon body" value={body} onChange={(event) => setBody(event.target.value)} />
+            </div>
           </div>
 
           <footer className="leader-prep-actions">

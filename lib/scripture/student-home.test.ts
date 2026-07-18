@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { buildGroupDiscussionNextStep, buildQuestionNextStep, buildStudentHomeFeed, toGroupDiscussionItems } from "@/lib/scripture/student-home";
+import {
+  buildGroupDiscussionNextStep,
+  buildQuestionNextStep,
+  buildStudentHomeFeed,
+  getJourneyExploreToolPair,
+  getYouVersionPracticeMedia,
+  toGroupDiscussionItems,
+  youVersionPracticeMediaRotation
+} from "@/lib/scripture/student-home";
 import type { StudentDiscussionPrompt } from "@/lib/scripture/types";
 
 describe("student home feed personalization", () => {
@@ -279,6 +287,10 @@ describe("student home feed personalization", () => {
         })
       ])
     );
+    const [wordTool, passageTool] = getJourneyExploreToolPair(nextStep.journeyJournal.id, 1);
+    expect([wordTool.label, passageTool.label]).not.toEqual(["Word Study", "Inductive Study"]);
+    expect([wordTool.category, passageTool.category]).toEqual(expect.arrayContaining(["Word Level"]));
+    expect([wordTool.storageStudyPath, passageTool.storageStudyPath].sort()).toEqual(["inductive", "word"]);
   });
 
   it("builds distinct gospel journey entries for repeated student journal work", () => {
@@ -318,7 +330,33 @@ describe("student home feed personalization", () => {
     ]);
     expect(nextStep.journeyJournalEntries[1].followUpQuestions).not.toEqual(nextStep.journeyJournalEntries[0].followUpQuestions);
     expect(nextStep.journeyJournalEntries[2].spiritualPractice.title).toBe("Practice a humble gospel witness");
+    const rotatedExploreLabels = nextStep.journeyJournalEntries.flatMap((entry, index) =>
+      getJourneyExploreToolPair(entry.id, index + 1).map((tool) => tool.label)
+    );
+    const rotatedExploreCategories = nextStep.journeyJournalEntries.flatMap((entry, index) =>
+      getJourneyExploreToolPair(entry.id, index + 1).map((tool) => tool.category)
+    );
+    expect(new Set(rotatedExploreLabels).size).toBeGreaterThan(3);
+    expect(rotatedExploreLabels).toEqual(expect.arrayContaining(["Cross Referencing", "Historical Background"]));
+    expect(rotatedExploreCategories).toEqual(expect.arrayContaining(["Word Level", "Big Picture", "Interpretation"]));
     expect(nextStep.wrestleTogetherPrompt).toContain("Scripture define the gospel");
+  });
+
+  it("keeps YouVersion practice media display-only and rotating", () => {
+    expect(youVersionPracticeMediaRotation).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          title: "Guided Prayer - The Beatitudes",
+          href: "https://www.bible.com/videos/43289-guided-prayer-the-beatitudes",
+          embedUrl: "https://www.bible.com/videos/43289-guided-prayer-the-beatitudes"
+        })
+      ])
+    );
+    expect([
+      getYouVersionPracticeMedia("garden-question-journey", 1).id,
+      getYouVersionPracticeMedia("garden-question-journey", 2).id,
+      getYouVersionPracticeMedia("garden-question-journey", 3).id
+    ]).toEqual(expect.arrayContaining(["guided-prayer-beatitudes", "guided-prayer-in-app", "audio-bible-reader"]));
   });
 
   it("uses knowledge matches before generic next-step recommendations", () => {

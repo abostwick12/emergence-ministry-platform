@@ -8,7 +8,15 @@ import { StudentQuestionComposer } from "@/components/student/student-question-c
 import { YouVersionReaderWindow } from "@/components/student/youversion-reader-window";
 import type { DiscussionWorkflowState } from "@/lib/scripture/discussion-workflow";
 import { studentLeaderFormationJourney } from "@/lib/scripture/student-formation-journeys";
-import { buildQuestionNextStep, type StudentJourneyJournal, type StudentQuestionNextStep } from "@/lib/scripture/student-home";
+import {
+  buildQuestionNextStep,
+  getJourneyExploreToolPair,
+  getYouVersionPracticeMedia,
+  type StudentGuidedPrayer,
+  type StudentJourneyJournal,
+  type StudentJourneyPractice,
+  type StudentQuestionNextStep
+} from "@/lib/scripture/student-home";
 import { studentJourneyEntryKey, type StudentJourneyEntry } from "@/lib/scripture/student-journey-entry-shared";
 import type { StudentQuestionReflection } from "@/lib/scripture/student-reflections";
 import type { StudentDiscussionPrompt } from "@/lib/scripture/types";
@@ -332,6 +340,10 @@ function StudentLovableJournalEntry({
   const selectedReader = selectedReading ? buildYouVersionReaderLink(selectedReading.lookupReference) : undefined;
   const guidedPrayer = practice.guidedPrayer;
   const keyWords = activeJourney.keyWords.slice(0, 3);
+  const exploreTools = getJourneyExploreToolPair(activeJourney.id, entrySequence);
+  const selectedExploreTool = exploreTools.find((tool) => tool.storageStudyPath === draft.studyPath) ?? exploreTools[0];
+  const practiceDetailItems = buildPracticeDetailItems(practice, draft.selectedPractice, guidedPrayer);
+  const youVersionPracticeMedia = practice.youVersionMedia ?? getYouVersionPracticeMedia(activeJourney.id, entrySequence);
   const phases = [
     { label: "Receive", complete: Boolean(draft.scriptureReflection.trim()) },
     { label: "Explore", complete: Boolean(draft.questionReflection.trim()) },
@@ -481,19 +493,28 @@ function StudentLovableJournalEntry({
         title={activeJourney.rhythm?.explore ?? "We seek understanding."}
       >
         <div className="student-lovable-investigate-grid" role="group" aria-label="Choose an investigation path">
-          <button className={draft.studyPath === "word" ? "active" : ""} onClick={() => updateDraft({ studyPath: "word" })} type="button">
-            <strong>Word study</strong>
-            <span>Slow down around one meaningful word and its biblical context.</span>
-          </button>
-          <button className={draft.studyPath === "inductive" ? "active" : ""} onClick={() => updateDraft({ studyPath: "inductive" })} type="button">
-            <strong>Inductive study</strong>
-            <span>Observe what is there, interpret in context, then respond carefully.</span>
-          </button>
+          {exploreTools.map((tool) => (
+            <button
+              className={draft.studyPath === tool.storageStudyPath ? "active" : ""}
+              key={tool.id}
+              onClick={() => updateDraft({ studyPath: tool.storageStudyPath })}
+              type="button"
+            >
+              <span className="student-lovable-explore-category">{tool.category}</span>
+              <strong>{tool.label}</strong>
+              <span>{tool.description}</span>
+            </button>
+          ))}
+        </div>
+        <div className="student-lovable-tool-note" aria-label="Selected Bible study tool">
+          <span>{selectedExploreTool.category}</span>
+          <strong>{selectedExploreTool.label}</strong>
+          <p>{selectedExploreTool.prompt}</p>
         </div>
         {draft.studyPath === "word" && keyWords.length ? (
-          <div className="student-lovable-keyword-row" aria-label="Word study cards">
+          <div className="student-lovable-keyword-row" aria-label="Study support cards">
             {keyWords.map((word) => (
-              <a className="student-lovable-keyword-card" href={word.lexicalUrl} key={word.transliteration} rel="noreferrer" target="_blank">
+              <a className="student-lovable-keyword-card" href={word.lexicalUrl} key={word.transliteration ?? word.term} rel="noreferrer" target="_blank">
                 <span>{word.originalLanguage}</span>
                 <strong>{word.transliteration}</strong>
                 <em>{word.term}</em>
@@ -508,7 +529,7 @@ function StudentLovableJournalEntry({
         )}
         <textarea
           onChange={(event) => updateDraft({ questionReflection: event.target.value })}
-          placeholder={draft.studyPath === "word" ? "What does this word reveal in this passage?" : "What do you observe, what does it mean in context, and how will you respond?"}
+          placeholder={selectedExploreTool.placeholder}
           rows={5}
           value={draft.questionReflection}
         />
@@ -532,12 +553,25 @@ function StudentLovableJournalEntry({
         </div>
         <details className="student-lovable-popout">
           <summary>Open practice details</summary>
-          {draft.selectedPractice === "guided" && guidedPrayer ? (
-            <ol>{guidedPrayer.prompts.map((item) => <li key={item}>{item}</li>)}</ol>
-          ) : (
-            <ol>{practice.steps.map((item) => <li key={item}>{item}</li>)}</ol>
-          )}
+          <ol>{practiceDetailItems.map((item) => <li key={item}>{item}</li>)}</ol>
         </details>
+        <section className="student-lovable-youversion-practice" aria-label="YouVersion guided prayer media">
+          {youVersionPracticeMedia.embedUrl ? (
+            <iframe
+              allow="autoplay; encrypted-media; picture-in-picture"
+              loading="lazy"
+              referrerPolicy="strict-origin-when-cross-origin"
+              src={youVersionPracticeMedia.embedUrl}
+              title={youVersionPracticeMedia.title}
+            />
+          ) : null}
+          <div>
+            <p className="eyebrow">{youVersionPracticeMedia.sourceLabel}</p>
+            <strong>{youVersionPracticeMedia.title}</strong>
+            <p>{youVersionPracticeMedia.description}</p>
+            <a href={youVersionPracticeMedia.href} rel="noreferrer" target="_blank">Open in YouVersion</a>
+          </div>
+        </section>
         <textarea
           onChange={(event) => updateDraft({ practiceReflection: event.target.value })}
           placeholder="How will you practice this intentionally? When, where, and for how long?"
@@ -581,6 +615,29 @@ function StudentLovableJournalEntry({
       </div>
     </section>
   );
+}
+
+function buildPracticeDetailItems(
+  practice: StudentJourneyPractice,
+  selectedPractice: JournalEntryDraft["selectedPractice"],
+  guidedPrayer?: StudentGuidedPrayer
+) {
+  if (selectedPractice === "guided" && guidedPrayer) {
+    return [
+      `Prepare: Find a quiet place, open the passage, and set aside ${guidedPrayer.durationLabel.toLowerCase()} without multitasking.`,
+      `Focus: ${guidedPrayer.backgroundHint}. Let that setting help your body slow down before you begin.`,
+      ...guidedPrayer.prompts.map((item) => `Pray: ${item}`),
+      "Reflect: Write the sentence, image, or request that stayed with you after the guided prayer."
+    ];
+  }
+
+  return [
+    `Prepare: Choose a real time and place for ${practice.title.toLowerCase()} before you leave this journal.`,
+    `Begin: ${practice.summary}`,
+    ...practice.steps.map((item) => `Practice: ${item}`),
+    `Reflect: ${practice.reflectionPrompt}`,
+    "Share: Bring one honest sentence from this practice to a leader or group if it would help you keep walking."
+  ];
 }
 
 function LovableJournalSection({

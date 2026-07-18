@@ -266,6 +266,11 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(journey).toContainText("Explore the Story / Step 2");
     await expect(journey).toContainText("Practice the Story / Step 3");
     await expect(journey).toContainText("Walk the Story / Step 4");
+    await expect(journey.getByText("Inductive study", { exact: true })).toHaveCount(0);
+    await expect(journey.getByRole("group", { name: "Choose an investigation path" })).toContainText(
+      /Cross Referencing|Context Clues|Repeated Words|Compare Translations|Observation Lists|Author's Purpose|Genre Awareness/
+    );
+    await expect(journey.getByRole("region", { name: "YouVersion guided prayer media" })).toContainText("Open in YouVersion");
     await expect(journey).toContainText("Genesis 1:26-31");
     await expect(journey).toContainText("shamar");
     await expect(journey).toContainText("שָׁמַר");
@@ -279,8 +284,12 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(journey).toContainText("Read the wider context");
     await expect(journey).toContainText("Map the question honestly");
     await journey.getByPlaceholder(/What did you notice/).fill("It was a test, free will, and choice.");
-    await journey.getByPlaceholder(/What does this word reveal/).fill("They do not explain why the garden starts with abundance.");
+    await journey.getByPlaceholder(/What .* help.*notice|What .* help.*see|What .* clarify|What repeated word|What nuance/).fill(
+      "They do not explain why the garden starts with abundance."
+    );
     await journey.getByText("Open practice details").click();
+    await expect(journey).toContainText("Prepare:");
+    await expect(journey).toContainText("Reflect:");
     await expect(journey).toContainText("Draw three columns: text, assumptions, and questions.");
     await expect(journey).toContainText("Bring one unresolved question to a leader or group.");
     await journey.getByPlaceholder(/Where does this touch your actual life/).fill("I will take a quiet walk before small group.");

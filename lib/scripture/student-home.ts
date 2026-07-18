@@ -1,6 +1,7 @@
 import { scripturePlans, scriptureResources } from "@/lib/scripture/mock-data";
 import { matchCuratedResourcesToPrompt, type StudentCuratedResource } from "@/lib/scripture/curated-resource-shared";
 import type { StudentKnowledgeMatch, StudentSavedQuestionRecommendation } from "@/lib/scripture/knowledge";
+import type { StudentJourneyStudyPath } from "@/lib/scripture/student-journey-entry-shared";
 import { matchQuestionToStoryline, type StorylineQuestionMatch } from "@/lib/scripture/storyline-guide";
 import type { ScripturePlan, ScriptureResource, StudentDiscussionPrompt, StudentDiscussionStatus } from "@/lib/scripture/types";
 
@@ -64,12 +65,35 @@ export type StudentGuidedPrayer = {
   prompts: string[];
 };
 
+export type StudentJourneyExploreToolCategory = "Word Level" | "Passage Level" | "Big Picture" | "Interpretation";
+
+export type StudentJourneyExploreTool = {
+  id: string;
+  category: StudentJourneyExploreToolCategory;
+  label: string;
+  description: string;
+  prompt: string;
+  placeholder: string;
+  storageStudyPath: StudentJourneyStudyPath;
+};
+
+export type StudentYouVersionPracticeMedia = {
+  id: string;
+  kind: "video" | "guided-prayer" | "audio";
+  title: string;
+  description: string;
+  sourceLabel: string;
+  href: string;
+  embedUrl?: string;
+};
+
 export type StudentJourneyPractice = {
   title: string;
   summary: string;
   steps: string[];
   reflectionPrompt: string;
   guidedPrayer?: StudentGuidedPrayer;
+  youVersionMedia?: StudentYouVersionPracticeMedia;
 };
 
 export type StudentJourneyJournal = {
@@ -110,6 +134,205 @@ export type StudentQuestionNextStep = {
   journeyJournal: StudentJourneyJournal;
   journeyJournalEntries: StudentJourneyJournal[];
 };
+
+export const studentJourneyExploreTools: StudentJourneyExploreTool[] = [
+  {
+    id: "word-study",
+    category: "Word Level",
+    label: "Word Study",
+    description: "Look up one key word with a dictionary, concordance, or original-language tool.",
+    prompt: "Choose one repeated or important word. Ask what it means here, then notice how that meaning deepens the passage.",
+    placeholder: "What did this tool help you see about the passage?",
+    storageStudyPath: "word"
+  },
+  {
+    id: "cross-referencing",
+    category: "Word Level",
+    label: "Cross Referencing",
+    description: "Find other verses that connect to the same idea so Scripture interprets Scripture.",
+    prompt: "Use the recommended readings or a cross-reference note to find one related passage. What connection is clear without forcing it?",
+    placeholder: "What related passage helps you see this idea more clearly?",
+    storageStudyPath: "word"
+  },
+  {
+    id: "context-clues",
+    category: "Word Level",
+    label: "Context Clues",
+    description: "Read the sentences before and after the verse before turning it into a quick takeaway.",
+    prompt: "Read the surrounding paragraph. What would be misunderstood if this verse were treated like a standalone quote?",
+    placeholder: "What does the nearby context correct or clarify?",
+    storageStudyPath: "word"
+  },
+  {
+    id: "repeated-words",
+    category: "Word Level",
+    label: "Repeated Words",
+    description: "Highlight words or phrases that keep showing up because they often reveal the main point.",
+    prompt: "Circle repeated words, repeated actions, or repeated images. What do they seem to emphasize?",
+    placeholder: "What repeated word, phrase, or image seems important?",
+    storageStudyPath: "word"
+  },
+  {
+    id: "compare-translations",
+    category: "Interpretation",
+    label: "Compare Translations",
+    description: "Read the same verse in NIV, ESV, CSB, and NLT to notice nuance.",
+    prompt: "Compare a few faithful translations. Which word or phrase changes slightly, and what nuance does that reveal?",
+    placeholder: "What nuance did another translation help you notice?",
+    storageStudyPath: "word"
+  },
+  {
+    id: "observation-lists",
+    category: "Passage Level",
+    label: "Observation Lists",
+    description: "List facts from the passage before jumping to meaning or application.",
+    prompt: "Make a quick list of what you actually see: people, places, commands, promises, emotions, and repeated ideas.",
+    placeholder: "What do you see in the passage before explaining it?",
+    storageStudyPath: "inductive"
+  },
+  {
+    id: "authors-purpose",
+    category: "Passage Level",
+    label: "Author's Purpose",
+    description: "Ask why the author wrote this and what problem or need the passage addresses.",
+    prompt: "Ask why this passage was written this way. What was the author trying to show, correct, comfort, or call out?",
+    placeholder: "Why do you think the author included this here?",
+    storageStudyPath: "inductive"
+  },
+  {
+    id: "structure-mapping",
+    category: "Passage Level",
+    label: "Structure Mapping",
+    description: "Break the passage into chunks or movements so you can see the flow.",
+    prompt: "Divide the passage into two or three movements. What changes from the beginning to the end?",
+    placeholder: "How does the passage move from one idea or moment to the next?",
+    storageStudyPath: "inductive"
+  },
+  {
+    id: "cause-and-effect",
+    category: "Passage Level",
+    label: "Cause and Effect",
+    description: "Watch for because, so that, therefore, and other clues that show biblical reasoning.",
+    prompt: "Look for reasons and results. What happens because of something else in the passage?",
+    placeholder: "What cause, reason, result, or therefore did you notice?",
+    storageStudyPath: "inductive"
+  },
+  {
+    id: "character-tracking",
+    category: "Passage Level",
+    label: "Character Tracking",
+    description: "Track what a character says, does, feels, and chooses in a narrative.",
+    prompt: "Follow one person in the story. What do they say, do, want, fear, or choose?",
+    placeholder: "What did one character's words or choices reveal?",
+    storageStudyPath: "inductive"
+  },
+  {
+    id: "historical-background",
+    category: "Big Picture",
+    label: "Historical Background",
+    description: "Ask who wrote it, when, and what was happening behind the scenes.",
+    prompt: "Name one background detail that matters. How does it help you read the passage with more care?",
+    placeholder: "What behind-the-scenes detail helps this passage make sense?",
+    storageStudyPath: "inductive"
+  },
+  {
+    id: "genre-awareness",
+    category: "Big Picture",
+    label: "Genre Awareness",
+    description: "Read poetry, narrative, prophecy, letters, and wisdom literature on their own terms.",
+    prompt: "Identify the genre. How should this kind of writing shape the way you read images, commands, promises, or story details?",
+    placeholder: "How does the genre change the way you read this passage?",
+    storageStudyPath: "inductive"
+  },
+  {
+    id: "theme-tracing",
+    category: "Big Picture",
+    label: "Theme Tracing",
+    description: "Follow big ideas like covenant, kingdom, holiness, or wisdom across Scripture.",
+    prompt: "Choose one big theme in the passage. Where else have you seen this idea in the Bible's story?",
+    placeholder: "What larger biblical theme does this passage connect to?",
+    storageStudyPath: "inductive"
+  },
+  {
+    id: "biblical-theology",
+    category: "Big Picture",
+    label: "Biblical Theology",
+    description: "Ask how the passage fits the whole Bible story from creation to new creation.",
+    prompt: "Place the passage in the whole story. What does it show about creation, fracture, covenant, Christ, church, or new creation?",
+    placeholder: "Where does this passage fit in the whole Bible story?",
+    storageStudyPath: "inductive"
+  },
+  {
+    id: "authors-main-point",
+    category: "Interpretation",
+    label: "Author's Main Point",
+    description: "Summarize the passage in one careful sentence.",
+    prompt: "Write the main point in one sentence, using language from the passage instead of a slogan.",
+    placeholder: "What is the author's main point in one sentence?",
+    storageStudyPath: "inductive"
+  },
+  {
+    id: "asking-good-questions",
+    category: "Interpretation",
+    label: "Asking Good Questions",
+    description: "Ask what the passage shows about God, people, brokenness, hope, and response.",
+    prompt: "Ask two honest questions: What does this show me about God? What does this show me about people?",
+    placeholder: "What better question did this passage teach you to ask?",
+    storageStudyPath: "inductive"
+  },
+  {
+    id: "commands-and-promises",
+    category: "Interpretation",
+    label: "Commands and Promises",
+    description: "Notice what God calls people to do and what He commits Himself to do.",
+    prompt: "Mark commands and promises separately. What is God calling for, and what is God committing Himself to?",
+    placeholder: "What command or promise should be held carefully here?",
+    storageStudyPath: "inductive"
+  }
+];
+
+export const youVersionPracticeMediaRotation: StudentYouVersionPracticeMedia[] = [
+  {
+    id: "guided-prayer-beatitudes",
+    kind: "video",
+    title: "Guided Prayer - The Beatitudes",
+    description: "A public YouVersion video that helps students slow down and pray through Jesus' words.",
+    sourceLabel: "YouVersion video",
+    href: "https://www.bible.com/videos/43289-guided-prayer-the-beatitudes",
+    embedUrl: "https://www.bible.com/videos/43289-guided-prayer-the-beatitudes"
+  },
+  {
+    id: "guided-prayer-in-app",
+    kind: "guided-prayer",
+    title: "Open Guided Prayer in YouVersion",
+    description: "Use the Bible App's Daily Refresh or Prayer tab for the app-native Guided Prayer flow.",
+    sourceLabel: "YouVersion Guided Prayer",
+    href: "https://www.bible.com/prayers"
+  },
+  {
+    id: "audio-bible-reader",
+    kind: "audio",
+    title: "Listen in the Bible App",
+    description: "Open the passage in YouVersion and use Bible audio when the selected version includes audio.",
+    sourceLabel: "YouVersion audio",
+    href: "https://www.bible.com/app"
+  }
+];
+
+export function getJourneyExploreToolPair(journeyId: string, entrySequence: number): [StudentJourneyExploreTool, StudentJourneyExploreTool] {
+  const wordTools = studentJourneyExploreTools.filter((tool) => tool.storageStudyPath === "word");
+  const passageTools = studentJourneyExploreTools.filter((tool) => tool.storageStudyPath === "inductive");
+  return [
+    wordTools[stableJourneyIndex(`${journeyId}:word:${entrySequence}`, wordTools.length)] ?? wordTools[0],
+    passageTools[stableJourneyIndex(`${journeyId}:inductive:${entrySequence}`, passageTools.length)] ?? passageTools[0]
+  ];
+}
+
+export function getYouVersionPracticeMedia(journeyId: string, entrySequence: number): StudentYouVersionPracticeMedia {
+  return youVersionPracticeMediaRotation[
+    stableJourneyIndex(`${journeyId}:youversion-practice:${entrySequence}`, youVersionPracticeMediaRotation.length)
+  ] ?? youVersionPracticeMediaRotation[0];
+}
 
 export type StudentHomeFeed = {
   forGroup: StudentGroupDiscussionItem[];
@@ -1307,6 +1530,15 @@ function lookupReferenceFor(reference: string) {
   const verseRange = withoutRange.replace(/:(\d{1,3})-\d{1,3}/g, ":$1");
   const commaSplit = verseRange.split(",")[0]?.trim();
   return commaSplit || "Genesis 1";
+}
+
+function stableJourneyIndex(seed: string, modulo: number) {
+  if (modulo <= 0) return 0;
+  let hash = 0;
+  for (let index = 0; index < seed.length; index += 1) {
+    hash = (hash * 31 + seed.charCodeAt(index)) >>> 0;
+  }
+  return hash % modulo;
 }
 
 function stripBringToGroupPrefix(value: string) {

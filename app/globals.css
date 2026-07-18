@@ -16532,13 +16532,12 @@ body:has(.login-shell) h3 {
     rgba(9, 18, 34, 0.78);
   box-shadow: 0 20px 52px rgba(0, 0, 0, 0.24);
   padding: 18px;
-  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
 }
 
 .app-shell:not(.app-shell-camp) .student-lovable-section-body:hover {
   border-color: rgba(22, 217, 245, 0.28);
   box-shadow: 0 0 0 1px rgba(22, 217, 245, 0.05), 0 20px 58px rgba(0, 0, 0, 0.3), 0 0 40px rgba(22, 217, 245, 0.06);
-  transform: translateY(-1px);
 }
 
 .app-shell:not(.app-shell-camp) .student-lovable-section textarea {
@@ -16639,6 +16638,39 @@ body:has(.login-shell) h3 {
   margin: 0;
 }
 
+.app-shell:not(.app-shell-camp) .student-lovable-tool-note {
+  display: grid;
+  gap: 6px;
+  border: 1px solid rgba(22, 217, 245, 0.18);
+  border-radius: 12px;
+  background: rgba(22, 217, 245, 0.07);
+  color: #d8e5f5;
+  padding: 14px 16px;
+  pointer-events: none;
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-tool-note span {
+  color: var(--platform-gold);
+  font-family: var(--font-platform-mono), ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-tool-note strong {
+  color: #f7fbff;
+  font-family: var(--font-platform-serif), Georgia, serif;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-tool-note p {
+  margin: 0;
+  color: var(--platform-muted);
+  line-height: 1.55;
+}
+
 .app-shell:not(.app-shell-camp) .student-lovable-question-list {
   display: grid;
   gap: 10px;
@@ -16664,6 +16696,7 @@ body:has(.login-shell) h3 {
   border-radius: 12px;
   background: rgba(190, 146, 64, 0.07);
   overflow: hidden;
+  scroll-margin-top: 180px;
 }
 
 .app-shell:not(.app-shell-camp) .student-lovable-popout summary {
@@ -16690,6 +16723,56 @@ body:has(.login-shell) h3 {
   color: #d8e5f5;
   line-height: 1.55;
   padding: 0 18px 16px 36px;
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-youversion-practice {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.72fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: stretch;
+  border: 1px solid rgba(129, 164, 214, 0.16);
+  border-radius: 12px;
+  background: rgba(5, 10, 22, 0.38);
+  overflow: hidden;
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-youversion-practice iframe {
+  width: 100%;
+  min-height: 190px;
+  border: 0;
+  background: rgba(5, 10, 22, 0.7);
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-youversion-practice > div {
+  display: grid;
+  align-content: center;
+  gap: 8px;
+  padding: 16px;
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-youversion-practice strong {
+  color: #f7fbff;
+  font-family: var(--font-platform-serif), Georgia, serif;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-youversion-practice p {
+  margin: 0;
+  color: var(--platform-muted);
+  line-height: 1.5;
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-youversion-practice a {
+  width: max-content;
+  border: 1px solid rgba(22, 217, 245, 0.28);
+  border-radius: 999px;
+  color: #f7fbff;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 8px 12px;
+  text-decoration: none;
 }
 
 .app-shell:not(.app-shell-camp) .student-lovable-save-row {
@@ -16968,6 +17051,14 @@ body:has(.login-shell) h3 {
     scroll-padding-inline: 8px;
   }
 
+  .app-shell:not(.app-shell-camp) .student-lovable-youversion-practice {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .app-shell:not(.app-shell-camp) .student-lovable-youversion-practice iframe {
+    min-height: 240px;
+  }
+
   .app-shell:not(.app-shell-camp) .student-lovable-save-row {
     align-items: stretch;
     flex-direction: column;
@@ -17223,7 +17314,7 @@ body:has(.login-shell) h3 {
   gap: 12px;
 }
 
-.leader-prep-meta-row label,
+.leader-prep-meta-row input,
 .leader-prep-meta-row > span {
   min-height: 38px;
   border: 1px solid rgba(129, 164, 214, 0.16);
@@ -17232,7 +17323,7 @@ body:has(.login-shell) h3 {
   padding: 8px 16px;
 }
 
-.leader-prep-meta-row label {
+.leader-prep-meta-row input {
   width: min(240px, 100%);
 }
 

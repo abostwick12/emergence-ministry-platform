@@ -1,22 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AuthSession } from "@/lib/auth/server";
-import type { CampAccessContext } from "@/lib/camp/permissions";
 
-const { CampAccessResolutionErrorMock, getServerSessionMock, resolveCampAccessForRequestMock } = vi.hoisted(() => ({
-  CampAccessResolutionErrorMock: class CampAccessResolutionError extends Error {
-    status: number;
-    code: string;
-
-    constructor(message: string, options: { status: number; code: string }) {
-      super(message);
-      this.name = "CampAccessResolutionError";
-      this.status = options.status;
-      this.code = options.code;
-    }
-  },
+const { getServerSessionMock, isPlatformUserActiveByIdMock } = vi.hoisted(() => ({
   getServerSessionMock: vi.fn<() => Promise<AuthSession | null>>(),
-  resolveCampAccessForRequestMock: vi.fn<() => Promise<CampAccessContext>>()
+  isPlatformUserActiveByIdMock: vi.fn<() => Promise<boolean>>()
 }));
 
 vi.mock("@/lib/auth/server", async () => {
@@ -28,10 +16,8 @@ vi.mock("@/lib/auth/server", async () => {
   };
 });
 
-vi.mock("@/lib/camp/access-control", () => ({
-  CampAccessResolutionError: CampAccessResolutionErrorMock,
-  isCampAccessResolutionError: (error: unknown) => error instanceof CampAccessResolutionErrorMock,
-  resolveCampAccessForRequest: resolveCampAccessForRequestMock
+vi.mock("@/lib/platform/access-admin", () => ({
+  isPlatformUserActiveById: isPlatformUserActiveByIdMock
 }));
 
 import { POST as eventsPOST } from "@/app/api/events/route";
@@ -51,21 +37,6 @@ function session(role = "admin", isMock = true): AuthSession {
   };
 }
 
-function context(appAreaScope: CampAccessContext["appAreaScope"]): CampAccessContext {
-  return {
-    requestedRole: appAreaScope === "admin" ? "andrew" : "general_leader",
-    effectiveRole: appAreaScope === "admin" ? "andrew" : "general_leader",
-    canAccessRestricted: appAreaScope === "admin",
-    restrictedActor: appAreaScope === "admin" ? "Andrew" : undefined,
-    isDriver: false,
-    campEditScope: appAreaScope === "admin" ? "all_campers" : "read_only",
-    appAreaScope,
-    canPostTeamBulletin: false,
-    partnerChurchId: null,
-    assignedTeamIds: []
-  };
-}
-
 function jsonRequest(url: string, body: unknown) {
   return new Request(url, {
     method: "POST",
@@ -76,13 +47,14 @@ function jsonRequest(url: string, body: unknown) {
 
 beforeEach(() => {
   getServerSessionMock.mockReset();
-  resolveCampAccessForRequestMock.mockReset();
+  isPlatformUserActiveByIdMock.mockReset();
+  isPlatformUserActiveByIdMock.mockResolvedValue(true);
 });
 
 describe("EMERGE app-area API access", () => {
-  it("blocks camp-only users from non-Camp management write APIs", async () => {
+  it("blocks deactivated users from non-Camp management write APIs", async () => {
     getServerSessionMock.mockResolvedValue(session("leader", false));
-    resolveCampAccessForRequestMock.mockResolvedValue(context("camp_only"));
+    isPlatformUserActiveByIdMock.mockResolvedValue(false);
 
     const eventResponse = await eventsPOST(jsonRequest("http://localhost/api/events", {
       title: "Blocked Event",
@@ -99,23 +71,21 @@ describe("EMERGE app-area API access", () => {
 
     expect(eventResponse.status).toBe(403);
     expect(taskResponse.status).toBe(403);
-    await expect(eventResponse.json()).resolves.toMatchObject({ error: expect.stringMatching(/operations access/i) });
-    await expect(taskResponse.json()).resolves.toMatchObject({ error: expect.stringMatching(/operations access/i) });
+    await expect(eventResponse.json()).resolves.toMatchObject({ error: expect.stringMatching(/deactivated/i) });
+    await expect(taskResponse.json()).resolves.toMatchObject({ error: expect.stringMatching(/deactivated/i) });
   });
 
   it("allows emerge operations and admin scopes through the centralized check", async () => {
     getServerSessionMock.mockResolvedValue(session("leader"));
-    resolveCampAccessForRequestMock.mockResolvedValue(context("emerge_operations"));
 
     await expect(requireEmergeOperationsAccess()).resolves.toMatchObject({ allowed: true });
 
-    resolveCampAccessForRequestMock.mockResolvedValue(context("admin"));
+    getServerSessionMock.mockResolvedValue(session("admin"));
     await expect(requireEmergeOperationsAccess()).resolves.toMatchObject({ allowed: true });
   });
 
   it("keeps authenticated admin users able to create management records", async () => {
     getServerSessionMock.mockResolvedValue(session("admin"));
-    resolveCampAccessForRequestMock.mockResolvedValue(context("admin"));
 
     const response = await eventsPOST(jsonRequest("http://localhost/api/events", {
       title: "Allowed Event",
@@ -152,15 +122,12 @@ describe("EMERGE app-area API access", () => {
     }));
 
     expect(response.status).toBe(403);
-    expect(resolveCampAccessForRequestMock).not.toHaveBeenCalled();
+    expect(isPlatformUserActiveByIdMock).not.toHaveBeenCalled();
   });
 
-  it("returns a typed readiness error instead of throwing when launch Camp access cannot resolve", async () => {
-    getServerSessionMock.mockResolvedValue(session("admin", false));
-    resolveCampAccessForRequestMock.mockRejectedValue(new CampAccessResolutionErrorMock(
-      "Camp launch testing requires a real authenticated Supabase session, not development auth.",
-      { status: 403, code: "camp_mock_auth_blocked" }
-    ));
+  it("returns a typed inactive-account response from the centralized active-user check", async () => {
+    getServerSessionMock.mockResolvedValue(session("admin"));
+    isPlatformUserActiveByIdMock.mockResolvedValue(false);
 
     const access = await requireEmergeOperationsAccess();
 
@@ -168,8 +135,7 @@ describe("EMERGE app-area API access", () => {
     if (access.allowed) return;
     expect(access.response.status).toBe(403);
     await expect(access.response.json()).resolves.toMatchObject({
-      code: "camp_mock_auth_blocked",
-      error: expect.stringMatching(/real authenticated Supabase session/i)
+      error: expect.stringMatching(/deactivated/i)
     });
   });
 });

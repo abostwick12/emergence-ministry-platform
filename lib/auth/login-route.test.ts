@@ -22,6 +22,7 @@ vi.mock("@/lib/auth/config", () => ({
 
 vi.mock("@/lib/auth/server", () => ({
   getSupabaseAuthClient: getSupabaseAuthClientMock,
+  isSupabaseAdminConfigured: () => false,
   setAuthCookies: setAuthCookiesMock
 }));
 
