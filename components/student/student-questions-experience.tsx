@@ -7,7 +7,8 @@ import type { LucideIcon } from "lucide-react";
 import { StudentQuestionComposer } from "@/components/student/student-question-composer";
 import { YouVersionReaderWindow } from "@/components/student/youversion-reader-window";
 import type { DiscussionWorkflowState } from "@/lib/scripture/discussion-workflow";
-import { buildQuestionNextStep, type StudentQuestionNextStep } from "@/lib/scripture/student-home";
+import { studentLeaderFormationJourney } from "@/lib/scripture/student-formation-journeys";
+import { buildQuestionNextStep, type StudentJourneyJournal, type StudentQuestionNextStep } from "@/lib/scripture/student-home";
 import type { StudentQuestionReflection } from "@/lib/scripture/student-reflections";
 import type { StudentDiscussionPrompt } from "@/lib/scripture/types";
 import { buildYouVersionReaderLink } from "@/lib/scripture/youversion";
@@ -24,21 +25,29 @@ export function StudentQuestionsExperience({ initialReflections, initialState }:
   const [archivedPromptIds, setArchivedPromptIds] = useState<Set<string>>(new Set());
   const [entrySequences, setEntrySequences] = useState<Record<string, number[]>>({});
   const [localStateLoaded, setLocalStateLoaded] = useState(false);
-  const [activeEntryByPrompt, setActiveEntryByPrompt] = useState<Record<string, number>>({});
-  const [selectedPromptId, setSelectedPromptId] = useState(initialState.prompts[0]?.id ?? "");
+  const [activeEntryByJourney, setActiveEntryByJourney] = useState<Record<string, number>>({});
+  const [selectedJourneyId, setSelectedJourneyId] = useState(initialState.prompts[0]?.id ?? studentLeaderFormationJourney.id);
   const [isComposerOpen, setIsComposerOpen] = useState(!initialState.prompts[0]);
   const activePrompts = prompts.filter((prompt) => prompt.status !== "archived" && !archivedPromptIds.has(prompt.id));
   const archivedPrompts = prompts.filter((prompt) => prompt.status === "archived" || archivedPromptIds.has(prompt.id));
-  const selectedPrompt = activePrompts.find((prompt) => prompt.id === selectedPromptId) ?? activePrompts[0];
-  const rawSelectedEntries = selectedPrompt ? entrySequences[selectedPrompt.id] ?? [1] : [1];
+  const selectedPrompt = activePrompts.find((prompt) => prompt.id === selectedJourneyId);
+  const isFormationJourneySelected = selectedJourneyId === studentLeaderFormationJourney.id;
+  const rawSelectedEntries = isFormationJourneySelected
+    ? studentLeaderFormationJourney.entries.map((_, index) => index + 1)
+    : selectedPrompt
+      ? entrySequences[selectedPrompt.id] ?? [1]
+      : [1];
   const selectedNextStep = useMemo(() => {
     if (!selectedPrompt) return null;
     return nextSteps[selectedPrompt.id] ?? buildQuestionNextStep(selectedPrompt);
   }, [nextSteps, selectedPrompt]);
-  const maxJournalEntries = Math.max(1, selectedNextStep?.journeyJournalEntries?.length ?? 1);
+  const maxJournalEntries = Math.max(
+    1,
+    isFormationJourneySelected ? studentLeaderFormationJourney.entries.length : selectedNextStep?.journeyJournalEntries?.length ?? 1
+  );
   const selectedEntries = rawSelectedEntries.filter((sequence) => sequence <= maxJournalEntries);
   const visibleSelectedEntries = selectedEntries.length ? selectedEntries : [1];
-  const requestedEntrySequence = selectedPrompt ? activeEntryByPrompt[selectedPrompt.id] ?? visibleSelectedEntries[0] ?? 1 : 1;
+  const requestedEntrySequence = activeEntryByJourney[selectedJourneyId] ?? visibleSelectedEntries[0] ?? 1;
   const activeEntrySequence = Math.min(requestedEntrySequence, maxJournalEntries);
 
   useEffect(() => {
@@ -58,8 +67,9 @@ export function StudentQuestionsExperience({ initialReflections, initialState }:
   }, [entrySequences, localStateLoaded]);
 
   useEffect(() => {
-    if (!selectedPrompt && activePrompts[0]) setSelectedPromptId(activePrompts[0].id);
-  }, [activePrompts, selectedPrompt]);
+    if (selectedPrompt || isFormationJourneySelected) return;
+    setSelectedJourneyId(activePrompts[0]?.id ?? studentLeaderFormationJourney.id);
+  }, [activePrompts, isFormationJourneySelected, selectedPrompt]);
 
   function addCreatedPrompt(prompt: StudentDiscussionPrompt, nextStep: StudentQuestionNextStep) {
     setPrompts((current) => [prompt, ...current.filter((item) => item.id !== prompt.id)].slice(0, 5));
@@ -70,8 +80,8 @@ export function StudentQuestionsExperience({ initialReflections, initialState }:
       return next;
     });
     setEntrySequences((current) => ({ ...current, [prompt.id]: [1] }));
-    setActiveEntryByPrompt((current) => ({ ...current, [prompt.id]: 1 }));
-    setSelectedPromptId(prompt.id);
+    setActiveEntryByJourney((current) => ({ ...current, [prompt.id]: 1 }));
+    setSelectedJourneyId(prompt.id);
     setIsComposerOpen(false);
   }
 
@@ -81,9 +91,9 @@ export function StudentQuestionsExperience({ initialReflections, initialState }:
 
   function archivePrompt(promptId: string) {
     setArchivedPromptIds((current) => new Set(current).add(promptId));
-    if (selectedPromptId === promptId) {
+    if (selectedJourneyId === promptId) {
       const nextPrompt = activePrompts.find((prompt) => prompt.id !== promptId);
-      setSelectedPromptId(nextPrompt?.id ?? "");
+      setSelectedJourneyId(nextPrompt?.id ?? studentLeaderFormationJourney.id);
     }
   }
 
@@ -93,7 +103,7 @@ export function StudentQuestionsExperience({ initialReflections, initialState }:
       next.delete(promptId);
       return next;
     });
-    setSelectedPromptId(promptId);
+    setSelectedJourneyId(promptId);
   }
 
   function addEntry(promptId: string) {
@@ -102,13 +112,13 @@ export function StudentQuestionsExperience({ initialReflections, initialState }:
       if (existing.length >= maxJournalEntries) return current;
       const nextEntry = Math.max(...existing) + 1;
       if (nextEntry > maxJournalEntries) return current;
-      setActiveEntryByPrompt((entries) => ({ ...entries, [promptId]: nextEntry }));
+      setActiveEntryByJourney((entries) => ({ ...entries, [promptId]: nextEntry }));
       return { ...current, [promptId]: [...existing, nextEntry] };
     });
   }
 
   function selectEntry(promptId: string, sequence: number) {
-    setActiveEntryByPrompt((current) => ({ ...current, [promptId]: sequence }));
+    setActiveEntryByJourney((current) => ({ ...current, [promptId]: sequence }));
   }
 
   return (
@@ -120,26 +130,34 @@ export function StudentQuestionsExperience({ initialReflections, initialState }:
         </button>
         {isComposerOpen ? <StudentQuestionComposer onCreated={addCreatedPrompt} readiness={initialState.readiness} /> : null}
       </section>
-      {selectedPrompt ? (
-        <section className="student-journal-control" aria-label="Journey journal selector">
+      <section className="student-journal-control" aria-label="Journey journal selector">
           <details className="student-journal-dropdown">
             <summary>
               <div>
-                <p className="eyebrow">Question Journal</p>
-                <strong>{selectedPrompt.question}</strong>
-                <span>
-                  {selectedPrompt.scriptureReference || "Open question"} / {visibleSelectedEntries.length} {visibleSelectedEntries.length === 1 ? "entry" : "entries"}
-                </span>
+                <p className="eyebrow">{isFormationJourneySelected ? "Formation Journey" : "Question Journal"}</p>
+                <strong>{isFormationJourneySelected ? studentLeaderFormationJourney.title : selectedPrompt?.question}</strong>
+                <span>{isFormationJourneySelected
+                  ? `${studentLeaderFormationJourney.durationLabel} / ${studentLeaderFormationJourney.availableLabel}`
+                  : `${selectedPrompt?.scriptureReference || "Open question"} / ${visibleSelectedEntries.length} ${visibleSelectedEntries.length === 1 ? "entry" : "entries"}`}</span>
               </div>
               <ChevronDown aria-hidden="true" size={18} />
             </summary>
             <div className="student-journal-dropdown-menu">
-              <p className="eyebrow">Active journeys</p>
+              <p className="eyebrow">Formation journeys</p>
+              <button
+                className={isFormationJourneySelected ? "active" : ""}
+                onClick={() => setSelectedJourneyId(studentLeaderFormationJourney.id)}
+                type="button"
+              >
+                <span>{studentLeaderFormationJourney.availableLabel}</span>
+                <strong>{studentLeaderFormationJourney.title}</strong>
+              </button>
+              <p className="eyebrow">Submitted questions</p>
               {activePrompts.map((prompt) => (
                 <button
-                  className={prompt.id === selectedPrompt.id ? "active" : ""}
+                  className={prompt.id === selectedPrompt?.id ? "active" : ""}
                   key={prompt.id}
-                  onClick={() => setSelectedPromptId(prompt.id)}
+                  onClick={() => setSelectedJourneyId(prompt.id)}
                   type="button"
                 >
                   <span>{prompt.scriptureReference || "Question"}</span>
@@ -164,26 +182,36 @@ export function StudentQuestionsExperience({ initialReflections, initialState }:
               <button
                 className={sequence === activeEntrySequence ? "active" : ""}
                 key={sequence}
-                onClick={() => selectEntry(selectedPrompt.id, sequence)}
+                onClick={() => selectEntry(selectedJourneyId, sequence)}
                 type="button"
               >
                 {sequence}
               </button>
             ))}
-            <button className="add-entry" disabled={visibleSelectedEntries.length >= maxJournalEntries} onClick={() => addEntry(selectedPrompt.id)} type="button">
-              <Plus aria-hidden="true" size={15} />
-              {visibleSelectedEntries.length >= maxJournalEntries ? "All paths open" : "Add entry"}
-            </button>
+            {selectedPrompt ? (
+              <button className="add-entry" disabled={visibleSelectedEntries.length >= maxJournalEntries} onClick={() => addEntry(selectedPrompt.id)} type="button">
+                <Plus aria-hidden="true" size={15} />
+                {visibleSelectedEntries.length >= maxJournalEntries ? "All paths open" : "Add entry"}
+              </button>
+            ) : null}
           </div>
         </section>
+      {isFormationJourneySelected ? (
+        <StudentLovableJournalEntry
+          entrySequence={activeEntrySequence}
+          journalId={studentLeaderFormationJourney.id}
+          journeys={studentLeaderFormationJourney.entries}
+        />
       ) : null}
       {selectedPrompt && selectedNextStep ? (
         <StudentLovableJournalEntry
           entrySequence={activeEntrySequence}
-          nextStep={selectedNextStep}
+          journalId={selectedPrompt.id}
+          journeys={selectedNextStep.journeyJournalEntries}
           onReflectionSaved={updateReflection}
           prompt={selectedPrompt}
           reflection={reflections[selectedPrompt.id]}
+          walkPrompt={selectedNextStep.wrestleTogetherPrompt.replace(/^Bring this to group:\s*/i, "")}
         />
       ) : null}
       <details aria-label="Journey History" className="student-feed-section student-journey-history" role="region">
@@ -205,7 +233,7 @@ export function StudentQuestionsExperience({ initialReflections, initialState }:
                 </div>
                 <div className="student-feed-row-actions">
                   <span className="pill blue">{prompt.status === "pending_review" ? "With leader" : prompt.status.replace(/_/g, " ")}</span>
-                  <button className="button secondary" onClick={() => setSelectedPromptId(prompt.id)} type="button">Open</button>
+                  <button className="button secondary" onClick={() => setSelectedJourneyId(prompt.id)} type="button">Open</button>
                   <button className="button compact" onClick={() => archivePrompt(prompt.id)} type="button"><Archive aria-hidden="true" size={15} />Archive</button>
                 </div>
               </article>
@@ -245,16 +273,20 @@ export function StudentQuestionsExperience({ initialReflections, initialState }:
 
 function StudentLovableJournalEntry({
   entrySequence,
-  nextStep,
+  journalId,
+  journeys,
   onReflectionSaved,
   prompt,
-  reflection
+  reflection,
+  walkPrompt
 }: {
   entrySequence: number;
-  nextStep: StudentQuestionNextStep;
-  onReflectionSaved: (reflection: StudentQuestionReflection) => void;
-  prompt: StudentDiscussionPrompt;
+  journalId: string;
+  journeys: StudentJourneyJournal[];
+  onReflectionSaved?: (reflection: StudentQuestionReflection) => void;
+  prompt?: StudentDiscussionPrompt;
   reflection?: StudentQuestionReflection;
+  walkPrompt?: string;
 }) {
   const [scriptureReflection, setScriptureReflection] = useState("");
   const [questionReflection, setQuestionReflection] = useState("");
@@ -263,9 +295,9 @@ function StudentLovableJournalEntry({
   const [fruitReflection, setFruitReflection] = useState("");
   const [selectedPractice, setSelectedPractice] = useState<"embodied" | "guided">("embodied");
   const [studyPath, setStudyPath] = useState<"word" | "inductive">("word");
-  const journeyEntries = nextStep.journeyJournalEntries?.length ? nextStep.journeyJournalEntries : [nextStep.journeyJournal];
-  const activeJourney = journeyEntries[Math.min(entrySequence - 1, journeyEntries.length - 1)] ?? nextStep.journeyJournal;
+  const activeJourney = journeys[Math.min(entrySequence - 1, journeys.length - 1)] ?? journeys[0];
   const firstReadingId = activeJourney.readingPath[0]?.id ?? "";
+  const draftStorageKey = `${studentJourneyDraftStorageKey}:${journalId}:entry-${entrySequence}`;
   const [selectedReadingId, setSelectedReadingId] = useState(firstReadingId);
   const [isSaving, setIsSaving] = useState(false);
   const [status, setStatus] = useState(reflection?.privateNote ? "Saved to your private note." : "Autosaved locally until you save the entry.");
@@ -276,37 +308,63 @@ function StudentLovableJournalEntry({
   const guidedPrayer = practice.guidedPrayer;
   const keyWords = activeJourney.keyWords.slice(0, 3);
   const phases = [
-    { label: "Scripture", complete: Boolean(scriptureReflection.trim()) },
-    { label: "Investigate", complete: Boolean(questionReflection.trim()) },
+    { label: "Receive", complete: Boolean(scriptureReflection.trim()) },
+    { label: "Explore", complete: Boolean(questionReflection.trim()) },
     { label: "Practice", complete: Boolean(practiceReflection.trim()) },
-    { label: "Life", complete: Boolean(livingReflection.trim()) },
-    { label: "Fruit", complete: Boolean(fruitReflection.trim()) }
+    { label: "Walk", complete: Boolean(livingReflection.trim()) },
+    { label: "See", complete: Boolean(fruitReflection.trim()) }
   ];
 
   useEffect(() => {
-    setScriptureReflection("");
-    setQuestionReflection("");
-    setPracticeReflection("");
-    setLivingReflection("");
-    setFruitReflection("");
-    setSelectedPractice("embodied");
-    setStudyPath("word");
-    setSelectedReadingId(firstReadingId);
-    setStatus(reflection?.privateNote ? "Saved to your private note." : "Autosaved locally until you save the entry.");
-  }, [activeJourney.id, entrySequence, firstReadingId, reflection?.privateNote]);
+    const draft = readJournalDraft(draftStorageKey);
+    setScriptureReflection(draft?.scriptureReflection ?? "");
+    setQuestionReflection(draft?.questionReflection ?? "");
+    setPracticeReflection(draft?.practiceReflection ?? "");
+    setLivingReflection(draft?.livingReflection ?? "");
+    setFruitReflection(draft?.fruitReflection ?? "");
+    setSelectedPractice(draft?.selectedPractice ?? "embodied");
+    setStudyPath(draft?.studyPath ?? "word");
+    setSelectedReadingId(draft?.selectedReadingId ?? firstReadingId);
+    setStatus(
+      reflection?.privateNote
+        ? "Saved to your private note."
+        : draft?.savedAt
+          ? prompt
+            ? "Entry saved locally and to your private note."
+            : "Entry saved on this device."
+          : "Your writing stays on this device until you save the entry."
+    );
+  }, [activeJourney.id, draftStorageKey, firstReadingId, prompt, reflection?.privateNote]);
 
   async function saveEntry() {
     const privateNote = [
-      `Entry ${entrySequence}: ${activeJourney.title}`,
-      scriptureReflection ? `Scripture:\n${scriptureReflection}` : "",
-      questionReflection ? `Questions:\n${questionReflection}` : "",
+      `${activeJourney.title}`,
+      scriptureReflection ? `Receive:\n${scriptureReflection}` : "",
+      questionReflection ? `Explore:\n${questionReflection}` : "",
       practiceReflection ? `Practice (${selectedPractice}):\n${practiceReflection}` : "",
-      livingReflection ? `Living it out:\n${livingReflection}` : "",
-      fruitReflection ? `Fruit forming:\n${fruitReflection}` : ""
+      livingReflection ? `Walk:\n${livingReflection}` : "",
+      fruitReflection ? `See:\n${fruitReflection}` : ""
     ].filter(Boolean).join("\n\n").slice(0, 1200);
     setIsSaving(true);
-    setStatus("Saved locally. Syncing...");
+    setStatus(prompt ? "Saved on this device. Syncing to your private note..." : "Saving entry on this device...");
     try {
+      window.localStorage.setItem(draftStorageKey, JSON.stringify({
+        scriptureReflection,
+        questionReflection,
+        practiceReflection,
+        livingReflection,
+        fruitReflection,
+        selectedPractice,
+        studyPath,
+        selectedReadingId,
+        savedAt: new Date().toISOString()
+      } satisfies JournalEntryDraft));
+
+      if (!prompt) {
+        setStatus("Entry saved on this device.");
+        return;
+      }
+
       const response = await fetch("/api/student/scripture/reflections", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -317,7 +375,7 @@ function StudentLovableJournalEntry({
         setStatus(payload.error ?? "Entry could not be saved. Your text is still here.");
         return;
       }
-      onReflectionSaved(payload.reflection);
+      onReflectionSaved?.(payload.reflection);
       setStatus("Entry saved.");
     } catch {
       setStatus("Entry could not be saved. Your text is still here.");
@@ -331,6 +389,15 @@ function StudentLovableJournalEntry({
 
   return (
     <section className="student-lovable-journal" aria-label="Journey journal entry">
+      <JourneyRhythmIntro />
+      <header className="student-formation-day-heading">
+        <div>
+          <p className="eyebrow">Journey Journal / {activeJourney.title}</p>
+          <h1>{activeJourney.title}</h1>
+          <p>{activeJourney.subtitle}</p>
+        </div>
+        {activeJourney.rhythm ? <span className="pill blue">Day {entrySequence} of 14</span> : null}
+      </header>
       <ol className="student-lovable-road" aria-label="Entry progress">
         {phases.map((phase, index) => (
           <li key={phase.label} aria-current={index === currentPhaseIndex ? "step" : undefined}>
@@ -344,8 +411,8 @@ function StudentLovableJournalEntry({
 
       <LovableJournalSection
         icon={BookOpen}
-        eyebrow="Scripture / Step 1"
-        title="Read the passage in YouVersion before you speak back."
+        eyebrow="Receive the Story / Step 1"
+        title="God speaks. We begin by listening."
       >
         <div className="student-scripture-recommendations" role="group" aria-label="Recommended Scripture passages">
           {readingCards.map((reading) => (
@@ -366,8 +433,8 @@ function StudentLovableJournalEntry({
 
       <LovableJournalSection
         icon={GitFork}
-        eyebrow="Investigate / Step 2"
-        title="Choose one way to look more closely."
+        eyebrow="Explore the Story / Step 2"
+        title={activeJourney.rhythm?.explore ?? "We seek understanding."}
       >
         <div className="student-lovable-investigate-grid" role="group" aria-label="Choose an investigation path">
           <button className={studyPath === "word" ? "active" : ""} onClick={() => setStudyPath("word")} type="button">
@@ -404,8 +471,8 @@ function StudentLovableJournalEntry({
       </LovableJournalSection>
       <LovableJournalSection
         icon={Sprout}
-        eyebrow="Spiritual practices to try"
-        title="Do not just think about it - practice it."
+        eyebrow="Practice the Story / Step 3"
+        title={activeJourney.rhythm?.practice ?? "Truth forms us as we faithfully respond."}
       >
         <div className="student-lovable-practice-grid" role="group" aria-label="Choose a spiritual practice">
           <button className={selectedPractice === "embodied" ? "active" : ""} onClick={() => setSelectedPractice("embodied")} type="button">
@@ -429,7 +496,7 @@ function StudentLovableJournalEntry({
         </details>
         <textarea
           onChange={(event) => setPracticeReflection(event.target.value)}
-          placeholder="Which practice will you try this week? When, where, and for how long?"
+          placeholder="How will you practice this intentionally? When, where, and for how long?"
           rows={4}
           value={practiceReflection}
         />
@@ -437,8 +504,8 @@ function StudentLovableJournalEntry({
 
       <LovableJournalSection
         icon={Footprints}
-        eyebrow="Living it out"
-        title={entrySequence > 1 ? activeJourney.openingPrompt : nextStep.wrestleTogetherPrompt.replace(/^Bring this to group:\s*/i, "")}
+        eyebrow="Walk the Story / Step 4"
+        title={activeJourney.rhythm?.walk ?? walkPrompt ?? activeJourney.openingPrompt}
       >
         <textarea
           onChange={(event) => setLivingReflection(event.target.value)}
@@ -450,8 +517,8 @@ function StudentLovableJournalEntry({
 
       <LovableJournalSection
         icon={Leaf}
-        eyebrow="Fruit forming"
-        title="Notice what God is actually growing in you."
+        eyebrow="See the Story Growing / Step 5"
+        title={activeJourney.rhythm?.see ?? "We learn to recognize what God has been doing all along."}
       >
         <textarea
           onChange={(event) => setFruitReflection(event.target.value)}
@@ -499,8 +566,64 @@ function LovableJournalSection({
   );
 }
 
+function JourneyRhythmIntro() {
+  return (
+    <section className="student-rhythm-intro" aria-labelledby="rhythm-of-the-way-title">
+      <div>
+        <p className="eyebrow">How to use this journal</p>
+        <h2 id="rhythm-of-the-way-title">The Rhythm of the Way</h2>
+        <p>
+          Every journey follows the same rhythm—not because discipleship is predictable, but because God has always formed His people through listening, seeking, responding, walking, and remembering.
+        </p>
+      </div>
+      <ol>
+        <li><strong>Receive</strong><span>God speaks. We begin by listening.</span></li>
+        <li><strong>Explore</strong><span>We seek understanding with curiosity and humility.</span></li>
+        <li><strong>Practice</strong><span>Truth forms us as we faithfully respond.</span></li>
+        <li><strong>Walk</strong><span>We carry God&apos;s Story into ordinary life.</span></li>
+        <li><strong>See</strong><span>We recognize where the Spirit has been at work.</span></li>
+      </ol>
+      <p className="student-rhythm-closing">This rhythm is not a checklist to complete. It is a way of following Jesus—one faithful step at a time.</p>
+    </section>
+  );
+}
+
 const studentQuestionArchiveStorageKey = "lead-emergence:student-question-archives";
 const studentJourneyEntriesStorageKey = "lead-emergence:student-journey-entries";
+const studentJourneyDraftStorageKey = "lead-emergence:student-journey-draft";
+
+type JournalEntryDraft = {
+  scriptureReflection: string;
+  questionReflection: string;
+  practiceReflection: string;
+  livingReflection: string;
+  fruitReflection: string;
+  selectedPractice: "embodied" | "guided";
+  studyPath: "word" | "inductive";
+  selectedReadingId: string;
+  savedAt: string;
+};
+
+function readJournalDraft(storageKey: string): JournalEntryDraft | undefined {
+  if (typeof window === "undefined") return undefined;
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(storageKey) ?? "null") as Partial<JournalEntryDraft> | null;
+    if (!parsed || typeof parsed !== "object") return undefined;
+    return {
+      scriptureReflection: typeof parsed.scriptureReflection === "string" ? parsed.scriptureReflection : "",
+      questionReflection: typeof parsed.questionReflection === "string" ? parsed.questionReflection : "",
+      practiceReflection: typeof parsed.practiceReflection === "string" ? parsed.practiceReflection : "",
+      livingReflection: typeof parsed.livingReflection === "string" ? parsed.livingReflection : "",
+      fruitReflection: typeof parsed.fruitReflection === "string" ? parsed.fruitReflection : "",
+      selectedPractice: parsed.selectedPractice === "guided" ? "guided" : "embodied",
+      studyPath: parsed.studyPath === "inductive" ? "inductive" : "word",
+      selectedReadingId: typeof parsed.selectedReadingId === "string" ? parsed.selectedReadingId : "",
+      savedAt: typeof parsed.savedAt === "string" ? parsed.savedAt : ""
+    };
+  } catch {
+    return undefined;
+  }
+}
 
 function readArchivedPromptIds() {
   if (typeof window === "undefined") return new Set<string>();

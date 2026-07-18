@@ -16219,6 +16219,12 @@ body:has(.login-shell) h3 {
   max-width: 100%;
   overflow-x: auto;
   padding: 2px 2px 8px;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+
+.app-shell:not(.app-shell-camp) .student-journal-entry-rail::-webkit-scrollbar {
+  display: none;
 }
 
 .app-shell:not(.app-shell-camp) .student-journal-entry-rail button {
@@ -16226,14 +16232,15 @@ body:has(.login-shell) h3 {
   align-items: center;
   justify-content: center;
   gap: 7px;
-  min-width: 44px;
-  min-height: 42px;
+  min-width: 52px;
+  min-height: 48px;
   border: 1px solid rgba(129, 164, 214, 0.16);
   border-radius: 11px;
   background: rgba(6, 13, 27, 0.42);
   color: var(--platform-muted);
   cursor: pointer;
   font-weight: 900;
+  scroll-snap-align: start;
 }
 
 .app-shell:not(.app-shell-camp) .student-journal-entry-rail button.active {
@@ -16297,6 +16304,88 @@ body:has(.login-shell) h3 {
   max-width: 880px;
   margin-inline: auto;
   padding: 18px 0 6px;
+}
+
+.app-shell:not(.app-shell-camp) .student-rhythm-intro {
+  display: grid;
+  gap: 22px;
+  border: 1px solid rgba(22, 217, 245, 0.2);
+  border-radius: 18px;
+  background:
+    radial-gradient(620px 220px at 0% 0%, rgba(22, 217, 245, 0.1), transparent 64%),
+    linear-gradient(135deg, rgba(190, 146, 64, 0.08), rgba(7, 15, 30, 0.86) 58%);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.24);
+  padding: clamp(22px, 4vw, 34px);
+}
+
+.app-shell:not(.app-shell-camp) .student-rhythm-intro h2,
+.app-shell:not(.app-shell-camp) .student-formation-day-heading h1 {
+  margin: 5px 0 0;
+  color: #f7fbff;
+  font-family: var(--font-platform-serif), Georgia, serif;
+  font-size: clamp(28px, 4vw, 40px);
+  font-weight: 500;
+  line-height: 1.06;
+}
+
+.app-shell:not(.app-shell-camp) .student-rhythm-intro > div > p:last-child,
+.app-shell:not(.app-shell-camp) .student-rhythm-closing,
+.app-shell:not(.app-shell-camp) .student-formation-day-heading > div > p:last-child {
+  max-width: 720px;
+  margin: 10px 0 0;
+  color: var(--platform-muted);
+  line-height: 1.65;
+}
+
+.app-shell:not(.app-shell-camp) .student-rhythm-intro ol {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.app-shell:not(.app-shell-camp) .student-rhythm-intro li {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  border-top: 1px solid rgba(22, 217, 245, 0.28);
+  padding-top: 12px;
+}
+
+.app-shell:not(.app-shell-camp) .student-rhythm-intro li strong {
+  color: var(--platform-cyan);
+  font-family: var(--font-platform-mono), ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.app-shell:not(.app-shell-camp) .student-rhythm-intro li span {
+  color: #d8e5f5;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.app-shell:not(.app-shell-camp) .student-rhythm-closing {
+  margin-top: 0;
+  color: var(--platform-gold);
+  font-family: var(--font-platform-serif), Georgia, serif;
+  font-size: 17px;
+}
+
+.app-shell:not(.app-shell-camp) .student-formation-day-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  border-bottom: 1px solid rgba(129, 164, 214, 0.14);
+  padding: 4px 2px 22px;
+}
+
+.app-shell:not(.app-shell-camp) .student-formation-day-heading .pill {
+  flex: none;
 }
 
 .app-shell:not(.app-shell-camp) .student-lovable-road {
@@ -16832,6 +16921,19 @@ body:has(.login-shell) h3 {
     padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
   }
 
+  .app-shell:not(.app-shell-camp) .student-rhythm-intro ol {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .app-shell:not(.app-shell-camp) .student-formation-day-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .app-shell:not(.app-shell-camp) .student-formation-day-heading .pill {
+    align-self: flex-start;
+  }
+
   .app-shell:not(.app-shell-camp) .student-lovable-road {
     top: 96px;
     grid-auto-columns: minmax(118px, max-content);
@@ -16939,6 +17041,10 @@ body:has(.login-shell) h3 {
 @media (max-width: 540px) {
   .app-shell:not(.app-shell-camp) .student-ask-page {
     padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .app-shell:not(.app-shell-camp) .student-rhythm-intro ol {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .app-shell:not(.app-shell-camp) .student-journal-control {

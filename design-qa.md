@@ -83,3 +83,50 @@ Checks:
 - Camp and Command Center code and visual structure were not modified.
 
 Final result: passed.
+
+## Growth Journey 1 ? 14-day Journey Journal ? 2026-07-17
+
+Reference source:
+- `C:\Users\awbostwick\.codex\codex-remote-attachments\019f725a-9357-73e0-814d-48a2ff58faec\98960830-BFF0-4443-952C-FAC3C4195291\1-Photo-1.jpg`
+
+Implementation captures:
+- `C:\Users\awbostwick\.codex\visualizations\2026\07\14\019f629a-f634-75b1-8c4f-6be8d8700b27\growth-journey-1\mobile-day-1.png`
+- `C:\Users\awbostwick\.codex\visualizations\2026\07\14\019f629a-f634-75b1-8c4f-6be8d8700b27\growth-journey-1\mobile-day-14.png`
+- `C:\Users\awbostwick\.codex\visualizations\2026\07\14\019f629a-f634-75b1-8c4f-6be8d8700b27\growth-journey-1\desktop-day-1.png`
+
+Viewport and state:
+- Mobile viewport: 390 x 844; desktop viewport: 1280 x 900.
+- Mock-auth student session on `/student/scripture/questions`.
+- Growth Journey 1 selected, question composer collapsed, and Day 1 selected for the primary comparison.
+- Day 14 was selected separately to verify the final entry and its Psalm 23 content.
+
+Comparison evidence:
+- The supplied mobile reference and `mobile-day-1.png` were emitted together in the same focused comparison input.
+- Full-view mobile and desktop captures were inspected for hierarchy, wrapping, and whole-page overflow.
+- The first pass exposed a native horizontal scrollbar beneath the numbered entries. The rail was refined with 52 x 48 entry pills and a hidden native scrollbar, then recaptured.
+
+Required fidelity surfaces:
+- Typography: preserves the existing Journey Journal serif/display and uppercase-label system while matching the reference's strong title/step hierarchy.
+- Spacing and layout: the selector summary, numbered-entry rail, and journal content retain the reference's stacked mobile rhythm; all fourteen entries fit in one row on desktop and scroll within the rail on mobile.
+- Color and tokens: reuses the existing deep-navy, cyan-accent, border, and focus tokens; no parallel palette or inline overrides were introduced.
+- Image quality: no new raster or decorative assets were required because the source is an interface reference rather than artwork.
+- Copy and content: one dropdown item, Growth Journey 1, contains all fourteen days; the five movements are Receive, Explore, Practice, Walk, and See.
+
+Interaction checks:
+- The selector exposes one curated formation journey alongside submitted-question journals, not fourteen dropdown options.
+- The entry rail renders fourteen numbered buttons; selecting Day 6 opens Teachability and selecting Day 14 opens Sabbath.
+- Question journals retain Add entry; the fixed formation journey does not show a misleading Add entry control.
+- Browser inspection found no runtime error overlay, no console errors, and no whole-page horizontal overflow at either checked viewport.
+
+Intentional differences from the reference:
+- The existing Student Portal tabs and Start a New Question control remain because they are established product navigation.
+- The formation journey is a fixed fourteen-day curriculum, so the reference's Add entry action is replaced by entries 1?14.
+- The Rhythm of the Way introduction is included before the daily content because it is the requested formative framework.
+
+Severity review:
+- P0 blockers: none.
+- P1 major issues: none.
+- P2 usability or responsive issues: none.
+- P3 polish: the mobile rail intentionally reveals only the first several days at once and uses horizontal scrolling to preserve readable touch targets.
+
+Final result: passed.

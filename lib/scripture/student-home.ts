@@ -77,6 +77,13 @@ export type StudentJourneyJournal = {
   title: string;
   subtitle: string;
   openingPrompt: string;
+  rhythm?: {
+    receive: string;
+    explore: string;
+    practice: string;
+    walk: string;
+    see: string;
+  };
   followUpQuestions: StudentJourneyQuestion[];
   readingPath: StudentJourneyReading[];
   keyWords: StudentJourneyKeyword[];
