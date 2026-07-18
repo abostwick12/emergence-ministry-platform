@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getMockAuthUser, isMockAuthEnabled, isSupabaseConfigured } from "@/lib/auth/config";
 import { getSupabaseAuthClient, setAuthCookies } from "@/lib/auth/server";
+import { isPlatformUserActiveById } from "@/lib/platform/access-admin";
 
 export async function POST(request: Request) {
   const body = (await request.json()) as { email?: string; password?: string };
@@ -29,6 +30,10 @@ export async function POST(request: Request) {
   }
 
   const profile = await getLoginProfile(data.session.access_token, data.user.id);
+  if (!(await isPlatformUserActiveById(data.user.id))) {
+    return NextResponse.json({ error: "This account has been deactivated by a platform administrator." }, { status: 403 });
+  }
+
   const response = NextResponse.json({
     user: {
       id: data.user.id,

@@ -11,6 +11,18 @@ export async function POST() {
     return NextResponse.json({ ok: false, error: "Student Scripture Hub access is not available for this account." }, { status: 403 });
   }
 
+  if (access.session.isGuest) {
+    return NextResponse.json({
+      ok: true,
+      diagnostic: {
+        ok: true,
+        provider: "guest-stock-responses",
+        model: "guest-stock-responses",
+        message: "Guest mode skips live Gloo diagnostics and returns a stock readiness preview."
+      }
+    });
+  }
+
   const role = access.session.user.role.trim().toLowerCase();
   if (role !== "admin" && role !== "leader") {
     return NextResponse.json({ ok: false, error: "Only leaders can run Gloo diagnostics." }, { status: 403 });

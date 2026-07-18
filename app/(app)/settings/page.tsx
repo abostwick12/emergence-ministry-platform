@@ -3,12 +3,10 @@ import { EmmaProposalReviewPanel } from "@/components/emma-proposal-review-panel
 import { MinistrySettingsPage } from "@/components/ministry-launch-pages";
 import { WebsiteAccessPanel } from "@/components/website-access-panel";
 import { getServerSession } from "@/lib/auth/server";
-import { isCampAccessAdmin } from "@/lib/camp/access-admin";
 
 export default async function SettingsPage() {
   const session = await getServerSession();
   const isAdmin = session?.user.role === "admin";
-  const canManageCampAccess = session ? await isCampAccessAdmin(session) : false;
 
   return (
     <div className="grid">
@@ -23,7 +21,7 @@ export default async function SettingsPage() {
             : null
         }
       />
-      <WebsiteAccessPanel canManageCampAccess={canManageCampAccess} canManagePlatformAccess={isAdmin} />
+      <WebsiteAccessPanel canManagePlatformAccess={isAdmin} />
       {isAdmin ? (
         <details className="settings-admin-diagnostics">
           <summary>Advanced EMMA review and diagnostics</summary>

@@ -25,6 +25,16 @@ export async function GET() {
   }
 
   try {
+    if (access.session.isGuest) {
+      return NextResponse.json({
+        ok: true,
+        prompts: [],
+        resources: [],
+        nextSteps: [],
+        guest: true,
+        message: "Guest mode uses stock Meridian discussion examples only."
+      });
+    }
     const state = await getStudentDiscussionWorkflowState(access.session);
     return NextResponse.json({ ok: true, ...state });
   } catch (error) {
@@ -52,6 +62,31 @@ export async function POST(request: Request) {
 
   if (body.scriptureReference !== undefined && typeof body.scriptureReference !== "string") {
     return NextResponse.json({ ok: false, code: "invalid_reference", error: "Scripture reference must be text." }, { status: 400 });
+  }
+
+  if (access.session.isGuest) {
+    const now = new Date().toISOString();
+    const prompt = {
+      id: `guest-discussion-${Date.now()}`,
+      question: body.question.trim(),
+      scriptureReference: body.scriptureReference?.trim() ?? "",
+      status: "submitted",
+      safetyLabel: "safe",
+      safetyNotes: "Guest stock response. No question, recommendation, or AI audit was saved.",
+      aiProvider: "guest-stock-responses",
+      discussionPrompt: "Where does this passage invite honest attention, patient trust, and a next step with Jesus in community?",
+      createdAt: now,
+      updatedAt: now
+    };
+    return NextResponse.json({
+      ok: true,
+      prompt,
+      nextStep: {
+        label: "Guest Meridian preview",
+        message: "A leader would see recommended Scripture-grounded discussion next steps here. This sandbox does not save anything.",
+        resources: []
+      }
+    }, { status: 201 });
   }
 
   try {

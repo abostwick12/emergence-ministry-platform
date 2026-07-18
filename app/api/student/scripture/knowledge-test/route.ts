@@ -12,6 +12,18 @@ type KnowledgeTestRequestBody = {
 export async function POST(request: Request) {
   const access = resolveStudentHubAccess(await getServerSession());
   if (!access.allowed) return unauthorizedResponse();
+  if (access.session.isGuest) {
+    return NextResponse.json({
+      ok: true,
+      result: {
+        provider: "guest-stock-responses",
+        discussionPrompt: "What does this question reveal about what students are trying to understand, and how could a leader guide the group toward Scripture with patience?",
+        safetyLabel: "safe",
+        safetyNotes: "Guest simulation only. No knowledge search, save, or AI provider call ran.",
+        matches: []
+      }
+    });
+  }
   if (access.role === "student") {
     return NextResponse.json({ error: "Only leaders can test the Meridian." }, { status: 403 });
   }

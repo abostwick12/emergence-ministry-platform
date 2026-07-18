@@ -17,6 +17,30 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Student Scripture Hub access is not available for this account." }, { status: 403 });
   }
 
+  if (access.session.isGuest) {
+    return NextResponse.json({
+      ok: true,
+      draft: {
+        ok: true,
+        provider: "gloo",
+        model: "guest-stock-responses",
+        modelReason: "Guest mode uses a curated stock Meridian response. No Gloo, Gemini, OpenAI, or database call ran.",
+        title: "Guest Reading Plan Preview",
+        audience: "Competition guest sandbox",
+        duration: "5 days",
+        primaryScripture: "Luke 15",
+        movement: "Jesus / Kingdom Fulfilled",
+        summary: "A leader-reviewed sample plan that helps students notice welcome, repentance, and joy in Jesus' parables.",
+        contextFocus: "Use this as a demo of flow and tone, not as persisted curriculum.",
+        weeklyRhythm: ["Notice the setting.", "Name the lost-and-found pattern.", "Ask what welcome reveals.", "Connect the story to community.", "Pray for one next step."],
+        discussionPrompts: ["Where do you see grace moving toward someone before they have everything figured out?"],
+        guardrailNotes: ["Guest mode does not save or publish this plan."],
+        prayerPrompt: "Jesus, help us notice your welcome and respond honestly.",
+        safetyNotes: "Stock guest simulation for leader review only."
+      }
+    }, { status: 201 });
+  }
+
   const readiness = getMeridianAiReadiness();
   if (!readiness.configured) {
     return NextResponse.json(

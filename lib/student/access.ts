@@ -20,6 +20,9 @@ export function resolveStudentHubAccess(session: AuthSession | null): StudentHub
   if (!session) {
     return { allowed: false, reason: "unauthenticated", destination: "/login" };
   }
+  if (session.isGuest) {
+    return { allowed: true, role: "student", session };
+  }
 
   const role = normalizeStudentHubRole(session.user.role);
   if (canAccessStudentHub(role)) {

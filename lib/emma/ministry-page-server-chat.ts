@@ -11,6 +11,7 @@ import { ministryPageChatSchema, ministryPageChatSystemPrompt, type MinistryPage
 import { runEmmaProviderForRequest } from "@/lib/emma/providers/run-provider";
 import type { EmmaProviderId } from "@/lib/emma/providers/types";
 import { DEFAULT_GEMINI_MODEL, DEFAULT_OPENAI_EMMA_MODEL } from "@/lib/emma/providers/registry";
+import { buildGuestEmmaResponse, guestAuditLabel } from "@/lib/guest/stock-ai";
 import {
   completeAiRun,
   createActionProposal,
@@ -48,7 +49,7 @@ const ministryPageChatInputSchema = z
 
 export type MinistryPageServerChatInput = z.infer<typeof ministryPageChatInputSchema>;
 
-export type MinistryPageServerChatProviderMode = "live_provider" | "audited_fallback";
+export type MinistryPageServerChatProviderMode = "live_provider" | "audited_fallback" | "guest_simulation";
 
 export type MinistryPageServerChatResult = {
   response: MinistryEmmaResponse;
@@ -84,6 +85,19 @@ export type MinistryEmmaReadiness = {
 };
 
 export function getMinistryEmmaReadiness(input: { session?: AuthSession | null; env?: NodeJS.ProcessEnv } = {}): MinistryEmmaReadiness {
+  if (input.session?.isGuest) {
+    return {
+      serverBacked: true,
+      liveProviderConfigured: false,
+      providerMode: "mock",
+      provider: "deterministic",
+      model: "guest-stock-responses",
+      audit: "mock",
+      status: "fallback",
+      message: "Guest EMMA uses curated stock responses only. No AI provider, audit write, or external call runs."
+    };
+  }
+
   const env = input.env ?? process.env;
   const providerMode = resolveMinistryEmmaProviderMode(env);
   const liveProviderConfigured = providerMode !== "mock";
@@ -114,9 +128,24 @@ export async function runMinistryPageServerChat({
 }): Promise<EmmaResponse<MinistryPageServerChatResult>> {
   try {
     if (!session) throw emmaErrors.unauthorized();
+    const input = parseInput(rawInput);
+    if (session.isGuest) {
+      return emmaOk({
+        response: buildGuestEmmaResponse({ overview, page: input.page, prompt: input.prompt }),
+        requestId: "guest-stock-request",
+        runId: "guest-stock-run",
+        providerMode: "guest_simulation",
+        provider: "deterministic",
+        model: "guest-stock-responses",
+        proposalCreated: false,
+        proposalId: null,
+        executed: false,
+        warnings: [guestAuditLabel()]
+      });
+    }
+
     assertCanChat(session);
 
-    const input = parseInput(rawInput);
     const fallbackResponse = answerMinistryEmmaPrompt({
       overview,
       page: input.page,

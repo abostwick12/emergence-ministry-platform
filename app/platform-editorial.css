@@ -1212,12 +1212,16 @@
 
 .app-shell:not(.app-shell-camp) .website-access-row {
   display: grid;
-  grid-template-columns: auto minmax(220px, 1fr) minmax(190px, 0.42fr) auto;
+  grid-template-columns: auto minmax(220px, 1fr) minmax(190px, 0.42fr) auto auto;
   gap: 16px;
   align-items: center;
   min-width: 0;
   border-top: 1px solid rgba(129, 164, 214, 0.14);
   padding: 16px 0;
+}
+
+.app-shell:not(.app-shell-camp) .website-access-row.inactive {
+  opacity: 0.72;
 }
 
 .app-shell:not(.app-shell-camp) .website-access-row:last-child {
@@ -1273,6 +1277,13 @@
   background: rgba(5, 14, 28, 0.7);
   color: #f7fbff;
   padding: 0 12px;
+}
+
+.app-shell:not(.app-shell-camp) .website-page-access-grid {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
 }
 
 .app-shell:not(.app-shell-camp) .website-camp-access-rules,

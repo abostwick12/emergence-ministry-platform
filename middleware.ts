@@ -7,22 +7,27 @@ const publicPaths = [
   "/auth/set-password",
   "/hackathon",
   "/api/auth/login",
+  "/api/auth/guest",
   "/api/auth/logout",
   "/api/auth/invite-session",
   "/api/daily-intelligence/brief",
   "/api/student/join"
 ];
 const publicPathPrefixes = ["/join/"];
+const guestBlockedPathPrefixes = ["/camp", "/settings", "/command-center", "/api/camp", "/api/settings", "/api/command-center"];
 
 function hasSessionCookie(request: NextRequest) {
   return (
     Boolean(request.cookies.get(authCookieNames.accessToken)?.value) ||
+    Boolean(request.cookies.get(authCookieNames.guestSession)?.value) ||
     (isMockAuthEnabled() && request.cookies.get(authCookieNames.mockSession)?.value === "1")
   );
 }
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-lead-emergence-pathname", pathname);
 
   if (
     pathname.startsWith("/_next") ||
@@ -31,7 +36,7 @@ export function middleware(request: NextRequest) {
     publicPaths.some((path) => pathname === path) ||
     publicPathPrefixes.some((path) => pathname.startsWith(path))
   ) {
-    return NextResponse.next();
+    return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
   if (!hasSessionCookie(request)) {
@@ -44,7 +49,17 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  return NextResponse.next();
+  if (
+    request.cookies.get(authCookieNames.guestSession)?.value &&
+    guestBlockedPathPrefixes.some((path) => pathname === path || pathname.startsWith(`${path}/`))
+  ) {
+    if (pathname.startsWith("/api")) {
+      return NextResponse.json({ error: "Guest access is not available for this page." }, { status: 403 });
+    }
+    return NextResponse.redirect(new URL("/", request.url));
+  }
+
+  return NextResponse.next({ request: { headers: requestHeaders } });
 }
 
 export const config = {

@@ -5,8 +5,8 @@ import { MasterEventCard } from "@/components/master-event-card";
 import { isDevAuthActive } from "@/lib/auth/config";
 import { getServerSession } from "@/lib/auth/server";
 import { isCommandCenterUser } from "@/lib/command-center/access";
-import { resolveAppShellAccess } from "@/lib/camp/shell-access";
-import { canAccessStudentHub } from "@/lib/student/access";
+import { resolvePageAccessForSession, visiblePlatformPagesForSession } from "@/lib/platform/access-admin";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 export default async function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
@@ -15,11 +15,14 @@ export default async function AuthenticatedLayout({ children }: { children: Reac
   const devAuth = isDevAuthActive();
   const session = await getServerSession();
   if (!session) redirect("/login");
+  const pathname = headers().get("x-lead-emergence-pathname") ?? "/dashboard";
+  if (!(await resolvePageAccessForSession(session, pathname))) redirect(session.isGuest ? "/" : "/dashboard");
   const normalizedRole = session.user.role.trim().toLowerCase();
-  if (normalizedRole === "student") redirect("/student");
+  if (!session.isGuest && normalizedRole === "student") redirect("/student");
   if (normalizedRole === "parent") redirect("/parent");
-  const shellAccess = session.isMock ? { kind: "full" as const } : await resolveAppShellAccess(session);
-  const sessionRole = session.user.role === "leader" || session.user.role === "student" || session.user.role === "parent" ? session.user.role : "admin";
+  const shellAccess = { kind: "full" as const };
+  const sessionRole = session.user.role === "leader" || session.user.role === "student" || session.user.role === "parent" ? session.user.role : session.isGuest ? "leader" : "admin";
+  const visiblePageKeys = await visiblePlatformPagesForSession(session);
 
   return (
     <RoleProvider initialRole={sessionRole}>
@@ -29,9 +32,10 @@ export default async function AuthenticatedLayout({ children }: { children: Reac
           devAuth={devAuth}
           shellAccess={shellAccess}
           sessionRole={sessionRole}
-          showCommandCenter={isCommandCenterUser(session)}
-          showLeaderDiscipleship={session.user.role === "admin" || session.user.role === "leader"}
-          showStudentPortal={canAccessStudentHub(session.user.role)}
+          showCommandCenter={!session.isGuest && isCommandCenterUser(session)}
+          showLeaderDiscipleship={visiblePageKeys.includes("discipleship")}
+          showStudentPortal={visiblePageKeys.includes("student_portal")}
+          visiblePageKeys={visiblePageKeys}
           user={{ name: session.user.fullName, email: session.user.email }}
         >
           {children}

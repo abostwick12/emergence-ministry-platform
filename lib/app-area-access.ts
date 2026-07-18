@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession, unauthorizedResponse, type AuthSession } from "@/lib/auth/server";
-import { resolveCampAccessForAuthenticatedRequest } from "@/lib/auth/request-access";
-import { isCampAccessResolutionError } from "@/lib/camp/access-control";
-import { canAccessEmergeOperations, resolveCampAccessContext, type CampAccessContext } from "@/lib/camp/permissions";
+import { resolveCampAccessContext, type CampAccessContext } from "@/lib/camp/permissions";
+import { isPlatformUserActiveById } from "@/lib/platform/access-admin";
 
 export type EmergeOperationsAccess =
   | { allowed: true; session: AuthSession; context: CampAccessContext }
@@ -11,6 +10,9 @@ export type EmergeOperationsAccess =
 export async function requireEmergeOperationsAccess(): Promise<EmergeOperationsAccess> {
   const session = await getServerSession();
   if (!session) return { allowed: false, response: unauthorizedResponse() };
+  if (session.isGuest) {
+    return { allowed: true, session, context: resolveCampAccessContext({ ...session, isMock: true }, "andrew") };
+  }
   const role = session.user.role.trim().toLowerCase();
   if (role === "student" || role === "parent") {
     return {
@@ -18,37 +20,18 @@ export async function requireEmergeOperationsAccess(): Promise<EmergeOperationsA
       response: NextResponse.json({ error: "You do not have permission to perform this action." }, { status: 403 })
     };
   }
-  if (session.isMock) {
-    return { allowed: true, session, context: resolveCampAccessContext(session, "andrew") };
-  }
-
-  const resolved = await resolveEmergeOperationsContext(session);
-  if (!resolved.allowed) return { allowed: false, response: resolved.response };
-  const { context } = resolved;
-  if (!canAccessEmergeOperations(context)) {
-    if (session.isMock) {
-      return { allowed: true, session, context };
-    }
+  if (role !== "admin" && role !== "leader") {
     return {
       allowed: false,
       response: NextResponse.json({ error: "EMERGE operations access is not available for this account." }, { status: 403 })
     };
   }
-
-  return { allowed: true, session, context };
-}
-
-async function resolveEmergeOperationsContext(session: AuthSession): Promise<
-  | { allowed: true; context: CampAccessContext }
-  | { allowed: false; response: Response }
-> {
-  try {
-    return { allowed: true, context: await resolveCampAccessForAuthenticatedRequest(session) };
-  } catch (error) {
-    if (!isCampAccessResolutionError(error)) throw error;
+  if (!(await isPlatformUserActiveById(session.user.id))) {
     return {
       allowed: false,
-      response: NextResponse.json({ error: error.message, code: error.code }, { status: error.status })
+      response: NextResponse.json({ error: "This account has been deactivated by a platform administrator." }, { status: 403 })
     };
   }
+
+  return { allowed: true, session, context: resolveCampAccessContext({ ...session, isMock: true }, role === "admin" ? "andrew" : "general_leader") };
 }
