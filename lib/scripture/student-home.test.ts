@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildJourneyExploreInsight,
   buildGroupDiscussionNextStep,
   buildQuestionNextStep,
   buildStudentHomeFeed,
@@ -9,6 +10,7 @@ import {
   toGroupDiscussionItems,
   youVersionPracticeMediaRotation
 } from "@/lib/scripture/student-home";
+import { studentLeaderFormationJourney } from "@/lib/scripture/student-formation-journeys";
 import type { StudentDiscussionPrompt } from "@/lib/scripture/types";
 
 describe("student home feed personalization", () => {
@@ -497,6 +499,17 @@ describe("student home feed personalization", () => {
     expect(nextStep.digQuestions).toEqual(
       expect.arrayContaining(["Where does Scripture make room for honest lament?"])
     );
+  });
+
+  it("synthesizes selected Explore tool guidance from the active Meridian journey context", () => {
+    const dayTwo = studentLeaderFormationJourney.entries[1];
+    const genreTool = getJourneyExploreToolPair(dayTwo.id, 2).find((tool) => tool.label === "Genre Awareness");
+
+    expect(genreTool).toBeDefined();
+    expect(buildJourneyExploreInsight(genreTool!, dayTwo)).toContain(
+      "Meridian reads Genesis 1 as theological creation narrative"
+    );
+    expect(buildJourneyExploreInsight(genreTool!, dayTwo)).toContain("calls creation tov");
   });
 });
 

@@ -9,6 +9,7 @@ import { YouVersionReaderWindow } from "@/components/student/youversion-reader-w
 import type { DiscussionWorkflowState } from "@/lib/scripture/discussion-workflow";
 import { studentLeaderFormationJourney } from "@/lib/scripture/student-formation-journeys";
 import {
+  buildJourneyExploreInsight,
   buildQuestionNextStep,
   getJourneyExploreToolPair,
   getYouVersionPracticeMedia,
@@ -342,6 +343,7 @@ function StudentLovableJournalEntry({
   const keyWords = activeJourney.keyWords.slice(0, 3);
   const exploreTools = getJourneyExploreToolPair(activeJourney.id, entrySequence);
   const selectedExploreTool = exploreTools.find((tool) => tool.storageStudyPath === draft.studyPath) ?? exploreTools[0];
+  const selectedExploreInsight = buildJourneyExploreInsight(selectedExploreTool, activeJourney);
   const practiceDetailItems = buildPracticeDetailItems(practice, draft.selectedPractice, guidedPrayer);
   const youVersionPracticeMedia = practice.youVersionMedia ?? getYouVersionPracticeMedia(activeJourney.id, entrySequence);
   const phases = [
@@ -509,7 +511,7 @@ function StudentLovableJournalEntry({
         <div className="student-lovable-tool-note" aria-label="Selected Bible study tool">
           <span>{selectedExploreTool.category}</span>
           <strong>{selectedExploreTool.label}</strong>
-          <p>{selectedExploreTool.prompt}</p>
+          <p>{selectedExploreInsight}</p>
         </div>
         {draft.studyPath === "word" && keyWords.length ? (
           <div className="student-lovable-keyword-row" aria-label="Study support cards">
