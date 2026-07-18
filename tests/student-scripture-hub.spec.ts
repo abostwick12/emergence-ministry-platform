@@ -238,6 +238,20 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(formationJournal).toContainText("Day 6: Teachability");
     await expect(formationJournal).toContainText("Proverbs 3:11-12");
     await expect(formationJournal).toContainText("paideia");
+    const formationReceive = formationJournal.getByPlaceholder(/What did you notice/);
+    await formationReceive.fill("God's correction can be received as loving formation.");
+    await formationJournal.getByRole("button", { name: "Save entry" }).click();
+    await expect(formationJournal).toContainText("Saved to your account.");
+    await page.evaluate(() => {
+      for (const key of Object.keys(window.localStorage)) {
+        if (key.includes("student-journey-draft")) window.localStorage.removeItem(key);
+      }
+    });
+    await page.reload();
+    await page.getByRole("group", { name: "Journey entries" }).getByRole("button", { name: "6", exact: true }).click();
+    await expect(page.getByRole("region", { name: "Journey journal entry" }).getByPlaceholder(/What did you notice/)).toHaveValue(
+      "God's correction can be received as loving formation."
+    );
     await expect(page.getByLabel("What are you wondering?")).toBeVisible();
     await expect(page.getByText("Metanarrative movement")).toHaveCount(0);
     await page.getByLabel("What are you wondering?").fill("Why did God put the tree in the garden?");
@@ -271,11 +285,20 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(journey).toContainText("Bring one unresolved question to a leader or group.");
     await journey.getByPlaceholder(/Where does this touch your actual life/).fill("I will take a quiet walk before small group.");
     await journey.getByRole("button", { name: "Save entry" }).click();
-    await expect(journey.getByText("Saved to your private note.")).toBeVisible();
+    await expect(journey).toContainText("Saved to your account.");
+    await page.evaluate(() => {
+      for (const key of Object.keys(window.localStorage)) {
+        if (key.includes("student-journey-draft") || key.includes("student-journey-entries")) window.localStorage.removeItem(key);
+      }
+    });
     await page.reload();
     await expect(page.getByRole("region", { name: "Journey journal selector" })).toContainText("Why did God put the tree in the garden?");
     await expect(page.getByRole("group", { name: "Journey entries" }).getByRole("button", { name: "2" })).toBeVisible();
-    await expect(page.getByRole("region", { name: "Journey journal entry" })).toContainText("Saved to your private note.");
+    await page.getByRole("group", { name: "Journey entries" }).getByRole("button", { name: "2" }).click();
+    await expect(page.getByRole("region", { name: "Journey journal entry" }).getByPlaceholder(/What did you notice/)).toHaveValue(
+      "It was a test, free will, and choice."
+    );
+    await expect(page.getByRole("region", { name: "Journey journal entry" })).toContainText("Saved to your account.");
     const history = page.getByRole("region", { name: "Journey History" });
     await history.locator("summary").click();
     await history.getByRole("button", { name: "Archive" }).click();
