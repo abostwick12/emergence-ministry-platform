@@ -1,7 +1,8 @@
 import type { MetanarrativeMovement } from "@/lib/scripture/types";
 import { measureServerOperation } from "@/lib/performance/timing";
 
-const PROVIDER_TIMEOUT_MS = 12_000;
+const PROVIDER_TIMEOUT_MS = 45_000;
+const PROVIDER_MAX_OUTPUT_TOKENS = 1_200;
 const GLOO_TOKEN_URL = "https://platform.ai.gloo.com/oauth2/token";
 const GLOO_DEFAULT_API_BASE_URL = "https://platform.ai.gloo.com/ai/v2";
 const GLOO_TOKEN_REFRESH_BUFFER_MS = 60_000;
@@ -624,6 +625,7 @@ function createGlooDraftRequestBody(input: GlooDiscussionDraftInput, selection: 
   return JSON.stringify({
     model: selection.model,
     temperature: 0.3,
+    max_tokens: PROVIDER_MAX_OUTPUT_TOKENS,
     messages: [
       {
         role: "system",
@@ -649,6 +651,7 @@ function createGlooReadingPlanRequestBody(input: GlooReadingPlanDraftInput, sele
   return JSON.stringify({
     model: selection.model,
     temperature: 0.3,
+    max_tokens: PROVIDER_MAX_OUTPUT_TOKENS,
     messages: [
       {
         role: "system",

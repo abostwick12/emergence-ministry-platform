@@ -183,6 +183,7 @@ describe("Gloo model policy", () => {
     expect(body.messages[1].content).toContain("Internal grounding for posture only:");
     expect(body.messages[1].content).toContain("Ask abstract questions that deepen attention.");
     expect(body.messages[1].content).toContain("Drive toward engagement");
+    expect(body.max_tokens).toBe(1200);
   });
 
   it("normalizes the Gloo platform origin to the official v2 chat endpoint", async () => {
@@ -369,6 +370,7 @@ describe("Gloo model policy", () => {
         }
       ]
     });
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).max_tokens).toBe(1200);
   });
 
   it("parses fenced JSON draft content from Gloo-compatible providers", async () => {
