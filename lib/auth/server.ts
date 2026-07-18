@@ -14,6 +14,8 @@ export type AuthSession = {
   };
   accessToken?: string;
   isMock: boolean;
+  isGuest?: boolean;
+  guestSessionId?: string;
 };
 
 const cookieOptions = {
@@ -97,6 +99,21 @@ export function getServerSession(): Promise<AuthSession | null> {
 }
 
 async function loadServerSession(cookieStore: ReturnType<typeof cookies>): Promise<AuthSession | null> {
+  const guestSessionId = cookieStore.get(authCookieNames.guestSession)?.value?.trim();
+  if (guestSessionId) {
+    return {
+      user: {
+        id: `guest_${guestSessionId}`,
+        email: "guest@lead-emergence.local",
+        fullName: "Guest",
+        role: "guest"
+      },
+      isMock: false,
+      isGuest: true,
+      guestSessionId
+    };
+  }
+
   const hasMockSession = cookieStore.get(authCookieNames.mockSession)?.value === "1";
 
   if (hasMockSession && isMockAuthEnabled()) {

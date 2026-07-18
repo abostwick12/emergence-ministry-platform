@@ -159,6 +159,26 @@ export default function MinistryWorkspace({
     await refresh();
   }
 
+  async function deleteGuestEvent(eventId: string) {
+    const response = await fetch(`/api/events/${eventId}`, { method: "DELETE" });
+    if (!response.ok) {
+      setNotice("Guest event delete failed. Only sandbox events can be deleted.");
+      return;
+    }
+    setNotice("Guest event deleted. Nothing was saved outside this session.");
+    await refresh();
+  }
+
+  async function deleteGuestTask(taskId: string) {
+    const response = await fetch(`/api/tasks/${taskId}`, { method: "DELETE" });
+    if (!response.ok) {
+      setNotice("Guest task delete failed. Only sandbox tasks can be deleted.");
+      return;
+    }
+    setNotice("Guest task deleted. Nothing was saved outside this session.");
+    await refresh();
+  }
+
   function openCommandCenter(eventId: string) {
     openEdit(eventId);
   }
@@ -204,11 +224,12 @@ export default function MinistryWorkspace({
             onOpenEvent={openCommandCenter}
             onUpdateTask={updateTask}
             onUpdateEvent={updateEvent}
+            onDeleteEvent={deleteGuestEvent}
           />
         </section>
       ) : (
         <section className="grid workflow-stack tasks-page-stack">
-          <TasksWorkspace tasks={visibleTasks} events={overview.events} users={activeUsers} onUpdate={updateTask} />
+          <TasksWorkspace tasks={visibleTasks} events={overview.events} users={activeUsers} onUpdate={updateTask} onDelete={deleteGuestTask} />
           <details className="task-emma-disclosure">
             <summary>Ask EMMA about priorities, people, or decisions</summary>
             <MinistryEmmaPanel page="tasks" overview={{ ...overview, tasks: visibleTasks }} />
@@ -637,12 +658,14 @@ function TasksWorkspace({
   tasks,
   events,
   users,
-  onUpdate
+  onUpdate,
+  onDelete
 }: {
   tasks: ActiveTask[];
   events: MinistryEvent[];
   users: User[];
   onUpdate: (taskId: string, body: Partial<ActiveTask>) => Promise<void>;
+  onDelete: (taskId: string) => Promise<void>;
 }) {
   const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
   const [statusFilter, setStatusFilter] = useState<TaskStatus | "all">("all");
@@ -729,6 +752,7 @@ function TasksWorkspace({
                           users={users}
                           eventTitle={events.find((event) => event.id === task.eventId)?.title ?? "Event"}
                           onUpdate={onUpdate}
+                          onDelete={onDelete}
                         />
                       </div>
                     ))
@@ -875,7 +899,8 @@ function EventsWorkspace({
   onToggleEvent,
   onOpenEvent,
   onUpdateTask,
-  onUpdateEvent
+  onUpdateEvent,
+  onDeleteEvent
 }: {
   events: MinistryEvent[];
   tasks: ActiveTask[];
@@ -888,6 +913,7 @@ function EventsWorkspace({
   onOpenEvent: (eventId: string) => void;
   onUpdateTask: (taskId: string, body: Partial<ActiveTask>) => Promise<void>;
   onUpdateEvent: (eventId: string, body: Partial<MinistryEvent>) => Promise<void>;
+  onDeleteEvent: (eventId: string) => Promise<void>;
 }) {
   const [activeTab, setActiveTab] = useState<EventTabKey>("upcoming");
   const groupedEvents = groupEventsByTimeframe(events);
@@ -942,6 +968,7 @@ function EventsWorkspace({
                 onOpenEvent={onOpenEvent}
                 onUpdateTask={onUpdateTask}
                 onUpdateEvent={onUpdateEvent}
+                onDeleteEvent={onDeleteEvent}
                 users={users}
               />
             );
@@ -968,7 +995,8 @@ function EventRowCard({
   onToggleEvent,
   onOpenEvent,
   onUpdateTask,
-  onUpdateEvent
+  onUpdateEvent,
+  onDeleteEvent
 }: {
   event: MinistryEvent;
   tasks: ActiveTask[];
@@ -982,6 +1010,7 @@ function EventRowCard({
   onOpenEvent: (eventId: string) => void;
   onUpdateTask: (taskId: string, body: Partial<ActiveTask>) => Promise<void>;
   onUpdateEvent: (eventId: string, body: Partial<MinistryEvent>) => Promise<void>;
+  onDeleteEvent: (eventId: string) => Promise<void>;
 }) {
   const rowTone = getEventRowTone(event);
 
@@ -999,6 +1028,7 @@ function EventRowCard({
           onToggleEvent={onToggleEvent}
           onOpenEvent={onOpenEvent}
           onUpdateEvent={onUpdateEvent}
+          onDeleteEvent={onDeleteEvent}
         />
         <EventOperationsRail event={event} tasks={tasks} completeTasks={completeTasks} missingCount={missingCount} />
       </div>
@@ -1106,7 +1136,8 @@ function EventScrollableSummary({
   isExpanded,
   onToggleEvent,
   onOpenEvent,
-  onUpdateEvent
+  onUpdateEvent,
+  onDeleteEvent
 }: {
   event: MinistryEvent;
   expenses: EventExpense[];
@@ -1117,6 +1148,7 @@ function EventScrollableSummary({
   onToggleEvent: (eventId: string) => void;
   onOpenEvent: (eventId: string) => void;
   onUpdateEvent: (eventId: string, body: Partial<MinistryEvent>) => Promise<void>;
+  onDeleteEvent: (eventId: string) => Promise<void>;
 }) {
   const actualBudget = expenses.reduce((sum, expense) => sum + expense.amount, 0);
   const openTasks = tasks.length - completeTasks;
@@ -1166,6 +1198,11 @@ function EventScrollableSummary({
           <button className="button primary" type="button" onClick={() => onOpenEvent(event.id)}>
             Open event
           </button>
+          {event.id.startsWith("guest_evt") ? (
+            <button className="button compact-button" type="button" onClick={() => void onDeleteEvent(event.id)}>
+              Delete fake event
+            </button>
+          ) : null}
         </div>
       </div>
     </div>
@@ -1492,12 +1529,14 @@ function TaskCard({
   task,
   users,
   eventTitle,
-  onUpdate
+  onUpdate,
+  onDelete
 }: {
   task: ActiveTask;
   users: User[];
   eventTitle: string;
   onUpdate: (taskId: string, body: Partial<ActiveTask>) => Promise<void>;
+  onDelete: (taskId: string) => Promise<void>;
 }) {
   const { openEdit } = useEventCard();
   const [title, setTitle] = useState(task.taskTitle);
@@ -1598,6 +1637,11 @@ function TaskCard({
         <button className="button" type="button" onClick={() => openEdit(task.eventId)}>
           Open event
         </button>
+        {task.id.startsWith("guest_task") ? (
+          <button className="button compact-button" type="button" onClick={() => void onDelete(task.id)}>
+            Delete fake task
+          </button>
+        ) : null}
       </div>
       </details>
     </article>

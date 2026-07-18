@@ -16,7 +16,7 @@ type EmmaChatResult = {
   response: MinistryEmmaResponse;
   requestId: string;
   runId: string;
-  providerMode: "live_provider" | "audited_fallback";
+  providerMode: "live_provider" | "audited_fallback" | "guest_simulation";
   provider: string;
   model: string;
   proposalCreated: boolean;
@@ -286,7 +286,9 @@ function toEmmaMessage(response: MinistryEmmaResponse, audit?: string): EmmaMess
 
 function buildChatAudit(payload: EmmaChatResult): string {
   const providerLabel =
-    payload.providerMode === "live_provider"
+    payload.providerMode === "guest_simulation"
+      ? "Guest stock response"
+      : payload.providerMode === "live_provider"
       ? `Provider ${payload.provider} / ${payload.model}`
       : "Audited deterministic fallback";
   const warning = payload.warnings?.length ? ` / ${payload.warnings.join(" ")}` : "";

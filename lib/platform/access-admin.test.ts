@@ -1,7 +1,13 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import type { AuthSession } from "@/lib/auth/server";
-import { listPlatformAccess, updatePlatformAccess, type PlatformAccessMember } from "@/lib/platform/access-admin";
+import {
+  deactivatePlatformUser,
+  listPlatformAccess,
+  resolvePageAccessForSession,
+  updatePlatformAccess,
+  type PlatformAccessMember
+} from "@/lib/platform/access-admin";
 
 const adminSession: AuthSession = {
   isMock: true,
@@ -14,7 +20,10 @@ const adminSession: AuthSession = {
 };
 
 const globalState = globalThis as typeof globalThis & {
-  __leadEmergencePlatformAccessPreview?: Map<string, PlatformAccessMember>;
+  __leadEmergencePlatformAccessPreview?: {
+    members: Map<string, PlatformAccessMember>;
+    guestPublicPages: Set<string>;
+  };
 };
 
 describe("platform website access", () => {
@@ -47,8 +56,74 @@ describe("platform website access", () => {
     expect(result).toMatchObject({ allowed: true, member: { id: target.id, role: "student" } });
   });
 
+  it("assigns and revokes page access through the unified permission map", async () => {
+    const list = await listPlatformAccess(adminSession);
+    expect(list.allowed).toBe(true);
+    if (!list.allowed) return;
+    const target = list.members.find((member) => !member.currentUser);
+    expect(target).toBeDefined();
+    if (!target) return;
+
+    const result = await updatePlatformAccess(adminSession, {
+      userId: target.id,
+      pageKey: "budget",
+      allowed: false
+    });
+
+    expect(result.allowed).toBe(true);
+    if (!result.allowed) return;
+    expect(result.member?.pageAccess.budget).toBe(false);
+  });
+
+  it("lets admins control which eligible pages are public to guests", async () => {
+    const result = await updatePlatformAccess(adminSession, {
+      userId: "",
+      guestPageKey: "budget",
+      guestPublic: false
+    });
+
+    expect(result.allowed).toBe(true);
+    if (!result.allowed) return;
+    expect(result.pages?.find((page) => page.key === "budget")?.guestPublic).toBe(false);
+    expect(result.pages?.find((page) => page.key === "settings")?.guestEligible).toBe(false);
+    await expect(resolvePageAccessForSession(guestSession(), "/budget")).resolves.toBe(false);
+  });
+
+  it("resolves guest page access from public page flags", async () => {
+    await expect(resolvePageAccessForSession(guestSession(), "/dashboard")).resolves.toBe(true);
+    await expect(resolvePageAccessForSession(guestSession(), "/settings")).resolves.toBe(false);
+  });
+
+  it("deactivates users without hard deleting and protects the final admin", async () => {
+    const list = await listPlatformAccess(adminSession);
+    expect(list.allowed).toBe(true);
+    if (!list.allowed) return;
+    const target = list.members.find((member) => !member.currentUser && member.role !== "admin");
+    expect(target).toBeDefined();
+    if (!target) return;
+
+    await expect(deactivatePlatformUser(adminSession, { userId: target.id })).resolves.toMatchObject({
+      allowed: true,
+      member: { id: target.id, active: false }
+    });
+
+    await expect(deactivatePlatformUser(adminSession, { userId: adminSession.user.id })).resolves.toMatchObject({
+      allowed: false,
+      status: 409
+    });
+  });
+
   it("protects the signed-in administrator from self-demotion", async () => {
     const result = await updatePlatformAccess(adminSession, { userId: adminSession.user.id, role: "leader" });
     expect(result).toMatchObject({ allowed: false, status: 409 });
   });
 });
+
+function guestSession(): AuthSession {
+  return {
+    isMock: false,
+    isGuest: true,
+    guestSessionId: "guest-test",
+    user: { id: "guest_guest-test", email: "guest@example.test", fullName: "Guest", role: "guest" }
+  };
+}

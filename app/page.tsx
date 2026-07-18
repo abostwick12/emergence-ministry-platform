@@ -25,7 +25,7 @@ export default function RootPage() {
             <small>AUTOMATED PLATFORM</small>
           </Link>
           <Link className="landing-nav-login" href="/login">
-            Internal login
+            Login
           </Link>
         </nav>
 
@@ -39,10 +39,10 @@ export default function RootPage() {
             </p>
             <div className="landing-hero-actions" aria-label="Primary role paths">
               <Link className="button primary landing-primary-action" href="/login?next=/dashboard">
-                Ministry Director <ArrowRight size={18} aria-hidden="true" />
+                Login <ArrowRight size={18} aria-hidden="true" />
               </Link>
-              <Link className="button landing-secondary-action" href="#role-entry">
-                Choose your path
+              <Link className="button landing-secondary-action" href="/api/auth/guest">
+                Guest Access
               </Link>
             </div>
           </div>

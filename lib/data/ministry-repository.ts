@@ -22,6 +22,19 @@ import { isSupabaseConfigured } from "@/lib/auth/config";
 import { resolveMinistryScope } from "@/lib/ministry/scope";
 import { measureServerOperation } from "@/lib/performance/timing";
 import * as mockStore from "@/lib/store";
+import {
+  addGuestExpense,
+  createGuestEvent,
+  createGuestTask,
+  deleteGuestEvent,
+  deleteGuestTask,
+  generateGuestCommunicationPreview,
+  getGuestOverview,
+  getGuestWorkspace,
+  runGuestIntegrationStub,
+  updateGuestEvent,
+  updateGuestTask
+} from "@/lib/guest/sandbox-store";
 
 // Builds an optional `{ ministry_id }` fragment for inserts. Returns an empty
 // object when scope cannot be resolved (e.g. a pre-migration database), so the
@@ -120,12 +133,17 @@ const ephemeral = globalState.__emergePhase1Ephemeral ?? {
 globalState.__emergePhase1Ephemeral = ephemeral;
 
 function shouldUseMock(session: AuthSession) {
-  return session.isMock || !isSupabaseConfigured();
+  return session.isGuest || session.isMock || !isSupabaseConfigured();
+}
+
+function guestSessionId(session: AuthSession) {
+  return session.guestSessionId ?? session.user.id;
 }
 
 export async function getOverview(session: AuthSession): Promise<MinistryOverview> {
   return measureServerOperation("ministry.overview", async () => {
     if (shouldUseMock(session)) {
+      if (session.isGuest) return getGuestOverview(guestSessionId(session));
       return {
         events: mockStore.listEvents(),
         tasks: mockStore.listTasks(),
@@ -174,6 +192,7 @@ export async function getOverview(session: AuthSession): Promise<MinistryOvervie
 }
 
 export async function getEventWorkspace(session: AuthSession, eventId: string): Promise<EventWorkspace | undefined> {
+  if (session.isGuest) return getGuestWorkspace(guestSessionId(session), eventId);
   if (shouldUseMock(session)) {
     return mockStore.getWorkspace(eventId);
   }
@@ -212,6 +231,7 @@ export async function createMinistryEvent(
     contactOwnerId?: string;
   }
 ) {
+  if (session.isGuest) return createGuestEvent(guestSessionId(session), input);
   if (shouldUseMock(session)) {
     return mockStore.createEvent(input);
   }
@@ -266,6 +286,7 @@ export async function createMinistryEvent(
 }
 
 export async function updateMinistryEvent(session: AuthSession, eventId: string, input: Partial<MinistryEvent>) {
+  if (session.isGuest) return updateGuestEvent(guestSessionId(session), eventId, input);
   if (shouldUseMock(session)) {
     return mockStore.updateEvent(eventId, input);
   }
@@ -331,6 +352,7 @@ export async function addMinistryExpense(
   }
 
   if (shouldUseMock(session)) {
+    if (session.isGuest) return addGuestExpense(guestSessionId(session), { ...input, amount });
     return mockStore.addExpense({ ...input, amount });
   }
 
@@ -354,6 +376,7 @@ export async function addMinistryExpense(
 }
 
 export async function updateMinistryTask(session: AuthSession, taskId: string, input: Partial<ActiveTask>) {
+  if (session.isGuest) return updateGuestTask(guestSessionId(session), taskId, input);
   if (shouldUseMock(session)) {
     return mockStore.updateTask(taskId, input);
   }
@@ -408,6 +431,7 @@ export async function createMinistryTask(
     status?: TaskStatus;
   }
 ) {
+  if (session.isGuest) return createGuestTask(guestSessionId(session), input);
   if (shouldUseMock(session)) {
     return mockStore.createTask(input);
   }
@@ -440,6 +464,7 @@ export async function createMinistryTask(
 }
 
 export async function listMinistryTasks(session: AuthSession) {
+  if (session.isGuest) return getGuestOverview(guestSessionId(session)).tasks;
   if (shouldUseMock(session)) {
     return mockStore.listTasks();
   }
@@ -449,6 +474,7 @@ export async function listMinistryTasks(session: AuthSession) {
 }
 
 export async function listMinistryActivity(session: AuthSession) {
+  if (session.isGuest) return getGuestOverview(guestSessionId(session)).activity;
   if (shouldUseMock(session)) {
     return mockStore.listActivity();
   }
@@ -458,6 +484,7 @@ export async function listMinistryActivity(session: AuthSession) {
 }
 
 export async function generateMinistryCommunicationPreviews(session: AuthSession, eventId: string) {
+  if (session.isGuest) return generateGuestCommunicationPreview(guestSessionId(session), eventId);
   if (shouldUseMock(session)) {
     return mockStore.generateCommunicationPreview(eventId);
   }
@@ -520,6 +547,7 @@ export async function runMinistryIntegrationStub(
   eventId: string,
   type: "google_drive" | "propresenter" | "google_calendar" | "planning_center"
 ) {
+  if (session.isGuest) return runGuestIntegrationStub(guestSessionId(session), eventId, type);
   if (shouldUseMock(session)) {
     return mockStore.runIntegrationStub(eventId, type);
   }
@@ -531,6 +559,16 @@ export async function runMinistryIntegrationStub(
   ephemeral.integrationLogs.unshift(log);
   await createActivityLog(session, eventId, null, `Stub Mode: ${log.details.action} for ${workspace.event.title}`);
   return log;
+}
+
+export async function deleteMinistryEvent(session: AuthSession, eventId: string) {
+  if (session.isGuest) return deleteGuestEvent(guestSessionId(session), eventId);
+  return false;
+}
+
+export async function deleteMinistryTask(session: AuthSession, taskId: string) {
+  if (session.isGuest) return deleteGuestTask(guestSessionId(session), taskId);
+  return false;
 }
 
 async function generateTemplateTasks(session: AuthSession, event: SupabaseEventRow) {

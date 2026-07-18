@@ -30,6 +30,7 @@ import { UnifiedDashboardBrandArt } from "@/components/unified-dashboard-brand-a
 import type { AppShellAccessState } from "@/lib/camp/shell-access";
 import { firstNameForPerson } from "@/lib/auth/display-name";
 import type { Role } from "@/lib/types";
+import type { PlatformPageKey } from "@/lib/platform/page-registry";
 
 const roleLabels: Record<Role, string> = {
   admin: "Admin",
@@ -150,21 +151,29 @@ export function getAppShellNavigation({
   isStudentShell,
   showCommandCenter,
   showLeaderDiscipleship,
-  showStudentPortal
+  showStudentPortal,
+  visiblePageKeys
 }: {
   campOnly: boolean;
   isStudentShell: boolean;
   showCommandCenter: boolean;
   showLeaderDiscipleship: boolean;
   showStudentPortal: boolean;
+  visiblePageKeys?: PlatformPageKey[];
 }) {
+  const visibleKeySet = visiblePageKeys ? new Set<PlatformPageKey>(visiblePageKeys) : null;
+  const filterByPageAccess = (links: { href: string; label: string }[]) =>
+    visibleKeySet ? links.filter((link) => {
+      const pageKey = pageKeyForHref(link.href);
+      return !pageKey || visibleKeySet.has(pageKey);
+    }) : links;
   const studentAwareLinks = showStudentPortal
     ? primaryLinks
     : primaryLinks.filter((link) => !link.href.startsWith("/student"));
   const discipleshipAwareLinks = showLeaderDiscipleship
     ? studentAwareLinks
     : studentAwareLinks.filter((link) => link.href !== "/discipleship");
-  const allPrimaryLinks = showCommandCenter ? [...discipleshipAwareLinks, { href: "/command-center", label: "Command Center" }] : discipleshipAwareLinks;
+  const allPrimaryLinks = filterByPageAccess(showCommandCenter ? [...discipleshipAwareLinks, { href: "/command-center", label: "Command Center" }] : discipleshipAwareLinks);
   const studentPortalOnlyLinks = [
     { href: "/student", label: "Student Portal" },
     { href: "/student/scripture/questions", label: "Journey Journal" },
@@ -189,6 +198,7 @@ export function AppShell({
   showCommandCenter = false,
   showLeaderDiscipleship = false,
   showStudentPortal = false,
+  visiblePageKeys,
   user
 }: {
   children: React.ReactNode;
@@ -198,6 +208,7 @@ export function AppShell({
   showCommandCenter?: boolean;
   showLeaderDiscipleship?: boolean;
   showStudentPortal?: boolean;
+  visiblePageKeys?: PlatformPageKey[];
   sessionRole?: Role;
   user?: { name?: string; email?: string };
 }) {
@@ -220,7 +231,8 @@ export function AppShell({
     isStudentShell,
     showCommandCenter,
     showLeaderDiscipleship,
-    showStudentPortal
+    showStudentPortal,
+    visiblePageKeys
   });
   const title = isCampRoute
     ? "Camp Command Center"
@@ -385,6 +397,29 @@ export function AppShell({
       ) : null}
     </div>
   );
+}
+
+function pageKeyForHref(href: string): PlatformPageKey | undefined {
+  switch (href) {
+    case "/dashboard": return "dashboard";
+    case "/events": return "events";
+    case "/leader-prep": return "leader_prep";
+    case "/worship": return "worship";
+    case "/student": return "student_portal";
+    case "/student/scripture/questions": return "journey_journal";
+    case "/student/scripture/resources": return "scripture_resources";
+    case "/student/scripture/plans": return "reading_plans";
+    case "/student/scripture/how-to-read": return "how_to_read";
+    case "/discipleship": return "discipleship";
+    case "/camp": return "camp";
+    case "/tasks": return "tasks";
+    case "/communications": return "communications";
+    case "/people": return "people";
+    case "/budget": return "budget";
+    case "/settings": return "settings";
+    case "/command-center": return "command_center";
+    default: return undefined;
+  }
 }
 
 function ShellAccessStatePanel({ shellAccess }: { shellAccess: Exclude<AppShellAccessState, { kind: "full" }> }) {

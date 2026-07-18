@@ -1,7 +1,8 @@
 export const authCookieNames = {
   accessToken: "emerge_access_token",
   refreshToken: "emerge_refresh_token",
-  mockSession: "emerge_mock_session"
+  mockSession: "emerge_mock_session",
+  guestSession: "lead_guest_session"
 } as const;
 
 const DEV_AUTH_DEFAULT_ROLE = "admin";
