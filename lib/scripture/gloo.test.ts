@@ -315,6 +315,47 @@ describe("Gloo model policy", () => {
     expect(JSON.parse(fetchMock.mock.calls[1][1].body).model).toBe("gloo-openai-gpt-5-mini");
   });
 
+  it("retains a usable first pass when the escalation draft is unusable", async () => {
+    process.env.GLOO_AI_STUDIO_API_KEY = "key";
+    process.env.GLOO_AI_STUDIO_API_BASE_URL = "https://example.test";
+    process.env.GLOO_AI_MODEL = "GPT-5 Nano";
+    process.env.GLOO_AI_ESCALATION_MODEL = "GPT-5 Mini";
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({
+          discussionPrompt: "What makes prayer difficult when life is busy, and what small practice could help this week?",
+          safetyLabel: "safe",
+          safetyNotes: "Leader can review before use.",
+          confidence: 0.68,
+          topicTags: ["prayer", "habits"],
+          escalationRecommended: true,
+          escalationReason: "A deeper practice-oriented pass would help."
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ choices: [{ message: { content: "unfinished response" } }] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        })
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await generateGlooDiscussionDraft(baseInput);
+
+    expect(result).toMatchObject({
+      ok: true,
+      model: "gloo-openai-gpt-5-nano",
+      modelTier: "default",
+      discussionPrompt: "What makes prayer difficult when life is busy, and what small practice could help this week?"
+    });
+    if (!result.ok) throw new Error("Expected the usable first Gloo draft to be retained.");
+    expect(result.modelReason).toContain("retained the valid first pass");
+    expect(result.safetyNotes).toContain("review this first-pass draft carefully");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it("reports missing diagnostic configuration without calling Gloo", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);

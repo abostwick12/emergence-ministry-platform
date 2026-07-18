@@ -37,7 +37,7 @@ export function buildLocalDiscussionDraft(input: LocalDiscussionDraftInput): Loc
   const safetyLabel = safetyLabelForFlags(sensitiveFlags);
 
   return {
-    discussionPrompt: buildDiscussionPrompt(input.question, reference, contextQuestion, primaryContext?.title),
+    discussionPrompt: buildDiscussionPrompt(input.question, reference, contextQuestion, primaryContext?.title, primaryContext?.topicTags),
     safetyLabel,
     safetyNotes: safetyNotesForFlags(sensitiveFlags, primaryContext?.description),
     escalationReason: sensitiveFlags.length ? sensitiveFlags.join(", ") : "",
@@ -86,9 +86,13 @@ export function buildLeaderReviewDraft(prompt: StudentDiscussionPrompt, localDra
   };
 }
 
-function buildDiscussionPrompt(question: string, reference: string | undefined, contextQuestion: string | undefined, contextTitle: string | undefined) {
-  if (contextQuestion) return contextQuestion;
-
+function buildDiscussionPrompt(
+  question: string,
+  reference: string | undefined,
+  contextQuestion: string | undefined,
+  contextTitle: string | undefined,
+  contextTags: string[] | undefined
+) {
   const text = question.toLowerCase();
   const anchor = reference ? ` as you read ${reference}` : " as you listen to Scripture together";
 
@@ -108,11 +112,31 @@ function buildDiscussionPrompt(question: string, reference: string | undefined, 
     return `What does this passage show is true about God, people, and belonging before we measure ourselves by performance${anchor}?`;
   }
 
-  if (contextTitle) {
-    return `What does ${contextTitle} help us notice about God, people, brokenness, and hope${anchor}?`;
-  }
+  if (contextQuestion && contextMatchesStudentQuestion(question, contextTitle, contextTags)) return contextQuestion;
 
-  return `What does this question reveal about God, people, brokenness, or hope, and how should our group respond faithfully${anchor}?`;
+  const questionFocus = normalizeQuestionFocus(question);
+  return `What does Scripture help us notice about "${questionFocus}"${anchor}, and what small faithful step could we practice together this week?`;
+}
+
+function contextMatchesStudentQuestion(question: string, contextTitle: string | undefined, contextTags: string[] | undefined) {
+  const questionTerms = meaningfulTerms(question);
+  const contextTerms = meaningfulTerms(`${contextTitle ?? ""} ${(contextTags ?? []).join(" ")}`);
+  return contextTerms.some((term) => questionTerms.includes(term));
+}
+
+function meaningfulTerms(value: string) {
+  const ignored = new Set(["about", "again", "because", "build", "could", "does", "from", "have", "help", "into", "make", "should", "that", "their", "them", "this", "what", "when", "where", "which", "with", "would", "your"]);
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, " ")
+    .split(/\s+/)
+    .map((term) => term.trim())
+    .filter((term) => term.length >= 4 && !ignored.has(term));
+}
+
+function normalizeQuestionFocus(question: string) {
+  const focus = question.trim().replace(/[?!.]+$/, "");
+  return focus.length > 180 ? `${focus.slice(0, 177).trim()}...` : focus;
 }
 
 function buildTheologicalAnchor(prompt: StudentDiscussionPrompt, primaryContext: StudentDiscussionKnowledgeContext | undefined) {

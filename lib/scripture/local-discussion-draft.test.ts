@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildLeaderReviewDraft } from "@/lib/scripture/local-discussion-draft";
+import { buildLeaderReviewDraft, buildLocalDiscussionDraft } from "@/lib/scripture/local-discussion-draft";
 import type { StudentDiscussionPrompt } from "@/lib/scripture/types";
 
 describe("leader review draft structure", () => {
@@ -46,7 +46,29 @@ describe("leader review draft structure", () => {
 
     expect(draft.evidenceCoverage).toBe("Light");
     expect(draft.evidenceUsed[0]).toContain("No retrieved Meridian source matched");
-    expect(draft.suggestedPrompt).toContain("What does this question reveal");
+    expect(draft.suggestedPrompt).toContain("What is the Gospel");
+  });
+
+  it("keeps a local fallback anchored to the student question when retrieved context is unrelated", () => {
+    const draft = buildLocalDiscussionDraft({
+      question: "How can I build a consistent habit of prayer when school, homework, and activities keep me busy?",
+      knowledgeContext: [
+        {
+          id: "context-map-exodus",
+          sourceChunkId: "chunk_exodus",
+          label: "Because this source was retrieved",
+          title: "Exodus and deliverance",
+          description: "Trace God's rescue of his people.",
+          href: "/student/scripture/resources",
+          digQuestions: ["What does God rescue his people from?"],
+          topicTags: ["exodus", "deliverance"],
+          scriptureReferences: ["Exodus 3:7-10"]
+        }
+      ]
+    });
+
+    expect(draft.discussionPrompt).toContain("consistent habit of prayer");
+    expect(draft.discussionPrompt).not.toContain("What does God rescue his people from?");
   });
 });
 
