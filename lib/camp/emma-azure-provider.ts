@@ -15,6 +15,8 @@
 //   env vars are missing, so callers can show a graceful EMMA-unavailable
 //   state instead of a 500.
 
+import { azureResponsesUrl, DEFAULT_AZURE_OPENAI_API_VERSION } from "@/lib/ai/azure-openai";
+
 export type CampEmmaAzureConfig = {
   endpoint: string;
   apiKey: string;
@@ -35,9 +37,9 @@ export function readCampEmmaAzureConfig(): CampEmmaAzureConfig | null {
   const endpoint = process.env.AZURE_OPENAI_ENDPOINT?.trim();
   const apiKey = process.env.AZURE_OPENAI_API_KEY?.trim();
   const deployment = process.env.AZURE_OPENAI_DEPLOYMENT?.trim();
-  const apiVersion = process.env.AZURE_OPENAI_API_VERSION?.trim();
+  const apiVersion = process.env.AZURE_OPENAI_API_VERSION?.trim() || DEFAULT_AZURE_OPENAI_API_VERSION;
 
-  if (!endpoint || !apiKey || !deployment || !apiVersion) return null;
+  if (!endpoint || !apiKey || !deployment) return null;
   return { endpoint, apiKey, deployment, apiVersion };
 }
 
@@ -126,13 +128,6 @@ export async function callCampEmmaAzureModel(input: {
   }
 }
 
-function azureResponsesUrl(endpoint: string) {
-  const trimmed = trimTrailingSlash(endpoint);
-  if (trimmed.endsWith("/openai/v1")) return `${trimmed}/responses`;
-  if (trimmed.endsWith("/openai")) return `${trimmed}/v1/responses`;
-  return `${trimmed}/openai/v1/responses`;
-}
-
 function extractResponsesOutputText(json: {
   output_text?: string;
   output?: Array<{ content?: Array<{ text?: string; type?: string }> }>;
@@ -166,8 +161,4 @@ function cleanProviderErrorCode(value: unknown) {
   if (typeof value !== "string") return undefined;
   const cleaned = value.trim();
   return /^[A-Za-z0-9_.:-]{1,80}$/.test(cleaned) ? cleaned : "unrecognized_error_code";
-}
-
-function trimTrailingSlash(value: string): string {
-  return value.endsWith("/") ? value.slice(0, -1) : value;
 }

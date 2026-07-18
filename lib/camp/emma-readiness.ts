@@ -4,10 +4,10 @@ import { readCampEmmaAzureConfig } from "@/lib/camp/emma-azure-provider";
 import { isCampLaunchRuntime } from "@/lib/camp/runtime";
 
 export const CAMP_EMMA_PROVIDER_CONFIGURATION_MESSAGE =
-  "EMMA provider is not configured for launch testing. Configure either Azure OpenAI server env vars (AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY, AZURE_OPENAI_DEPLOYMENT, AZURE_OPENAI_API_VERSION) or OpenAI server env vars (OPENAI_API_KEY, optional OPENAI_MODEL). Do not prefix these with NEXT_PUBLIC_.";
+  "EMMA provider is not configured for launch testing. Configure either Azure OpenAI server env vars (AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY, AZURE_OPENAI_DEPLOYMENT; optional AZURE_OPENAI_API_VERSION) or OpenAI server env vars (OPENAI_API_KEY, optional OPENAI_MODEL). Do not prefix these with NEXT_PUBLIC_.";
 
 export const CAMP_EMMA_AZURE_PROVIDER_CONFIGURATION_MESSAGE =
-  "Legacy Camp EMMA command route requires Azure OpenAI server env vars (AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY, AZURE_OPENAI_DEPLOYMENT, AZURE_OPENAI_API_VERSION). Do not prefix these with NEXT_PUBLIC_.";
+  "Legacy Camp EMMA command route requires Azure OpenAI server env vars (AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY, AZURE_OPENAI_DEPLOYMENT; optional AZURE_OPENAI_API_VERSION). Do not prefix these with NEXT_PUBLIC_.";
 
 export type CampEmmaReadinessCode =
   | "emma_provider_not_configured"
