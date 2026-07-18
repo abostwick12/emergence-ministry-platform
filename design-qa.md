@@ -52,6 +52,30 @@ Checks:
 
 Final result: passed.
 
+## Leader Preparation page - 2026-07-18
+
+Reference screenshots:
+- `C:\Users\AWBOST~1\AppData\Local\Temp\codex-clipboard-a64ee890-8e33-4e5c-a99b-85ed3ce55bc7.png`
+- `C:\Users\AWBOST~1\AppData\Local\Temp\codex-clipboard-5691a7e0-a69c-4e32-81ba-15fcbe7116d6.png`
+
+Implementation captures:
+- `test-results/leader-prep-desktop.png`
+- `test-results/leader-prep-mobile.png`
+
+Viewport and state:
+- Desktop viewport: 1280 x 900.
+- Mobile viewport: 390 x 844.
+- Mock-auth staff session on `/leader-prep`.
+
+Checks:
+- Desktop renders the Leader Prep sidebar item active, a two-line Leader Preparation header, the sermon editor on the left, and YouVersion, Ask EMMA, and prep checklist panels in the right rail.
+- The four generation actions sit directly below the editor and remain preview-only with deterministic local feedback.
+- Mobile stacks the editor, actions, YouVersion pane, Ask EMMA launcher, and checklist without horizontal overflow; the sermon title wraps instead of clipping.
+- The YouVersion panel links out through the existing reader-link helper and does not fetch or store live Scripture text.
+- Ask EMMA opens a local popover/dialog and does not call a live provider.
+
+Final result: passed.
+
 ## Mobile Lovable correction pass — 2026-07-14
 
 Reference screenshots:

@@ -65,17 +65,18 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await expect(sidebar).toBeVisible();
 
     for (const route of [
-      ["Dashboard", "/dashboard"],
-      ["Events", "/events"],
-      ["Tasks", "/tasks"],
-      ["Communications", "/communications"],
-      ["People", "/people"],
-      ["Budget", "/budget"],
-      ["Settings", "/settings"]
+      ["Dashboard", "/dashboard", "Dashboard"],
+      ["Events", "/events", "Events"],
+      ["Leader Prep", "/leader-prep", "Leader Preparation"],
+      ["Tasks", "/tasks", "Tasks"],
+      ["Communications", "/communications", "Communications"],
+      ["People", "/people", "People"],
+      ["Budget", "/budget", "Budget"],
+      ["Settings", "/settings", "Settings"]
     ] as const) {
       await sidebar.getByRole("link", { name: route[0] }).click();
       await expect(page).toHaveURL(new RegExp(`${route[1]}$`));
-      await expect(page.getByRole("heading", { name: route[0], level: 1 })).toBeVisible();
+      await expect(page.getByRole("heading", { name: route[2], level: 1 })).toBeVisible();
     }
   });
 
@@ -91,8 +92,50 @@ test.describe("MVP event automation navigation smoke tests", () => {
 
     await mobileNav.getByText("More", { exact: true }).click();
     const more = page.getByLabel("More navigation");
-    for (const label of ["People", "Budget", "Settings"]) {
+    for (const label of ["Leader Prep", "People", "Budget", "Settings"]) {
       await expect(more.getByRole("link", { name: label })).toBeVisible();
+    }
+  });
+
+  test("Leader Prep page supports sermon drafting and preview-only assistant actions", async ({ page }) => {
+    await login(page);
+    await page.goto("/leader-prep");
+
+    await expect(page.getByRole("heading", { name: "Leader Preparation", level: 1 })).toBeVisible();
+
+    await page.getByLabel("Sermon title").fill("Servant King");
+    await expect(page.getByLabel("Sermon title")).toHaveValue("Servant King");
+    await page.getByLabel("Scripture passage").fill("John 13:1-17");
+    await expect(page.getByLabel("Scripture passage")).toHaveValue("John 13:1-17");
+    await page.getByRole("textbox", { name: "Big Idea" }).fill("Jesus shows that authority becomes love when it takes the towel.");
+    await expect(page.getByRole("textbox", { name: "Big Idea" })).toHaveValue("Jesus shows that authority becomes love when it takes the towel.");
+    await page.getByLabel("Sermon body").fill("A sermon body draft for leaders to prepare from.");
+    await expect(page.getByLabel("Sermon body")).toHaveValue("A sermon body draft for leaders to prepare from.");
+
+    const youVersion = page.getByRole("region", { name: "YouVersion Bible reader" });
+    await expect(youVersion.getByRole("link", { name: "Open" })).toHaveAttribute("href", /bible\.com\/bible\/111\/JHN\.13\.1\.NIV/);
+
+    await page.getByRole("button", { name: /Draft with me/ }).click();
+    const emma = page.getByRole("dialog", { name: "Ask EMMA" });
+    await expect(emma).toBeVisible();
+    await emma.getByLabel("Message EMMA").fill("Give me a leader question.");
+    await emma.getByRole("button", { name: "Ask EMMA", exact: true }).click();
+    await expect(emma.getByRole("status")).toContainText("Preview response");
+    await emma.getByRole("button", { name: "Close Ask EMMA" }).click();
+    await expect(emma).toHaveCount(0);
+
+    await page.getByLabel("Slides in Canva").check();
+    await expect(page.getByLabel("Slides in Canva")).toBeChecked();
+
+    for (const action of [
+      ["Generate outline", "Outline preview staged"],
+      ["Generate leader guide", "Leader guide preview staged"],
+      ["Generate Canva slides", "Canva slide preview staged"],
+      ["Generate audio summary", "Audio summary preview staged"]
+    ] as const) {
+      await page.getByRole("button", { name: action[0] }).click();
+      await expect(page.getByRole("status").filter({ hasText: action[1] })).toBeVisible();
+      await expect(page.getByRole("status").filter({ hasText: "No live Canva, audio, AI, or sending action was run." })).toBeVisible();
     }
   });
 
@@ -692,7 +735,7 @@ test.describe("MVP event automation navigation smoke tests", () => {
 
   test("all routes still work after Phase 3 changes", async ({ page }) => {
     await login(page);
-    for (const route of ["/dashboard", "/events", "/tasks", "/communications", "/people", "/files", "/budget", "/settings"]) {
+    for (const route of ["/dashboard", "/events", "/leader-prep", "/tasks", "/communications", "/people", "/files", "/budget", "/settings"]) {
       await page.goto(route);
       await expect(page).toHaveURL(new RegExp(`${route}$`));
       await expect(page.getByRole("complementary", { name: "Primary navigation" })).toBeVisible();
