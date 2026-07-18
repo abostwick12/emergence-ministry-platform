@@ -9,6 +9,7 @@ import {
   BookOpenText,
   Bot,
   CalendarDays,
+  ClipboardPenLine,
   DollarSign,
   GraduationCap,
   LayoutDashboard,
@@ -40,6 +41,7 @@ const roleLabels: Record<Role, string> = {
 const primaryLinks = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/events", label: "Events" },
+  { href: "/leader-prep", label: "Leader Prep" },
   { href: "/student", label: "Student Portal" },
   { href: "/student/scripture/questions", label: "Journey Journal" },
   { href: "/discipleship", label: "Discipleship" },
@@ -74,6 +76,7 @@ const navIcons: Record<string, LucideIcon> = {
   "/dashboard": LayoutDashboard,
   "/camp": TentTree,
   "/events": CalendarDays,
+  "/leader-prep": ClipboardPenLine,
   "/worship": Music,
   "/student": GraduationCap,
   "/student/scripture/questions": NotebookPen,
@@ -98,6 +101,7 @@ const pageTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
   "/camp": "Camp Command Center",
   "/events": "Events",
+  "/leader-prep": "Leader Preparation",
   "/worship": "Worship",
   "/student": "Student Portal",
   "/student/scripture/questions": "Journey Journal",
@@ -117,6 +121,7 @@ const pageTitles: Record<string, string> = {
 const pageSubtitles: Record<string, string> = {
   "/dashboard": "See what needs human attention, protect what can wait, and keep ministry moving with clarity.",
   "/events": "Plan every gathering around purpose, readiness, and the people it is meant to serve.",
+  "/leader-prep": "Write the sermon. Then let EMMA equip your leaders with guides, questions, and slides.",
   "/worship": "Shape services where songs, people, rehearsal, and story move together with purpose.",
   "/tasks": "Turn ministry vision into visible next steps, clear ownership, and work that keeps moving.",
   "/communications": "Prepare thoughtful ministry communication with clear review boundaries before anything is sent.",
@@ -235,6 +240,7 @@ export function AppShell({
           : "");
   const isDashboard = pathname === "/dashboard";
   const isProductionLaunchPath = pathname.startsWith("/student") || pathname.startsWith("/discipleship");
+  const pageShellClass = pathname === "/leader-prep" ? " app-main-shell-leader-prep" : "";
   const shouldBlockEmergeChildren = !isCampRoute && !canUseEmergeShell;
   const shellAccessIssue = shellAccess.kind === "full" ? null : shellAccess;
 
@@ -314,7 +320,7 @@ export function AppShell({
         </>
       ) : null}
 
-      <main className={`main app-main app-main-shell${isCampRoute ? " app-main-shell-camp" : ""}`}>
+      <main className={`main app-main app-main-shell${pageShellClass}${isCampRoute ? " app-main-shell-camp" : ""}`}>
         {!isCampRoute ? (
           <header className="app-header app-fixed-header">
             <div className="app-header-text">
