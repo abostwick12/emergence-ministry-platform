@@ -7,10 +7,12 @@ import { buildLocalDiscussionDraftForPrompt, type LocalDiscussionDraft } from "@
 import type { StudentGroupDiscussionItem } from "@/lib/scripture/student-home";
 import type { StudentDiscussionKnowledgeContext, StudentDiscussionPrompt, StudentDiscussionStatus } from "@/lib/scripture/types";
 import type { StudentHowToReadProgress } from "@/lib/scripture/how-to-read-progress";
+import type { SaveStudentJourneyEntryInput, StudentJourneyEntry } from "@/lib/scripture/student-journey-entry-shared";
 
 type LocalStudentState = {
   prompts: StudentDiscussionPrompt[];
   reflections: Record<string, StudentQuestionReflection>;
+  journeyEntries: Record<string, StudentJourneyEntry>;
   progress: {
     completedModuleIds: Set<string>;
     shareWithGroup: boolean;
@@ -224,6 +226,21 @@ export function saveLocalStudentQuestionReflection(
   return reflection;
 }
 
+export function getLocalStudentJourneyEntries(session: AuthSession) {
+  return Object.values(stateFor(session).journeyEntries).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+export function saveLocalStudentJourneyEntry(session: AuthSession, input: SaveStudentJourneyEntryInput) {
+  const now = new Date().toISOString();
+  const entry: StudentJourneyEntry = {
+    ...input,
+    savedAt: now,
+    updatedAt: now
+  };
+  stateFor(session).journeyEntries[`${input.journeyId}:entry-${input.entrySequence}`] = entry;
+  return entry;
+}
+
 export function getLocalStudentHowToReadProgress(session: AuthSession): StudentHowToReadProgress {
   const progress = stateFor(session).progress;
   return {
@@ -261,6 +278,7 @@ function stateFor(session: AuthSession) {
   const state: LocalStudentState = {
     prompts: [],
     reflections: {},
+    journeyEntries: {},
     progress: {
       completedModuleIds: new Set<string>(),
       shareWithGroup: false
