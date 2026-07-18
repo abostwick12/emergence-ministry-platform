@@ -10,6 +10,7 @@ const { getServerSessionMock } = vi.hoisted(() => ({
 vi.mock("@/lib/auth/server", () => {
   return {
     getServerSession: getServerSessionMock,
+    isSupabaseAdminConfigured: () => false,
     unauthorizedResponse: () => Response.json({ error: "Authentication required" }, { status: 401 })
   };
 });

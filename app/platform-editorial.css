@@ -944,7 +944,7 @@
   padding-top: 12px;
 }
 
-/* Journey Journal: two Scripture-study steps and quiet history. */
+/* Journey Journal: rotating Scripture-study tools and quiet history. */
 .app-shell:not(.app-shell-camp) .student-new-question-drawer > button {
   min-height: 64px;
   background: linear-gradient(90deg, rgba(22, 217, 245, 0.96), rgba(50, 116, 246, 0.96));
@@ -993,6 +993,16 @@
   color: var(--platform-muted);
   font-size: 12px;
   line-height: 1.45;
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-investigate-grid button .student-lovable-explore-category {
+  color: var(--platform-gold);
+  font-family: var(--font-platform-mono), ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  pointer-events: none;
+  text-transform: uppercase;
 }
 
 .app-shell:not(.app-shell-camp) .student-lovable-investigate-grid {
