@@ -501,13 +501,13 @@ describe("student home feed personalization", () => {
     );
   });
 
-  it("synthesizes selected Explore tool guidance from the active Meridian journey context", () => {
+  it("synthesizes selected Explore tool guidance from the active journey context", () => {
     const dayTwo = studentLeaderFormationJourney.entries[1];
     const genreTool = getJourneyExploreToolPair(dayTwo.id, 2).find((tool) => tool.label === "Genre Awareness");
 
     expect(genreTool).toBeDefined();
     expect(buildJourneyExploreInsight(genreTool!, dayTwo)).toContain(
-      "Meridian reads Genesis 1 as theological creation narrative"
+      "Journey guide reads Genesis 1 as theological creation narrative"
     );
     expect(buildJourneyExploreInsight(genreTool!, dayTwo)).toContain("calls creation tov");
   });
