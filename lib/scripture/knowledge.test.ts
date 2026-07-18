@@ -127,6 +127,21 @@ describe("student knowledge matching", () => {
     expect(matches[0].digQuestions).toContain("What faithful next step is already clear before the whole future is clear?");
   });
 
+  it("routes student leadership questions through the formation journey", async () => {
+    const matches = await getStudentKnowledgeMatches(session(), {
+      question: "How can I become a teachable student leader without trying to control everything?",
+      topicTags: []
+    });
+
+    expect(matches[0]).toMatchObject({
+      id: "context-map-student-leader-formation",
+      title: "Growth Journey 1: Student Leader Formation",
+      href: "/student/scripture/questions"
+    });
+    expect(matches[0].scriptureReferences).toEqual(expect.arrayContaining(["Luke 9", "Exodus 18", "John 15", "Acts 2"]));
+    expect(matches[0].digQuestions).toContain("How is Jesus forming who you are before expanding what you do?");
+  });
+
   it("keeps the built-in context map ahead of matching live knowledge chunks", async () => {
     isSupabaseAdminConfiguredMock.mockReturnValue(true);
     const query = knowledgeQuery([

@@ -3,6 +3,7 @@ import type { AuthSession } from "@/lib/auth/server";
 import { getSupabaseAdminClient, getSupabaseAuthClient, isSupabaseAdminConfigured } from "@/lib/auth/server";
 import { resolveMinistryScope } from "@/lib/ministry/scope";
 import { measureServerOperation } from "@/lib/performance/timing";
+import { studentLeaderFormationMeridianContext } from "@/lib/scripture/student-formation-journeys";
 import type { StudentQuestionNextStep } from "@/lib/scripture/student-home";
 import type { StudentDiscussionKnowledgeContext } from "@/lib/scripture/types";
 
@@ -297,6 +298,10 @@ const contextMapRoutes: Array<{ map: StudentKnowledgeMatch; pattern: RegExp }> =
   {
     map: callingPurposeContextMap,
     pattern: /\b(calling|purpose|vocation|career|future|gifts|what should i do with my life)\b/
+  },
+  {
+    map: studentLeaderFormationMeridianContext,
+    pattern: /\b(student leader|leadership|lead well|delegate|delegation|teachab\w*|feedback|serve|service|sabbath|spiritual gifts?|shared leadership)\b/
   }
 ];
 
@@ -310,6 +315,7 @@ const launchKnowledgePack: StudentKnowledgeMatch[] = [
   scriptureViolenceContextMap,
   prayerContextMap,
   callingPurposeContextMap,
+  studentLeaderFormationMeridianContext,
   gardenContextMap,
   exodusContextMap
 ];
