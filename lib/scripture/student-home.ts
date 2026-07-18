@@ -337,30 +337,30 @@ export function buildJourneyExploreInsight(tool: StudentJourneyExploreTool, jour
   const genre = genreInsightForReference(primaryReference);
 
   if (tool.id === "genre-awareness") {
-    return `Meridian reads ${primaryReference} as ${genre.label}. For ${theme}, notice ${genre.guidance}`;
+    return `Journey guide reads ${primaryReference} as ${genre.label}. For ${theme}, notice ${genre.guidance}`;
   }
 
   if (tool.id === "word-study" && keyword) {
-    return `Meridian highlights ${keyword.term}${keyword.transliteration ? ` (${keyword.transliteration})` : ""} in ${primaryReference}: ${keyword.meaning} ${keyword.invitation}`;
+    return `Journey guide highlights ${keyword.term}${keyword.transliteration ? ` (${keyword.transliteration})` : ""} in ${primaryReference}: ${keyword.meaning} ${keyword.invitation}`;
   }
 
   if (tool.id === "cross-referencing" && supportingReferences.length) {
-    return `Meridian connects ${primaryReference} with ${supportingReferences.join(" and ")}. Compare the passages for what deepens, repeats, or corrects your first reading of ${theme}.`;
+    return `Journey guide connects ${primaryReference} with ${supportingReferences.join(" and ")}. Compare the passages for what deepens, repeats, or corrects your first reading of ${theme}.`;
   }
 
   if (tool.id === "historical-background") {
-    return `Meridian places ${primaryReference} inside the larger formation story. Ask what situation, audience, or covenant moment makes ${theme} easier to read with care.`;
+    return `Journey guide places ${primaryReference} inside the larger formation story. Ask what situation, audience, or covenant moment makes ${theme} easier to read with care.`;
   }
 
   if (tool.id === "theme-tracing" || tool.id === "biblical-theology") {
-    return `Meridian ties ${theme} to formation before performance, presence before platform, and faithful response before quick answers. Trace how ${primaryReference} fits that larger story.`;
+    return `Journey guide ties ${theme} to formation before performance, presence before platform, and faithful response before quick answers. Trace how ${primaryReference} fits that larger story.`;
   }
 
   if (tool.storageStudyPath === "inductive") {
-    return `Meridian starts with ${primaryReference} and ${theme}. Use ${tool.label.toLowerCase()} to name what the passage actually says before turning it into advice.`;
+    return `Journey guide starts with ${primaryReference} and ${theme}. Use ${tool.label.toLowerCase()} to name what the passage actually says before turning it into advice.`;
   }
 
-  return `Meridian starts with ${primaryReference} and ${theme}. Use ${tool.label.toLowerCase()} to slow down, notice the strongest clue in the text, and write what it helps you see.`;
+  return `Journey guide starts with ${primaryReference} and ${theme}. Use ${tool.label.toLowerCase()} to slow down, notice the strongest clue in the text, and write what it helps you see.`;
 }
 
 export function getYouVersionPracticeMedia(journeyId: string, entrySequence: number): StudentYouVersionPracticeMedia {
