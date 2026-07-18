@@ -271,7 +271,20 @@ export async function generateGlooDiscussionDraft(input: GlooDiscussionDraftInpu
       escalationReason: firstDraft.escalationReason || `confidence ${firstDraft.confidence}; safety ${firstDraft.safetyLabel}`,
       topicFlags: firstDraft.topicTags
     };
-    return requestGlooDiscussionDraft(input, apiBaseUrl, accessToken.token, escalatedSelection);
+    const escalatedDraft = await requestGlooDiscussionDraft(input, apiBaseUrl, accessToken.token, escalatedSelection);
+    if (escalatedDraft.ok) return escalatedDraft;
+
+    return {
+      ...firstDraft,
+      modelReason: limitText(
+        `${firstDraft.modelReason} The escalation model did not return a usable draft, so Meridian retained the valid first pass for leader review.`,
+        500
+      ),
+      safetyNotes: limitText(
+        `${firstDraft.safetyNotes} The escalation attempt did not complete; review this first-pass draft carefully before approval.`,
+        900
+      )
+    };
   }
 
   return firstDraft;
