@@ -328,6 +328,41 @@ export function getJourneyExploreToolPair(journeyId: string, entrySequence: numb
   ];
 }
 
+export function buildJourneyExploreInsight(tool: StudentJourneyExploreTool, journey: StudentJourneyJournal): string {
+  const primaryReading = journey.readingPath[0];
+  const primaryReference = primaryReading?.reference ?? journey.rhythm?.receive ?? "today's Scripture";
+  const supportingReferences = journey.readingPath.slice(1, 3).map((reading) => reading.reference);
+  const theme = journey.rhythm?.explore ?? journey.title;
+  const keyword = journey.keyWords[0];
+  const genre = genreInsightForReference(primaryReference);
+
+  if (tool.id === "genre-awareness") {
+    return `Meridian reads ${primaryReference} as ${genre.label}. For ${theme}, notice ${genre.guidance}`;
+  }
+
+  if (tool.id === "word-study" && keyword) {
+    return `Meridian highlights ${keyword.term}${keyword.transliteration ? ` (${keyword.transliteration})` : ""} in ${primaryReference}: ${keyword.meaning} ${keyword.invitation}`;
+  }
+
+  if (tool.id === "cross-referencing" && supportingReferences.length) {
+    return `Meridian connects ${primaryReference} with ${supportingReferences.join(" and ")}. Compare the passages for what deepens, repeats, or corrects your first reading of ${theme}.`;
+  }
+
+  if (tool.id === "historical-background") {
+    return `Meridian places ${primaryReference} inside the larger formation story. Ask what situation, audience, or covenant moment makes ${theme} easier to read with care.`;
+  }
+
+  if (tool.id === "theme-tracing" || tool.id === "biblical-theology") {
+    return `Meridian ties ${theme} to formation before performance, presence before platform, and faithful response before quick answers. Trace how ${primaryReference} fits that larger story.`;
+  }
+
+  if (tool.storageStudyPath === "inductive") {
+    return `Meridian starts with ${primaryReference} and ${theme}. Use ${tool.label.toLowerCase()} to name what the passage actually says before turning it into advice.`;
+  }
+
+  return `Meridian starts with ${primaryReference} and ${theme}. Use ${tool.label.toLowerCase()} to slow down, notice the strongest clue in the text, and write what it helps you see.`;
+}
+
 export function getYouVersionPracticeMedia(journeyId: string, entrySequence: number): StudentYouVersionPracticeMedia {
   return youVersionPracticeMediaRotation[
     stableJourneyIndex(`${journeyId}:youversion-practice:${entrySequence}`, youVersionPracticeMediaRotation.length)
@@ -1530,6 +1565,70 @@ function lookupReferenceFor(reference: string) {
   const verseRange = withoutRange.replace(/:(\d{1,3})-\d{1,3}/g, ":$1");
   const commaSplit = verseRange.split(",")[0]?.trim();
   return commaSplit || "Genesis 1";
+}
+
+function genreInsightForReference(reference: string): { label: string; guidance: string } {
+  if (/genesis\s+1\b/i.test(reference)) {
+    return {
+      label: "theological creation narrative with a repeated, almost poetic rhythm",
+      guidance:
+        "how God speaks, separates, names, fills, blesses, and calls creation tov; read good as ordered potential and vocation, not a quick inspirational slogan."
+    };
+  }
+
+  if (/genesis\s+[6-9]\b/i.test(reference)) {
+    return {
+      label: "primeval narrative about de-creation, judgment, mercy, and renewed beginning",
+      guidance: "the movement from disorder to preserved life before turning the flood story into a simple hero lesson."
+    };
+  }
+
+  if (/\b(luke|mark|john|matthew)\b/i.test(reference)) {
+    return {
+      label: "Gospel narrative",
+      guidance: "what Jesus says and does in the scene before extracting a principle; the story reveals the King through action, conflict, invitation, and response."
+    };
+  }
+
+  if (/\b(psalm|proverbs)\b/i.test(reference)) {
+    return {
+      label: "Hebrew poetry and wisdom",
+      guidance: "the images, contrasts, repetitions, and prayers as formation language rather than treating every line like a technical definition."
+    };
+  }
+
+  if (/\bhebrews\b/i.test(reference)) {
+    return {
+      label: "New Testament exhortation shaped like a sermon",
+      guidance: "how the passage encourages endurance, interprets older Scripture, and calls for faithful response without reducing correction to shame."
+    };
+  }
+
+  if (/\bacts\b/i.test(reference)) {
+    return {
+      label: "early church narrative",
+      guidance: "how the Spirit forms a people in public witness, shared life, and mission before turning the scene into a private self-improvement step."
+    };
+  }
+
+  if (/\b(exodus|samuel)\b/i.test(reference)) {
+    return {
+      label: "Hebrew narrative",
+      guidance: "the setting, dialogue, tension, and choices in the story before flattening it into a moral example."
+    };
+  }
+
+  if (/\b(corinthians|ephesians|romans)\b/i.test(reference)) {
+    return {
+      label: "New Testament letter",
+      guidance: "the argument, commands, promises, and community problem the passage addresses before applying one sentence by itself."
+    };
+  }
+
+  return {
+    label: "biblical literature that should be read on its own terms",
+    guidance: "what kind of passage it is, how it communicates, and what clues keep your interpretation humble."
+  };
 }
 
 function stableJourneyIndex(seed: string, modulo: number) {
