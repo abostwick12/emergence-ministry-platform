@@ -13,6 +13,7 @@ import {
   FileText,
   Mail,
   MessageSquareText,
+  Plus,
   ReceiptText,
   ShieldCheck,
   Sparkles,
@@ -21,6 +22,7 @@ import {
 import { MinistryEmmaPanel } from "@/components/ministry-emma-panel";
 import { EditorialSection, PageIntro } from "@/components/platform-ui";
 import { PlanningCenterIntegrationControl } from "@/components/planning-center-integration-control";
+import type { CampStaffMember } from "@/lib/camp/types";
 import type { MinistryEmmaPage } from "@/lib/emma/ministry-page-assistant";
 import type { ActiveTask, ActivityLog, EventExpense, MinistryEvent, User } from "@/lib/types";
 import { formatDate, money } from "@/lib/utils";
@@ -38,6 +40,36 @@ type SettingsUser = {
   email?: string;
   role?: string;
 } | null;
+
+type PeopleLeader = {
+  id: string;
+  name: string;
+  role: string;
+  email?: string;
+  profilePhotoUrl?: string;
+  sourceChurch?: string;
+};
+
+type SmallGroup = {
+  id: string;
+  name: string;
+  leaderIds: [string, string];
+  room: string;
+  focus: string;
+  memberCount: number;
+};
+
+type SmallGroupService = {
+  id: string;
+  name: string;
+  serviceType: "permanent" | "one-time";
+  groups: SmallGroup[];
+};
+
+type CampStaffState =
+  | { status: "loading"; staff: CampStaffMember[] }
+  | { status: "ready"; staff: CampStaffMember[] }
+  | { status: "error"; staff: CampStaffMember[] };
 
 type EmmaReadinessState =
   | { status: "loading" }
@@ -264,35 +296,145 @@ function CommunicationsWorkspace({ overview }: { overview: MinistryOverview }) {
 }
 
 function PeopleWorkspace({ overview }: { overview: MinistryOverview }) {
-  const assignedTaskCounts = new Map<string, number>();
-  overview.tasks.forEach((task) => assignedTaskCounts.set(task.assignedUserId, (assignedTaskCounts.get(task.assignedUserId) ?? 0) + 1));
-  const openTasks = overview.tasks.filter((task) => task.status !== "done");
-  const unassignedTasks = openTasks.filter((task) => !overview.users.some((user) => user.id === task.assignedUserId));
+  const [campStaffState, setCampStaffState] = useState<CampStaffState>({ status: "loading", staff: [] });
+  const [services, setServices] = useState<SmallGroupService[]>([]);
+  const [selectedServiceId, setSelectedServiceId] = useState("");
+  const [serviceFormOpen, setServiceFormOpen] = useState(false);
+  const [newServiceName, setNewServiceName] = useState("");
+  const [newServiceType, setNewServiceType] = useState<SmallGroupService["serviceType"]>("permanent");
+  const [selectedGroupId, setSelectedGroupId] = useState("");
+  const [editingGroup, setEditingGroup] = useState<SmallGroup | null>(null);
+  const [message, setMessage] = useState("");
   const owners = overview.users.filter((user) => user.role === "admin" || user.role === "leader");
 
+  useEffect(() => {
+    let active = true;
+    fetch("/api/camp", { cache: "no-store" })
+      .then(async (response) => {
+        if (!active) return;
+        if (!response.ok) {
+          setCampStaffState({ status: "error", staff: [] });
+          return;
+        }
+        const payload = (await response.json()) as { staff?: CampStaffMember[] };
+        setCampStaffState({ status: "ready", staff: payload.staff ?? [] });
+      })
+      .catch(() => {
+        if (active) setCampStaffState({ status: "error", staff: [] });
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const leaderPool = useMemo(() => buildPeopleLeaderPool(campStaffState.staff, owners), [campStaffState.staff, owners]);
+
+  useEffect(() => {
+    if (campStaffState.status === "loading" || services.length) return;
+    const seeded = buildInitialSmallGroupServices(leaderPool);
+    setServices(seeded);
+    setSelectedServiceId(seeded[0]?.id ?? "");
+  }, [campStaffState.status, leaderPool, services.length]);
+
+  const selectedService = services.find((service) => service.id === selectedServiceId) ?? services[0];
+  const selectedGroup = selectedService?.groups.find((group) => group.id === selectedGroupId);
+  const totalGroups = services.reduce((sum, service) => sum + service.groups.length, 0);
+  const leaderAssignments = selectedService
+    ? selectedService.groups.reduce((sum, group) => sum + group.leaderIds.filter(Boolean).length, 0)
+    : 0;
+  const openLeaderSlots = selectedService
+    ? selectedService.groups.reduce((sum, group) => sum + group.leaderIds.filter((leaderId) => !leaderId).length, 0)
+    : 0;
+
+  function submitService(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const trimmedName = newServiceName.trim();
+    if (!trimmedName) return;
+    const service: SmallGroupService = {
+      id: uniqueId("service", trimmedName),
+      name: trimmedName,
+      serviceType: newServiceType,
+      groups: buildSmallGroupsForService(trimmedName, leaderPool)
+    };
+    setServices((current) => [...current, service]);
+    setSelectedServiceId(service.id);
+    setNewServiceName("");
+    setNewServiceType("permanent");
+    setServiceFormOpen(false);
+    setMessage(`${trimmedName} added as a ${newServiceType === "permanent" ? "permanent" : "one-time"} service.`);
+  }
+
+  function saveGroup() {
+    if (!editingGroup || !selectedService) return;
+    setServices((current) =>
+      current.map((service) =>
+        service.id === selectedService.id
+          ? { ...service, groups: service.groups.map((group) => group.id === editingGroup.id ? editingGroup : group) }
+          : service
+      )
+    );
+    setSelectedGroupId(editingGroup.id);
+    setEditingGroup(null);
+    setMessage(`${editingGroup.name} updated for ${selectedService.name}.`);
+  }
+
   return (
-    <div className="ministry-launch-grid">
-      <LaunchMetric icon={<ShieldCheck aria-hidden="true" />} label="Staff accounts" value={String(owners.length)} detail="Admin and leader profiles in this workspace" tone="cyan" />
-      <LaunchMetric icon={<Clock3 aria-hidden="true" />} label="Open tasks" value={String(openTasks.length)} detail="Assignments still moving" tone="gold" />
-      <LaunchMetric icon={<UsersRound aria-hidden="true" />} label="Coverage gaps" value={String(unassignedTasks.length)} detail="Tasks without a known profile owner" tone="violet" />
+    <div className="ministry-launch-grid ministry-people-board">
+      <LaunchMetric icon={<ShieldCheck aria-hidden="true" />} label="Emerge leaders" value={String(leaderPool.length)} detail={campStaffState.status === "ready" && campStaffState.staff.length ? "Loaded from safe Camp staff records" : "Using platform leader profiles"} tone="cyan" />
+      <LaunchMetric icon={<UsersRound aria-hidden="true" />} label="Small groups" value={String(totalGroups)} detail="Across configured services" tone="gold" />
+      <LaunchMetric icon={<Clock3 aria-hidden="true" />} label="Open leader slots" value={String(openLeaderSlots)} detail="Two leader slots remain visible on each group" tone="violet" />
+
+      <section className="ministry-launch-panel ministry-launch-span-3 ministry-people-service-panel" aria-label="Small group services">
+        <div className="ministry-people-toolbar">
+          <SectionHead eyebrow="Small Groups" title="Service group coverage" />
+          <div className="ministry-people-controls">
+            <label className="field ministry-people-service-select">
+              <span>Service</span>
+              <select className="input" value={selectedService?.id ?? ""} onChange={(event) => setSelectedServiceId(event.target.value)}>
+                {services.map((service) => (
+                  <option key={service.id} value={service.id}>
+                    {service.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button className="button primary" type="button" onClick={() => setServiceFormOpen(true)}>
+              <Plus aria-hidden="true" />
+              Add Service
+            </button>
+          </div>
+        </div>
+        {message ? <p className="ministry-launch-success" role="status">{message}</p> : null}
+        {selectedService ? (
+          <>
+            <div className="ministry-people-service-summary" aria-label={`${selectedService.name} summary`}>
+              <span className="pill blue">{selectedService.serviceType === "permanent" ? "Permanent" : "One-time"} service</span>
+              <span>{selectedService.groups.length} groups</span>
+              <span>{leaderAssignments} assigned leader slots</span>
+              <span>{selectedService.groups.reduce((sum, group) => sum + group.memberCount, 0)} people placed</span>
+            </div>
+            <div className="ministry-people-group-grid">
+              {selectedService.groups.map((group, index) => (
+                <SmallGroupCard
+                  key={group.id}
+                  group={group}
+                  accentClass={`tone-${index % 6}`}
+                  leaders={leaderPool}
+                  onSelect={() => setSelectedGroupId(group.id)}
+                />
+              ))}
+            </div>
+          </>
+        ) : (
+          <p className="muted">Loading small groups...</p>
+        )}
+      </section>
 
       <article className="ministry-launch-panel ministry-launch-span-2">
-        <SectionHead eyebrow="Team Load" title="Who is carrying active work" />
-        <div className="ministry-launch-list">
-          {owners.map((user) => (
-            <LaunchRow
-              key={user.id}
-              icon={<UsersRound aria-hidden="true" />}
-              title={displayName(user)}
-              meta={`${user.role} - ${user.email}`}
-              badge={`${assignedTaskCounts.get(user.id) ?? 0} tasks`}
-              badgeTone={(assignedTaskCounts.get(user.id) ?? 0) > 4 ? "amber" : "blue"}
-              href="/tasks"
-            >
-              {ownedEvents(user.id, overview.events).length
-                ? `Owns ${ownedEvents(user.id, overview.events).slice(0, 2).join(", ")}.`
-                : "No event ownership yet."}
-            </LaunchRow>
+        <SectionHead eyebrow="Leader Pool" title="Available Emerge leaders" />
+        <div className="ministry-people-leader-list">
+          {leaderPool.map((leader) => (
+            <LeaderPoolRow key={leader.id} leader={leader} selectedService={selectedService} />
           ))}
         </div>
       </article>
@@ -312,8 +454,325 @@ function PeopleWorkspace({ overview }: { overview: MinistryOverview }) {
           </div>
         </div>
       </article>
+
+      {serviceFormOpen ? (
+        <ModalShell title="Add Service" description="Create a service view and seed it with the current Emerge leader pool." onClose={() => setServiceFormOpen(false)}>
+          <form className="ministry-launch-form" onSubmit={submitService}>
+            <label className="field">
+              <span>Service name</span>
+              <input className="input" value={newServiceName} onChange={(event) => setNewServiceName(event.target.value)} placeholder="Sunday night special" required />
+            </label>
+            <fieldset className="ministry-people-radio-group">
+              <legend>Service type</legend>
+              <label>
+                <input type="radio" name="service-type" value="permanent" checked={newServiceType === "permanent"} onChange={() => setNewServiceType("permanent")} />
+                <span>Permanent</span>
+              </label>
+              <label>
+                <input type="radio" name="service-type" value="one-time" checked={newServiceType === "one-time"} onChange={() => setNewServiceType("one-time")} />
+                <span>One-time service</span>
+              </label>
+            </fieldset>
+            <div className="ministry-people-modal-actions">
+              <button className="button" type="button" onClick={() => setServiceFormOpen(false)}>Cancel</button>
+              <button className="button primary" type="submit">Add Service</button>
+            </div>
+          </form>
+        </ModalShell>
+      ) : null}
+
+      {selectedGroup && selectedService ? (
+        <ModalShell title={selectedGroup.name} description={`Manage leaders and room for ${selectedService.name}.`} onClose={() => setSelectedGroupId("")}>
+          <div className="ministry-people-detail">
+            <dl>
+              <div>
+                <dt>Leader</dt>
+                <dd>{leaderNameById(selectedGroup.leaderIds[0], leaderPool) || "Open slot"}</dd>
+              </div>
+              <div>
+                <dt>Co-leader</dt>
+                <dd>{leaderNameById(selectedGroup.leaderIds[1], leaderPool) || "Open slot"}</dd>
+              </div>
+              <div>
+                <dt>Room</dt>
+                <dd>{selectedGroup.room}</dd>
+              </div>
+              <div>
+                <dt>People</dt>
+                <dd>{selectedGroup.memberCount}</dd>
+              </div>
+            </dl>
+            <p>{selectedGroup.focus}</p>
+            <div className="ministry-people-modal-actions">
+              <button className="button" type="button" onClick={() => setSelectedGroupId("")}>Close</button>
+              <button className="button primary" type="button" onClick={() => { setEditingGroup(selectedGroup); setSelectedGroupId(""); }}>Manage Group</button>
+            </div>
+          </div>
+        </ModalShell>
+      ) : null}
+
+      {editingGroup ? (
+        <ModalShell title="Manage Small Group" description="Update the visible service group assignment." onClose={() => setEditingGroup(null)}>
+          <div className="ministry-launch-form">
+            <label className="field">
+              <span>Group name</span>
+              <input className="input" value={editingGroup.name} onChange={(event) => setEditingGroup({ ...editingGroup, name: event.target.value })} />
+            </label>
+            <div className="ministry-people-edit-grid">
+              <LeaderAssignmentSelect label="Leader" value={editingGroup.leaderIds[0]} leaders={leaderPool} onChange={(leaderId) => setEditingGroup({ ...editingGroup, leaderIds: [leaderId, editingGroup.leaderIds[1]] })} />
+              <LeaderAssignmentSelect label="Co-leader" value={editingGroup.leaderIds[1]} leaders={leaderPool} onChange={(leaderId) => setEditingGroup({ ...editingGroup, leaderIds: [editingGroup.leaderIds[0], leaderId] })} />
+            </div>
+            <label className="field">
+              <span>Room</span>
+              <input className="input" value={editingGroup.room} onChange={(event) => setEditingGroup({ ...editingGroup, room: event.target.value })} />
+            </label>
+            <label className="field">
+              <span>Focus</span>
+              <textarea className="input" rows={3} value={editingGroup.focus} onChange={(event) => setEditingGroup({ ...editingGroup, focus: event.target.value })} />
+            </label>
+            <div className="ministry-people-modal-actions">
+              <button className="button" type="button" onClick={() => setEditingGroup(null)}>Cancel</button>
+              <button className="button primary" type="button" onClick={saveGroup}>Save Changes</button>
+            </div>
+          </div>
+        </ModalShell>
+      ) : null}
     </div>
   );
+}
+
+function SmallGroupCard({
+  group,
+  accentClass,
+  leaders,
+  onSelect
+}: {
+  group: SmallGroup;
+  accentClass: string;
+  leaders: PeopleLeader[];
+  onSelect: () => void;
+}) {
+  return (
+    <button className={`ministry-people-group-card ${accentClass}`} type="button" onClick={onSelect} aria-label={`Open ${group.name} small group menu`}>
+      <div className="ministry-people-group-head">
+        <span className="ministry-people-group-dot" aria-hidden="true" />
+        <strong>{group.name}</strong>
+        <span>{group.memberCount}</span>
+      </div>
+      <div className="ministry-people-group-body">
+        <PeopleLeaderSlot roleLabel="Leader" leader={leaderById(group.leaderIds[0], leaders)} />
+        <PeopleLeaderSlot roleLabel="Co-leader" leader={leaderById(group.leaderIds[1], leaders)} />
+      </div>
+      <div className="ministry-people-group-footer">
+        <span>{group.room}</span>
+        <span>Open group menu</span>
+      </div>
+    </button>
+  );
+}
+
+function PeopleLeaderSlot({ roleLabel, leader }: { roleLabel: "Leader" | "Co-leader"; leader?: PeopleLeader }) {
+  return (
+    <span className={leader ? "ministry-people-leader-slot assigned" : "ministry-people-leader-slot empty"}>
+      <span className="ministry-people-avatar" aria-hidden="true">
+        {leader?.profilePhotoUrl ? (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={leader.profilePhotoUrl} alt="" />
+          </>
+        ) : (
+          initialsForPerson(leader?.name ?? "")
+        )}
+      </span>
+      <span>
+        <span>{roleLabel}</span>
+        <strong>{leader?.name ?? "Open slot"}</strong>
+      </span>
+    </span>
+  );
+}
+
+function LeaderPoolRow({ leader, selectedService }: { leader: PeopleLeader; selectedService?: SmallGroupService }) {
+  const assignment = selectedService?.groups.find((group) => group.leaderIds.includes(leader.id));
+  return (
+    <div className="ministry-people-leader-row">
+      <span className="ministry-people-avatar" aria-hidden="true">
+        {leader.profilePhotoUrl ? (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={leader.profilePhotoUrl} alt="" />
+          </>
+        ) : (
+          initialsForPerson(leader.name)
+        )}
+      </span>
+      <span>
+        <strong>{leader.name}</strong>
+        <small>{leader.role}{leader.sourceChurch ? ` - ${leader.sourceChurch}` : ""}</small>
+      </span>
+      <span className="pill blue">{assignment?.name ?? "Available"}</span>
+    </div>
+  );
+}
+
+function LeaderAssignmentSelect({
+  label,
+  value,
+  leaders,
+  onChange
+}: {
+  label: string;
+  value: string;
+  leaders: PeopleLeader[];
+  onChange: (leaderId: string) => void;
+}) {
+  return (
+    <label className="field">
+      <span>{label}</span>
+      <select className="input" value={value} onChange={(event) => onChange(event.target.value)}>
+        <option value="">Open slot</option>
+        {leaders.map((leader) => (
+          <option key={leader.id} value={leader.id}>
+            {leader.name} - {leader.role}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function ModalShell({
+  title,
+  description,
+  onClose,
+  children
+}: {
+  title: string;
+  description: string;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="ministry-people-modal-backdrop" role="presentation">
+      <section className="ministry-people-modal" role="dialog" aria-modal="true" aria-labelledby={`${slugify(title)}-modal-title`} aria-describedby={`${slugify(title)}-modal-description`}>
+        <div className="ministry-people-modal-head">
+          <div>
+            <h3 id={`${slugify(title)}-modal-title`}>{title}</h3>
+            <p id={`${slugify(title)}-modal-description`}>{description}</p>
+          </div>
+          <button className="button compact-button" type="button" onClick={onClose}>Close</button>
+        </div>
+        {children}
+      </section>
+    </div>
+  );
+}
+
+function buildPeopleLeaderPool(campStaff: CampStaffMember[], owners: User[]): PeopleLeader[] {
+  const activeCampStaff = campStaff.filter((member) => !member.archivedAt);
+  const emergeCampStaff = activeCampStaff.filter((member) => {
+    const source = member.sourceChurch?.toLowerCase() ?? "";
+    return !source || source.includes("emerge") || source.includes("community life") || source.includes("clc");
+  });
+  const preferredStaff = emergeCampStaff.length ? emergeCampStaff : activeCampStaff;
+
+  if (preferredStaff.length) {
+    return preferredStaff.map((member) => ({
+      id: `camp-${member.id}`,
+      name: member.name,
+      role: campStaffRoleLabel(member.role),
+      profilePhotoUrl: member.profilePhotoUrl,
+      sourceChurch: member.sourceChurch
+    }));
+  }
+
+  return owners.map((user) => ({
+    id: `user-${user.id}`,
+    name: displayName(user),
+    role: user.role === "admin" ? "Admin" : "Leader",
+    email: user.email
+  }));
+}
+
+function buildInitialSmallGroupServices(leaders: PeopleLeader[]): SmallGroupService[] {
+  return [
+    {
+      id: "sunday-morning",
+      name: "Sunday Morning",
+      serviceType: "permanent",
+      groups: buildSmallGroupsForService("Sunday Morning", leaders)
+    },
+    {
+      id: "sunday-evening",
+      name: "Sunday Evening",
+      serviceType: "permanent",
+      groups: buildSmallGroupsForService("Sunday Evening", rotateLeaders(leaders, 2))
+    }
+  ];
+}
+
+function buildSmallGroupsForService(serviceName: string, leaders: PeopleLeader[]): SmallGroup[] {
+  const groupNames = [
+    "6th Grade",
+    "7th-8th Grade Boys",
+    "7th-8th Grade Girls",
+    "9th-10th Grade Boys",
+    "11th-12th Grade Boys",
+    "High School Girls"
+  ];
+  const rooms = ["Room 101", "Room 102", "Room 201", "Room 202", "Cafe", "Prayer Room"];
+  const countBase = serviceName.toLowerCase().includes("evening") ? 8 : 10;
+  const groupCount = Math.max(4, Math.min(groupNames.length, Math.ceil(Math.max(leaders.length, 8) / 2)));
+
+  return groupNames.slice(0, groupCount).map((name, index) => {
+    const firstLeader = leaders.length ? leaders[(index * 2) % leaders.length] : undefined;
+    const secondLeader = leaders.length > 1 ? leaders[(index * 2 + 1) % leaders.length] : undefined;
+    return {
+      id: uniqueId("group", `${serviceName}-${name}`),
+      name,
+      leaderIds: [firstLeader?.id ?? "", secondLeader?.id ?? ""],
+      room: rooms[index],
+      focus: `${serviceName} formation, care follow-up, and leader-owned next steps.`,
+      memberCount: countBase + index * 2
+    };
+  });
+}
+
+function rotateLeaders(leaders: PeopleLeader[], count: number) {
+  if (!leaders.length) return leaders;
+  const offset = count % leaders.length;
+  return [...leaders.slice(offset), ...leaders.slice(0, offset)];
+}
+
+function leaderById(id: string, leaders: PeopleLeader[]) {
+  return leaders.find((leader) => leader.id === id);
+}
+
+function leaderNameById(id: string, leaders: PeopleLeader[]) {
+  return leaderById(id, leaders)?.name ?? "";
+}
+
+function initialsForPerson(name: string) {
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("") || "+";
+}
+
+function campStaffRoleLabel(role: CampStaffMember["role"]) {
+  if (role === "leader") return "Leader";
+  if (role === "staff") return "Staff";
+  return "Adult volunteer";
+}
+
+function uniqueId(prefix: string, value: string) {
+  return `${prefix}-${slugify(value)}-${Date.now().toString(36)}`;
+}
+
+function slugify(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "item";
 }
 
 function BudgetWorkspace({ overview, refresh }: { overview: MinistryOverview; refresh: () => Promise<void> }) {

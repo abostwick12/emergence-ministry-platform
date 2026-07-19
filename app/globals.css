@@ -15793,6 +15793,314 @@ body:has(.login-shell) h3 {
   margin-top: auto;
 }
 
+.ministry-people-board {
+  position: relative;
+}
+
+.ministry-people-service-panel {
+  gap: 18px;
+}
+
+.ministry-people-toolbar,
+.ministry-people-controls,
+.ministry-people-service-summary,
+.ministry-people-modal-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ministry-people-toolbar {
+  justify-content: space-between;
+}
+
+.ministry-people-controls {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.ministry-people-controls .button.primary,
+.ministry-people-modal-actions .button.primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ministry-people-controls .button.primary svg {
+  width: 16px;
+  height: 16px;
+}
+
+.ministry-people-service-select {
+  min-width: 240px;
+}
+
+.ministry-people-service-summary {
+  flex-wrap: wrap;
+  border: 1px solid rgba(129, 164, 214, 0.13);
+  border-radius: 12px;
+  background: rgba(6, 13, 27, 0.38);
+  color: var(--platform-muted);
+  padding: 12px;
+  font-weight: 800;
+}
+
+.ministry-people-group-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.ministry-people-group-card {
+  --people-group-accent: var(--platform-cyan);
+  position: relative;
+  display: grid;
+  gap: 14px;
+  overflow: hidden;
+  min-height: 244px;
+  border: 1px solid color-mix(in srgb, var(--people-group-accent) 36%, rgba(129, 164, 214, 0.16));
+  border-radius: 14px;
+  background:
+    radial-gradient(120% 95% at 0% 0%, color-mix(in srgb, var(--people-group-accent) 18%, transparent), transparent 62%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent 94px),
+    rgba(8, 20, 37, 0.82);
+  color: inherit;
+  box-shadow: var(--platform-shadow);
+  padding: 16px;
+  text-align: left;
+}
+
+.ministry-people-group-card:hover,
+.ministry-people-group-card:focus-visible {
+  border-color: color-mix(in srgb, var(--people-group-accent) 58%, rgba(129, 164, 214, 0.2));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--people-group-accent) 16%, transparent), 0 0 34px color-mix(in srgb, var(--people-group-accent) 12%, transparent);
+}
+
+.ministry-people-group-card.tone-1 { --people-group-accent: #f5b84f; }
+.ministry-people-group-card.tone-2 { --people-group-accent: #a78bfa; }
+.ministry-people-group-card.tone-3 { --people-group-accent: #34d399; }
+.ministry-people-group-card.tone-4 { --people-group-accent: #fb7185; }
+.ministry-people-group-card.tone-5 { --people-group-accent: #60a5fa; }
+
+.ministry-people-group-head,
+.ministry-people-group-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ministry-people-group-head strong {
+  min-width: 0;
+  flex: 1;
+  color: #f7fbff;
+  font-size: 16px;
+}
+
+.ministry-people-group-head > span:last-child {
+  display: grid;
+  place-items: center;
+  min-width: 34px;
+  height: 28px;
+  border: 1px solid color-mix(in srgb, var(--people-group-accent) 30%, rgba(129, 164, 214, 0.18));
+  border-radius: 999px;
+  color: #f7fbff;
+  font-weight: 900;
+}
+
+.ministry-people-group-dot {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--people-group-accent);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--people-group-accent) 44%, transparent);
+}
+
+.ministry-people-group-body,
+.ministry-people-leader-list {
+  display: grid;
+  gap: 10px;
+}
+
+.ministry-people-leader-slot,
+.ministry-people-leader-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgba(129, 164, 214, 0.14);
+  border-radius: 12px;
+  background: rgba(6, 13, 27, 0.42);
+  padding: 10px;
+}
+
+.ministry-people-leader-slot.empty {
+  border-style: dashed;
+  color: var(--platform-muted);
+}
+
+.ministry-people-leader-slot span:last-child,
+.ministry-people-leader-row > span:nth-child(2) {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ministry-people-leader-slot span:last-child > span,
+.ministry-people-leader-row small,
+.ministry-people-group-footer {
+  color: var(--platform-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.ministry-people-leader-slot strong,
+.ministry-people-leader-row strong {
+  overflow: hidden;
+  color: #f7fbff;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ministry-people-avatar {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  width: 40px;
+  height: 40px;
+  border: 1px solid color-mix(in srgb, var(--people-group-accent, var(--platform-cyan)) 34%, rgba(129, 164, 214, 0.18));
+  border-radius: 12px;
+  background: rgba(22, 217, 245, 0.1);
+  color: #f7fbff;
+  font-weight: 900;
+}
+
+.ministry-people-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ministry-people-group-footer {
+  justify-content: space-between;
+  margin-top: auto;
+}
+
+.ministry-people-group-footer span:last-child {
+  color: var(--people-group-accent);
+}
+
+.ministry-people-leader-row {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.ministry-people-radio-group {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  border: 1px solid rgba(129, 164, 214, 0.16);
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.ministry-people-radio-group legend {
+  color: var(--platform-muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.ministry-people-radio-group label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #f7fbff;
+  font-weight: 800;
+}
+
+.ministry-people-modal-backdrop {
+  position: fixed;
+  z-index: 70;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(3, 7, 18, 0.68);
+  padding: 20px;
+}
+
+.ministry-people-modal {
+  display: grid;
+  gap: 18px;
+  width: min(620px, 100%);
+  max-height: min(720px, calc(100vh - 40px));
+  overflow: auto;
+  border: 1px solid rgba(129, 164, 214, 0.2);
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055), transparent 120px),
+    #071323;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.48);
+  padding: 20px;
+}
+
+.ministry-people-modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.ministry-people-modal h3 {
+  margin: 0;
+  color: #f7fbff;
+  font-family: var(--font-platform-serif), Georgia, serif;
+  font-size: 26px;
+  font-weight: 500;
+}
+
+.ministry-people-modal p {
+  margin: 6px 0 0;
+  color: var(--platform-muted);
+  line-height: 1.45;
+}
+
+.ministry-people-detail {
+  display: grid;
+  gap: 16px;
+}
+
+.ministry-people-detail dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.ministry-people-detail dl > div {
+  border: 1px solid rgba(129, 164, 214, 0.14);
+  border-radius: 12px;
+  background: rgba(6, 13, 27, 0.42);
+  padding: 12px;
+}
+
+.ministry-people-detail dt {
+  color: var(--platform-muted);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.ministry-people-detail dd {
+  margin: 4px 0 0;
+  color: #f7fbff;
+  font-weight: 800;
+}
+
+.ministry-people-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
 .ministry-emma-panel {
   position: relative;
   display: grid;
@@ -15981,6 +16289,10 @@ body:has(.login-shell) h3 {
   .ministry-launch-span-2 {
     grid-column: 1 / -1;
   }
+
+  .ministry-people-group-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 720px) {
@@ -16016,6 +16328,47 @@ body:has(.login-shell) h3 {
   .ministry-launch-row svg:last-child {
     justify-self: start;
     margin-left: 48px;
+  }
+
+  .ministry-people-toolbar,
+  .ministry-people-modal-head,
+  .ministry-people-modal-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .ministry-people-controls {
+    justify-content: stretch;
+  }
+
+  .ministry-people-controls .button,
+  .ministry-people-service-select,
+  .ministry-people-service-select .input {
+    width: 100%;
+  }
+
+  .ministry-people-group-grid,
+  .ministry-people-detail dl,
+  .ministry-people-edit-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ministry-people-leader-row {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .ministry-people-leader-row .pill {
+    justify-self: start;
+    grid-column: 2;
+  }
+
+  .ministry-people-modal-backdrop {
+    align-items: end;
+    padding: 12px;
+  }
+
+  .ministry-people-modal {
+    max-height: calc(100vh - 24px);
   }
 
   .ministry-budget-row > div:first-child {
@@ -17286,7 +17639,7 @@ body:has(.login-shell) h3 {
   padding: 32px;
 }
 
-.leader-prep-title-field textarea,
+.leader-prep-title-field input,
 .leader-prep-meta-row input,
 .leader-prep-big-idea textarea,
 .leader-prep-body-field textarea {
@@ -17297,9 +17650,8 @@ body:has(.login-shell) h3 {
   outline: none;
 }
 
-.leader-prep-title-field textarea {
+.leader-prep-title-field input {
   min-height: 82px;
-  resize: none;
   font-family: Georgia, "Times New Roman", serif;
   font-size: clamp(2rem, 4vw, 2.65rem);
   font-weight: 800;
@@ -17743,7 +18095,7 @@ body:has(.login-shell) h3 {
     padding-inline: 18px;
   }
 
-  .leader-prep-title-field textarea {
+  .leader-prep-title-field input {
     min-height: 72px;
     font-size: clamp(1.7rem, 10vw, 2.4rem);
   }

@@ -83,7 +83,7 @@ export function LeaderPreparationPage() {
 
           <div className="leader-prep-editor-body">
             <div className="leader-prep-title-field">
-              <textarea aria-label="Sermon title" rows={2} value={title} onChange={(event) => setTitle(event.target.value)} />
+              <input aria-label="Sermon title" value={title} onChange={(event) => setTitle(event.target.value)} />
             </div>
 
             <div className="leader-prep-meta-row">
