@@ -16,6 +16,7 @@ import {
   LayoutDashboard,
   Library,
   ListChecks,
+  LogOut,
   MessageSquareText,
   Music,
   NotebookPen,
@@ -341,9 +342,18 @@ export function AppShell({
                     {link.label}
                   </Link>
                 ))}
+                <a className="app-nav-link" href="/api/auth/logout">
+                  <LogOut className="app-nav-icon" aria-hidden="true" />
+                  Log out
+                </a>
               </div>
             </details>
-          ) : null}
+          ) : (
+            <a className="mobile-nav-link" href="/api/auth/logout">
+              <LogOut className="app-nav-icon" aria-hidden="true" />
+              Log out
+            </a>
+          )}
         </nav>
       ) : null}
     </div>

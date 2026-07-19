@@ -37,10 +37,11 @@ afterEach(() => {
   else process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = originalEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 });
 
-function cookieStore(accessToken: string) {
+function cookieStore(accessToken: string, guestSessionId?: string) {
   return {
     get(name: string) {
       if (name === authCookieNames.accessToken) return { value: accessToken };
+      if (name === authCookieNames.guestSession && guestSessionId) return { value: guestSessionId };
       return undefined;
     }
   };
@@ -102,6 +103,54 @@ describe("getServerSession", () => {
         role: "student"
       }
     });
+  });
+
+  it("prefers a valid authenticated account over a stale guest session cookie", async () => {
+    cookiesMock.mockReturnValue(cookieStore("access-token", "guest-session"));
+    createClientMock
+      .mockReturnValueOnce({
+        auth: {
+          getUser: vi.fn().mockResolvedValue({
+            data: {
+              user: {
+                id: "usr_leader",
+                email: "leader@example.test",
+                user_metadata: {
+                  full_name: "Guest Masked Leader"
+                }
+              }
+            },
+            error: null
+          })
+        }
+      })
+      .mockReturnValueOnce({
+        from: vi.fn(() => ({
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: {
+                  full_name: "Actual Leader",
+                  role: "leader"
+                },
+                error: null
+              })
+            }))
+          }))
+        }))
+      });
+
+    const session = await getServerSession();
+
+    expect(session).toMatchObject({
+      user: {
+        id: "usr_leader",
+        email: "leader@example.test",
+        fullName: "Actual Leader",
+        role: "leader"
+      }
+    });
+    expect(session?.isGuest).toBeUndefined();
   });
 
   it("uses service-controlled app metadata before legacy user metadata when no profile row exists", async () => {
