@@ -38,11 +38,11 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 export async function DELETE(_: Request, { params }: { params: { id: string } }) {
   const access = await requireEmergeOperationsAccess();
   if (!access.allowed) return access.response;
-  if (!access.session.isGuest) {
-    return NextResponse.json({ error: "Event deletion is available only in guest sandbox mode." }, { status: 403 });
+  if (!access.session.isGuest && access.session.user.role.trim().toLowerCase() !== "admin") {
+    return NextResponse.json({ error: "Only administrators can delete archived events." }, { status: 403 });
   }
 
   const deleted = await deleteMinistryEvent(access.session, params.id);
-  if (!deleted) return NextResponse.json({ error: "Event not found" }, { status: 404 });
+  if (!deleted) return NextResponse.json({ error: "Archived event not found." }, { status: 404 });
   return NextResponse.json({ ok: true });
 }

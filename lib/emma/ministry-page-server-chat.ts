@@ -126,9 +126,10 @@ export async function runMinistryPageServerChat({
   rawInput: unknown;
   session: AuthSession | null;
 }): Promise<EmmaResponse<MinistryPageServerChatResult>> {
+  let input: MinistryPageServerChatInput | null = null;
   try {
     if (!session) throw emmaErrors.unauthorized();
-    const input = parseInput(rawInput);
+    input = parseInput(rawInput);
     if (session.isGuest) {
       return emmaOk({
         response: buildGuestEmmaResponse({ overview, page: input.page, prompt: input.prompt }),
@@ -161,6 +162,16 @@ export async function runMinistryPageServerChat({
 
     return await runAuditedFallbackChat({ contextManifest, fallbackResponse, input, session });
   } catch (error) {
+    if (session && input && canUseLocalFallback(session)) {
+      const response = answerMinistryEmmaPrompt({
+        overview,
+        page: input.page,
+        prompt: input.prompt
+      });
+      return emmaOk(buildLocalFallbackChatResult(response, [
+        "EMMA audit persistence was unavailable. Deterministic fallback was returned and no action was executed."
+      ]));
+    }
     return emmaFail(error);
   }
 }
@@ -177,6 +188,25 @@ function assertCanChat(session: AuthSession): void {
   if (!CHAT_ROLES.includes(session.user.role as Role)) {
     throw emmaErrors.forbidden("Only Admin or Leader roles may use ministry EMMA chat.");
   }
+}
+
+function canUseLocalFallback(session: AuthSession): boolean {
+  return CHAT_ROLES.includes(session.user.role as Role);
+}
+
+function buildLocalFallbackChatResult(response: MinistryEmmaResponse, warnings: string[]): MinistryPageServerChatResult {
+  return {
+    response,
+    requestId: "local-fallback-request",
+    runId: "local-fallback-run",
+    providerMode: "audited_fallback",
+    provider: "deterministic",
+    model: "deterministic-fallback",
+    proposalCreated: false,
+    proposalId: null,
+    executed: false,
+    warnings
+  };
 }
 
 function shouldAttemptLiveProvider(session: AuthSession): boolean {

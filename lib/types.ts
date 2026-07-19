@@ -52,6 +52,9 @@ export interface MinistryEvent {
   googleDriveFolderId?: string;
   proPresenterPlaylistId?: string;
   notes?: string;
+  archivedAt?: string | null;
+  archivedByUserId?: string | null;
+  archiveReason?: string | null;
   createdAt: string;
 }
 

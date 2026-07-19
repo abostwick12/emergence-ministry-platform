@@ -9,7 +9,7 @@ import {
   getMinistryEmmaReadiness,
   runMinistryPageServerChat
 } from "@/lib/emma/ministry-page-server-chat";
-import { __resetEmmaMockStoreForTests, getEmmaAuditTrail } from "@/lib/emma/repository";
+import { __resetEmmaMockStoreForTests, __setEmmaRepositorySupabaseClientForTests, getEmmaAuditTrail } from "@/lib/emma/repository";
 import type { MinistryEmmaOverview } from "@/lib/emma/ministry-page-assistant";
 
 type TestSession = AuthSession & { testMinistryId: string };
@@ -97,6 +97,8 @@ beforeEach(() => {
   delete process.env.EMMA_DEFAULT_PROVIDER;
   delete process.env.EMMA_DEFAULT_MODEL;
   delete process.env.GEMINI_API_KEY;
+  delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+  delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 });
 
 describe("ministry page server-backed EMMA chat", () => {
@@ -166,6 +168,34 @@ describe("ministry page server-backed EMMA chat", () => {
         message: "Only Admin or Leader roles may use ministry EMMA chat."
       }
     });
+  });
+
+  it("returns deterministic chat when audit persistence is unavailable", async () => {
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon-key";
+    __setEmmaRepositorySupabaseClientForTests({
+      from: () => ({
+        insert: () => ({
+          select: () => ({
+            single: async () => ({ data: null, error: { message: "relation ai_requests does not exist" } })
+          })
+        })
+      })
+    });
+
+    const result = await runMinistryPageServerChat({
+      overview: overview(),
+      rawInput: { page: "events", prompt: "What should I open first?", createProposal: true },
+      session: { ...session(), isMock: false, accessToken: "token" }
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.requestId).toBe("local-fallback-request");
+    expect(result.data.runId).toBe("local-fallback-run");
+    expect(result.data.providerMode).toBe("audited_fallback");
+    expect(result.data.proposalCreated).toBe(false);
+    expect(result.data.warnings[0]).toMatch(/audit persistence was unavailable/i);
   });
 
   it("reports live readiness without exposing secrets", () => {
