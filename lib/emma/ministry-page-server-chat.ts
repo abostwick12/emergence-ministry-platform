@@ -10,7 +10,8 @@ import { emmaErrors, emmaFail, emmaOk } from "@/lib/emma/errors";
 import { ministryPageChatSchema, ministryPageChatSystemPrompt, type MinistryPageChatOutput } from "@/lib/emma/providers/ministry-page-chat";
 import { runEmmaProviderForRequest } from "@/lib/emma/providers/run-provider";
 import type { EmmaProviderId } from "@/lib/emma/providers/types";
-import { DEFAULT_GEMINI_MODEL, DEFAULT_OPENAI_EMMA_MODEL } from "@/lib/emma/providers/registry";
+import { readAzureOpenAIEmmaConfig } from "@/lib/emma/providers/azure-openai-provider";
+import { DEFAULT_AZURE_OPENAI_EMMA_MODEL, DEFAULT_GEMINI_MODEL, DEFAULT_OPENAI_EMMA_MODEL } from "@/lib/emma/providers/registry";
 import { buildGuestEmmaResponse, guestAuditLabel } from "@/lib/guest/stock-ai";
 import {
   completeAiRun,
@@ -76,8 +77,8 @@ type MinistryPageRecommendationPayload = {
 export type MinistryEmmaReadiness = {
   serverBacked: true;
   liveProviderConfigured: boolean;
-  providerMode: "gemini" | "openai" | "mock";
-  provider: "gemini" | "openai" | "deterministic";
+  providerMode: "gemini" | "openai" | "azure" | "mock";
+  provider: "gemini" | "openai" | "azure" | "deterministic";
   model: string;
   audit: "supabase" | "mock";
   status: "live" | "fallback";
@@ -113,7 +114,7 @@ export function getMinistryEmmaReadiness(input: { session?: AuthSession | null; 
     status: liveProviderConfigured ? "live" : "fallback",
     message: liveProviderConfigured
       ? `EMMA ministry chat is server-backed and configured for live ${providerMode} responses.`
-      : "EMMA ministry chat is server-backed but using audited deterministic fallback until GEMINI_API_KEY or OPENAI_API_KEY is configured, or EMMA_PROVIDER_MODE is changed from mock."
+      : "EMMA ministry chat is server-backed but using audited deterministic fallback until GEMINI_API_KEY, AZURE_OPENAI_* vars, or OPENAI_API_KEY is configured, or EMMA_PROVIDER_MODE is changed from mock."
   };
 }
 
@@ -214,18 +215,21 @@ function shouldAttemptLiveProvider(session: AuthSession): boolean {
   return resolveMinistryEmmaProviderMode() !== "mock";
 }
 
-function resolveMinistryEmmaProviderMode(env: NodeJS.ProcessEnv = process.env): "gemini" | "openai" | "mock" {
+function resolveMinistryEmmaProviderMode(env: NodeJS.ProcessEnv = process.env): "gemini" | "openai" | "azure" | "mock" {
   if (env.EMMA_PROVIDER_MODE === "mock") return "mock";
   if (env.EMMA_PROVIDER_MODE === "gemini") return env.GEMINI_API_KEY?.trim() ? "gemini" : "mock";
   if (env.EMMA_PROVIDER_MODE === "openai") return env.OPENAI_API_KEY?.trim() ? "openai" : "mock";
+  if (env.EMMA_PROVIDER_MODE === "azure") return readAzureOpenAIEmmaConfig(env) ? "azure" : "mock";
   if (env.GEMINI_API_KEY?.trim()) return "gemini";
+  if (readAzureOpenAIEmmaConfig(env)) return "azure";
   if (env.OPENAI_API_KEY?.trim()) return "openai";
   return "mock";
 }
 
-function defaultMinistryEmmaModel(providerMode: "gemini" | "openai" | "mock", env: NodeJS.ProcessEnv) {
+function defaultMinistryEmmaModel(providerMode: "gemini" | "openai" | "azure" | "mock", env: NodeJS.ProcessEnv) {
   if (providerMode === "gemini") return DEFAULT_GEMINI_MODEL;
   if (providerMode === "openai") return env.OPENAI_MODEL?.trim() || DEFAULT_OPENAI_EMMA_MODEL;
+  if (providerMode === "azure") return env.AZURE_OPENAI_DEPLOYMENT?.trim() || DEFAULT_AZURE_OPENAI_EMMA_MODEL;
   return "deterministic-fallback";
 }
 
@@ -264,29 +268,19 @@ async function runLiveProviderChat({
   });
   let failoverWarning: string | null = null;
 
-  if (!providerResult.ok && shouldRetryMinistryChatWithOpenAI(providerResult.error.message)) {
-    const openaiResult = await runEmmaProviderForRequest(session, {
-      requestId: request.id,
-      skillKey: "ministry_page_chat_openai_failover",
-      inputSchemaVersion: "1",
-      outputSchemaVersion: "1",
-      featureKey: "ministry_page_chat",
-      provider: "openai",
-      model: process.env.OPENAI_MODEL?.trim() || DEFAULT_OPENAI_EMMA_MODEL,
+  if (!providerResult.ok) {
+    const failover = await runMinistryChatProviderFailovers({
       contextManifest,
-      systemPrompt: ministryPageChatSystemPrompt,
-      userPrompt: buildMinistryPageUserPrompt({ input, overview }),
-      outputSchema: ministryPageChatSchema,
-      maxOutputTokens: 700,
-      temperature: 0.2
+      input,
+      overview,
+      primaryError: providerResult.error.message,
+      requestId: request.id,
+      session
     });
-
-    if (openaiResult.ok) {
-      providerResult = openaiResult;
-      failoverWarning = "Primary EMMA provider failed safely; OpenAI failover returned a valid response.";
-    } else {
-      failoverWarning = `OpenAI failover also failed safely. ${openaiResult.error.message}`;
+    if (failover.result?.ok) {
+      providerResult = failover.result;
     }
+    failoverWarning = failover.warning;
   }
 
   if (!providerResult.ok) {
@@ -328,9 +322,78 @@ async function runLiveProviderChat({
   });
 }
 
-function shouldRetryMinistryChatWithOpenAI(primaryErrorMessage: string): boolean {
-  if (!process.env.OPENAI_API_KEY?.trim()) return false;
-  if (resolveMinistryEmmaProviderMode() === "openai") return false;
+async function runMinistryChatProviderFailovers({
+  contextManifest,
+  input,
+  overview,
+  primaryError,
+  requestId,
+  session
+}: {
+  contextManifest: ContextManifest;
+  input: MinistryPageServerChatInput;
+  overview: MinistryEmmaOverview;
+  primaryError: string;
+  requestId: string;
+  session: AuthSession;
+}): Promise<{ result: Awaited<ReturnType<typeof runEmmaProviderForRequest<typeof ministryPageChatSchema>>> | null; warning: string | null }> {
+  if (!shouldRetryMinistryChatProvider(primaryError)) return { result: null, warning: null };
+
+  const attemptedWarnings: string[] = [];
+  const currentProvider = resolveMinistryEmmaProviderMode();
+  const failovers: Array<{ provider: EmmaProviderId; model: string; skillKey: string; label: string }> = [
+    ...(readAzureOpenAIEmmaConfig() && currentProvider !== "azure"
+      ? [
+          {
+            provider: "azure" as const,
+            model: process.env.AZURE_OPENAI_DEPLOYMENT?.trim() || DEFAULT_AZURE_OPENAI_EMMA_MODEL,
+            skillKey: "ministry_page_chat_azure_failover",
+            label: "Azure OpenAI"
+          }
+        ]
+      : []),
+    ...(process.env.OPENAI_API_KEY?.trim() && currentProvider !== "openai"
+      ? [
+          {
+            provider: "openai" as const,
+            model: process.env.OPENAI_MODEL?.trim() || DEFAULT_OPENAI_EMMA_MODEL,
+            skillKey: "ministry_page_chat_openai_failover",
+            label: "OpenAI"
+          }
+        ]
+      : [])
+  ];
+
+  for (const failover of failovers) {
+    const result = await runEmmaProviderForRequest(session, {
+      requestId,
+      skillKey: failover.skillKey,
+      inputSchemaVersion: "1",
+      outputSchemaVersion: "1",
+      featureKey: "ministry_page_chat",
+      provider: failover.provider,
+      model: failover.model,
+      contextManifest,
+      systemPrompt: ministryPageChatSystemPrompt,
+      userPrompt: buildMinistryPageUserPrompt({ input, overview }),
+      outputSchema: ministryPageChatSchema,
+      maxOutputTokens: 700,
+      temperature: 0.2
+    });
+
+    if (result.ok) {
+      return {
+        result,
+        warning: `Primary EMMA provider failed safely; ${failover.label} failover returned a valid response.`
+      };
+    }
+    attemptedWarnings.push(`${failover.label} failover also failed safely. ${result.error.message}`);
+  }
+
+  return { result: null, warning: attemptedWarnings.join(" ") || null };
+}
+
+function shouldRetryMinistryChatProvider(primaryErrorMessage: string): boolean {
   return primaryErrorMessage.includes("Provider error category:");
 }
 

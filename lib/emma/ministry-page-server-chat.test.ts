@@ -98,6 +98,12 @@ beforeEach(() => {
   delete process.env.EMMA_DEFAULT_PROVIDER;
   delete process.env.EMMA_DEFAULT_MODEL;
   delete process.env.GEMINI_API_KEY;
+  delete process.env.OPENAI_API_KEY;
+  delete process.env.OPENAI_MODEL;
+  delete process.env.AZURE_OPENAI_ENDPOINT;
+  delete process.env.AZURE_OPENAI_API_KEY;
+  delete process.env.AZURE_OPENAI_DEPLOYMENT;
+  delete process.env.AZURE_OPENAI_API_VERSION;
   delete process.env.NEXT_PUBLIC_SUPABASE_URL;
   delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 });
@@ -294,6 +300,66 @@ describe("ministry page server-backed EMMA chat", () => {
     ]);
   });
 
+  it("falls back from invalid Gemini output to Azure OpenAI when Azure is configured", async () => {
+    process.env.EMMA_PROVIDER_MODE = "gemini";
+    process.env.GEMINI_API_KEY = "test-gemini-key";
+    process.env.EMMA_DEFAULT_MODEL = "gemini-3.5-flash";
+    process.env.AZURE_OPENAI_ENDPOINT = "https://example-resource.openai.azure.com";
+    process.env.AZURE_OPENAI_API_KEY = "test-azure-key";
+    process.env.AZURE_OPENAI_DEPLOYMENT = "emma-azure-test";
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("generativelanguage.googleapis.com")) {
+        return new Response(
+          JSON.stringify({
+            candidates: [{ content: { parts: [{ text: JSON.stringify({ invalid: true }) }] } }],
+            usageMetadata: { totalTokenCount: 12 }
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({
+          model: "emma-azure-test",
+          output_text: JSON.stringify({
+            summary: "Azure failover guidance for the events page.",
+            points: ["Use the readiness snapshot before making a decision."],
+            nextActions: ["Open the event with the most blocked work."],
+            confidence: 0.84,
+            warnings: []
+          }),
+          usage: { total_tokens: 31 }
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const admin = session();
+    const result = await runMinistryPageServerChat({
+      overview: overview(),
+      rawInput: { page: "events", prompt: "What should I open first?", selectedEventId: "evt_1" },
+      session: admin
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.providerMode).toBe("live_provider");
+    expect(result.data.provider).toBe("azure");
+    expect(result.data.model).toBe("emma-azure-test");
+    expect(result.data.response.summary).toBe("Azure failover guidance for the events page.");
+    expect(result.data.warnings).toContain("Primary EMMA provider failed safely; Azure OpenAI failover returned a valid response.");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    const trail = await getEmmaAuditTrail(admin, result.data.requestId);
+    expect(trail.runs.map((run) => run.skillKey)).toEqual(["ministry_page_chat_azure_failover", "ministry_page_chat"]);
+    expect(trail.providerAttempts.map((attempt) => `${attempt.provider}:${attempt.status}`)).toEqual([
+      "azure:success",
+      "gemini:failure"
+    ]);
+  });
+
   it("blocks roles outside Admin and Leader", async () => {
     const result = await runMinistryPageServerChat({
       overview: overview(),
@@ -353,6 +419,27 @@ describe("ministry page server-backed EMMA chat", () => {
       liveProviderConfigured: true,
       provider: "gemini",
       model: "gemini-3.5-flash",
+      status: "live"
+    });
+    expect(JSON.stringify(readiness)).not.toContain("secret-key");
+  });
+
+  it("reports Azure readiness when Azure OpenAI is configured", () => {
+    const readiness = getMinistryEmmaReadiness({
+      session: session(),
+      env: {
+        ...process.env,
+        EMMA_PROVIDER_MODE: "azure",
+        AZURE_OPENAI_ENDPOINT: "https://example-resource.openai.azure.com",
+        AZURE_OPENAI_API_KEY: "secret-key",
+        AZURE_OPENAI_DEPLOYMENT: "emma-azure-test"
+      }
+    });
+
+    expect(readiness).toMatchObject({
+      liveProviderConfigured: true,
+      provider: "azure",
+      model: "emma-azure-test",
       status: "live"
     });
     expect(JSON.stringify(readiness)).not.toContain("secret-key");
