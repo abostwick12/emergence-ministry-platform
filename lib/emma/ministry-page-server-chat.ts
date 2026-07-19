@@ -269,7 +269,7 @@ async function runLiveProviderChat({
       fallbackResponse,
       input,
       session,
-      warnings: ["Live EMMA provider attempt failed safely. Audited deterministic fallback was used."]
+      warnings: [`Live EMMA provider attempt failed safely. ${providerResult.error.message} Audited deterministic fallback was used.`]
     });
     return fallback;
   }
