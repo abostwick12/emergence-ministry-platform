@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { requireEmergeOperationsAccess } from "@/lib/app-area-access";
+import { requireEmergeOperationsWriteAccess } from "@/lib/app-area-access";
 import { disconnectPlanningCenter, getPlanningCenterStatus, redactProviderError } from "@/lib/integrations/planning-center/repository";
 
 export async function POST() {
-  const access = await requireEmergeOperationsAccess();
+  const access = await requireEmergeOperationsWriteAccess();
   if (!access.allowed) return access.response;
 
   try {

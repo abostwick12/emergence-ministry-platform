@@ -21,7 +21,7 @@ export async function PATCH(request: Request) {
   const session = await getServerSession();
   if (!session) return unauthorizedResponse();
 
-  let body: { userId?: string; role?: string; aiEnabled?: boolean; aiMonthlyLimit?: number | null; canSaveChanges?: boolean } = {};
+  let body: { userId?: string; role?: string; aiEnabled?: boolean; aiMonthlyLimit?: number | null; accessMode?: string; canSaveChanges?: boolean } = {};
   try {
     body = await request.json();
   } catch {
@@ -37,6 +37,7 @@ export async function PATCH(request: Request) {
     guestPublic: (body as Record<string, unknown>).guestPublic === true,
     aiEnabled: typeof body.aiEnabled === "boolean" ? body.aiEnabled : undefined,
     aiMonthlyLimit: typeof body.aiMonthlyLimit === "number" || body.aiMonthlyLimit === null ? body.aiMonthlyLimit : undefined,
+    accessMode: typeof body.accessMode === "string" ? body.accessMode : undefined,
     canSaveChanges: typeof body.canSaveChanges === "boolean" ? body.canSaveChanges : undefined
   });
   if (!result.allowed) return NextResponse.json({ error: result.error }, { status: result.status });

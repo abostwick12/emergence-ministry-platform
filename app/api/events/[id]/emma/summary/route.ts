@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { requireEmergeOperationsAccess } from "@/lib/app-area-access";
+import { requireEmergeOperationsWriteAccess } from "@/lib/app-area-access";
 import { getEventWorkspace } from "@/lib/data/ministry-repository";
 import { runEmmaCommand } from "@/lib/emma/commands/run-emma-command";
 import { buildSafeEventEmmaContext } from "@/lib/emma/context/event-context";
@@ -12,7 +12,7 @@ type EventEmmaSummaryBody = {
 };
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
-  const access = await requireEmergeOperationsAccess();
+  const access = await requireEmergeOperationsWriteAccess();
   if (!access.allowed) return access.response;
   const { session } = access;
 

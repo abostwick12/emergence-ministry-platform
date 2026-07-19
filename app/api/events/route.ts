@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireEmergeOperationsAccess } from "@/lib/app-area-access";
+import { requireEmergeOperationsAccess, requireEmergeOperationsWriteAccess } from "@/lib/app-area-access";
 import { createMinistryEvent, getOverview } from "@/lib/data/ministry-repository";
 import { normalizeEventType } from "@/lib/event-categories";
 
@@ -11,7 +11,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const access = await requireEmergeOperationsAccess();
+  const access = await requireEmergeOperationsWriteAccess();
   if (!access.allowed) return access.response;
 
   const body = (await request.json()) as {

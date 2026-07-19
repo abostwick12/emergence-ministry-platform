@@ -214,8 +214,9 @@ test.describe("MVP event automation navigation smoke tests", () => {
     const operationsRail = winterRow.locator(".event-operations-rail");
     await expect(operationsRail).toBeVisible();
     await expect(winterRow.getByRole("heading", { name: "Event Targets" })).toBeVisible();
-    await expect(operationsRail.getByText("Checklist", { exact: true })).toBeVisible();
-    await expect(operationsRail.getByText("Volunteers", { exact: true })).toBeVisible();
+    await expect(operationsRail.getByText("Event Vision", { exact: true })).toBeVisible();
+    await expect(operationsRail).toContainText("A weekend retreat for worship");
+    await expect(winterRow.locator(".event-identity-meta")).toContainText("Volunteers needed");
     await expect(winterRow.locator(".event-summary-scroll").getByRole("button", { name: /Notes/ })).toBeVisible();
     const rowAccentRailWidth = await winterRow.evaluate((element) => getComputedStyle(element, "::before").width);
     expect(rowAccentRailWidth).toBe("3px");

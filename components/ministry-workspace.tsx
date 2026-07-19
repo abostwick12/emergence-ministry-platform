@@ -80,12 +80,14 @@ export default function MinistryWorkspace({
   view,
   initialOverview = null,
   initialAttention = null,
-  initialLoadError = ""
+  initialLoadError = "",
+  canSaveChanges = true
 }: {
   view: WorkspaceView;
   initialOverview?: Overview | null;
   initialAttention?: DashboardAttention | null;
   initialLoadError?: string;
+  canSaveChanges?: boolean;
 }) {
   const [overview, setOverview] = useState<Overview | null>(initialOverview);
   const [dashboardAttention, setDashboardAttention] = useState<DashboardAttention | null>(initialAttention);
@@ -184,6 +186,10 @@ export default function MinistryWorkspace({
   }
 
   async function updateTask(taskId: string, body: Partial<ActiveTask>) {
+    if (!canSaveChanges) {
+      setNotice("Read-only access is active. Changes are disabled for this account.");
+      return;
+    }
     await fetch(`/api/tasks/${taskId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -193,6 +199,10 @@ export default function MinistryWorkspace({
   }
 
   async function updateEvent(eventId: string, body: Partial<MinistryEvent>) {
+    if (!canSaveChanges) {
+      setNotice("Read-only access is active. Changes are disabled for this account.");
+      return;
+    }
     const response = await fetch(`/api/events/${eventId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -281,7 +291,8 @@ export default function MinistryWorkspace({
             tasks={overview.tasks}
             users={activeUsers}
             expenses={overview.expenses}
-            canCreateEvent
+            canCreateEvent={canSaveChanges}
+            canSaveChanges={canSaveChanges}
             expandedEventIds={expandedEventIds}
             onCreateEvent={openCreate}
             onToggleEvent={toggleEventExpansion}
@@ -297,7 +308,7 @@ export default function MinistryWorkspace({
         </section>
       ) : (
         <section className="grid workflow-stack tasks-page-stack">
-          <TasksWorkspace tasks={visibleTasks} events={activeEvents} users={activeUsers} onUpdate={updateTask} onDelete={deleteGuestTask} />
+          <TasksWorkspace tasks={visibleTasks} events={activeEvents} users={activeUsers} canSaveChanges={canSaveChanges} onUpdate={updateTask} onDelete={deleteGuestTask} />
           <details className="task-emma-disclosure">
             <summary>Ask EMMA about priorities, people, or decisions</summary>
             <MinistryEmmaPanel page="tasks" overview={{ ...(activeOverview ?? overview), tasks: visibleTasks }} />
@@ -726,12 +737,14 @@ function TasksWorkspace({
   tasks,
   events,
   users,
+  canSaveChanges,
   onUpdate,
   onDelete
 }: {
   tasks: ActiveTask[];
   events: MinistryEvent[];
   users: User[];
+  canSaveChanges: boolean;
   onUpdate: (taskId: string, body: Partial<ActiveTask>) => Promise<void>;
   onDelete: (taskId: string) => Promise<void>;
 }) {
@@ -779,6 +792,7 @@ function TasksWorkspace({
               className={dragOverStatus === status ? "kanban-column task-lane drag-over" : "kanban-column task-lane"}
               key={status}
               onDragOver={(event) => {
+                if (!canSaveChanges) return;
                 event.preventDefault();
                 setDragOverStatus(status);
               }}
@@ -788,7 +802,7 @@ function TasksWorkspace({
                 const taskId = event.dataTransfer.getData("text/plain") || draggedTaskId;
                 setDragOverStatus(null);
                 setDraggedTaskId(null);
-                if (taskId) void onUpdate(taskId, { status });
+                if (taskId && canSaveChanges) void onUpdate(taskId, { status });
               }}
             >
               <div className="toolbar split">
@@ -805,7 +819,7 @@ function TasksWorkspace({
                       return (
                       <div
                         className={draggedTaskId === task.id ? "task-drag-shell dragging" : "task-drag-shell"}
-                        draggable
+                        draggable={canSaveChanges}
                         key={task.id}
                         onDragStart={(event) => {
                           event.dataTransfer.effectAllowed = "move";
@@ -821,6 +835,7 @@ function TasksWorkspace({
                           task={task}
                           users={users}
                           event={event}
+                          canSaveChanges={canSaveChanges}
                           onUpdate={onUpdate}
                           onDelete={onDelete}
                         />
@@ -876,7 +891,7 @@ function TasksWorkspace({
                       </td>
                     </tr>
                     {group.tasks.map((task) => (
-                      <TaskTableRow key={task.id} task={task} events={events} users={users} onUpdate={onUpdate} />
+                      <TaskTableRow key={task.id} task={task} events={events} users={users} canSaveChanges={canSaveChanges} onUpdate={onUpdate} />
                     ))}
                   </Fragment>
                 ))}
@@ -893,11 +908,13 @@ function TaskTableRow({
   task,
   events,
   users,
+  canSaveChanges,
   onUpdate
 }: {
   task: ActiveTask;
   events: MinistryEvent[];
   users: User[];
+  canSaveChanges: boolean;
   onUpdate: (taskId: string, body: Partial<ActiveTask>) => Promise<void>;
 }) {
   const [dueDate, setDueDate] = useState(toDateInputValue(task.dueDate));
@@ -926,8 +943,8 @@ function TaskTableRow({
       <td>{owner ? `${owner.firstName} ${owner.lastName}` : "Unassigned"}</td>
       <td>
         <div className="table-inline-edit">
-          <input className="input" aria-label={`Due date for ${task.taskTitle}`} type="date" value={dueDate} onChange={(event) => void saveDueDate(event.target.value)} />
-          <span className="inline-save-state">{dueSaveState === "saving" ? "Saving..." : dueSaveState === "saved" ? "Saved" : "Autosaves"}</span>
+          <input className="input" aria-label={`Due date for ${task.taskTitle}`} type="date" value={dueDate} disabled={!canSaveChanges} onChange={(event) => void saveDueDate(event.target.value)} />
+          <span className="inline-save-state">{!canSaveChanges ? "Read only" : dueSaveState === "saving" ? "Saving..." : dueSaveState === "saved" ? "Saved" : "Autosaves"}</span>
         </div>
       </td>
       <td>
@@ -935,6 +952,7 @@ function TaskTableRow({
           className="input"
           aria-label={`Status for ${task.taskTitle}`}
           value={task.status}
+          disabled={!canSaveChanges}
           onChange={(event) => void onUpdate(task.id, { status: event.target.value as TaskStatus })}
         >
           {statuses.map((status) => (
@@ -950,6 +968,7 @@ function TaskTableRow({
           label={`${task.taskTitle} task`}
           value={task.notes ?? ""}
           compact
+          readOnly={!canSaveChanges}
           onSave={(notes) => onUpdate(task.id, { notes })}
         />
       </td>
@@ -965,6 +984,7 @@ function EventsWorkspace({
   users,
   expenses,
   canCreateEvent,
+  canSaveChanges,
   expandedEventIds,
   onCreateEvent,
   onToggleEvent,
@@ -982,6 +1002,7 @@ function EventsWorkspace({
   users: User[];
   expenses: EventExpense[];
   canCreateEvent: boolean;
+  canSaveChanges: boolean;
   expandedEventIds: string[];
   onCreateEvent: () => void;
   onToggleEvent: (eventId: string) => void;
@@ -1056,7 +1077,8 @@ function EventsWorkspace({
                 onArchiveEvent={onArchiveEvent}
                 onRestoreEvent={onRestoreEvent}
                 onDeleteEvent={onDeleteEvent}
-                canDeleteArchivedEvent={activeRole === "admin"}
+                canSaveChanges={canSaveChanges}
+                canDeleteArchivedEvent={canSaveChanges && activeRole === "admin"}
                 users={users}
               />
             );
@@ -1088,6 +1110,7 @@ function EventRowCard({
   onArchiveEvent,
   onRestoreEvent,
   onDeleteEvent,
+  canSaveChanges,
   canDeleteArchivedEvent
 }: {
   event: MinistryEvent;
@@ -1106,6 +1129,7 @@ function EventRowCard({
   onArchiveEvent: (eventId: string) => Promise<void>;
   onRestoreEvent: (eventId: string) => Promise<void>;
   onDeleteEvent: (eventId: string) => Promise<void>;
+  canSaveChanges: boolean;
   canDeleteArchivedEvent: boolean;
 }) {
   const rowTone = getEventRowTone(event);
@@ -1127,13 +1151,14 @@ function EventRowCard({
           onArchiveEvent={onArchiveEvent}
           onRestoreEvent={onRestoreEvent}
           onDeleteEvent={onDeleteEvent}
+          canSaveChanges={canSaveChanges}
           canDeleteArchivedEvent={canDeleteArchivedEvent}
         />
-        <EventOperationsRail event={event} tasks={tasks} completeTasks={completeTasks} missingCount={missingCount} />
+        <EventVisionRail event={event} />
       </div>
 
       {isExpanded ? (
-        <EventTaskTree event={event} tasks={tasks} users={users} onUpdateTask={onUpdateTask} onOpenEvent={onOpenEvent} />
+        <EventTaskTree event={event} tasks={tasks} users={users} canSaveChanges={canSaveChanges} onUpdateTask={onUpdateTask} onOpenEvent={onOpenEvent} />
       ) : null}
     </article>
   );
@@ -1171,6 +1196,7 @@ function EventIdentitySection({
   const { openEdit } = useEventCard();
   const startDate = event.startTime ? formatDate(event.startTime) : "Missing date";
   const timeRange = event.startTime ? formatEventTimeRange(event) : "Missing time";
+  const volunteersNeeded = formatVolunteersNeeded(event);
   return (
     <div
       className="event-identity-section event-identity-clickable"
@@ -1207,7 +1233,7 @@ function EventIdentitySection({
           <UserRound aria-hidden="true" />
           {owner ? `${owner.firstName} ${owner.lastName}` : "Owner unassigned"}
           <span aria-hidden="true"> · </span>
-          {eventTypeLabels[event.type]}
+          {volunteersNeeded}
         </span>
         <span>
           <UsersRound aria-hidden="true" />
@@ -1245,6 +1271,7 @@ function EventScrollableSummary({
   onArchiveEvent,
   onRestoreEvent,
   onDeleteEvent,
+  canSaveChanges,
   canDeleteArchivedEvent
 }: {
   event: MinistryEvent;
@@ -1259,6 +1286,7 @@ function EventScrollableSummary({
   onArchiveEvent: (eventId: string) => Promise<void>;
   onRestoreEvent: (eventId: string) => Promise<void>;
   onDeleteEvent: (eventId: string) => Promise<void>;
+  canSaveChanges: boolean;
   canDeleteArchivedEvent: boolean;
 }) {
   const actualBudget = expenses.reduce((sum, expense) => sum + expense.amount, 0);
@@ -1287,12 +1315,12 @@ function EventScrollableSummary({
             label={`${event.title} event`}
             value={event.notes ?? ""}
             compact
+            readOnly={!canSaveChanges}
             onSave={(notes) => onUpdateEvent(event.id, { notes })}
           />
         </div>
         <EventSummaryField label="Budget proposed" value={event.budgetTarget ? money(event.budgetTarget) : "Missing target"} tone={event.budgetTarget ? undefined : "warning"} />
         <EventSummaryField label="Budget actual" value={actualBudget ? money(actualBudget) : "$0 recorded"} />
-        <EventSummaryField label="Volunteers needed" value={estimateVolunteersNeeded(event, tasks)} />
         <EventSummaryField label="Registration status" value={event.registrationDeadline ? `Due ${formatDate(event.registrationDeadline)}` : "Not configured"} tone="warning" />
         <EventSummaryField label="Planning Center status" value="Adapter ready" tone="stub" />
         <EventSummaryField label="Drive folder status" value={driveStatus} tone={event.googleDriveFolderId ? "success" : "warning"} />
@@ -1312,31 +1340,41 @@ function EventScrollableSummary({
           </button>
           {event.archivedAt ? (
             <>
-              <button className="button compact-button" type="button" onClick={() => void onRestoreEvent(event.id)}>
+              <button className="button compact-button" type="button" disabled={!canSaveChanges} onClick={() => void onRestoreEvent(event.id)}>
                 <RotateCcw aria-hidden="true" />
                 Restore event
               </button>
               {canDeleteArchivedEvent ? (
-                <button className="button compact-button danger" type="button" onClick={() => void onDeleteEvent(event.id)}>
+                <button className="button compact-button danger" type="button" disabled={!canSaveChanges} onClick={() => void onDeleteEvent(event.id)}>
                   <Trash2 aria-hidden="true" />
                   Delete archived event
                 </button>
               ) : null}
             </>
           ) : (
-            <button className="button compact-button" type="button" onClick={() => void onArchiveEvent(event.id)}>
+            <button className="button compact-button" type="button" disabled={!canSaveChanges} onClick={() => void onArchiveEvent(event.id)}>
               <Archive aria-hidden="true" />
               Archive event
             </button>
           )}
           {event.id.startsWith("guest_evt") && !event.archivedAt ? (
-            <button className="button compact-button" type="button" onClick={() => void onDeleteEvent(event.id)}>
+            <button className="button compact-button" type="button" disabled={!canSaveChanges} onClick={() => void onDeleteEvent(event.id)}>
               Delete fake event
             </button>
           ) : null}
         </div>
       </div>
     </div>
+  );
+}
+
+function EventVisionRail({ event }: { event: MinistryEvent }) {
+  const vision = event.description?.trim() || event.notes?.trim() || "Event vision has not been added yet.";
+  return (
+    <aside className="event-operations-rail event-vision-rail" role="cell" aria-label={`${event.title} event vision`}>
+      <span className="summary-label">Event Vision</span>
+      <p>{vision}</p>
+    </aside>
   );
 }
 
@@ -1416,12 +1454,14 @@ function NotesPanel({
   label,
   value,
   compact = false,
+  readOnly = false,
   onSave
 }: {
   id: string;
   label: string;
   value: string;
   compact?: boolean;
+  readOnly?: boolean;
   onSave: (notes: string) => Promise<void>;
 }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -1433,6 +1473,7 @@ function NotesPanel({
   }, [value]);
 
   async function saveNotes() {
+    if (readOnly) return;
     setSaveState("saving");
     await onSave(draft);
     setSaveState("saved");
@@ -1441,7 +1482,7 @@ function NotesPanel({
   return (
     <div className={compact ? "notes-panel compact-notes" : "notes-panel"}>
       <button className="button compact-button" type="button" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
-        {value.trim() ? "Notes added" : "Notes"}
+        {readOnly ? (value.trim() ? "View notes" : "No notes") : value.trim() ? "Notes added" : "Notes"}
       </button>
       {isOpen ? (
         <div className="notes-editor">
@@ -1451,16 +1492,18 @@ function NotesPanel({
             id={id}
             rows={compact ? 3 : 4}
             value={draft}
+            readOnly={readOnly}
             onChange={(event) => {
+              if (readOnly) return;
               setDraft(event.target.value);
               setSaveState("idle");
             }}
           />
           <div className="toolbar notes-actions">
-            <button className="button compact-button" type="button" onClick={() => void saveNotes()} disabled={saveState === "saving"}>
+            {!readOnly ? <button className="button compact-button" type="button" onClick={() => void saveNotes()} disabled={saveState === "saving"}>
               {saveState === "saving" ? "Saving..." : "Save notes"}
-            </button>
-            <span className="muted">{saveState === "saved" ? "Saved internally." : "Internal only."}</span>
+            </button> : null}
+            <span className="muted">{readOnly ? "Read only." : saveState === "saved" ? "Saved internally." : "Internal only."}</span>
           </div>
         </div>
       ) : null}
@@ -1472,12 +1515,14 @@ function EventTaskTree({
   event,
   tasks,
   users,
+  canSaveChanges,
   onUpdateTask,
   onOpenEvent
 }: {
   event: MinistryEvent;
   tasks: ActiveTask[];
   users: User[];
+  canSaveChanges: boolean;
   onUpdateTask: (taskId: string, body: Partial<ActiveTask>) => Promise<void>;
   onOpenEvent: (eventId: string) => void;
 }) {
@@ -1485,7 +1530,7 @@ function EventTaskTree({
     <div className="event-task-tree-wrap">
       <div className="event-task-tree" aria-label={`${event.title} subtasks`}>
         {tasks.map((task) => (
-          <EventTaskTreeItem key={task.id} task={task} users={users} onUpdateTask={onUpdateTask} onOpenEvent={onOpenEvent} />
+          <EventTaskTreeItem key={task.id} task={task} users={users} canSaveChanges={canSaveChanges} onUpdateTask={onUpdateTask} onOpenEvent={onOpenEvent} />
         ))}
       </div>
     </div>
@@ -1495,11 +1540,13 @@ function EventTaskTree({
 function EventTaskTreeItem({
   task,
   users,
+  canSaveChanges,
   onUpdateTask,
   onOpenEvent
 }: {
   task: ActiveTask;
   users: User[];
+  canSaveChanges: boolean;
   onUpdateTask: (taskId: string, body: Partial<ActiveTask>) => Promise<void>;
   onOpenEvent: (eventId: string) => void;
 }) {
@@ -1533,8 +1580,8 @@ function EventTaskTreeItem({
       </div>
       <div className="field compact-field task-tree-date">
         <label htmlFor={`event-due-${task.id}`}>Due date</label>
-        <input className="input" id={`event-due-${task.id}`} type="date" value={dueDate} onChange={(event) => void saveDueDate(event.target.value)} />
-        <span className="inline-save-state">{dueSaveState === "saving" ? "Saving..." : dueSaveState === "saved" ? "Saved" : "Autosaves"}</span>
+        <input className="input" id={`event-due-${task.id}`} type="date" value={dueDate} disabled={!canSaveChanges} onChange={(event) => void saveDueDate(event.target.value)} />
+        <span className="inline-save-state">{!canSaveChanges ? "Read only" : dueSaveState === "saving" ? "Saving..." : dueSaveState === "saved" ? "Saved" : "Autosaves"}</span>
       </div>
       <div className="task-tree-status">
         <span className={task.status === "done" ? "pill done" : task.status === "blocked" ? "pill blocked" : "pill"}>
@@ -1547,6 +1594,7 @@ function EventTaskTreeItem({
           className="input"
           id={`event-status-${task.id}`}
           value={task.status}
+          disabled={!canSaveChanges}
           onChange={(event) => void onUpdateTask(task.id, { status: event.target.value as TaskStatus })}
         >
           {statuses.map((status) => (
@@ -1567,6 +1615,7 @@ function EventTaskTreeItem({
           label={`${task.taskTitle} task`}
           value={task.notes ?? ""}
           compact
+          readOnly={!canSaveChanges}
           onSave={(notes) => onUpdateTask(task.id, { notes })}
         />
       </div>
@@ -1588,9 +1637,18 @@ function estimateMissingInformationCount(event: MinistryEvent) {
 }
 
 function estimateVolunteersNeeded(event: MinistryEvent, tasks: ActiveTask[]) {
+  if (event.volunteersNeeded !== undefined) return formatVolunteersNeeded(event);
   const leaderAssignedOpenTasks = tasks.filter((task) => task.assignedUserId === "usr_leader" && task.status !== "done").length;
   const baseline = event.type === "conference" ? 6 : event.type === "missions_trip" ? 4 : 2;
   return `${Math.max(baseline, leaderAssignedOpenTasks)} needed`;
+}
+
+function formatVolunteersNeeded(event: MinistryEvent) {
+  const count = event.volunteersNeeded;
+  if (typeof count === "number" && Number.isFinite(count)) {
+    return `${count} volunteer${count === 1 ? "" : "s"} needed`;
+  }
+  return "Volunteers needed";
 }
 
 function groupEventsByTimeframe(events: MinistryEvent[]) {
@@ -1668,12 +1726,14 @@ function TaskCard({
   task,
   users,
   event,
+  canSaveChanges,
   onUpdate,
   onDelete
 }: {
   task: ActiveTask;
   users: User[];
   event?: MinistryEvent;
+  canSaveChanges: boolean;
   onUpdate: (taskId: string, body: Partial<ActiveTask>) => Promise<void>;
   onDelete: (taskId: string) => Promise<void>;
 }) {
@@ -1713,6 +1773,7 @@ function TaskCard({
               className="input"
               id={`status-${task.id}`}
               value={task.status}
+              disabled={!canSaveChanges}
               onChange={(event) => void onUpdate(task.id, { status: event.target.value as TaskStatus })}
             >
               {statuses.map((status) => (
@@ -1728,6 +1789,7 @@ function TaskCard({
               className="input"
               id={`owner-${task.id}`}
               value={task.assignedUserId}
+              disabled={!canSaveChanges}
               onChange={(event) => void onUpdate(task.id, { assignedUserId: event.target.value })}
             >
               {users.map((user) => (
@@ -1739,11 +1801,11 @@ function TaskCard({
           </div>
           <div className="field">
             <label htmlFor={`title-${task.id}`}>Edit task title</label>
-            <input className="input" id={`title-${task.id}`} value={title} onChange={(event) => setTitle(event.target.value)} />
+            <input className="input" id={`title-${task.id}`} value={title} disabled={!canSaveChanges} onChange={(event) => setTitle(event.target.value)} />
           </div>
           <div className="field">
             <label htmlFor={`due-${task.id}`}>Due date</label>
-            <input className="input" id={`due-${task.id}`} type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
+            <input className="input" id={`due-${task.id}`} type="date" value={dueDate} disabled={!canSaveChanges} onChange={(event) => setDueDate(event.target.value)} />
           </div>
         </div>
       ) : null}
@@ -1753,6 +1815,7 @@ function TaskCard({
         label={`${task.taskTitle} task`}
         value={task.notes ?? ""}
         compact
+        readOnly={!canSaveChanges}
         onSave={(notes) => onUpdate(task.id, { notes })}
       />
 
@@ -1761,6 +1824,7 @@ function TaskCard({
           <button
             className="button"
             type="button"
+            disabled={!canSaveChanges}
             onClick={() => {
               setIsEditing(false);
               void onUpdate(task.id, { taskTitle: title, dueDate: new Date(`${dueDate}T12:00:00`).toISOString() });
@@ -1769,7 +1833,7 @@ function TaskCard({
             Save
           </button>
         ) : (
-          <button className="button" type="button" onClick={() => setIsEditing(true)}>
+          <button className="button" type="button" disabled={!canSaveChanges} onClick={() => setIsEditing(true)}>
             Edit
           </button>
         )}
@@ -1777,7 +1841,7 @@ function TaskCard({
           Open event
         </button>
         {task.id.startsWith("guest_task") ? (
-          <button className="button compact-button" type="button" onClick={() => void onDelete(task.id)}>
+          <button className="button compact-button" type="button" disabled={!canSaveChanges} onClick={() => void onDelete(task.id)}>
             Delete fake task
           </button>
         ) : null}

@@ -24,7 +24,7 @@ vi.mock("@/lib/platform/access-admin", () => ({
 
 import { POST as eventsPOST } from "@/app/api/events/route";
 import { POST as tasksPOST } from "@/app/api/tasks/route";
-import { requireEmergeOperationsAccess } from "@/lib/app-area-access";
+import { requireEmergeOperationsAccess, requireEmergeOperationsWriteAccess } from "@/lib/app-area-access";
 
 function session(role = "admin", isMock = true): AuthSession {
   return {
@@ -100,6 +100,22 @@ describe("EMERGE app-area API access", () => {
     }));
 
     expect(response.status).toBe(201);
+  });
+
+  it("lets read-only users view operations while blocking write access", async () => {
+    getServerSessionMock.mockResolvedValue(session("leader", false));
+    canPlatformUserSaveChangesMock.mockResolvedValue(false);
+
+    await expect(requireEmergeOperationsAccess()).resolves.toMatchObject({ allowed: true });
+
+    const writeAccess = await requireEmergeOperationsWriteAccess();
+
+    expect(writeAccess.allowed).toBe(false);
+    if (writeAccess.allowed) return;
+    expect(writeAccess.response.status).toBe(403);
+    await expect(writeAccess.response.json()).resolves.toMatchObject({
+      error: expect.stringMatching(/save rights/i)
+    });
   });
 
   it("still returns 401 for unauthenticated management API calls", async () => {
