@@ -18,11 +18,18 @@ const publicPathPrefixes = ["/join/", "/register/"];
 const guestBlockedPathPrefixes = ["/camp", "/settings", "/command-center", "/api/camp", "/api/settings", "/api/command-center"];
 
 function hasSessionCookie(request: NextRequest) {
+  return hasAuthenticatedSessionCookie(request) || hasGuestSessionCookie(request);
+}
+
+function hasAuthenticatedSessionCookie(request: NextRequest) {
   return (
     Boolean(request.cookies.get(authCookieNames.accessToken)?.value) ||
-    Boolean(request.cookies.get(authCookieNames.guestSession)?.value) ||
     (isMockAuthEnabled() && request.cookies.get(authCookieNames.mockSession)?.value === "1")
   );
+}
+
+function hasGuestSessionCookie(request: NextRequest) {
+  return Boolean(request.cookies.get(authCookieNames.guestSession)?.value);
 }
 
 export function middleware(request: NextRequest) {
@@ -51,7 +58,8 @@ export function middleware(request: NextRequest) {
   }
 
   if (
-    request.cookies.get(authCookieNames.guestSession)?.value &&
+    hasGuestSessionCookie(request) &&
+    !hasAuthenticatedSessionCookie(request) &&
     guestBlockedPathPrefixes.some((path) => pathname === path || pathname.startsWith(`${path}/`))
   ) {
     if (pathname.startsWith("/api")) {

@@ -47,6 +47,15 @@ describe("student route access", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it("does not let a stale guest cookie override an authenticated session in middleware", async () => {
+    enableMockStudentAuth();
+
+    const response = await middleware(mockSessionRequest("/settings", "lead_guest_session=stale-guest"));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-middleware-next")).toBe("1");
+  });
+
   it("lets the daily intelligence endpoint handle its own cron secret", async () => {
     const response = await middleware(new NextRequest("http://localhost/api/daily-intelligence/brief"));
 
@@ -61,10 +70,11 @@ function enableMockStudentAuth() {
   process.env.VERCEL_ENV = "preview";
 }
 
-function mockSessionRequest(pathname: string) {
+function mockSessionRequest(pathname: string, extraCookie = "") {
+  const cookies = ["emerge_mock_session=1", extraCookie].filter(Boolean).join("; ");
   return new NextRequest(`http://localhost${pathname}`, {
     headers: {
-      cookie: "emerge_mock_session=1"
+      cookie: cookies
     }
   });
 }
