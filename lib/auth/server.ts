@@ -67,9 +67,13 @@ export function getSupabaseAdminClient() {
 
 export function setAuthCookies(response: NextResponse, input: { accessToken?: string; refreshToken?: string; isMock?: boolean }) {
   if (input.isMock) {
+    response.cookies.set(authCookieNames.guestSession, "", { ...cookieOptions, maxAge: 0 });
     response.cookies.set(authCookieNames.mockSession, "1", cookieOptions);
     return;
   }
+
+  response.cookies.set(authCookieNames.mockSession, "", { ...cookieOptions, maxAge: 0 });
+  response.cookies.set(authCookieNames.guestSession, "", { ...cookieOptions, maxAge: 0 });
 
   if (input.accessToken) {
     response.cookies.set(authCookieNames.accessToken, input.accessToken, cookieOptions);
@@ -99,21 +103,6 @@ export function getServerSession(): Promise<AuthSession | null> {
 }
 
 async function loadServerSession(cookieStore: ReturnType<typeof cookies>): Promise<AuthSession | null> {
-  const guestSessionId = cookieStore.get(authCookieNames.guestSession)?.value?.trim();
-  if (guestSessionId) {
-    return {
-      user: {
-        id: `guest_${guestSessionId}`,
-        email: "guest@lead-emergence.local",
-        fullName: "Guest",
-        role: "guest"
-      },
-      isMock: false,
-      isGuest: true,
-      guestSessionId
-    };
-  }
-
   const hasMockSession = cookieStore.get(authCookieNames.mockSession)?.value === "1";
 
   if (hasMockSession && isMockAuthEnabled()) {
@@ -122,7 +111,7 @@ async function loadServerSession(cookieStore: ReturnType<typeof cookies>): Promi
 
   const accessToken = cookieStore.get(authCookieNames.accessToken)?.value;
   if (!accessToken || !isSupabaseConfigured()) {
-    return null;
+    return loadGuestSession(cookieStore);
   }
 
   let userResult: Awaited<ReturnType<ReturnType<typeof getSupabaseAuthClient>["auth"]["getUser"]>>;
@@ -134,13 +123,13 @@ async function loadServerSession(cookieStore: ReturnType<typeof cookies>): Promi
       timestamp: new Date().toISOString(),
       reason: error instanceof Error ? error.name : "unknown"
     });
-    return null;
+    return loadGuestSession(cookieStore);
   }
 
   const { data, error } = userResult;
 
   if (error || !data.user?.email) {
-    return null;
+    return loadGuestSession(cookieStore);
   }
 
   const profile = await getSessionProfile(accessToken, data.user.id);
@@ -154,6 +143,23 @@ async function loadServerSession(cookieStore: ReturnType<typeof cookies>): Promi
     },
     accessToken,
     isMock: false
+  };
+}
+
+function loadGuestSession(cookieStore: ReturnType<typeof cookies>): AuthSession | null {
+  const guestSessionId = cookieStore.get(authCookieNames.guestSession)?.value?.trim();
+  if (!guestSessionId) return null;
+
+  return {
+    user: {
+      id: `guest_${guestSessionId}`,
+      email: "guest@lead-emergence.local",
+      fullName: "Guest",
+      role: "guest"
+    },
+    isMock: false,
+    isGuest: true,
+    guestSessionId
   };
 }
 
