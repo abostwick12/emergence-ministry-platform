@@ -21,7 +21,7 @@ export async function PATCH(request: Request) {
   const session = await getServerSession();
   if (!session) return unauthorizedResponse();
 
-  let body: { userId?: string; role?: string } = {};
+  let body: { userId?: string; role?: string; aiEnabled?: boolean; aiMonthlyLimit?: number | null; canSaveChanges?: boolean } = {};
   try {
     body = await request.json();
   } catch {
@@ -34,7 +34,10 @@ export async function PATCH(request: Request) {
     pageKey: stringValue((body as Record<string, unknown>).pageKey),
     allowed: (body as Record<string, unknown>).allowed === true,
     guestPageKey: stringValue((body as Record<string, unknown>).guestPageKey),
-    guestPublic: (body as Record<string, unknown>).guestPublic === true
+    guestPublic: (body as Record<string, unknown>).guestPublic === true,
+    aiEnabled: typeof body.aiEnabled === "boolean" ? body.aiEnabled : undefined,
+    aiMonthlyLimit: typeof body.aiMonthlyLimit === "number" || body.aiMonthlyLimit === null ? body.aiMonthlyLimit : undefined,
+    canSaveChanges: typeof body.canSaveChanges === "boolean" ? body.canSaveChanges : undefined
   });
   if (!result.allowed) return NextResponse.json({ error: result.error }, { status: result.status });
   return NextResponse.json({ member: result.member, pages: result.pages, storage: result.storage });
