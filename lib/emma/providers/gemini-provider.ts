@@ -82,7 +82,7 @@ export function createGeminiProvider(options?: { apiKey?: string; fetchImpl?: ty
 
         let output: unknown;
         try {
-          output = JSON.parse(text);
+          output = JSON.parse(extractJsonObjectText(text));
         } catch {
           throw providerError("invalid_output");
         }
@@ -151,4 +151,14 @@ function sanitizeDiagnosticText(value: unknown, apiKey: string): string | undefi
     .replace(/[\r\n\t]+/g, " ")
     .trim();
   return sanitized ? sanitized.slice(0, 500) : undefined;
+}
+
+function extractJsonObjectText(content: string) {
+  const trimmed = content.trim();
+  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  if (fenced?.[1]?.trim()) return fenced[1].trim();
+  const first = trimmed.indexOf("{");
+  const last = trimmed.lastIndexOf("}");
+  if (first >= 0 && last > first) return trimmed.slice(first, last + 1);
+  return trimmed;
 }

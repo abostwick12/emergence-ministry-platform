@@ -83,6 +83,46 @@ describe("EMMA Gemini provider", () => {
     });
   });
 
+  it("extracts valid JSON when Gemini wraps the object in a fenced block", async () => {
+    const provider = createGeminiProvider({
+      apiKey: "test-key",
+      fetchImpl: async () =>
+        new Response(
+          JSON.stringify({
+            candidates: [
+              {
+                content: {
+                  parts: [
+                    {
+                      text:
+                        '```json\n{"summary":"Gemini EMMA response","keyPoints":["safe point"],"suggestedNextQuestions":["review next step"],"confidence":0.88,"warnings":[]}\n```'
+                    }
+                  ]
+                }
+              }
+            ],
+            usageMetadata: { totalTokenCount: 24 }
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        )
+    });
+
+    const result = await provider.generate({ systemPrompt: "system", userPrompt: "user", model: "gemini-2.0-flash" });
+
+    expect(result).toMatchObject({
+      provider: "gemini",
+      model: "gemini-2.0-flash",
+      output: {
+        summary: "Gemini EMMA response",
+        keyPoints: ["safe point"],
+        suggestedNextQuestions: ["review next step"],
+        confidence: 0.88,
+        warnings: []
+      },
+      usage: { totalTokens: 24 }
+    });
+  });
+
   it("sanitizes provider errors and never serializes the key", async () => {
     const provider = createGeminiProvider({
       apiKey: "super-secret-gemini-key",
