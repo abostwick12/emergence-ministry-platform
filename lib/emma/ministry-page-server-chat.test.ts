@@ -9,6 +9,7 @@ import {
   getMinistryEmmaReadiness,
   runMinistryPageServerChat
 } from "@/lib/emma/ministry-page-server-chat";
+import { ministryPageChatSchema } from "@/lib/emma/providers/ministry-page-chat";
 import { __resetEmmaMockStoreForTests, __setEmmaRepositorySupabaseClientForTests, getEmmaAuditTrail } from "@/lib/emma/repository";
 import type { MinistryEmmaOverview } from "@/lib/emma/ministry-page-assistant";
 
@@ -106,6 +107,23 @@ afterEach(() => {
 });
 
 describe("ministry page server-backed EMMA chat", () => {
+  it("normalizes safe provider output variants for ministry page chat", () => {
+    const parsed = ministryPageChatSchema.parse({
+      answer: "Provider summary with alternate field names.",
+      key_points: ["Review readiness."],
+      next_actions: ["Open the event workspace."],
+      extraProviderField: "ignored"
+    });
+
+    expect(parsed).toEqual({
+      summary: "Provider summary with alternate field names.",
+      points: ["Review readiness."],
+      nextActions: ["Open the event workspace."],
+      confidence: 0.7,
+      warnings: []
+    });
+  });
+
   it("returns an audited deterministic fallback when no live provider is configured", async () => {
     const admin = session();
     const result = await runMinistryPageServerChat({
