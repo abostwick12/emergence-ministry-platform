@@ -249,7 +249,7 @@ async function runLiveProviderChat({
     sourceRecordId: input.page
   });
 
-  const providerResult = await runEmmaProviderForRequest(session, {
+  let providerResult = await runEmmaProviderForRequest(session, {
     requestId: request.id,
     skillKey: "ministry_page_chat",
     inputSchemaVersion: "1",
@@ -262,6 +262,32 @@ async function runLiveProviderChat({
     maxOutputTokens: 700,
     temperature: 0.2
   });
+  let failoverWarning: string | null = null;
+
+  if (!providerResult.ok && shouldRetryMinistryChatWithOpenAI(providerResult.error.message)) {
+    const openaiResult = await runEmmaProviderForRequest(session, {
+      requestId: request.id,
+      skillKey: "ministry_page_chat_openai_failover",
+      inputSchemaVersion: "1",
+      outputSchemaVersion: "1",
+      featureKey: "ministry_page_chat",
+      provider: "openai",
+      model: process.env.OPENAI_MODEL?.trim() || DEFAULT_OPENAI_EMMA_MODEL,
+      contextManifest,
+      systemPrompt: ministryPageChatSystemPrompt,
+      userPrompt: buildMinistryPageUserPrompt({ input, overview }),
+      outputSchema: ministryPageChatSchema,
+      maxOutputTokens: 700,
+      temperature: 0.2
+    });
+
+    if (openaiResult.ok) {
+      providerResult = openaiResult;
+      failoverWarning = "Primary EMMA provider failed safely; OpenAI failover returned a valid response.";
+    } else {
+      failoverWarning = `OpenAI failover also failed safely. ${openaiResult.error.message}`;
+    }
+  }
 
   if (!providerResult.ok) {
     const fallback = await runAuditedFallbackChat({
@@ -269,7 +295,11 @@ async function runLiveProviderChat({
       fallbackResponse,
       input,
       session,
-      warnings: [`Live EMMA provider attempt failed safely. ${providerResult.error.message} Audited deterministic fallback was used.`]
+      warnings: [
+        `Live EMMA provider attempt failed safely. ${providerResult.error.message}`,
+        ...(failoverWarning ? [failoverWarning] : []),
+        "Audited deterministic fallback was used."
+      ]
     });
     return fallback;
   }
@@ -294,8 +324,14 @@ async function runLiveProviderChat({
     proposalCreated: Boolean(proposal),
     proposalId: proposal?.id ?? null,
     executed: false,
-    warnings: providerResult.data.output.warnings
+    warnings: [...(failoverWarning ? [failoverWarning] : []), ...providerResult.data.output.warnings]
   });
+}
+
+function shouldRetryMinistryChatWithOpenAI(primaryErrorMessage: string): boolean {
+  if (!process.env.OPENAI_API_KEY?.trim()) return false;
+  if (resolveMinistryEmmaProviderMode() === "openai") return false;
+  return primaryErrorMessage.includes("Provider error category:");
 }
 
 async function runAuditedFallbackChat({

@@ -211,6 +211,71 @@ describe("ministry page server-backed EMMA chat", () => {
     });
   });
 
+  it("falls back from invalid Gemini output to OpenAI when both providers are configured", async () => {
+    process.env.EMMA_PROVIDER_MODE = "gemini";
+    process.env.GEMINI_API_KEY = "test-gemini-key";
+    process.env.OPENAI_API_KEY = "test-openai-key";
+    process.env.EMMA_DEFAULT_MODEL = "gemini-3.5-flash";
+    process.env.OPENAI_MODEL = "gpt-4o-mini";
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("generativelanguage.googleapis.com")) {
+        return new Response(
+          JSON.stringify({
+            candidates: [{ content: { parts: [{ text: JSON.stringify({ invalid: true }) }] } }],
+            usageMetadata: { totalTokenCount: 12 }
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({
+          model: "gpt-4o-mini",
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  summary: "OpenAI failover guidance for the events page.",
+                  points: ["Use the event readiness snapshot before making a decision."],
+                  nextActions: ["Open the event with the most blocked work."],
+                  confidence: 0.86,
+                  warnings: []
+                })
+              }
+            }
+          ],
+          usage: { total_tokens: 39 }
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const admin = session();
+    const result = await runMinistryPageServerChat({
+      overview: overview(),
+      rawInput: { page: "events", prompt: "What should I open first?", selectedEventId: "evt_1" },
+      session: admin
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.providerMode).toBe("live_provider");
+    expect(result.data.provider).toBe("openai");
+    expect(result.data.model).toBe("gpt-4o-mini");
+    expect(result.data.response.summary).toBe("OpenAI failover guidance for the events page.");
+    expect(result.data.warnings).toContain("Primary EMMA provider failed safely; OpenAI failover returned a valid response.");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    const trail = await getEmmaAuditTrail(admin, result.data.requestId);
+    expect(trail.runs.map((run) => run.skillKey)).toEqual(["ministry_page_chat_openai_failover", "ministry_page_chat"]);
+    expect(trail.providerAttempts.map((attempt) => `${attempt.provider}:${attempt.status}`)).toEqual([
+      "openai:success",
+      "gemini:failure"
+    ]);
+  });
+
   it("blocks roles outside Admin and Leader", async () => {
     const result = await runMinistryPageServerChat({
       overview: overview(),
