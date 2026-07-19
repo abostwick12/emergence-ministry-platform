@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireEmergeOperationsAccess } from "@/lib/app-area-access";
+import { requireEmergeOperationsWriteAccess } from "@/lib/app-area-access";
 import {
   buildPlanningCenterAuthUrl,
   PlanningCenterConfigError,
@@ -8,7 +8,7 @@ import {
 import { PlanningCenterStorageUnavailableError, getPlanningCenterStatus } from "@/lib/integrations/planning-center/repository";
 
 export async function GET() {
-  const access = await requireEmergeOperationsAccess();
+  const access = await requireEmergeOperationsWriteAccess();
   if (!access.allowed) return access.response;
 
   const current = await getPlanningCenterStatus(access.session);

@@ -5,7 +5,8 @@ const getPlanningCenterStatus = vi.fn();
 const syncPlanningCenterReferences = vi.fn();
 
 vi.mock("@/lib/app-area-access", () => ({
-  requireEmergeOperationsAccess: () => requireEmergeOperationsAccess()
+  requireEmergeOperationsAccess: () => requireEmergeOperationsAccess(),
+  requireEmergeOperationsWriteAccess: () => requireEmergeOperationsAccess()
 }));
 
 vi.mock("@/lib/integrations/planning-center/repository", () => {

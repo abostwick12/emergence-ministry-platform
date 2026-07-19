@@ -5,6 +5,7 @@ import { getSupabaseAdminClient, getSupabaseAuthClient, isSupabaseAdminConfigure
 import { resolvePersonName } from "@/lib/auth/display-name";
 import { isSupabaseConfigured } from "@/lib/auth/config";
 import { resolveMinistryScope } from "@/lib/ministry/scope";
+import { platformDataAccessModes, type PlatformDataAccessMode } from "@/lib/platform/access-admin";
 import type { Role } from "@/lib/types";
 
 export type RegistrationInviteRole = Exclude<Role, "admin">;
@@ -14,6 +15,7 @@ export type PlatformRegistrationInviteSummary = {
   code: string;
   label: string;
   role: RegistrationInviteRole;
+  accessMode: PlatformDataAccessMode;
   canSaveChanges: boolean;
   aiEnabled: boolean;
   aiMonthlyLimit: number | null;
@@ -69,6 +71,7 @@ type InviteRow = {
   label: string;
   role: string;
   can_save_changes: boolean | null;
+  access_mode?: string | null;
   ai_enabled: boolean | null;
   ai_monthly_limit: number | null;
   is_active: boolean;
@@ -82,6 +85,8 @@ const DEFAULT_INVITE_DAYS = 14;
 const DEFAULT_MAX_USES = 10;
 const MAX_LABEL_LENGTH = 80;
 const MAX_DISPLAY_NAME_LENGTH = 80;
+const INVITE_SELECT = "id,ministry_id,code,label,role,can_save_changes,access_mode,ai_enabled,ai_monthly_limit,is_active,max_uses,use_count,expires_at,created_at";
+const INVITE_SELECT_LEGACY = "id,ministry_id,code,label,role,can_save_changes,ai_enabled,ai_monthly_limit,is_active,max_uses,use_count,expires_at,created_at";
 
 export async function listPlatformRegistrationInvites(session: AuthSession, origin = "") {
   if (!canManageRegistrationInvites(session)) return { allowed: false as const, status: 403, error: "Platform administrator access is required." };
@@ -91,13 +96,7 @@ export async function listPlatformRegistrationInvites(session: AuthSession, orig
   if (!ministryId) return { allowed: true as const, available: false, invites: [] as PlatformRegistrationInviteSummary[] };
 
   const supabase = getSupabaseAdminClient();
-  const result = await supabase
-    .from("platform_registration_invites")
-    .select("id,ministry_id,code,label,role,can_save_changes,ai_enabled,ai_monthly_limit,is_active,max_uses,use_count,expires_at,created_at")
-    .eq("ministry_id", ministryId)
-    .order("created_at", { ascending: false })
-    .limit(10)
-    .returns<InviteRow[]>();
+  const result = await listInviteRows(supabase, ministryId);
 
   if (result.error) return { allowed: true as const, available: false, invites: [] as PlatformRegistrationInviteSummary[] };
   return {
@@ -114,6 +113,7 @@ export async function createPlatformRegistrationInvite(
     role?: string;
     maxUses?: number | null;
     expiresAt?: string | null;
+    accessMode?: string;
     canSaveChanges?: boolean;
     aiEnabled?: boolean;
     aiMonthlyLimit?: number | null;
@@ -137,20 +137,22 @@ export async function createPlatformRegistrationInvite(
   const code = `platform-${randomBytes(5).toString("hex")}`;
   const maxUses = normalizeMaxUses(input.maxUses);
   const expiresAt = normalizeExpiry(input.expiresAt);
+  const accessMode = normalizeAccessMode(input.accessMode) ?? (input.canSaveChanges === true ? "save" : "read_only");
   const aiMonthlyLimit = normalizeAiMonthlyLimit(input.aiMonthlyLimit);
   if (aiMonthlyLimit === "invalid") {
     throw new PlatformRegistrationError("Monthly AI request limit must be between 1 and 1000.", 400, "invalid_ai_limit");
   }
 
   const supabase = getSupabaseAdminClient();
-  const insert = await supabase
+  let insert = await supabase
     .from("platform_registration_invites")
     .insert({
       ministry_id: ministryId,
       code,
       label,
       role,
-      can_save_changes: input.canSaveChanges === true,
+      access_mode: accessMode,
+      can_save_changes: accessMode === "save",
       ai_enabled: input.aiEnabled === true,
       ai_monthly_limit: aiMonthlyLimit,
       max_uses: maxUses,
@@ -158,8 +160,27 @@ export async function createPlatformRegistrationInvite(
       created_by_user_id: session.user.id,
       created_by_email: session.user.email
     })
-    .select("id,ministry_id,code,label,role,can_save_changes,ai_enabled,ai_monthly_limit,is_active,max_uses,use_count,expires_at,created_at")
+    .select(INVITE_SELECT)
     .single<InviteRow>();
+  if (isMissingColumnError(insert.error)) {
+    insert = await supabase
+      .from("platform_registration_invites")
+      .insert({
+        ministry_id: ministryId,
+        code,
+        label,
+        role,
+        can_save_changes: accessMode === "save",
+        ai_enabled: input.aiEnabled === true,
+        ai_monthly_limit: aiMonthlyLimit,
+        max_uses: maxUses,
+        expires_at: expiresAt,
+        created_by_user_id: session.user.id,
+        created_by_email: session.user.email
+      })
+      .select(INVITE_SELECT_LEGACY)
+      .single<InviteRow>();
+  }
 
   if (insert.error || !insert.data) {
     throw new PlatformRegistrationError("Registration link could not be created.", 503, "supabase_error");
@@ -209,6 +230,7 @@ export async function registerWithPlatformInvite(input: RegisterWithInviteInput)
 
   const invite = loaded.invite;
   const role = normalizeInviteRole(invite.role);
+  const accessMode = accessModeFromInvite(invite);
   const supabase = getSupabaseAdminClient();
   const created = await supabase.auth.admin.createUser({
     email,
@@ -244,9 +266,14 @@ export async function registerWithPlatformInvite(input: RegisterWithInviteInput)
   );
   if (profile.error) return { ok: false, status: 503, error: "Your account was created, but profile setup did not finish. Ask an administrator to finish access setup." };
 
-  const active = await supabase
+  let active = await supabase
     .from("platform_user_access")
-    .upsert({ user_id: user.id, is_active: true, can_save_changes: invite.can_save_changes === true, updated_by: null }, { onConflict: "user_id" });
+    .upsert({ user_id: user.id, is_active: true, access_mode: accessMode, can_save_changes: accessMode === "save", updated_by: null }, { onConflict: "user_id" });
+  if (isMissingColumnError(active.error)) {
+    active = await supabase
+      .from("platform_user_access")
+      .upsert({ user_id: user.id, is_active: true, can_save_changes: accessMode === "save", updated_by: null }, { onConflict: "user_id" });
+  }
   if (active.error) return { ok: false, status: 503, error: "Your account was created, but platform access did not finish. Ask an administrator to finish access setup." };
 
   const aiAccess = await supabase.from("platform_ai_access").upsert(
@@ -308,12 +335,7 @@ async function loadInvite(code: string): Promise<
   if (!code || !isSupabaseAdminConfigured()) return { ok: false, reason: "not_found" };
 
   const supabase = getSupabaseAdminClient();
-  const inviteResult = await supabase
-    .from("platform_registration_invites")
-    .select("id,ministry_id,code,label,role,can_save_changes,ai_enabled,ai_monthly_limit,is_active,max_uses,use_count,expires_at,created_at")
-    .eq("code", code)
-    .eq("is_active", true)
-    .maybeSingle<InviteRow>();
+  const inviteResult = await findInviteRow(supabase, code);
 
   if (inviteResult.error || !inviteResult.data) return { ok: false, reason: "not_found" };
   const invite = inviteResult.data;
@@ -334,7 +356,8 @@ function toInviteSummary(invite: InviteRow, origin: string): PlatformRegistratio
     code: invite.code,
     label: invite.label,
     role: normalizeInviteRole(invite.role),
-    canSaveChanges: invite.can_save_changes === true,
+    accessMode: accessModeFromInvite(invite),
+    canSaveChanges: accessModeFromInvite(invite) === "save",
     aiEnabled: invite.ai_enabled === true,
     aiMonthlyLimit: invite.ai_monthly_limit,
     isActive: invite.is_active,
@@ -364,6 +387,14 @@ function normalizeInviteRole(value: string | null | undefined): RegistrationInvi
     default:
       return "leader";
   }
+}
+
+function normalizeAccessMode(value: string | null | undefined): PlatformDataAccessMode | null {
+  return platformDataAccessModes.includes(value as PlatformDataAccessMode) ? (value as PlatformDataAccessMode) : null;
+}
+
+function accessModeFromInvite(invite: Pick<InviteRow, "access_mode" | "can_save_changes">): PlatformDataAccessMode {
+  return normalizeAccessMode(invite.access_mode) ?? (invite.can_save_changes === true ? "save" : "read_only");
 }
 
 function normalizeRequiredText(value: string, label: string, maxLength: number) {
@@ -427,4 +458,48 @@ export class PlatformRegistrationError extends Error {
   ) {
     super(message);
   }
+}
+
+async function listInviteRows(supabase: ReturnType<typeof getSupabaseAdminClient>, ministryId: string) {
+  let result = await supabase
+    .from("platform_registration_invites")
+    .select(INVITE_SELECT)
+    .eq("ministry_id", ministryId)
+    .order("created_at", { ascending: false })
+    .limit(10)
+    .returns<InviteRow[]>();
+  if (isMissingColumnError(result.error)) {
+    result = await supabase
+      .from("platform_registration_invites")
+      .select(INVITE_SELECT_LEGACY)
+      .eq("ministry_id", ministryId)
+      .order("created_at", { ascending: false })
+      .limit(10)
+      .returns<InviteRow[]>();
+  }
+  return result;
+}
+
+async function findInviteRow(supabase: ReturnType<typeof getSupabaseAdminClient>, code: string) {
+  let result = await supabase
+    .from("platform_registration_invites")
+    .select(INVITE_SELECT)
+    .eq("code", code)
+    .eq("is_active", true)
+    .maybeSingle<InviteRow>();
+  if (isMissingColumnError(result.error)) {
+    result = await supabase
+      .from("platform_registration_invites")
+      .select(INVITE_SELECT_LEGACY)
+      .eq("code", code)
+      .eq("is_active", true)
+      .maybeSingle<InviteRow>();
+  }
+  return result;
+}
+
+function isMissingColumnError(error: { message?: string; code?: string } | null): boolean {
+  if (!error) return false;
+  if (error.code === "PGRST204" || error.code === "42703") return true;
+  return /could not find the .* column|column .* does not exist|schema cache/i.test(error.message ?? "");
 }

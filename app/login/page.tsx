@@ -1,6 +1,9 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { type CSSProperties, FormEvent, useState } from "react";
+import { ArrowRight, Sparkles, Workflow } from "lucide-react";
+
+import { landingVideoScenes } from "@/lib/landing-video";
 
 type LoginResponse = {
   user?: {
@@ -41,7 +44,39 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="login-shell">
+    <main className="login-shell login-welcome-shell">
+      <section className="login-welcome-panel" aria-label="Lead Emergence welcome">
+        <div className="login-welcome-copy">
+          <p className="eyebrow">Lead Emergence</p>
+          <h1>Welcome back to the ministry workbench.</h1>
+          <p>
+            Events, tasks, sermon prep, discipleship, and student pathways stay connected so leaders can see the next right step.
+          </p>
+        </div>
+        <div className="login-motion-board" aria-hidden="true">
+          <div className="login-orbit-mark">
+            <Sparkles size={22} />
+          </div>
+          {landingVideoScenes.slice(0, 5).map((scene, index) => (
+            <article
+              className={`login-scene-card accent-${scene.accent}`}
+              key={scene.productArea}
+              style={{ "--scene-index": index, "--scene-offset": `${index * 18}px` } as CSSProperties}
+            >
+              <span>{scene.eyebrow}</span>
+              <strong>{scene.productArea}</strong>
+              <p>{scene.metric}</p>
+            </article>
+          ))}
+        </div>
+        <div className="login-welcome-flow" aria-hidden="true">
+          <span><Workflow size={16} /> Plan</span>
+          <ArrowRight size={15} />
+          <span>Assign</span>
+          <ArrowRight size={15} />
+          <span>Prepare</span>
+        </div>
+      </section>
       <section className="login-card">
         <div className="brand-mark" aria-hidden="true">
           LE

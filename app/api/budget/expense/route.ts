@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { requireEmergeOperationsAccess } from "@/lib/app-area-access";
+import { requireEmergeOperationsWriteAccess } from "@/lib/app-area-access";
 import { addMinistryExpense } from "@/lib/data/ministry-repository";
 
 export async function POST(request: Request) {
-  const access = await requireEmergeOperationsAccess();
+  const access = await requireEmergeOperationsWriteAccess();
   if (!access.allowed) return access.response;
 
   const body = await request.json();

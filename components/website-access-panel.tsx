@@ -3,7 +3,7 @@
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Copy, Link2, ShieldCheck, UserCog } from "lucide-react";
 
-import type { PlatformAccessMember, PlatformAccessPage } from "@/lib/platform/access-admin";
+import type { PlatformAccessMember, PlatformAccessPage, PlatformDataAccessMode } from "@/lib/platform/access-admin";
 import type { PlatformRegistrationInviteSummary, RegistrationInviteRole } from "@/lib/platform/registration";
 import type { PlatformPageKey } from "@/lib/platform/page-registry";
 import type { Role } from "@/lib/types";
@@ -19,6 +19,12 @@ const registrationRoleOptions: Array<{ value: RegistrationInviteRole; label: str
   { value: "leader", label: "Leader" },
   { value: "student", label: "Student" },
   { value: "parent", label: "Parent" }
+];
+
+const accessModeOptions: Array<{ value: PlatformDataAccessMode; label: string; help: string }> = [
+  { value: "read_only", label: "Read only", help: "Real data, no saves" },
+  { value: "save", label: "Save rights", help: "Real data with saves" },
+  { value: "demo", label: "Demo", help: "Demo events and session data" }
 ];
 
 type AccessResponse = {
@@ -89,7 +95,7 @@ export function WebsiteAccessPanel({ canManagePlatformAccess }: { canManagePlatf
     const form = new FormData(event.currentTarget);
     const expiresAt = String(form.get("expiresAt") || "");
     const maxUses = Number(form.get("maxUses") || 10);
-    const canSaveChanges = form.get("canSaveChanges") === "on";
+    const accessMode = normalizeAccessMode(form.get("accessMode")) ?? "read_only";
     const aiEnabled = form.get("aiEnabled") === "on";
     const aiMonthlyLimitValue = String(form.get("aiMonthlyLimit") || "").trim();
     const aiMonthlyLimit = aiMonthlyLimitValue ? Number(aiMonthlyLimitValue) : null;
@@ -103,7 +109,8 @@ export function WebsiteAccessPanel({ canManagePlatformAccess }: { canManagePlatf
           role: registrationRole,
           maxUses,
           expiresAt: expiresAt || null,
-          canSaveChanges,
+          accessMode,
+          canSaveChanges: accessMode === "save",
           aiEnabled,
           aiMonthlyLimit
         })
@@ -261,10 +268,12 @@ export function WebsiteAccessPanel({ canManagePlatformAccess }: { canManagePlatf
             <span>Expires</span>
             <input className="input" name="expiresAt" type="date" />
           </label>
-          <label className="camp-access-toggle row-toggle registration-save-toggle">
-            <input name="canSaveChanges" type="checkbox" />
-            <span>Save to database</span>
-            <small>Default is session-only</small>
+          <label>
+            <span>Data access</span>
+            <select name="accessMode" defaultValue="read_only">
+              {accessModeOptions.map((mode) => <option key={mode.value} value={mode.value}>{mode.label}</option>)}
+            </select>
+            <small>Read only shows real data without saving.</small>
           </label>
           <label className="camp-access-toggle row-toggle registration-ai-toggle">
             <input name="aiEnabled" type="checkbox" />
@@ -287,7 +296,7 @@ export function WebsiteAccessPanel({ canManagePlatformAccess }: { canManagePlatf
                 <div>
                   <strong>{invite.label}</strong>
                   <span>
-                    {roleLabel(invite.role)} - {invite.useCount} of {invite.maxUses} used{invite.expiresAt ? ` - expires ${formatShortDate(invite.expiresAt)}` : ""} - saves {invite.canSaveChanges ? "on" : "session-only"} - AI {invite.aiEnabled ? `on${invite.aiMonthlyLimit ? `, ${invite.aiMonthlyLimit}/month` : ""}` : "off"}
+                    {roleLabel(invite.role)} - {invite.useCount} of {invite.maxUses} used{invite.expiresAt ? ` - expires ${formatShortDate(invite.expiresAt)}` : ""} - {accessModeLabel(invite.accessMode)} - AI {invite.aiEnabled ? `on${invite.aiMonthlyLimit ? `, ${invite.aiMonthlyLimit}/month` : ""}` : "off"}
                   </span>
                 </div>
                 <input className="input" readOnly value={invite.joinUrl} aria-label={`Registration link for ${invite.label}`} />
@@ -345,22 +354,27 @@ export function WebsiteAccessPanel({ canManagePlatformAccess }: { canManagePlatf
                 {busyKey === `${member.id}:deactivate` ? "Deactivating..." : "Deactivate"}
               </button>
               <div className="website-ai-access-row">
-                <label className="camp-access-toggle row-toggle">
-                  <input
-                    type="checkbox"
-                    checked={member.canSaveChanges}
-                    disabled={member.currentUser || !member.active || busyKey === `${member.id}:save-toggle`}
-                    onChange={(event) => void patchAccess(
-                      {
-                        userId: member.id,
-                        canSaveChanges: event.target.checked
-                      },
-                      `${member.id}:save-toggle`,
-                      `Save rights ${event.target.checked ? "enabled" : "set to session-only"} for ${member.displayName}.`
-                    )}
-                  />
-                  <span>Save rights</span>
-                  <small>{member.canSaveChanges ? "Database saves on" : "Session-only changes"}</small>
+                <label>
+                  <span>Data access</span>
+                  <select
+                    aria-label={`Data access for ${member.displayName}`}
+                    disabled={member.currentUser || !member.active || busyKey === `${member.id}:access-mode`}
+                    value={member.accessMode}
+                    onChange={(event) => {
+                      const accessMode = normalizeAccessMode(event.target.value) ?? "read_only";
+                      void patchAccess(
+                        {
+                          userId: member.id,
+                          accessMode
+                        },
+                        `${member.id}:access-mode`,
+                        `${member.displayName} is set to ${accessModeLabel(accessMode)}.`
+                      );
+                    }}
+                  >
+                    {accessModeOptions.map((mode) => <option key={mode.value} value={mode.value}>{mode.label}</option>)}
+                  </select>
+                  <small>{accessModeDescription(member.accessMode)}</small>
                 </label>
                 <label className="camp-access-toggle row-toggle">
                   <input
@@ -442,6 +456,21 @@ function roleLabel(role: RegistrationInviteRole) {
   if (role === "student") return "Student";
   if (role === "parent") return "Parent";
   return "Leader";
+}
+
+function normalizeAccessMode(value: FormDataEntryValue | string | null): PlatformDataAccessMode | null {
+  if (value === "demo" || value === "read_only" || value === "save") return value;
+  return null;
+}
+
+function accessModeLabel(mode: PlatformDataAccessMode) {
+  if (mode === "save") return "Save rights";
+  if (mode === "demo") return "Demo";
+  return "Read only";
+}
+
+function accessModeDescription(mode: PlatformDataAccessMode) {
+  return accessModeOptions.find((option) => option.value === mode)?.help ?? "Real data, no saves";
 }
 
 function formatShortDate(value: string) {

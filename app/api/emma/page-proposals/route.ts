@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 
-import { requireEmergeOperationsAccess } from "@/lib/app-area-access";
+import { requireEmergeOperationsWriteAccess } from "@/lib/app-area-access";
 import { getOverview } from "@/lib/data/ministry-repository";
 import { createMinistryPageProposal } from "@/lib/emma/proposals/create-page-proposal";
 
 export async function POST(request: Request) {
-  const access = await requireEmergeOperationsAccess();
+  const access = await requireEmergeOperationsWriteAccess();
   if (!access.allowed) return access.response;
 
   let body: unknown = {};

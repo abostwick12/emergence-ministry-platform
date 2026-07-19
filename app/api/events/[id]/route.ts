@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireEmergeOperationsAccess } from "@/lib/app-area-access";
+import { requireEmergeOperationsAccess, requireEmergeOperationsWriteAccess } from "@/lib/app-area-access";
 import { deleteMinistryEvent, getEventWorkspace, updateMinistryEvent } from "@/lib/data/ministry-repository";
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
@@ -16,7 +16,7 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
 }
 
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
-  const access = await requireEmergeOperationsAccess();
+  const access = await requireEmergeOperationsWriteAccess();
   if (!access.allowed) return access.response;
 
   try {
@@ -36,7 +36,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 }
 
 export async function DELETE(_: Request, { params }: { params: { id: string } }) {
-  const access = await requireEmergeOperationsAccess();
+  const access = await requireEmergeOperationsWriteAccess();
   if (!access.allowed) return access.response;
   if (!access.session.isGuest && access.session.user.role.trim().toLowerCase() !== "admin") {
     return NextResponse.json({ error: "Only administrators can delete archived events." }, { status: 403 });

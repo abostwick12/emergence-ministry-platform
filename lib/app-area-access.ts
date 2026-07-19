@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession, unauthorizedResponse, type AuthSession } from "@/lib/auth/server";
 import { resolveCampAccessContext, type CampAccessContext } from "@/lib/camp/permissions";
-import { isPlatformUserActiveById } from "@/lib/platform/access-admin";
+import { canPlatformUserSaveChanges, isPlatformUserActiveById } from "@/lib/platform/access-admin";
 
 export type EmergeOperationsAccess =
   | { allowed: true; session: AuthSession; context: CampAccessContext }
@@ -34,4 +34,16 @@ export async function requireEmergeOperationsAccess(): Promise<EmergeOperationsA
   }
 
   return { allowed: true, session, context: resolveCampAccessContext({ ...session, isMock: true }, role === "admin" ? "andrew" : "general_leader") };
+}
+
+export async function requireEmergeOperationsWriteAccess(): Promise<EmergeOperationsAccess> {
+  const access = await requireEmergeOperationsAccess();
+  if (!access.allowed) return access;
+  if (!access.session.isGuest && !(await canPlatformUserSaveChanges(access.session))) {
+    return {
+      allowed: false,
+      response: NextResponse.json({ error: "This account can view real ministry data, but save rights are disabled." }, { status: 403 })
+    };
+  }
+  return access;
 }

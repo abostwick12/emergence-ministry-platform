@@ -1529,6 +1529,30 @@ html:has(.app-shell:not(.app-shell-camp)) body {
     linear-gradient(145deg, rgba(63, 28, 49, 0.78), rgba(7, 23, 43, 0.90));
 }
 
+.app-shell:not(.app-shell-camp) .task-card.task-event-accent {
+  border-color: color-mix(in srgb, var(--event-accent) 42%, rgba(129, 164, 214, 0.18)) !important;
+  border-left-color: var(--event-accent) !important;
+  background-color: rgba(7, 22, 43, 0.94) !important;
+  background-image:
+    linear-gradient(90deg, var(--event-accent) 0 4px, transparent 4px),
+    radial-gradient(circle at 12% 0%, rgba(22, 217, 245, 0.16), transparent 38%),
+    radial-gradient(circle at 98% 100%, rgba(246, 211, 122, 0.08), transparent 40%),
+    linear-gradient(145deg, rgba(12, 30, 54, 0.88), rgba(5, 13, 27, 0.94)) !important;
+  box-shadow:
+    0 18px 44px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 4px 0 0 color-mix(in srgb, var(--event-accent) 84%, #e0f2fe) !important;
+}
+
+.app-shell:not(.app-shell-camp) .task-card.task-event-accent.attention {
+  border-color: color-mix(in srgb, #fb7185 48%, var(--event-accent)) !important;
+  background-image:
+    linear-gradient(90deg, #fb7185 0 4px, transparent 4px),
+    radial-gradient(circle at 12% 0%, rgba(251, 113, 133, 0.20), transparent 38%),
+    radial-gradient(circle at 98% 100%, rgba(246, 211, 122, 0.08), transparent 40%),
+    linear-gradient(145deg, rgba(63, 28, 49, 0.86), rgba(5, 13, 27, 0.94)) !important;
+}
+
 .app-shell:not(.app-shell-camp) :is(.task-card .button, .notes-panel .button, .summary-toggle-button) {
   border-color: rgba(125, 211, 252, 0.22);
   background: rgba(14, 165, 233, 0.14);
@@ -2041,7 +2065,7 @@ html:has(.app-shell:not(.app-shell-camp)) body {
 
 .app-shell:not(.app-shell-camp) .event-card-row.event-lovable-card-row {
   display: grid;
-  grid-template-columns: minmax(250px, 0.72fr) minmax(370px, 1.28fr) minmax(190px, 0.44fr);
+  grid-template-columns: minmax(250px, 0.72fr) minmax(340px, 1fr) minmax(260px, 0.72fr);
   min-height: 256px;
   background: transparent;
 }
@@ -2189,6 +2213,23 @@ html:has(.app-shell:not(.app-shell-camp)) body {
   gap: 24px;
   min-width: 0;
   padding: 38px 24px;
+}
+
+.app-shell:not(.app-shell-camp) .event-vision-rail {
+  align-content: start;
+  gap: 14px;
+}
+
+.app-shell:not(.app-shell-camp) .event-vision-rail p {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: #dbeafe;
+  font-size: 16px;
+  font-weight: 750;
+  line-height: 1.5;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 8;
 }
 
 .app-shell:not(.app-shell-camp) .event-rail-metric {

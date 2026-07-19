@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { requireEmergeOperationsAccess } from "@/lib/app-area-access";
+import { requireEmergeOperationsWriteAccess } from "@/lib/app-area-access";
 import {
   exchangePlanningCenterCode,
   PlanningCenterConfigError,
@@ -11,7 +11,7 @@ import { connectPlanningCenter } from "@/lib/integrations/planning-center/reposi
 const SETTINGS_PAGE = "/settings";
 
 export async function GET(request: Request) {
-  const access = await requireEmergeOperationsAccess();
+  const access = await requireEmergeOperationsWriteAccess();
   if (!access.allowed) return access.response;
 
   const url = new URL(request.url);

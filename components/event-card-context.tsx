@@ -13,6 +13,7 @@ interface EventCardState {
 
 interface EventCardContextValue {
   state: EventCardState;
+  canSaveChanges: boolean;
   openCreate: () => void;
   openEdit: (eventId: string) => void;
   close: () => void;
@@ -27,12 +28,13 @@ export function useEventCard() {
   return ctx;
 }
 
-export function EventCardProvider({ children }: { children: React.ReactNode }) {
+export function EventCardProvider({ children, canSaveChanges = true }: { children: React.ReactNode; canSaveChanges?: boolean }) {
   const [state, setState] = useState<EventCardState>({ isOpen: false, mode: "create", savedAt: 0 });
 
   const openCreate = useCallback(() => {
+    if (!canSaveChanges) return;
     setState((prev) => ({ ...prev, isOpen: true, mode: "create", eventId: undefined }));
-  }, []);
+  }, [canSaveChanges]);
 
   const openEdit = useCallback((eventId: string) => {
     setState((prev) => ({ ...prev, isOpen: true, mode: "edit", eventId }));
@@ -47,7 +49,7 @@ export function EventCardProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <EventCardContext.Provider value={{ state, openCreate, openEdit, close, notifySaved }}>
+    <EventCardContext.Provider value={{ state, canSaveChanges, openCreate, openEdit, close, notifySaved }}>
       {children}
     </EventCardContext.Provider>
   );

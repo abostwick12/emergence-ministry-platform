@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { requireEmergeOperationsAccess } from "@/lib/app-area-access";
+import { requireEmergeOperationsWriteAccess } from "@/lib/app-area-access";
 import { decideEmmaProposal } from "@/lib/emma/approvals/review-proposal";
 
 export async function POST(_request: Request, { params }: { params: { proposalId: string } }) {
-  const access = await requireEmergeOperationsAccess();
+  const access = await requireEmergeOperationsWriteAccess();
   if (!access.allowed) return access.response;
 
   const result = await decideEmmaProposal(access.session, { proposalId: params.proposalId, decision: "rejected" });

@@ -22,7 +22,7 @@ import { getSupabaseAuthClient } from "@/lib/auth/server";
 import { isSupabaseConfigured } from "@/lib/auth/config";
 import { resolveMinistryScope } from "@/lib/ministry/scope";
 import { measureServerOperation } from "@/lib/performance/timing";
-import { canPlatformUserSaveChanges } from "@/lib/platform/access-admin";
+import { getPlatformDataAccessModeForSession } from "@/lib/platform/access-admin";
 import * as mockStore from "@/lib/store";
 import {
   addGuestExpense,
@@ -156,7 +156,7 @@ function sessionSandboxId(session: AuthSession) {
 async function shouldUseSessionOnlySandbox(session: AuthSession) {
   if (session.isGuest) return true;
   if (session.isMock || !isSupabaseConfigured()) return false;
-  return !(await canPlatformUserSaveChanges(session));
+  return (await getPlatformDataAccessModeForSession(session)) === "demo";
 }
 
 export async function getOverview(session: AuthSession): Promise<MinistryOverview> {

@@ -172,7 +172,7 @@ interface MasterEventCardProps {
 }
 
 export function MasterEventCard({ onRefresh }: MasterEventCardProps) {
-  const { state, close, notifySaved } = useEventCard();
+  const { state, canSaveChanges, close, notifySaved } = useEventCard();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -187,7 +187,7 @@ export function MasterEventCard({ onRefresh }: MasterEventCardProps) {
   if (!mounted || !state.isOpen) return null;
 
   const portal = createPortal(
-    <MasterEventCardInner mode={state.mode} eventId={state.eventId} onClose={close} onRefresh={handleRefresh} />,
+    <MasterEventCardInner mode={state.mode} eventId={state.eventId} canSaveChanges={canSaveChanges} onClose={close} onRefresh={handleRefresh} />,
     document.body
   );
   return portal;
@@ -196,11 +196,13 @@ export function MasterEventCard({ onRefresh }: MasterEventCardProps) {
 function MasterEventCardInner({
   mode,
   eventId,
+  canSaveChanges,
   onClose,
   onRefresh
 }: {
   mode: "create" | "edit";
   eventId?: string;
+  canSaveChanges: boolean;
   onClose: () => void;
   onRefresh?: () => void;
 }) {
@@ -282,6 +284,7 @@ function MasterEventCardInner({
   }, [isDirty, onClose]);
 
   function updateStep1<K extends keyof Step1State>(key: K, value: Step1State[K]) {
+    if (!canSaveChanges) return;
     setStep1((current) => {
       const next = current ? { ...current, [key]: value } : current;
       step1Ref.current = next;
@@ -293,6 +296,7 @@ function MasterEventCardInner({
   }
 
   function handleStartChange(value: string) {
+    if (!canSaveChanges) return;
     setStep1((current) => {
       if (!current) return current;
       const newEnd = current.endTouched ? current.endTime : alignEndToStartDate(value, current.endTime);
@@ -304,6 +308,7 @@ function MasterEventCardInner({
   }
 
   function handleEndChange(value: string) {
+    if (!canSaveChanges) return;
     setStep1((current) => {
       const next = current ? { ...current, endTime: value, endTouched: true } : current;
       step1Ref.current = next;
@@ -333,6 +338,10 @@ function MasterEventCardInner({
   }
 
   async function saveEventInfo() {
+    if (!canSaveChanges) {
+      setSaveError("Read-only access is active. Event saves are disabled for this account.");
+      return;
+    }
     const currentStep1 = step1Ref.current ?? step1;
     if (!currentStep1) return;
     setSaveError("");
@@ -382,6 +391,10 @@ function MasterEventCardInner({
   }
 
   async function handleCreate() {
+    if (!canSaveChanges) {
+      setSaveError("Read-only access is active. Event creation is disabled for this account.");
+      return;
+    }
     const currentStep1 = step1Ref.current ?? step1;
     if (!currentStep1) return;
     const err = validateStep1(currentStep1);
@@ -443,6 +456,10 @@ function MasterEventCardInner({
   }
 
   async function handleUpdateTask(taskId: string, patch: Partial<ActiveTask>) {
+    if (!canSaveChanges) {
+      setSaveError("Read-only access is active. Task saves are disabled for this account.");
+      return;
+    }
     const res = await fetch(`/api/tasks/${taskId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -458,6 +475,10 @@ function MasterEventCardInner({
   }
 
   async function handleAddTask() {
+    if (!canSaveChanges) {
+      setSaveError("Read-only access is active. Task creation is disabled for this account.");
+      return;
+    }
     if (!newTaskTitle.trim() || !workspace) return;
     const assignee = users[0]?.id ?? "";
     const due = new Date();
@@ -482,6 +503,7 @@ function MasterEventCardInner({
   }
 
   function toggleEventLeader(leaderId: string) {
+    if (!canSaveChanges) return;
     const currentEventId = workspace?.event.id ?? eventId;
     if (!currentEventId) return;
     setEventLeaderAssignments((current) => {
@@ -501,6 +523,10 @@ function MasterEventCardInner({
   }
 
   async function runStub(type: "drive" | "calendar" | "propresenter" | "comms") {
+    if (!canSaveChanges) {
+      setSaveError("Read-only access is active. Integration preview actions are disabled for this account.");
+      return;
+    }
     if (!workspace) return;
     setStubStatus((current) => ({ ...current, [type]: "running" }));
 
@@ -583,6 +609,7 @@ function MasterEventCardInner({
               volunteerLeaders={volunteerLeaders}
               assignedLeaderIds={eventLeaderAssignments[workspace?.event.id ?? eventId ?? ""] ?? []}
               mode={mode}
+              readOnly={!canSaveChanges}
               onChange={updateStep1}
               onStartChange={handleStartChange}
               onEndChange={handleEndChange}
@@ -601,6 +628,7 @@ function MasterEventCardInner({
               onAddTask={handleAddTask}
               onNewTaskTitleChange={setNewTaskTitle}
               onRunStub={runStub}
+              readOnly={!canSaveChanges}
               showEmmaEventIntelligence={activeRole === "admin"}
             />
           ) : null}
@@ -626,7 +654,7 @@ function MasterEventCardInner({
           )}
 
           {step === 1 && mode === "edit" && (
-            <button className="button" type="button" onClick={() => void saveEventInfo()} disabled={isSaving || !isDirty}>
+            <button className="button" type="button" onClick={() => void saveEventInfo()} disabled={!canSaveChanges || isSaving || !isDirty}>
               {isSaving ? "Saving..." : "Save event info"}
             </button>
           )}
@@ -638,7 +666,7 @@ function MasterEventCardInner({
           )}
 
           {step === 2 && mode === "create" && !saveSuccess && (
-            <button className="button primary" type="button" onClick={() => void handleCreate()} disabled={isSaving}>
+            <button className="button primary" type="button" onClick={() => void handleCreate()} disabled={!canSaveChanges || isSaving}>
               {isSaving ? "Creating..." : "Save & Create Event"}
             </button>
           )}
@@ -660,6 +688,7 @@ function Step1Form({
   volunteerLeaders,
   assignedLeaderIds,
   mode,
+  readOnly,
   onChange,
   onStartChange,
   onEndChange,
@@ -670,6 +699,7 @@ function Step1Form({
   volunteerLeaders: VolunteerLeader[];
   assignedLeaderIds: string[];
   mode: "create" | "edit";
+  readOnly: boolean;
   onChange: <K extends keyof Step1State>(key: K, value: Step1State[K]) => void;
   onStartChange: (value: string) => void;
   onEndChange: (value: string) => void;
@@ -741,6 +771,7 @@ function Step1Form({
                 <input
                   type="checkbox"
                   checked={assignedLeaderIds.includes(leader.id)}
+                  disabled={readOnly}
                   onChange={() => onToggleLeader(leader.id)}
                 />
                 <span>
@@ -938,6 +969,7 @@ function Step2Panel({
   onAddTask,
   onNewTaskTitleChange,
   onRunStub,
+  readOnly,
   showEmmaEventIntelligence
 }: {
   mode: "create" | "edit";
@@ -951,6 +983,7 @@ function Step2Panel({
   onAddTask: () => Promise<void>;
   onNewTaskTitleChange: (value: string) => void;
   onRunStub: (type: "drive" | "calendar" | "propresenter" | "comms") => Promise<void>;
+  readOnly: boolean;
   showEmmaEventIntelligence: boolean;
 }) {
   const tasks = workspace?.tasks ?? [];
@@ -987,7 +1020,7 @@ function Step2Panel({
             <div className="task-edit-list">
               {tasks.length ? (
                 tasks.map((task) => (
-                  <TaskEditRow key={task.id} task={task} users={users} onUpdate={onUpdateTask} />
+                  <TaskEditRow key={task.id} task={task} users={users} readOnly={readOnly} onUpdate={onUpdateTask} />
                 ))
               ) : (
                 <p className="muted">No tasks yet. Add one below.</p>
@@ -1001,6 +1034,7 @@ function Step2Panel({
                   placeholder="Add a task…"
                   value={newTaskTitle}
                   aria-label="New task title"
+                  disabled={readOnly}
                   onChange={(e) => onNewTaskTitleChange(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") void onAddTask(); }}
                 />
@@ -1008,7 +1042,7 @@ function Step2Panel({
                   className="button primary"
                   type="button"
                   onClick={() => void onAddTask()}
-                  disabled={!newTaskTitle.trim()}
+                  disabled={readOnly || !newTaskTitle.trim()}
                 >
                   + Add task
                 </button>
@@ -1028,17 +1062,20 @@ function Step2Panel({
             label="Google Drive Folder"
             status={stubStatus.drive}
             doneLabel={workspace?.event.googleDriveFolderId ? "Folder ready (stub)" : undefined}
+            disabled={readOnly}
             onRun={() => void onRunStub("drive")}
           />
           <StubControl
             label="Google Calendar Sync"
             status={stubStatus.calendar}
+            disabled={readOnly}
             onRun={() => void onRunStub("calendar")}
           />
           <StubControl
             label="ProPresenter Playlist"
             status={stubStatus.propresenter}
             doneLabel={workspace?.event.proPresenterPlaylistId ? "Playlist ready (stub)" : undefined}
+            disabled={readOnly}
             onRun={() => void onRunStub("propresenter")}
           />
           <PlanningCenterIntegrationControl compact />
@@ -1046,6 +1083,7 @@ function Step2Panel({
             label="Communication Package"
             status={stubStatus.comms}
             doneLabel={workspace && workspace.communications.length > 0 ? `${workspace.communications.length} preview(s) generated` : undefined}
+            disabled={readOnly}
             onRun={() => void onRunStub("comms")}
           />
         </div>
@@ -1104,10 +1142,12 @@ function Step2Panel({
 function TaskEditRow({
   task,
   users,
+  readOnly,
   onUpdate
 }: {
   task: ActiveTask;
   users: User[];
+  readOnly: boolean;
   onUpdate: (taskId: string, patch: Partial<ActiveTask>) => Promise<void>;
 }) {
   const [dueDate, setDueDate] = useState(toDateInputValue(task.dueDate));
@@ -1121,6 +1161,7 @@ function TaskEditRow({
   }, [task.dueDate, task.taskTitle]);
 
   async function save(patch: Partial<ActiveTask>) {
+    if (readOnly) return;
     setSaveState("saving");
     await onUpdate(task.id, patch);
     setSaveState("saved");
@@ -1135,6 +1176,7 @@ function TaskEditRow({
           className="input"
           aria-label={`Title for task ${task.taskTitle}`}
           value={title}
+          disabled={readOnly}
           onChange={(e) => setTitle(e.target.value)}
           onBlur={() => { if (title !== task.taskTitle) void save({ taskTitle: title }); }}
         />
@@ -1147,6 +1189,7 @@ function TaskEditRow({
             className="input"
             id={`modal-owner-${task.id}`}
             value={task.assignedUserId}
+            disabled={readOnly}
             onChange={(e) => void save({ assignedUserId: e.target.value })}
           >
             {users.map((u) => (
@@ -1161,6 +1204,7 @@ function TaskEditRow({
             id={`modal-due-${task.id}`}
             type="date"
             value={dueDate}
+            disabled={readOnly}
             onChange={(e) => {
               setDueDate(e.target.value);
               if (e.target.value) void save({ dueDate: new Date(`${e.target.value}T12:00:00`).toISOString() });
@@ -1173,6 +1217,7 @@ function TaskEditRow({
             className="input"
             id={`modal-status-${task.id}`}
             value={task.status}
+            disabled={readOnly}
             onChange={(e) => void save({ status: e.target.value as TaskStatus })}
           >
             {taskStatuses.map((s) => (
@@ -1181,7 +1226,7 @@ function TaskEditRow({
           </select>
         </div>
         <span className="inline-save-state">
-          {saveState === "saving" ? "Saving..." : saveState === "saved" ? "Saved" : ""}
+          {readOnly ? "Read only" : saveState === "saving" ? "Saving..." : saveState === "saved" ? "Saved" : ""}
         </span>
       </div>
     </div>
@@ -1198,11 +1243,13 @@ function StubControl({
   label,
   status,
   doneLabel,
+  disabled = false,
   onRun
 }: {
   label: string;
   status: "idle" | "running" | "done";
   doneLabel?: string;
+  disabled?: boolean;
   onRun: () => void;
 }) {
   return (
@@ -1215,7 +1262,7 @@ function StubControl({
         className="button compact-button"
         type="button"
         onClick={onRun}
-        disabled={status === "running"}
+        disabled={disabled || status === "running"}
         aria-label={`Run ${label} stub action`}
       >
         {status === "done" ? "Re-run" : "Run stub"}

@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { requireEmergeOperationsAccess } from "@/lib/app-area-access";
+import { requireEmergeOperationsWriteAccess } from "@/lib/app-area-access";
 import { deleteMinistryTask, updateMinistryTask } from "@/lib/data/ministry-repository";
 
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
-  const access = await requireEmergeOperationsAccess();
+  const access = await requireEmergeOperationsWriteAccess();
   if (!access.allowed) return access.response;
 
   const body = await request.json();
@@ -17,7 +17,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 }
 
 export async function DELETE(_: Request, { params }: { params: { id: string } }) {
-  const access = await requireEmergeOperationsAccess();
+  const access = await requireEmergeOperationsWriteAccess();
   if (!access.allowed) return access.response;
   if (!access.session.isGuest) {
     return NextResponse.json({ error: "Task deletion is available only in guest sandbox mode." }, { status: 403 });

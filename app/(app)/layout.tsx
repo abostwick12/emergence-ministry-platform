@@ -5,7 +5,7 @@ import { MasterEventCard } from "@/components/master-event-card";
 import { isDevAuthActive } from "@/lib/auth/config";
 import { getServerSession } from "@/lib/auth/server";
 import { isCommandCenterUser } from "@/lib/command-center/access";
-import { resolvePageAccessForSession, visiblePlatformPagesForSession } from "@/lib/platform/access-admin";
+import { canPlatformUserSaveChanges, resolvePageAccessForSession, visiblePlatformPagesForSession } from "@/lib/platform/access-admin";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
@@ -23,12 +23,13 @@ export default async function AuthenticatedLayout({ children }: { children: Reac
   const shellAccess = { kind: "full" as const };
   const sessionRole = session.user.role === "leader" || session.user.role === "student" || session.user.role === "parent" ? session.user.role : session.isGuest ? "leader" : "admin";
   const visiblePageKeys = await visiblePlatformPagesForSession(session);
+  const canSaveChanges = session.isGuest || await canPlatformUserSaveChanges(session);
 
   return (
     <RoleProvider initialRole={sessionRole}>
-      <EventCardProvider>
+      <EventCardProvider canSaveChanges={canSaveChanges}>
         <AppShell
-          canManageEvents={sessionRole === "admin" || sessionRole === "leader"}
+          canManageEvents={canSaveChanges && (sessionRole === "admin" || sessionRole === "leader")}
           devAuth={devAuth}
           shellAccess={shellAccess}
           sessionRole={sessionRole}

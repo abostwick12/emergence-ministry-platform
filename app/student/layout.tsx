@@ -6,9 +6,8 @@ import { MasterEventCard } from "@/components/master-event-card";
 import { RoleProvider } from "@/components/role-context";
 import { getServerSession } from "@/lib/auth/server";
 import { isDevAuthActive } from "@/lib/auth/config";
-import { resolveAppShellAccess } from "@/lib/camp/shell-access";
 import { isCommandCenterUser } from "@/lib/command-center/access";
-import { resolvePageAccessForSession, visiblePlatformPagesForSession } from "@/lib/platform/access-admin";
+import { canPlatformUserSaveChanges, resolvePageAccessForSession, visiblePlatformPagesForSession } from "@/lib/platform/access-admin";
 import { resolveStudentHubAccess } from "@/lib/student/access";
 import { headers } from "next/headers";
 
@@ -48,13 +47,14 @@ export default async function StudentLayout({ children }: { children: React.Reac
   }
 
   const isStudentSession = access.role === "student";
-  const canManageEvents = access.role === "admin" || access.role === "leader";
-  const shellAccess = isStudentSession || access.session.isMock ? { kind: "full" as const } : await resolveAppShellAccess(access.session);
+  const canSaveChanges = access.session.isGuest || await canPlatformUserSaveChanges(access.session);
+  const canManageEvents = canSaveChanges && (access.role === "admin" || access.role === "leader");
+  const shellAccess = { kind: "full" as const };
   const visiblePageKeys = await visiblePlatformPagesForSession(access.session);
 
   return (
     <RoleProvider initialRole={access.role}>
-      <EventCardProvider>
+      <EventCardProvider canSaveChanges={canSaveChanges}>
         <AppShell
           canManageEvents={canManageEvents}
           devAuth={devAuth}

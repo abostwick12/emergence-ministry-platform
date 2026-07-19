@@ -21,6 +21,7 @@ export async function POST(request: Request) {
     role?: string;
     maxUses?: number | null;
     expiresAt?: string | null;
+    accessMode?: string;
     canSaveChanges?: boolean;
     aiEnabled?: boolean;
     aiMonthlyLimit?: number | null;
@@ -37,6 +38,7 @@ export async function POST(request: Request) {
       role: body.role,
       maxUses: body.maxUses,
       expiresAt: body.expiresAt,
+      accessMode: body.accessMode,
       canSaveChanges: body.canSaveChanges === true,
       aiEnabled: body.aiEnabled === true,
       aiMonthlyLimit: body.aiMonthlyLimit

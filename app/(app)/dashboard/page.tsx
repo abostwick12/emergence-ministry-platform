@@ -1,6 +1,7 @@
 import MinistryWorkspace from "@/components/ministry-workspace";
 import { requireEmergeOperationsAccess } from "@/lib/app-area-access";
 import { getDashboardPayload } from "@/lib/dashboard-data";
+import { canPlatformUserSaveChanges } from "@/lib/platform/access-admin";
 
 export default async function DashboardPage() {
   const access = await requireEmergeOperationsAccess();
@@ -8,5 +9,5 @@ export default async function DashboardPage() {
     return <MinistryWorkspace view="dashboard" initialLoadError="Ministry workspace access could not be verified." />;
   }
   const payload = await getDashboardPayload(access.session);
-  return <MinistryWorkspace view="dashboard" initialOverview={payload.overview} initialAttention={payload.attention} />;
+  return <MinistryWorkspace view="dashboard" initialOverview={payload.overview} initialAttention={payload.attention} canSaveChanges={access.session.isGuest || await canPlatformUserSaveChanges(access.session)} />;
 }
