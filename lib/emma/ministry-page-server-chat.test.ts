@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/ministry/scope", () => ({
   resolveMinistryScope: vi.fn(async (s: { testMinistryId?: string }) => s.testMinistryId ?? "ministry-emerge")
@@ -9,7 +9,8 @@ import {
   getMinistryEmmaReadiness,
   runMinistryPageServerChat
 } from "@/lib/emma/ministry-page-server-chat";
-import { __resetEmmaMockStoreForTests, getEmmaAuditTrail } from "@/lib/emma/repository";
+import { ministryPageChatSchema } from "@/lib/emma/providers/ministry-page-chat";
+import { __resetEmmaMockStoreForTests, __setEmmaRepositorySupabaseClientForTests, getEmmaAuditTrail } from "@/lib/emma/repository";
 import type { MinistryEmmaOverview } from "@/lib/emma/ministry-page-assistant";
 
 type TestSession = AuthSession & { testMinistryId: string };
@@ -97,9 +98,38 @@ beforeEach(() => {
   delete process.env.EMMA_DEFAULT_PROVIDER;
   delete process.env.EMMA_DEFAULT_MODEL;
   delete process.env.GEMINI_API_KEY;
+  delete process.env.OPENAI_API_KEY;
+  delete process.env.OPENAI_MODEL;
+  delete process.env.AZURE_OPENAI_ENDPOINT;
+  delete process.env.AZURE_OPENAI_API_KEY;
+  delete process.env.AZURE_OPENAI_DEPLOYMENT;
+  delete process.env.AZURE_OPENAI_API_VERSION;
+  delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+  delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
 describe("ministry page server-backed EMMA chat", () => {
+  it("normalizes safe provider output variants for ministry page chat", () => {
+    const parsed = ministryPageChatSchema.parse({
+      answer: "Provider summary with alternate field names.",
+      key_points: ["Review readiness."],
+      next_actions: ["Open the event workspace."],
+      extraProviderField: "ignored"
+    });
+
+    expect(parsed).toEqual({
+      summary: "Provider summary with alternate field names.",
+      points: ["Review readiness."],
+      nextActions: ["Open the event workspace."],
+      confidence: 0.7,
+      warnings: []
+    });
+  });
+
   it("returns an audited deterministic fallback when no live provider is configured", async () => {
     const admin = session();
     const result = await runMinistryPageServerChat({
@@ -152,6 +182,184 @@ describe("ministry page server-backed EMMA chat", () => {
     });
   });
 
+  it("uses a configured live provider for preview dev-auth sessions", async () => {
+    process.env.EMMA_PROVIDER_MODE = "openai";
+    process.env.OPENAI_API_KEY = "test-openai-key";
+    process.env.EMMA_DEFAULT_MODEL = "gpt-4o-mini";
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          model: "gpt-4o-mini",
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  summary: "Live model guidance for the events page.",
+                  points: ["Review the event plan before changing assignments."],
+                  nextActions: ["Open the highest-priority event first."],
+                  confidence: 0.82,
+                  warnings: []
+                })
+              }
+            }
+          ],
+          usage: { total_tokens: 42 }
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const admin = session();
+    const result = await runMinistryPageServerChat({
+      overview: overview(),
+      rawInput: { page: "events", prompt: "What should I open first?", selectedEventId: "evt_1" },
+      session: admin
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.providerMode).toBe("live_provider");
+    expect(result.data.provider).toBe("openai");
+    expect(result.data.response.summary).toBe("Live model guidance for the events page.");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    const trail = await getEmmaAuditTrail(admin, result.data.requestId);
+    expect(trail.runs[0]).toMatchObject({
+      skillKey: "ministry_page_chat",
+      status: "succeeded"
+    });
+    expect(trail.providerAttempts[0]).toMatchObject({
+      provider: "openai",
+      status: "success"
+    });
+  });
+
+  it("falls back from invalid Gemini output to OpenAI when both providers are configured", async () => {
+    process.env.EMMA_PROVIDER_MODE = "gemini";
+    process.env.GEMINI_API_KEY = "test-gemini-key";
+    process.env.OPENAI_API_KEY = "test-openai-key";
+    process.env.EMMA_DEFAULT_MODEL = "gemini-3.5-flash";
+    process.env.OPENAI_MODEL = "gpt-4o-mini";
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("generativelanguage.googleapis.com")) {
+        return new Response(
+          JSON.stringify({
+            candidates: [{ content: { parts: [{ text: JSON.stringify({ invalid: true }) }] } }],
+            usageMetadata: { totalTokenCount: 12 }
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({
+          model: "gpt-4o-mini",
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  summary: "OpenAI failover guidance for the events page.",
+                  points: ["Use the event readiness snapshot before making a decision."],
+                  nextActions: ["Open the event with the most blocked work."],
+                  confidence: 0.86,
+                  warnings: []
+                })
+              }
+            }
+          ],
+          usage: { total_tokens: 39 }
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const admin = session();
+    const result = await runMinistryPageServerChat({
+      overview: overview(),
+      rawInput: { page: "events", prompt: "What should I open first?", selectedEventId: "evt_1" },
+      session: admin
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.providerMode).toBe("live_provider");
+    expect(result.data.provider).toBe("openai");
+    expect(result.data.model).toBe("gpt-4o-mini");
+    expect(result.data.response.summary).toBe("OpenAI failover guidance for the events page.");
+    expect(result.data.warnings).toContain("Primary EMMA provider failed safely; OpenAI failover returned a valid response.");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    const trail = await getEmmaAuditTrail(admin, result.data.requestId);
+    expect(trail.runs.map((run) => run.skillKey)).toEqual(["ministry_page_chat_openai_failover", "ministry_page_chat"]);
+    expect(trail.providerAttempts.map((attempt) => `${attempt.provider}:${attempt.status}`)).toEqual([
+      "openai:success",
+      "gemini:failure"
+    ]);
+  });
+
+  it("falls back from invalid Gemini output to Azure OpenAI when Azure is configured", async () => {
+    process.env.EMMA_PROVIDER_MODE = "gemini";
+    process.env.GEMINI_API_KEY = "test-gemini-key";
+    process.env.EMMA_DEFAULT_MODEL = "gemini-3.5-flash";
+    process.env.AZURE_OPENAI_ENDPOINT = "https://example-resource.openai.azure.com";
+    process.env.AZURE_OPENAI_API_KEY = "test-azure-key";
+    process.env.AZURE_OPENAI_DEPLOYMENT = "emma-azure-test";
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("generativelanguage.googleapis.com")) {
+        return new Response(
+          JSON.stringify({
+            candidates: [{ content: { parts: [{ text: JSON.stringify({ invalid: true }) }] } }],
+            usageMetadata: { totalTokenCount: 12 }
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({
+          model: "emma-azure-test",
+          output_text: JSON.stringify({
+            summary: "Azure failover guidance for the events page.",
+            points: ["Use the readiness snapshot before making a decision."],
+            nextActions: ["Open the event with the most blocked work."],
+            confidence: 0.84,
+            warnings: []
+          }),
+          usage: { total_tokens: 31 }
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const admin = session();
+    const result = await runMinistryPageServerChat({
+      overview: overview(),
+      rawInput: { page: "events", prompt: "What should I open first?", selectedEventId: "evt_1" },
+      session: admin
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.providerMode).toBe("live_provider");
+    expect(result.data.provider).toBe("azure");
+    expect(result.data.model).toBe("emma-azure-test");
+    expect(result.data.response.summary).toBe("Azure failover guidance for the events page.");
+    expect(result.data.warnings).toContain("Primary EMMA provider failed safely; Azure OpenAI failover returned a valid response.");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    const trail = await getEmmaAuditTrail(admin, result.data.requestId);
+    expect(trail.runs.map((run) => run.skillKey)).toEqual(["ministry_page_chat_azure_failover", "ministry_page_chat"]);
+    expect(trail.providerAttempts.map((attempt) => `${attempt.provider}:${attempt.status}`)).toEqual([
+      "azure:success",
+      "gemini:failure"
+    ]);
+  });
+
   it("blocks roles outside Admin and Leader", async () => {
     const result = await runMinistryPageServerChat({
       overview: overview(),
@@ -166,6 +374,34 @@ describe("ministry page server-backed EMMA chat", () => {
         message: "Only Admin or Leader roles may use ministry EMMA chat."
       }
     });
+  });
+
+  it("returns deterministic chat when audit persistence is unavailable", async () => {
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon-key";
+    __setEmmaRepositorySupabaseClientForTests({
+      from: () => ({
+        insert: () => ({
+          select: () => ({
+            single: async () => ({ data: null, error: { message: "relation ai_requests does not exist" } })
+          })
+        })
+      })
+    });
+
+    const result = await runMinistryPageServerChat({
+      overview: overview(),
+      rawInput: { page: "events", prompt: "What should I open first?", createProposal: true },
+      session: { ...session(), isMock: false, accessToken: "token" }
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.requestId).toBe("local-fallback-request");
+    expect(result.data.runId).toBe("local-fallback-run");
+    expect(result.data.providerMode).toBe("audited_fallback");
+    expect(result.data.proposalCreated).toBe(false);
+    expect(result.data.warnings[0]).toMatch(/audit persistence was unavailable/i);
   });
 
   it("reports live readiness without exposing secrets", () => {
@@ -183,6 +419,27 @@ describe("ministry page server-backed EMMA chat", () => {
       liveProviderConfigured: true,
       provider: "gemini",
       model: "gemini-3.5-flash",
+      status: "live"
+    });
+    expect(JSON.stringify(readiness)).not.toContain("secret-key");
+  });
+
+  it("reports Azure readiness when Azure OpenAI is configured", () => {
+    const readiness = getMinistryEmmaReadiness({
+      session: session(),
+      env: {
+        ...process.env,
+        EMMA_PROVIDER_MODE: "azure",
+        AZURE_OPENAI_ENDPOINT: "https://example-resource.openai.azure.com",
+        AZURE_OPENAI_API_KEY: "secret-key",
+        AZURE_OPENAI_DEPLOYMENT: "emma-azure-test"
+      }
+    });
+
+    expect(readiness).toMatchObject({
+      liveProviderConfigured: true,
+      provider: "azure",
+      model: "emma-azure-test",
       status: "live"
     });
     expect(JSON.stringify(readiness)).not.toContain("secret-key");

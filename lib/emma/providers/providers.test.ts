@@ -10,6 +10,7 @@ import {
   createAiRequest,
   getEmmaAuditTrail
 } from "@/lib/emma/repository";
+import { createAzureOpenAIEmmaProvider } from "./azure-openai-provider";
 import { createGeminiProvider } from "./gemini-provider";
 import { createOpenAIEmmaProvider } from "./openai-provider";
 import { createMockEmmaProvider } from "./mock-provider";
@@ -34,6 +35,10 @@ function clearProviderEnv() {
   delete process.env.EMMA_DEFAULT_MODEL;
   delete process.env.OPENAI_API_KEY;
   delete process.env.OPENAI_MODEL;
+  delete process.env.AZURE_OPENAI_ENDPOINT;
+  delete process.env.AZURE_OPENAI_API_KEY;
+  delete process.env.AZURE_OPENAI_DEPLOYMENT;
+  delete process.env.AZURE_OPENAI_API_VERSION;
   delete process.env.VERCEL_ENV;
 }
 
@@ -80,6 +85,46 @@ describe("EMMA Gemini provider", () => {
     const provider = createGeminiProvider({ apiKey: "" });
     await expect(provider.generate({ systemPrompt: "system", userPrompt: "user", model: "gemini-2.0-flash" })).rejects.toMatchObject({
       code: "configuration"
+    });
+  });
+
+  it("extracts valid JSON when Gemini wraps the object in a fenced block", async () => {
+    const provider = createGeminiProvider({
+      apiKey: "test-key",
+      fetchImpl: async () =>
+        new Response(
+          JSON.stringify({
+            candidates: [
+              {
+                content: {
+                  parts: [
+                    {
+                      text:
+                        '```json\n{"summary":"Gemini EMMA response","keyPoints":["safe point"],"suggestedNextQuestions":["review next step"],"confidence":0.88,"warnings":[]}\n```'
+                    }
+                  ]
+                }
+              }
+            ],
+            usageMetadata: { totalTokenCount: 24 }
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        )
+    });
+
+    const result = await provider.generate({ systemPrompt: "system", userPrompt: "user", model: "gemini-2.0-flash" });
+
+    expect(result).toMatchObject({
+      provider: "gemini",
+      model: "gemini-2.0-flash",
+      output: {
+        summary: "Gemini EMMA response",
+        keyPoints: ["safe point"],
+        suggestedNextQuestions: ["review next step"],
+        confidence: 0.88,
+        warnings: []
+      },
+      usage: { totalTokens: 24 }
     });
   });
 
@@ -266,6 +311,51 @@ describe("EMMA OpenAI provider", () => {
   });
 });
 
+describe("EMMA Azure OpenAI provider", () => {
+  it("refuses to run without Azure OpenAI configuration", async () => {
+    const provider = createAzureOpenAIEmmaProvider({ config: null });
+    await expect(provider.generate({ systemPrompt: "system", userPrompt: "user", model: "deployment" })).rejects.toMatchObject({
+      code: "configuration"
+    });
+  });
+
+  it("parses JSON from Azure Responses output text", async () => {
+    const provider = createAzureOpenAIEmmaProvider({
+      config: {
+        endpoint: "https://example-resource.openai.azure.com",
+        apiKey: "test-key",
+        deployment: "emma-test",
+        apiVersion: "2024-10-21"
+      },
+      fetchImpl: async () =>
+        new Response(
+          JSON.stringify({
+            model: "emma-test",
+            output_text:
+              '```json\n{"summary":"Azure EMMA response","keyPoints":["safe point"],"suggestedNextQuestions":["review next step"],"confidence":0.9,"warnings":[]}\n```',
+            usage: { input_tokens: 10, output_tokens: 12, total_tokens: 22 }
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        )
+    });
+
+    const result = await provider.generate({ systemPrompt: "system", userPrompt: "user", model: "emma-test" });
+
+    expect(result).toMatchObject({
+      provider: "azure",
+      model: "emma-test",
+      output: {
+        summary: "Azure EMMA response",
+        keyPoints: ["safe point"],
+        suggestedNextQuestions: ["review next step"],
+        confidence: 0.9,
+        warnings: []
+      },
+      usage: { promptTokens: 10, completionTokens: 12, totalTokens: 22 }
+    });
+  });
+});
+
 describe("audited provider execution", () => {
   it("creates request, run, provider attempt, and completed run in mock mode", async () => {
     const admin = session();
@@ -368,6 +458,17 @@ describe("audited provider execution", () => {
     await expect(resolveProviderSelection(session())).resolves.toMatchObject({
       providerId: "openai",
       model: "gpt-4o-mini"
+    });
+  });
+
+  it("selects Azure OpenAI when Azure config is available without Gemini", async () => {
+    process.env.AZURE_OPENAI_ENDPOINT = "https://example-resource.openai.azure.com";
+    process.env.AZURE_OPENAI_API_KEY = "configured-azure-key";
+    process.env.AZURE_OPENAI_DEPLOYMENT = "emma-azure-test";
+
+    await expect(resolveProviderSelection(session())).resolves.toMatchObject({
+      providerId: "azure",
+      model: "emma-azure-test"
     });
   });
 

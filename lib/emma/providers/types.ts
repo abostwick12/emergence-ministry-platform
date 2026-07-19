@@ -1,6 +1,6 @@
 import type { z } from "zod";
 
-export const EMMA_PROVIDER_IDS = ["mock", "gemini", "openai"] as const;
+export const EMMA_PROVIDER_IDS = ["mock", "gemini", "openai", "azure"] as const;
 export type EmmaProviderId = (typeof EMMA_PROVIDER_IDS)[number];
 
 export const EMMA_PROVIDER_ERROR_CODES = [

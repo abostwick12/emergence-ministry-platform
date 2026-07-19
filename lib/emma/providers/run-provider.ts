@@ -72,7 +72,7 @@ export async function runEmmaProviderForRequest<TSchema extends z.ZodTypeAny>(
           warnings: zodValidationWarnings(parsed.error)
         });
         await updateAiRequestStatus(session, options.requestId, "failed");
-        return emmaFail(emmaErrors.provider("AI provider response failed validation safely."));
+        return emmaFail(emmaErrors.provider("AI provider response failed validation safely. Provider error category: invalid_output."));
       }
 
       const durationMs = Date.now() - started;
@@ -118,7 +118,7 @@ export async function runEmmaProviderForRequest<TSchema extends z.ZodTypeAny>(
         warnings: providerFailureWarnings(normalized)
       });
       await updateAiRequestStatus(session, options.requestId, "failed");
-      return emmaFail(normalized.toEmmaError());
+      return emmaFail(emmaErrors.provider(providerFailureMessage(normalized)));
     }
   } catch (error) {
     if (runId) {
@@ -147,6 +147,11 @@ function providerFailureWarnings(error: ReturnType<typeof normalizeProviderError
     warnings.push(`Google invalid field path: ${error.diagnostic.invalidFieldPaths.join(", ")}`);
   }
   return warnings;
+}
+
+function providerFailureMessage(error: ReturnType<typeof normalizeProviderError>): string {
+  const status = error.httpStatus ? ` (HTTP ${error.httpStatus})` : "";
+  return `AI provider request failed safely. Provider error category: ${error.code}${status}.`;
 }
 
 function zodValidationWarnings(error: z.ZodError): string[] {

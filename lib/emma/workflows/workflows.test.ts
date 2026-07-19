@@ -163,7 +163,13 @@ describe("EMMA workflow routing", () => {
       model: "mock-error"
     });
 
-    expect(result).toEqual({ ok: false, error: { code: "PROVIDER_ERROR", message: "AI provider request failed safely." } });
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        code: "PROVIDER_ERROR",
+        message: "AI provider request failed safely. Provider error category: provider_unavailable."
+      }
+    });
     const trail = await getEmmaAuditTrail(admin, request.id);
     expect(trail.request.status).toBe("failed");
     expect(trail.runs).toHaveLength(1);

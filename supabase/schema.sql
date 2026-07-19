@@ -61,6 +61,9 @@ create table if not exists public.events (
   volunteers_needed integer,
   communication_owner text,
   notes text,
+  archived_at timestamptz,
+  archived_by_user_id uuid references public.profiles(id) on delete set null,
+  archive_reason text not null default '',
   created_by uuid references auth.users(id),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -122,6 +125,16 @@ begin
 end;
 $$;
 
+create or replace function public.current_user_role()
+returns text
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select p.role from public.profiles p where p.id = auth.uid();
+$$;
+
 drop trigger if exists set_ministries_updated_at on public.ministries;
 create trigger set_ministries_updated_at
 before update on public.ministries
@@ -165,6 +178,8 @@ for each row execute function public.set_ministry_id_if_null();
 
 create index if not exists idx_profiles_ministry_id      on public.profiles(ministry_id);
 create index if not exists idx_events_ministry_id        on public.events(ministry_id);
+create index if not exists idx_events_active_start       on public.events(ministry_id, start_date) where archived_at is null;
+create index if not exists idx_events_archived_at        on public.events(ministry_id, archived_at) where archived_at is not null;
 create index if not exists idx_tasks_ministry_id         on public.tasks(ministry_id);
 create index if not exists idx_activity_logs_ministry_id on public.activity_logs(ministry_id);
 
@@ -203,8 +218,12 @@ create policy "ministry can insert events" on public.events
 for insert to authenticated with check (ministry_id = public.current_ministry_id());
 create policy "ministry can update events" on public.events
 for update to authenticated using (ministry_id = public.current_ministry_id()) with check (ministry_id = public.current_ministry_id());
-create policy "ministry can delete events" on public.events
-for delete to authenticated using (ministry_id = public.current_ministry_id());
+create policy "admin can delete archived events" on public.events
+for delete to authenticated using (
+  ministry_id = public.current_ministry_id()
+  and public.current_user_role() = 'admin'
+  and archived_at is not null
+);
 
 drop policy if exists "ministry can select tasks" on public.tasks;
 drop policy if exists "ministry can insert tasks" on public.tasks;

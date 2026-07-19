@@ -83,6 +83,9 @@ type SupabaseEventRow = {
   volunteers_needed: number | null;
   communication_owner: string | null;
   notes: string | null;
+  archived_at?: string | null;
+  archived_by_user_id?: string | null;
+  archive_reason?: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -106,6 +109,10 @@ type SupabaseTaskRow = {
 };
 
 export const MINISTRY_TASK_LIST_SELECT = "id,ministry_id,event_id,title,owner,due_date,status,critical";
+const MINISTRY_EVENT_LIST_SELECT =
+  "id,ministry_id,title,ministry_area,description,vision,target_group,start_date,end_date,start_time,end_time,location,owner,status,priority,budget_target,budget_actual,volunteers_needed,communication_owner,notes,archived_at,archived_by_user_id,archive_reason,created_at,updated_at";
+const MINISTRY_EVENT_LIST_SELECT_LEGACY =
+  "id,ministry_id,title,ministry_area,description,vision,target_group,start_date,end_date,start_time,end_time,location,owner,status,priority,budget_target,budget_actual,volunteers_needed,communication_owner,notes,created_at,updated_at";
 
 type SupabaseActivityRow = {
   id: string;
@@ -154,15 +161,11 @@ export async function getOverview(session: AuthSession): Promise<MinistryOvervie
     }
 
     const supabase = getSupabaseAuthClient(session.accessToken);
-    const [profileResult, eventResult, taskResult, activityResult] = await Promise.all([
+    const [profileResult, taskResult, activityResult] = await Promise.all([
       measureServerOperation("supabase.profiles.list", async () => supabase.from("profiles")
         .select("id,ministry_id,email,full_name,role")
         .order("created_at", { ascending: true })
         .returns<SupabaseProfileRow[]>()),
-      measureServerOperation("supabase.events.list", async () => supabase.from("events")
-        .select("id,ministry_id,title,ministry_area,description,vision,target_group,start_date,end_date,start_time,end_time,location,owner,status,priority,budget_target,budget_actual,volunteers_needed,communication_owner,notes,created_at,updated_at")
-        .order("start_date", { ascending: true })
-        .returns<SupabaseEventRow[]>()),
       measureServerOperation("supabase.tasks.list", async () => supabase.from("tasks")
         .select(MINISTRY_TASK_LIST_SELECT)
         .order("due_date", { ascending: true })
@@ -172,6 +175,16 @@ export async function getOverview(session: AuthSession): Promise<MinistryOvervie
         .order("created_at", { ascending: false })
         .returns<SupabaseActivityRow[]>())
     ]);
+    let eventResult = await measureServerOperation("supabase.events.list", async () => supabase.from("events")
+      .select(MINISTRY_EVENT_LIST_SELECT)
+      .order("start_date", { ascending: true })
+      .returns<SupabaseEventRow[]>());
+    if (isMissingColumnError(eventResult.error)) {
+      eventResult = await measureServerOperation("supabase.events.list.legacy", async () => supabase.from("events")
+        .select(MINISTRY_EVENT_LIST_SELECT_LEGACY)
+        .order("start_date", { ascending: true })
+        .returns<SupabaseEventRow[]>());
+    }
 
     throwIfSupabaseError(profileResult.error);
     throwIfSupabaseError(eventResult.error);
@@ -303,6 +316,11 @@ export async function updateMinistryEvent(session: AuthSession, eventId: string,
   if (input.volunteersNeeded !== undefined) update.volunteers_needed = input.volunteersNeeded ?? null;
   if (input.priority !== undefined) update.priority = input.priority ?? null;
   if (input.notes !== undefined) update.notes = input.notes ?? null;
+  if (input.archivedAt !== undefined) {
+    update.archived_at = input.archivedAt ?? null;
+    update.archived_by_user_id = input.archivedAt ? session.user.id : null;
+    update.archive_reason = input.archivedAt ? input.archiveReason ?? "Archived from events workspace." : null;
+  }
   if (input.contactOwnerId !== undefined) {
     update.owner = input.contactOwnerId ?? null;
     update.communication_owner = input.contactOwnerId ?? null;
@@ -337,7 +355,13 @@ export async function updateMinistryEvent(session: AuthSession, eventId: string,
     session,
     eventId,
     null,
-    input.notes !== undefined ? `Updated event notes: ${result.data.title}` : `Updated event information: ${result.data.title}`
+    input.archivedAt !== undefined
+      ? input.archivedAt
+        ? `Archived event: ${result.data.title}`
+        : `Restored event: ${result.data.title}`
+      : input.notes !== undefined
+      ? `Updated event notes: ${result.data.title}`
+      : `Updated event information: ${result.data.title}`
   );
   return getEventWorkspace(session, eventId);
 }
@@ -563,7 +587,26 @@ export async function runMinistryIntegrationStub(
 
 export async function deleteMinistryEvent(session: AuthSession, eventId: string) {
   if (session.isGuest) return deleteGuestEvent(guestSessionId(session), eventId);
-  return false;
+  if (session.user.role.trim().toLowerCase() !== "admin") return false;
+
+  if (shouldUseMock(session)) {
+    const event = mockStore.getEvent(eventId);
+    if (!event?.archivedAt) return false;
+    return mockStore.deleteEvent(eventId);
+  }
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const currentResult = await supabase
+    .from("events")
+    .select("id,title,archived_at")
+    .eq("id", eventId)
+    .single<{ id: string; title: string; archived_at: string | null }>();
+  throwIfSupabaseError(currentResult.error);
+  if (!currentResult.data?.archived_at) return false;
+
+  const result = await supabase.from("events").delete().eq("id", eventId);
+  throwIfSupabaseError(result.error);
+  return true;
 }
 
 export async function deleteMinistryTask(session: AuthSession, taskId: string) {
@@ -660,6 +703,9 @@ function toMinistryEvent(row: SupabaseEventRow, users: User[]): MinistryEvent {
     googleDriveFolderId: undefined,
     proPresenterPlaylistId: undefined,
     notes: row.notes ?? undefined,
+    archivedAt: row.archived_at ?? undefined,
+    archivedByUserId: row.archived_by_user_id ?? undefined,
+    archiveReason: row.archive_reason ?? undefined,
     createdAt: row.created_at
   };
 }

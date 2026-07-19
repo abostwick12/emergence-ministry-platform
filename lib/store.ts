@@ -437,7 +437,7 @@ export function createTask(input: {
 export function updateEvent(
   id: string,
   input: Partial<
-    Pick<MinistryEvent, "title" | "description" | "startTime" | "endTime" | "location" | "targetGroup" | "budgetTarget" | "budgetActual" | "volunteersNeeded" | "priority" | "contactOwnerId" | "notes">
+    Pick<MinistryEvent, "title" | "description" | "startTime" | "endTime" | "location" | "targetGroup" | "budgetTarget" | "budgetActual" | "volunteersNeeded" | "priority" | "contactOwnerId" | "notes" | "archivedAt" | "archivedByUserId" | "archiveReason">
   >
 ) {
   const event = getEvent(id);
@@ -445,7 +445,7 @@ export function updateEvent(
 
   const changedFields: string[] = [];
 
-  (["title", "description", "startTime", "endTime", "location", "targetGroup", "budgetTarget", "budgetActual", "volunteersNeeded", "priority", "contactOwnerId", "notes"] as const).forEach((field) => {
+  (["title", "description", "startTime", "endTime", "location", "targetGroup", "budgetTarget", "budgetActual", "volunteersNeeded", "priority", "contactOwnerId", "notes", "archivedAt", "archivedByUserId", "archiveReason"] as const).forEach((field) => {
     if (input[field] !== undefined && input[field] !== event[field]) {
       changedFields.push(field);
     }
@@ -463,6 +463,30 @@ export function updateEvent(
   }
 
   return getWorkspace(event.id);
+}
+
+export function deleteEvent(id: string) {
+  const index = events.findIndex((event) => event.id === id);
+  if (index === -1) return false;
+  const [event] = events.splice(index, 1);
+  for (let taskIndex = tasks.length - 1; taskIndex >= 0; taskIndex -= 1) {
+    if (tasks[taskIndex].eventId === id) tasks.splice(taskIndex, 1);
+  }
+  for (let commIndex = communications.length - 1; commIndex >= 0; commIndex -= 1) {
+    if (communications[commIndex].eventId === id) communications.splice(commIndex, 1);
+  }
+  for (let logIndex = integrationLogs.length - 1; logIndex >= 0; logIndex -= 1) {
+    if (integrationLogs[logIndex].eventId === id) integrationLogs.splice(logIndex, 1);
+  }
+  for (let expenseIndex = expenses.length - 1; expenseIndex >= 0; expenseIndex -= 1) {
+    if (expenses[expenseIndex].eventId === id) expenses.splice(expenseIndex, 1);
+  }
+  recordActivity({
+    type: "event_updated",
+    message: `Deleted archived event: ${event.title}`,
+    metadata: { archivedAt: event.archivedAt ?? "" }
+  });
+  return true;
 }
 
 export function updateTask(

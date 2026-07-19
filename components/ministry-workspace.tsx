@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { CheckSquare, Clock3, FileText, MapPin, Plus, Search, UserRound, UsersRound } from "lucide-react";
+import { Archive, CheckSquare, Clock3, FileText, MapPin, Plus, RotateCcw, Search, Trash2, UserRound, UsersRound } from "lucide-react";
 import { useRole } from "@/components/role-context";
 import { useEventCard } from "@/components/event-card-context";
 import { MinistryEmmaPanel } from "@/components/ministry-emma-panel";
@@ -34,7 +34,7 @@ const statusLabels: Record<TaskStatus, string> = {
 };
 
 type EventGroupKey = "thisWeek" | "thisMonth" | "longRange" | "past";
-type EventTabKey = "upcoming" | EventGroupKey;
+type EventTabKey = "upcoming" | EventGroupKey | "archived";
 
 const eventGroupLabels: Record<EventGroupKey, string> = {
   thisWeek: "This Week",
@@ -48,7 +48,8 @@ const eventTabLabels: Record<EventTabKey, string> = {
   thisWeek: "This Week",
   thisMonth: "This Month",
   longRange: "Long Range",
-  past: "Archive"
+  past: "Past Events",
+  archived: "Archived"
 };
 
 type WorkspaceView = "dashboard" | "events" | "tasks";
@@ -111,18 +112,31 @@ export default function MinistryWorkspace({
 
   const users = useMemo(() => overview?.users ?? [], [overview?.users]);
   const activeUsers = users.filter((user) => user.role === "admin" || user.role === "leader");
-  const totalTasks = overview?.tasks.length ?? 0;
-  const doneTasks = overview?.tasks.filter((task) => task.status === "done").length ?? 0;
-  const blockedTasks = overview?.tasks.filter((task) => task.status === "blocked").length ?? 0;
+  const activeEvents = useMemo(() => overview?.events.filter((event) => !event.archivedAt) ?? [], [overview?.events]);
+  const activeEventIds = useMemo(() => new Set(activeEvents.map((event) => event.id)), [activeEvents]);
+  const activeTasks = useMemo(() => overview?.tasks.filter((task) => activeEventIds.has(task.eventId)) ?? [], [overview?.tasks, activeEventIds]);
+  const activeExpenses = useMemo(() => overview?.expenses.filter((expense) => activeEventIds.has(expense.eventId)) ?? [], [overview?.expenses, activeEventIds]);
+  const activeOverview = useMemo<Overview | null>(() => {
+    if (!overview) return null;
+    return {
+      ...overview,
+      events: activeEvents,
+      tasks: activeTasks,
+      expenses: activeExpenses
+    };
+  }, [activeEvents, activeExpenses, activeTasks, overview]);
+  const totalTasks = activeTasks.length;
+  const doneTasks = activeTasks.filter((task) => task.status === "done").length;
+  const blockedTasks = activeTasks.filter((task) => task.status === "blocked").length;
 
   const visibleTasks = useMemo(() => {
     if (!overview) return [];
     if (activeRole === "leader") {
       const leader = users.find((user) => user.role === "leader");
-      return overview.tasks.filter((task) => task.assignedUserId === leader?.id);
+      return activeTasks.filter((task) => task.assignedUserId === leader?.id);
     }
-    return overview.tasks;
-  }, [activeRole, overview, users]);
+    return activeTasks;
+  }, [activeRole, activeTasks, overview, users]);
 
   async function refresh() {
     await loadOverview();
@@ -159,13 +173,28 @@ export default function MinistryWorkspace({
     await refresh();
   }
 
+  async function archiveEvent(eventId: string) {
+    await updateEvent(eventId, {
+      archivedAt: new Date().toISOString(),
+      archiveReason: "Archived from events workspace."
+    });
+  }
+
+  async function restoreEvent(eventId: string) {
+    await updateEvent(eventId, {
+      archivedAt: null,
+      archivedByUserId: null,
+      archiveReason: null
+    });
+  }
+
   async function deleteGuestEvent(eventId: string) {
     const response = await fetch(`/api/events/${eventId}`, { method: "DELETE" });
     if (!response.ok) {
-      setNotice("Guest event delete failed. Only sandbox events can be deleted.");
+      setNotice("Event delete failed. Administrators can delete archived events.");
       return;
     }
-    setNotice("Guest event deleted. Nothing was saved outside this session.");
+    setNotice("Event deleted.");
     await refresh();
   }
 
@@ -207,7 +236,7 @@ export default function MinistryWorkspace({
       ) : isLoading || !overview ? (
         <section className="panel liquid-panel workspace-loading">Loading ministry workspace...</section>
       ) : view === "dashboard" ? (
-        <DashboardWorkspace overview={overview} attention={dashboardAttention} totalTasks={totalTasks} doneTasks={doneTasks} blockedTasks={blockedTasks} />
+        <DashboardWorkspace overview={activeOverview ?? overview} attention={dashboardAttention} totalTasks={totalTasks} doneTasks={doneTasks} blockedTasks={blockedTasks} />
       ) : view === "events" ? (
         <section className="grid workflow-stack">
           <MinistryEmmaPanel page="events" overview={overview} />
@@ -224,15 +253,17 @@ export default function MinistryWorkspace({
             onOpenEvent={openCommandCenter}
             onUpdateTask={updateTask}
             onUpdateEvent={updateEvent}
+            onArchiveEvent={archiveEvent}
+            onRestoreEvent={restoreEvent}
             onDeleteEvent={deleteGuestEvent}
           />
         </section>
       ) : (
         <section className="grid workflow-stack tasks-page-stack">
-          <TasksWorkspace tasks={visibleTasks} events={overview.events} users={activeUsers} onUpdate={updateTask} onDelete={deleteGuestTask} />
+          <TasksWorkspace tasks={visibleTasks} events={activeEvents} users={activeUsers} onUpdate={updateTask} onDelete={deleteGuestTask} />
           <details className="task-emma-disclosure">
             <summary>Ask EMMA about priorities, people, or decisions</summary>
-            <MinistryEmmaPanel page="tasks" overview={{ ...overview, tasks: visibleTasks }} />
+            <MinistryEmmaPanel page="tasks" overview={{ ...(activeOverview ?? overview), tasks: visibleTasks }} />
           </details>
         </section>
       )}
@@ -900,6 +931,8 @@ function EventsWorkspace({
   onOpenEvent,
   onUpdateTask,
   onUpdateEvent,
+  onArchiveEvent,
+  onRestoreEvent,
   onDeleteEvent
 }: {
   events: MinistryEvent[];
@@ -913,11 +946,15 @@ function EventsWorkspace({
   onOpenEvent: (eventId: string) => void;
   onUpdateTask: (taskId: string, body: Partial<ActiveTask>) => Promise<void>;
   onUpdateEvent: (eventId: string, body: Partial<MinistryEvent>) => Promise<void>;
+  onArchiveEvent: (eventId: string) => Promise<void>;
+  onRestoreEvent: (eventId: string) => Promise<void>;
   onDeleteEvent: (eventId: string) => Promise<void>;
 }) {
+  const { activeRole } = useRole();
   const [activeTab, setActiveTab] = useState<EventTabKey>("upcoming");
   const groupedEvents = groupEventsByTimeframe(events);
-  const visibleEvents = getEventsForTab(activeTab, groupedEvents);
+  const archivedEvents = getArchivedEvents(events);
+  const visibleEvents = activeTab === "archived" ? archivedEvents : getEventsForTab(activeTab, groupedEvents);
 
   return (
     <section className="events-workspace-panel events-lovable-workspace" id="events-workspace">
@@ -968,7 +1005,10 @@ function EventsWorkspace({
                 onOpenEvent={onOpenEvent}
                 onUpdateTask={onUpdateTask}
                 onUpdateEvent={onUpdateEvent}
+                onArchiveEvent={onArchiveEvent}
+                onRestoreEvent={onRestoreEvent}
                 onDeleteEvent={onDeleteEvent}
+                canDeleteArchivedEvent={activeRole === "admin"}
                 users={users}
               />
             );
@@ -996,7 +1036,10 @@ function EventRowCard({
   onOpenEvent,
   onUpdateTask,
   onUpdateEvent,
-  onDeleteEvent
+  onArchiveEvent,
+  onRestoreEvent,
+  onDeleteEvent,
+  canDeleteArchivedEvent
 }: {
   event: MinistryEvent;
   tasks: ActiveTask[];
@@ -1010,7 +1053,10 @@ function EventRowCard({
   onOpenEvent: (eventId: string) => void;
   onUpdateTask: (taskId: string, body: Partial<ActiveTask>) => Promise<void>;
   onUpdateEvent: (eventId: string, body: Partial<MinistryEvent>) => Promise<void>;
+  onArchiveEvent: (eventId: string) => Promise<void>;
+  onRestoreEvent: (eventId: string) => Promise<void>;
   onDeleteEvent: (eventId: string) => Promise<void>;
+  canDeleteArchivedEvent: boolean;
 }) {
   const rowTone = getEventRowTone(event);
 
@@ -1028,7 +1074,10 @@ function EventRowCard({
           onToggleEvent={onToggleEvent}
           onOpenEvent={onOpenEvent}
           onUpdateEvent={onUpdateEvent}
+          onArchiveEvent={onArchiveEvent}
+          onRestoreEvent={onRestoreEvent}
           onDeleteEvent={onDeleteEvent}
+          canDeleteArchivedEvent={canDeleteArchivedEvent}
         />
         <EventOperationsRail event={event} tasks={tasks} completeTasks={completeTasks} missingCount={missingCount} />
       </div>
@@ -1137,7 +1186,10 @@ function EventScrollableSummary({
   onToggleEvent,
   onOpenEvent,
   onUpdateEvent,
-  onDeleteEvent
+  onArchiveEvent,
+  onRestoreEvent,
+  onDeleteEvent,
+  canDeleteArchivedEvent
 }: {
   event: MinistryEvent;
   expenses: EventExpense[];
@@ -1148,7 +1200,10 @@ function EventScrollableSummary({
   onToggleEvent: (eventId: string) => void;
   onOpenEvent: (eventId: string) => void;
   onUpdateEvent: (eventId: string, body: Partial<MinistryEvent>) => Promise<void>;
+  onArchiveEvent: (eventId: string) => Promise<void>;
+  onRestoreEvent: (eventId: string) => Promise<void>;
   onDeleteEvent: (eventId: string) => Promise<void>;
+  canDeleteArchivedEvent: boolean;
 }) {
   const actualBudget = expenses.reduce((sum, expense) => sum + expense.amount, 0);
   const openTasks = tasks.length - completeTasks;
@@ -1192,13 +1247,33 @@ function EventScrollableSummary({
         <EventSummaryField label="Checklist progress" value={`${completeTasks}/${tasks.length} complete`} tone={openTasks ? undefined : "success"} />
         <EventSummaryField label="Missing info count" value={`${missingCount} open`} tone={missingCount ? "warning" : "success"} />
         <EventSummaryField label="Priority" value={priority} tone={priority === "High" ? "warning" : undefined} />
+        {event.archivedAt ? <EventSummaryField label="Archived" value={formatDate(event.archivedAt)} tone="warning" /> : null}
         <EventSummaryField label="Last updated" value={formatDate(event.createdAt)} />
         <div className="summary-field action-field">
           <span className="summary-label">Edit Event</span>
           <button className="button primary" type="button" onClick={() => onOpenEvent(event.id)}>
             Open event
           </button>
-          {event.id.startsWith("guest_evt") ? (
+          {event.archivedAt ? (
+            <>
+              <button className="button compact-button" type="button" onClick={() => void onRestoreEvent(event.id)}>
+                <RotateCcw aria-hidden="true" />
+                Restore event
+              </button>
+              {canDeleteArchivedEvent ? (
+                <button className="button compact-button danger" type="button" onClick={() => void onDeleteEvent(event.id)}>
+                  <Trash2 aria-hidden="true" />
+                  Delete archived event
+                </button>
+              ) : null}
+            </>
+          ) : (
+            <button className="button compact-button" type="button" onClick={() => void onArchiveEvent(event.id)}>
+              <Archive aria-hidden="true" />
+              Archive event
+            </button>
+          )}
+          {event.id.startsWith("guest_evt") && !event.archivedAt ? (
             <button className="button compact-button" type="button" onClick={() => void onDeleteEvent(event.id)}>
               Delete fake event
             </button>
@@ -1476,7 +1551,8 @@ function groupEventsByTimeframe(events: MinistryEvent[]) {
     past: []
   };
 
-  [...events]
+  events
+    .filter((event) => !event.archivedAt)
     .sort((first, second) => new Date(first.startTime).getTime() - new Date(second.startTime).getTime())
     .forEach((event) => {
       const start = new Date(event.startTime);
@@ -1495,10 +1571,17 @@ function groupEventsByTimeframe(events: MinistryEvent[]) {
 }
 
 function getEventsForTab(activeTab: EventTabKey, groupedEvents: Record<EventGroupKey, MinistryEvent[]>) {
+  if (activeTab === "archived") return [];
   if (activeTab === "upcoming") {
     return [...groupedEvents.thisWeek, ...groupedEvents.thisMonth, ...groupedEvents.longRange];
   }
   return groupedEvents[activeTab];
+}
+
+function getArchivedEvents(events: MinistryEvent[]) {
+  return events
+    .filter((event) => event.archivedAt)
+    .sort((first, second) => new Date(second.archivedAt ?? 0).getTime() - new Date(first.archivedAt ?? 0).getTime());
 }
 
 function humanizeStatus(status: MinistryEvent["status"]) {
