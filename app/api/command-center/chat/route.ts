@@ -19,6 +19,7 @@ import {
 } from "@/lib/command-center/sage";
 import { buildLiveIntegrationContext } from "@/lib/command-center/sage-live-context";
 import { buildSageTools, executeSageToolCall, type GmailDraftToolOutcome } from "@/lib/command-center/sage-tools";
+import { checkAndRecordAiUsage } from "@/lib/platform/ai-access";
 
 const MAX_MESSAGE_LENGTH = 4000;
 const SESSION_ID_PATTERN = /^[a-zA-Z0-9_.:-]{8,120}$/;
@@ -181,6 +182,14 @@ export async function POST(request: Request) {
       try {
         requestSignal.addEventListener("abort", markDisconnected, { once: true });
         if (!enqueue("session", { sessionId })) return;
+
+        phase = "check_ai_access";
+        const aiAccess = await checkAndRecordAiUsage(session, "sage_chat");
+        if (!aiAccess.allowed) {
+          enqueue("error", { message: aiAccess.error });
+          await finish("", { failed: true, category: "ai_access_denied" }, false);
+          return;
+        }
 
         phase = "read_config";
         providerConfig = readSageProviderConfig();

@@ -1,6 +1,7 @@
 import type { AuthSession } from "@/lib/auth/server";
 import { isSupabaseConfigured } from "@/lib/auth/config";
 import { resolveMinistryScope } from "@/lib/ministry/scope";
+import { checkAndRecordAiUsage } from "@/lib/platform/ai-access";
 import type { Role } from "@/lib/types";
 import { uid } from "@/lib/utils";
 import { z } from "zod";
@@ -208,6 +209,8 @@ export async function createAiRequest(session: AuthSession, input: unknown): Pro
   const data = parseOrThrow(createAiRequestInputSchema, input);
   assertWorkflowAllowed(data.workflow);
   assertCanCreateRequest(session);
+  const aiAccess = await checkAndRecordAiUsage(session, "emma");
+  if (!aiAccess.allowed) throw emmaErrors.forbidden(aiAccess.error);
   const ministryId = await requireMinistryScope(session);
 
   const base: EmmaRequestRecord = {

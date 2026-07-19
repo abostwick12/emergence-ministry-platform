@@ -7,6 +7,7 @@ import { canAccessCampMedicalCommand } from "@/lib/camp/permissions";
 import { requireCampAccessForRequest } from "@/lib/camp/api-guard";
 import { getCampOverview, getRestrictedCampMedicationPayload } from "@/lib/camp/repository";
 import { shouldUseMedicalCommandContext } from "@/lib/camp/emma-medical-context";
+import { checkAndRecordAiUsage } from "@/lib/platform/ai-access";
 
 type CampEmmaRequestBody = {
   query?: string;
@@ -90,6 +91,10 @@ export async function POST(request: Request) {
   // deterministic answer above if the provider is unavailable. Medical command
   // queries stay on the deterministic medical path and never reach the model.
   if (conversationalAttempted) {
+    const aiAccess = await checkAndRecordAiUsage(session, "camp_emma");
+    if (!aiAccess.allowed) {
+      return NextResponse.json({ error: aiAccess.error }, { status: aiAccess.status });
+    }
     const conversational = await answerCampEmmaConversation({
       question: query,
       overview,

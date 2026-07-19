@@ -1,6 +1,7 @@
 import type { AuthSession } from "@/lib/auth/server";
 import { getSupabaseAdminClient, isSupabaseAdminConfigured } from "@/lib/auth/server";
 import { resolvePersonName } from "@/lib/auth/display-name";
+import { defaultAiAccessForRole, getAiAccessForUsers, updateAiAccessForUser, type PlatformAiAccess } from "@/lib/platform/ai-access";
 import * as mockStore from "@/lib/store";
 import type { Role } from "@/lib/types";
 import {
@@ -21,6 +22,8 @@ export type PlatformAccessMember = {
   displayName: string;
   role: Role;
   active: boolean;
+  canSaveChanges: boolean;
+  aiAccess: PlatformAiAccess;
   currentUser: boolean;
   pageAccess: Record<PlatformPageKey, boolean>;
 };
@@ -54,6 +57,12 @@ type ProfileRow = {
 type UserAccessRow = {
   user_id: string;
   is_active: boolean | null;
+  can_save_changes?: boolean | null;
+};
+
+type UserAccessState = {
+  active: boolean;
+  canSaveChanges: boolean;
 };
 
 type UserPagePermissionRow = {
@@ -93,7 +102,7 @@ export async function listPlatformAccess(session: AuthSession): Promise<Platform
     const supabase = getSupabaseAdminClient();
     const [profiles, accessRows, pageRows, guestRows] = await Promise.all([
       supabase.from("profiles").select("id,email,full_name,role").order("full_name", { ascending: true }).returns<ProfileRow[]>(),
-      supabase.from("platform_user_access").select("user_id,is_active").returns<UserAccessRow[]>(),
+      supabase.from("platform_user_access").select("user_id,is_active,can_save_changes").returns<UserAccessRow[]>(),
       supabase.from("user_page_permissions").select("user_id,page_key,is_allowed").returns<UserPagePermissionRow[]>(),
       supabase.from("guest_public_page_permissions").select("page_key,is_public").returns<GuestPagePermissionRow[]>()
     ]);
@@ -102,13 +111,15 @@ export async function listPlatformAccess(session: AuthSession): Promise<Platform
     const accessByUser = mapUserAccess(accessRows.data ?? []);
     const pageAccessByUser = mapUserPageAccess(pageRows.data ?? []);
     const guestPublicPages = guestPageSet(guestRows.data ?? []);
+    const members = (profiles.data ?? []).map((profile) => toMember(profile, session, accessByUser, pageAccessByUser)).sort(compareMembers);
+    const aiAccessByUser = await getAiAccessForUsers(members.map((member) => ({ id: member.id, role: member.role })));
 
     return {
       allowed: true,
       available: !accessRows.error && !pageRows.error && !guestRows.error,
       storage: "supabase",
       pages: pagesFromGuestSet(guestPublicPages),
-      members: (profiles.data ?? []).map((profile) => toMember(profile, session, accessByUser, pageAccessByUser)).sort(compareMembers)
+      members: members.map((member) => ({ ...member, aiAccess: aiAccessByUser.get(member.id) ?? member.aiAccess }))
     };
   } catch {
     const preview = previewState(session);
@@ -124,7 +135,17 @@ export async function listPlatformAccess(session: AuthSession): Promise<Platform
 
 export async function updatePlatformAccess(
   session: AuthSession,
-  input: { userId: string; role?: string; pageKey?: string; allowed?: boolean; guestPageKey?: string; guestPublic?: boolean }
+  input: {
+    userId: string;
+    role?: string;
+    pageKey?: string;
+    allowed?: boolean;
+    guestPageKey?: string;
+    guestPublic?: boolean;
+    aiEnabled?: boolean;
+    aiMonthlyLimit?: number | null;
+    canSaveChanges?: boolean;
+  }
 ): Promise<PlatformAccessDenied | PlatformAccessUpdate> {
   const denied = requirePlatformAdmin(session);
   if (denied) return denied;
@@ -138,6 +159,21 @@ export async function updatePlatformAccess(
       userId: input.userId,
       pageKey: input.pageKey,
       allowed: input.allowed === true
+    });
+  }
+
+  if (typeof input.aiEnabled === "boolean" || typeof input.aiMonthlyLimit === "number" || input.aiMonthlyLimit === null) {
+    return setUserAiAccess(session, {
+      userId: input.userId,
+      enabled: input.aiEnabled === true,
+      monthlyLimit: input.aiMonthlyLimit ?? null
+    });
+  }
+
+  if (typeof input.canSaveChanges === "boolean") {
+    return setUserSaveAccess(session, {
+      userId: input.userId,
+      canSaveChanges: input.canSaveChanges
     });
   }
 
@@ -175,7 +211,7 @@ export async function deactivatePlatformUser(session: AuthSession, input: { user
   const result = await supabase
     .from("platform_user_access")
     .upsert({ user_id: userId, is_active: false, updated_by: session.user.id }, { onConflict: "user_id" })
-    .select("user_id,is_active")
+    .select("user_id,is_active,can_save_changes")
     .single<UserAccessRow>();
   if (result.error) return { allowed: false, status: 503, error: "User access could not be deactivated." };
 
@@ -197,6 +233,23 @@ export async function isPlatformUserActiveById(userId: string): Promise<boolean>
       .maybeSingle<{ is_active: boolean | null }>();
     if (result.error || !result.data) return true;
     return result.data.is_active !== false;
+  } catch {
+    return true;
+  }
+}
+
+export async function canPlatformUserSaveChanges(session: AuthSession): Promise<boolean> {
+  if (session.isGuest || session.isMock) return true;
+  if (!session.user.id.trim() || !isSupabaseAdminConfigured()) return true;
+  try {
+    const supabase = getSupabaseAdminClient();
+    const result = await supabase
+      .from("platform_user_access")
+      .select("can_save_changes")
+      .eq("user_id", session.user.id)
+      .maybeSingle<{ can_save_changes: boolean | null }>();
+    if (result.error || !result.data) return true;
+    return result.data.can_save_changes !== false;
   } catch {
     return true;
   }
@@ -330,6 +383,56 @@ async function setUserPageAccess(
   return { allowed: true, storage: list.storage, member: list.members.find((member) => member.id === input.userId) };
 }
 
+async function setUserAiAccess(
+  session: AuthSession,
+  input: { userId: string; enabled: boolean; monthlyLimit: number | null }
+): Promise<PlatformAccessDenied | PlatformAccessUpdate> {
+  if (session.isMock || !isSupabaseAdminConfigured()) {
+    const state = previewState(session);
+    const existing = state.members.get(input.userId);
+    if (!existing) return { allowed: false, status: 404, error: "Website member not found." };
+    const member = { ...existing, aiAccess: { enabled: input.enabled, monthlyLimit: input.monthlyLimit, currentMonthUsage: existing.aiAccess.currentMonthUsage } };
+    state.members.set(member.id, member);
+    return { allowed: true, member, storage: "preview" };
+  }
+
+  const result = await updateAiAccessForUser(session, input);
+  if ("error" in result) return { allowed: false, status: result.status, error: result.error };
+
+  const list = await listPlatformAccess(session);
+  if (!list.allowed) return list;
+  return { allowed: true, storage: list.storage, member: list.members.find((member) => member.id === input.userId) };
+}
+
+async function setUserSaveAccess(
+  session: AuthSession,
+  input: { userId: string; canSaveChanges: boolean }
+): Promise<PlatformAccessDenied | PlatformAccessUpdate> {
+  if (!input.userId.trim()) return { allowed: false, status: 400, error: "Choose a user to update." };
+  if (input.userId === session.user.id && !input.canSaveChanges) {
+    return { allowed: false, status: 409, error: "Your own save rights are protected." };
+  }
+
+  if (session.isMock || !isSupabaseAdminConfigured()) {
+    const state = previewState(session);
+    const existing = state.members.get(input.userId);
+    if (!existing) return { allowed: false, status: 404, error: "Website member not found." };
+    const member = { ...existing, canSaveChanges: input.canSaveChanges };
+    state.members.set(member.id, member);
+    return { allowed: true, member, storage: "preview" };
+  }
+
+  const supabase = getSupabaseAdminClient();
+  const result = await supabase
+    .from("platform_user_access")
+    .upsert({ user_id: input.userId, can_save_changes: input.canSaveChanges, updated_by: session.user.id }, { onConflict: "user_id" });
+  if (result.error) return { allowed: false, status: 503, error: "Save rights could not be updated." };
+
+  const list = await listPlatformAccess(session);
+  if (!list.allowed) return list;
+  return { allowed: true, storage: list.storage, member: list.members.find((member) => member.id === input.userId) };
+}
+
 async function setGuestPageAccess(
   session: AuthSession,
   input: { pageKey: string; isPublic: boolean }
@@ -391,6 +494,8 @@ function previewState(session: AuthSession) {
       displayName: resolvePersonName(`${user.firstName} ${user.lastName}`, user.email),
       role: user.role,
       active: true,
+      canSaveChanges: true,
+      aiAccess: defaultAiAccessForRole(user.role),
       currentUser: user.id === session.user.id,
       pageAccess: defaultAccessMap(user.role)
     }));
@@ -402,6 +507,8 @@ function previewState(session: AuthSession) {
         displayName: resolvePersonName(session.user.fullName, session.user.email),
         role,
         active: true,
+        canSaveChanges: true,
+        aiAccess: defaultAiAccessForRole(role),
         currentUser: true,
         pageAccess: defaultAccessMap(role)
       });
@@ -425,17 +532,20 @@ function currentPreviewGuestPublicPages() {
 function toMember(
   profile: ProfileRow,
   session: AuthSession,
-  accessByUser: Map<string, boolean>,
+  accessByUser: Map<string, UserAccessState>,
   pageAccessByUser: Map<string, Map<PlatformPageKey, boolean>>
 ): PlatformAccessMember {
   const email = profile.email?.trim() || "Account email unavailable";
   const role = parseRole(profile.role) ?? "leader";
+  const access = accessByUser.get(profile.id);
   return {
     id: profile.id,
     email,
     displayName: resolvePersonName(profile.full_name, email, "Ministry user"),
     role,
-    active: accessByUser.get(profile.id) ?? true,
+    active: access?.active ?? true,
+    canSaveChanges: access?.canSaveChanges ?? true,
+    aiAccess: defaultAiAccessForRole(role),
     currentUser: profile.id === session.user.id,
     pageAccess: defaultAccessMap(role, Object.fromEntries(pageAccessByUser.get(profile.id) ?? []))
   };
@@ -459,7 +569,7 @@ function pagesFromGuestSet(guestPublicPages: Set<PlatformPageKey>): PlatformAcce
 }
 
 function mapUserAccess(rows: UserAccessRow[]) {
-  return new Map(rows.map((row) => [row.user_id, row.is_active !== false]));
+  return new Map(rows.map((row) => [row.user_id, { active: row.is_active !== false, canSaveChanges: row.can_save_changes !== false }]));
 }
 
 function mapUserPageAccess(rows: UserPagePermissionRow[]) {

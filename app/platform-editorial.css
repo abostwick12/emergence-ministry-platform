@@ -1220,6 +1220,73 @@
   display: grid;
 }
 
+.app-shell:not(.app-shell-camp) .registration-link-form {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  align-items: end;
+  border-top: 1px solid rgba(129, 164, 214, 0.14);
+  padding-top: 16px;
+}
+
+.app-shell:not(.app-shell-camp) .registration-link-form > label:first-child {
+  grid-column: span 2;
+}
+
+.app-shell:not(.app-shell-camp) .registration-link-form label,
+.app-shell:not(.app-shell-camp) .website-ai-access-row label {
+  display: grid;
+  gap: 5px;
+  color: var(--platform-muted);
+  font-size: 10px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.app-shell:not(.app-shell-camp) .registration-link-form select,
+.app-shell:not(.app-shell-camp) .website-ai-access-row input {
+  min-height: 40px;
+}
+
+.app-shell:not(.app-shell-camp) .registration-save-toggle,
+.app-shell:not(.app-shell-camp) .registration-ai-toggle {
+  min-height: 40px;
+}
+
+.app-shell:not(.app-shell-camp) .registration-link-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.app-shell:not(.app-shell-camp) .registration-link-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.8fr) minmax(220px, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid rgba(129, 164, 214, 0.14);
+  border-radius: 14px;
+  background: rgba(5, 14, 28, 0.42);
+  padding: 12px;
+}
+
+.app-shell:not(.app-shell-camp) .registration-link-row > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.app-shell:not(.app-shell-camp) .registration-link-row strong {
+  color: #f7fbff;
+  font-size: 13px;
+}
+
+.app-shell:not(.app-shell-camp) .registration-link-row span {
+  color: var(--platform-muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
 .app-shell:not(.app-shell-camp) .website-access-row {
   display: grid;
   grid-template-columns: auto minmax(220px, 1fr) minmax(190px, 0.42fr) auto auto;
@@ -1294,6 +1361,14 @@
   grid-column: 1 / -1;
   gap: 8px;
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+
+.app-shell:not(.app-shell-camp) .website-ai-access-row {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(180px, 0.45fr) minmax(170px, 0.4fr) minmax(180px, 0.35fr) auto;
+  gap: 12px;
+  align-items: end;
 }
 
 .app-shell:not(.app-shell-camp) .website-camp-access-rules,
@@ -1375,6 +1450,12 @@
     grid-template-columns: auto minmax(0, 1fr) minmax(180px, 0.46fr);
   }
 
+  .app-shell:not(.app-shell-camp) .registration-link-form,
+  .app-shell:not(.app-shell-camp) .registration-link-row,
+  .app-shell:not(.app-shell-camp) .website-ai-access-row {
+    grid-template-columns: minmax(0, 1fr) minmax(160px, 0.55fr);
+  }
+
   .app-shell:not(.app-shell-camp) .website-access-row > .button {
     grid-column: 2 / -1;
     justify-self: end;
@@ -1412,6 +1493,12 @@
 
   .app-shell:not(.app-shell-camp) .website-access-row {
     grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .app-shell:not(.app-shell-camp) .registration-link-form,
+  .app-shell:not(.app-shell-camp) .registration-link-row,
+  .app-shell:not(.app-shell-camp) .website-ai-access-row {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .app-shell:not(.app-shell-camp) .website-access-row label,

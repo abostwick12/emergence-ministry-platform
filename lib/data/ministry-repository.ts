@@ -22,6 +22,7 @@ import { getSupabaseAuthClient } from "@/lib/auth/server";
 import { isSupabaseConfigured } from "@/lib/auth/config";
 import { resolveMinistryScope } from "@/lib/ministry/scope";
 import { measureServerOperation } from "@/lib/performance/timing";
+import { canPlatformUserSaveChanges } from "@/lib/platform/access-admin";
 import * as mockStore from "@/lib/store";
 import {
   addGuestExpense,
@@ -148,10 +149,20 @@ function guestSessionId(session: AuthSession) {
   return session.guestSessionId ?? session.user.id;
 }
 
+function sessionSandboxId(session: AuthSession) {
+  return session.isGuest ? guestSessionId(session) : `platform_user_${session.user.id}`;
+}
+
+async function shouldUseSessionOnlySandbox(session: AuthSession) {
+  if (session.isGuest) return true;
+  if (session.isMock || !isSupabaseConfigured()) return false;
+  return !(await canPlatformUserSaveChanges(session));
+}
+
 export async function getOverview(session: AuthSession): Promise<MinistryOverview> {
   return measureServerOperation("ministry.overview", async () => {
+    if (await shouldUseSessionOnlySandbox(session)) return getGuestOverview(sessionSandboxId(session));
     if (shouldUseMock(session)) {
-      if (session.isGuest) return getGuestOverview(guestSessionId(session));
       return {
         events: mockStore.listEvents(),
         tasks: mockStore.listTasks(),
@@ -206,7 +217,7 @@ export async function getOverview(session: AuthSession): Promise<MinistryOvervie
 }
 
 export async function getEventWorkspace(session: AuthSession, eventId: string): Promise<EventWorkspace | undefined> {
-  if (session.isGuest) return getGuestWorkspace(guestSessionId(session), eventId);
+  if (await shouldUseSessionOnlySandbox(session)) return getGuestWorkspace(sessionSandboxId(session), eventId);
   if (shouldUseMock(session)) {
     return mockStore.getWorkspace(eventId);
   }
@@ -245,7 +256,7 @@ export async function createMinistryEvent(
     contactOwnerId?: string;
   }
 ) {
-  if (session.isGuest) return createGuestEvent(guestSessionId(session), input);
+  if (await shouldUseSessionOnlySandbox(session)) return createGuestEvent(sessionSandboxId(session), input);
   if (shouldUseMock(session)) {
     return mockStore.createEvent(input);
   }
@@ -300,7 +311,7 @@ export async function createMinistryEvent(
 }
 
 export async function updateMinistryEvent(session: AuthSession, eventId: string, input: Partial<MinistryEvent>) {
-  if (session.isGuest) return updateGuestEvent(guestSessionId(session), eventId, input);
+  if (await shouldUseSessionOnlySandbox(session)) return updateGuestEvent(sessionSandboxId(session), eventId, input);
   if (shouldUseMock(session)) {
     return mockStore.updateEvent(eventId, input);
   }
@@ -377,8 +388,8 @@ export async function addMinistryExpense(
     throw new Error("Expense amount must be greater than zero.");
   }
 
+  if (await shouldUseSessionOnlySandbox(session)) return addGuestExpense(sessionSandboxId(session), { ...input, amount });
   if (shouldUseMock(session)) {
-    if (session.isGuest) return addGuestExpense(guestSessionId(session), { ...input, amount });
     return mockStore.addExpense({ ...input, amount });
   }
 
@@ -402,7 +413,7 @@ export async function addMinistryExpense(
 }
 
 export async function updateMinistryTask(session: AuthSession, taskId: string, input: Partial<ActiveTask>) {
-  if (session.isGuest) return updateGuestTask(guestSessionId(session), taskId, input);
+  if (await shouldUseSessionOnlySandbox(session)) return updateGuestTask(sessionSandboxId(session), taskId, input);
   if (shouldUseMock(session)) {
     return mockStore.updateTask(taskId, input);
   }
@@ -457,7 +468,7 @@ export async function createMinistryTask(
     status?: TaskStatus;
   }
 ) {
-  if (session.isGuest) return createGuestTask(guestSessionId(session), input);
+  if (await shouldUseSessionOnlySandbox(session)) return createGuestTask(sessionSandboxId(session), input);
   if (shouldUseMock(session)) {
     return mockStore.createTask(input);
   }
@@ -490,7 +501,7 @@ export async function createMinistryTask(
 }
 
 export async function listMinistryTasks(session: AuthSession) {
-  if (session.isGuest) return getGuestOverview(guestSessionId(session)).tasks;
+  if (await shouldUseSessionOnlySandbox(session)) return getGuestOverview(sessionSandboxId(session)).tasks;
   if (shouldUseMock(session)) {
     return mockStore.listTasks();
   }
@@ -500,7 +511,7 @@ export async function listMinistryTasks(session: AuthSession) {
 }
 
 export async function listMinistryActivity(session: AuthSession) {
-  if (session.isGuest) return getGuestOverview(guestSessionId(session)).activity;
+  if (await shouldUseSessionOnlySandbox(session)) return getGuestOverview(sessionSandboxId(session)).activity;
   if (shouldUseMock(session)) {
     return mockStore.listActivity();
   }
@@ -510,7 +521,7 @@ export async function listMinistryActivity(session: AuthSession) {
 }
 
 export async function generateMinistryCommunicationPreviews(session: AuthSession, eventId: string) {
-  if (session.isGuest) return generateGuestCommunicationPreview(guestSessionId(session), eventId);
+  if (await shouldUseSessionOnlySandbox(session)) return generateGuestCommunicationPreview(sessionSandboxId(session), eventId);
   if (shouldUseMock(session)) {
     return mockStore.generateCommunicationPreview(eventId);
   }
@@ -573,7 +584,7 @@ export async function runMinistryIntegrationStub(
   eventId: string,
   type: "google_drive" | "propresenter" | "google_calendar" | "planning_center"
 ) {
-  if (session.isGuest) return runGuestIntegrationStub(guestSessionId(session), eventId, type);
+  if (await shouldUseSessionOnlySandbox(session)) return runGuestIntegrationStub(sessionSandboxId(session), eventId, type);
   if (shouldUseMock(session)) {
     return mockStore.runIntegrationStub(eventId, type);
   }
@@ -588,7 +599,7 @@ export async function runMinistryIntegrationStub(
 }
 
 export async function deleteMinistryEvent(session: AuthSession, eventId: string) {
-  if (session.isGuest) return deleteGuestEvent(guestSessionId(session), eventId);
+  if (await shouldUseSessionOnlySandbox(session)) return deleteGuestEvent(sessionSandboxId(session), eventId);
   if (session.user.role.trim().toLowerCase() !== "admin") return false;
 
   if (shouldUseMock(session)) {
@@ -612,7 +623,7 @@ export async function deleteMinistryEvent(session: AuthSession, eventId: string)
 }
 
 export async function deleteMinistryTask(session: AuthSession, taskId: string) {
-  if (session.isGuest) return deleteGuestTask(guestSessionId(session), taskId);
+  if (await shouldUseSessionOnlySandbox(session)) return deleteGuestTask(sessionSandboxId(session), taskId);
   return false;
 }
 

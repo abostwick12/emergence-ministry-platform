@@ -2,9 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AuthSession } from "@/lib/auth/server";
 
-const { getServerSessionMock, isPlatformUserActiveByIdMock } = vi.hoisted(() => ({
+const { getServerSessionMock, isPlatformUserActiveByIdMock, canPlatformUserSaveChangesMock } = vi.hoisted(() => ({
   getServerSessionMock: vi.fn<() => Promise<AuthSession | null>>(),
-  isPlatformUserActiveByIdMock: vi.fn<() => Promise<boolean>>()
+  isPlatformUserActiveByIdMock: vi.fn<() => Promise<boolean>>(),
+  canPlatformUserSaveChangesMock: vi.fn<() => Promise<boolean>>()
 }));
 
 vi.mock("@/lib/auth/server", async () => {
@@ -17,7 +18,8 @@ vi.mock("@/lib/auth/server", async () => {
 });
 
 vi.mock("@/lib/platform/access-admin", () => ({
-  isPlatformUserActiveById: isPlatformUserActiveByIdMock
+  isPlatformUserActiveById: isPlatformUserActiveByIdMock,
+  canPlatformUserSaveChanges: canPlatformUserSaveChangesMock
 }));
 
 import { POST as eventsPOST } from "@/app/api/events/route";
@@ -48,7 +50,9 @@ function jsonRequest(url: string, body: unknown) {
 beforeEach(() => {
   getServerSessionMock.mockReset();
   isPlatformUserActiveByIdMock.mockReset();
+  canPlatformUserSaveChangesMock.mockReset();
   isPlatformUserActiveByIdMock.mockResolvedValue(true);
+  canPlatformUserSaveChangesMock.mockResolvedValue(true);
 });
 
 describe("EMERGE app-area API access", () => {

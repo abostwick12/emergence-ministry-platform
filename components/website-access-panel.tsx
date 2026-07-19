@@ -1,14 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { ShieldCheck, UserCog } from "lucide-react";
+import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { Copy, Link2, ShieldCheck, UserCog } from "lucide-react";
 
 import type { PlatformAccessMember, PlatformAccessPage } from "@/lib/platform/access-admin";
+import type { PlatformRegistrationInviteSummary, RegistrationInviteRole } from "@/lib/platform/registration";
 import type { PlatformPageKey } from "@/lib/platform/page-registry";
 import type { Role } from "@/lib/types";
 
 const roleOptions: Array<{ value: Role; label: string }> = [
   { value: "admin", label: "Administrator" },
+  { value: "leader", label: "Leader" },
+  { value: "student", label: "Student" },
+  { value: "parent", label: "Parent" }
+];
+
+const registrationRoleOptions: Array<{ value: RegistrationInviteRole; label: string }> = [
   { value: "leader", label: "Leader" },
   { value: "student", label: "Student" },
   { value: "parent", label: "Parent" }
@@ -22,10 +29,20 @@ type AccessResponse = {
   error?: string;
 };
 
+type RegistrationInvitesResponse = {
+  available?: boolean;
+  invites?: PlatformRegistrationInviteSummary[];
+  invite?: PlatformRegistrationInviteSummary;
+  error?: string;
+};
+
 export function WebsiteAccessPanel({ canManagePlatformAccess }: { canManagePlatformAccess: boolean }) {
   const [members, setMembers] = useState<PlatformAccessMember[]>([]);
   const [pages, setPages] = useState<PlatformAccessPage[]>([]);
+  const [registrationInvites, setRegistrationInvites] = useState<PlatformRegistrationInviteSummary[]>([]);
+  const [registrationRole, setRegistrationRole] = useState<RegistrationInviteRole>("leader");
   const [draftRoles, setDraftRoles] = useState<Record<string, Role>>({});
+  const [draftAiLimits, setDraftAiLimits] = useState<Record<string, string>>({});
   const [storage, setStorage] = useState<"supabase" | "preview">("preview");
   const [loading, setLoading] = useState(canManagePlatformAccess);
   const [busyKey, setBusyKey] = useState("");
@@ -37,7 +54,9 @@ export function WebsiteAccessPanel({ canManagePlatformAccess }: { canManagePlatf
     setMessage(null);
     try {
       const response = await fetch("/api/settings/access", { cache: "no-store" });
+      const inviteResponse = await fetch("/api/settings/registration-invites", { cache: "no-store" });
       const payload = (await response.json().catch(() => ({}))) as AccessResponse;
+      const invitePayload = (await inviteResponse.json().catch(() => ({}))) as RegistrationInvitesResponse;
       if (!response.ok) {
         setMessage({ tone: "error", text: payload.error ?? "Access settings could not be loaded." });
         return;
@@ -46,7 +65,9 @@ export function WebsiteAccessPanel({ canManagePlatformAccess }: { canManagePlatf
       setMembers(nextMembers);
       setPages(payload.pages ?? []);
       setDraftRoles(Object.fromEntries(nextMembers.map((member) => [member.id, member.role])));
+      setDraftAiLimits(Object.fromEntries(nextMembers.map((member) => [member.id, member.aiAccess.monthlyLimit?.toString() ?? ""])));
       setStorage(payload.storage ?? "preview");
+      if (inviteResponse.ok) setRegistrationInvites(invitePayload.invites ?? []);
     } catch {
       setMessage({ tone: "error", text: "Access settings could not be loaded." });
     } finally {
@@ -59,6 +80,58 @@ export function WebsiteAccessPanel({ canManagePlatformAccess }: { canManagePlatf
   }, [load]);
 
   const guestPublicCount = useMemo(() => pages.filter((page) => page.guestPublic).length, [pages]);
+
+  async function createRegistrationInvite(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusyKey("registration:create");
+    setMessage(null);
+
+    const form = new FormData(event.currentTarget);
+    const expiresAt = String(form.get("expiresAt") || "");
+    const maxUses = Number(form.get("maxUses") || 10);
+    const canSaveChanges = form.get("canSaveChanges") === "on";
+    const aiEnabled = form.get("aiEnabled") === "on";
+    const aiMonthlyLimitValue = String(form.get("aiMonthlyLimit") || "").trim();
+    const aiMonthlyLimit = aiMonthlyLimitValue ? Number(aiMonthlyLimitValue) : null;
+
+    try {
+      const response = await fetch("/api/settings/registration-invites", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          label: String(form.get("label") || ""),
+          role: registrationRole,
+          maxUses,
+          expiresAt: expiresAt || null,
+          canSaveChanges,
+          aiEnabled,
+          aiMonthlyLimit
+        })
+      });
+      const payload = (await response.json().catch(() => ({}))) as RegistrationInvitesResponse;
+      if (!response.ok || !payload.invite) {
+        setMessage({ tone: "error", text: payload.error ?? "Registration link could not be created." });
+        return;
+      }
+      setRegistrationInvites((current) => [payload.invite!, ...current.filter((invite) => invite.id !== payload.invite!.id)].slice(0, 10));
+      event.currentTarget.reset();
+      setRegistrationRole("leader");
+      setMessage({ tone: "success", text: "Registration link created. Share it with the right person or group." });
+    } catch {
+      setMessage({ tone: "error", text: "Registration link could not be created." });
+    } finally {
+      setBusyKey("");
+    }
+  }
+
+  async function copyRegistrationLink(invite: PlatformRegistrationInviteSummary) {
+    try {
+      await navigator.clipboard.writeText(invite.joinUrl);
+      setMessage({ tone: "success", text: `${invite.label} link copied.` });
+    } catch {
+      setMessage({ tone: "error", text: "Link could not be copied. Select and copy it manually." });
+    }
+  }
 
   async function patchAccess(body: Record<string, unknown>, busy: string, success: string) {
     setBusyKey(busy);
@@ -77,6 +150,7 @@ export function WebsiteAccessPanel({ canManagePlatformAccess }: { canManagePlatf
       if (payload.member) {
         setMembers((current) => current.map((item) => (item.id === payload.member!.id ? payload.member! : item)));
         setDraftRoles((current) => ({ ...current, [payload.member!.id]: payload.member!.role }));
+        setDraftAiLimits((current) => ({ ...current, [payload.member!.id]: payload.member!.aiAccess.monthlyLimit?.toString() ?? "" }));
       }
       if (payload.pages) setPages(payload.pages);
       setMessage({ tone: "success", text: success });
@@ -160,6 +234,75 @@ export function WebsiteAccessPanel({ canManagePlatformAccess }: { canManagePlatf
         </div>
       </section>
 
+      <section className="website-access-list" aria-label="Registration link controls">
+        <div className="toolbar split">
+          <div>
+            <p className="eyebrow">Self registration</p>
+            <h3 className="section-title flush">Controlled account links</h3>
+          </div>
+          <span className="pill">{registrationInvites.filter((invite) => invite.isActive).length} active</span>
+        </div>
+        <form className="registration-link-form" onSubmit={createRegistrationInvite}>
+          <label>
+            <span>Link label</span>
+            <input className="input" name="label" placeholder="Sunday leaders, Camp drivers, Parent access" maxLength={80} />
+          </label>
+          <label>
+            <span>Role</span>
+            <select value={registrationRole} onChange={(event) => setRegistrationRole(event.target.value as RegistrationInviteRole)}>
+              {registrationRoleOptions.map((role) => <option key={role.value} value={role.value}>{role.label}</option>)}
+            </select>
+          </label>
+          <label>
+            <span>Use limit</span>
+            <input className="input" name="maxUses" type="number" min={1} max={500} defaultValue={10} />
+          </label>
+          <label>
+            <span>Expires</span>
+            <input className="input" name="expiresAt" type="date" />
+          </label>
+          <label className="camp-access-toggle row-toggle registration-save-toggle">
+            <input name="canSaveChanges" type="checkbox" />
+            <span>Save to database</span>
+            <small>Default is session-only</small>
+          </label>
+          <label className="camp-access-toggle row-toggle registration-ai-toggle">
+            <input name="aiEnabled" type="checkbox" />
+            <span>AI on</span>
+            <small>Default is off for new links</small>
+          </label>
+          <label>
+            <span>AI monthly limit</span>
+            <input className="input" name="aiMonthlyLimit" type="number" min={1} max={1000} placeholder="No limit" />
+          </label>
+          <button className="button primary" type="submit" disabled={busyKey === "registration:create"}>
+            <Link2 aria-hidden="true" size={16} />
+            {busyKey === "registration:create" ? "Creating..." : "Create link"}
+          </button>
+        </form>
+        <div className="registration-link-list">
+          {registrationInvites.length ? (
+            registrationInvites.map((invite) => (
+              <article className="registration-link-row" key={invite.id}>
+                <div>
+                  <strong>{invite.label}</strong>
+                  <span>
+                    {roleLabel(invite.role)} - {invite.useCount} of {invite.maxUses} used{invite.expiresAt ? ` - expires ${formatShortDate(invite.expiresAt)}` : ""} - saves {invite.canSaveChanges ? "on" : "session-only"} - AI {invite.aiEnabled ? `on${invite.aiMonthlyLimit ? `, ${invite.aiMonthlyLimit}/month` : ""}` : "off"}
+                  </span>
+                </div>
+                <input className="input" readOnly value={invite.joinUrl} aria-label={`Registration link for ${invite.label}`} />
+                <button className="button compact-button" type="button" onClick={() => void copyRegistrationLink(invite)}>
+                  <Copy aria-hidden="true" size={15} />
+                  Copy
+                </button>
+              </article>
+            ))
+          ) : (
+            <p className="quiet-state">Create a link when someone needs to set up their own account.</p>
+          )}
+        </div>
+      </section>
+
       <div className="website-access-list" aria-busy={loading}>
         {loading ? <p className="quiet-state">Loading users...</p> : null}
         {!loading && !members.length ? <p className="quiet-state">No website profiles are available.</p> : null}
@@ -201,6 +344,75 @@ export function WebsiteAccessPanel({ canManagePlatformAccess }: { canManagePlatf
               >
                 {busyKey === `${member.id}:deactivate` ? "Deactivating..." : "Deactivate"}
               </button>
+              <div className="website-ai-access-row">
+                <label className="camp-access-toggle row-toggle">
+                  <input
+                    type="checkbox"
+                    checked={member.canSaveChanges}
+                    disabled={member.currentUser || !member.active || busyKey === `${member.id}:save-toggle`}
+                    onChange={(event) => void patchAccess(
+                      {
+                        userId: member.id,
+                        canSaveChanges: event.target.checked
+                      },
+                      `${member.id}:save-toggle`,
+                      `Save rights ${event.target.checked ? "enabled" : "set to session-only"} for ${member.displayName}.`
+                    )}
+                  />
+                  <span>Save rights</span>
+                  <small>{member.canSaveChanges ? "Database saves on" : "Session-only changes"}</small>
+                </label>
+                <label className="camp-access-toggle row-toggle">
+                  <input
+                    type="checkbox"
+                    checked={member.aiAccess.enabled}
+                    disabled={!member.active || busyKey === `${member.id}:ai-toggle`}
+                    onChange={(event) => void patchAccess(
+                      {
+                        userId: member.id,
+                        aiEnabled: event.target.checked,
+                        aiMonthlyLimit: member.aiAccess.monthlyLimit
+                      },
+                      `${member.id}:ai-toggle`,
+                      `AI access ${event.target.checked ? "enabled" : "disabled"} for ${member.displayName}.`
+                    )}
+                  />
+                  <span>AI access</span>
+                  <small>{member.aiAccess.currentMonthUsage} used this month</small>
+                </label>
+                <label>
+                  <span>Monthly AI requests</span>
+                  <input
+                    className="input"
+                    type="number"
+                    min={1}
+                    max={1000}
+                    placeholder="No limit"
+                    value={draftAiLimits[member.id] ?? ""}
+                    onChange={(event) => setDraftAiLimits((current) => ({ ...current, [member.id]: event.target.value }))}
+                    disabled={!member.active}
+                  />
+                </label>
+                <button
+                  className="button compact-button"
+                  type="button"
+                  disabled={!member.active || busyKey === `${member.id}:ai-limit`}
+                  onClick={() => {
+                    const value = (draftAiLimits[member.id] ?? "").trim();
+                    void patchAccess(
+                      {
+                        userId: member.id,
+                        aiEnabled: member.aiAccess.enabled,
+                        aiMonthlyLimit: value ? Number(value) : null
+                      },
+                      `${member.id}:ai-limit`,
+                      `AI limit updated for ${member.displayName}.`
+                    );
+                  }}
+                >
+                  {busyKey === `${member.id}:ai-limit` ? "Saving..." : "Save AI"}
+                </button>
+              </div>
               <div className="website-page-access-grid" aria-label={`Page access for ${member.displayName}`}>
                 {pages.map((page) => (
                   <label className="camp-access-toggle row-toggle" key={`${member.id}:${page.key}`}>
@@ -224,4 +436,16 @@ export function WebsiteAccessPanel({ canManagePlatformAccess }: { canManagePlatf
       </div>
     </section>
   );
+}
+
+function roleLabel(role: RegistrationInviteRole) {
+  if (role === "student") return "Student";
+  if (role === "parent") return "Parent";
+  return "Leader";
+}
+
+function formatShortDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "soon";
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }

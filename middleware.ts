@@ -7,13 +7,14 @@ const publicPaths = [
   "/auth/set-password",
   "/hackathon",
   "/api/auth/login",
+  "/api/auth/register",
   "/api/auth/guest",
   "/api/auth/logout",
   "/api/auth/invite-session",
   "/api/daily-intelligence/brief",
   "/api/student/join"
 ];
-const publicPathPrefixes = ["/join/"];
+const publicPathPrefixes = ["/join/", "/register/"];
 const guestBlockedPathPrefixes = ["/camp", "/settings", "/command-center", "/api/camp", "/api/settings", "/api/command-center"];
 
 function hasSessionCookie(request: NextRequest) {
