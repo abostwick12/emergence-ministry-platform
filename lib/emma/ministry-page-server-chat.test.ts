@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/ministry/scope", () => ({
   resolveMinistryScope: vi.fn(async (s: { testMinistryId?: string }) => s.testMinistryId ?? "ministry-emerge")
@@ -101,6 +101,10 @@ beforeEach(() => {
   delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 });
 
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
 describe("ministry page server-backed EMMA chat", () => {
   it("returns an audited deterministic fallback when no live provider is configured", async () => {
     const admin = session();
@@ -151,6 +155,59 @@ describe("ministry page server-backed EMMA chat", () => {
       proposalType: "ministry_page_recommendation",
       executed: false,
       page: "events"
+    });
+  });
+
+  it("uses a configured live provider for preview dev-auth sessions", async () => {
+    process.env.EMMA_PROVIDER_MODE = "openai";
+    process.env.OPENAI_API_KEY = "test-openai-key";
+    process.env.EMMA_DEFAULT_MODEL = "gpt-4o-mini";
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          model: "gpt-4o-mini",
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  summary: "Live model guidance for the events page.",
+                  points: ["Review the event plan before changing assignments."],
+                  nextActions: ["Open the highest-priority event first."],
+                  confidence: 0.82,
+                  warnings: []
+                })
+              }
+            }
+          ],
+          usage: { total_tokens: 42 }
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const admin = session();
+    const result = await runMinistryPageServerChat({
+      overview: overview(),
+      rawInput: { page: "events", prompt: "What should I open first?", selectedEventId: "evt_1" },
+      session: admin
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.providerMode).toBe("live_provider");
+    expect(result.data.provider).toBe("openai");
+    expect(result.data.response.summary).toBe("Live model guidance for the events page.");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    const trail = await getEmmaAuditTrail(admin, result.data.requestId);
+    expect(trail.runs[0]).toMatchObject({
+      skillKey: "ministry_page_chat",
+      status: "succeeded"
+    });
+    expect(trail.providerAttempts[0]).toMatchObject({
+      provider: "openai",
+      status: "success"
     });
   });
 

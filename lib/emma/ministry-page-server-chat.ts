@@ -210,7 +210,7 @@ function buildLocalFallbackChatResult(response: MinistryEmmaResponse, warnings: 
 }
 
 function shouldAttemptLiveProvider(session: AuthSession): boolean {
-  if (session.isMock) return false;
+  if (session.isGuest) return false;
   return resolveMinistryEmmaProviderMode() !== "mock";
 }
 
