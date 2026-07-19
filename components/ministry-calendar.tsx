@@ -3,14 +3,8 @@
 import { useMemo, useState, type CSSProperties } from "react";
 import { useEventCard } from "@/components/event-card-context";
 import { eventTypeLabels } from "@/lib/templates";
+import { eventCategoryColors } from "@/lib/event-categories";
 import type { EventType, MinistryEvent } from "@/lib/types";
-
-const typeColor: Record<EventType, string> = {
-  retreat: "#7c3aed",
-  weekly: "#2563eb",
-  service: "#0d9488",
-  camp: "#d97706"
-};
 
 const weekdayLabels = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 
@@ -77,7 +71,7 @@ export function MinistryCalendar({ events }: { events: MinistryEvent[] }) {
       <div className="calendar-header">
         <div className="calendar-title">
           <CalendarGlyph />
-          <h2 className="section-title" style={{ margin: 0 }}>
+          <h2 className="section-title flush">
             Ministry Calendar
           </h2>
         </div>
@@ -136,7 +130,7 @@ export function MinistryCalendar({ events }: { events: MinistryEvent[] }) {
                       className="calendar-event-chip"
                       type="button"
                       key={event.id}
-                      style={{ "--chip": typeColor[event.type] } as CSSProperties}
+                      style={{ "--chip": eventCategoryColors[event.type] } as CSSProperties}
                       onClick={() => openEdit(event.id)}
                       aria-label={`Open ${event.title} on ${day.toLocaleDateString()}`}
                     >
@@ -158,7 +152,7 @@ export function MinistryCalendar({ events }: { events: MinistryEvent[] }) {
         <div className="calendar-legend" aria-label="Calendar legend">
           {usedTypes.map((type) => (
             <span className="legend-item" key={type}>
-              <span className="legend-dot" style={{ background: typeColor[type] }} aria-hidden="true" />
+              <span className="legend-dot" style={{ background: eventCategoryColors[type] }} aria-hidden="true" />
               {eventTypeLabels[type]}
             </span>
           ))}

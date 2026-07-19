@@ -1,6 +1,7 @@
 import { integrationAdapters } from "@/lib/adapters/integrations";
 import { getMissingInformation } from "@/lib/missing-info";
 import { defaultTemplateTasks } from "@/lib/templates";
+import { normalizeEventType } from "@/lib/event-categories";
 import type {
   ActiveTask,
   ActivityLog,
@@ -254,7 +255,7 @@ export async function createMinistryEvent(
   const start = new Date(input.startTime);
   const end = new Date(input.endTime);
 
-  const defaultVolunteers = input.type === "retreat" || input.type === "camp" ? 6 : input.type === "service" ? 4 : 2;
+  const defaultVolunteers = input.type === "conference" ? 6 : input.type === "missions_trip" ? 4 : 2;
 
   const baseRow = {
     ...ministryScopeColumns(ministryId),
@@ -269,7 +270,7 @@ export async function createMinistryEvent(
     location: input.location ?? null,
     owner: input.contactOwnerId ?? session.user.id,
     status: "planning",
-    priority: input.priority ?? (input.type === "retreat" || input.type === "camp" ? "high" : "normal"),
+    priority: input.priority ?? (input.type === "conference" ? "high" : "normal"),
     budget_target: input.budgetTarget ?? null,
     budget_actual: input.budgetActual ?? 0,
     volunteers_needed: input.volunteersNeeded ?? defaultVolunteers,
@@ -309,6 +310,7 @@ export async function updateMinistryEvent(session: AuthSession, eventId: string,
 
   if (input.title !== undefined) update.title = input.title;
   if (input.description !== undefined) update.description = input.description;
+  if (input.type !== undefined) update.ministry_area = input.type;
   if (input.location !== undefined) update.location = input.location ?? null;
   if (input.targetGroup !== undefined) update.target_group = input.targetGroup ?? null;
   if (input.budgetTarget !== undefined) update.budget_target = input.budgetTarget ?? null;
@@ -758,12 +760,7 @@ function toRole(value?: string | null): Role {
 }
 
 function toEventType(value?: string | null): EventType {
-  if (value === "retreat" || value === "weekly" || value === "service" || value === "camp") return value;
-  const lower = value?.toLowerCase() ?? "";
-  if (lower.includes("camp")) return "camp";
-  if (lower.includes("retreat")) return "retreat";
-  if (lower.includes("service") || lower.includes("fundraiser") || lower.includes("training")) return "service";
-  return "weekly";
+  return normalizeEventType(value);
 }
 
 function toTaskStatus(value?: string | null): TaskStatus {

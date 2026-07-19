@@ -8,6 +8,7 @@ import { getAiRequest } from "@/lib/emma/repository";
 import { classifyRisk, isRestricted, isSensitiveCategory, requiresApprovalForRisk } from "@/lib/emma/risk";
 import { resolveEmmaSkill } from "@/lib/emma/skills/registry";
 import type { RegisteredEmmaSkill } from "@/lib/emma/skills/types";
+import { normalizeEventType } from "@/lib/event-categories";
 import type {
   ContextManifest,
   ContextManifestEntry,
@@ -35,7 +36,7 @@ const safeEventContextSchema = z
   .object({
     eventId: id,
     title: z.string().min(1),
-    eventType: z.enum(["retreat", "weekly", "service", "camp"]),
+    eventType: z.string().transform((value) => normalizeEventType(value)),
     startTime: z.string().min(1),
     endTime: z.string().min(1),
     location: z.string().nullable(),

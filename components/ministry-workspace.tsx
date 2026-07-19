@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import Link from "next/link";
 import { Archive, CheckSquare, Clock3, FileText, MapPin, Plus, RotateCcw, Search, Trash2, UserRound, UsersRound } from "lucide-react";
 import { useRole } from "@/components/role-context";
@@ -11,6 +11,15 @@ import { ActionQueue, ActionRow, EditorialSection, QuietState, StatusBadge } fro
 import type { DashboardAttention } from "@/lib/dashboard-attention";
 import type { MinistryOverview } from "@/lib/data/ministry-repository";
 import { eventTypeLabels } from "@/lib/templates";
+import { eventCategoryColors } from "@/lib/event-categories";
+import {
+  loadCustomVolunteerLeaders,
+  loadDeletedVolunteerLeaderIds,
+  loadEventLeaderAssignments,
+  mergeVolunteerLeaders,
+  type EventLeaderAssignments,
+  type VolunteerLeader
+} from "@/lib/volunteer-leaders";
 import { formatDate, formatDateTime, money } from "@/lib/utils";
 import type {
   ActiveTask,
@@ -54,6 +63,19 @@ const eventTabLabels: Record<EventTabKey, string> = {
 
 type WorkspaceView = "dashboard" | "events" | "tasks";
 
+function eventAccentStyle(type: MinistryEvent["type"]) {
+  return { "--event-accent": eventCategoryColors[type] } as CSSProperties;
+}
+
+function usersToVolunteerLeaders(users: User[]): VolunteerLeader[] {
+  return users.map((user) => ({
+    id: `user-${user.id}`,
+    name: `${user.firstName} ${user.lastName}`.trim() || user.email,
+    role: user.role === "admin" ? "Admin" : "Leader",
+    email: user.email
+  }));
+}
+
 export default function MinistryWorkspace({
   view,
   initialOverview = null,
@@ -73,6 +95,9 @@ export default function MinistryWorkspace({
   const [isLoading, setIsLoading] = useState(!initialOverview && !initialLoadError);
   const [notice, setNotice] = useState("Preview adapters active. Live provider credentials are not required.");
   const [expandedEventIds, setExpandedEventIds] = useState<string[]>(["evt_winter_retreat"]);
+  const [eventLeaderAssignments, setEventLeaderAssignments] = useState<EventLeaderAssignments>({});
+  const [customVolunteerLeaders, setCustomVolunteerLeaders] = useState<VolunteerLeader[]>([]);
+  const [deletedVolunteerLeaderIds, setDeletedVolunteerLeaderIds] = useState<string[]>([]);
   const initialLoadStartedRef = useRef(Boolean(initialOverview || initialLoadError));
 
   async function loadOverview() {
@@ -110,8 +135,18 @@ export default function MinistryWorkspace({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cardState.savedAt]);
 
+  useEffect(() => {
+    setEventLeaderAssignments(loadEventLeaderAssignments());
+    setCustomVolunteerLeaders(loadCustomVolunteerLeaders());
+    setDeletedVolunteerLeaderIds(loadDeletedVolunteerLeaderIds());
+  }, [cardState.savedAt]);
+
   const users = useMemo(() => overview?.users ?? [], [overview?.users]);
   const activeUsers = users.filter((user) => user.role === "admin" || user.role === "leader");
+  const volunteerLeaders = useMemo(
+    () => mergeVolunteerLeaders(usersToVolunteerLeaders(activeUsers), customVolunteerLeaders, deletedVolunteerLeaderIds),
+    [activeUsers, customVolunteerLeaders, deletedVolunteerLeaderIds]
+  );
   const activeEvents = useMemo(() => overview?.events.filter((event) => !event.archivedAt) ?? [], [overview?.events]);
   const activeEventIds = useMemo(() => new Set(activeEvents.map((event) => event.id)), [activeEvents]);
   const activeTasks = useMemo(() => overview?.tasks.filter((task) => activeEventIds.has(task.eventId)) ?? [], [overview?.tasks, activeEventIds]);
@@ -256,6 +291,8 @@ export default function MinistryWorkspace({
             onArchiveEvent={archiveEvent}
             onRestoreEvent={restoreEvent}
             onDeleteEvent={deleteGuestEvent}
+            eventLeaderAssignments={eventLeaderAssignments}
+            volunteerLeaders={volunteerLeaders}
           />
         </section>
       ) : (
@@ -763,7 +800,9 @@ function TasksWorkspace({
               <div className="task-lane-scroll">
                 {searchedTasks.filter((task) => task.status === status).length ? (
                   sortTasksByUrgency(searchedTasks.filter((task) => task.status === status))
-                    .map((task) => (
+                    .map((task) => {
+                      const event = events.find((item) => item.id === task.eventId);
+                      return (
                       <div
                         className={draggedTaskId === task.id ? "task-drag-shell dragging" : "task-drag-shell"}
                         draggable
@@ -781,12 +820,13 @@ function TasksWorkspace({
                         <TaskCard
                           task={task}
                           users={users}
-                          eventTitle={events.find((event) => event.id === task.eventId)?.title ?? "Event"}
+                          event={event}
                           onUpdate={onUpdate}
                           onDelete={onDelete}
                         />
                       </div>
-                    ))
+                      );
+                    })
                 ) : (
                   <p className="kanban-empty">No tasks in this lane.</p>
                 )}
@@ -933,7 +973,9 @@ function EventsWorkspace({
   onUpdateEvent,
   onArchiveEvent,
   onRestoreEvent,
-  onDeleteEvent
+  onDeleteEvent,
+  eventLeaderAssignments,
+  volunteerLeaders
 }: {
   events: MinistryEvent[];
   tasks: ActiveTask[];
@@ -949,6 +991,8 @@ function EventsWorkspace({
   onArchiveEvent: (eventId: string) => Promise<void>;
   onRestoreEvent: (eventId: string) => Promise<void>;
   onDeleteEvent: (eventId: string) => Promise<void>;
+  eventLeaderAssignments: EventLeaderAssignments;
+  volunteerLeaders: VolunteerLeader[];
 }) {
   const { activeRole } = useRole();
   const [activeTab, setActiveTab] = useState<EventTabKey>("upcoming");
@@ -990,6 +1034,9 @@ function EventsWorkspace({
             const eventExpenses = expenses.filter((expense) => expense.eventId === event.id);
             const isExpanded = expandedEventIds.includes(event.id);
             const missingCount = estimateMissingInformationCount(event);
+            const assignedLeaders = (eventLeaderAssignments[event.id] ?? [])
+              .map((leaderId) => volunteerLeaders.find((leader) => leader.id === leaderId))
+              .filter((leader): leader is VolunteerLeader => Boolean(leader));
 
             return (
               <EventRowCard
@@ -1001,6 +1048,7 @@ function EventsWorkspace({
                 completeTasks={completeTasks}
                 missingCount={missingCount}
                 isExpanded={isExpanded}
+                assignedLeaders={assignedLeaders}
                 onToggleEvent={onToggleEvent}
                 onOpenEvent={onOpenEvent}
                 onUpdateTask={onUpdateTask}
@@ -1031,6 +1079,7 @@ function EventRowCard({
   completeTasks,
   missingCount,
   isExpanded,
+  assignedLeaders,
   users,
   onToggleEvent,
   onOpenEvent,
@@ -1048,6 +1097,7 @@ function EventRowCard({
   completeTasks: number;
   missingCount: number;
   isExpanded: boolean;
+  assignedLeaders: VolunteerLeader[];
   users: User[];
   onToggleEvent: (eventId: string) => void;
   onOpenEvent: (eventId: string) => void;
@@ -1061,9 +1111,9 @@ function EventRowCard({
   const rowTone = getEventRowTone(event);
 
   return (
-    <article className={`event-row event-row-card ${rowTone}`} data-start-time={event.startTime}>
+    <article className={`event-row event-row-card event-accent-card ${rowTone}`} data-start-time={event.startTime} style={eventAccentStyle(event.type)}>
       <div className="event-card-row event-lovable-card-row" role="row">
-        <EventIdentitySection event={event} tasks={tasks} completeTasks={completeTasks} owner={owner} />
+        <EventIdentitySection event={event} tasks={tasks} completeTasks={completeTasks} owner={owner} assignedLeaders={assignedLeaders} />
         <EventScrollableSummary
           event={event}
           expenses={expenses}
@@ -1109,12 +1159,14 @@ function EventIdentitySection({
   event,
   tasks,
   completeTasks,
-  owner
+  owner,
+  assignedLeaders
 }: {
   event: MinistryEvent;
   tasks: ActiveTask[];
   completeTasks: number;
   owner?: User;
+  assignedLeaders: VolunteerLeader[];
 }) {
   const { openEdit } = useEventCard();
   const startDate = event.startTime ? formatDate(event.startTime) : "Missing date";
@@ -1156,6 +1208,10 @@ function EventIdentitySection({
           {owner ? `${owner.firstName} ${owner.lastName}` : "Owner unassigned"}
           <span aria-hidden="true"> · </span>
           {eventTypeLabels[event.type]}
+        </span>
+        <span>
+          <UsersRound aria-hidden="true" />
+          {assignedLeaders.length ? assignedLeaders.map((leader) => leader.name).join(", ") : "No leaders assigned"}
         </span>
         <span className="sr-only">
           {completeTasks} of {tasks.length} checklist tasks complete
@@ -1209,7 +1265,7 @@ function EventScrollableSummary({
   const openTasks = tasks.length - completeTasks;
   const communicationStatus = missingCount === 0 ? "Preview ready" : `${missingCount} item${missingCount === 1 ? "" : "s"} needed`;
   const driveStatus = event.googleDriveFolderId ? "Preview folder ready" : "Preview pending";
-  const priority = event.type === "camp" || event.type === "retreat" ? "High" : event.type === "service" ? "Medium" : "Normal";
+  const priority = event.type === "conference" ? "High" : event.type === "missions_trip" ? "Medium" : "Normal";
 
   return (
     <div className="event-summary-shell" role="cell">
@@ -1533,7 +1589,7 @@ function estimateMissingInformationCount(event: MinistryEvent) {
 
 function estimateVolunteersNeeded(event: MinistryEvent, tasks: ActiveTask[]) {
   const leaderAssignedOpenTasks = tasks.filter((task) => task.assignedUserId === "usr_leader" && task.status !== "done").length;
-  const baseline = event.type === "retreat" || event.type === "camp" ? 6 : event.type === "service" ? 4 : 2;
+  const baseline = event.type === "conference" ? 6 : event.type === "missions_trip" ? 4 : 2;
   return `${Math.max(baseline, leaderAssignedOpenTasks)} needed`;
 }
 
@@ -1611,13 +1667,13 @@ function groupTasksByEvent(tasks: ActiveTask[], events: MinistryEvent[]) {
 function TaskCard({
   task,
   users,
-  eventTitle,
+  event,
   onUpdate,
   onDelete
 }: {
   task: ActiveTask;
   users: User[];
-  eventTitle: string;
+  event?: MinistryEvent;
   onUpdate: (taskId: string, body: Partial<ActiveTask>) => Promise<void>;
   onDelete: (taskId: string) => Promise<void>;
 }) {
@@ -1632,10 +1688,10 @@ function TaskCard({
   }, [task.dueDate, task.taskTitle]);
 
   return (
-    <article className={task.status === "blocked" ? "task-card attention" : "task-card"}>
+    <article className={task.status === "blocked" ? "task-card task-event-accent attention" : "task-card task-event-accent"} style={event ? eventAccentStyle(event.type) : undefined}>
       <div>
         <strong className="task-card-title">{task.taskTitle}</strong>
-        <div className="task-card-event">{eventTitle}</div>
+        <div className="task-card-event">{event?.title ?? "Event"}</div>
         <div className="task-summary">
           <span className="task-card-date">Due {formatDate(task.dueDate)}</span>
           <span className={task.status === "done" ? "pill done" : task.status === "blocked" ? "pill blocked" : "pill"}>

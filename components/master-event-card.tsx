@@ -7,6 +7,16 @@ import { useEventCard } from "@/components/event-card-context";
 import { PlanningCenterIntegrationControl } from "@/components/planning-center-integration-control";
 import { useRole } from "@/components/role-context";
 import { eventTypeLabels, defaultTemplateTasks } from "@/lib/templates";
+import { eventTypes } from "@/lib/event-categories";
+import {
+  loadCustomVolunteerLeaders,
+  loadDeletedVolunteerLeaderIds,
+  loadEventLeaderAssignments,
+  mergeVolunteerLeaders,
+  saveEventLeaderAssignments,
+  type EventLeaderAssignments,
+  type VolunteerLeader
+} from "@/lib/volunteer-leaders";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import type {
   ActiveTask,
@@ -17,8 +27,6 @@ import type {
   TemplateTask,
   User
 } from "@/lib/types";
-
-const eventTypes: EventType[] = ["retreat", "weekly", "service", "camp"];
 
 const taskStatuses: TaskStatus[] = ["todo", "in_progress", "blocked", "done"];
 const taskStatusLabels: Record<TaskStatus, string> = {
@@ -41,6 +49,15 @@ const priorityOptions = [
   { value: "high", label: "High" },
   { value: "urgent", label: "Urgent" }
 ];
+
+function usersToVolunteerLeaders(users: User[]): VolunteerLeader[] {
+  return users.map((user) => ({
+    id: `user-${user.id}`,
+    name: `${user.firstName} ${user.lastName}`.trim() || user.email,
+    role: user.role === "admin" ? "Admin" : "Leader",
+    email: user.email
+  }));
+}
 
 function toDateInputValue(value: string) {
   try {
@@ -129,7 +146,7 @@ function buildInitialStep1(event?: MinistryEvent, firstUserId?: string): Step1St
   }
   return {
     title: "",
-    type: "weekly",
+    type: "small_group_gathering",
     targetGroup: "",
     description: "",
     startTime: "",
@@ -190,6 +207,8 @@ function MasterEventCardInner({
   const [step, setStep] = useState<1 | 2>(1);
   const [workspace, setWorkspace] = useState<EventWorkspace | null>(null);
   const [users, setUsers] = useState<User[]>([]);
+  const [volunteerLeaders, setVolunteerLeaders] = useState<VolunteerLeader[]>([]);
+  const [eventLeaderAssignments, setEventLeaderAssignments] = useState<EventLeaderAssignments>({});
   const [step1, setStep1] = useState<Step1State | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -214,7 +233,10 @@ function MasterEventCardInner({
     const overviewRes = await fetch("/api/events", { cache: "no-store" });
     if (!overviewRes.ok) { setIsLoading(false); return; }
     const overview = (await overviewRes.json()) as { users: User[] };
-    setUsers(overview.users.filter((u) => u.role === "admin" || u.role === "leader"));
+    const staffUsers = overview.users.filter((u) => u.role === "admin" || u.role === "leader");
+    setUsers(staffUsers);
+    setVolunteerLeaders(mergeVolunteerLeaders(usersToVolunteerLeaders(staffUsers), loadCustomVolunteerLeaders(), loadDeletedVolunteerLeaderIds()));
+    setEventLeaderAssignments(loadEventLeaderAssignments());
 
     if (mode === "edit" && eventId) {
       const wsRes = await fetch(`/api/events/${eventId}`, { cache: "no-store" });
@@ -321,6 +343,7 @@ function MasterEventCardInner({
       const body: Record<string, unknown> = {
         title: currentStep1.title,
         description: currentStep1.description,
+        type: currentStep1.type,
         startTime: startIso,
         endTime: endIso,
         location: currentStep1.location || undefined,
@@ -348,6 +371,7 @@ function MasterEventCardInner({
       } else {
         const ws = (await res.json()) as EventWorkspace;
         setWorkspace(ws);
+        persistEventLeaderAssignments(ws.event.id);
         setSaveSuccess("Event information saved.");
         setIsDirty(false);
         onRefresh?.();
@@ -394,6 +418,7 @@ function MasterEventCardInner({
 
       const ws = (await res.json()) as EventWorkspace;
       setWorkspace(ws);
+      persistEventLeaderAssignments(ws.event.id);
       setSaveSuccess(`Created "${ws.event.title}" and generated baseline tasks.`);
       setIsDirty(false);
       onRefresh?.();
@@ -454,6 +479,25 @@ function MasterEventCardInner({
       const wsRes = await fetch(`/api/events/${workspace.event.id}`, { cache: "no-store" });
       if (wsRes.ok) setWorkspace((await wsRes.json()) as EventWorkspace);
     }
+  }
+
+  function toggleEventLeader(leaderId: string) {
+    const currentEventId = workspace?.event.id ?? eventId;
+    if (!currentEventId) return;
+    setEventLeaderAssignments((current) => {
+      const existing = current[currentEventId] ?? [];
+      const nextIds = existing.includes(leaderId) ? existing.filter((id) => id !== leaderId) : [...existing, leaderId];
+      const next = { ...current, [currentEventId]: nextIds };
+      saveEventLeaderAssignments(next);
+      return next;
+    });
+    setIsDirty(true);
+  }
+
+  function persistEventLeaderAssignments(nextEventId?: string) {
+    const currentEventId = nextEventId ?? workspace?.event.id ?? eventId;
+    if (!currentEventId) return;
+    saveEventLeaderAssignments(eventLeaderAssignments);
   }
 
   async function runStub(type: "drive" | "calendar" | "propresenter" | "comms") {
@@ -536,10 +580,13 @@ function MasterEventCardInner({
             <Step1Form
               state={step1}
               users={users}
+              volunteerLeaders={volunteerLeaders}
+              assignedLeaderIds={eventLeaderAssignments[workspace?.event.id ?? eventId ?? ""] ?? []}
               mode={mode}
               onChange={updateStep1}
               onStartChange={handleStartChange}
               onEndChange={handleEndChange}
+              onToggleLeader={toggleEventLeader}
             />
           ) : step === 2 ? (
             <Step2Panel
@@ -547,7 +594,7 @@ function MasterEventCardInner({
               workspace={workspace}
               users={users}
               previewTasks={previewTasks}
-              step1Type={step1?.type ?? "weekly"}
+              step1Type={step1?.type ?? "small_group_gathering"}
               newTaskTitle={newTaskTitle}
               stubStatus={stubStatus}
               onUpdateTask={handleUpdateTask}
@@ -610,17 +657,23 @@ function MasterEventCardInner({
 function Step1Form({
   state,
   users,
+  volunteerLeaders,
+  assignedLeaderIds,
   mode,
   onChange,
   onStartChange,
-  onEndChange
+  onEndChange,
+  onToggleLeader
 }: {
   state: Step1State;
   users: User[];
+  volunteerLeaders: VolunteerLeader[];
+  assignedLeaderIds: string[];
   mode: "create" | "edit";
   onChange: <K extends keyof Step1State>(key: K, value: Step1State[K]) => void;
   onStartChange: (value: string) => void;
   onEndChange: (value: string) => void;
+  onToggleLeader: (leaderId: string) => void;
 }) {
   return (
     <div className="event-card-form">
@@ -676,6 +729,31 @@ function Step1Form({
           </select>
         </div>
       </div>
+
+      <fieldset className="event-card-leader-picker">
+        <legend>Assigned Leaders</legend>
+        {mode === "create" ? (
+          <p className="muted">Save the event, then assign leaders from the Volunteer Hub leader pool.</p>
+        ) : volunteerLeaders.length ? (
+          <div className="event-card-leader-options">
+            {volunteerLeaders.map((leader) => (
+              <label className="event-card-leader-option" key={leader.id}>
+                <input
+                  type="checkbox"
+                  checked={assignedLeaderIds.includes(leader.id)}
+                  onChange={() => onToggleLeader(leader.id)}
+                />
+                <span>
+                  <strong>{leader.name}</strong>
+                  <small>{leader.role}{leader.sourceChurch ? ` - ${leader.sourceChurch}` : ""}</small>
+                </span>
+              </label>
+            ))}
+          </div>
+        ) : (
+          <p className="muted">Add leaders in Volunteer Hub to make them available here.</p>
+        )}
+      </fieldset>
 
       <div className="field">
         <label htmlFor="ec-description">Vision / Description</label>

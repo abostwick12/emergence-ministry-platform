@@ -22,7 +22,7 @@ function event(overrides: Partial<MinistryEvent> = {}): MinistryEvent {
     id: "evt_midweek",
     title: "Midweek Gathering",
     description: "Worship, teaching, and small groups.",
-    type: "weekly",
+    type: "small_group_gathering",
     startTime: "2026-07-16T18:00:00.000Z",
     endTime: "2026-07-16T20:00:00.000Z",
     status: "planning",

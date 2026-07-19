@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { normalizeEventType } from "@/lib/event-categories";
 import {
   EMMA_ACTION_TYPES,
   EMMA_APPROVAL_DECISIONS,
@@ -69,7 +70,7 @@ export const safeEventPlanningContextSchema = z
   .object({
     eventId: id,
     title: z.string().min(1),
-    eventType: z.enum(["retreat", "weekly", "service", "camp"]),
+    eventType: z.string().transform((value) => normalizeEventType(value)),
     startTime: z.string().min(1),
     endTime: z.string().min(1),
     location: z.string().nullable(),

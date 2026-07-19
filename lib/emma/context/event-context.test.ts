@@ -10,7 +10,7 @@ function event(overrides: Partial<MinistryEvent> = {}): MinistryEvent {
     ministryId: "ministry-emerge",
     title: "Winter Retreat",
     description: "A safe planning description for leaders.",
-    type: "retreat",
+    type: "conference",
     startTime: "2026-07-10T18:00:00.000Z",
     endTime: "2026-07-12T12:00:00.000Z",
     status: "planning",
@@ -64,7 +64,7 @@ describe("buildSafeEventEmmaContext", () => {
     expect(result.safeEventContext).toMatchObject({
       eventId: "evt_safe",
       title: "Winter Retreat",
-      eventType: "retreat",
+      eventType: "conference",
       location: "Lakeview Retreat Center",
       targetGroup: "High School",
       ownerId: "usr_admin",

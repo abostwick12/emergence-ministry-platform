@@ -17,6 +17,7 @@ import {
   ReceiptText,
   ShieldCheck,
   Sparkles,
+  Trash2,
   UsersRound
 } from "lucide-react";
 import { MinistryEmmaPanel } from "@/components/ministry-emma-panel";
@@ -26,6 +27,18 @@ import type { CampStaffMember } from "@/lib/camp/types";
 import type { MinistryEmmaPage } from "@/lib/emma/ministry-page-assistant";
 import type { ActiveTask, ActivityLog, EventExpense, MinistryEvent, User } from "@/lib/types";
 import { formatDate, money } from "@/lib/utils";
+import {
+  createLocalLeaderId,
+  loadCustomVolunteerLeaders,
+  loadDeletedVolunteerLeaderIds,
+  loadEventLeaderAssignments,
+  mergeVolunteerLeaders,
+  removeLeaderFromAssignments,
+  saveCustomVolunteerLeaders,
+  saveDeletedVolunteerLeaderIds,
+  saveEventLeaderAssignments,
+  type VolunteerLeader
+} from "@/lib/volunteer-leaders";
 
 type MinistryOverview = {
   events: MinistryEvent[];
@@ -41,14 +54,7 @@ type SettingsUser = {
   role?: string;
 } | null;
 
-type PeopleLeader = {
-  id: string;
-  name: string;
-  role: string;
-  email?: string;
-  profilePhotoUrl?: string;
-  sourceChurch?: string;
-};
+type PeopleLeader = VolunteerLeader;
 
 type SmallGroup = {
   id: string;
@@ -65,6 +71,23 @@ type SmallGroupService = {
   serviceType: "permanent" | "one-time";
   groups: SmallGroup[];
 };
+
+const SMALL_GROUP_SERVICES_KEY = "lead-emergence.volunteer-hub.small-group-services.v1";
+
+function loadSmallGroupServices() {
+  if (typeof window === "undefined") return [];
+  try {
+    const stored = window.localStorage.getItem(SMALL_GROUP_SERVICES_KEY);
+    return stored ? (JSON.parse(stored) as SmallGroupService[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveSmallGroupServices(services: SmallGroupService[]) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(SMALL_GROUP_SERVICES_KEY, JSON.stringify(services));
+}
 
 type CampStaffState =
   | { status: "loading"; staff: CampStaffMember[] }
@@ -304,8 +327,21 @@ function PeopleWorkspace({ overview }: { overview: MinistryOverview }) {
   const [newServiceType, setNewServiceType] = useState<SmallGroupService["serviceType"]>("permanent");
   const [selectedGroupId, setSelectedGroupId] = useState("");
   const [editingGroup, setEditingGroup] = useState<SmallGroup | null>(null);
+  const [customVolunteerLeaders, setCustomVolunteerLeaders] = useState<PeopleLeader[]>([]);
+  const [deletedVolunteerLeaderIds, setDeletedVolunteerLeaderIds] = useState<string[]>([]);
+  const [leaderFormOpen, setLeaderFormOpen] = useState(false);
+  const [newLeaderName, setNewLeaderName] = useState("");
+  const [newLeaderRole, setNewLeaderRole] = useState("Leader");
+  const [newLeaderEmail, setNewLeaderEmail] = useState("");
+  const [newLeaderSourceChurch, setNewLeaderSourceChurch] = useState("");
+  const [newLeaderPhotoUrl, setNewLeaderPhotoUrl] = useState("");
   const [message, setMessage] = useState("");
   const owners = overview.users.filter((user) => user.role === "admin" || user.role === "leader");
+
+  useEffect(() => {
+    setCustomVolunteerLeaders(loadCustomVolunteerLeaders());
+    setDeletedVolunteerLeaderIds(loadDeletedVolunteerLeaderIds());
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -327,14 +363,23 @@ function PeopleWorkspace({ overview }: { overview: MinistryOverview }) {
     };
   }, []);
 
-  const leaderPool = useMemo(() => buildPeopleLeaderPool(campStaffState.staff, owners), [campStaffState.staff, owners]);
+  const baseLeaderPool = useMemo(() => buildPeopleLeaderPool(campStaffState.staff, owners), [campStaffState.staff, owners]);
+  const leaderPool = useMemo(
+    () => mergeVolunteerLeaders(baseLeaderPool, customVolunteerLeaders, deletedVolunteerLeaderIds),
+    [baseLeaderPool, customVolunteerLeaders, deletedVolunteerLeaderIds]
+  );
 
   useEffect(() => {
     if (campStaffState.status === "loading" || services.length) return;
-    const seeded = buildInitialSmallGroupServices(leaderPool);
+    const storedServices = loadSmallGroupServices();
+    const seeded = storedServices.length ? storedServices : buildInitialSmallGroupServices(leaderPool);
     setServices(seeded);
     setSelectedServiceId(seeded[0]?.id ?? "");
   }, [campStaffState.status, leaderPool, services.length]);
+
+  useEffect(() => {
+    if (services.length) saveSmallGroupServices(services);
+  }, [services]);
 
   const selectedService = services.find((service) => service.id === selectedServiceId) ?? services[0];
   const selectedGroup = selectedService?.groups.find((group) => group.id === selectedGroupId);
@@ -376,6 +421,56 @@ function PeopleWorkspace({ overview }: { overview: MinistryOverview }) {
     setSelectedGroupId(editingGroup.id);
     setEditingGroup(null);
     setMessage(`${editingGroup.name} updated for ${selectedService.name}.`);
+  }
+
+  function submitLeader(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const name = newLeaderName.trim();
+    if (!name) return;
+    const leader: PeopleLeader = {
+      id: createLocalLeaderId(name),
+      name,
+      role: newLeaderRole.trim() || "Leader",
+      email: newLeaderEmail.trim() || undefined,
+      sourceChurch: newLeaderSourceChurch.trim() || undefined,
+      profilePhotoUrl: newLeaderPhotoUrl.trim() || undefined
+    };
+    setCustomVolunteerLeaders((current) => {
+      const next = [...current, leader];
+      saveCustomVolunteerLeaders(next);
+      return next;
+    });
+    setNewLeaderName("");
+    setNewLeaderRole("Leader");
+    setNewLeaderEmail("");
+    setNewLeaderSourceChurch("");
+    setNewLeaderPhotoUrl("");
+    setLeaderFormOpen(false);
+    setMessage(`${leader.name} added to the small-group leader pool.`);
+  }
+
+  function deleteLeader(leader: PeopleLeader) {
+    setCustomVolunteerLeaders((current) => {
+      const next = current.filter((item) => item.id !== leader.id);
+      saveCustomVolunteerLeaders(next);
+      return next;
+    });
+    setDeletedVolunteerLeaderIds((current) => {
+      const next = current.includes(leader.id) ? current : [...current, leader.id];
+      saveDeletedVolunteerLeaderIds(next);
+      return next;
+    });
+    setServices((current) =>
+      current.map((service) => ({
+        ...service,
+        groups: service.groups.map((group) => ({
+          ...group,
+          leaderIds: group.leaderIds.map((leaderId) => leaderId === leader.id ? "" : leaderId) as [string, string]
+        }))
+      }))
+    );
+    saveEventLeaderAssignments(removeLeaderFromAssignments(loadEventLeaderAssignments(), leader.id));
+    setMessage(`${leader.name} removed from visible leader assignments.`);
   }
 
   return (
@@ -431,10 +526,48 @@ function PeopleWorkspace({ overview }: { overview: MinistryOverview }) {
       </section>
 
       <article className="ministry-launch-panel ministry-launch-span-2">
-        <SectionHead eyebrow="Leader Pool" title="Available Emerge leaders" />
+        <div className="ministry-people-toolbar">
+          <SectionHead eyebrow="Leader Pool" title="Available Emerge leaders" />
+          <button className="button primary" type="button" onClick={() => setLeaderFormOpen((current) => !current)}>
+            <Plus aria-hidden="true" />
+            Add Leader
+          </button>
+        </div>
+        {leaderFormOpen ? (
+          <form className="ministry-launch-form ministry-people-add-leader-form" onSubmit={submitLeader}>
+            <label className="field">
+              <span>Name</span>
+              <input className="input" value={newLeaderName} onChange={(event) => setNewLeaderName(event.target.value)} placeholder="Leader name" required />
+            </label>
+            <div className="ministry-people-edit-grid">
+              <label className="field">
+                <span>Role label</span>
+                <input className="input" value={newLeaderRole} onChange={(event) => setNewLeaderRole(event.target.value)} placeholder="Leader" />
+              </label>
+              <label className="field">
+                <span>Email</span>
+                <input className="input" type="email" value={newLeaderEmail} onChange={(event) => setNewLeaderEmail(event.target.value)} placeholder="leader@example.com" />
+              </label>
+            </div>
+            <div className="ministry-people-edit-grid">
+              <label className="field">
+                <span>Source church</span>
+                <input className="input" value={newLeaderSourceChurch} onChange={(event) => setNewLeaderSourceChurch(event.target.value)} placeholder="Emerge" />
+              </label>
+              <label className="field">
+                <span>Photo URL</span>
+                <input className="input" value={newLeaderPhotoUrl} onChange={(event) => setNewLeaderPhotoUrl(event.target.value)} placeholder="https://..." />
+              </label>
+            </div>
+            <div className="ministry-people-modal-actions">
+              <button className="button" type="button" onClick={() => setLeaderFormOpen(false)}>Cancel</button>
+              <button className="button primary" type="submit">Save Leader</button>
+            </div>
+          </form>
+        ) : null}
         <div className="ministry-people-leader-list">
           {leaderPool.map((leader) => (
-            <LeaderPoolRow key={leader.id} leader={leader} selectedService={selectedService} />
+            <LeaderPoolRow key={leader.id} leader={leader} selectedService={selectedService} onDelete={deleteLeader} />
           ))}
         </div>
       </article>
@@ -592,7 +725,7 @@ function PeopleLeaderSlot({ roleLabel, leader }: { roleLabel: "Leader" | "Co-lea
   );
 }
 
-function LeaderPoolRow({ leader, selectedService }: { leader: PeopleLeader; selectedService?: SmallGroupService }) {
+function LeaderPoolRow({ leader, selectedService, onDelete }: { leader: PeopleLeader; selectedService?: SmallGroupService; onDelete: (leader: PeopleLeader) => void }) {
   const assignment = selectedService?.groups.find((group) => group.leaderIds.includes(leader.id));
   return (
     <div className="ministry-people-leader-row">
@@ -611,6 +744,10 @@ function LeaderPoolRow({ leader, selectedService }: { leader: PeopleLeader; sele
         <small>{leader.role}{leader.sourceChurch ? ` - ${leader.sourceChurch}` : ""}</small>
       </span>
       <span className="pill blue">{assignment?.name ?? "Available"}</span>
+      <button className="button compact-button danger ministry-people-delete-leader" type="button" onClick={() => onDelete(leader)} aria-label={`Delete leader ${leader.name}`}>
+        <Trash2 aria-hidden="true" />
+        Delete
+      </button>
     </div>
   );
 }
