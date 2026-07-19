@@ -2,6 +2,7 @@ import { isSupabaseAdminConfigured, getSupabaseAdminClient } from "@/lib/auth/se
 import { isSupabaseConfigured } from "@/lib/auth/config";
 import { DEFAULT_MINISTRY_ID } from "@/lib/ministry/constants";
 import * as mockStore from "@/lib/store";
+import { normalizeEventType } from "@/lib/event-categories";
 import type { ActiveTask, ActivityLog, EventExpense, EventType, MinistryEvent, Role, TaskStatus, User } from "@/lib/types";
 import type { MinistryIntelligenceData } from "@/lib/daily-intelligence/types";
 
@@ -206,12 +207,7 @@ function toRole(value?: string | null): Role {
 }
 
 function toEventType(value?: string | null): EventType {
-  if (value === "retreat" || value === "weekly" || value === "service" || value === "camp") return value;
-  const lower = value?.toLowerCase() ?? "";
-  if (lower.includes("camp")) return "camp";
-  if (lower.includes("retreat")) return "retreat";
-  if (lower.includes("service") || lower.includes("fundraiser") || lower.includes("training")) return "service";
-  return "weekly";
+  return normalizeEventType(value);
 }
 
 function toTaskStatus(value?: string | null): TaskStatus {

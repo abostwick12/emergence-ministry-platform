@@ -16417,6 +16417,204 @@ body:has(.login-shell) h3 {
   box-shadow: var(--platform-cyan-glow);
 }
 
+/* Event category accents shared by event rows, subtasks, kanban cards, and calendar chips. */
+.event-row-card.event-accent-card {
+  --event-accent: #16d9f5;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--event-accent) 36%, rgba(129, 164, 214, 0.16));
+  border-radius: 14px;
+  background:
+    radial-gradient(120% 95% at 0% 0%, color-mix(in srgb, var(--event-accent) 18%, transparent), transparent 62%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent 94px),
+    rgba(8, 20, 37, 0.82);
+  box-shadow: var(--platform-shadow);
+}
+
+.event-row-card.event-accent-card + .event-row-card.event-accent-card {
+  margin-top: 12px;
+}
+
+.event-row-card.event-accent-card:hover {
+  border-color: color-mix(in srgb, var(--event-accent) 58%, rgba(129, 164, 214, 0.2));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--event-accent) 16%, transparent), 0 0 34px color-mix(in srgb, var(--event-accent) 12%, transparent);
+}
+
+.event-row-card.event-accent-card .event-card-row,
+.event-row-card.event-accent-card .event-identity-section,
+.event-row-card.event-accent-card .event-summary-shell,
+.event-row-card.event-accent-card .event-operations-rail {
+  background: transparent;
+}
+
+.event-row-card.event-accent-card .event-identity-section,
+.event-row-card.event-accent-card .event-operations-rail {
+  border-color: color-mix(in srgb, var(--event-accent) 28%, rgba(129, 164, 214, 0.18));
+}
+
+.event-row-card.event-accent-card .event-type-tag,
+.event-card-leader-option input:checked + span strong {
+  color: var(--event-accent, var(--platform-cyan));
+}
+
+.event-row-card.event-accent-card .event-type-tag {
+  border: 1px solid color-mix(in srgb, var(--event-accent) 34%, rgba(129, 164, 214, 0.18));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--event-accent) 12%, rgba(6, 13, 27, 0.42));
+  padding: 4px 9px;
+  box-shadow: 0 0 18px color-mix(in srgb, var(--event-accent) 20%, transparent);
+}
+
+.event-row-card.event-accent-card .event-state-label,
+.event-row-card.event-accent-card .event-identity-meta,
+.event-row-card.event-accent-card .event-identity-meta span,
+.event-row-card.event-accent-card .summary-label {
+  color: rgba(231, 242, 251, 0.78);
+}
+
+.event-row-card.event-accent-card .event-identity-section .button.ghost,
+.event-row-card.event-accent-card .event-rail-metric strong,
+.event-row-card.event-accent-card .summary-field strong {
+  color: #f7fbff;
+}
+
+.event-row-card.event-accent-card .event-summary-scroll {
+  border-color: color-mix(in srgb, var(--event-accent) 38%, rgba(129, 164, 214, 0.18));
+  background:
+    radial-gradient(120% 95% at 0% 0%, color-mix(in srgb, var(--event-accent) 12%, transparent), transparent 62%),
+    rgba(6, 13, 27, 0.48);
+}
+
+.event-row-card.event-accent-card .summary-field {
+  border-color: color-mix(in srgb, var(--event-accent) 28%, rgba(129, 164, 214, 0.18));
+  background: rgba(6, 13, 27, 0.54);
+}
+
+.event-row-card.event-accent-card .event-task-tree-wrap {
+  border-top: 1px solid color-mix(in srgb, var(--event-accent) 45%, rgba(129, 164, 214, 0.2));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--event-accent) 8%, transparent), transparent 90px),
+    rgba(3, 7, 18, 0.66);
+}
+
+.event-row-card.event-accent-card .event-task-tree {
+  border-color: color-mix(in srgb, var(--event-accent) 46%, rgba(129, 164, 214, 0.18));
+  background: rgba(3, 7, 18, 0.7);
+}
+
+.event-row-card.event-accent-card .event-task-tree-item {
+  border-top-color: color-mix(in srgb, var(--event-accent) 26%, rgba(129, 164, 214, 0.16));
+  border-left: 3px solid color-mix(in srgb, var(--event-accent) 70%, rgba(255, 255, 255, 0.1));
+  background: rgba(8, 20, 37, 0.78);
+  color: #f7fbff;
+}
+
+.event-row-card.event-accent-card .event-task-tree-item.completed {
+  background: rgba(8, 20, 37, 0.52);
+}
+
+.event-row-card.event-accent-card .tree-branch {
+  background: var(--event-accent);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--event-accent) 48%, transparent);
+}
+
+.task-card.task-event-accent {
+  --event-accent: #16d9f5;
+  border-color: color-mix(in srgb, var(--event-accent) 38%, rgba(154, 214, 242, 0.58));
+  border-left-color: var(--event-accent);
+  background:
+    radial-gradient(120% 95% at 0% 0%, color-mix(in srgb, var(--event-accent) 16%, transparent), transparent 62%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.78), rgba(239, 248, 252, 0.58));
+}
+
+.task-card.task-event-accent .task-card-event {
+  color: color-mix(in srgb, var(--event-accent) 72%, #123a5f);
+}
+
+.calendar-event-chip {
+  min-height: 28px;
+  max-height: none;
+  border-left-width: 4px;
+  border-color: color-mix(in srgb, var(--chip, #22d3ee) 82%, #ffffff);
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--chip, #22d3ee) 24%, transparent), transparent 68%),
+    linear-gradient(135deg, color-mix(in srgb, var(--chip, #22d3ee) 26%, #0f1d35), #142034 78%);
+  color: #f8fbff;
+  box-shadow: 0 0 18px color-mix(in srgb, var(--chip, #22d3ee) 24%, transparent);
+}
+
+.chip-time {
+  font-size: 9px;
+  color: color-mix(in srgb, var(--chip, #22d3ee) 64%, #ffffff);
+}
+
+.chip-title {
+  font-size: 10px;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.event-card-leader-picker,
+.ministry-people-add-leader-form {
+  border: 1px solid rgba(129, 164, 214, 0.16);
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.event-card-leader-picker legend {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.event-card-leader-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+  gap: 10px;
+}
+
+.event-card-leader-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+  padding: 10px;
+}
+
+.event-card-leader-option span {
+  display: grid;
+  gap: 2px;
+}
+
+.event-card-leader-option small {
+  color: var(--muted);
+  font-weight: 750;
+}
+
+.ministry-people-modal select.input,
+.ministry-people-modal input.input,
+.ministry-people-modal textarea.input {
+  border-color: rgba(129, 164, 214, 0.22);
+  background: #0b1a2e;
+  color: #f7fbff;
+}
+
+.ministry-people-modal select.input option {
+  background: #0b1a2e;
+  color: #f7fbff;
+}
+
+.ministry-people-leader-row {
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+}
+
+.ministry-people-delete-leader svg {
+  width: 15px;
+  height: 15px;
+}
+
 .app-shell:not(.app-shell-camp) .student-feed-welcome h1,
 .app-shell:not(.app-shell-camp) .student-question-composer h1,
 .app-shell:not(.app-shell-camp) .student-question-journey-header h2,

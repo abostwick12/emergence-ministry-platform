@@ -288,7 +288,7 @@ function makeOverview(): MinistryEmmaOverview {
       ministryId: "ministry-emerge",
       title: "Winter Retreat",
       description: "Weekend retreat",
-      type: "retreat",
+      type: "conference",
       status: "planning",
       startTime: "2099-01-10T18:00:00.000Z",
       endTime: "2099-01-12T12:00:00.000Z",

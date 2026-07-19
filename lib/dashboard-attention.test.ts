@@ -7,7 +7,7 @@ const event = {
   id: "event-1",
   title: "Fall Retreat",
   description: "",
-  type: "retreat",
+  type: "conference",
   startTime: "2026-09-20T14:00:00.000Z",
   endTime: "2026-09-20T20:00:00.000Z",
   status: "planning",

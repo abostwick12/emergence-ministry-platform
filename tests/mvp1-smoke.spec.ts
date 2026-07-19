@@ -361,7 +361,10 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await page.goto("/tasks");
     await page.locator(".tasks-workspace").getByRole("button", { name: "List", exact: true }).click();
 
-    const taskRow = page.locator("tr", { hasText: "Confirm venue contract and deposit" });
+    const taskRow = page
+      .locator("tr", { hasText: "Confirm venue contract and deposit" })
+      .filter({ hasText: "Winter Retreat" })
+      .first();
     const dueDateInput = taskRow.getByLabel("Due date for Confirm venue contract and deposit");
     const currentDate = await dueDateInput.inputValue();
     const nextDate = currentDate === "2026-06-01" ? "2026-06-02" : "2026-06-01";
@@ -412,7 +415,10 @@ test.describe("MVP event automation navigation smoke tests", () => {
     // Save task notes via task list view
     await page.goto("/tasks");
     await page.locator(".tasks-workspace").getByRole("button", { name: "List", exact: true }).click();
-    const taskRow = page.locator("tr", { hasText: "Confirm venue contract and deposit" });
+    const taskRow = page
+      .locator("tr", { hasText: "Confirm venue contract and deposit" })
+      .filter({ hasText: "Winter Retreat" })
+      .first();
     await taskRow.getByRole("button", { name: /Notes/ }).click();
     await taskRow.getByLabel(/Internal notes for Confirm venue contract and deposit task/).fill(`Reviewed task notes ${Date.now()}`);
     const taskPatch = page.waitForResponse(

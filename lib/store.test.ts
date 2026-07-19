@@ -45,7 +45,7 @@ describe("mock store ministry scope", () => {
     const workspace = createEvent({
       title: "Scope Test Event",
       description: "Ensures new events are scoped.",
-      type: "weekly",
+      type: "small_group_gathering",
       startTime: new Date().toISOString(),
       endTime: new Date().toISOString()
     });

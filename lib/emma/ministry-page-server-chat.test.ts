@@ -30,7 +30,7 @@ function overview(): MinistryEmmaOverview {
         id: "evt_1",
         title: "Fall Kickoff",
         description: "Invite students and parents into the new ministry year.",
-        type: "weekly",
+        type: "small_group_gathering",
         startTime: "2026-08-01T18:00:00.000Z",
         endTime: "2026-08-01T20:00:00.000Z",
         location: "Student Center",

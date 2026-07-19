@@ -25,7 +25,7 @@ describe("guest EMMA simulation", () => {
           id: "guest_evt",
           title: "Guest Event",
           description: "Fake event.",
-          type: "weekly",
+          type: "small_group_gathering",
           startTime: new Date().toISOString(),
           endTime: new Date().toISOString(),
           status: "planning",

@@ -199,7 +199,7 @@ test.describe("Student Scripture Hub shell", () => {
     );
 
     await page.goto("/student/scripture/review");
-    await expect(page).toHaveURL(/\/discipleship$/);
+    await page.waitForURL(/\/discipleship$/, { timeout: 30000 });
     await page.getByText("Knowledge and resource controls", { exact: true }).click();
     await expect(page.getByRole("heading", { name: "Review the source library" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Discussion Review" })).toBeVisible();

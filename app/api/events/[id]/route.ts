@@ -19,9 +19,9 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   const access = await requireEmergeOperationsAccess();
   if (!access.allowed) return access.response;
 
-  const body = await request.json();
-
   try {
+    const rawBody = await request.text();
+    const body = rawBody ? JSON.parse(rawBody) : {};
     const workspace = await updateMinistryEvent(access.session, params.id, body);
 
     if (!workspace) {

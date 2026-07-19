@@ -100,7 +100,7 @@ function createInitialStore(): MockStoreState {
         id: "evt_midweek_hangout",
         title: "Midweek Hangout",
         description: "A low-lift gathering for students to connect, worship, and hear a short teaching.",
-        type: "weekly",
+        type: "small_group_gathering",
         startTime: thisWeekStart.toISOString(),
         endTime: addDays(thisWeekStart.toISOString(), 0),
         status: "planning",
@@ -117,7 +117,7 @@ function createInitialStore(): MockStoreState {
         id: "evt_friday_night",
         title: "Friday Night",
         description: "A Friday gathering for students with games, worship, and a short leader announcement.",
-        type: "weekly",
+        type: "high_school_event",
         startTime: fridayStart.toISOString(),
         endTime: addDays(fridayStart.toISOString(), 0),
         status: "planning",
@@ -134,7 +134,7 @@ function createInitialStore(): MockStoreState {
         id: "evt_service_day",
         title: "High School Event",
         description: "High school students and leaders serve a local ministry partner with cleanup and care projects.",
-        type: "service",
+        type: "high_school_event",
         startTime: thisMonthStart.toISOString(),
         endTime: addDays(thisMonthStart.toISOString(), 0),
         status: "planning",
@@ -151,7 +151,7 @@ function createInitialStore(): MockStoreState {
         id: "evt_volunteer_training",
         title: "Volunteer Training",
         description: "Leader onboarding and safety training for the fall student ministry season.",
-        type: "service",
+        type: "conference",
         startTime: trainingStart.toISOString(),
         endTime: addDays(trainingStart.toISOString(), 0),
         status: "planning",
@@ -168,7 +168,7 @@ function createInitialStore(): MockStoreState {
         id: "evt_winter_retreat",
         title: "Winter Retreat",
         description: "A weekend retreat for worship, teaching, small groups, and student connection.",
-        type: "retreat",
+        type: "conference",
         startTime: sampleStart.toISOString(),
         endTime: addDays(sampleStart.toISOString(), 2),
         status: "planning",
@@ -185,7 +185,7 @@ function createInitialStore(): MockStoreState {
         id: "evt_summer_camp",
         title: "Summer Camp",
         description: "A high-visibility camp event with registration, packing, volunteers, parent updates, and files to coordinate.",
-        type: "camp",
+        type: "conference",
         startTime: campStart.toISOString(),
         endTime: addDays(campStart.toISOString(), 4),
         status: "planning",
@@ -203,7 +203,7 @@ function createInitialStore(): MockStoreState {
         id: "evt_fall_fundraiser",
         title: "Fall Fundraiser",
         description: "A student ministry fundraiser dinner and auction supporting retreats, camp scholarships, and outreach.",
-        type: "service",
+        type: "missions_trip",
         startTime: fundraiserStart.toISOString(),
         endTime: addDays(fundraiserStart.toISOString(), 0),
         status: "planning",
@@ -220,7 +220,7 @@ function createInitialStore(): MockStoreState {
         id: "evt_parent_briefing",
         title: "Spring Parent Briefing",
         description: "A completed parent information meeting kept visible for Past Events grouping.",
-        type: "weekly",
+        type: "sunday_morning_service",
         startTime: pastStart.toISOString(),
         endTime: addDays(pastStart.toISOString(), 0),
         status: "ready",
@@ -437,7 +437,7 @@ export function createTask(input: {
 export function updateEvent(
   id: string,
   input: Partial<
-    Pick<MinistryEvent, "title" | "description" | "startTime" | "endTime" | "location" | "targetGroup" | "budgetTarget" | "budgetActual" | "volunteersNeeded" | "priority" | "contactOwnerId" | "notes" | "archivedAt" | "archivedByUserId" | "archiveReason">
+    Pick<MinistryEvent, "title" | "description" | "type" | "startTime" | "endTime" | "location" | "targetGroup" | "budgetTarget" | "budgetActual" | "volunteersNeeded" | "priority" | "contactOwnerId" | "notes" | "archivedAt" | "archivedByUserId" | "archiveReason">
   >
 ) {
   const event = getEvent(id);
@@ -445,7 +445,7 @@ export function updateEvent(
 
   const changedFields: string[] = [];
 
-  (["title", "description", "startTime", "endTime", "location", "targetGroup", "budgetTarget", "budgetActual", "volunteersNeeded", "priority", "contactOwnerId", "notes", "archivedAt", "archivedByUserId", "archiveReason"] as const).forEach((field) => {
+  (["title", "description", "type", "startTime", "endTime", "location", "targetGroup", "budgetTarget", "budgetActual", "volunteersNeeded", "priority", "contactOwnerId", "notes", "archivedAt", "archivedByUserId", "archiveReason"] as const).forEach((field) => {
     if (input[field] !== undefined && input[field] !== event[field]) {
       changedFields.push(field);
     }
@@ -573,7 +573,7 @@ export function generateCommunicationPreview(eventId: string) {
   const budgetLine = event.budgetTarget ? `Budget target: $${event.budgetTarget.toLocaleString()}.` : "Budget target is still being confirmed.";
   const registrationLine = "Registration details are still being confirmed.";
   const packingLine =
-    event.type === "retreat" || event.type === "camp"
+    event.type === "conference" || event.type === "missions_trip"
       ? "Packing list is not available yet."
       : "Packing list is not needed for this event type in MVP 1.";
 

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireEmergeOperationsAccess } from "@/lib/app-area-access";
 import { createMinistryEvent, getOverview } from "@/lib/data/ministry-repository";
-import type { EventType } from "@/lib/types";
+import { normalizeEventType } from "@/lib/event-categories";
 
 export async function GET() {
   const access = await requireEmergeOperationsAccess();
@@ -17,7 +17,7 @@ export async function POST(request: Request) {
   const body = (await request.json()) as {
     title?: string;
     description?: string;
-    type?: EventType;
+    type?: string;
     startTime?: string;
     endTime?: string;
     location?: string;
@@ -38,7 +38,7 @@ export async function POST(request: Request) {
     const workspace = await createMinistryEvent(access.session, {
       title: body.title!,
       description: body.description ?? "",
-      type: body.type!,
+      type: normalizeEventType(body.type),
       startTime: body.startTime!,
       endTime: body.endTime!,
       location: body.location,

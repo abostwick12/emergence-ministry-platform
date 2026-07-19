@@ -65,7 +65,7 @@ describe("formatDailyIntelligenceSlackMessage", () => {
             id: "evt_1",
             title: "Sunday Gathering",
             description: "Weekly student gathering.",
-            type: "weekly",
+            type: "small_group_gathering",
             startTime: "2026-07-16T18:00:00.000Z",
             endTime: "2026-07-16T20:00:00.000Z",
             status: "planning",
