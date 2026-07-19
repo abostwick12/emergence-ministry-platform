@@ -67,6 +67,7 @@ export function LeaderPreparationPage() {
     setEmmaResponse(
       `Preview response: shape this around "${bigIdea}" and give leaders one observation question, one heart question, and one practice step. No live EMMA request was sent.`
     );
+    setEmmaPrompt("");
   }
 
   return (

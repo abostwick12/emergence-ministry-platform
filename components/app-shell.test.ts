@@ -9,48 +9,121 @@ describe("app shell navigation", () => {
       isStudentShell: true,
       showCommandCenter: true,
       showLeaderDiscipleship: true,
-      showStudentPortal: true
+      showStudentPortal: true,
+      pathname: "/student"
     });
 
-    expect(navigation.primaryLinks).toEqual([
-      { href: "/student", label: "Student Portal" },
-      { href: "/student/scripture/questions", label: "Journey Journal" },
-      { href: "/student/scripture/resources", label: "Scripture" },
-      { href: "/student/scripture/plans", label: "Plans" },
-      { href: "/student/scripture/how-to-read", label: "How to Read" }
+    expect(navigation.primaryLinks.map((link) => link.href)).toEqual([
+      "/student",
+      "/student/scripture/questions",
+      "/student/scripture/resources",
+      "/student/scripture/plans",
+      "/student/scripture/how-to-read"
     ]);
-    expect(navigation.mobileLinks).toEqual([
-      { href: "/student", label: "Student Portal" },
-      { href: "/student/scripture/questions", label: "Journey Journal" },
-      { href: "/student/scripture/resources", label: "Scripture" },
-      { href: "/student/scripture/plans", label: "Plans" }
+    expect(navigation.mobileLinks.map((link) => link.href)).toEqual([
+      "/student",
+      "/student/scripture/questions",
+      "/student/scripture/resources",
+      "/student/scripture/plans"
     ]);
     expect(navigation.mobileMoreLinks).toEqual([]);
   });
 
-  it("keeps full ministry navigation for admin and leader sessions", () => {
+  it("shows portal groups from the main dashboard for admin and leader sessions", () => {
     const navigation = getAppShellNavigation({
       campOnly: false,
       isStudentShell: false,
       showCommandCenter: true,
       showLeaderDiscipleship: true,
-      showStudentPortal: true
+      showStudentPortal: true,
+      pathname: "/dashboard"
     });
 
     expect(navigation.primaryLinks.map((link) => link.href)).toEqual([
       "/dashboard",
-      "/events",
+      "/ministry",
       "/student",
-      "/student/scripture/questions",
-      "/discipleship",
+      "/people",
+      "/directors",
       "/camp",
+      "/settings",
+      "/command-center"
+    ]);
+  });
+
+  it("uses the ministry hub menu inside ministry operations routes", () => {
+    const navigation = getAppShellNavigation({
+      campOnly: false,
+      isStudentShell: false,
+      showCommandCenter: false,
+      showLeaderDiscipleship: true,
+      showStudentPortal: true,
+      pathname: "/events"
+    });
+
+    expect(navigation.primaryLinks.map((link) => link.href)).toEqual([
+      "/dashboard",
+      "/ministry",
+      "/events",
       "/worship",
       "/tasks",
       "/communications",
-      "/people",
-      "/budget",
-      "/settings",
-      "/command-center"
+      "/budget"
+    ]);
+  });
+
+  it("uses the directors hub menu inside director routes", () => {
+    const navigation = getAppShellNavigation({
+      campOnly: false,
+      isStudentShell: false,
+      showCommandCenter: false,
+      showLeaderDiscipleship: true,
+      showStudentPortal: true,
+      pathname: "/leader-prep"
+    });
+
+    expect(navigation.primaryLinks.map((link) => link.href)).toEqual([
+      "/dashboard",
+      "/directors",
+      "/leader-prep",
+      "/directors/resources",
+      "/discipleship",
+      "/directors/volunteers"
+    ]);
+  });
+
+  it("uses the volunteer hub menu on the People route", () => {
+    const navigation = getAppShellNavigation({
+      campOnly: false,
+      isStudentShell: false,
+      showCommandCenter: false,
+      showLeaderDiscipleship: true,
+      showStudentPortal: true,
+      pathname: "/people"
+    });
+
+    expect(navigation.primaryLinks.map((link) => link.href)).toEqual([
+      "/dashboard",
+      "/people"
+    ]);
+  });
+
+  it("filters contextual links by visible page access", () => {
+    const navigation = getAppShellNavigation({
+      campOnly: false,
+      isStudentShell: false,
+      showCommandCenter: false,
+      showLeaderDiscipleship: true,
+      showStudentPortal: true,
+      pathname: "/events",
+      visiblePageKeys: ["dashboard", "ministry_hub", "events", "tasks"]
+    });
+
+    expect(navigation.primaryLinks.map((link) => link.href)).toEqual([
+      "/dashboard",
+      "/ministry",
+      "/events",
+      "/tasks"
     ]);
   });
 });

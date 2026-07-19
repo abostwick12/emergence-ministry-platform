@@ -1,5 +1,9 @@
 export type PlatformPageKey =
   | "dashboard"
+  | "ministry_hub"
+  | "directors_hub"
+  | "resource_development"
+  | "volunteer_dashboard"
   | "events"
   | "leader_prep"
   | "worship"
@@ -30,6 +34,10 @@ export type PlatformPageDefinition = {
 
 export const platformPages: PlatformPageDefinition[] = [
   page("dashboard", "Dashboard", "/dashboard", "Ministry metrics, calendar, and priority signals.", true, true, ["admin", "leader"]),
+  page("ministry_hub", "Ministry Hub", "/ministry", "Grouped event, worship, task, communication, and budget work.", true, true, ["admin", "leader"]),
+  page("directors_hub", "Directors Hub", "/directors", "Director-level sermon, discipleship, resource, and volunteer monitoring.", true, true, ["admin", "leader"]),
+  page("resource_development", "Resource Development", "/directors/resources", "Resource development planning and upload boundaries.", true, true, ["admin", "leader"]),
+  page("volunteer_dashboard", "Volunteer Dashboard", "/directors/volunteers", "Volunteer monitoring and resource readiness.", true, true, ["admin", "leader"]),
   page("events", "Events", "/events", "Event plans, readiness, task trees, and workspaces.", true, true, ["admin", "leader"]),
   page("leader_prep", "Leader Prep", "/leader-prep", "Sermon and leader-guide preparation.", true, true, ["admin", "leader"]),
   page("worship", "Worship", "/worship", "Service, rehearsal, and presentation planning.", true, true, ["admin", "leader"]),

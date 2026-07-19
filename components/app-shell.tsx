@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import {
+  BarChart3,
   Bell,
   BookOpen,
   BookOpenText,
@@ -18,6 +19,7 @@ import {
   MessageSquareText,
   Music,
   NotebookPen,
+  PanelsTopLeft,
   Search,
   Settings,
   TentTree,
@@ -39,27 +41,58 @@ const roleLabels: Record<Role, string> = {
   parent: "Parent"
 };
 
-const primaryLinks = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/events", label: "Events" },
-  { href: "/leader-prep", label: "Leader Prep" },
-  { href: "/student", label: "Student Portal" },
-  { href: "/student/scripture/questions", label: "Journey Journal" },
-  { href: "/discipleship", label: "Discipleship" },
-  { href: "/camp", label: "Camp" },
-  { href: "/worship", label: "Worship" },
-  { href: "/tasks", label: "Tasks" },
-  { href: "/communications", label: "Communications" },
-  { href: "/people", label: "People" },
-  { href: "/budget", label: "Budget" },
-  { href: "/settings", label: "Settings" }
+type AppNavLink = { href: string; label: string; pageKey?: PlatformPageKey };
+
+const dashboardLinks: AppNavLink[] = [
+  { href: "/dashboard", label: "Dashboard", pageKey: "dashboard" },
+  { href: "/ministry", label: "Ministry Hub", pageKey: "ministry_hub" },
+  { href: "/student", label: "Student Portal", pageKey: "student_portal" },
+  { href: "/people", label: "Volunteer Hub", pageKey: "people" },
+  { href: "/directors", label: "Directors Hub", pageKey: "directors_hub" },
+  { href: "/camp", label: "Camp", pageKey: "camp" },
+  { href: "/settings", label: "Settings", pageKey: "settings" }
+];
+
+const ministryHubLinks: AppNavLink[] = [
+  { href: "/dashboard", label: "Dashboard", pageKey: "dashboard" },
+  { href: "/ministry", label: "Ministry Hub", pageKey: "ministry_hub" },
+  { href: "/events", label: "Events", pageKey: "events" },
+  { href: "/worship", label: "Worship", pageKey: "worship" },
+  { href: "/tasks", label: "Tasks", pageKey: "tasks" },
+  { href: "/communications", label: "Communications", pageKey: "communications" },
+  { href: "/budget", label: "Budget", pageKey: "budget" }
+];
+
+const studentPortalLinks: AppNavLink[] = [
+  { href: "/dashboard", label: "Dashboard", pageKey: "dashboard" },
+  { href: "/student", label: "Student Portal", pageKey: "student_portal" },
+  { href: "/student/scripture/questions", label: "Journey Journal", pageKey: "journey_journal" },
+  { href: "/student/scripture/resources", label: "Scripture", pageKey: "scripture_resources" },
+  { href: "/student/scripture/plans", label: "Plans", pageKey: "reading_plans" },
+  { href: "/student/scripture/how-to-read", label: "How to Read", pageKey: "how_to_read" }
+];
+
+const studentSessionLinks: AppNavLink[] = studentPortalLinks.filter((link) => link.href !== "/dashboard");
+
+const volunteerHubLinks: AppNavLink[] = [
+  { href: "/dashboard", label: "Dashboard", pageKey: "dashboard" },
+  { href: "/people", label: "Volunteer Hub", pageKey: "people" }
+];
+
+const directorsHubLinks: AppNavLink[] = [
+  { href: "/dashboard", label: "Dashboard", pageKey: "dashboard" },
+  { href: "/directors", label: "Directors Hub", pageKey: "directors_hub" },
+  { href: "/leader-prep", label: "Sermon Prep", pageKey: "leader_prep" },
+  { href: "/directors/resources", label: "Resource Development", pageKey: "resource_development" },
+  { href: "/discipleship", label: "Discipleship Dashboard", pageKey: "discipleship" },
+  { href: "/directors/volunteers", label: "Volunteer Dashboard", pageKey: "volunteer_dashboard" }
 ];
 
 const mobileLinks = [
   { href: "/dashboard", label: "Dashboard" },
-  { href: "/events", label: "Events" },
-  { href: "/tasks", label: "Tasks" },
-  { href: "/communications", label: "Communications" }
+  { href: "/ministry", label: "Ministry" },
+  { href: "/student", label: "Student" },
+  { href: "/people", label: "Volunteer" }
 ];
 
 function mobileMoreLinksFor(links: { href: string; label: string }[]) {
@@ -75,6 +108,10 @@ function initialsForUser(displayName: string): string {
 
 const navIcons: Record<string, LucideIcon> = {
   "/dashboard": LayoutDashboard,
+  "/ministry": PanelsTopLeft,
+  "/directors": BarChart3,
+  "/directors/resources": Library,
+  "/directors/volunteers": Users,
   "/camp": TentTree,
   "/events": CalendarDays,
   "/leader-prep": ClipboardPenLine,
@@ -100,9 +137,13 @@ function NavIcon({ href }: { href: string }) {
 
 const pageTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
+  "/ministry": "Ministry Hub",
+  "/directors": "Directors Hub",
+  "/directors/resources": "Resource Development",
+  "/directors/volunteers": "Volunteer Dashboard",
   "/camp": "Camp Command Center",
   "/events": "Events",
-  "/leader-prep": "Leader Preparation",
+  "/leader-prep": "Sermon Prep",
   "/worship": "Worship",
   "/student": "Student Portal",
   "/student/scripture/questions": "Journey Journal",
@@ -111,7 +152,7 @@ const pageTitles: Record<string, string> = {
   "/student/scripture/how-to-read": "How to Read",
   "/tasks": "Tasks",
   "/communications": "Communications",
-  "/people": "People",
+  "/people": "Volunteer Hub",
   "/files": "Files",
   "/budget": "Budget",
   "/settings": "Settings",
@@ -121,12 +162,16 @@ const pageTitles: Record<string, string> = {
 
 const pageSubtitles: Record<string, string> = {
   "/dashboard": "See what needs human attention, protect what can wait, and keep ministry moving with clarity.",
+  "/ministry": "Plan events, worship, tasks, communication, and budget work from one ministry operations hub.",
+  "/directors": "Monitor formation, sermon preparation, resource development, and volunteer readiness in one director view.",
+  "/directors/resources": "Stage leader resources, training assets, and discipleship material before anything is published.",
+  "/directors/volunteers": "Monitor volunteer coverage and resource readiness without bypassing human review.",
   "/events": "Plan every gathering around purpose, readiness, and the people it is meant to serve.",
   "/leader-prep": "Write the sermon. Then let EMMA equip your leaders with guides, questions, and slides.",
   "/worship": "Shape services where songs, people, rehearsal, and story move together with purpose.",
   "/tasks": "Turn ministry vision into visible next steps, clear ownership, and work that keeps moving.",
   "/communications": "Prepare thoughtful ministry communication with clear review boundaries before anything is sent.",
-  "/people": "Know who is serving, where care is needed, and how each person can take a meaningful next step.",
+  "/people": "Know who is serving, where coverage is needed, and how each volunteer can take a meaningful next step.",
   "/budget": "Steward resources visibly so every dollar supports the ministry purpose it was given for.",
   "/settings": "Shape access, integrations, and safeguards so the platform serves people responsibly.",
   "/files": "Keep ministry resources connected to the work, people, and decisions they support.",
@@ -143,7 +188,27 @@ const pageSubtitles: Record<string, string> = {
 function isLinkActive(pathname: string, href: string): boolean {
   if (href === "/student") return pathname === "/student";
   if (href === "/discipleship") return pathname === "/discipleship";
+  if (href === "/people") return pathname === "/people";
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function portalLinksForPathname(pathname: string): AppNavLink[] {
+  if (pathname.startsWith("/student")) return studentPortalLinks;
+  if (
+    pathname.startsWith("/directors") ||
+    pathname.startsWith("/leader-prep") ||
+    pathname.startsWith("/discipleship")
+  ) return directorsHubLinks;
+  if (pathname.startsWith("/people")) return volunteerHubLinks;
+  if (
+    pathname.startsWith("/ministry") ||
+    pathname.startsWith("/events") ||
+    pathname.startsWith("/worship") ||
+    pathname.startsWith("/tasks") ||
+    pathname.startsWith("/communications") ||
+    pathname.startsWith("/budget")
+  ) return ministryHubLinks;
+  return dashboardLinks;
 }
 
 export function getAppShellNavigation({
@@ -152,7 +217,8 @@ export function getAppShellNavigation({
   showCommandCenter,
   showLeaderDiscipleship,
   showStudentPortal,
-  visiblePageKeys
+  visiblePageKeys,
+  pathname
 }: {
   campOnly: boolean;
   isStudentShell: boolean;
@@ -160,31 +226,27 @@ export function getAppShellNavigation({
   showLeaderDiscipleship: boolean;
   showStudentPortal: boolean;
   visiblePageKeys?: PlatformPageKey[];
+  pathname?: string;
 }) {
   const visibleKeySet = visiblePageKeys ? new Set<PlatformPageKey>(visiblePageKeys) : null;
-  const filterByPageAccess = (links: { href: string; label: string }[]) =>
+  const filterByPageAccess = (links: AppNavLink[]) =>
     visibleKeySet ? links.filter((link) => {
-      const pageKey = pageKeyForHref(link.href);
+      const pageKey = link.pageKey ?? pageKeyForHref(link.href);
       return !pageKey || visibleKeySet.has(pageKey);
     }) : links;
-  const studentAwareLinks = showStudentPortal
-    ? primaryLinks
-    : primaryLinks.filter((link) => !link.href.startsWith("/student"));
-  const discipleshipAwareLinks = showLeaderDiscipleship
-    ? studentAwareLinks
-    : studentAwareLinks.filter((link) => link.href !== "/discipleship");
-  const allPrimaryLinks = filterByPageAccess(showCommandCenter ? [...discipleshipAwareLinks, { href: "/command-center", label: "Command Center" }] : discipleshipAwareLinks);
-  const studentPortalOnlyLinks = [
-    { href: "/student", label: "Student Portal" },
-    { href: "/student/scripture/questions", label: "Journey Journal" },
-    { href: "/student/scripture/resources", label: "Scripture" },
-    { href: "/student/scripture/plans", label: "Plans" },
-    { href: "/student/scripture/how-to-read", label: "How to Read" }
-  ];
+  const withFeatureVisibility = (links: AppNavLink[]) => links.filter((link) => {
+    if (link.href.startsWith("/student")) return showStudentPortal;
+    if (link.href === "/discipleship") return showLeaderDiscipleship;
+    return true;
+  });
+  const contextualLinks = filterByPageAccess(withFeatureVisibility(portalLinksForPathname(pathname ?? "/dashboard")));
+  const allPrimaryLinks = showCommandCenter && !isStudentShell
+    ? filterByPageAccess([...contextualLinks, { href: "/command-center", label: "Command Center", pageKey: "command_center" }])
+    : contextualLinks;
 
   return {
-    primaryLinks: isStudentShell ? studentPortalOnlyLinks : campOnly ? allPrimaryLinks.filter((link) => link.href === "/camp") : allPrimaryLinks,
-    mobileLinks: isStudentShell ? studentPortalOnlyLinks.slice(0, 4) : campOnly ? [{ href: "/camp", label: "Camp" }] : mobileLinks,
+    primaryLinks: isStudentShell ? studentSessionLinks : campOnly ? allPrimaryLinks.filter((link) => link.href === "/camp") : allPrimaryLinks,
+    mobileLinks: isStudentShell ? studentSessionLinks.slice(0, 4) : campOnly ? [{ href: "/camp", label: "Camp" }] : filterByPageAccess(withFeatureVisibility(mobileLinks)),
     mobileMoreLinks: isStudentShell || campOnly ? [] : mobileMoreLinksFor(allPrimaryLinks)
   };
 }
@@ -214,6 +276,7 @@ export function AppShell({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const mobileMoreRef = useRef<HTMLDetailsElement>(null);
   const firstName = firstNameForPerson(user?.name, user?.email);
   const userInitials = initialsForUser(firstName);
   const { activeRole, setActiveRole } = useRole();
@@ -232,7 +295,8 @@ export function AppShell({
     showCommandCenter,
     showLeaderDiscipleship,
     showStudentPortal,
-    visiblePageKeys
+    visiblePageKeys,
+    pathname
   });
   const title = isCampRoute
     ? "Camp Command Center"
@@ -373,20 +437,23 @@ export function AppShell({
             </Link>
           ))}
           {!isStudentShell ? (
-            <details className="mobile-more-menu">
+            <details className="mobile-more-menu" ref={mobileMoreRef}>
               <summary className="mobile-nav-link">More</summary>
               <div className="mobile-more-panel" aria-label="More navigation">
                 {canUseEmergeShell && canManageEvents ? (
                   <button
                     className="button primary mobile-add-event-btn"
                     type="button"
-                    onClick={openCreate}
+                    onClick={() => {
+                      mobileMoreRef.current?.removeAttribute("open");
+                      openCreate();
+                    }}
                   >
                     + Add Event
                   </button>
                 ) : null}
                 {visibleMobileMoreLinks.map((link) => (
-                  <Link className="app-nav-link" href={link.href} key={link.href}>
+                  <Link className="app-nav-link" href={link.href} key={link.href} onClick={() => mobileMoreRef.current?.removeAttribute("open")}>
                     {link.label}
                   </Link>
                 ))}
@@ -402,6 +469,10 @@ export function AppShell({
 function pageKeyForHref(href: string): PlatformPageKey | undefined {
   switch (href) {
     case "/dashboard": return "dashboard";
+    case "/ministry": return "ministry_hub";
+    case "/directors": return "directors_hub";
+    case "/directors/resources": return "resource_development";
+    case "/directors/volunteers": return "volunteer_dashboard";
     case "/events": return "events";
     case "/leader-prep": return "leader_prep";
     case "/worship": return "worship";
