@@ -110,6 +110,7 @@ export function MinistryEmmaPanel({
     if (!trimmedPrompt || isRunning) return;
 
     setMessages((current) => [...current, { id: createId("user"), author: "user", body: trimmedPrompt }]);
+    setPrompt("");
     setIsRunning(true);
 
     try {

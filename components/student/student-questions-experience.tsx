@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Archive, BookOpen, Check, ChevronDown, Feather, Footprints, GitFork, Leaf, Plus, RotateCcw, Sprout } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -41,6 +41,7 @@ export function StudentQuestionsExperience({ initialJourneyEntries, initialRefle
   const [activeEntryByJourney, setActiveEntryByJourney] = useState<Record<string, number>>({});
   const [selectedJourneyId, setSelectedJourneyId] = useState(initialState.prompts[0]?.id ?? studentLeaderFormationJourney.id);
   const [isComposerOpen, setIsComposerOpen] = useState(!initialState.prompts[0]);
+  const journalDropdownRef = useRef<HTMLDetailsElement>(null);
   const activePrompts = prompts.filter((prompt) => prompt.status !== "archived" && !archivedPromptIds.has(prompt.id));
   const archivedPrompts = prompts.filter((prompt) => prompt.status === "archived" || archivedPromptIds.has(prompt.id));
   const selectedPrompt = activePrompts.find((prompt) => prompt.id === selectedJourneyId);
@@ -127,6 +128,7 @@ export function StudentQuestionsExperience({ initialJourneyEntries, initialRefle
       return next;
     });
     setSelectedJourneyId(promptId);
+    journalDropdownRef.current?.removeAttribute("open");
   }
 
   function addEntry(promptId: string) {
@@ -144,6 +146,11 @@ export function StudentQuestionsExperience({ initialJourneyEntries, initialRefle
     setActiveEntryByJourney((current) => ({ ...current, [promptId]: sequence }));
   }
 
+  function selectJourney(journeyId: string) {
+    setSelectedJourneyId(journeyId);
+    journalDropdownRef.current?.removeAttribute("open");
+  }
+
   return (
     <div className="student-ask-page">
       <section className={`student-new-question-drawer ${isComposerOpen ? "open" : ""}`}>
@@ -154,7 +161,7 @@ export function StudentQuestionsExperience({ initialJourneyEntries, initialRefle
         {isComposerOpen ? <StudentQuestionComposer onCreated={addCreatedPrompt} readiness={initialState.readiness} /> : null}
       </section>
       <section className="student-journal-control" aria-label="Journey journal selector">
-          <details className="student-journal-dropdown">
+          <details className="student-journal-dropdown" ref={journalDropdownRef}>
             <summary>
               <div>
                 <p className="eyebrow">{isFormationJourneySelected ? "Formation Journey" : "Question Journal"}</p>
@@ -169,7 +176,7 @@ export function StudentQuestionsExperience({ initialJourneyEntries, initialRefle
               <p className="eyebrow">Formation journeys</p>
               <button
                 className={isFormationJourneySelected ? "active" : ""}
-                onClick={() => setSelectedJourneyId(studentLeaderFormationJourney.id)}
+                onClick={() => selectJourney(studentLeaderFormationJourney.id)}
                 type="button"
               >
                 <span>{studentLeaderFormationJourney.availableLabel}</span>
@@ -180,7 +187,7 @@ export function StudentQuestionsExperience({ initialJourneyEntries, initialRefle
                 <button
                   className={prompt.id === selectedPrompt?.id ? "active" : ""}
                   key={prompt.id}
-                  onClick={() => setSelectedJourneyId(prompt.id)}
+                  onClick={() => selectJourney(prompt.id)}
                   type="button"
                 >
                   <span>{prompt.scriptureReference || "Question"}</span>

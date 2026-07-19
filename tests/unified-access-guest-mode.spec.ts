@@ -16,11 +16,17 @@ test.describe("Unified access and competition guest mode", () => {
 
     await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible();
     const sidebar = page.getByRole("navigation", { name: "Desktop navigation" });
-    await expect(sidebar.getByRole("link", { name: "Events" })).toBeVisible();
-    await expect(sidebar.getByRole("link", { name: "Tasks" })).toBeVisible();
+    await expect(sidebar.getByRole("link", { name: "Ministry Hub" })).toBeVisible();
+    await expect(sidebar.getByRole("link", { name: "Student Portal" })).toBeVisible();
+    await expect(sidebar.getByRole("link", { name: "Volunteer Hub" })).toBeVisible();
     await expect(sidebar.getByRole("link", { name: "Camp" })).toHaveCount(0);
     await expect(sidebar.getByRole("link", { name: "Settings" })).toHaveCount(0);
     await expect(sidebar.getByRole("link", { name: "Command Center" })).toHaveCount(0);
+
+    await sidebar.getByRole("link", { name: "Ministry Hub" }).click();
+    await expect(page).toHaveURL(/\/ministry$/);
+    await expect(sidebar.getByRole("link", { name: "Events" })).toBeVisible();
+    await expect(sidebar.getByRole("link", { name: "Tasks" })).toBeVisible();
 
     await page.goto("/camp");
     await expect(page).toHaveURL(/\/$/);

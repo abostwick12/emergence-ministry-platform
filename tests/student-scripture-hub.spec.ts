@@ -26,10 +26,10 @@ test.describe("Student Scripture Hub shell", () => {
 
     const sidebar = page.getByRole("navigation", { name: "Desktop navigation" });
     const portalLink = sidebar.getByRole("link", { name: "Student Portal", exact: true });
-    const discipleshipLink = sidebar.getByRole("link", { name: "Discipleship", exact: true });
+    const directorsLink = sidebar.getByRole("link", { name: "Directors Hub", exact: true });
 
     await expect(portalLink).toBeVisible();
-    await expect(discipleshipLink).toBeVisible();
+    await expect(directorsLink).toBeVisible();
     await portalLink.click();
     await expect(page).toHaveURL(/\/student$/);
     await expect(page.getByRole("heading", { name: "Student Portal" })).toBeVisible();
@@ -46,7 +46,9 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page.getByRole("heading", { name: "Learn to read the Bible with care." })).toBeVisible();
 
     await page.goto("/dashboard");
-    await discipleshipLink.click();
+    await directorsLink.click();
+    await expect(page).toHaveURL(/\/directors$/);
+    await sidebar.getByRole("link", { name: "Discipleship Dashboard", exact: true }).click();
     await expect(page).toHaveURL(/\/discipleship$/);
     await expect(page.getByRole("heading", { name: "Discussion Review" })).toBeVisible();
     await page.getByText("Knowledge and resource controls", { exact: true }).click();

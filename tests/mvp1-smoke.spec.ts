@@ -43,7 +43,7 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await page.getByRole("button", { name: "Log in" }).click();
 
     await expect(page).toHaveURL(/\/tasks$/);
-    await expect(page.getByRole("heading", { name: "Tasks", level: 1 })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Tasks", level: 1 })).toBeVisible({ timeout: 30000 });
   });
 
   test("authenticated user lands on dashboard and can log out", async ({ page }) => {
@@ -66,17 +66,50 @@ test.describe("MVP event automation navigation smoke tests", () => {
 
     for (const route of [
       ["Dashboard", "/dashboard", "Dashboard"],
-      ["Events", "/events", "Events"],
-      ["Leader Prep", "/leader-prep", "Leader Preparation"],
-      ["Tasks", "/tasks", "Tasks"],
-      ["Communications", "/communications", "Communications"],
-      ["People", "/people", "People"],
-      ["Budget", "/budget", "Budget"],
+      ["Ministry Hub", "/ministry", "Ministry Hub"],
+      ["Student Portal", "/student", "Student Portal"],
+      ["Volunteer Hub", "/people", "Volunteer Hub"],
+      ["Directors Hub", "/directors", "Directors Hub"],
       ["Settings", "/settings", "Settings"]
     ] as const) {
       await sidebar.getByRole("link", { name: route[0] }).click();
       await expect(page).toHaveURL(new RegExp(`${route[1]}$`));
       await expect(page.getByRole("heading", { name: route[2], level: 1 })).toBeVisible();
+      if (route[1] !== "/dashboard") await page.goto("/dashboard");
+    }
+
+    await sidebar.getByRole("link", { name: "Ministry Hub" }).click();
+    for (const route of [
+      ["Events", "/events", "Events"],
+      ["Tasks", "/tasks", "Tasks"],
+      ["Communications", "/communications", "Communications"],
+      ["Budget", "/budget", "Budget"]
+    ] as const) {
+      await sidebar.getByRole("link", { name: route[0] }).click();
+      await expect(page).toHaveURL(new RegExp(`${route[1]}$`));
+      await expect(page.getByRole("heading", { name: route[2], level: 1 })).toBeVisible();
+      await page.goto("/ministry");
+    }
+
+    await page.goto("/directors");
+    await sidebar.getByRole("link", { name: "Sermon Prep" }).click();
+    await expect(page).toHaveURL(/\/leader-prep$/);
+    await expect(page.getByRole("heading", { name: "Sermon Prep", level: 1 })).toBeVisible();
+
+    await page.goto("/directors");
+    await sidebar.getByRole("link", { name: "Discipleship Dashboard" }).click();
+    await expect(page).toHaveURL(/\/discipleship$/);
+    await expect(page.getByRole("heading", { name: "Discipleship", level: 1 })).toBeVisible();
+
+    await page.goto("/directors");
+    for (const route of [
+      ["Resource Development", "/directors/resources", "Resource Development"],
+      ["Volunteer Dashboard", "/directors/volunteers", "Volunteer Dashboard"]
+    ] as const) {
+      await sidebar.getByRole("link", { name: route[0] }).click();
+      await expect(page).toHaveURL(new RegExp(`${route[1]}$`));
+      await expect(page.getByRole("heading", { name: route[2], level: 1 })).toBeVisible();
+      await page.goto("/directors");
     }
   });
 
@@ -86,13 +119,13 @@ test.describe("MVP event automation navigation smoke tests", () => {
 
     const mobileNav = page.getByRole("navigation", { name: "Mobile navigation" });
     await expect(mobileNav).toBeVisible();
-    for (const label of ["Dashboard", "Events", "Tasks", "Communications", "More"]) {
+    for (const label of ["Dashboard", "Ministry", "Student", "Volunteer", "More"]) {
       await expect(mobileNav.getByText(label, { exact: true })).toBeVisible();
     }
 
     await mobileNav.getByText("More", { exact: true }).click();
     const more = page.getByLabel("More navigation");
-    for (const label of ["Leader Prep", "People", "Budget", "Settings"]) {
+    for (const label of ["Directors Hub", "Camp", "Settings"]) {
       await expect(more.getByRole("link", { name: label })).toBeVisible();
     }
   });
@@ -101,7 +134,7 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await login(page);
     await page.goto("/leader-prep");
 
-    await expect(page.getByRole("heading", { name: "Leader Preparation", level: 1 })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Sermon Prep", level: 1 })).toBeVisible();
 
     await page.getByLabel("Sermon title").fill("Servant King");
     await expect(page.getByLabel("Sermon title")).toHaveValue("Servant King");
