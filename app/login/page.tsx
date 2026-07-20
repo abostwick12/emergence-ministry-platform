@@ -1,6 +1,7 @@
 "use client";
 
-import Image from "next/image";
+import Link from "next/link";
+import { ArrowRight, CalendarCheck2, HeartHandshake, LogIn, MessageSquareText } from "lucide-react";
 import { FormEvent, useState } from "react";
 
 type LoginResponse = {
@@ -42,57 +43,62 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="login-shell login-welcome-shell">
-      <section className="login-welcome-panel" aria-label="Lead Emergence welcome">
-        <Image
-          className="login-announcement-art"
-          src="/lead-emergence-announcement-transparent.png"
-          alt="Lead Emergence Automated Platform"
-          width={1408}
-          height={1115}
-          priority
-        />
-        <div className="login-welcome-copy">
-          <p className="eyebrow">Lead Emergence</p>
-          <h1>Welcome back to the ministry operating space.</h1>
-          <p>
-            Sign in to work with real ministry data, protected access, and the tools your team is actively building into weekly rhythms.
-          </p>
-        </div>
-        <div className="login-live-note">
-          <strong>Production note</strong>
-          <span>Registered users should see real ministry records or intentional empty states, never seeded demo scenarios.</span>
-        </div>
-      </section>
-      <section className="login-card">
-        <div className="brand-mark" aria-hidden="true">
-          LE
-        </div>
-        <div>
-          <p className="eyebrow">Internal Access</p>
-          <h1 className="title">Lead Emergence Automated Platform</h1>
-          <p className="muted">Sign in with your Lead Emergence account. Students can create access from a group invite, then return here anytime.</p>
-        </div>
+    <main className="login-shell login-entry-shell">
+      <div className="login-entry-frame">
+        <section className="login-entry-vision" aria-labelledby="login-vision-title">
+          <div className="login-entry-brand" aria-label="Lead Emergence Automated Platform">
+            <span className="login-entry-mark" aria-hidden="true">LE</span>
+            <span>
+              <strong>Lead Emergence</strong>
+              <small>Automated Platform</small>
+            </span>
+          </div>
 
-        <form className="grid" onSubmit={submit}>
-          <div className="field">
-            <label htmlFor="email">Email</label>
-            <input className="input" id="email" name="email" type="email" autoComplete="email" required />
+          <div className="login-entry-message">
+            <p className="eyebrow">Ministry operating system</p>
+            <h1 id="login-vision-title">Creating space for ministry to flourish.</h1>
+            <p>Bring the people, plans, and follow-through of ministry into one clear weekly rhythm.</p>
           </div>
-          <div className="field">
-            <label htmlFor="password">Password</label>
-            <input className="input" id="password" name="password" type="password" autoComplete="current-password" required />
+
+          <div className="login-entry-outcomes" aria-label="Platform outcomes">
+            <span><CalendarCheck2 size={18} aria-hidden="true" /> Plan with clarity</span>
+            <span><HeartHandshake size={18} aria-hidden="true" /> Care for people</span>
+            <span><MessageSquareText size={18} aria-hidden="true" /> Communicate well</span>
           </div>
-          {error ? (
-            <p className="auth-error" role="alert">
-              {error}
-            </p>
-          ) : null}
-          <button className="button primary" type="submit" disabled={isSubmitting}>
-            {isSubmitting ? "Signing in..." : "Log in"}
-          </button>
-        </form>
-      </section>
+        </section>
+
+        <section className="login-entry-access" aria-labelledby="login-access-title">
+          <div className="login-entry-access-copy">
+            <p className="eyebrow">Secure access</p>
+            <h2 id="login-access-title">Welcome back.</h2>
+            <p>Sign in with your Lead Emergence account to continue to your workspace.</p>
+          </div>
+
+          <form className="login-entry-form" onSubmit={submit}>
+            <div className="field">
+              <label htmlFor="email">Email</label>
+              <input className="input" id="email" name="email" type="email" autoComplete="email" required />
+            </div>
+            <div className="field">
+              <label htmlFor="password">Password</label>
+              <input className="input" id="password" name="password" type="password" autoComplete="current-password" required />
+            </div>
+            {error ? <p className="auth-error" role="alert">{error}</p> : null}
+            <button className="button primary login-entry-submit" type="submit" disabled={isSubmitting}>
+              <LogIn size={18} aria-hidden="true" />
+              {isSubmitting ? "Signing in..." : "Log in"}
+            </button>
+          </form>
+
+          <div className="login-entry-alternate"><span>or</span></div>
+
+          <Link className="button login-entry-guest" href="/api/auth/guest">
+            Continue as guest <ArrowRight size={18} aria-hidden="true" />
+          </Link>
+
+          <p className="login-entry-invite">Students receive access through a group invite.</p>
+        </section>
+      </div>
     </main>
   );
 }

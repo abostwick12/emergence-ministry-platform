@@ -3,12 +3,12 @@ import { expect, type Page, test } from "@playwright/test";
 test.describe("Unified access and competition guest mode", () => {
   test.describe.configure({ mode: "serial" });
 
-  test("landing page offers login and guest access", async ({ page }) => {
+  test("public root opens the unified login with guest access", async ({ page }) => {
     await page.goto("/");
 
-    const actions = page.getByLabel("Primary role paths");
-    await expect(actions.getByRole("link", { name: /^Login$/ })).toHaveAttribute("href", "/login?next=/dashboard");
-    await expect(actions.getByRole("link", { name: "Guest Access" })).toHaveAttribute("href", "/api/auth/guest");
+    await expect(page).toHaveURL(/\/login$/);
+    await expect(page.getByRole("button", { name: "Log in" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Continue as guest" })).toHaveAttribute("href", "/api/auth/guest");
   });
 
   test("guest enters public pages and cannot reach protected sections by default", async ({ page }) => {
@@ -29,11 +29,11 @@ test.describe("Unified access and competition guest mode", () => {
     await expect(sidebar.getByRole("link", { name: "Tasks" })).toBeVisible();
 
     await page.goto("/camp");
-    await expect(page).toHaveURL(/\/$/);
+    await expect(page).toHaveURL(/\/login$/);
     await page.goto("/settings");
-    await expect(page).toHaveURL(/\/$/);
+    await expect(page).toHaveURL(/\/login$/);
     await page.goto("/command-center");
-    await expect(page).toHaveURL(/\/$/);
+    await expect(page).toHaveURL(/\/login$/);
   });
 
   test("guest sandbox supports in-memory add/delete and resets with a new guest session", async ({ page }) => {
@@ -128,7 +128,7 @@ test.describe("Unified access and competition guest mode", () => {
     await enterGuestMode(page);
 
     await page.goto("/settings");
-    await expect(page).toHaveURL(/\/$/);
+    await expect(page).toHaveURL(/\/login$/);
 
     await login(page);
     await page.getByRole("navigation", { name: "Mobile navigation" }).getByText("More", { exact: true }).click();
@@ -173,7 +173,7 @@ test.describe("Unified access and competition guest mode", () => {
 
 async function enterGuestMode(page: Page) {
   await page.goto("/");
-  await page.getByRole("link", { name: "Guest Access" }).click();
+  await page.getByRole("link", { name: "Continue as guest" }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
   await page.waitForLoadState("networkidle");
 }

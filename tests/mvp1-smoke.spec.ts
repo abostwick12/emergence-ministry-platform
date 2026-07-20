@@ -7,30 +7,23 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await page.goto("/dashboard");
 
     await expect(page).toHaveURL(/\/login/);
-    await expect(page.getByRole("heading", { name: "Lead Emergence Automated Platform" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Welcome back." })).toBeVisible();
   });
 
-  test("public landing page presents role-based entry paths", async ({ page }) => {
+  test("public root opens the single login entry point", async ({ page }) => {
     await page.goto("/");
 
-    await expect(page).toHaveURL(/\/$/);
+    await expect(page).toHaveURL(/\/login$/);
     await expect(page.getByRole("heading", { name: "Creating space for ministry to flourish." })).toBeVisible();
-    await expect(page.getByLabel("Lead Emergence vision")).toBeVisible();
-    await expect(page.getByAltText("Lead Emergence Automated Platform: Creating space for ministry to flourish.")).toBeVisible();
-
-    for (const role of ["Ministry Director", "Volunteer Leader", "Student"]) {
-      await expect(page.getByText(role, { exact: true }).first()).toBeVisible();
-    }
-
-    await expect(page.getByRole("link", { name: /Go to dashboard/ })).toHaveAttribute("href", "/login?next=/dashboard");
-    await expect(page.getByRole("link", { name: /Go to discipleship/ })).toHaveAttribute("href", "/login?next=/discipleship");
-    await expect(page.getByRole("link", { name: /Go to student portal/ })).toHaveAttribute("href", "/login?next=/student");
+    await expect(page.getByLabel("Email")).toBeVisible();
+    await expect(page.getByRole("link", { name: /Continue as guest/ })).toHaveAttribute("href", "/api/auth/guest");
+    await expect(page.getByText("Production note", { exact: false })).toHaveCount(0);
   });
 
   test("login page renders for internal access", async ({ page }) => {
     await page.goto("/login");
 
-    await expect(page.getByRole("heading", { name: "Lead Emergence Automated Platform" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Welcome back." })).toBeVisible();
     await expect(page.getByLabel("Email")).toBeVisible();
     await expect(page.getByLabel("Password")).toBeVisible();
     await expect(page.getByRole("button", { name: "Log in" })).toBeVisible();
