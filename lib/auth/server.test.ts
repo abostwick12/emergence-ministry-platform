@@ -37,19 +37,20 @@ afterEach(() => {
   else process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = originalEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 });
 
-function cookieStore(accessToken: string, guestSessionId?: string) {
+function cookieStore(values: Partial<Record<(typeof authCookieNames)[keyof typeof authCookieNames], string>>) {
   return {
     get(name: string) {
-      if (name === authCookieNames.accessToken) return { value: accessToken };
-      if (name === authCookieNames.guestSession && guestSessionId) return { value: guestSessionId };
-      return undefined;
+      return name in values ? { value: values[name as keyof typeof values] ?? "" } : undefined;
     }
   };
 }
 
 describe("getServerSession", () => {
   it("returns null when Supabase auth lookup throws", async () => {
-    cookiesMock.mockReturnValue(cookieStore("access-token"));
+    cookiesMock.mockReturnValue(cookieStore({
+      [authCookieNames.accessToken]: "access-token",
+      [authCookieNames.guestSession]: "stale-guest"
+    }));
     createClientMock.mockReturnValue({
       auth: {
         getUser: vi.fn().mockRejectedValue(new Error("network unavailable"))
@@ -60,7 +61,7 @@ describe("getServerSession", () => {
   });
 
   it("uses the profile row for role and display name when available", async () => {
-    cookiesMock.mockReturnValue(cookieStore("access-token"));
+    cookiesMock.mockReturnValue(cookieStore({ [authCookieNames.accessToken]: "access-token" }));
     createClientMock
       .mockReturnValueOnce({
         auth: {
@@ -106,7 +107,10 @@ describe("getServerSession", () => {
   });
 
   it("prefers a valid authenticated account over a stale guest session cookie", async () => {
-    cookiesMock.mockReturnValue(cookieStore("access-token", "guest-session"));
+    cookiesMock.mockReturnValue(cookieStore({
+      [authCookieNames.accessToken]: "access-token",
+      [authCookieNames.guestSession]: "guest-session"
+    }));
     createClientMock
       .mockReturnValueOnce({
         auth: {
@@ -154,7 +158,7 @@ describe("getServerSession", () => {
   });
 
   it("uses service-controlled app metadata before legacy user metadata when no profile row exists", async () => {
-    cookiesMock.mockReturnValue(cookieStore("access-token"));
+    cookiesMock.mockReturnValue(cookieStore({ [authCookieNames.accessToken]: "access-token" }));
     createClientMock
       .mockReturnValueOnce({
         auth: {
@@ -197,5 +201,48 @@ describe("getServerSession", () => {
         role: "student"
       }
     });
+  });
+
+  it("does not fall back to guest when Supabase rejects an account token", async () => {
+    cookiesMock.mockReturnValue(cookieStore({
+      [authCookieNames.accessToken]: "invalid-access-token",
+      [authCookieNames.guestSession]: "stale-guest"
+    }));
+    createClientMock.mockReturnValue({
+      auth: {
+        getUser: vi.fn().mockResolvedValue({
+          data: { user: null },
+          error: new Error("invalid JWT")
+        })
+      }
+    });
+
+    await expect(getServerSession()).resolves.toBeNull();
+  });
+
+  it("does not fall back to guest when only a refresh cookie remains", async () => {
+    cookiesMock.mockReturnValue(cookieStore({
+      [authCookieNames.refreshToken]: "refresh-token",
+      [authCookieNames.guestSession]: "stale-guest"
+    }));
+
+    await expect(getServerSession()).resolves.toBeNull();
+    expect(createClientMock).not.toHaveBeenCalled();
+  });
+
+  it("still resolves a pure guest cookie state as guest", async () => {
+    cookiesMock.mockReturnValue(cookieStore({ [authCookieNames.guestSession]: "guest-session" }));
+
+    await expect(getServerSession()).resolves.toMatchObject({
+      user: {
+        id: "guest_guest-session",
+        email: "guest@lead-emergence.local",
+        fullName: "Guest",
+        role: "guest"
+      },
+      isGuest: true,
+      guestSessionId: "guest-session"
+    });
+    expect(createClientMock).not.toHaveBeenCalled();
   });
 });

@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { middleware } from "@/middleware";
+import { authCookieNames } from "@/lib/auth/config";
 
 const originalEnv = {
   DEV_AUTH_ROLE: process.env.DEV_AUTH_ROLE,
@@ -54,6 +55,44 @@ describe("student route access", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("x-middleware-next")).toBe("1");
+    expect(response.cookies.get(authCookieNames.guestSession)?.value).toBe("");
+  });
+
+  it("allows an unexpired account token and clears stale non-account cookies", async () => {
+    const response = await middleware(cookieRequest("/settings", {
+      [authCookieNames.accessToken]: jwt({ exp: Math.floor(Date.now() / 1000) + 3_600 }),
+      [authCookieNames.mockSession]: "stale-mock",
+      [authCookieNames.guestSession]: "stale-guest"
+    }));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-middleware-next")).toBe("1");
+    expect(response.cookies.get(authCookieNames.mockSession)?.value).toBe("");
+    expect(response.cookies.get(authCookieNames.guestSession)?.value).toBe("");
+  });
+
+  it("redirects an expired account session to login and clears every auth cookie", async () => {
+    const response = await middleware(cookieRequest("/dashboard", {
+      [authCookieNames.accessToken]: jwt({ exp: Math.floor(Date.now() / 1000) - 60 }),
+      [authCookieNames.refreshToken]: "stale-refresh",
+      [authCookieNames.mockSession]: "stale-mock",
+      [authCookieNames.guestSession]: "stale-guest"
+    }));
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe("http://localhost/login?next=%2Fdashboard");
+    expectClearedAuthCookies(response);
+  });
+
+  it("returns 401 for an expired account session on a protected API", async () => {
+    const response = await middleware(cookieRequest("/api/events", {
+      [authCookieNames.accessToken]: jwt({ exp: Math.floor(Date.now() / 1000) - 60 }),
+      [authCookieNames.guestSession]: "stale-guest"
+    }));
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({ error: "Authentication required" });
+    expectClearedAuthCookies(response);
   });
 
   it("lets the daily intelligence endpoint handle its own cron secret", async () => {
@@ -77,4 +116,23 @@ function mockSessionRequest(pathname: string, extraCookie = "") {
       cookie: cookies
     }
   });
+}
+
+function cookieRequest(pathname: string, values: Partial<Record<(typeof authCookieNames)[keyof typeof authCookieNames], string>>) {
+  const cookie = Object.entries(values).map(([name, value]) => `${name}=${value}`).join("; ");
+  return new NextRequest(`http://localhost${pathname}`, { headers: { cookie } });
+}
+
+function expectClearedAuthCookies(response: Awaited<ReturnType<typeof middleware>>) {
+  expect(response.cookies.getAll().map(({ name, value }) => [name, value])).toEqual(
+    expect.arrayContaining(Object.values(authCookieNames).map((name) => [name, ""]))
+  );
+}
+
+function jwt(payload: Record<string, unknown>) {
+  return `${encode({ alg: "none", typ: "JWT" })}.${encode(payload)}.test-signature`;
+}
+
+function encode(value: Record<string, unknown>) {
+  return Buffer.from(JSON.stringify(value)).toString("base64url");
 }
