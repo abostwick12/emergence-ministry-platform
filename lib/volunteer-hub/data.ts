@@ -1,5 +1,9 @@
 import type { AuthSession } from "@/lib/auth/server";
 import { getSupabaseAdminClient, isSupabaseAdminConfigured } from "@/lib/auth/server";
+import type { CampAccessContext } from "@/lib/camp/permissions";
+import { getCampOverview } from "@/lib/camp/repository";
+import { getEmergencyRosterStudents } from "@/lib/camp/transportation-roster";
+import type { CampVisibleStudent } from "@/lib/camp/types";
 import { resolveMinistryScope } from "@/lib/ministry/scope";
 import { uid } from "@/lib/utils";
 import {
@@ -12,15 +16,113 @@ import {
   type VolunteerHubSmallGroup,
   type VolunteerHubState,
   type VolunteerHubStudent,
+  type VolunteerHubStudentSource,
   type VolunteerHubVolunteer
 } from "@/lib/volunteer-hub/types";
 
 type ProfileVolunteerRow = {
+  ministry_id?: string | null;
   id: string;
   email: string | null;
   full_name: string | null;
   role: string | null;
 };
+
+type VolunteerLeaderRow = {
+  id: string;
+  profile_user_id: string | null;
+  name: string;
+  role_label: string;
+  email: string | null;
+  profile_photo_url: string | null;
+  source_church: string | null;
+  serving_areas?: string[] | null;
+  availability?: string | null;
+  skills?: string[] | null;
+  background_check_expires?: string | null;
+  preferred_communication?: "email" | "text" | "groupme" | null;
+  status: string | null;
+};
+
+type VolunteerItemRow = {
+  id: string;
+  item_key: string;
+  item_type: string;
+  title: string;
+  detail: string | null;
+  category: string | null;
+  due_label: string | null;
+  due_date: string | null;
+  required: boolean | null;
+  estimated_minutes: number | null;
+  shareable: boolean | null;
+  blocks_student_contact: boolean | null;
+  sort_order: number | null;
+};
+
+type VolunteerItemProgressRow = {
+  item_id: string;
+  completed: boolean | null;
+};
+
+type VolunteerFollowUpRow = {
+  id: string;
+  student_source: VolunteerHubStudentSource | "demo";
+  student_ref_id: string;
+  volunteer_leader_id: string | null;
+  note: string;
+  status: "assigned" | "completed" | null;
+  created_at: string;
+};
+
+type VolunteerAttendanceReviewRow = {
+  student_source: VolunteerHubStudentSource | "demo";
+  student_ref_id: string;
+};
+
+type VolunteerChatPreviewRow = {
+  id: string;
+  group_id: string | null;
+  sender_name: string;
+  body: string;
+  resource_id: string | null;
+  preview_only: boolean | null;
+  created_at: string;
+};
+
+type VolunteerAuditRow = {
+  id: string;
+  actor_name: string;
+  action: string;
+  target: string;
+  created_at: string;
+};
+
+type VolunteerSmallGroupRow = {
+  id: string;
+  name: string;
+  leader_id: string | null;
+  co_leader_id: string | null;
+  room: string | null;
+  service_time: string | null;
+  group_me_connected: boolean | null;
+  archived_at: string | null;
+  archive_reason: string | null;
+};
+
+type VolunteerGroupMemberRow = {
+  group_id: string;
+  student_source: VolunteerHubStudentSource;
+  student_ref_id: string;
+};
+
+type LiveStateResult = {
+  current: VolunteerHubState;
+  readOnlyReason?: string;
+};
+
+const VOLUNTEER_HUB_TABLES_MISSING =
+  "Volunteer Hub actions need persistent ministry tables before they can safely save changes for registered users.";
 
 type PlanningCenterPersonRow = {
   external_person_id: string;
@@ -244,18 +346,21 @@ export function resetVolunteerHubStateForTests() {
 
 export async function getVolunteerHubPayload(
   session: AuthSession,
-  integrations: VolunteerHubPayload["integrations"]
+  integrations: VolunteerHubPayload["integrations"],
+  campContext?: CampAccessContext
 ): Promise<VolunteerHubPayload> {
   const source = dataSourceForSession(session);
-  const current = source === "live" ? await createLiveState(session) : state();
-  return buildVolunteerHubPayload(current, session, integrations, source);
+  const live = source === "live" ? await createLiveState(session, campContext) : undefined;
+  const current = live?.current ?? state();
+  return buildVolunteerHubPayload(current, session, integrations, source, live?.readOnlyReason);
 }
 
 function buildVolunteerHubPayload(
   current: VolunteerHubState,
   session: AuthSession,
   integrations: VolunteerHubPayload["integrations"],
-  dataSource: VolunteerHubDataSource
+  dataSource: VolunteerHubDataSource,
+  readOnlyReason?: string
 ): VolunteerHubPayload {
   const role = roleForSession(session);
   const activeVolunteer = resolveActiveVolunteer(current, session, role);
@@ -266,11 +371,16 @@ function buildVolunteerHubPayload(
 
   return {
     dataSource,
-    readOnlyReason: dataSource === "live" ? "Volunteer Hub actions need persistent ministry tables before they can safely save changes for registered users." : undefined,
+    readOnlyReason,
     role,
     activeVolunteer,
     activeGroup,
     students,
+    studentRoster: current.students,
+    studentRosterSource: {
+      planningCenterCount: current.students.filter((student) => student.source === "planning_center").length,
+      campClcCount: current.students.filter((student) => student.source === "camp_clc").length
+    },
     activeGroups: visibleActiveGroups,
     archivedGroups: role === "admin" || role === "director" || role === "leader" ? current.smallGroups.filter((group) => group.archivedAt) : [],
     volunteers: current.volunteers,
@@ -293,39 +403,46 @@ function dataSourceForSession(session: AuthSession): VolunteerHubDataSource {
   return "live";
 }
 
-async function createLiveState(session: AuthSession): Promise<VolunteerHubState> {
-  const [volunteers, students] = await Promise.all([
-    loadRegisteredVolunteers(session),
-    loadPlanningCenterStudents(session)
+async function createLiveState(session: AuthSession, campContext?: CampAccessContext): Promise<LiveStateResult> {
+  const ministryId = await resolveMinistryScope(session);
+  const [volunteers, planningCenterStudents, campStudents] = await Promise.all([
+    loadRegisteredVolunteers(session, ministryId),
+    loadPlanningCenterStudents(session, ministryId),
+    loadCampClcStudents(session, campContext)
   ]);
+  await syncProfileLeaderRows(session, ministryId, volunteers);
+  const persisted = await loadPersistedVolunteerHubState(session, ministryId);
   const sessionVolunteer = volunteerFromSession(session);
-  const volunteerList = mergeSessionVolunteer(volunteers, sessionVolunteer);
+  const volunteerList = mergeSessionVolunteer(mergePersistedVolunteers(volunteers, persisted.volunteers), sessionVolunteer);
   const activeVolunteer = volunteerList.find((volunteer) => volunteer.userId === session.user.id) ?? sessionVolunteer;
-  const activeGroup = liveRosterGroup(activeVolunteer, students);
+  const students = mergeStudentRosters(planningCenterStudents, campStudents, persisted.reviewedStudentRefs);
+  const groups = persisted.smallGroups.length ? persisted.smallGroups : [liveRosterGroup(activeVolunteer, students)];
 
   return {
-    volunteers: volunteerList,
-    students,
-    smallGroups: [activeGroup],
-    tasks: [],
-    resources: [],
-    trainingModules: [],
-    onboardingItems: [],
-    notifications: [],
-    chatMessages: [],
-    followUps: [],
-    audit: []
+    current: {
+      volunteers: volunteerList,
+      students,
+      smallGroups: groups,
+      tasks: persisted.tasks,
+      resources: persisted.resources,
+      trainingModules: persisted.trainingModules,
+      onboardingItems: persisted.onboardingItems,
+      notifications: persisted.notifications,
+      chatMessages: persisted.chatMessages,
+      followUps: persisted.followUps,
+      audit: persisted.audit
+    },
+    readOnlyReason: persisted.storageAvailable ? undefined : VOLUNTEER_HUB_TABLES_MISSING
   };
 }
 
-async function loadRegisteredVolunteers(session: AuthSession): Promise<VolunteerHubVolunteer[]> {
+async function loadRegisteredVolunteers(session: AuthSession, ministryId?: string): Promise<VolunteerHubVolunteer[]> {
   if (!isSupabaseAdminConfigured()) return [];
   try {
-    const ministryId = await resolveMinistryScope(session);
     if (!ministryId) return [];
     const { data, error } = await getSupabaseAdminClient()
       .from("profiles")
-      .select("id,email,full_name,role")
+      .select("id,ministry_id,email,full_name,role")
       .eq("ministry_id", ministryId)
       .returns<ProfileVolunteerRow[]>();
     if (error) return [];
@@ -338,10 +455,30 @@ async function loadRegisteredVolunteers(session: AuthSession): Promise<Volunteer
   }
 }
 
-async function loadPlanningCenterStudents(session: AuthSession): Promise<VolunteerHubStudent[]> {
+async function syncProfileLeaderRows(session: AuthSession, ministryId: string | undefined, volunteers: VolunteerHubVolunteer[]) {
+  if (!isSupabaseAdminConfigured() || !ministryId) return false;
+  const rows = volunteers
+    .filter((volunteer) => volunteer.userId)
+    .map((volunteer) => ({
+      ministry_id: ministryId,
+      profile_user_id: volunteer.userId!,
+      name: volunteer.name,
+      role_label: volunteer.role,
+      email: volunteer.email || null,
+      source_church: volunteer.sourceChurch ?? null,
+      created_by_user_id: session.user.id
+    }));
+  if (!rows.length) return true;
+
+  const { error } = await getSupabaseAdminClient()
+    .from("volunteer_hub_leaders")
+    .upsert(rows, { onConflict: "ministry_id,profile_user_id" });
+  return !error;
+}
+
+async function loadPlanningCenterStudents(session: AuthSession, ministryId?: string): Promise<VolunteerHubStudent[]> {
   if (!isSupabaseAdminConfigured()) return [];
   try {
-    const ministryId = await resolveMinistryScope(session);
     if (!ministryId) return [];
     const supabase = getSupabaseAdminClient();
     const [{ data: people, error: peopleError }, { data: attendance, error: attendanceError }] = await Promise.all([
@@ -371,6 +508,183 @@ async function loadPlanningCenterStudents(session: AuthSession): Promise<Volunte
   }
 }
 
+async function loadCampClcStudents(session: AuthSession, campContext?: CampAccessContext): Promise<VolunteerHubStudent[]> {
+  if (!campContext?.effectiveRole) return [];
+  try {
+    const overview = await getCampOverview(session, campContext);
+    const teams = new Map(overview.teams.map((team) => [team.id, team.name]));
+    const vehicles = new Map(overview.vehicles.map((vehicle) => [vehicle.id, vehicle.name]));
+    return getEmergencyRosterStudents(overview.students)
+      .filter((student) => !student.archivedAt)
+      .map((student) => studentFromCampClc(student, teams.get(student.teamId ?? ""), vehicles.get(student.vehicleId ?? "")));
+  } catch {
+    return [];
+  }
+}
+
+function emptyPersistedState(storageAvailable: boolean) {
+  return {
+    storageAvailable,
+    volunteers: [] as VolunteerHubVolunteer[],
+    smallGroups: [] as VolunteerHubSmallGroup[],
+    tasks: [] as VolunteerHubState["tasks"],
+    resources: [] as VolunteerHubState["resources"],
+    trainingModules: [] as VolunteerHubState["trainingModules"],
+    onboardingItems: [] as VolunteerHubState["onboardingItems"],
+    notifications: [] as VolunteerHubState["notifications"],
+    chatMessages: [] as VolunteerHubState["chatMessages"],
+    followUps: [] as VolunteerHubState["followUps"],
+    audit: [] as VolunteerHubState["audit"],
+    reviewedStudentRefs: new Set<string>()
+  };
+}
+
+async function loadPersistedVolunteerHubState(session: AuthSession, ministryId?: string) {
+  if (!isSupabaseAdminConfigured() || !ministryId) return emptyPersistedState(false);
+  const supabase = getSupabaseAdminClient();
+
+  const leaders = await supabase
+    .from("volunteer_hub_leaders")
+    .select("id,profile_user_id,name,role_label,email,profile_photo_url,source_church,serving_areas,availability,skills,background_check_expires,preferred_communication,status")
+    .eq("ministry_id", ministryId)
+    .returns<VolunteerLeaderRow[]>();
+  if (isMissingVolunteerHubTableError(leaders.error)) return emptyPersistedState(false);
+  if (leaders.error) return emptyPersistedState(false);
+
+  const seed = await ensureDefaultVolunteerHubItems(session, ministryId);
+  if (!seed) return emptyPersistedState(false);
+
+  const [groups, members, items, progress, followUps, reviews, chats, audit] = await Promise.all([
+    supabase
+      .from("volunteer_hub_small_groups")
+      .select("id,name,leader_id,co_leader_id,room,service_time,group_me_connected,archived_at,archive_reason")
+      .eq("ministry_id", ministryId)
+      .returns<VolunteerSmallGroupRow[]>(),
+    supabase
+      .from("volunteer_hub_small_group_members")
+      .select("group_id,student_source,student_ref_id")
+      .eq("ministry_id", ministryId)
+      .returns<VolunteerGroupMemberRow[]>(),
+    supabase
+      .from("volunteer_hub_items")
+      .select("id,item_key,item_type,title,detail,category,due_label,due_date,required,estimated_minutes,shareable,blocks_student_contact,sort_order")
+      .eq("ministry_id", ministryId)
+      .is("archived_at", null)
+      .order("sort_order", { ascending: true })
+      .returns<VolunteerItemRow[]>(),
+    supabase
+      .from("volunteer_hub_item_progress")
+      .select("item_id,completed")
+      .eq("ministry_id", ministryId)
+      .eq("user_id", session.user.id)
+      .returns<VolunteerItemProgressRow[]>(),
+    supabase
+      .from("volunteer_hub_follow_ups")
+      .select("id,student_source,student_ref_id,volunteer_leader_id,note,status,created_at")
+      .eq("ministry_id", ministryId)
+      .order("created_at", { ascending: false })
+      .limit(100)
+      .returns<VolunteerFollowUpRow[]>(),
+    supabase
+      .from("volunteer_hub_attendance_reviews")
+      .select("student_source,student_ref_id")
+      .eq("ministry_id", ministryId)
+      .returns<VolunteerAttendanceReviewRow[]>(),
+    supabase
+      .from("volunteer_hub_chat_previews")
+      .select("id,group_id,sender_name,body,resource_id,preview_only,created_at")
+      .eq("ministry_id", ministryId)
+      .order("created_at", { ascending: false })
+      .limit(100)
+      .returns<VolunteerChatPreviewRow[]>(),
+    supabase
+      .from("volunteer_hub_audit_entries")
+      .select("id,actor_name,action,target,created_at")
+      .eq("ministry_id", ministryId)
+      .order("created_at", { ascending: false })
+      .limit(50)
+      .returns<VolunteerAuditRow[]>()
+  ]);
+
+  const results = [groups, members, items, progress, followUps, reviews, chats, audit];
+  if (results.some((result) => isMissingVolunteerHubTableError(result.error))) return emptyPersistedState(false);
+  if (results.some((result) => result.error)) return emptyPersistedState(false);
+
+  const completedByItemId = new Map((progress.data ?? []).map((row) => [row.item_id, row.completed === true]));
+  const membersByGroupId = groupMembersByGroupId(members.data ?? []);
+  return {
+    storageAvailable: true,
+    volunteers: (leaders.data ?? []).filter((row) => row.status !== "archived").map(volunteerFromLeaderRow),
+    smallGroups: (groups.data ?? []).map((row) => smallGroupFromRow(row, membersByGroupId.get(row.id) ?? [])),
+    ...itemsFromRows(items.data ?? [], completedByItemId),
+    notifications: [] as VolunteerHubState["notifications"],
+    chatMessages: (chats.data ?? []).map(chatFromRow),
+    followUps: (followUps.data ?? []).map(followUpFromRow),
+    audit: (audit.data ?? []).map(auditFromRow),
+    reviewedStudentRefs: new Set((reviews.data ?? []).map((row) => studentRefKey(row.student_source, row.student_ref_id)))
+  };
+}
+
+async function ensureDefaultVolunteerHubItems(session: AuthSession, ministryId: string) {
+  try {
+    const rows = defaultVolunteerHubItemRows(ministryId, session.user.id);
+    const { error } = await getSupabaseAdminClient()
+      .from("volunteer_hub_items")
+      .upsert(rows, { onConflict: "ministry_id,item_key" });
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+function defaultVolunteerHubItemRows(ministryId: string, userId: string) {
+  const initial = createInitialState();
+  return [
+    ...initial.tasks.map((item, index) => ({
+      ministry_id: ministryId,
+      item_key: item.id,
+      item_type: "task",
+      title: item.label,
+      detail: item.detail,
+      due_label: item.dueLabel,
+      sort_order: index,
+      created_by_user_id: userId
+    })),
+    ...initial.resources.map((item, index) => ({
+      ministry_id: ministryId,
+      item_key: item.id,
+      item_type: "resource",
+      title: item.title,
+      detail: item.detail,
+      category: item.type,
+      estimated_minutes: item.estimatedMinutes,
+      shareable: item.shareable,
+      sort_order: 100 + index,
+      created_by_user_id: userId
+    })),
+    ...initial.trainingModules.map((item, index) => ({
+      ministry_id: ministryId,
+      item_key: item.id,
+      item_type: "training",
+      title: item.title,
+      category: item.category,
+      required: item.required,
+      due_date: item.dueDate,
+      sort_order: 200 + index,
+      created_by_user_id: userId
+    })),
+    ...initial.onboardingItems.map((item, index) => ({
+      ministry_id: ministryId,
+      item_key: item.id,
+      item_type: "onboarding",
+      title: item.label,
+      blocks_student_contact: item.blocksStudentContact,
+      sort_order: 300 + index,
+      created_by_user_id: userId
+    }))
+  ];
+}
+
 function isVolunteerProfile(row: ProfileVolunteerRow) {
   const role = (row.role ?? "").trim().toLowerCase();
   return role !== "student" && role !== "parent";
@@ -384,6 +698,7 @@ function volunteerFromProfile(row: ProfileVolunteerRow): VolunteerHubVolunteer {
     name: row.full_name?.trim() || row.email?.trim() || "Ministry user",
     role,
     email: row.email?.trim() || "",
+    sourceChurch: undefined,
     servingAreas: [],
     availability: "Not synced",
     skills: [],
@@ -442,6 +757,7 @@ function studentFromPlanningCenter(person: PlanningCenterPersonRow, latestAttend
   const displayName = person.display_name.trim();
   return {
     id: `pco_${person.external_person_id}`,
+    source: "planning_center",
     preferredName: firstName(displayName),
     fullName: displayName,
     grade: person.grade?.trim() || person.age_band?.trim() || "Grade not synced",
@@ -453,6 +769,180 @@ function studentFromPlanningCenter(person: PlanningCenterPersonRow, latestAttend
     parentContactAvailable: false,
     planningCenterProfileUrl: undefined
   };
+}
+
+function studentFromCampClc(student: CampVisibleStudent, teamName?: string, vehicleName?: string): VolunteerHubStudent {
+  const safeIndicators = [
+    student.emergencyContactOnFile ? "Emergency contact on file" : "",
+    student.hasMedicalAlert ? "Medical alert indicator" : "",
+    student.hasDietaryAlert ? "Dietary indicator" : "",
+    student.needsParentClarification ? "Needs parent clarification" : ""
+  ].filter(Boolean);
+  return {
+    id: `camp_${student.id}`,
+    source: "camp_clc",
+    preferredName: firstName(student.name),
+    fullName: student.name,
+    profilePhotoUrl: student.profilePhotoUrl,
+    grade: student.grade || "Grade not set",
+    school: "Camp CLC roster",
+    birthday: "Not synced",
+    teamId: student.teamId,
+    teamName: teamName || "Unassigned team",
+    cabin: student.cabin || "Unassigned room",
+    vehicleName: vehicleName || "Unassigned vehicle",
+    safeIndicators,
+    attendanceStatus: "pending",
+    lastAttended: "",
+    consecutiveAbsences: 0,
+    followUpNeeded: student.needsParentClarification === true,
+    followUpStatus: student.needsParentClarification ? "suggested" : undefined,
+    parentContactAvailable: student.emergencyContactOnFile === true
+  };
+}
+
+function mergeStudentRosters(
+  planningCenterStudents: VolunteerHubStudent[],
+  campStudents: VolunteerHubStudent[],
+  reviewedStudentRefs: Set<string>
+) {
+  return [...planningCenterStudents, ...campStudents].map((student) => {
+    const key = studentRefFromStudentId(student.id);
+    if (key && reviewedStudentRefs.has(studentRefKey(key.source, key.refId))) {
+      return { ...student, followUpNeeded: false, followUpStatus: "completed" as const };
+    }
+    return student;
+  });
+}
+
+function mergePersistedVolunteers(profileVolunteers: VolunteerHubVolunteer[], persistedVolunteers: VolunteerHubVolunteer[]) {
+  const byUser = new Map(profileVolunteers.filter((volunteer) => volunteer.userId).map((volunteer) => [volunteer.userId, volunteer]));
+  const custom: VolunteerHubVolunteer[] = [];
+  for (const persisted of persistedVolunteers) {
+    if (persisted.userId && byUser.has(persisted.userId)) {
+      const profile = byUser.get(persisted.userId)!;
+      byUser.set(persisted.userId, { ...profile, ...persisted, role: profile.role });
+    } else {
+      custom.push(persisted);
+    }
+  }
+  return [...Array.from(byUser.values()), ...custom].sort((first, second) => first.name.localeCompare(second.name));
+}
+
+function volunteerFromLeaderRow(row: VolunteerLeaderRow): VolunteerHubVolunteer {
+  return {
+    id: row.id,
+    userId: row.profile_user_id ?? undefined,
+    name: row.name,
+    role: volunteerRole(row.role_label),
+    email: row.email ?? "",
+    profilePhotoUrl: row.profile_photo_url ?? undefined,
+    sourceChurch: row.source_church ?? undefined,
+    servingAreas: row.serving_areas ?? [],
+    availability: row.availability ?? "Not synced",
+    skills: row.skills ?? [],
+    backgroundCheckExpires: row.background_check_expires ?? "",
+    preferredCommunication: row.preferred_communication ?? "email",
+    connectedServices: { planningCenter: false, groupMe: false, google: false }
+  };
+}
+
+function smallGroupFromRow(row: VolunteerSmallGroupRow, members: VolunteerGroupMemberRow[]): VolunteerHubSmallGroup {
+  return {
+    id: row.id,
+    name: row.name,
+    leaderId: row.leader_id ?? "",
+    coLeaderId: row.co_leader_id ?? undefined,
+    room: row.room ?? "",
+    serviceTime: row.service_time ?? "",
+    memberStudentIds: members.map((member) => studentIdFromRef(member.student_source, member.student_ref_id)),
+    groupMeConnected: row.group_me_connected === true,
+    archivedAt: row.archived_at ?? undefined,
+    archiveReason: row.archive_reason ?? undefined
+  };
+}
+
+function groupMembersByGroupId(rows: VolunteerGroupMemberRow[]) {
+  const byGroup = new Map<string, VolunteerGroupMemberRow[]>();
+  for (const row of rows) {
+    byGroup.set(row.group_id, [...(byGroup.get(row.group_id) ?? []), row]);
+  }
+  return byGroup;
+}
+
+function itemsFromRows(rows: VolunteerItemRow[], completedByItemId: Map<string, boolean>) {
+  return {
+    tasks: rows.filter((row) => row.item_type === "task").map((row) => ({
+      id: row.item_key,
+      label: row.title,
+      detail: row.detail ?? "",
+      completed: completedByItemId.get(row.id) ?? false,
+      dueLabel: row.due_label ?? ""
+    })),
+    resources: rows.filter((row) => row.item_type === "resource").map((row) => ({
+      id: row.item_key,
+      title: row.title,
+      type: resourceType(row.category),
+      detail: row.detail ?? "",
+      estimatedMinutes: row.estimated_minutes ?? 0,
+      completed: completedByItemId.get(row.id) ?? false,
+      shareable: row.shareable === true
+    })),
+    trainingModules: rows.filter((row) => row.item_type === "training").map((row) => ({
+      id: row.item_key,
+      title: row.title,
+      category: row.category ?? "",
+      required: row.required === true,
+      completed: completedByItemId.get(row.id) ?? false,
+      dueDate: row.due_date ?? ""
+    })),
+    onboardingItems: rows.filter((row) => row.item_type === "onboarding").map((row) => ({
+      id: row.item_key,
+      label: row.title,
+      completed: completedByItemId.get(row.id) ?? false,
+      blocksStudentContact: row.blocks_student_contact === true
+    }))
+  };
+}
+
+function followUpFromRow(row: VolunteerFollowUpRow) {
+  return {
+    id: row.id,
+    studentId: studentIdFromRef(row.student_source, row.student_ref_id),
+    volunteerId: row.volunteer_leader_id ?? "",
+    note: row.note,
+    status: row.status ?? "assigned",
+    createdAt: row.created_at
+  };
+}
+
+function chatFromRow(row: VolunteerChatPreviewRow) {
+  return {
+    id: row.id,
+    groupId: row.group_id ?? "live_planning_center_students",
+    senderName: row.sender_name,
+    body: row.body,
+    createdAt: row.created_at,
+    previewOnly: row.preview_only !== false,
+    resourceId: row.resource_id ?? undefined
+  };
+}
+
+function auditFromRow(row: VolunteerAuditRow) {
+  return {
+    id: row.id,
+    actorName: row.actor_name,
+    action: row.action,
+    target: row.target,
+    createdAt: row.created_at
+  };
+}
+
+function resourceType(value: string | null | undefined): VolunteerHubState["resources"][number]["type"] {
+  if (value === "leader_guide" || value === "audio" || value === "discussion" || value === "notes" || value === "parent" || value === "student" || value === "slides") {
+    return value;
+  }
+  return "notes";
 }
 
 function liveRosterGroup(activeVolunteer: VolunteerHubVolunteer, students: VolunteerHubStudent[]): VolunteerHubSmallGroup {
@@ -467,8 +957,271 @@ function liveRosterGroup(activeVolunteer: VolunteerHubVolunteer, students: Volun
   };
 }
 
+function studentIdFromRef(source: VolunteerHubStudentSource | "demo", refId: string) {
+  if (source === "planning_center") return `pco_${refId}`;
+  if (source === "camp_clc") return `camp_${refId}`;
+  return refId;
+}
+
+function studentRefFromStudentId(studentId: string): { source: VolunteerHubStudentSource | "demo"; refId: string } | null {
+  if (studentId.startsWith("pco_")) return { source: "planning_center", refId: studentId.slice(4) };
+  if (studentId.startsWith("camp_")) return { source: "camp_clc", refId: studentId.slice(5) };
+  if (studentId.trim()) return { source: "demo", refId: studentId };
+  return null;
+}
+
+function studentRefKey(source: VolunteerHubStudentSource | "demo", refId: string) {
+  return `${source}:${refId}`;
+}
+
 function firstName(name: string) {
   return name.trim().split(/\s+/)[0] ?? name;
+}
+
+export async function applyVolunteerHubLiveAction(session: AuthSession, action: VolunteerHubAction) {
+  const ministryId = await resolveMinistryScope(session);
+  if (!isSupabaseAdminConfigured() || !ministryId) throw new Error(VOLUNTEER_HUB_TABLES_MISSING);
+  const supabase = getSupabaseAdminClient();
+  const actor = await ensureLiveActorLeader(session, ministryId);
+  if (!actor) throw new Error(VOLUNTEER_HUB_TABLES_MISSING);
+
+  switch (action.type) {
+    case "complete_task":
+      await setLiveItemProgress(session, ministryId, action.taskId, action.completed ?? true, actor, action.completed === false ? "Reopened task" : "Completed task");
+      break;
+    case "complete_resource":
+      await setLiveItemProgress(session, ministryId, action.resourceId, action.completed ?? true, actor, action.completed === false ? "Reopened resource" : "Completed resource");
+      break;
+    case "complete_training":
+      await setLiveItemProgress(session, ministryId, action.moduleId, action.completed ?? true, actor, action.completed === false ? "Reopened training" : "Completed training");
+      break;
+    case "update_onboarding":
+      await setLiveItemProgress(session, ministryId, action.itemId, action.completed ?? true, actor, action.completed === false ? "Reopened onboarding item" : "Completed onboarding item");
+      break;
+    case "review_attendance":
+      await reviewLiveAttendance(session, ministryId, action.studentId, actor);
+      break;
+    case "add_follow_up":
+      await addLiveFollowUp(session, ministryId, action.studentId, action.note, actor);
+      break;
+    case "preview_chat_message":
+      await addLiveChatPreview(session, ministryId, action, actor);
+      break;
+    case "update_profile":
+      await updateLiveVolunteerProfile(ministryId, actor, action);
+      break;
+    case "add_leader":
+      await addLiveLeader(session, ministryId, action, actor);
+      break;
+    case "delete_leader":
+      await archiveLiveLeader(ministryId, action.volunteerId, actor);
+      break;
+    case "archive_group":
+      await archiveLiveGroup(ministryId, action.groupId, action.reason, actor);
+      break;
+    case "restore_group":
+      await restoreLiveGroup(ministryId, action.groupId, actor);
+      break;
+    case "update_group":
+      await updateLiveGroup(ministryId, action, actor);
+      break;
+    default:
+      assertNever(action);
+  }
+}
+
+async function ensureLiveActorLeader(session: AuthSession, ministryId: string): Promise<VolunteerHubVolunteer | null> {
+  const supabase = getSupabaseAdminClient();
+  const row = {
+    ministry_id: ministryId,
+    profile_user_id: session.user.id,
+    name: session.user.fullName || session.user.email,
+    role_label: roleForSession(session),
+    email: session.user.email,
+    created_by_user_id: session.user.id
+  };
+  const { data, error } = await supabase
+    .from("volunteer_hub_leaders")
+    .upsert(row, { onConflict: "ministry_id,profile_user_id" })
+    .select("id,profile_user_id,name,role_label,email,profile_photo_url,source_church,serving_areas,availability,skills,background_check_expires,preferred_communication,status")
+    .single<VolunteerLeaderRow>();
+  if (isMissingVolunteerHubTableError(error) || error || !data) return null;
+  return volunteerFromLeaderRow(data);
+}
+
+async function setLiveItemProgress(
+  session: AuthSession,
+  ministryId: string,
+  itemKey: string,
+  completed: boolean,
+  actor: VolunteerHubVolunteer,
+  action: string
+) {
+  const supabase = getSupabaseAdminClient();
+  await ensureDefaultVolunteerHubItems(session, ministryId);
+  const item = await supabase
+    .from("volunteer_hub_items")
+    .select("id,title")
+    .eq("ministry_id", ministryId)
+    .eq("item_key", itemKey)
+    .maybeSingle<{ id: string; title: string }>();
+  if (item.error || !item.data) throw new Error("Volunteer Hub item not found.");
+  const progress = await supabase.from("volunteer_hub_item_progress").upsert({
+    ministry_id: ministryId,
+    item_id: item.data.id,
+    user_id: session.user.id,
+    completed,
+    completed_at: completed ? new Date().toISOString() : null
+  }, { onConflict: "item_id,user_id" });
+  throwIfVolunteerHubError(progress.error);
+  await insertLiveAudit(ministryId, actor, action, item.data.title);
+}
+
+async function reviewLiveAttendance(session: AuthSession, ministryId: string, studentId: string, actor: VolunteerHubVolunteer) {
+  const ref = studentRefFromStudentId(studentId);
+  if (!ref) throw new Error("Student not found.");
+  const result = await getSupabaseAdminClient().from("volunteer_hub_attendance_reviews").upsert({
+    ministry_id: ministryId,
+    student_source: ref.source,
+    student_ref_id: ref.refId,
+    reviewed_by_user_id: session.user.id,
+    reviewed_at: new Date().toISOString()
+  }, { onConflict: "ministry_id,student_source,student_ref_id" });
+  throwIfVolunteerHubError(result.error);
+  await insertLiveAudit(ministryId, actor, "Reviewed attendance follow-up", studentId);
+}
+
+async function addLiveFollowUp(session: AuthSession, ministryId: string, studentId: string, note: string, actor: VolunteerHubVolunteer) {
+  const trimmed = note.trim();
+  if (!trimmed) throw new Error("Follow-up note is required.");
+  const ref = studentRefFromStudentId(studentId);
+  if (!ref) throw new Error("Student not found.");
+  const result = await getSupabaseAdminClient().from("volunteer_hub_follow_ups").insert({
+    ministry_id: ministryId,
+    student_source: ref.source,
+    student_ref_id: ref.refId,
+    volunteer_leader_id: actor.id,
+    note: trimmed,
+    status: "assigned",
+    created_by_user_id: session.user.id
+  });
+  throwIfVolunteerHubError(result.error);
+  await insertLiveAudit(ministryId, actor, "Assigned student follow-up", studentId);
+}
+
+async function addLiveChatPreview(
+  session: AuthSession,
+  ministryId: string,
+  action: Extract<VolunteerHubAction, { type: "preview_chat_message" }>,
+  actor: VolunteerHubVolunteer
+) {
+  const body = action.body.trim();
+  if (!body) throw new Error("Message body is required.");
+  const result = await getSupabaseAdminClient().from("volunteer_hub_chat_previews").insert({
+    ministry_id: ministryId,
+    group_id: isUuid(action.groupId) ? action.groupId : null,
+    sender_user_id: session.user.id,
+    sender_name: actor.name,
+    body,
+    resource_id: action.resourceId,
+    preview_only: true
+  });
+  throwIfVolunteerHubError(result.error);
+  await insertLiveAudit(ministryId, actor, "Previewed GroupMe message", action.groupId);
+}
+
+async function updateLiveVolunteerProfile(
+  ministryId: string,
+  actor: VolunteerHubVolunteer,
+  action: Extract<VolunteerHubAction, { type: "update_profile" }>
+) {
+  const update: Record<string, string> = {};
+  if (action.availability?.trim()) update.availability = action.availability.trim();
+  if (action.preferredCommunication) update.preferred_communication = action.preferredCommunication;
+  if (!Object.keys(update).length) return;
+  const result = await getSupabaseAdminClient().from("volunteer_hub_leaders").update(update).eq("ministry_id", ministryId).eq("id", actor.id);
+  throwIfVolunteerHubError(result.error);
+  await insertLiveAudit(ministryId, actor, "Updated volunteer profile", actor.name);
+}
+
+async function addLiveLeader(
+  session: AuthSession,
+  ministryId: string,
+  action: Extract<VolunteerHubAction, { type: "add_leader" }>,
+  actor: VolunteerHubVolunteer
+) {
+  const name = action.name.trim();
+  if (!name) throw new Error("Leader name is required.");
+  const result = await getSupabaseAdminClient().from("volunteer_hub_leaders").insert({
+    ministry_id: ministryId,
+    name,
+    role_label: action.role?.trim() || "Volunteer",
+    email: action.email?.trim() || null,
+    source_church: action.sourceChurch?.trim() || null,
+    profile_photo_url: action.profilePhotoUrl?.trim() || null,
+    serving_areas: [action.role?.trim() || "Small Groups"],
+    skills: [action.role?.trim() || "Small group leader"],
+    created_by_user_id: session.user.id
+  });
+  throwIfVolunteerHubError(result.error);
+  await insertLiveAudit(ministryId, actor, "Added volunteer leader", name);
+}
+
+async function archiveLiveLeader(ministryId: string, volunteerId: string, actor: VolunteerHubVolunteer) {
+  if (!isUuid(volunteerId)) throw new Error("Registered profile leaders cannot be removed here.");
+  const result = await getSupabaseAdminClient()
+    .from("volunteer_hub_leaders")
+    .update({ status: "archived", archived_at: new Date().toISOString(), archive_reason: "Removed from Volunteer Hub leader pool." })
+    .eq("ministry_id", ministryId)
+    .eq("id", volunteerId)
+    .is("profile_user_id", null);
+  throwIfVolunteerHubError(result.error);
+  await insertLiveAudit(ministryId, actor, "Removed volunteer leader", volunteerId);
+}
+
+async function archiveLiveGroup(ministryId: string, groupId: string, reason: string | undefined, actor: VolunteerHubVolunteer) {
+  if (!isUuid(groupId)) throw new Error("Small group persistence is not ready for this generated roster group.");
+  const result = await getSupabaseAdminClient()
+    .from("volunteer_hub_small_groups")
+    .update({ archived_at: new Date().toISOString(), archive_reason: reason?.trim() || "Archived after small group consolidation." })
+    .eq("ministry_id", ministryId)
+    .eq("id", groupId);
+  throwIfVolunteerHubError(result.error);
+  await insertLiveAudit(ministryId, actor, "Archived small group", groupId);
+}
+
+async function restoreLiveGroup(ministryId: string, groupId: string, actor: VolunteerHubVolunteer) {
+  if (!isUuid(groupId)) throw new Error("Small group persistence is not ready for this generated roster group.");
+  const result = await getSupabaseAdminClient()
+    .from("volunteer_hub_small_groups")
+    .update({ archived_at: null, archive_reason: null })
+    .eq("ministry_id", ministryId)
+    .eq("id", groupId);
+  throwIfVolunteerHubError(result.error);
+  await insertLiveAudit(ministryId, actor, "Restored small group", groupId);
+}
+
+async function updateLiveGroup(ministryId: string, action: Extract<VolunteerHubAction, { type: "update_group" }>, actor: VolunteerHubVolunteer) {
+  if (!isUuid(action.groupId)) throw new Error("Small group persistence is not ready for this generated roster group.");
+  const update: Record<string, string | null> = {};
+  if (action.leaderId !== undefined) update.leader_id = isUuid(action.leaderId) ? action.leaderId : null;
+  if (action.coLeaderId !== undefined) update.co_leader_id = action.coLeaderId && isUuid(action.coLeaderId) ? action.coLeaderId : null;
+  if (action.room !== undefined) update.room = action.room.trim();
+  if (!Object.keys(update).length) return;
+  const result = await getSupabaseAdminClient().from("volunteer_hub_small_groups").update(update).eq("ministry_id", ministryId).eq("id", action.groupId);
+  throwIfVolunteerHubError(result.error);
+  await insertLiveAudit(ministryId, actor, "Updated small group", action.groupId);
+}
+
+async function insertLiveAudit(ministryId: string, actor: VolunteerHubVolunteer, action: string, target: string) {
+  const result = await getSupabaseAdminClient().from("volunteer_hub_audit_entries").insert({
+    ministry_id: ministryId,
+    actor_user_id: actor.userId ?? null,
+    actor_name: actor.name,
+    action,
+    target
+  });
+  throwIfVolunteerHubError(result.error);
 }
 
 export function applyVolunteerHubAction(session: AuthSession, action: VolunteerHubAction) {
@@ -569,6 +1322,16 @@ export function applyVolunteerHubAction(session: AuthSession, action: VolunteerH
       audit(current, actor, "Restored small group", group.name);
       break;
     }
+    case "update_group": {
+      requireDirector(actor);
+      const group = current.smallGroups.find((item) => item.id === action.groupId);
+      if (!group) throw new Error("Small group not found.");
+      if (action.leaderId !== undefined) group.leaderId = action.leaderId;
+      if (action.coLeaderId !== undefined) group.coLeaderId = action.coLeaderId || undefined;
+      if (action.room !== undefined) group.room = action.room.trim();
+      audit(current, actor, "Updated small group", group.name);
+      break;
+    }
     case "add_leader": {
       requireDirector(actor);
       if (!action.name.trim()) throw new Error("Leader name is required.");
@@ -577,6 +1340,8 @@ export function applyVolunteerHubAction(session: AuthSession, action: VolunteerH
         name: action.name.trim(),
         role: "volunteer",
         email: action.email?.trim() || `${action.name.trim().toLowerCase().replace(/\s+/g, ".")}@lead-emergence.local`,
+        profilePhotoUrl: action.profilePhotoUrl?.trim() || undefined,
+        sourceChurch: action.sourceChurch?.trim() || undefined,
         servingAreas: [action.role?.trim() || "Small Groups"],
         availability: "Availability not set",
         skills: [action.role?.trim() || "Small group leader"],
@@ -653,4 +1418,20 @@ function requireDirector(actor: VolunteerHubVolunteer) {
 
 function assertNever(value: never): never {
   throw new Error(`Unsupported Volunteer Hub action: ${JSON.stringify(value)}`);
+}
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+function throwIfVolunteerHubError(error: { message?: string; code?: string } | null) {
+  if (!error) return;
+  if (isMissingVolunteerHubTableError(error)) throw new Error(VOLUNTEER_HUB_TABLES_MISSING);
+  throw new Error(error.message ?? "Volunteer Hub action failed.");
+}
+
+function isMissingVolunteerHubTableError(error: { message?: string; code?: string } | null): boolean {
+  if (!error) return false;
+  if (error.code === "42P01") return true;
+  return /volunteer_hub_|schema cache|does not exist|could not find the table/i.test(error.message ?? "");
 }
