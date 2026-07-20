@@ -44,17 +44,18 @@ export function buildDashboardAttention(
 ): DashboardAttention {
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   const endOfWeek = startOfToday + 7 * 24 * 60 * 60 * 1000;
-  const eventById = new Map(overview.events.map((event) => [event.id, event]));
+  const eventById = new Map(overview.events.filter((event) => !event.archivedAt).map((event) => [event.id, event]));
   const userById = new Map(overview.users.map((user) => [user.id, user]));
 
   const decisions = overview.tasks
     .filter((task) => task.status !== "done")
     .flatMap<DashboardAttentionItem>((task) => {
+      const event = eventById.get(task.eventId);
+      if (!event) return [];
       const due = new Date(task.dueDate).getTime();
       const isOverdue = Number.isFinite(due) && due < startOfToday;
       const needsAttention = task.status === "blocked" || isOverdue || due <= endOfWeek;
       if (!needsAttention) return [];
-      const event = eventById.get(task.eventId);
       const owner = userById.get(task.assignedUserId);
       const ownerName = owner ? `${owner.firstName} ${owner.lastName}` : "Unassigned";
       const tone: AttentionTone = task.status === "blocked" ? "critical" : isOverdue ? "warning" : "gold";
@@ -72,7 +73,7 @@ export function buildDashboardAttention(
     .slice(0, 6);
 
   const eventReadiness = [...overview.events]
-    .filter((event) => new Date(event.startTime).getTime() >= startOfToday)
+    .filter((event) => !event.archivedAt && new Date(event.startTime).getTime() >= startOfToday)
     .sort((first, second) => new Date(first.startTime).getTime() - new Date(second.startTime).getTime())
     .slice(0, 4)
     .map((event) => {
