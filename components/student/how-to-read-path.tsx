@@ -4,6 +4,7 @@ import { BookOpen, CheckCircle2, Circle, Headphones, Image as ImageIcon, PlayCir
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
+import { ResourceAttachments } from "@/components/resource-attachments";
 import { studentHowToReadLocalProgressKey, type HowToReadModule } from "@/lib/scripture/how-to-read";
 import { getEmbeddableVideoUrl } from "@/lib/scripture/video-embed";
 
@@ -148,6 +149,8 @@ export function HowToReadPath({ initialCompletedModuleIds = [], initialProgressS
           </div>
         </section>
       </section>
+
+      <ResourceAttachments parentType="how_to_read_section" parentId="overview" title="Supporting Resources" />
 
       <section className="how-to-read-module-list" aria-label="How to read your Bible guides">
         {modules.map((module) => {

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { BookOpen, CheckCircle2, GitFork, Languages } from "lucide-react";
 
+import { ResourceAttachments } from "@/components/resource-attachments";
 import { YouVersionReaderWindow } from "@/components/student/youversion-reader-window";
 import { buildYouVersionReaderLink, type YouVersionReaderLink } from "@/lib/scripture/youversion";
 import type { StudentJourneyReading, StudentQuestionNextStep } from "@/lib/scripture/student-home";
@@ -46,6 +47,7 @@ const emptyDraft: JournalDraft = {
 
 export function StudentJourneyJournal({ entrySequence = 1, journey, onReflectionSaved, prompt, reflection }: StudentJourneyJournalProps) {
   const storageKey = `lead-emergence:student-journey-journal:${prompt.id}:entry-${entrySequence}`;
+  const resourceParentId = `${prompt.id}:entry-${entrySequence}`;
   const [draft, setDraft] = useState<JournalDraft>(emptyDraft);
   const [readerState, setReaderState] = useState<ReaderState>({ status: "idle", message: "Open a reading to load the YouVersion companion." });
   const [hasLoadedDraft, setHasLoadedDraft] = useState(false);
@@ -134,6 +136,8 @@ export function StudentJourneyJournal({ entrySequence = 1, journey, onReflection
         </div>
         <span className="pill blue">{progressLabel}</span>
       </div>
+
+      <ResourceAttachments compact parentType="journey_journal_day" parentId={resourceParentId} title="Resources for This Day" />
 
       <div className="student-journey-layout">
         <div className="student-journey-main student-journey-road">
