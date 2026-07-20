@@ -6,6 +6,7 @@ import { Archive, CheckSquare, Clock3, FileText, MapPin, Plus, RotateCcw, Search
 import { useRole } from "@/components/role-context";
 import { useEventCard } from "@/components/event-card-context";
 import { MinistryEmmaPanel } from "@/components/ministry-emma-panel";
+import { MobileFieldDashboard } from "@/components/mobile-field-dashboard";
 import { MinistryCalendar } from "@/components/ministry-calendar";
 import { ActionQueue, ActionRow, EditorialSection, QuietState, StatusBadge } from "@/components/platform-ui";
 import type { DashboardAttention } from "@/lib/dashboard-attention";
@@ -648,7 +649,9 @@ function DashboardWorkspace({
   const nextEvents = upcomingEvents.slice(0, 3);
 
   return (
-    <section className="grid dashboard-snapshot dashboard-watercolor editorial-dashboard">
+    <>
+      <MobileFieldDashboard attention={attention} overview={overview} />
+      <section className="grid dashboard-snapshot dashboard-watercolor editorial-dashboard desktop-dashboard-workspace">
       <EditorialSection
         eyebrow="Decide and unblock"
         title="Needs Your Attention"
@@ -757,7 +760,8 @@ function DashboardWorkspace({
           <NextOnCalendar events={nextEvents} />
         </aside>
       </div>
-    </section>
+      </section>
+    </>
   );
 }
 
@@ -1336,7 +1340,7 @@ function EventScrollableSummary({
           Tasks {tasks.length} {isExpanded ? "-" : "+"}
         </button>
       </div>
-      <div className="event-summary-scroll" aria-label={`${event.title} horizontally scrollable summary`}>        <div className="summary-field action-field notes-summary-field">
+      <div className="event-summary-scroll" aria-label={`${event.title} planning timeline`}>        <div className="summary-field action-field notes-summary-field">
           <span className="summary-label">Internal notes</span>
           <NotesPanel
             id={`event-row-notes-${event.id}`}

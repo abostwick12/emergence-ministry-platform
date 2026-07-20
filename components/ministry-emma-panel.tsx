@@ -35,10 +35,12 @@ type EmmaMessage = {
 };
 
 export function MinistryEmmaPanel({
+  defaultExpanded = false,
   overview,
   page,
   staticSignals = []
 }: {
+  defaultExpanded?: boolean;
   overview?: MinistryEmmaOverview;
   page: MinistryEmmaPage;
   staticSignals?: string[];
@@ -48,7 +50,7 @@ export function MinistryEmmaPanel({
   const [providerStatus, setProviderStatus] = useState("Checking provider");
   const [prompt, setPrompt] = useState("");
   const [createProposal, setCreateProposal] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const [isRunning, setIsRunning] = useState(false);
   const threadRef = useRef<HTMLDivElement>(null);
   const [messages, setMessages] = useState<EmmaMessage[]>(() => [

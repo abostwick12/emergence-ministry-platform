@@ -106,19 +106,20 @@ test.describe("MVP event automation navigation smoke tests", () => {
     }
   });
 
-  test("mobile bottom navigation exposes high-use routes and More links", async ({ page }) => {
+  test("mobile field navigation exposes four destinations and portal tools", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 900 });
     await login(page);
 
     const mobileNav = page.getByRole("navigation", { name: "Mobile navigation" });
     await expect(mobileNav).toBeVisible();
-    for (const label of ["Dashboard", "Ministry", "Student", "Volunteer", "More"]) {
+    for (const label of ["Home", "Ministry", "People", "More"]) {
       await expect(mobileNav.getByText(label, { exact: true })).toBeVisible();
     }
+    await expect(mobileNav.getByText("Student", { exact: true })).toHaveCount(0);
 
     await mobileNav.getByText("More", { exact: true }).click();
     const more = page.getByLabel("More navigation");
-    for (const label of ["Directors Hub", "Camp", "Settings"]) {
+    for (const label of [/Director/, /Student/, "Camp", "Settings"]) {
       await expect(more.getByRole("link", { name: label })).toBeVisible();
     }
   });
@@ -169,7 +170,7 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await login(page);
 
     await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible();
-    await expect(page.getByText("Welcome back,", { exact: false })).toBeVisible();
+    await expect(page.locator(".app-header-welcome")).toContainText("Welcome back,");
     // No visible "Emerge" wording outside the "Lead Emergence" brand mark.
     await expect(page.getByText("Emerge Ministry Hub")).toHaveCount(0);
 
@@ -757,13 +758,15 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await expect(modal.getByLabel("Event Name")).not.toHaveValue("");
   });
 
-  test("mobile + Add Event is available in More menu", async ({ page }) => {
+  test("mobile floating action button opens working quick actions", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 900 });
     await login(page);
 
-    const mobileNav = page.getByRole("navigation", { name: "Mobile navigation" });
-    await mobileNav.getByText("More", { exact: true }).click();
-    await expect(page.getByRole("button", { name: "+ Add Event" })).toBeVisible();
+    await page.getByRole("button", { name: "Open quick actions" }).click();
+    const actions = page.getByRole("dialog", { name: "Quick actions" });
+    await expect(actions.getByRole("button", { name: /Create event/ })).toBeVisible();
+    await expect(actions.getByRole("link", { name: /Review tasks/ })).toBeVisible();
+    await expect(actions.getByRole("link", { name: /Review communications/ })).toBeVisible();
   });
 
   test("all routes still work after Phase 3 changes", async ({ page }) => {

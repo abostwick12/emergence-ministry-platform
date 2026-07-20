@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import {
   BarChart3,
   Bell,
@@ -16,7 +16,6 @@ import {
   LayoutDashboard,
   Library,
   ListChecks,
-  LogOut,
   MessageSquareText,
   Music,
   NotebookPen,
@@ -30,6 +29,7 @@ import type { LucideIcon } from "lucide-react";
 import { useRole } from "@/components/role-context";
 import { useEventCard } from "@/components/event-card-context";
 import { UnifiedDashboardBrandArt } from "@/components/unified-dashboard-brand-art";
+import { MobileFieldControls } from "@/components/mobile-field-controls";
 import type { AppShellAccessState } from "@/lib/camp/shell-access";
 import { firstNameForPerson } from "@/lib/auth/display-name";
 import type { Role } from "@/lib/types";
@@ -161,7 +161,6 @@ export function AppShell({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const mobileMoreRef = useRef<HTMLDetailsElement>(null);
   const firstName = firstNameForPerson(user?.name, user?.email);
   const userInitials = initialsForUser(firstName);
   const { activeRole, setActiveRole } = useRole();
@@ -173,7 +172,7 @@ export function AppShell({
   const {
     primaryLinks: visiblePrimaryLinks,
     mobileLinks: visibleMobileLinks,
-    mobileMoreLinks: visibleMobileMoreLinks
+    mobilePortalSections
   } = getAppShellNavigation({
     campOnly,
     isStudentShell,
@@ -285,8 +284,10 @@ export function AppShell({
         {!isCampRoute ? (
           <header className="app-header app-fixed-header">
             <div className="app-header-text">
+              <p className="mobile-field-header-kicker">Lead Emergence</p>
               <h1 className={isDashboard ? "app-header-title" : "app-header-title app-header-title-compact"}>{title}</h1>
               {subtitle ? <p className="app-header-welcome">{subtitle}</p> : null}
+              <p className="mobile-field-header-copy">{isDashboard ? `Welcome back, ${firstName}.` : "Ministry field app"}</p>
             </div>
 
             <div className="app-header-right">
@@ -314,47 +315,14 @@ export function AppShell({
       </main>
 
       {!isCampRoute ? (
-        <nav className="mobile-bottom-nav" aria-label="Mobile navigation">
-          {visibleMobileLinks.map((link) => (
-            <Link className={isLinkActive(pathname, link.href) ? "mobile-nav-link active" : "mobile-nav-link"} href={link.href} key={link.href}>
-              <NavIcon href={link.href} />
-              {link.label}
-            </Link>
-          ))}
-          {!isStudentShell ? (
-            <details className="mobile-more-menu" ref={mobileMoreRef}>
-              <summary className="mobile-nav-link">More</summary>
-              <div className="mobile-more-panel" aria-label="More navigation">
-                {canUseEmergeShell && canManageEvents ? (
-                  <button
-                    className="button primary mobile-add-event-btn"
-                    type="button"
-                    onClick={() => {
-                      mobileMoreRef.current?.removeAttribute("open");
-                      openCreate();
-                    }}
-                  >
-                    + Add Event
-                  </button>
-                ) : null}
-                {visibleMobileMoreLinks.map((link) => (
-                  <Link className="app-nav-link" href={link.href} key={link.href} onClick={() => mobileMoreRef.current?.removeAttribute("open")}>
-                    {link.label}
-                  </Link>
-                ))}
-                <a className="app-nav-link" href="/api/auth/logout">
-                  <LogOut className="app-nav-icon" aria-hidden="true" />
-                  Log out
-                </a>
-              </div>
-            </details>
-          ) : (
-            <a className="mobile-nav-link" href="/api/auth/logout">
-              <LogOut className="app-nav-icon" aria-hidden="true" />
-              Log out
-            </a>
-          )}
-        </nav>
+        <MobileFieldControls
+          canManageEvents={canUseEmergeShell && canManageEvents}
+          isStudentShell={isStudentShell}
+          mobileLinks={visibleMobileLinks}
+          onCreateEvent={openCreate}
+          pathname={pathname}
+          portalSections={mobilePortalSections}
+        />
       ) : null}
     </div>
   );

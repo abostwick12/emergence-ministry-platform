@@ -47,4 +47,31 @@ describe("volunteer hub navigation", () => {
 
     expect(navigation.primaryLinks.map((link) => link.href)).toContain("/command-center");
   });
+
+  it("groups the mobile field app into portal sections", () => {
+    const navigation = getAppShellNavigation({
+      campOnly: false,
+      isStudentShell: false,
+      showCommandCenter: true,
+      showLeaderDiscipleship: true,
+      showStudentPortal: true,
+      pathname: "/dashboard"
+    });
+
+    expect(navigation.mobileLinks.map((link) => link.label)).toEqual([
+      "Home",
+      "Ministry",
+      "People"
+    ]);
+    expect(navigation.mobilePortalSections.map((section) => section.label)).toEqual([
+      "Ministry",
+      "Volunteer",
+      "Student",
+      "Director",
+      "More"
+    ]);
+    expect(
+      navigation.mobilePortalSections.find((section) => section.label === "Ministry")?.links.map((link) => link.label)
+    ).toEqual(["Ministry Hub", "Events", "Worship", "Tasks", "Communications", "Budget"]);
+  });
 });

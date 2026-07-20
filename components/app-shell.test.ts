@@ -23,10 +23,20 @@ describe("app shell navigation", () => {
     expect(navigation.mobileLinks.map((link) => link.href)).toEqual([
       "/student",
       "/student/scripture/questions",
-      "/student/scripture/resources",
-      "/student/scripture/plans"
+      "/student/scripture/resources"
     ]);
     expect(navigation.mobileMoreLinks).toEqual([]);
+    expect(navigation.mobilePortalSections).toEqual([
+      {
+        id: "student",
+        label: "Student",
+        href: "/student",
+        links: expect.arrayContaining([
+          expect.objectContaining({ href: "/student/scripture/plans" }),
+          expect.objectContaining({ href: "/student/scripture/how-to-read" })
+        ])
+      }
+    ]);
   });
 
   it("shows portal groups from the main dashboard for admin and leader sessions", () => {
@@ -154,5 +164,31 @@ describe("app shell navigation", () => {
       "/events",
       "/tasks"
     ]);
+  });
+
+  it("uses four mobile destinations and groups deeper routes by portal", () => {
+    const navigation = getAppShellNavigation({
+      campOnly: false,
+      isStudentShell: false,
+      showCommandCenter: true,
+      showLeaderDiscipleship: true,
+      showStudentPortal: true,
+      pathname: "/dashboard"
+    });
+
+    expect(navigation.mobileLinks).toEqual([
+      { href: "/dashboard", label: "Home" },
+      { href: "/ministry", label: "Ministry" },
+      { href: "/people", label: "People" }
+    ]);
+    expect(navigation.mobilePortalSections.map((section) => section.id)).toEqual([
+      "ministry",
+      "volunteer",
+      "student",
+      "director",
+      "platform"
+    ]);
+    expect(navigation.mobilePortalSections.find((section) => section.id === "ministry")?.links.map((link) => link.href)).toContain("/tasks");
+    expect(navigation.mobilePortalSections.find((section) => section.id === "platform")?.links.map((link) => link.href)).toContain("/settings");
   });
 });
