@@ -41,6 +41,25 @@ describe("dashboard attention composition", () => {
     expect(result.studentCare.available).toBe(false);
   });
 
+  it("only surfaces tasks attached to active event rows", () => {
+    const archivedEvent = { ...event, id: "event-archived", archivedAt: "2026-07-01T00:00:00.000Z" } as MinistryEvent;
+    const activeTask = task("active", "blocked", "2026-07-30T12:00:00.000Z");
+    const archivedTask = { ...task("archived", "blocked", "2026-07-30T12:00:00.000Z"), eventId: archivedEvent.id };
+    const orphanedTask = { ...task("orphaned", "blocked", "2026-07-30T12:00:00.000Z"), eventId: "missing-event" };
+
+    const result = buildDashboardAttention(
+      {
+        events: [event, archivedEvent],
+        users: [user],
+        tasks: [activeTask, archivedTask, orphanedTask]
+      },
+      null,
+      new Date("2026-07-14T12:00:00.000Z")
+    );
+
+    expect(result.decisions.map((item) => item.id)).toEqual(["active"]);
+  });
+
   it("returns only care-safe student identity and status copy", () => {
     const discussion = {
       readiness: { liveStorage: false, localStorage: true, canSubmit: true, gloo: false, slack: false, message: "Local review is ready." },

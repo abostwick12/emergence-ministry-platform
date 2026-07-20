@@ -190,11 +190,16 @@ export default function MinistryWorkspace({
       setNotice("Read-only access is active. Changes are disabled for this account.");
       return;
     }
-    await fetch(`/api/tasks/${taskId}`, {
+    const response = await fetch(`/api/tasks/${taskId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body)
     });
+    if (!response.ok) {
+      setNotice("Task update failed. Refresh and try again.");
+      return;
+    }
+    setNotice("Task updated.");
     await refresh();
   }
 

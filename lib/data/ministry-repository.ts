@@ -2,6 +2,7 @@ import { integrationAdapters } from "@/lib/adapters/integrations";
 import { getMissingInformation } from "@/lib/missing-info";
 import { defaultTemplateTasks } from "@/lib/templates";
 import { normalizeEventType } from "@/lib/event-categories";
+import { applyTaskDerivedEventStatuses, deriveEventStatusFromTaskStatuses } from "@/lib/ministry/event-status";
 import type {
   ActiveTask,
   ActivityLog,
@@ -110,7 +111,7 @@ type SupabaseTaskRow = {
   updated_at: string;
 };
 
-export const MINISTRY_TASK_LIST_SELECT = "id,ministry_id,event_id,title,owner,due_date,status,critical";
+export const MINISTRY_TASK_LIST_SELECT = "id,ministry_id,event_id,title,owner,due_date,status,critical,notes";
 const MINISTRY_EVENT_LIST_SELECT =
   "id,ministry_id,title,ministry_area,description,vision,target_group,start_date,end_date,start_time,end_time,location,owner,status,priority,budget_target,budget_actual,volunteers_needed,communication_owner,notes,archived_at,archived_by_user_id,archive_reason,created_at,updated_at";
 const MINISTRY_EVENT_LIST_SELECT_LEGACY =
@@ -204,8 +205,9 @@ export async function getOverview(session: AuthSession): Promise<MinistryOvervie
     throwIfSupabaseError(activityResult.error);
 
     const users = toUsers(profileResult.data ?? [], session);
-    const events = (eventResult.data ?? []).map((event) => toMinistryEvent(event, users));
+    const rawEvents = (eventResult.data ?? []).map((event) => toMinistryEvent(event, users));
     const tasks = (taskResult.data ?? []).map((task) => toActiveTask(task, users));
+    const events = applyTaskDerivedEventStatuses(rawEvents, tasks);
     return {
       events,
       tasks,
@@ -376,6 +378,7 @@ export async function updateMinistryEvent(session: AuthSession, eventId: string,
       ? `Updated event notes: ${result.data.title}`
       : `Updated event information: ${result.data.title}`
   );
+  await syncEventStatusFromTasks(session, eventId);
   return getEventWorkspace(session, eventId);
 }
 
@@ -428,6 +431,7 @@ export async function updateMinistryTask(session: AuthSession, taskId: string, i
   if (input.dueDate !== undefined) update.due_date = toDateOnly(new Date(input.dueDate));
   if (input.status !== undefined) update.status = input.status;
   if (input.assignedUserId !== undefined) update.owner = input.assignedUserId;
+  if (input.notes !== undefined) update.notes = input.notes ?? null;
 
   if (Object.keys(update).length === 0) {
     const overview = await getOverview(session);
@@ -453,6 +457,12 @@ export async function updateMinistryTask(session: AuthSession, taskId: string, i
   if (input.taskTitle && input.taskTitle !== currentResult.data.title) {
     await createActivityLog(session, result.data.event_id, taskId, `Edited task title: ${input.taskTitle}`);
   }
+
+  if (input.notes !== undefined && input.notes !== currentResult.data.notes) {
+    await createActivityLog(session, result.data.event_id, taskId, `Updated task notes: ${result.data.title}`);
+  }
+
+  await syncEventStatusFromTasks(session, result.data.event_id);
 
   const overview = await getOverview(session);
   return toActiveTask(result.data, overview.users);
@@ -496,6 +506,7 @@ export async function createMinistryTask(
   if (!result.data) return undefined;
 
   await createActivityLog(session, input.eventId, result.data.id, `Added task: ${input.taskTitle}`);
+  await syncEventStatusFromTasks(session, input.eventId);
   const overview = await getOverview(session);
   return toActiveTask(result.data, overview.users);
 }
@@ -666,6 +677,26 @@ async function createActivityLog(session: AuthSession, eventId: string, taskId: 
     actor_id: session.user.id
   });
   throwIfSupabaseError(result.error);
+}
+
+async function syncEventStatusFromTasks(session: AuthSession, eventId: string) {
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const taskResult = await supabase
+    .from("tasks")
+    .select("status")
+    .eq("event_id", eventId)
+    .returns<Array<{ status: string | null }>>();
+  throwIfSupabaseError(taskResult.error);
+
+  const nextStatus = deriveEventStatusFromTaskStatuses((taskResult.data ?? []).map((task) => ({ status: toTaskStatus(task.status) })));
+  if (!nextStatus) return;
+
+  const eventResult = await supabase.from("events").select("status").eq("id", eventId).single<{ status: string | null }>();
+  throwIfSupabaseError(eventResult.error);
+  if (eventResult.data?.status === nextStatus) return;
+
+  const updateResult = await supabase.from("events").update({ status: nextStatus }).eq("id", eventId);
+  throwIfSupabaseError(updateResult.error);
 }
 
 function toUsers(rows: SupabaseProfileRow[], session: AuthSession): User[] {

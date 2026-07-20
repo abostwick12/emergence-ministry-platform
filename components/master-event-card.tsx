@@ -379,7 +379,10 @@ function MasterEventCardInner({
         setSaveError(await readErrorMessage(res, "Could not save the event. Please try again."));
       } else {
         const ws = (await res.json()) as EventWorkspace;
+        const nextStep1 = buildInitialStep1(ws.event, users[0]?.id);
         setWorkspace(ws);
+        step1Ref.current = nextStep1;
+        setStep1(nextStep1);
         persistEventLeaderAssignments(ws.event.id);
         setSaveSuccess("Event information saved.");
         setIsDirty(false);
@@ -465,11 +468,23 @@ function MasterEventCardInner({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(patch)
     });
-    if (res.ok) {
-      onRefresh?.();
-      if (workspace) {
-        const ws = await fetch(`/api/events/${workspace.event.id}`, { cache: "no-store" });
-        if (ws.ok) setWorkspace((await ws.json()) as EventWorkspace);
+    if (!res.ok) {
+      const message = await readErrorMessage(res, "Could not save the task. Please try again.");
+      setSaveError(message);
+      throw new Error(message);
+    }
+
+    setSaveError("");
+    setSaveSuccess("Task saved.");
+    onRefresh?.();
+    if (workspace) {
+      const ws = await fetch(`/api/events/${workspace.event.id}`, { cache: "no-store" });
+      if (ws.ok) {
+        const nextWorkspace = (await ws.json()) as EventWorkspace;
+        const nextStep1 = buildInitialStep1(nextWorkspace.event, users[0]?.id);
+        setWorkspace(nextWorkspace);
+        step1Ref.current = nextStep1;
+        setStep1(nextStep1);
       }
     }
   }
@@ -498,7 +513,13 @@ function MasterEventCardInner({
       setNewTaskTitle("");
       onRefresh?.();
       const wsRes = await fetch(`/api/events/${workspace.event.id}`, { cache: "no-store" });
-      if (wsRes.ok) setWorkspace((await wsRes.json()) as EventWorkspace);
+      if (wsRes.ok) {
+        const nextWorkspace = (await wsRes.json()) as EventWorkspace;
+        const nextStep1 = buildInitialStep1(nextWorkspace.event, users[0]?.id);
+        setWorkspace(nextWorkspace);
+        step1Ref.current = nextStep1;
+        setStep1(nextStep1);
+      }
     }
   }
 
@@ -1163,8 +1184,12 @@ function TaskEditRow({
   async function save(patch: Partial<ActiveTask>) {
     if (readOnly) return;
     setSaveState("saving");
-    await onUpdate(task.id, patch);
-    setSaveState("saved");
+    try {
+      await onUpdate(task.id, patch);
+      setSaveState("saved");
+    } catch {
+      setSaveState("idle");
+    }
   }
 
   const isCritical = task.timelineOffsetDays <= -30 || task.status === "blocked";
