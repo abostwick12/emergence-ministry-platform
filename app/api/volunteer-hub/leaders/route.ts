@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireEmergeOperationsAccess, requireEmergeOperationsWriteAccess } from "@/lib/app-area-access";
 import { getSupabaseAdminClient, isSupabaseAdminConfigured } from "@/lib/auth/server";
+import { getGroupMeStatus } from "@/lib/integrations/groupme/repository";
 import { getPlanningCenterStatus } from "@/lib/integrations/planning-center/repository";
 import { resolveMinistryScope } from "@/lib/ministry/scope";
 import { getVolunteerHubPayload } from "@/lib/volunteer-hub/data";
@@ -50,7 +51,7 @@ export async function POST(request: Request) {
 }
 
 async function integrationStatus(session: Parameters<typeof getVolunteerHubPayload>[0]) {
-  const planningCenter = await getPlanningCenterStatus(session);
+  const [planningCenter, groupMe] = await Promise.all([getPlanningCenterStatus(session), getGroupMeStatus(session)]);
   return {
     planningCenter: {
       displayStatus: planningCenter.displayStatus,
@@ -58,10 +59,7 @@ async function integrationStatus(session: Parameters<typeof getVolunteerHubPaylo
       attendanceCount: planningCenter.attendanceCount,
       lastSyncAt: planningCenter.lastSyncAt
     },
-    groupMe: {
-      displayStatus: "preview_only" as const,
-      message: "GroupMe is preview-only in this Volunteer Hub release. Messages are logged but not sent."
-    }
+    groupMe
   };
 }
 

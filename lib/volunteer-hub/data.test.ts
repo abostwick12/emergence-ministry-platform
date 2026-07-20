@@ -10,7 +10,7 @@ const session: AuthSession = {
 
 const integrations: VolunteerHubIntegrationStatus = {
   planningCenter: { displayStatus: "connected", peopleCount: 4, attendanceCount: 3 },
-  groupMe: { displayStatus: "preview_only", message: "Preview only." }
+  groupMe: { configured: true, displayStatus: "disconnected", connectedGroupCount: 0, message: "Not connected." }
 };
 
 describe("Volunteer Hub data", () => {
@@ -63,6 +63,30 @@ describe("Volunteer Hub data", () => {
     expect(payload.chatMessages[0]).toMatchObject({ body: "Please read the guide.", previewOnly: true, resourceId: "res_leader_guide" });
     expect(payload.followUps[0]).toMatchObject({ studentId: "stu_jordan", note: "Ask about school.", status: "assigned" });
     expect(payload.audit[0].action).toBe("Assigned student follow-up");
+  });
+
+  it("creates groups and moves a student to one managed roster", async () => {
+    applyVolunteerHubAction(session, {
+      type: "create_group",
+      name: "9th Grade Boys",
+      leaderId: "vol_andrew",
+      room: "Room 210",
+      serviceTime: "Sunday - 10:30 AM",
+      memberStudentIds: ["stu_jordan"]
+    });
+    let payload = await getVolunteerHubPayload(session, integrations);
+    const created = payload.activeGroups.find((group) => group.name === "9th Grade Boys");
+    expect(created).toMatchObject({ room: "Room 210", memberStudentIds: ["stu_jordan"] });
+    expect(payload.activeGroups.find((group) => group.id === "group_8th_boys")?.memberStudentIds).not.toContain("stu_jordan");
+
+    applyVolunteerHubAction(session, {
+      type: "update_group",
+      groupId: "group_8th_boys",
+      memberStudentIds: ["stu_jordan", "stu_micah"]
+    });
+    payload = await getVolunteerHubPayload(session, integrations);
+    expect(payload.activeGroups.find((group) => group.id === "group_8th_boys")?.memberStudentIds).toEqual(["stu_jordan", "stu_micah"]);
+    expect(payload.activeGroups.find((group) => group.id === created?.id)?.memberStudentIds).not.toContain("stu_jordan");
   });
 
   it("does not seed demo content for registered live sessions", async () => {

@@ -49,6 +49,7 @@ type PlanningCenterResource = {
 
 type PlanningCenterCollectionResponse = {
   data?: PlanningCenterResource[];
+  included?: PlanningCenterResource[];
   links?: {
     next?: string | null;
   };
@@ -102,6 +103,7 @@ export function buildPlanningCenterAuthUrl(params: { state: string; env?: Planni
   url.searchParams.set("client_id", config.clientId);
   url.searchParams.set("redirect_uri", config.redirectUri);
   url.searchParams.set("response_type", "code");
+  url.searchParams.set("scope", "people check_ins");
   url.searchParams.set("state", params.state);
   return url.toString();
 }
@@ -178,10 +180,11 @@ async function fetchCollection(params: {
   maxPages?: number;
   env?: PlanningCenterEnv;
   fetchImpl?: typeof fetch;
-}): Promise<PlanningCenterResource[]> {
+}): Promise<{ data: PlanningCenterResource[]; included: PlanningCenterResource[] }> {
   const config = requireConfig(params.env);
   const doFetch = params.fetchImpl ?? fetch;
   const resources: PlanningCenterResource[] = [];
+  const included: PlanningCenterResource[] = [];
   let nextUrl: string | undefined = `${config.apiBaseUrl}${params.path}`;
   let pages = 0;
 
@@ -195,11 +198,12 @@ async function fetchCollection(params: {
     if (!response.ok) throw new Error(`Planning Center API request failed: ${response.status}`);
     const json = (await response.json()) as PlanningCenterCollectionResponse;
     resources.push(...(json.data ?? []));
+    included.push(...(json.included ?? []));
     nextUrl = typeof json.links?.next === "string" && json.links.next.trim() ? json.links.next : undefined;
     pages += 1;
   }
 
-  return resources;
+  return { data: resources, included };
 }
 
 export async function listPlanningCenterPeople(params: {
@@ -215,7 +219,7 @@ export async function listPlanningCenterPeople(params: {
     env: params.env,
     fetchImpl: params.fetchImpl
   });
-  return records.map(normalizePerson).filter((person): person is PlanningCenterPersonRef => Boolean(person));
+  return records.data.map(normalizePerson).filter((person): person is PlanningCenterPersonRef => Boolean(person));
 }
 
 export async function listPlanningCenterAttendance(params: {
@@ -226,12 +230,14 @@ export async function listPlanningCenterAttendance(params: {
 }): Promise<PlanningCenterAttendanceRef[]> {
   const records = await fetchCollection({
     accessToken: params.accessToken,
-    path: "/check-ins/v2/check_ins?per_page=100",
+    path: "/check-ins/v2/check_ins?per_page=100&order=-created_at&include=event,event_period,locations",
     maxPages: params.maxPages,
     env: params.env,
     fetchImpl: params.fetchImpl
   });
-  return records.map(normalizeAttendance).filter((attendance): attendance is PlanningCenterAttendanceRef => Boolean(attendance));
+  return records.data
+    .map((record) => normalizeAttendance(record, records.included))
+    .filter((attendance): attendance is PlanningCenterAttendanceRef => Boolean(attendance));
 }
 
 function firstString(...values: unknown[]): string | undefined {
@@ -255,6 +261,22 @@ function relationshipId(record: PlanningCenterResource, ...keys: string[]): stri
   return undefined;
 }
 
+function relationshipIds(record: PlanningCenterResource, ...keys: string[]) {
+  const ids: string[] = [];
+  for (const key of keys) {
+    const data = record.relationships?.[key]?.data;
+    if (Array.isArray(data)) ids.push(...data.flatMap((item) => item.id?.trim() ? [item.id.trim()] : []));
+    else if (data?.id?.trim()) ids.push(data.id.trim());
+  }
+  return ids;
+}
+
+function includedAttribute(included: PlanningCenterResource[], id: string | undefined, ...attributes: string[]) {
+  if (!id) return undefined;
+  const record = included.find((item) => item.id === id);
+  return firstString(...attributes.map((attribute) => record?.attributes?.[attribute]));
+}
+
 export function normalizePerson(record: PlanningCenterResource): PlanningCenterPersonRef | null {
   if (!record.id) return null;
   const attributes = record.attributes ?? {};
@@ -275,15 +297,26 @@ export function normalizePerson(record: PlanningCenterResource): PlanningCenterP
   };
 }
 
-export function normalizeAttendance(record: PlanningCenterResource): PlanningCenterAttendanceRef | null {
+export function normalizeAttendance(record: PlanningCenterResource, included: PlanningCenterResource[] = []): PlanningCenterAttendanceRef | null {
   if (!record.id) return null;
   const attributes = record.attributes ?? {};
+  const eventId = relationshipId(record, "event", "event_period", "check_in_time");
+  const locationLabel = relationshipIds(record, "locations", "location")
+    .map((id) => includedAttribute(included, id, "name"))
+    .filter(Boolean)
+    .join(", ");
   return {
     externalCheckInId: record.id,
     externalPersonId: relationshipId(record, "person", "checked_in_person"),
-    externalEventId: relationshipId(record, "event", "event_period", "check_in_time"),
-    sessionLabel: firstString(attributes.event_name, attributes.name, attributes.kind, attributes.session_name),
-    locationLabel: firstString(attributes.location_name, attributes.location, attributes.security_code),
-    checkedInAt: firstString(attributes.checked_in_at, attributes.created_at)
+    externalEventId: eventId,
+    sessionLabel: firstString(
+      attributes.event_name,
+      attributes.name,
+      attributes.kind,
+      attributes.session_name,
+      includedAttribute(included, eventId, "name")
+    ),
+    locationLabel: firstString(attributes.location_name, attributes.location, locationLabel),
+    checkedInAt: firstString(attributes.checked_in_at, attributes.created_at, attributes.confirmed_at)
   };
 }

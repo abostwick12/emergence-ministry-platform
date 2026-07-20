@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireEmergeOperationsAccess, requireEmergeOperationsWriteAccess } from "@/lib/app-area-access";
+import { getGroupMeStatus } from "@/lib/integrations/groupme/repository";
 import { getPlanningCenterStatus } from "@/lib/integrations/planning-center/repository";
 import { applyVolunteerHubAction, applyVolunteerHubLiveAction, getVolunteerHubPayload } from "@/lib/volunteer-hub/data";
 import type { VolunteerHubAction, VolunteerHubIntegrationStatus } from "@/lib/volunteer-hub/types";
@@ -33,7 +34,7 @@ export async function POST(request: Request) {
 }
 
 async function integrationStatus(session: Parameters<typeof getVolunteerHubPayload>[0]): Promise<VolunteerHubIntegrationStatus> {
-  const planningCenter = await getPlanningCenterStatus(session);
+  const [planningCenter, groupMe] = await Promise.all([getPlanningCenterStatus(session), getGroupMeStatus(session)]);
   return {
     planningCenter: {
       displayStatus: planningCenter.displayStatus,
@@ -41,9 +42,6 @@ async function integrationStatus(session: Parameters<typeof getVolunteerHubPaylo
       attendanceCount: planningCenter.attendanceCount,
       lastSyncAt: planningCenter.lastSyncAt
     },
-    groupMe: {
-      displayStatus: "preview_only",
-      message: "GroupMe is preview-only in this Volunteer Hub release. Messages are logged but not sent."
-    }
+    groupMe
   };
 }
