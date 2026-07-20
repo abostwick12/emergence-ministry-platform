@@ -1220,6 +1220,228 @@ textarea:focus-visible {
   color: var(--danger);
 }
 
+/* Universal resource attachments */
+.resource-attachments {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  padding: 14px;
+  box-shadow: var(--shadow-sm);
+}
+
+.resource-attachments.compact {
+  padding: 12px;
+}
+
+.resource-attachments-header,
+.resource-attachments-actions,
+.resource-card-title-row,
+.resource-card-meta,
+.resource-card-actions,
+.resource-selected-files,
+.resource-selected-files span,
+.resource-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.resource-attachments-header {
+  justify-content: space-between;
+}
+
+.resource-attachments-message {
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text);
+  padding: 8px 10px;
+  font-size: var(--text-sm);
+  font-weight: 750;
+}
+
+.resource-attachments-message.error {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.resource-attachment-form,
+.resource-edit-panel {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.resource-attachment-form {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  padding: 12px;
+}
+
+.resource-attachment-form .button.active {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.resource-drop-zone {
+  display: grid;
+  place-items: center;
+  gap: 6px;
+  min-height: 124px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  padding: 16px;
+  cursor: pointer;
+  text-align: center;
+}
+
+.resource-drop-zone:hover,
+.resource-drop-zone:focus-visible {
+  border-color: var(--primary);
+  outline: none;
+}
+
+.resource-drop-zone svg,
+.resource-card-icon svg,
+.resource-card-actions svg,
+.resource-attachment-form svg {
+  width: 16px;
+  height: 16px;
+}
+
+.resource-drop-zone span,
+.resource-card-meta,
+.resource-empty-state,
+.resource-archive-list summary {
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 750;
+}
+
+.resource-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+  gap: 10px;
+  min-width: 0;
+}
+
+.resource-selected-files span {
+  max-width: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  padding: 4px 6px 4px 10px;
+  font-size: var(--text-sm);
+  font-weight: 750;
+}
+
+.resource-list {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.resource-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  padding: 12px;
+}
+
+.resource-card.archived {
+  background: var(--surface-2);
+}
+
+.resource-card-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.resource-card-main {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.resource-card-main strong,
+.resource-card-main p,
+.resource-empty-state {
+  margin: 0;
+}
+
+.resource-card-main p {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.resource-card-meta span {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.resource-card-actions {
+  justify-content: flex-end;
+}
+
+.resource-card-actions .button.danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.resource-checkbox {
+  align-self: end;
+  min-height: 38px;
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: 800;
+}
+
+.resource-archive-list {
+  display: grid;
+  gap: 10px;
+}
+
+.resource-archive-list summary {
+  cursor: pointer;
+}
+
+@media (max-width: 760px) {
+  .resource-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .resource-card-icon {
+    width: 32px;
+    height: 32px;
+  }
+
+  .resource-card-actions {
+    justify-content: flex-start;
+  }
+}
+
 .event-group {
   display: grid;
   gap: 12px;
@@ -1255,6 +1477,15 @@ textarea:focus-visible {
   border-top: 1px solid var(--line);
   background: #f8fafc;
   padding: 10px 14px 14px 18px;
+}
+
+.event-expanded-resources {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  border-top: 1px solid var(--line);
+  background: var(--surface-2);
+  padding: 12px 14px 14px 18px;
 }
 
 .subtask-scroll-label {
@@ -1320,6 +1551,11 @@ textarea:focus-visible {
 .task-tree-files span {
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+.task-tree-resource-panel {
+  grid-column: 1 / -1;
+  min-width: 0;
 }
 
 .compact-field {
@@ -19178,6 +19414,11 @@ body:has(.login-shell) h3 {
   padding: 12px;
   color: #f8fbff;
   text-align: left;
+}
+
+.volunteer-module-resource-panel {
+  grid-column: 1 / -1;
+  min-width: 0;
 }
 
 .volunteer-task {

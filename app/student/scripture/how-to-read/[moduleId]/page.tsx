@@ -3,6 +3,7 @@ import { BookOpen, Headphones, Image as ImageIcon, PlayCircle, ShieldCheck, User
 import type { ReactNode } from "react";
 
 import { HowToReadGuideActions } from "@/components/student/how-to-read-guide-actions";
+import { ResourceAttachments } from "@/components/resource-attachments";
 import { StudentScriptureTabs } from "@/components/student/student-scripture-tabs";
 import { getServerSession } from "@/lib/auth/server";
 import { getHowToReadModule, howToReadModules } from "@/lib/scripture/how-to-read";
@@ -59,6 +60,8 @@ export default async function HowToReadGuidePage({ params }: HowToReadGuidePageP
           <MediaSlot icon={<Headphones size={18} aria-hidden="true" />} label="Audio" title="Podcast or audio guide slot" />
           <MediaSlot icon={<ImageIcon size={18} aria-hidden="true" />} label="Infographic" title={guide.infographicLabel} />
         </section>
+
+        <ResourceAttachments parentType="how_to_read_lesson" parentId={guide.id} title="Supporting Resources" />
 
         <section className="how-to-read-guide-grid" aria-label="Guide practice">
           <div className="how-to-read-guide-section">

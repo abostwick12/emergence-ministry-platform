@@ -23,6 +23,7 @@ import {
   UsersRound
 } from "lucide-react";
 import { PageIntro, StatusBadge } from "@/components/platform-ui";
+import { ResourceAttachments } from "@/components/resource-attachments";
 import { jerichoLeaderGuide } from "@/lib/volunteer-hub/leader-guide";
 import type {
   VolunteerHubAction,
@@ -668,6 +669,7 @@ function TrainingWorkspace({ payload, onAction }: { payload: VolunteerHubPayload
       <MetricCard icon={<ShieldCheck aria-hidden="true" />} label="Current Quarter" value={`${completed}/${payload.trainingModules.length}`} detail="Required and optional module progress." />
       <article className="volunteer-hub-panel volunteer-hub-span-2">
         <SectionTitle icon={<ShieldCheck aria-hidden="true" />} eyebrow="Training" title="Quarterly training center" />
+        <ResourceAttachments compact parentType="volunteer_training" parentId="quarterly-training-center" title="Training Materials" />
         <div className="volunteer-module-list">
           {payload.trainingModules.length ? payload.trainingModules.map((module) => (
             <div className="volunteer-module-row" key={module.id}>
@@ -678,6 +680,9 @@ function TrainingWorkspace({ payload, onAction }: { payload: VolunteerHubPayload
               <button className="button compact-button" type="button" onClick={() => onAction({ type: "complete_training", moduleId: module.id, completed: !module.completed }, module.completed ? "Training reopened." : "Training completed.")}>
                 {module.completed ? "Completed" : "Mark complete"}
               </button>
+              <div className="volunteer-module-resource-panel">
+                <ResourceAttachments compact parentType="volunteer_training_module" parentId={module.id} title={`Materials for ${module.title}`} />
+              </div>
             </div>
           )) : <EmptyState title="No training modules yet" detail="Training records will appear here after real modules are published or imported." />}
         </div>
