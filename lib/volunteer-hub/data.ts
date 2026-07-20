@@ -1,14 +1,39 @@
 import type { AuthSession } from "@/lib/auth/server";
+import { getSupabaseAdminClient, isSupabaseAdminConfigured } from "@/lib/auth/server";
+import { resolveMinistryScope } from "@/lib/ministry/scope";
 import { uid } from "@/lib/utils";
 import {
   roleForSession,
   type VolunteerHubAction,
   type VolunteerHubAttendanceSnapshot,
+  type VolunteerHubDataSource,
   type VolunteerHubPayload,
   type VolunteerHubRole,
+  type VolunteerHubSmallGroup,
   type VolunteerHubState,
+  type VolunteerHubStudent,
   type VolunteerHubVolunteer
 } from "@/lib/volunteer-hub/types";
+
+type ProfileVolunteerRow = {
+  id: string;
+  email: string | null;
+  full_name: string | null;
+  role: string | null;
+};
+
+type PlanningCenterPersonRow = {
+  external_person_id: string;
+  display_name: string;
+  grade: string | null;
+  age_band: string | null;
+  last_synced_at: string | null;
+};
+
+type PlanningCenterAttendanceRow = {
+  external_person_id: string | null;
+  checked_in_at: string | null;
+};
 
 function daysFromNow(days: number, hour = 9) {
   const date = new Date();
@@ -217,11 +242,21 @@ export function resetVolunteerHubStateForTests() {
   globalStore.__leadVolunteerHubState = createInitialState();
 }
 
-export function getVolunteerHubPayload(
+export async function getVolunteerHubPayload(
   session: AuthSession,
   integrations: VolunteerHubPayload["integrations"]
+): Promise<VolunteerHubPayload> {
+  const source = dataSourceForSession(session);
+  const current = source === "live" ? await createLiveState(session) : state();
+  return buildVolunteerHubPayload(current, session, integrations, source);
+}
+
+function buildVolunteerHubPayload(
+  current: VolunteerHubState,
+  session: AuthSession,
+  integrations: VolunteerHubPayload["integrations"],
+  dataSource: VolunteerHubDataSource
 ): VolunteerHubPayload {
-  const current = state();
   const role = roleForSession(session);
   const activeVolunteer = resolveActiveVolunteer(current, session, role);
   const visibleActiveGroups = getVisibleActiveGroups(current, activeVolunteer, role);
@@ -230,6 +265,8 @@ export function getVolunteerHubPayload(
   const followUps = current.followUps.filter((followUp) => students.some((student) => student.id === followUp.studentId));
 
   return {
+    dataSource,
+    readOnlyReason: dataSource === "live" ? "Volunteer Hub actions need persistent ministry tables before they can safely save changes for registered users." : undefined,
     role,
     activeVolunteer,
     activeGroup,
@@ -248,6 +285,190 @@ export function getVolunteerHubPayload(
     audit: current.audit.slice(0, 20),
     integrations
   };
+}
+
+function dataSourceForSession(session: AuthSession): VolunteerHubDataSource {
+  if (session.isGuest) return "guest_demo";
+  if (session.isMock) return "mock";
+  return "live";
+}
+
+async function createLiveState(session: AuthSession): Promise<VolunteerHubState> {
+  const [volunteers, students] = await Promise.all([
+    loadRegisteredVolunteers(session),
+    loadPlanningCenterStudents(session)
+  ]);
+  const sessionVolunteer = volunteerFromSession(session);
+  const volunteerList = mergeSessionVolunteer(volunteers, sessionVolunteer);
+  const activeVolunteer = volunteerList.find((volunteer) => volunteer.userId === session.user.id) ?? sessionVolunteer;
+  const activeGroup = liveRosterGroup(activeVolunteer, students);
+
+  return {
+    volunteers: volunteerList,
+    students,
+    smallGroups: [activeGroup],
+    tasks: [],
+    resources: [],
+    trainingModules: [],
+    onboardingItems: [],
+    notifications: [],
+    chatMessages: [],
+    followUps: [],
+    audit: []
+  };
+}
+
+async function loadRegisteredVolunteers(session: AuthSession): Promise<VolunteerHubVolunteer[]> {
+  if (!isSupabaseAdminConfigured()) return [];
+  try {
+    const ministryId = await resolveMinistryScope(session);
+    if (!ministryId) return [];
+    const { data, error } = await getSupabaseAdminClient()
+      .from("profiles")
+      .select("id,email,full_name,role")
+      .eq("ministry_id", ministryId)
+      .returns<ProfileVolunteerRow[]>();
+    if (error) return [];
+
+    return (data ?? [])
+      .filter((row) => isVolunteerProfile(row))
+      .map((row) => volunteerFromProfile(row));
+  } catch {
+    return [];
+  }
+}
+
+async function loadPlanningCenterStudents(session: AuthSession): Promise<VolunteerHubStudent[]> {
+  if (!isSupabaseAdminConfigured()) return [];
+  try {
+    const ministryId = await resolveMinistryScope(session);
+    if (!ministryId) return [];
+    const supabase = getSupabaseAdminClient();
+    const [{ data: people, error: peopleError }, { data: attendance, error: attendanceError }] = await Promise.all([
+      supabase
+        .from("planning_center_people_refs")
+        .select("external_person_id,display_name,grade,age_band,last_synced_at")
+        .eq("ministry_id", ministryId)
+        .order("display_name", { ascending: true })
+        .limit(250)
+        .returns<PlanningCenterPersonRow[]>(),
+      supabase
+        .from("planning_center_attendance_refs")
+        .select("external_person_id,checked_in_at")
+        .eq("ministry_id", ministryId)
+        .not("external_person_id", "is", null)
+        .order("checked_in_at", { ascending: false, nullsFirst: false })
+        .limit(500)
+        .returns<PlanningCenterAttendanceRow[]>()
+    ]);
+    if (peopleError || attendanceError) return [];
+    const latestAttendance = latestAttendanceByPerson(attendance ?? []);
+    return (people ?? [])
+      .filter((person) => isLikelyStudentRef(person))
+      .map((person) => studentFromPlanningCenter(person, latestAttendance.get(person.external_person_id)));
+  } catch {
+    return [];
+  }
+}
+
+function isVolunteerProfile(row: ProfileVolunteerRow) {
+  const role = (row.role ?? "").trim().toLowerCase();
+  return role !== "student" && role !== "parent";
+}
+
+function volunteerFromProfile(row: ProfileVolunteerRow): VolunteerHubVolunteer {
+  const role = volunteerRole(row.role);
+  return {
+    id: `profile_${row.id}`,
+    userId: row.id,
+    name: row.full_name?.trim() || row.email?.trim() || "Ministry user",
+    role,
+    email: row.email?.trim() || "",
+    servingAreas: [],
+    availability: "Not synced",
+    skills: [],
+    backgroundCheckExpires: "",
+    preferredCommunication: "email",
+    connectedServices: { planningCenter: false, groupMe: false, google: false }
+  };
+}
+
+function volunteerFromSession(session: AuthSession): VolunteerHubVolunteer {
+  return {
+    id: `session_${session.user.id}`,
+    userId: session.user.id,
+    name: session.user.fullName || session.user.email,
+    role: roleForSession(session),
+    email: session.user.email,
+    servingAreas: [],
+    availability: "Not synced",
+    skills: [],
+    backgroundCheckExpires: "",
+    preferredCommunication: "email",
+    connectedServices: { planningCenter: false, groupMe: false, google: false }
+  };
+}
+
+function mergeSessionVolunteer(volunteers: VolunteerHubVolunteer[], sessionVolunteer: VolunteerHubVolunteer) {
+  if (volunteers.some((volunteer) => volunteer.userId === sessionVolunteer.userId)) return volunteers;
+  return [sessionVolunteer, ...volunteers];
+}
+
+function volunteerRole(role: string | null | undefined): VolunteerHubRole {
+  const normalized = (role ?? "").trim().toLowerCase();
+  if (normalized === "admin") return "admin";
+  if (normalized === "leader") return "leader";
+  if (normalized === "director" || normalized === "staff") return "director";
+  return "volunteer";
+}
+
+function isLikelyStudentRef(person: PlanningCenterPersonRow) {
+  const text = `${person.grade ?? ""} ${person.age_band ?? ""}`.toLowerCase();
+  return /\b(student|youth|teen|middle|high|grade|6th|7th|8th|9th|10th|11th|12th)\b/.test(text) || /\b(k|[1-9]|1[0-2])\b/.test(text);
+}
+
+function latestAttendanceByPerson(rows: PlanningCenterAttendanceRow[]) {
+  const latest = new Map<string, string>();
+  for (const row of rows) {
+    const personId = row.external_person_id?.trim();
+    const checkedInAt = row.checked_in_at?.trim();
+    if (!personId || !checkedInAt || latest.has(personId)) continue;
+    latest.set(personId, checkedInAt);
+  }
+  return latest;
+}
+
+function studentFromPlanningCenter(person: PlanningCenterPersonRow, latestAttendance?: string): VolunteerHubStudent {
+  const displayName = person.display_name.trim();
+  return {
+    id: `pco_${person.external_person_id}`,
+    preferredName: firstName(displayName),
+    fullName: displayName,
+    grade: person.grade?.trim() || person.age_band?.trim() || "Grade not synced",
+    school: "Not synced",
+    birthday: "Not synced",
+    attendanceStatus: latestAttendance ? "present" : "pending",
+    lastAttended: latestAttendance ?? "",
+    consecutiveAbsences: 0,
+    parentContactAvailable: false,
+    planningCenterProfileUrl: undefined
+  };
+}
+
+function liveRosterGroup(activeVolunteer: VolunteerHubVolunteer, students: VolunteerHubStudent[]): VolunteerHubSmallGroup {
+  return {
+    id: "live_planning_center_students",
+    name: students.length ? "Planning Center student roster" : "Volunteer Hub setup",
+    leaderId: activeVolunteer.id,
+    room: "Planning Center",
+    serviceTime: "Imported roster",
+    memberStudentIds: students.map((student) => student.id),
+    groupMeConnected: false
+  };
+}
+
+function firstName(name: string) {
+  return name.trim().split(/\s+/)[0] ?? name;
 }
 
 export function applyVolunteerHubAction(session: AuthSession, action: VolunteerHubAction) {
@@ -386,9 +607,10 @@ export function applyVolunteerHubAction(session: AuthSession, action: VolunteerH
 }
 
 function resolveActiveVolunteer(stateValue: VolunteerHubState, session: AuthSession, role: VolunteerHubRole) {
-  if (role === "admin") return stateValue.volunteers.find((volunteer) => volunteer.role === "director") ?? stateValue.volunteers[0];
   const byUser = stateValue.volunteers.find((volunteer) => volunteer.userId === session.user.id);
-  return byUser ?? stateValue.volunteers.find((volunteer) => volunteer.id === "vol_andrew") ?? stateValue.volunteers[0];
+  if (byUser) return byUser;
+  if (role === "admin") return stateValue.volunteers.find((volunteer) => volunteer.role === "director") ?? stateValue.volunteers[0];
+  return stateValue.volunteers.find((volunteer) => volunteer.id === "vol_andrew") ?? stateValue.volunteers[0];
 }
 
 function getVisibleActiveGroups(stateValue: VolunteerHubState, activeVolunteer: VolunteerHubVolunteer, role: VolunteerHubRole) {

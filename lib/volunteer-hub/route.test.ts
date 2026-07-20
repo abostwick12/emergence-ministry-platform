@@ -20,6 +20,10 @@ const session = {
   isMock: true,
   user: { id: "usr_leader", email: "leader@example.test", fullName: "Andrew Walker", role: "leader" }
 };
+const liveSession = {
+  isMock: false,
+  user: { id: "real-user-1", email: "real@example.com", fullName: "Real Leader", role: "leader" }
+};
 
 function jsonRequest(body: unknown) {
   return new Request("http://localhost/api/volunteer-hub", {
@@ -46,6 +50,7 @@ describe("Volunteer Hub route", () => {
     const payload = await response.json();
 
     expect(response.status).toBe(200);
+    expect(payload.dataSource).toBe("mock");
     expect(payload.activeGroup.name).toBe("8th Grade Boys");
     expect(payload.integrations.planningCenter).toMatchObject({ peopleCount: 4, attendanceCount: 7 });
     expect(payload.archivedGroups).toEqual(expect.any(Array));
@@ -65,6 +70,17 @@ describe("Volunteer Hub route", () => {
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({ error: "Message body is required." });
+  });
+
+  it("blocks in-memory actions for registered production users", async () => {
+    requireEmergeOperationsAccess.mockResolvedValue({ allowed: true, session: liveSession, context: {} });
+
+    const response = await POST(jsonRequest({ type: "complete_training", moduleId: "train_followup" }));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      error: "Volunteer Hub actions are disabled for registered production users until persistent ministry tables are connected."
+    });
   });
 
   it("fails closed when operations access denies the request", async () => {

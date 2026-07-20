@@ -1,6 +1,7 @@
 import type { AuthSession } from "@/lib/auth/server";
 
 export type VolunteerHubRole = "volunteer" | "leader" | "director" | "admin";
+export type VolunteerHubDataSource = "live" | "guest_demo" | "mock";
 
 export type VolunteerHubStudent = {
   id: string;
@@ -158,6 +159,8 @@ export type VolunteerHubState = {
 };
 
 export type VolunteerHubPayload = {
+  dataSource: VolunteerHubDataSource;
+  readOnlyReason?: string;
   role: VolunteerHubRole;
   activeVolunteer: VolunteerHubVolunteer;
   activeGroup: VolunteerHubSmallGroup;
