@@ -18,6 +18,23 @@ describe("volunteer hub navigation", () => {
     }
   });
 
+  it("includes director volunteer monitoring in the Volunteer Hub context", () => {
+    const navigation = getAppShellNavigation({
+      campOnly: false,
+      isStudentShell: false,
+      showCommandCenter: false,
+      showLeaderDiscipleship: true,
+      showStudentPortal: true,
+      pathname: "/people"
+    });
+
+    expect(navigation.primaryLinks.map((link) => link.href)).toEqual([
+      "/dashboard",
+      "/people",
+      "/directors/volunteers"
+    ]);
+  });
+
   it("keeps direct Command Center navigation available outside Volunteer Hub contexts", () => {
     const navigation = getAppShellNavigation({
       campOnly: false,

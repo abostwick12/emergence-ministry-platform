@@ -35,7 +35,8 @@ const studentSessionLinks: AppNavLink[] = studentPortalLinks.filter((link) => li
 
 const volunteerHubLinks: AppNavLink[] = [
   { href: "/dashboard", label: "Dashboard", pageKey: "dashboard" },
-  { href: "/people", label: "Volunteer Hub", pageKey: "people" }
+  { href: "/people", label: "Volunteer Hub", pageKey: "people" },
+  { href: "/directors/volunteers", label: "Volunteer Dashboard", pageKey: "volunteer_dashboard" }
 ];
 
 const directorsHubLinks: AppNavLink[] = [

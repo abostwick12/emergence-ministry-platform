@@ -40,8 +40,8 @@ test.describe("event color system and volunteer leaders", () => {
   test("keeps Manage Small Group selects readable", async ({ page }) => {
     await page.goto("/people");
     await waitForWorkspace(page);
-    await page.getByRole("button", { name: /Open 6th Grade small group menu/i }).click();
-    await page.getByRole("button", { name: "Manage Group" }).click();
+    const sixthGradeGroup = page.locator(".volunteer-group-card").filter({ hasText: "6th Grade" });
+    await sixthGradeGroup.getByRole("button", { name: /Open 6th Grade small group menu/i }).click();
 
     const dialog = page.getByRole("dialog", { name: "Manage Small Group" });
     await expect(dialog).toBeVisible();

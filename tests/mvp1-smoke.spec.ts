@@ -465,14 +465,14 @@ test.describe("MVP event automation navigation smoke tests", () => {
 
     for (const route of [
       ["/communications", "Communication Drafts", "Event Copy Queue"],
-      ["/people", "Ministry Roster", "Service group coverage"],
+      ["/people", "Good Morning Maya", "Today's Tasks"],
       ["/budget", "Budget Workspace", "Where the money is going"],
       ["/settings", "Platform Settings", "Connected services"]
     ] as const) {
       await page.goto(route[0]);
       await expect(page.getByRole("heading", { name: route[1] })).toBeVisible();
       await expect(page.getByText(route[2])).toBeVisible();
-      if (route[0] !== "/budget") {
+      if (route[0] !== "/budget" && route[0] !== "/people") {
         await expect(page.getByText("Preview-only sending").first()).toBeVisible();
       }
     }

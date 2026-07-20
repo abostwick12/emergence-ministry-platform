@@ -481,7 +481,7 @@ function PeopleWorkspace({ overview }: { overview: MinistryOverview }) {
 
       <section className="ministry-launch-panel ministry-launch-span-3 ministry-people-service-panel" aria-label="Small group services">
         <div className="ministry-people-toolbar">
-          <SectionHead eyebrow="Small Groups" title="Service group coverage" />
+          <SectionHead eyebrow="Small Groups" title="Small group coverage" />
           <div className="ministry-people-controls">
             <label className="field ministry-people-service-select">
               <span>Service</span>
@@ -645,7 +645,7 @@ function PeopleWorkspace({ overview }: { overview: MinistryOverview }) {
       ) : null}
 
       {editingGroup ? (
-        <ModalShell title="Manage Small Group" description="Update the visible service group assignment." onClose={() => setEditingGroup(null)}>
+        <ModalShell title="Manage Small Group" description="Update the visible small group assignment." onClose={() => setEditingGroup(null)}>
           <div className="ministry-launch-form">
             <label className="field">
               <span>Group name</span>

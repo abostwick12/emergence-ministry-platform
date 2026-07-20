@@ -1,5 +1,5 @@
-import { MinistryPeoplePage } from "@/components/ministry-launch-pages";
+import { VolunteerHubPage } from "@/components/volunteer-hub-page";
 
 export default function PeoplePage() {
-  return <MinistryPeoplePage />;
+  return <VolunteerHubPage />;
 }
