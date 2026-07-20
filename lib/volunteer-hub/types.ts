@@ -2,14 +2,22 @@ import type { AuthSession } from "@/lib/auth/server";
 
 export type VolunteerHubRole = "volunteer" | "leader" | "director" | "admin";
 export type VolunteerHubDataSource = "live" | "guest_demo" | "mock";
+export type VolunteerHubStudentSource = "planning_center" | "camp_clc" | "demo";
 
 export type VolunteerHubStudent = {
   id: string;
+  source?: VolunteerHubStudentSource;
   preferredName: string;
   fullName: string;
+  profilePhotoUrl?: string;
   grade: string;
   school: string;
   birthday: string;
+  teamId?: string;
+  teamName?: string;
+  cabin?: string;
+  vehicleName?: string;
+  safeIndicators?: string[];
   attendanceStatus: "present" | "absent" | "guest" | "pending";
   lastAttended: string;
   consecutiveAbsences: number;
@@ -62,6 +70,7 @@ export type VolunteerHubVolunteer = {
   role: VolunteerHubRole;
   email: string;
   profilePhotoUrl?: string;
+  sourceChurch?: string;
   servingAreas: string[];
   availability: string;
   skills: string[];
@@ -165,6 +174,11 @@ export type VolunteerHubPayload = {
   activeVolunteer: VolunteerHubVolunteer;
   activeGroup: VolunteerHubSmallGroup;
   students: VolunteerHubStudent[];
+  studentRoster: VolunteerHubStudent[];
+  studentRosterSource: {
+    planningCenterCount: number;
+    campClcCount: number;
+  };
   activeGroups: VolunteerHubSmallGroup[];
   archivedGroups: VolunteerHubSmallGroup[];
   volunteers: VolunteerHubVolunteer[];
@@ -191,7 +205,8 @@ export type VolunteerHubAction =
   | { type: "preview_chat_message"; groupId: string; body: string; resourceId?: string }
   | { type: "archive_group"; groupId: string; reason?: string }
   | { type: "restore_group"; groupId: string }
-  | { type: "add_leader"; name: string; email?: string; role?: string }
+  | { type: "update_group"; groupId: string; leaderId?: string; coLeaderId?: string; room?: string }
+  | { type: "add_leader"; name: string; email?: string; role?: string; sourceChurch?: string; profilePhotoUrl?: string }
   | { type: "delete_leader"; volunteerId: string };
 
 export function roleForSession(session: AuthSession): VolunteerHubRole {

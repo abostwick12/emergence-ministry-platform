@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import {
   Archive,
   Bell,
@@ -25,11 +25,12 @@ import type {
 } from "@/lib/volunteer-hub/types";
 
 type VolunteerHubMode = "volunteer" | "director";
-type VolunteerTab = "dashboard" | "group" | "attendance" | "chat" | "resources" | "training" | "onboarding" | "calendar" | "profile";
+type VolunteerTab = "dashboard" | "group" | "students" | "attendance" | "chat" | "resources" | "training" | "onboarding" | "calendar" | "profile";
 
 const tabs: Array<{ id: VolunteerTab; label: string }> = [
   { id: "dashboard", label: "Dashboard" },
   { id: "group", label: "My Small Group" },
+  { id: "students", label: "Students" },
   { id: "attendance", label: "Attendance" },
   { id: "chat", label: "Group Chat" },
   { id: "resources", label: "Weekly Resources" },
@@ -63,8 +64,8 @@ export function VolunteerHubPage({ mode = "volunteer" }: { mode?: VolunteerHubMo
   }
 
   async function act(action: VolunteerHubAction, success: string) {
-    if (payload?.dataSource === "live") {
-      setError(payload.readOnlyReason ?? "This Volunteer Hub action is not connected to persistent production storage yet.");
+    if (payload?.readOnlyReason) {
+      setError(payload.readOnlyReason);
       return;
     }
     setNotice("");
@@ -143,6 +144,7 @@ function VolunteerTabContent({
   onAction: (action: VolunteerHubAction, success: string) => Promise<void>;
 }) {
   if (activeTab === "group") return <SmallGroupWorkspace payload={payload} onAction={onAction} />;
+  if (activeTab === "students") return <StudentsWorkspace payload={payload} onAction={onAction} />;
   if (activeTab === "attendance") return <AttendanceWorkspace payload={payload} onAction={onAction} />;
   if (activeTab === "chat") return <ChatWorkspace payload={payload} onAction={onAction} />;
   if (activeTab === "resources") return <ResourcesWorkspace payload={payload} onAction={onAction} />;
@@ -229,19 +231,24 @@ function StudentCard({ student, actionsEnabled, onAction }: { student: Volunteer
   const [note, setNote] = useState("");
   return (
     <article className="volunteer-hub-panel volunteer-student-card">
-      <div className="volunteer-avatar" aria-hidden="true">{initials(student.preferredName)}</div>
+      <div className="volunteer-avatar" aria-hidden="true">{student.profilePhotoUrl ? <img src={student.profilePhotoUrl} alt="" /> : initials(student.preferredName)}</div>
       <h3>{student.preferredName}</h3>
       <p>{student.grade} - {student.school}</p>
       <div className="volunteer-student-tags">
         <StatusBadge tone={student.attendanceStatus === "present" ? "success" : student.attendanceStatus === "absent" ? "warning" : "info"}>{student.attendanceStatus}</StatusBadge>
         {student.followUpNeeded ? <StatusBadge tone="warning">Needs follow-up</StatusBadge> : null}
         {student.prayerRequestIndicator ? <StatusBadge tone="info">Prayer indicator</StatusBadge> : null}
+        {student.source === "camp_clc" ? <StatusBadge tone="info">Camp CLC</StatusBadge> : null}
       </div>
       <dl className="volunteer-facts">
+        {student.teamName ? <div><dt>Team</dt><dd>{student.teamName}</dd></div> : null}
+        {student.cabin ? <div><dt>Room</dt><dd>{student.cabin}</dd></div> : null}
+        {student.vehicleName ? <div><dt>Vehicle</dt><dd>{student.vehicleName}</dd></div> : null}
         <div><dt>Last attended</dt><dd>{formatDate(student.lastAttended)}</dd></div>
         <div><dt>Birthday</dt><dd>{student.birthday}</dd></div>
         <div><dt>Parent contact</dt><dd>{student.parentContactAvailable ? "Permission based" : "Not available"}</dd></div>
       </dl>
+      {student.safeIndicators?.length ? <p className="muted">{student.safeIndicators.join(" / ")}</p> : null}
       {actionsEnabled ? <form className="volunteer-inline-form" onSubmit={(event) => {
         event.preventDefault();
         void onAction({ type: "add_follow_up", studentId: student.id, note }, "Follow-up assigned.").then(() => setNote(""));
@@ -256,8 +263,43 @@ function StudentCard({ student, actionsEnabled, onAction }: { student: Volunteer
   );
 }
 
+function StudentsWorkspace({ payload, onAction }: { payload: VolunteerHubPayload; onAction: (action: VolunteerHubAction, success: string) => Promise<void> }) {
+  const [query, setQuery] = useState("");
+  const [team, setTeam] = useState("all");
+  const [source, setSource] = useState("all");
+  const teams = useMemo(
+    () => Array.from(new Set(payload.studentRoster.map((student) => student.teamName).filter((value): value is string => Boolean(value)))).sort(),
+    [payload.studentRoster]
+  );
+  const filtered = payload.studentRoster.filter((student) => {
+    const text = `${student.preferredName} ${student.fullName} ${student.grade} ${student.teamName ?? ""} ${student.cabin ?? ""}`.toLowerCase();
+    return (!query.trim() || text.includes(query.trim().toLowerCase()))
+      && (team === "all" || student.teamName === team)
+      && (source === "all" || student.source === source);
+  });
+  const actionsEnabled = !payload.readOnlyReason;
+
+  return (
+    <div className="volunteer-hub-grid">
+      <MetricCard icon={<UsersRound aria-hidden="true" />} label="CLC Camp Students" value={String(payload.studentRosterSource.campClcCount)} detail="Filtered through the Camp CLC roster boundary." />
+      <MetricCard icon={<ClipboardCheck aria-hidden="true" />} label="Planning Center Refs" value={String(payload.studentRosterSource.planningCenterCount)} detail="Synced ministry student references." />
+      <article className="volunteer-hub-panel volunteer-hub-span-3 volunteer-student-roster-tools">
+        <SectionTitle icon={<UsersRound aria-hidden="true" />} eyebrow="Students" title="Roster view" />
+        <div className="volunteer-roster-filters">
+          <label className="field"><span>Search</span><input className="input" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Name, grade, team, or room" /></label>
+          <label className="field"><span>Team</span><select className="input" value={team} onChange={(event) => setTeam(event.target.value)}><option value="all">All teams</option>{teams.map((teamName) => <option key={teamName} value={teamName}>{teamName}</option>)}</select></label>
+          <label className="field"><span>Source</span><select className="input" value={source} onChange={(event) => setSource(event.target.value)}><option value="all">All sources</option><option value="camp_clc">Camp CLC</option><option value="planning_center">Planning Center</option><option value="demo">Demo</option></select></label>
+        </div>
+      </article>
+      {filtered.length ? filtered.map((student) => (
+        <StudentCard key={student.id} student={student} actionsEnabled={actionsEnabled} onAction={onAction} />
+      )) : <EmptyPanel title="No students match these filters" detail="Adjust the search, team, or source filters to widen the roster view." />}
+    </div>
+  );
+}
+
 function AttendanceWorkspace({ payload, onAction }: { payload: VolunteerHubPayload; onAction: (action: VolunteerHubAction, success: string) => Promise<void> }) {
-  const actionsEnabled = payload.dataSource !== "live";
+  const actionsEnabled = !payload.readOnlyReason;
   return (
     <div className="volunteer-hub-grid">
       <MetricCard icon={<ClipboardCheck aria-hidden="true" />} label="Assigned" value={String(payload.attendance.assigned)} detail="Students assigned to your active small group." />
@@ -573,26 +615,28 @@ function LeaderPoolPanel({ payload, onAction }: { payload: VolunteerHubPayload; 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("Small Group Coach");
+  const [sourceChurch, setSourceChurch] = useState("Lead Emergence");
   return (
     <article className="volunteer-hub-panel volunteer-hub-span-3">
       <div className="volunteer-panel-head">
         <SectionTitle icon={<UserRound aria-hidden="true" />} eyebrow="Leader Pool" title="Small group leaders" />
-        {payload.dataSource === "live" ? null : <button className="button primary" type="button" onClick={() => setOpen((value) => !value)}>Add Leader</button>}
+        {payload.readOnlyReason ? null : <button className="button primary" type="button" onClick={() => setOpen((value) => !value)}>Add Leader</button>}
       </div>
       {open ? (
         <form className="ministry-people-add-leader-form volunteer-leader-form" onSubmit={(event: FormEvent<HTMLFormElement>) => {
           event.preventDefault();
-          void onAction({ type: "add_leader", name, email, role }, "Volunteer leader added.").then(() => {
+          void onAction({ type: "add_leader", name, email, role, sourceChurch }, "Volunteer leader added.").then(() => {
             setName("");
             setEmail("");
             setRole("Small Group Coach");
+            setSourceChurch("Lead Emergence");
             setOpen(false);
           });
         }}>
           <label className="field"><span>Name</span><input className="input" value={name} onChange={(event) => setName(event.target.value)} /></label>
           <label className="field"><span>Role label</span><input className="input" value={role} onChange={(event) => setRole(event.target.value)} /></label>
           <label className="field"><span>Email</span><input className="input" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
-          <label className="field"><span>Source church</span><input className="input" defaultValue="Lead Emergence" /></label>
+          <label className="field"><span>Source church</span><input className="input" value={sourceChurch} onChange={(event) => setSourceChurch(event.target.value)} /></label>
           <button className="button primary" type="submit">Save Leader</button>
         </form>
       ) : null}
@@ -603,7 +647,7 @@ function LeaderPoolPanel({ payload, onAction }: { payload: VolunteerHubPayload; 
             <strong>{volunteer.name}</strong>
             <span>{volunteer.role}</span>
             <span>{volunteer.email}</span>
-            <button className="button compact-button" type="button" disabled={payload.dataSource === "live" || volunteer.role === "admin" || volunteer.role === "director"} aria-label={`Delete leader ${volunteer.name}`} onClick={() => onAction({ type: "delete_leader", volunteerId: volunteer.id }, "Volunteer leader removed.")}>
+            <button className="button compact-button" type="button" disabled={Boolean(payload.readOnlyReason) || volunteer.role === "admin" || volunteer.role === "director"} aria-label={`Delete leader ${volunteer.name}`} onClick={() => onAction({ type: "delete_leader", volunteerId: volunteer.id }, "Volunteer leader removed.")}>
               Delete
             </button>
           </div>

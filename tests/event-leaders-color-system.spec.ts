@@ -22,6 +22,18 @@ test.describe("event color system and volunteer leaders", () => {
     await page.goto("/people");
     await waitForWorkspace(page);
     await expect(page.getByRole("navigation", { name: "Desktop navigation" })).not.toContainText("Command Center");
+    await expect(page.getByRole("navigation", { name: "Volunteer Hub sections" }).getByRole("button")).toHaveText([
+      "Dashboard",
+      "My Small Group",
+      "Students",
+      "Attendance",
+      "Group Chat",
+      "Weekly Resources",
+      "Training",
+      "Onboarding",
+      "Calendar",
+      "Profile"
+    ]);
 
     await page.getByRole("button", { name: "Add Leader" }).click();
     const form = page.locator(".ministry-people-add-leader-form");

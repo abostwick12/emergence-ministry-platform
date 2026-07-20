@@ -143,6 +143,29 @@ export default function MinistryWorkspace({
     setDeletedVolunteerLeaderIds(loadDeletedVolunteerLeaderIds());
   }, [cardState.savedAt]);
 
+  useEffect(() => {
+    let active = true;
+    fetch("/api/volunteer-hub/leaders", { cache: "no-store" })
+      .then(async (response) => {
+        if (!active || !response.ok) return;
+        const payload = (await response.json()) as {
+          dataSource?: string;
+          readOnlyReason?: string;
+          leaders?: VolunteerLeader[];
+          eventLeaderAssignments?: EventLeaderAssignments;
+        };
+        if (payload.dataSource === "live" && !payload.readOnlyReason) {
+          setCustomVolunteerLeaders(payload.leaders ?? []);
+          setDeletedVolunteerLeaderIds(usersToVolunteerLeaders((overview?.users ?? []).filter((user) => user.role === "admin" || user.role === "leader")).map((leader) => leader.id));
+          setEventLeaderAssignments(payload.eventLeaderAssignments ?? {});
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [cardState.savedAt, overview?.users]);
+
   const users = useMemo(() => overview?.users ?? [], [overview?.users]);
   const activeUsers = users.filter((user) => user.role === "admin" || user.role === "leader");
   const volunteerLeaders = useMemo(

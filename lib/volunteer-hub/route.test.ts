@@ -72,14 +72,14 @@ describe("Volunteer Hub route", () => {
     await expect(response.json()).resolves.toEqual({ error: "Message body is required." });
   });
 
-  it("blocks in-memory actions for registered production users", async () => {
+  it("keeps registered production users read-only when Volunteer Hub tables are missing", async () => {
     requireEmergeOperationsAccess.mockResolvedValue({ allowed: true, session: liveSession, context: {} });
 
     const response = await POST(jsonRequest({ type: "complete_training", moduleId: "train_followup" }));
 
     expect(response.status).toBe(409);
     await expect(response.json()).resolves.toEqual({
-      error: "Volunteer Hub actions are disabled for registered production users until persistent ministry tables are connected."
+      error: "Volunteer Hub actions need persistent ministry tables before they can safely save changes for registered users."
     });
   });
 

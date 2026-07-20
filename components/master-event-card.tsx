@@ -211,6 +211,7 @@ function MasterEventCardInner({
   const [users, setUsers] = useState<User[]>([]);
   const [volunteerLeaders, setVolunteerLeaders] = useState<VolunteerLeader[]>([]);
   const [eventLeaderAssignments, setEventLeaderAssignments] = useState<EventLeaderAssignments>({});
+  const [liveVolunteerLeaderPersistence, setLiveVolunteerLeaderPersistence] = useState(false);
   const [step1, setStep1] = useState<Step1State | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -239,6 +240,21 @@ function MasterEventCardInner({
     setUsers(staffUsers);
     setVolunteerLeaders(mergeVolunteerLeaders(usersToVolunteerLeaders(staffUsers), loadCustomVolunteerLeaders(), loadDeletedVolunteerLeaderIds()));
     setEventLeaderAssignments(loadEventLeaderAssignments());
+    setLiveVolunteerLeaderPersistence(false);
+    const leadersRes = await fetch("/api/volunteer-hub/leaders", { cache: "no-store" }).catch(() => null);
+    if (leadersRes?.ok) {
+      const leadersPayload = (await leadersRes.json()) as {
+        dataSource?: string;
+        readOnlyReason?: string;
+        leaders?: VolunteerLeader[];
+        eventLeaderAssignments?: EventLeaderAssignments;
+      };
+      if (leadersPayload.dataSource === "live" && !leadersPayload.readOnlyReason) {
+        setVolunteerLeaders(leadersPayload.leaders ?? []);
+        setEventLeaderAssignments(leadersPayload.eventLeaderAssignments ?? {});
+        setLiveVolunteerLeaderPersistence(true);
+      }
+    }
 
     if (mode === "edit" && eventId) {
       const wsRes = await fetch(`/api/events/${eventId}`, { cache: "no-store" });
@@ -531,16 +547,32 @@ function MasterEventCardInner({
       const existing = current[currentEventId] ?? [];
       const nextIds = existing.includes(leaderId) ? existing.filter((id) => id !== leaderId) : [...existing, leaderId];
       const next = { ...current, [currentEventId]: nextIds };
-      saveEventLeaderAssignments(next);
+      if (liveVolunteerLeaderPersistence) {
+        void saveLiveEventLeaderAssignments(currentEventId, nextIds);
+      } else {
+        saveEventLeaderAssignments(next);
+      }
       return next;
     });
     setIsDirty(true);
   }
 
   function persistEventLeaderAssignments(nextEventId?: string) {
+    if (liveVolunteerLeaderPersistence) return;
     const currentEventId = nextEventId ?? workspace?.event.id ?? eventId;
     if (!currentEventId) return;
     saveEventLeaderAssignments(eventLeaderAssignments);
+  }
+
+  async function saveLiveEventLeaderAssignments(targetEventId: string, leaderIds: string[]) {
+    const response = await fetch("/api/volunteer-hub/leaders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ eventId: targetEventId, leaderIds })
+    });
+    if (!response.ok) {
+      setSaveError(await readErrorMessage(response, "Could not save leader assignments."));
+    }
   }
 
   async function runStub(type: "drive" | "calendar" | "propresenter" | "comms") {
