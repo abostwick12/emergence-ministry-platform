@@ -5,6 +5,8 @@ import { authCookieNames, getMockAuthUser, isMockAuthEnabled, isSupabaseConfigur
 import { resolvePersonName } from "./display-name";
 import { measureServerOperation } from "@/lib/performance/timing";
 
+export { clearAuthCookies, setAuthCookies } from "./cookies";
+
 export type AuthSession = {
   user: {
     id: string;
@@ -16,14 +18,6 @@ export type AuthSession = {
   isMock: boolean;
   isGuest?: boolean;
   guestSessionId?: string;
-};
-
-const cookieOptions = {
-  httpOnly: true,
-  sameSite: "lax" as const,
-  secure: process.env.NODE_ENV === "production",
-  path: "/",
-  maxAge: 60 * 60 * 24 * 7
 };
 
 export function getSupabaseAuthClient(accessToken?: string) {
@@ -65,31 +59,6 @@ export function getSupabaseAdminClient() {
   });
 }
 
-export function setAuthCookies(response: NextResponse, input: { accessToken?: string; refreshToken?: string; isMock?: boolean }) {
-  if (input.isMock) {
-    response.cookies.set(authCookieNames.guestSession, "", { ...cookieOptions, maxAge: 0 });
-    response.cookies.set(authCookieNames.mockSession, "1", cookieOptions);
-    return;
-  }
-
-  response.cookies.set(authCookieNames.mockSession, "", { ...cookieOptions, maxAge: 0 });
-  response.cookies.set(authCookieNames.guestSession, "", { ...cookieOptions, maxAge: 0 });
-
-  if (input.accessToken) {
-    response.cookies.set(authCookieNames.accessToken, input.accessToken, cookieOptions);
-  }
-
-  if (input.refreshToken) {
-    response.cookies.set(authCookieNames.refreshToken, input.refreshToken, cookieOptions);
-  }
-}
-
-export function clearAuthCookies(response: NextResponse) {
-  for (const name of Object.values(authCookieNames)) {
-    response.cookies.set(name, "", { ...cookieOptions, maxAge: 0 });
-  }
-}
-
 const sessionByCookieStore = new WeakMap<object, Promise<AuthSession | null>>();
 
 export function getServerSession(): Promise<AuthSession | null> {
@@ -103,17 +72,27 @@ export function getServerSession(): Promise<AuthSession | null> {
 }
 
 async function loadServerSession(cookieStore: ReturnType<typeof cookies>): Promise<AuthSession | null> {
-  const hasMockSession = cookieStore.get(authCookieNames.mockSession)?.value === "1";
+  const accessTokenCookie = cookieStore.get(authCookieNames.accessToken);
+  const refreshTokenCookie = cookieStore.get(authCookieNames.refreshToken);
+  const mockSessionCookie = cookieStore.get(authCookieNames.mockSession);
+  const accessToken = accessTokenCookie?.value?.trim();
+  const hasRealAccountCookies = accessTokenCookie !== undefined || refreshTokenCookie !== undefined;
 
-  if (hasMockSession && isMockAuthEnabled()) {
-    return { user: getMockAuthUser(), isMock: true };
+  if (hasRealAccountCookies) {
+    if (!accessToken || !isSupabaseConfigured()) return null;
+    return loadAccountSession(accessToken);
   }
 
-  const accessToken = cookieStore.get(authCookieNames.accessToken)?.value;
-  if (!accessToken || !isSupabaseConfigured()) {
-    return loadGuestSession(cookieStore);
+  if (mockSessionCookie !== undefined) {
+    return mockSessionCookie.value === "1" && isMockAuthEnabled()
+      ? { user: getMockAuthUser(), isMock: true }
+      : null;
   }
 
+  return loadGuestSession(cookieStore);
+}
+
+async function loadAccountSession(accessToken: string): Promise<AuthSession | null> {
   let userResult: Awaited<ReturnType<ReturnType<typeof getSupabaseAuthClient>["auth"]["getUser"]>>;
   try {
     const supabase = getSupabaseAuthClient();
@@ -123,13 +102,13 @@ async function loadServerSession(cookieStore: ReturnType<typeof cookies>): Promi
       timestamp: new Date().toISOString(),
       reason: error instanceof Error ? error.name : "unknown"
     });
-    return loadGuestSession(cookieStore);
+    return null;
   }
 
   const { data, error } = userResult;
 
   if (error || !data.user?.email) {
-    return loadGuestSession(cookieStore);
+    return null;
   }
 
   const profile = await getSessionProfile(accessToken, data.user.id);

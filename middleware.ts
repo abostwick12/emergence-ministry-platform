@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAccessTokenUnexpired } from "./lib/auth/access-token";
 import { authCookieNames, isMockAuthEnabled } from "./lib/auth/config";
+import { clearAuthCookies, clearGuestCookie, clearNonAccountCookies } from "./lib/auth/cookies";
 
 const publicPaths = [
   "/",
@@ -16,17 +18,6 @@ const publicPaths = [
 ];
 const publicPathPrefixes = ["/join/", "/register/"];
 const guestBlockedPathPrefixes = ["/camp", "/settings", "/command-center", "/api/camp", "/api/settings", "/api/command-center"];
-
-function hasSessionCookie(request: NextRequest) {
-  return hasAuthenticatedSessionCookie(request) || hasGuestSessionCookie(request);
-}
-
-function hasAuthenticatedSessionCookie(request: NextRequest) {
-  return (
-    Boolean(request.cookies.get(authCookieNames.accessToken)?.value) ||
-    (isMockAuthEnabled() && request.cookies.get(authCookieNames.mockSession)?.value === "1")
-  );
-}
 
 function hasGuestSessionCookie(request: NextRequest) {
   return Boolean(request.cookies.get(authCookieNames.guestSession)?.value);
@@ -47,19 +38,38 @@ export function middleware(request: NextRequest) {
     return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
-  if (!hasSessionCookie(request)) {
-    if (pathname.startsWith("/api")) {
-      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+  const accessTokenCookie = request.cookies.get(authCookieNames.accessToken);
+  const refreshTokenCookie = request.cookies.get(authCookieNames.refreshToken);
+  const mockSessionCookie = request.cookies.get(authCookieNames.mockSession);
+  const accessToken = accessTokenCookie?.value?.trim();
+  const mockSession = mockSessionCookie?.value;
+  const hasRealAccountCookies = accessTokenCookie !== undefined || refreshTokenCookie !== undefined;
+
+  if (hasRealAccountCookies) {
+    if (!accessToken || !isAccessTokenUnexpired(accessToken)) {
+      return unauthenticatedResponse(request, pathname, true);
     }
 
-    const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("next", pathname);
-    return NextResponse.redirect(loginUrl);
+    const response = NextResponse.next({ request: { headers: requestHeaders } });
+    if (hasGuestSessionCookie(request) || mockSession) clearNonAccountCookies(response);
+    return response;
+  }
+
+  if (mockSessionCookie !== undefined) {
+    if (mockSession !== "1" || !isMockAuthEnabled()) {
+      return unauthenticatedResponse(request, pathname, true);
+    }
+
+    const response = NextResponse.next({ request: { headers: requestHeaders } });
+    if (hasGuestSessionCookie(request)) clearGuestCookie(response);
+    return response;
+  }
+
+  if (!hasGuestSessionCookie(request)) {
+    return unauthenticatedResponse(request, pathname);
   }
 
   if (
-    hasGuestSessionCookie(request) &&
-    !hasAuthenticatedSessionCookie(request) &&
     guestBlockedPathPrefixes.some((path) => pathname === path || pathname.startsWith(`${path}/`))
   ) {
     if (pathname.startsWith("/api")) {
@@ -69,6 +79,20 @@ export function middleware(request: NextRequest) {
   }
 
   return NextResponse.next({ request: { headers: requestHeaders } });
+}
+
+function unauthenticatedResponse(request: NextRequest, pathname: string, clearCookies = false) {
+  let response: NextResponse;
+  if (pathname.startsWith("/api")) {
+    response = NextResponse.json({ error: "Authentication required" }, { status: 401 });
+  } else {
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("next", pathname);
+    response = NextResponse.redirect(loginUrl);
+  }
+
+  if (clearCookies) clearAuthCookies(response);
+  return response;
 }
 
 export const config = {

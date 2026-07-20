@@ -122,6 +122,53 @@ test.describe("Unified access and competition guest mode", () => {
     expect(filesRestorePayload.member?.pageAccess?.files).toBe(wasFilesAllowed);
     await expect(page.getByRole("status")).toContainText("Files access updated for Jordan Reed.");
   });
+
+  test("mobile login replaces guest mode in the same browser context", async ({ context, page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await enterGuestMode(page);
+
+    await page.goto("/settings");
+    await expect(page).toHaveURL(/\/$/);
+
+    await login(page);
+    await page.getByRole("navigation", { name: "Mobile navigation" }).getByText("More", { exact: true }).click();
+    await expect(page.getByRole("link", { name: "Settings" })).toBeVisible();
+    await page.goto("/settings");
+    await expect(page.getByRole("heading", { name: "Page access across the platform" })).toBeVisible();
+
+    const cookies = await context.cookies();
+    expect(cookies.find((cookie) => cookie.name === "lead_guest_session")).toBeUndefined();
+    expect(cookies.find((cookie) => cookie.name === "emerge_mock_session")?.value).toBe("1");
+    await expect(page.getByText("Guest", { exact: true })).toHaveCount(0);
+  });
+
+  test("mobile expired account state cannot fall back to a guest dashboard", async ({ context, page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await enterGuestMode(page);
+
+    const origin = new URL(page.url()).origin;
+    await context.addCookies([
+      {
+        name: "emerge_access_token",
+        value: jwt({ exp: Math.floor(Date.now() / 1000) - 60 }),
+        url: origin
+      },
+      {
+        name: "emerge_refresh_token",
+        value: "stale-refresh-token",
+        url: origin
+      }
+    ]);
+
+    await page.goto("/dashboard");
+
+    await expect(page).toHaveURL(/\/login\?next=%2Fdashboard$/);
+    await expect(page.getByRole("button", { name: "Log in" })).toBeVisible();
+    const cookies = await context.cookies();
+    for (const name of ["emerge_access_token", "emerge_refresh_token", "emerge_mock_session", "lead_guest_session"]) {
+      expect(cookies.find((cookie) => cookie.name === name)).toBeUndefined();
+    }
+  });
 });
 
 async function enterGuestMode(page: Page) {
@@ -163,4 +210,12 @@ async function createEvent(page: Page, eventName: string) {
 function toDateTimeLocalInput(date: Date) {
   const offset = date.getTimezoneOffset() * 60000;
   return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+}
+
+function jwt(payload: Record<string, unknown>) {
+  return `${encode({ alg: "none", typ: "JWT" })}.${encode(payload)}.test-signature`;
+}
+
+function encode(value: Record<string, unknown>) {
+  return Buffer.from(JSON.stringify(value)).toString("base64url");
 }
