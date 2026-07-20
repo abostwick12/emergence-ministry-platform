@@ -9,6 +9,7 @@ import { MinistryEmmaPanel } from "@/components/ministry-emma-panel";
 import { MobileFieldDashboard } from "@/components/mobile-field-dashboard";
 import { MinistryCalendar } from "@/components/ministry-calendar";
 import { ActionQueue, ActionRow, EditorialSection, QuietState, StatusBadge } from "@/components/platform-ui";
+import { ResourceAttachments } from "@/components/resource-attachments";
 import type { DashboardAttention } from "@/lib/dashboard-attention";
 import type { MinistryOverview } from "@/lib/data/ministry-repository";
 import { eventTypeLabels } from "@/lib/templates";
@@ -1190,7 +1191,10 @@ function EventRowCard({
       </div>
 
       {isExpanded ? (
-        <EventTaskTree event={event} tasks={tasks} users={users} canSaveChanges={canSaveChanges} onUpdateTask={onUpdateTask} onOpenEvent={onOpenEvent} />
+        <div className="event-expanded-resources">
+          <ResourceAttachments compact parentType="event" parentId={event.id} title="Event Files" />
+          <EventTaskTree event={event} tasks={tasks} users={users} canSaveChanges={canSaveChanges} onUpdateTask={onUpdateTask} onOpenEvent={onOpenEvent} />
+        </div>
       ) : null}
     </article>
   );
@@ -1638,7 +1642,7 @@ function EventTaskTreeItem({
       </div>
       <div className="task-tree-files">
         <span className="summary-label">Files</span>
-        <span>No file attached</span>
+        <span>Task resources below</span>
       </div>
       <div className="task-tree-notes">
         <span className="summary-label">Notes</span>
@@ -1654,6 +1658,9 @@ function EventTaskTreeItem({
       <button className="button compact-button" type="button" onClick={() => onOpenEvent(task.eventId)}>
         Open
       </button>
+      <div className="task-tree-resource-panel">
+        <ResourceAttachments compact parentType="event_task" parentId={task.id} title="Task Resources" />
+      </div>
     </div>
   );
 }
