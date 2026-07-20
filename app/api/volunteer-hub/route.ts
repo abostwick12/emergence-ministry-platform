@@ -8,7 +8,7 @@ export async function GET() {
   const access = await requireEmergeOperationsAccess();
   if (!access.allowed) return access.response;
 
-  return NextResponse.json(getVolunteerHubPayload(access.session, await integrationStatus(access.session)));
+  return NextResponse.json(await getVolunteerHubPayload(access.session, await integrationStatus(access.session)));
 }
 
 export async function POST(request: Request) {
@@ -19,10 +19,16 @@ export async function POST(request: Request) {
   if (!body || typeof body !== "object" || !("type" in body)) {
     return NextResponse.json({ error: "A Volunteer Hub action type is required." }, { status: 400 });
   }
+  if (!access.session.isGuest && !access.session.isMock) {
+    return NextResponse.json(
+      { error: "Volunteer Hub actions are disabled for registered production users until persistent ministry tables are connected." },
+      { status: 409 }
+    );
+  }
 
   try {
     applyVolunteerHubAction(access.session, body);
-    return NextResponse.json(getVolunteerHubPayload(access.session, await integrationStatus(access.session)));
+    return NextResponse.json(await getVolunteerHubPayload(access.session, await integrationStatus(access.session)));
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Volunteer Hub action failed." }, { status: 400 });
   }

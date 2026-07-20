@@ -63,6 +63,10 @@ export function VolunteerHubPage({ mode = "volunteer" }: { mode?: VolunteerHubMo
   }
 
   async function act(action: VolunteerHubAction, success: string) {
+    if (payload?.dataSource === "live") {
+      setError(payload.readOnlyReason ?? "This Volunteer Hub action is not connected to persistent production storage yet.");
+      return;
+    }
     setNotice("");
     setError("");
     const response = await fetch("/api/volunteer-hub", {
@@ -99,6 +103,7 @@ export function VolunteerHubPage({ mode = "volunteer" }: { mode?: VolunteerHubMo
           : "Prepare for serving, care for assigned students, and keep every action connected to relationship-first ministry."}
         actions={<HubStatus integrations={payload.integrations} />}
       />
+      {payload.readOnlyReason ? <p className="volunteer-hub-notice" role="status">{payload.readOnlyReason}</p> : null}
       {notice ? <p className="volunteer-hub-notice" role="status">{notice}</p> : null}
       {error ? <p className="volunteer-hub-error" role="alert">{error}</p> : null}
 
@@ -161,17 +166,18 @@ function VolunteerTabContent({
 function ServingCard({ payload }: { payload: VolunteerHubPayload }) {
   const leader = payload.volunteers.find((volunteer) => volunteer.id === payload.activeGroup.leaderId);
   const coLeader = payload.volunteers.find((volunteer) => volunteer.id === payload.activeGroup.coLeaderId);
+  const isLive = payload.dataSource === "live";
   return (
     <article className="volunteer-hub-panel volunteer-serving-card">
-      <p className="eyebrow">Serving Today</p>
+      <p className="eyebrow">{isLive ? "Live Roster" : "Serving Today"}</p>
       <h3>{payload.activeGroup.serviceTime}</h3>
       <strong>{payload.activeGroup.name}</strong>
       <span>{payload.activeGroup.room}</span>
-      <div className="volunteer-serving-meta">
+      {isLive ? null : <div className="volunteer-serving-meta">
         <span>Leader Meeting</span>
         <strong>8:40 AM</strong>
-      </div>
-      <p>{leader?.name ?? "Leader"}{coLeader ? ` and ${coLeader.name}` : ""} are assigned.</p>
+      </div>}
+      <p>{isLive ? `${payload.students.length} synced student refs are available for real ministry setup.` : `${leader?.name ?? "Leader"}${coLeader ? ` and ${coLeader.name}` : ""} are assigned.`}</p>
     </article>
   );
 }
@@ -180,6 +186,7 @@ function TaskPanel({ tasks, onAction }: { tasks: VolunteerHubPayload["tasks"]; o
   return (
     <article className="volunteer-hub-panel volunteer-hub-span-2">
       <SectionTitle icon={<ClipboardCheck aria-hidden="true" />} eyebrow="Today's Tasks" title="What needs to happen before group" />
+      {!tasks.length ? <EmptyState title="No assigned tasks yet" detail="Tasks will appear here after they are created from real ministry workflows." /> : null}
       <div className="volunteer-task-list">
         {tasks.map((task) => (
           <button key={task.id} type="button" className={task.completed ? "volunteer-task complete" : "volunteer-task"} onClick={() => onAction({ type: "complete_task", taskId: task.id, completed: !task.completed }, task.completed ? "Task reopened." : "Task completed.")}>
@@ -199,6 +206,7 @@ function TaskPanel({ tasks, onAction }: { tasks: VolunteerHubPayload["tasks"]; o
 function SmallGroupWorkspace({ payload, onAction }: { payload: VolunteerHubPayload; onAction: (action: VolunteerHubAction, success: string) => Promise<void> }) {
   const leader = payload.volunteers.find((volunteer) => volunteer.id === payload.activeGroup.leaderId);
   const coLeader = payload.volunteers.find((volunteer) => volunteer.id === payload.activeGroup.coLeaderId);
+  const actionsEnabled = payload.dataSource !== "live";
   return (
     <div className="volunteer-hub-grid">
       <article className="volunteer-hub-panel volunteer-hub-span-3">
@@ -210,14 +218,14 @@ function SmallGroupWorkspace({ payload, onAction }: { payload: VolunteerHubPaylo
           <span><strong>GroupMe</strong>{payload.activeGroup.groupMeConnected ? "Connected" : "Preview only"}</span>
         </div>
       </article>
-      {payload.students.map((student) => (
-        <StudentCard key={student.id} student={student} onAction={onAction} />
-      ))}
+      {payload.students.length ? payload.students.map((student) => (
+        <StudentCard key={student.id} student={student} actionsEnabled={actionsEnabled} onAction={onAction} />
+      )) : <EmptyPanel title="No students assigned yet" detail="No student roster rows are available for this workspace yet. Sync Planning Center or assign students to groups to populate this view." />}
     </div>
   );
 }
 
-function StudentCard({ student, onAction }: { student: VolunteerHubStudent; onAction: (action: VolunteerHubAction, success: string) => Promise<void> }) {
+function StudentCard({ student, actionsEnabled, onAction }: { student: VolunteerHubStudent; actionsEnabled: boolean; onAction: (action: VolunteerHubAction, success: string) => Promise<void> }) {
   const [note, setNote] = useState("");
   return (
     <article className="volunteer-hub-panel volunteer-student-card">
@@ -234,7 +242,7 @@ function StudentCard({ student, onAction }: { student: VolunteerHubStudent; onAc
         <div><dt>Birthday</dt><dd>{student.birthday}</dd></div>
         <div><dt>Parent contact</dt><dd>{student.parentContactAvailable ? "Permission based" : "Not available"}</dd></div>
       </dl>
-      <form className="volunteer-inline-form" onSubmit={(event) => {
+      {actionsEnabled ? <form className="volunteer-inline-form" onSubmit={(event) => {
         event.preventDefault();
         void onAction({ type: "add_follow_up", studentId: student.id, note }, "Follow-up assigned.").then(() => setNote(""));
       }}>
@@ -243,12 +251,13 @@ function StudentCard({ student, onAction }: { student: VolunteerHubStudent; onAc
           <input className="input" value={note} onChange={(event) => setNote(event.target.value)} placeholder={`Note for ${student.preferredName}`} />
         </label>
         <button className="button compact-button" type="submit">Save follow-up</button>
-      </form>
+      </form> : null}
     </article>
   );
 }
 
 function AttendanceWorkspace({ payload, onAction }: { payload: VolunteerHubPayload; onAction: (action: VolunteerHubAction, success: string) => Promise<void> }) {
+  const actionsEnabled = payload.dataSource !== "live";
   return (
     <div className="volunteer-hub-grid">
       <MetricCard icon={<ClipboardCheck aria-hidden="true" />} label="Assigned" value={String(payload.attendance.assigned)} detail="Students assigned to your active small group." />
@@ -258,17 +267,17 @@ function AttendanceWorkspace({ payload, onAction }: { payload: VolunteerHubPaylo
         <SectionTitle icon={<ClipboardCheck aria-hidden="true" />} eyebrow="Attendance Dashboard" title="Planning Center-backed snapshot" />
         <p className="muted">Planning Center remains the source of truth. This V1 displays safe operational summaries and stores only review state in the Volunteer Hub preview.</p>
         <div className="volunteer-attendance-list">
-          {payload.students.map((student) => (
+          {payload.students.length ? payload.students.map((student) => (
             <div className="volunteer-attendance-row" key={student.id}>
               <strong>{student.preferredName}</strong>
               <span>{student.attendanceStatus}</span>
               <span>Last attended {formatDate(student.lastAttended)}</span>
               <span>{student.consecutiveAbsences} consecutive absences</span>
-              <button className="button compact-button" type="button" disabled={!student.followUpNeeded} onClick={() => onAction({ type: "review_attendance", studentId: student.id }, "Attendance follow-up reviewed.")}>
+              <button className="button compact-button" type="button" disabled={!actionsEnabled || !student.followUpNeeded} onClick={() => onAction({ type: "review_attendance", studentId: student.id }, "Attendance follow-up reviewed.")}>
                 {student.followUpNeeded ? "Mark reviewed" : "Reviewed"}
               </button>
             </div>
-          ))}
+          )) : <EmptyState title="No attendance rows yet" detail="Planning Center attendance summaries will appear here after a sync has imported check-in references." />}
         </div>
       </article>
     </div>
@@ -278,22 +287,23 @@ function AttendanceWorkspace({ payload, onAction }: { payload: VolunteerHubPaylo
 function ChatWorkspace({ payload, onAction }: { payload: VolunteerHubPayload; onAction: (action: VolunteerHubAction, success: string) => Promise<void> }) {
   const [message, setMessage] = useState("");
   const [resourceId, setResourceId] = useState("");
+  const actionsEnabled = payload.dataSource !== "live";
   return (
     <div className="volunteer-hub-grid">
       <article className="volunteer-hub-panel volunteer-hub-span-2">
         <SectionTitle icon={<MessageSquareText aria-hidden="true" />} eyebrow="Group Chat" title={`${payload.activeGroup.name} conversation`} />
         <p className="muted">{payload.integrations.groupMe.message}</p>
         <div className="volunteer-chat-window">
-          {payload.chatMessages.map((chat) => (
+          {payload.chatMessages.length ? payload.chatMessages.map((chat) => (
             <div className="volunteer-chat-message" key={chat.id}>
               <strong>{chat.senderName}</strong>
               <p>{chat.body}</p>
               <small>{formatDate(chat.createdAt)} - Preview only{chat.resourceId ? " - resource attached" : ""}</small>
             </div>
-          ))}
+          )) : <EmptyState title="No stored messages" detail="No demo chat history is shown for registered production users." />}
         </div>
       </article>
-      <form className="volunteer-hub-panel volunteer-chat-composer" onSubmit={(event) => {
+      {actionsEnabled ? <form className="volunteer-hub-panel volunteer-chat-composer" onSubmit={(event) => {
         event.preventDefault();
         void onAction({ type: "preview_chat_message", groupId: payload.activeGroup.id, body: message, resourceId: resourceId || undefined }, "GroupMe preview logged. Nothing was sent.").then(() => {
           setMessage("");
@@ -307,7 +317,7 @@ function ChatWorkspace({ payload, onAction }: { payload: VolunteerHubPayload; on
           {payload.resources.filter((resource) => resource.shareable).map((resource) => <option key={resource.id} value={resource.id}>{resource.title}</option>)}
         </select></label>
         <button className="button primary" type="submit"><Send aria-hidden="true" />Preview message</button>
-      </form>
+      </form> : null}
     </div>
   );
 }
@@ -316,12 +326,12 @@ function ResourcesWorkspace({ payload, onAction }: { payload: VolunteerHubPayloa
   return (
     <div className="volunteer-hub-grid">
       <article className="volunteer-hub-panel volunteer-hub-span-3">
-        <SectionTitle icon={<BookOpen aria-hidden="true" />} eyebrow="Weekly Resources" title="The Battles We Face - Week 3" />
+        <SectionTitle icon={<BookOpen aria-hidden="true" />} eyebrow="Weekly Resources" title={payload.resources.length ? "Published preparation" : "No resources published yet"} />
         <p className="muted">Preparation estimate: {payload.resources.reduce((sum, resource) => sum + resource.estimatedMinutes, 0)} minutes.</p>
       </article>
-      {payload.resources.map((resource) => (
+      {payload.resources.length ? payload.resources.map((resource) => (
         <ResourceCard key={resource.id} groupId={payload.activeGroup.id} resource={resource} onAction={onAction} />
-      ))}
+      )) : <EmptyPanel title="No weekly resources yet" detail="Published leader guides, audio, notes, or parent resources will appear here when they are created for this ministry." />}
     </div>
   );
 }
@@ -355,7 +365,7 @@ function TrainingWorkspace({ payload, onAction }: { payload: VolunteerHubPayload
       <article className="volunteer-hub-panel volunteer-hub-span-2">
         <SectionTitle icon={<ShieldCheck aria-hidden="true" />} eyebrow="Training" title="Quarterly training center" />
         <div className="volunteer-module-list">
-          {payload.trainingModules.map((module) => (
+          {payload.trainingModules.length ? payload.trainingModules.map((module) => (
             <div className="volunteer-module-row" key={module.id}>
               <strong>{module.title}</strong>
               <span>{module.category}</span>
@@ -365,7 +375,7 @@ function TrainingWorkspace({ payload, onAction }: { payload: VolunteerHubPayload
                 {module.completed ? "Completed" : "Mark complete"}
               </button>
             </div>
-          ))}
+          )) : <EmptyState title="No training modules yet" detail="Training records will appear here after real modules are published or imported." />}
         </div>
       </article>
     </div>
@@ -380,12 +390,12 @@ function OnboardingWorkspace({ payload, onAction }: { payload: VolunteerHubPaylo
       <article className="volunteer-hub-panel volunteer-hub-span-2">
         <SectionTitle icon={<ShieldCheck aria-hidden="true" />} eyebrow="Onboarding" title="New volunteer checklist" />
         <div className="volunteer-task-list">
-          {payload.onboardingItems.map((item) => (
+          {payload.onboardingItems.length ? payload.onboardingItems.map((item) => (
             <button key={item.id} type="button" className={item.completed ? "volunteer-task complete" : "volunteer-task"} onClick={() => onAction({ type: "update_onboarding", itemId: item.id, completed: !item.completed }, "Onboarding checklist updated.")}>
               <CheckCircle2 aria-hidden="true" />
               <span><strong>{item.label}</strong><small>{item.blocksStudentContact ? "Required before student contact" : "Preparation step"}</small></span>
             </button>
-          ))}
+          )) : <EmptyState title="No onboarding checklist yet" detail="Registered users will not see a seeded checklist until real onboarding records are connected." />}
         </div>
       </article>
     </div>
@@ -393,7 +403,10 @@ function OnboardingWorkspace({ payload, onAction }: { payload: VolunteerHubPaylo
 }
 
 function CalendarWorkspace({ payload }: { payload: VolunteerHubPayload }) {
-  const items = [
+  const items = payload.dataSource === "live" ? [
+    ["Serving schedule", payload.activeGroup.serviceTime],
+    ["Student roster", `${payload.students.length} Planning Center student refs`]
+  ] : [
     ["Serving schedule", payload.activeGroup.serviceTime],
     ["Leader meeting", "Sunday - 8:40 AM"],
     ["Volunteer Training", "In 16 days"],
@@ -410,14 +423,15 @@ function CalendarWorkspace({ payload }: { payload: VolunteerHubPayload }) {
 function ProfileWorkspace({ payload, onAction }: { payload: VolunteerHubPayload; onAction: (action: VolunteerHubAction, success: string) => Promise<void> }) {
   const [availability, setAvailability] = useState(payload.activeVolunteer.availability);
   const [preferredCommunication, setPreferredCommunication] = useState(payload.activeVolunteer.preferredCommunication);
+  const actionsEnabled = payload.dataSource !== "live";
   return (
     <form className="volunteer-hub-panel volunteer-profile-panel" onSubmit={(event) => {
       event.preventDefault();
       void onAction({ type: "update_profile", availability, preferredCommunication }, "Volunteer profile updated.");
     }}>
       <SectionTitle icon={<UserRound aria-hidden="true" />} eyebrow="Profile" title={payload.activeVolunteer.name} />
-      <label className="field"><span>Availability</span><textarea className="input" rows={3} value={availability} onChange={(event) => setAvailability(event.target.value)} /></label>
-      <label className="field"><span>Preferred communication</span><select className="input" value={preferredCommunication} onChange={(event) => setPreferredCommunication(event.target.value as typeof preferredCommunication)}>
+      <label className="field"><span>Availability</span><textarea className="input" rows={3} value={availability} disabled={!actionsEnabled} onChange={(event) => setAvailability(event.target.value)} /></label>
+      <label className="field"><span>Preferred communication</span><select className="input" value={preferredCommunication} disabled={!actionsEnabled} onChange={(event) => setPreferredCommunication(event.target.value as typeof preferredCommunication)}>
         <option value="email">Email</option>
         <option value="text">Text</option>
         <option value="groupme">GroupMe</option>
@@ -427,7 +441,7 @@ function ProfileWorkspace({ payload, onAction }: { payload: VolunteerHubPayload;
         <span><strong>Skills</strong>{payload.activeVolunteer.skills.join(", ")}</span>
         <span><strong>Background check</strong>{formatDate(payload.activeVolunteer.backgroundCheckExpires)}</span>
       </div>
-      <button className="button primary" type="submit">Save profile</button>
+      <button className="button primary" type="submit" disabled={!actionsEnabled}>Save profile</button>
     </form>
   );
 }
@@ -461,6 +475,22 @@ function DirectorDashboard({ payload, onAction }: { payload: VolunteerHubPayload
 
 function SmallGroupDirectorPanel({ payload, onAction }: { payload: VolunteerHubPayload; onAction: (action: VolunteerHubAction, success: string) => Promise<void> }) {
   const [managedGroup, setManagedGroup] = useState<VolunteerHubSmallGroup | null>(null);
+  if (payload.dataSource === "live") {
+    return (
+      <article className="volunteer-hub-panel volunteer-hub-span-3">
+        <SectionTitle icon={<UsersRound aria-hidden="true" />} eyebrow="Live Roster" title="Planning Center-backed student refs" />
+        <div className="volunteer-group-card-grid">
+          {payload.activeGroups.map((group) => (
+            <article className="volunteer-group-card" key={group.id}>
+              <strong>{group.name}</strong>
+              <span>{group.room} - {group.serviceTime}</span>
+              <p>{group.memberStudentIds.length} student refs are available. Group assignment and archive controls need persistent Volunteer Hub tables before they can be enabled.</p>
+            </article>
+          ))}
+        </div>
+      </article>
+    );
+  }
   return (
     <article className="volunteer-hub-panel volunteer-hub-span-3">
       <SectionTitle icon={<UsersRound aria-hidden="true" />} eyebrow="Small Groups" title="Active and archived small groups" />
@@ -547,7 +577,7 @@ function LeaderPoolPanel({ payload, onAction }: { payload: VolunteerHubPayload; 
     <article className="volunteer-hub-panel volunteer-hub-span-3">
       <div className="volunteer-panel-head">
         <SectionTitle icon={<UserRound aria-hidden="true" />} eyebrow="Leader Pool" title="Small group leaders" />
-        <button className="button primary" type="button" onClick={() => setOpen((value) => !value)}>Add Leader</button>
+        {payload.dataSource === "live" ? null : <button className="button primary" type="button" onClick={() => setOpen((value) => !value)}>Add Leader</button>}
       </div>
       {open ? (
         <form className="ministry-people-add-leader-form volunteer-leader-form" onSubmit={(event: FormEvent<HTMLFormElement>) => {
@@ -567,17 +597,17 @@ function LeaderPoolPanel({ payload, onAction }: { payload: VolunteerHubPayload; 
         </form>
       ) : null}
       <div className="volunteer-leader-list">
-        {payload.volunteers.map((volunteer) => (
+        {payload.volunteers.length ? payload.volunteers.map((volunteer) => (
           <div className="ministry-people-leader-row volunteer-leader-row" key={volunteer.id}>
             <span className="volunteer-avatar" aria-hidden="true">{initials(volunteer.name)}</span>
             <strong>{volunteer.name}</strong>
             <span>{volunteer.role}</span>
             <span>{volunteer.email}</span>
-            <button className="button compact-button" type="button" disabled={volunteer.role === "admin" || volunteer.role === "director"} aria-label={`Delete leader ${volunteer.name}`} onClick={() => onAction({ type: "delete_leader", volunteerId: volunteer.id }, "Volunteer leader removed.")}>
+            <button className="button compact-button" type="button" disabled={payload.dataSource === "live" || volunteer.role === "admin" || volunteer.role === "director"} aria-label={`Delete leader ${volunteer.name}`} onClick={() => onAction({ type: "delete_leader", volunteerId: volunteer.id }, "Volunteer leader removed.")}>
               Delete
             </button>
           </div>
-        ))}
+        )) : <EmptyState title="No registered volunteers yet" detail="Registered leader profiles will appear here when they are added to this ministry." />}
       </div>
     </article>
   );
@@ -596,8 +626,8 @@ function LatestResources({ resources, onOpen }: { resources: VolunteerHubResourc
   return (
     <article className="volunteer-hub-panel">
       <SectionTitle icon={<BookOpen aria-hidden="true" />} eyebrow="Latest Resources" title="Newest preparation" />
-      <div className="volunteer-mini-list">{resources.slice(0, 5).map((resource) => <span key={resource.id}>{resource.title}</span>)}</div>
-      <button className="button compact-button" type="button" onClick={onOpen}>Open resources</button>
+      <div className="volunteer-mini-list">{resources.length ? resources.slice(0, 5).map((resource) => <span key={resource.id}>{resource.title}</span>) : <EmptyState title="No resources yet" detail="Real resources will appear after they are published." />}</div>
+      {resources.length ? <button className="button compact-button" type="button" onClick={onOpen}>Open resources</button> : null}
     </article>
   );
 }
@@ -608,12 +638,12 @@ function NotificationsPanel({ payload, onOpen }: { payload: VolunteerHubPayload;
     <article className="volunteer-hub-panel">
       <SectionTitle icon={<Bell aria-hidden="true" />} eyebrow="Notifications" title="What changed" />
       <div className="volunteer-mini-list">
-        {payload.notifications.map((notification) => (
+        {payload.notifications.length ? payload.notifications.map((notification) => (
           <button key={notification.id} type="button" onClick={() => onOpen(routeTab(notification.href))}>
             <strong>{notification.label}</strong>
             <span>{notification.detail}</span>
           </button>
-        ))}
+        )) : <EmptyState title="No notifications" detail="You are seeing live account data, so no seeded notification feed is shown." />}
       </div>
     </article>
   );
@@ -650,5 +680,24 @@ function initials(name: string) {
 }
 
 function formatDate(value: string) {
-  return new Date(value).toLocaleDateString([], { month: "short", day: "numeric" });
+  const date = new Date(value);
+  if (!value || Number.isNaN(date.getTime())) return "Not available";
+  return date.toLocaleDateString([], { month: "short", day: "numeric" });
+}
+
+function EmptyPanel({ title, detail }: { title: string; detail: string }) {
+  return (
+    <article className="volunteer-hub-panel">
+      <EmptyState title={title} detail={detail} />
+    </article>
+  );
+}
+
+function EmptyState({ title, detail }: { title: string; detail: string }) {
+  return (
+    <div className="volunteer-empty-state">
+      <strong>{title}</strong>
+      <p>{detail}</p>
+    </div>
+  );
 }

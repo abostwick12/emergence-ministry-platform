@@ -1,9 +1,7 @@
 "use client";
 
-import { type CSSProperties, FormEvent, useState } from "react";
-import { ArrowRight, Sparkles, Workflow } from "lucide-react";
-
-import { landingVideoScenes } from "@/lib/landing-video";
+import Image from "next/image";
+import { FormEvent, useState } from "react";
 
 type LoginResponse = {
   user?: {
@@ -46,35 +44,24 @@ export default function LoginPage() {
   return (
     <main className="login-shell login-welcome-shell">
       <section className="login-welcome-panel" aria-label="Lead Emergence welcome">
+        <Image
+          className="login-announcement-art"
+          src="/lead-emergence-announcement-transparent.png"
+          alt="Lead Emergence Automated Platform"
+          width={1408}
+          height={1115}
+          priority
+        />
         <div className="login-welcome-copy">
           <p className="eyebrow">Lead Emergence</p>
-          <h1>Welcome back to the ministry workbench.</h1>
+          <h1>Welcome back to the ministry operating space.</h1>
           <p>
-            Events, tasks, sermon prep, discipleship, and student pathways stay connected so leaders can see the next right step.
+            Sign in to work with real ministry data, protected access, and the tools your team is actively building into weekly rhythms.
           </p>
         </div>
-        <div className="login-motion-board" aria-hidden="true">
-          <div className="login-orbit-mark">
-            <Sparkles size={22} />
-          </div>
-          {landingVideoScenes.slice(0, 5).map((scene, index) => (
-            <article
-              className={`login-scene-card accent-${scene.accent}`}
-              key={scene.productArea}
-              style={{ "--scene-index": index, "--scene-offset": `${index * 18}px` } as CSSProperties}
-            >
-              <span>{scene.eyebrow}</span>
-              <strong>{scene.productArea}</strong>
-              <p>{scene.metric}</p>
-            </article>
-          ))}
-        </div>
-        <div className="login-welcome-flow" aria-hidden="true">
-          <span><Workflow size={16} /> Plan</span>
-          <ArrowRight size={15} />
-          <span>Assign</span>
-          <ArrowRight size={15} />
-          <span>Prepare</span>
+        <div className="login-live-note">
+          <strong>Production note</strong>
+          <span>Registered users should see real ministry records or intentional empty states, never seeded demo scenarios.</span>
         </div>
       </section>
       <section className="login-card">
