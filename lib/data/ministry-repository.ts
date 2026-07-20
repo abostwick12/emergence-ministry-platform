@@ -111,7 +111,7 @@ type SupabaseTaskRow = {
   updated_at: string;
 };
 
-export const MINISTRY_TASK_LIST_SELECT = "id,ministry_id,event_id,title,owner,due_date,status,critical,notes";
+export const MINISTRY_TASK_LIST_SELECT = "id,ministry_id,event_id,title,owner,due_date,status,critical";
 const MINISTRY_EVENT_LIST_SELECT =
   "id,ministry_id,title,ministry_area,description,vision,target_group,start_date,end_date,start_time,end_time,location,owner,status,priority,budget_target,budget_actual,volunteers_needed,communication_owner,notes,archived_at,archived_by_user_id,archive_reason,created_at,updated_at";
 const MINISTRY_EVENT_LIST_SELECT_LEGACY =
