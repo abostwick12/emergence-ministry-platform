@@ -2,7 +2,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const migration = readFileSync(join(process.cwd(), "supabase/migrations/20260720150000_volunteer_hub_persistence.sql"), "utf8");
+const migration = readFileSync(join(process.cwd(), "supabase/migrations/20260720144927_volunteer_hub_persistence.sql"), "utf8");
+const hardeningMigration = readFileSync(join(process.cwd(), "supabase/migrations/20260720145130_volunteer_hub_persistence_hardening.sql"), "utf8");
 
 const tables = [
   "volunteer_hub_leaders",
@@ -36,5 +37,12 @@ describe("Volunteer Hub persistence migration", () => {
     expect(migration).toContain("to authenticated");
     expect(migration).toContain("with check (ministry_id = public.current_ministry_id() and public.current_user_is_ministry_operator())");
     expect(migration).not.toContain("auth.role()");
+  });
+
+  it("hardens helper grants and indexes nullable foreign keys", () => {
+    expect(hardeningMigration).toContain("revoke execute on function public.current_user_is_ministry_operator() from anon");
+    expect(hardeningMigration).toContain("volunteer_hub_small_groups_leader_idx");
+    expect(hardeningMigration).toContain("volunteer_hub_follow_ups_volunteer_leader_idx");
+    expect(hardeningMigration).toContain("notify pgrst, 'reload schema'");
   });
 });
