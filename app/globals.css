@@ -18500,3 +18500,364 @@ body:has(.login-shell) h3 {
     max-height: none;
   }
 }
+
+/* Volunteer Hub V1 */
+.volunteer-hub {
+  display: grid;
+  gap: 20px;
+  color: #eef6ff;
+}
+
+.volunteer-hub-loading {
+  padding: 24px;
+}
+
+.volunteer-hub-status,
+.volunteer-card-actions,
+.volunteer-panel-head,
+.volunteer-serving-meta,
+.volunteer-student-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.volunteer-hub-notice,
+.volunteer-hub-error {
+  margin: 0;
+  border: 1px solid rgba(34, 197, 94, 0.28);
+  border-radius: 8px;
+  background: rgba(34, 197, 94, 0.08);
+  padding: 12px 14px;
+  color: var(--text);
+}
+
+.volunteer-hub-error {
+  border-color: rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.volunteer-hub-tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 4px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.86);
+}
+
+.volunteer-hub-tabs button {
+  min-width: max-content;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  padding: 10px 12px;
+  color: #b9c7d8;
+  font: inherit;
+  cursor: pointer;
+}
+
+.volunteer-hub-tabs button.active,
+.volunteer-hub-tabs button:hover {
+  background: rgba(14, 165, 233, 0.2);
+  color: #f8fbff;
+}
+
+.volunteer-hub-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.volunteer-hub-panel {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+  min-width: 0;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.84);
+  padding: 18px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.2);
+}
+
+.volunteer-hub-span-2 {
+  grid-column: span 2;
+}
+
+.volunteer-hub-span-3 {
+  grid-column: 1 / -1;
+}
+
+.volunteer-section-title {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.volunteer-section-title > span,
+.volunteer-metric-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  border-radius: 8px;
+  background: rgba(14, 165, 233, 0.18);
+  color: #7dd3fc;
+}
+
+.volunteer-section-title h3,
+.volunteer-section-title p,
+.volunteer-metric p,
+.volunteer-metric span,
+.volunteer-serving-card p,
+.volunteer-serving-card h3,
+.volunteer-serving-card strong,
+.volunteer-resource-card h3,
+.volunteer-resource-card p,
+.volunteer-student-card h3,
+.volunteer-student-card p {
+  margin: 0;
+}
+
+.volunteer-section-title h3,
+.volunteer-metric strong {
+  font-size: 1.1rem;
+}
+
+.volunteer-serving-card {
+  min-height: 260px;
+  background: linear-gradient(135deg, rgba(14, 116, 144, 0.28), rgba(15, 23, 42, 0.9));
+}
+
+.volunteer-serving-card h3 {
+  font-size: 1.55rem;
+}
+
+.volunteer-serving-card > strong {
+  font-size: 1.25rem;
+}
+
+.volunteer-serving-meta {
+  justify-content: space-between;
+  border-top: 1px solid rgba(148, 163, 184, 0.24);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.24);
+  padding: 12px 0;
+}
+
+.volunteer-metric {
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 14px;
+}
+
+.volunteer-metric strong {
+  display: block;
+  margin: 4px 0;
+  font-size: 1.8rem;
+}
+
+.volunteer-task-list,
+.volunteer-mini-list,
+.volunteer-module-list,
+.volunteer-leader-list,
+.volunteer-attendance-list,
+.volunteer-chat-window {
+  display: grid;
+  gap: 10px;
+}
+
+.volunteer-task,
+.volunteer-mini-list button,
+.volunteer-attendance-row,
+.volunteer-module-row,
+.volunteer-leader-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  min-height: 58px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 8px;
+  background: rgba(30, 41, 59, 0.82);
+  padding: 12px;
+  color: #f8fbff;
+  text-align: left;
+}
+
+.volunteer-task {
+  width: 100%;
+  font: inherit;
+  cursor: pointer;
+}
+
+.volunteer-task > span {
+  display: grid;
+  gap: 2px;
+}
+
+.volunteer-task.complete svg,
+.volunteer-task.complete strong {
+  color: #86efac;
+}
+
+.volunteer-task small,
+.volunteer-task em,
+.volunteer-mini-list span,
+.volunteer-module-row span,
+.volunteer-attendance-row span,
+.volunteer-leader-row span,
+.volunteer-student-card p,
+.volunteer-resource-card p,
+.volunteer-facts dd,
+.volunteer-facts dt {
+  color: #b9c7d8;
+}
+
+.volunteer-mini-list button {
+  grid-template-columns: minmax(0, 1fr);
+  font: inherit;
+  cursor: pointer;
+}
+
+.volunteer-group-summary,
+.volunteer-facts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.volunteer-group-summary span,
+.volunteer-facts div {
+  display: grid;
+  gap: 4px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 8px;
+  background: rgba(30, 41, 59, 0.58);
+  padding: 12px;
+}
+
+.volunteer-avatar {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #0f766e;
+  color: white;
+  font-weight: 800;
+}
+
+.volunteer-inline-form,
+.volunteer-chat-composer,
+.volunteer-profile-panel,
+.volunteer-leader-form {
+  display: grid;
+  gap: 12px;
+}
+
+.volunteer-inline-form label {
+  display: grid;
+  gap: 6px;
+}
+
+.volunteer-chat-window {
+  max-height: 360px;
+  overflow: auto;
+}
+
+.volunteer-chat-message {
+  border-left: 4px solid #38bdf8;
+  border-radius: 8px;
+  background: rgba(14, 116, 144, 0.18);
+  padding: 12px;
+}
+
+.volunteer-chat-message p,
+.volunteer-chat-message strong,
+.volunteer-chat-message small {
+  margin: 0;
+}
+
+.volunteer-group-card-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.volunteer-group-card {
+  position: relative;
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 8px;
+  background: rgba(30, 41, 59, 0.82);
+  padding: 14px;
+}
+
+.volunteer-group-card.archived {
+  background: rgba(71, 85, 105, 0.42);
+}
+
+.volunteer-group-menu-button {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.94);
+  color: #f8fbff;
+  cursor: pointer;
+}
+
+.volunteer-archive-reason {
+  display: grid;
+  gap: 6px;
+}
+
+.volunteer-subtitle {
+  margin: 8px 0 0;
+  font-size: 1rem;
+}
+
+.volunteer-leader-row {
+  grid-template-columns: auto minmax(0, 1fr) 120px minmax(0, 1fr) auto;
+}
+
+@media (max-width: 1120px) {
+  .volunteer-hub-grid,
+  .volunteer-group-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .volunteer-hub-span-2,
+  .volunteer-hub-span-3 {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 760px) {
+  .volunteer-hub-grid,
+  .volunteer-group-card-grid,
+  .volunteer-group-summary,
+  .volunteer-facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .volunteer-hub-panel {
+    padding: 14px;
+  }
+
+  .volunteer-attendance-row,
+  .volunteer-module-row,
+  .volunteer-leader-row,
+  .volunteer-task {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

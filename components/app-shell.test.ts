@@ -104,7 +104,8 @@ describe("app shell navigation", () => {
 
     expect(navigation.primaryLinks.map((link) => link.href)).toEqual([
       "/dashboard",
-      "/people"
+      "/people",
+      "/directors/volunteers"
     ]);
   });
 
