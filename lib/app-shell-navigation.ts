@@ -1,6 +1,12 @@
 import type { PlatformPageKey } from "@/lib/platform/page-registry";
 
 export type AppNavLink = { href: string; label: string; pageKey?: PlatformPageKey };
+export type MobilePortalSection = {
+  id: "ministry" | "volunteer" | "student" | "director" | "platform";
+  label: string;
+  href?: string;
+  links: AppNavLink[];
+};
 
 const dashboardLinks: AppNavLink[] = [
   { href: "/dashboard", label: "Dashboard", pageKey: "dashboard" },
@@ -48,16 +54,17 @@ const directorsHubLinks: AppNavLink[] = [
   { href: "/directors/volunteers", label: "Volunteer Dashboard", pageKey: "volunteer_dashboard" }
 ];
 
-const mobileLinks = [
-  { href: "/dashboard", label: "Dashboard" },
+const staffMobileLinks = [
+  { href: "/dashboard", label: "Home" },
   { href: "/ministry", label: "Ministry" },
-  { href: "/student", label: "Student" },
-  { href: "/people", label: "Volunteer" }
+  { href: "/people", label: "People" }
 ];
 
-function mobileMoreLinksFor(links: { href: string; label: string }[]) {
-  return links.filter((link) => !mobileLinks.some((mobileLink) => mobileLink.href === link.href));
-}
+const studentMobileLinks = [
+  { href: "/student", label: "Home" },
+  { href: "/student/scripture/questions", label: "Journey" },
+  { href: "/student/scripture/resources", label: "Bible" }
+];
 
 function portalLinksForPathname(pathname: string): AppNavLink[] {
   if (pathname.startsWith("/student")) return studentPortalLinks;
@@ -138,10 +145,62 @@ export function getAppShellNavigation({
   const allPrimaryLinks = showCommandCenter && !isStudentShell && !isVolunteerHubContext
     ? filterByPageAccess([...contextualLinks, { href: "/command-center", label: "Command Center", pageKey: "command_center" }])
     : contextualLinks;
+  const staffMobilePortalSections: MobilePortalSection[] = [
+    {
+      id: "ministry",
+      label: "Ministry",
+      href: "/ministry",
+      links: filterByPageAccess(withFeatureVisibility(ministryHubLinks.filter((link) => link.href !== "/dashboard")))
+    },
+    {
+      id: "volunteer",
+      label: "Volunteer",
+      href: "/people",
+      links: filterByPageAccess(withFeatureVisibility(volunteerHubLinks.filter((link) => link.href !== "/dashboard")))
+    },
+    {
+      id: "student",
+      label: "Student",
+      href: "/student",
+      links: filterByPageAccess(withFeatureVisibility(studentPortalLinks.filter((link) => link.href !== "/dashboard")))
+    },
+    {
+      id: "director",
+      label: "Director",
+      href: "/directors",
+      links: filterByPageAccess(withFeatureVisibility(directorsHubLinks.filter((link) => link.href !== "/dashboard")))
+    },
+    {
+      id: "platform",
+      label: "More",
+      links: filterByPageAccess(withFeatureVisibility([
+        { href: "/camp", label: "Camp", pageKey: "camp" },
+        { href: "/settings", label: "Settings", pageKey: "settings" },
+        ...(showCommandCenter ? [{ href: "/command-center", label: "Command Center", pageKey: "command_center" as const }] : [])
+      ]))
+    }
+  ];
+  const mobilePortalSections: MobilePortalSection[] = isStudentShell
+    ? [{
+        id: "student",
+        label: "Student",
+        href: "/student",
+        links: filterByPageAccess(withFeatureVisibility(studentSessionLinks))
+      }]
+    : staffMobilePortalSections.filter((section) => section.links.length > 0);
 
   return {
     primaryLinks: isStudentShell ? studentSessionLinks : campOnly ? allPrimaryLinks.filter((link) => link.href === "/camp") : allPrimaryLinks,
-    mobileLinks: isStudentShell ? studentSessionLinks.slice(0, 4) : campOnly ? [{ href: "/camp", label: "Camp" }] : filterByPageAccess(withFeatureVisibility(mobileLinks)),
-    mobileMoreLinks: isStudentShell || campOnly ? [] : mobileMoreLinksFor(allPrimaryLinks)
+    mobileLinks: isStudentShell
+      ? filterByPageAccess(withFeatureVisibility(studentMobileLinks))
+      : campOnly
+        ? [{ href: "/camp", label: "Camp" }]
+        : filterByPageAccess(withFeatureVisibility(staffMobileLinks)),
+    mobileMoreLinks: isStudentShell || campOnly
+      ? []
+      : allPrimaryLinks.filter((link) => !staffMobileLinks.some((mobileLink) => mobileLink.href === link.href)),
+    mobilePortalSections: campOnly
+      ? []
+      : mobilePortalSections
   };
 }

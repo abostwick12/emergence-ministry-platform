@@ -3,6 +3,7 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 import "./shell-continuity.css";
 import "./platform-editorial.css";
+import "./mobile-field-app.css";
 
 export const metadata: Metadata = {
   title: "Lead Emergence — Automated Platform",
