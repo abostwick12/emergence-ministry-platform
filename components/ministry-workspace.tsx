@@ -334,6 +334,7 @@ export default function MinistryWorkspace({
             onDeleteEvent={deleteGuestEvent}
             eventLeaderAssignments={eventLeaderAssignments}
             volunteerLeaders={volunteerLeaders}
+            onRefresh={refresh}
           />
         </section>
       ) : (
@@ -1028,7 +1029,8 @@ function EventsWorkspace({
   onRestoreEvent,
   onDeleteEvent,
   eventLeaderAssignments,
-  volunteerLeaders
+  volunteerLeaders,
+  onRefresh
 }: {
   events: MinistryEvent[];
   tasks: ActiveTask[];
@@ -1047,6 +1049,7 @@ function EventsWorkspace({
   onDeleteEvent: (eventId: string) => Promise<void>;
   eventLeaderAssignments: EventLeaderAssignments;
   volunteerLeaders: VolunteerLeader[];
+  onRefresh: () => Promise<void>;
 }) {
   const { activeRole } = useRole();
   const [activeTab, setActiveTab] = useState<EventTabKey>("upcoming");
@@ -1113,6 +1116,7 @@ function EventsWorkspace({
                 canSaveChanges={canSaveChanges}
                 canDeleteArchivedEvent={canSaveChanges && activeRole === "admin"}
                 users={users}
+                onRefresh={onRefresh}
               />
             );
           })
@@ -1144,7 +1148,8 @@ function EventRowCard({
   onRestoreEvent,
   onDeleteEvent,
   canSaveChanges,
-  canDeleteArchivedEvent
+  canDeleteArchivedEvent,
+  onRefresh
 }: {
   event: MinistryEvent;
   tasks: ActiveTask[];
@@ -1164,6 +1169,7 @@ function EventRowCard({
   onDeleteEvent: (eventId: string) => Promise<void>;
   canSaveChanges: boolean;
   canDeleteArchivedEvent: boolean;
+  onRefresh: () => Promise<void>;
 }) {
   const rowTone = getEventRowTone(event);
 
@@ -1192,7 +1198,7 @@ function EventRowCard({
 
       {isExpanded ? (
         <div className="event-expanded-resources">
-          <ResourceAttachments compact parentType="event" parentId={event.id} title="Event Files" />
+          <EventFilesPanel event={event} onRefresh={onRefresh} />
           <EventTaskTree event={event} tasks={tasks} users={users} canSaveChanges={canSaveChanges} onUpdateTask={onUpdateTask} onOpenEvent={onOpenEvent} />
         </div>
       ) : null}
@@ -1214,6 +1220,56 @@ function getEventRowTone(event: MinistryEvent) {
   if (daysUntilStart <= 7) return "event-date-week";
   if (daysUntilStart <= 30) return "event-date-month";
   return "event-date-later";
+}
+
+function EventFilesPanel({ event, onRefresh }: { event: MinistryEvent; onRefresh: () => Promise<void> }) {
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [status, setStatus] = useState<"idle" | "syncing" | "success" | "error">("idle");
+  const [message, setMessage] = useState("");
+
+  async function refreshFiles() {
+    setStatus("syncing");
+    setMessage("Refreshing files from Google Drive...");
+    const response = await fetch(`/api/events/${event.id}/google-drive-files/refresh`, { method: "POST" });
+    const payload = (await response.json().catch(() => ({}))) as { imported?: number; error?: string };
+    if (!response.ok) {
+      setStatus("error");
+      setMessage(payload.error ?? "Google Drive files could not be refreshed.");
+      return;
+    }
+    setStatus("success");
+    setMessage(payload.imported ? `${payload.imported} file${payload.imported === 1 ? "" : "s"} imported from Drive.` : "Drive files are current.");
+    setRefreshKey((current) => current + 1);
+    await onRefresh();
+  }
+
+  return (
+    <div className="event-files-panel">
+      <div className="event-files-toolbar">
+        <div>
+          <p className="eyebrow">Google Drive</p>
+          <h3 className="section-title flush">Event Files</h3>
+        </div>
+        <div className="toolbar">
+          {event.googleDriveFolderUrl ? (
+            <a className="button compact-button" href={event.googleDriveFolderUrl} target="_blank" rel="noreferrer">
+              Open Drive Folder
+            </a>
+          ) : null}
+          <button className="button compact-button" type="button" disabled={status === "syncing"} onClick={() => void refreshFiles()}>
+            <RotateCcw aria-hidden="true" />
+            {status === "syncing" ? "Refreshing..." : "Refresh files"}
+          </button>
+        </div>
+      </div>
+      {message ? (
+        <p className={status === "error" ? "resource-attachments-message error" : "resource-attachments-message"} role={status === "error" ? "alert" : undefined}>
+          {message}
+        </p>
+      ) : null}
+      <ResourceAttachments key={`${event.id}-${refreshKey}`} compact parentType="event" parentId={event.id} title="Event Files" />
+    </div>
+  );
 }
 
 function EventIdentitySection({
@@ -1328,7 +1384,7 @@ function EventScrollableSummary({
   const actualBudget = expenses.reduce((sum, expense) => sum + expense.amount, 0);
   const openTasks = tasks.length - completeTasks;
   const communicationStatus = missingCount === 0 ? "Preview ready" : `${missingCount} item${missingCount === 1 ? "" : "s"} needed`;
-  const driveStatus = event.googleDriveFolderId ? "Preview folder ready" : "Preview pending";
+  const driveStatus = event.googleDriveFolderId ? "Google Drive folder ready" : "No folder yet";
   const priority = event.type === "conference" ? "High" : event.type === "missions_trip" ? "Medium" : "Normal";
 
   return (
@@ -1344,7 +1400,14 @@ function EventScrollableSummary({
           Tasks {tasks.length} {isExpanded ? "-" : "+"}
         </button>
       </div>
-      <div className="event-summary-scroll" aria-label={`${event.title} planning timeline`}>        <div className="summary-field action-field notes-summary-field">
+      <div className="event-summary-scroll" aria-label={`${event.title} planning timeline`}>        {event.googleImportStatus === "planning_details_incomplete" ? (
+          <div className="summary-field warning google-import-summary">
+            <span className="summary-label">Google import</span>
+            <strong>Imported from Google Calendar</strong>
+            <span>Planning details incomplete</span>
+          </div>
+        ) : null}
+        <div className="summary-field action-field notes-summary-field">
           <span className="summary-label">Internal notes</span>
           <NotesPanel
             id={`event-row-notes-${event.id}`}
@@ -1360,6 +1423,7 @@ function EventScrollableSummary({
         <EventSummaryField label="Registration status" value={event.registrationDeadline ? `Due ${formatDate(event.registrationDeadline)}` : "Not configured"} tone="warning" />
         <EventSummaryField label="Planning Center status" value="Adapter ready" tone="stub" />
         <EventSummaryField label="Drive folder status" value={driveStatus} tone={event.googleDriveFolderId ? "success" : "warning"} />
+        <EventSummaryField label="Calendar sync" value={event.googleCalendarEventId ? "Synced to Emerge" : "Not synced yet"} tone={event.googleCalendarEventId ? "success" : "warning"} />
         <EventSummaryField label="Parent email status" value={communicationStatus} tone={missingCount ? "warning" : "success"} />
         <EventSummaryField label="GroupMe status" value="Preview only" tone="stub" />
         <EventSummaryField label="Text status" value="Preview only" tone="stub" />
@@ -1374,6 +1438,16 @@ function EventScrollableSummary({
           <button className="button primary" type="button" onClick={() => onOpenEvent(event.id)}>
             Open event
           </button>
+          {event.googleCalendarEventUrl ? (
+            <a className="button compact-button" href={event.googleCalendarEventUrl} target="_blank" rel="noreferrer">
+              Open in Google Calendar
+            </a>
+          ) : null}
+          {event.googleDriveFolderUrl ? (
+            <a className="button compact-button" href={event.googleDriveFolderUrl} target="_blank" rel="noreferrer">
+              Open Drive Folder
+            </a>
+          ) : null}
           {event.archivedAt ? (
             <>
               <button className="button compact-button" type="button" disabled={!canSaveChanges} onClick={() => void onRestoreEvent(event.id)}>

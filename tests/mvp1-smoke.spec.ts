@@ -709,7 +709,7 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await expect(modal.getByLabel("New task title")).toBeVisible();
   });
 
-  test("edit modal step 2 integration stubs stay Stub Mode", async ({ page }) => {
+  test("edit modal step 2 separates Google demo sync from remaining stubs", async ({ page }) => {
     await login(page);
     await page.goto("/events");
 
@@ -720,14 +720,18 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await expect(modal.getByLabel("Event Name")).toHaveValue("Winter Retreat");
     await modal.getByRole("button", { name: /Next: Tasks/ }).click();
 
-    for (const label of ["Google Drive Folder", "Google Calendar Sync", "ProPresenter Playlist", "Communication Package"]) {
+    await expect(modal.locator(".stub-control", { hasText: "Google Demo Sync" })).toBeVisible();
+    await expect(modal.getByText("Connect in Settings")).toBeVisible();
+    await expect(modal.getByRole("button", { name: /Refresh files/ })).toBeVisible();
+
+    for (const label of ["ProPresenter Playlist", "Communication Package"]) {
       await expect(modal.getByRole("button", { name: `Run ${label} stub action` })).toBeVisible();
     }
     await expect(modal.getByText("Planning Center").first()).toBeVisible();
 
-    await modal.getByRole("button", { name: "Run Google Drive Folder stub action" }).click();
+    await modal.getByRole("button", { name: "Run ProPresenter Playlist stub action" }).click();
     await expect(
-      modal.locator(".stub-control", { hasText: "Google Drive Folder" }).locator("button", { hasText: "Re-run" })
+      modal.locator(".stub-control", { hasText: "ProPresenter Playlist" }).locator("button", { hasText: "Re-run" })
     ).toBeVisible({ timeout: 10000 });
   });
 

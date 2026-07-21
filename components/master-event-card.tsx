@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { ExternalLink, RotateCcw } from "lucide-react";
 import { EmmaEventIntelligencePanel } from "@/components/emma-event-intelligence-panel";
 import { useEventCard } from "@/components/event-card-context";
 import { PlanningCenterIntegrationControl } from "@/components/planning-center-integration-control";
@@ -107,7 +108,6 @@ interface Step1State {
   notes: string;
   generateTasks: boolean;
   generateComms: boolean;
-  createDrive: boolean;
   createProPresenter: boolean;
 }
 
@@ -140,7 +140,6 @@ function buildInitialStep1(event?: MinistryEvent, firstUserId?: string): Step1St
       notes: event.notes ?? "",
       generateTasks: false,
       generateComms: false,
-      createDrive: false,
       createProPresenter: false
     };
   }
@@ -162,7 +161,6 @@ function buildInitialStep1(event?: MinistryEvent, firstUserId?: string): Step1St
     notes: "",
     generateTasks: true,
     generateComms: false,
-    createDrive: false,
     createProPresenter: false
   };
 }
@@ -221,8 +219,6 @@ function MasterEventCardInner({
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const { activeRole } = useRole();
   const [stubStatus, setStubStatus] = useState<Record<string, "idle" | "running" | "done">>({
-    drive: "idle",
-    calendar: "idle",
     propresenter: "idle",
     comms: "idle"
   });
@@ -455,10 +451,7 @@ function MasterEventCardInner({
       setIsDirty(false);
       onRefresh?.();
 
-      // Run stub actions for checked toggles
-      if (currentStep1.createDrive) {
-        await fetch(`/api/events/${ws.event.id}/generate-drive-folder`, { method: "POST" });
-      }
+      // Run preview actions for checked toggles. Google Calendar and Drive sync happens on the server when the event is saved.
       if (currentStep1.createProPresenter) {
         await fetch(`/api/events/${ws.event.id}/generate-propresenter`, { method: "POST" });
       }
@@ -575,7 +568,7 @@ function MasterEventCardInner({
     }
   }
 
-  async function runStub(type: "drive" | "calendar" | "propresenter" | "comms") {
+  async function runStub(type: "propresenter" | "comms") {
     if (!canSaveChanges) {
       setSaveError("Read-only access is active. Integration preview actions are disabled for this account.");
       return;
@@ -583,9 +576,7 @@ function MasterEventCardInner({
     if (!workspace) return;
     setStubStatus((current) => ({ ...current, [type]: "running" }));
 
-    const pathMap: Record<string, string> = {
-      drive: "generate-drive-folder",
-      calendar: "sync-calendar",
+    const pathMap: Record<"propresenter" | "comms", string> = {
       propresenter: "generate-propresenter",
       comms: "generate-communications"
     };
@@ -992,14 +983,6 @@ function Step1Form({
         <label className="toggle-row">
           <input
             type="checkbox"
-            checked={state.createDrive}
-            onChange={(e) => onChange("createDrive", e.target.checked)}
-          />
-          <span>Create Drive Folder <span className="pill stub">Stub Mode</span></span>
-        </label>
-        <label className="toggle-row">
-          <input
-            type="checkbox"
             checked={state.createProPresenter}
             onChange={(e) => onChange("createProPresenter", e.target.checked)}
           />
@@ -1035,7 +1018,7 @@ function Step2Panel({
   onUpdateTask: (taskId: string, patch: Partial<ActiveTask>) => Promise<void>;
   onAddTask: () => Promise<void>;
   onNewTaskTitleChange: (value: string) => void;
-  onRunStub: (type: "drive" | "calendar" | "propresenter" | "comms") => Promise<void>;
+  onRunStub: (type: "propresenter" | "comms") => Promise<void>;
   readOnly: boolean;
   showEmmaEventIntelligence: boolean;
 }) {
@@ -1108,22 +1091,10 @@ function Step2Panel({
       <section className="event-card-section">
         <h3 className="section-title">Integration Actions</h3>
         <p className="muted event-card-section-note">
-          Google Drive, Google Calendar, ProPresenter, and communications remain Stub Mode. Planning Center is read-only and syncs only when manually triggered.
+          Saving an event syncs it to the Emerge calendar and creates its Google Drive folder when the demo Google account is connected. Imports from Google Calendar run from Settings.
         </p>
         <div className="integration-stub-grid">
-          <StubControl
-            label="Google Drive Folder"
-            status={stubStatus.drive}
-            doneLabel={workspace?.event.googleDriveFolderId ? "Folder ready (stub)" : undefined}
-            disabled={readOnly}
-            onRun={() => void onRunStub("drive")}
-          />
-          <StubControl
-            label="Google Calendar Sync"
-            status={stubStatus.calendar}
-            disabled={readOnly}
-            onRun={() => void onRunStub("calendar")}
-          />
+          <GoogleDemoEventStatus event={workspace?.event ?? null} />
           <StubControl
             label="ProPresenter Playlist"
             status={stubStatus.propresenter}
@@ -1294,6 +1265,54 @@ function communicationTypeLabel(type: string) {
   if (type === "parent_email") return "Parent Email";
   if (type === "leader_brief") return "Leader Announcement";
   return "Blast Text Summary";
+}
+
+function GoogleDemoEventStatus({ event }: { event: MinistryEvent | null }) {
+  const [status, setStatus] = useState<"idle" | "syncing" | "success" | "error">("idle");
+  const [message, setMessage] = useState("");
+
+  async function refreshFiles() {
+    if (!event) return;
+    setStatus("syncing");
+    setMessage("Refreshing Drive files...");
+    const response = await fetch(`/api/events/${event.id}/google-drive-files/refresh`, { method: "POST" });
+    const payload = (await response.json().catch(() => ({}))) as { imported?: number; error?: string };
+    if (!response.ok) {
+      setStatus("error");
+      setMessage(payload.error ?? "Drive files could not be refreshed.");
+      return;
+    }
+    setStatus("success");
+    setMessage(payload.imported ? `${payload.imported} file${payload.imported === 1 ? "" : "s"} imported.` : "Drive files are current.");
+  }
+
+  return (
+    <div className="stub-control google-demo-event-status">
+      <span className="stub-control-label">Google Demo Sync</span>
+      <span className={event?.googleCalendarEventId && event?.googleDriveFolderId ? "pill done" : "pill stub"}>
+        {event?.googleCalendarEventId && event?.googleDriveFolderId ? "Calendar and Drive linked" : "Connect in Settings"}
+      </span>
+      {event?.googleCalendarEventUrl ? (
+        <a className="button compact-button" href={event.googleCalendarEventUrl} target="_blank" rel="noreferrer">
+          <ExternalLink aria-hidden="true" />
+          Open Calendar
+        </a>
+      ) : null}
+      {event?.googleDriveFolderUrl ? (
+        <a className="button compact-button" href={event.googleDriveFolderUrl} target="_blank" rel="noreferrer">
+          <ExternalLink aria-hidden="true" />
+          Open Drive
+        </a>
+      ) : null}
+      {event ? (
+        <button className="button compact-button" type="button" disabled={status === "syncing"} onClick={() => void refreshFiles()}>
+          <RotateCcw aria-hidden="true" />
+          {status === "syncing" ? "Refreshing..." : "Refresh files"}
+        </button>
+      ) : null}
+      {message ? <span className={status === "error" ? "integration-status-message error" : "integration-status-message"}>{message}</span> : null}
+    </div>
+  );
 }
 
 function StubControl({
