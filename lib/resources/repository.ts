@@ -140,7 +140,7 @@ export async function listResourceAttachments(
 
 export async function createResourceAttachment(session: AuthSession, input: CreateResourceAttachmentInput) {
   assertCanManageResources(session);
-  const parent = await resolveResourceParent(session, input.parentType, input.parentId);
+  const parent = await resolveResourceParent(session, input.parentType, input.parentId, { requireWritableScope: true });
   const notificationIntent = normalizeNotificationIntent(input.notificationIntent);
 
   if (input.file) {
@@ -484,7 +484,12 @@ async function getResourceAttachmentForManagement(session: AuthSession, attachme
   return resource;
 }
 
-async function resolveResourceParent(session: AuthSession | null, rawParentType: string, rawParentId: string): Promise<ParentResolution> {
+async function resolveResourceParent(
+  session: AuthSession | null,
+  rawParentType: string,
+  rawParentId: string,
+  options: { requireWritableScope?: boolean } = {}
+): Promise<ParentResolution> {
   const parentType = normalizeResourceParentType(rawParentType);
   const parentId = rawParentId.trim();
   if (!parentId) throw new ResourceAttachmentError("Parent record is required.", 400, "missing_parent");
@@ -512,10 +517,20 @@ async function resolveResourceParent(session: AuthSession | null, rawParentType:
 
   assertKnownStaticParent(parentType, parentId);
   return {
-    organizationId: session ? await requiredMinistryId(session) : DEFAULT_MINISTRY_ID,
+    organizationId: await staticResourceOrganizationId(session, options),
     parentId,
     parentType
   };
+}
+
+async function staticResourceOrganizationId(session: AuthSession | null, options: { requireWritableScope?: boolean }) {
+  if (!session || session.isGuest || session.isMock) return DEFAULT_MINISTRY_ID;
+
+  const ministryId = await resolveMinistryScope(session);
+  if (ministryId) return ministryId;
+  if (!options.requireWritableScope) return DEFAULT_MINISTRY_ID;
+
+  throw new ResourceAttachmentError("Resource storage needs this account to have a ministry profile.", 409, "missing_ministry");
 }
 
 async function requiredMinistryId(session: AuthSession) {
@@ -729,7 +744,7 @@ function summarizeResource(resource: ResourceAttachment) {
 }
 
 function shouldUseLiveResources(session: AuthSession | null) {
-  return Boolean(isSupabaseAdminConfigured() && !session?.isMock && !session?.isGuest);
+  return Boolean(isSupabaseAdminConfigured() && !session?.isMock);
 }
 
 function assertCanManageResources(session: AuthSession) {
