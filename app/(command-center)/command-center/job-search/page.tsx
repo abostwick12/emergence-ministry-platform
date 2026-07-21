@@ -53,7 +53,10 @@ export default function CommandCenterJobSearchPage() {
     if (!response.ok) {
       setApplications(previous);
       setError("Application status could not be saved.");
+      return;
     }
+    const updated = (await response.json()) as JobApplication;
+    setApplications((current) => current.map((app) => (app.id === id ? updated : app)));
   }
 
   async function updateFollowUp(id: string, nextDate: string) {
@@ -124,7 +127,7 @@ export default function CommandCenterJobSearchPage() {
           {PIPELINE_COLUMNS.map((column) => {
             const columnApps = applications.filter((app) => app.status === column.status);
             return (
-              <div className="kanban-column task-lane" key={column.status}>
+              <div className="kanban-column task-lane" key={column.status} aria-label={`${column.label} applications`}>
                 <div className="toolbar split">
                   <strong>{column.label}</strong>
                   <span className="pill">{columnApps.length}</span>

@@ -67,6 +67,36 @@ test.describe("event color system and volunteer leaders", () => {
     expect(selectStyle.color).toContain("rgb");
   });
 
+  test("creates small groups from a service-first director workflow", async ({ page }) => {
+    await page.goto("/directors/volunteers");
+    await waitForWorkspace(page);
+
+    await expect(page.getByRole("heading", { name: "Small groups by service" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Sunday - 9:00 AM small groups" })).toContainText("3 groups - 4 students");
+
+    await page.getByRole("button", { name: "Create Service Group" }).click();
+    const createForm = page.locator(".volunteer-create-group");
+    await expect(createForm.getByLabel("Service")).toHaveValue("Sunday - 9:00 AM");
+    await createForm.getByLabel("Service").fill("Sunday - 10:30 AM");
+    await createForm.getByLabel("Group name").fill("10:30 High School Girls");
+    await createForm.getByLabel("Room").fill("Room 210");
+    await createForm.getByRole("button", { name: "Create and manage roster" }).click();
+
+    await expect(page.getByRole("region", { name: "Sunday - 10:30 AM small groups" })).toContainText("10:30 High School Girls");
+  });
+
+  test("keeps Camp team and vehicle details off non-Camp student cards", async ({ page }) => {
+    await page.goto("/people");
+    await waitForWorkspace(page);
+    await page.getByRole("navigation", { name: "Volunteer Hub sections" }).getByRole("button", { name: "Students" }).click();
+
+    await expect(page.getByRole("heading", { name: "Roster view" })).toBeVisible();
+    await expect(page.getByText("Vehicle", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("Team", { exact: true })).toHaveCount(0);
+    await expect(page.getByPlaceholder("Name, grade, school, or room")).toBeVisible();
+    await expect(page.getByLabel("Source")).toBeVisible();
+  });
+
   test("manages a small-group roster and exposes the weekly leader guide", async ({ page }) => {
     await page.goto("/people");
     await waitForWorkspace(page);
