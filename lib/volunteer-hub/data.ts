@@ -87,6 +87,8 @@ type VolunteerChatPreviewRow = {
   body: string;
   resource_id: string | null;
   preview_only: boolean | null;
+  external_message_id: string | null;
+  source_guid: string | null;
   created_at: string;
 };
 
@@ -106,6 +108,8 @@ type VolunteerSmallGroupRow = {
   room: string | null;
   service_time: string | null;
   group_me_connected: boolean | null;
+  group_me_group_id: string | null;
+  group_me_group_name: string | null;
   archived_at: string | null;
   archive_reason: string | null;
 };
@@ -287,17 +291,17 @@ function createInitialState(): VolunteerHubState {
       }
     ],
     tasks: [
-      { id: "task_guide", label: "Read Leader Guide", detail: "Review the Luke 10 flow before group starts.", completed: false, dueLabel: "Before Sunday" },
-      { id: "task_audio", label: "Listen to Audio Overview", detail: "18 minute prep from the teaching team.", completed: true, dueLabel: "Before leader meeting" },
+      { id: "task_guide", label: "Read Jericho Leader Guide", detail: "Review the Rahab and Zacchaeus flow before group starts.", completed: false, dueLabel: "Before Sunday" },
+      { id: "task_audio", label: "Review the Sermon Overview", detail: "Five-minute teaching overview on Jericho's notorious outcasts.", completed: true, dueLabel: "Before leader meeting" },
       { id: "task_followup", label: "Student Follow-up", detail: "Check in on students flagged by attendance.", completed: false, dueLabel: "Today" },
       { id: "task_meeting", label: "Leader Meeting", detail: "Arrive by 8:40 AM in the Student Center.", completed: false, dueLabel: "8:40 AM" },
       { id: "task_group", label: "Small Group", detail: "Lead discussion and note follow-up needs.", completed: false, dueLabel: "9:00 AM" }
     ],
     resources: [
-      { id: "res_leader_guide", title: "The Battles We Face", type: "leader_guide", detail: "Week 3 leader guide for Luke 10.", estimatedMinutes: 8, completed: false, shareable: true },
-      { id: "res_audio", title: "Audio Overview", type: "audio", detail: "Teaching-team audio summary with transcript.", estimatedMinutes: 18, completed: true, shareable: true },
-      { id: "res_questions", title: "Discussion Questions", type: "discussion", detail: "Icebreaker, observation, application, and prayer prompts.", estimatedMinutes: 6, completed: false, shareable: true },
-      { id: "res_notes", title: "Leader Notes", type: "notes", detail: "Common misconceptions and when to involve staff.", estimatedMinutes: 5, completed: false, shareable: false },
+      { id: "res_leader_guide", title: "Why God Chooses Jericho's Notorious Outcasts", type: "leader_guide", detail: "Leader guide connecting Rahab, Zacchaeus, public trust, and restored belonging.", estimatedMinutes: 10, completed: false, shareable: true },
+      { id: "res_audio", title: "Jericho Sermon Overview", type: "audio", detail: "Five-minute source overview prepared for volunteer leaders.", estimatedMinutes: 5, completed: true, shareable: true },
+      { id: "res_questions", title: "Jericho Small Group Questions", type: "discussion", detail: "Eight student-ready questions with observation, heart, practice, and prayer prompts.", estimatedMinutes: 8, completed: false, shareable: true },
+      { id: "res_notes", title: "Jericho Leader Care Notes", type: "notes", detail: "Conversation guardrails for labels, repentance, disclosure, and student safety.", estimatedMinutes: 4, completed: false, shareable: false },
       { id: "res_parent", title: "Parent Resource", type: "parent", detail: "Preview-only family follow-up summary.", estimatedMinutes: 3, completed: false, shareable: true }
     ],
     trainingModules: [
@@ -318,7 +322,7 @@ function createInitialState(): VolunteerHubState {
       { id: "note_student", label: "Follow-up Assigned", detail: "Micah has missed two weeks.", href: "#attendance", unread: true }
     ],
     chatMessages: [
-      { id: "chat_seed", groupId: "group_8th_boys", senderName: "Maya Chen", body: "Preview only: leader guide is ready for Sunday.", createdAt: daysFromNow(-1), previewOnly: true, resourceId: "res_leader_guide" }
+      { id: "chat_seed", groupId: "group_8th_boys", senderName: "Maya Chen", body: "The Jericho leader guide and small group questions are ready for Sunday.", createdAt: daysFromNow(-1), previewOnly: true, resourceId: "res_leader_guide" }
     ],
     followUps: [
       { id: "fu_jordan", studentId: "stu_jordan", volunteerId: "vol_andrew", note: "Ask how the new school rhythm is going.", status: "assigned", createdAt: daysFromNow(-1) }
@@ -365,7 +369,7 @@ function buildVolunteerHubPayload(
   const role = roleForSession(session);
   const activeVolunteer = resolveActiveVolunteer(current, session, role);
   const visibleActiveGroups = getVisibleActiveGroups(current, activeVolunteer, role);
-  const activeGroup = visibleActiveGroups[0] ?? current.smallGroups.find((group) => !group.archivedAt)!;
+  const activeGroup = visibleActiveGroups[0] ?? liveRosterGroup(activeVolunteer, []);
   const students = current.students.filter((student) => activeGroup.memberStudentIds.includes(student.id));
   const followUps = current.followUps.filter((followUp) => students.some((student) => student.id === followUp.studentId));
 
@@ -557,7 +561,7 @@ async function loadPersistedVolunteerHubState(session: AuthSession, ministryId?:
   const [groups, members, items, progress, followUps, reviews, chats, audit] = await Promise.all([
     supabase
       .from("volunteer_hub_small_groups")
-      .select("id,name,leader_id,co_leader_id,room,service_time,group_me_connected,archived_at,archive_reason")
+      .select("id,name,leader_id,co_leader_id,room,service_time,group_me_connected,group_me_group_id,group_me_group_name,archived_at,archive_reason")
       .eq("ministry_id", ministryId)
       .returns<VolunteerSmallGroupRow[]>(),
     supabase
@@ -592,7 +596,7 @@ async function loadPersistedVolunteerHubState(session: AuthSession, ministryId?:
       .returns<VolunteerAttendanceReviewRow[]>(),
     supabase
       .from("volunteer_hub_chat_previews")
-      .select("id,group_id,sender_name,body,resource_id,preview_only,created_at")
+      .select("id,group_id,sender_name,body,resource_id,preview_only,external_message_id,source_guid,created_at")
       .eq("ministry_id", ministryId)
       .order("created_at", { ascending: false })
       .limit(100)
@@ -857,6 +861,8 @@ function smallGroupFromRow(row: VolunteerSmallGroupRow, members: VolunteerGroupM
     serviceTime: row.service_time ?? "",
     memberStudentIds: members.map((member) => studentIdFromRef(member.student_source, member.student_ref_id)),
     groupMeConnected: row.group_me_connected === true,
+    groupMeGroupId: row.group_me_group_id ?? undefined,
+    groupMeGroupName: row.group_me_group_name ?? undefined,
     archivedAt: row.archived_at ?? undefined,
     archiveReason: row.archive_reason ?? undefined
   };
@@ -924,7 +930,9 @@ function chatFromRow(row: VolunteerChatPreviewRow) {
     body: row.body,
     createdAt: row.created_at,
     previewOnly: row.preview_only !== false,
-    resourceId: row.resource_id ?? undefined
+    resourceId: row.resource_id ?? undefined,
+    externalMessageId: row.external_message_id ?? undefined,
+    sourceGuid: row.source_guid ?? undefined
   };
 }
 
@@ -1006,6 +1014,9 @@ export async function applyVolunteerHubLiveAction(session: AuthSession, action: 
       break;
     case "preview_chat_message":
       await addLiveChatPreview(session, ministryId, action, actor);
+      break;
+    case "create_group":
+      await createLiveGroup(session, ministryId, action, actor);
       break;
     case "update_profile":
       await updateLiveVolunteerProfile(ministryId, actor, action);
@@ -1167,6 +1178,33 @@ async function addLiveLeader(
   await insertLiveAudit(ministryId, actor, "Added volunteer leader", name);
 }
 
+async function createLiveGroup(
+  session: AuthSession,
+  ministryId: string,
+  action: Extract<VolunteerHubAction, { type: "create_group" }>,
+  actor: VolunteerHubVolunteer
+) {
+  const name = action.name.trim();
+  if (!name) throw new Error("Small group name is required.");
+  const result = await getSupabaseAdminClient()
+    .from("volunteer_hub_small_groups")
+    .insert({
+      ministry_id: ministryId,
+      name,
+      leader_id: action.leaderId && isUuid(action.leaderId) ? action.leaderId : null,
+      co_leader_id: action.coLeaderId && isUuid(action.coLeaderId) ? action.coLeaderId : null,
+      room: action.room?.trim() ?? "",
+      service_time: action.serviceTime?.trim() ?? "",
+      created_by_user_id: session.user.id
+    })
+    .select("id")
+    .single<{ id: string }>();
+  throwIfVolunteerHubError(result.error);
+  if (!result.data) throw new Error("Small group could not be created.");
+  await replaceLiveGroupMembers(ministryId, result.data.id, action.memberStudentIds ?? []);
+  await insertLiveAudit(ministryId, actor, "Created small group", name);
+}
+
 async function archiveLiveLeader(ministryId: string, volunteerId: string, actor: VolunteerHubVolunteer) {
   if (!isUuid(volunteerId)) throw new Error("Registered profile leaders cannot be removed here.");
   const result = await getSupabaseAdminClient()
@@ -1204,13 +1242,51 @@ async function restoreLiveGroup(ministryId: string, groupId: string, actor: Volu
 async function updateLiveGroup(ministryId: string, action: Extract<VolunteerHubAction, { type: "update_group" }>, actor: VolunteerHubVolunteer) {
   if (!isUuid(action.groupId)) throw new Error("Small group persistence is not ready for this generated roster group.");
   const update: Record<string, string | null> = {};
+  if (action.name !== undefined && action.name.trim()) update.name = action.name.trim();
   if (action.leaderId !== undefined) update.leader_id = isUuid(action.leaderId) ? action.leaderId : null;
   if (action.coLeaderId !== undefined) update.co_leader_id = action.coLeaderId && isUuid(action.coLeaderId) ? action.coLeaderId : null;
   if (action.room !== undefined) update.room = action.room.trim();
-  if (!Object.keys(update).length) return;
-  const result = await getSupabaseAdminClient().from("volunteer_hub_small_groups").update(update).eq("ministry_id", ministryId).eq("id", action.groupId);
-  throwIfVolunteerHubError(result.error);
+  if (action.serviceTime !== undefined) update.service_time = action.serviceTime.trim();
+  if (Object.keys(update).length) {
+    const result = await getSupabaseAdminClient().from("volunteer_hub_small_groups").update(update).eq("ministry_id", ministryId).eq("id", action.groupId);
+    throwIfVolunteerHubError(result.error);
+  }
+  if (action.memberStudentIds !== undefined) await replaceLiveGroupMembers(ministryId, action.groupId, action.memberStudentIds);
   await insertLiveAudit(ministryId, actor, "Updated small group", action.groupId);
+}
+
+async function replaceLiveGroupMembers(ministryId: string, groupId: string, studentIds: string[]) {
+  const refs = Array.from(new Map(studentIds.flatMap((studentId) => {
+    const ref = studentRefFromStudentId(studentId);
+    if (!ref || (ref.source !== "planning_center" && ref.source !== "camp_clc")) return [];
+    return [[studentRefKey(ref.source, ref.refId), ref] as const];
+  })).values());
+  const supabase = getSupabaseAdminClient();
+  for (const source of ["planning_center", "camp_clc"] as const) {
+    const sourceIds = refs.filter((ref) => ref.source === source).map((ref) => ref.refId);
+    if (!sourceIds.length) continue;
+    const reassignment = await supabase
+      .from("volunteer_hub_small_group_members")
+      .delete()
+      .eq("ministry_id", ministryId)
+      .eq("student_source", source)
+      .in("student_ref_id", sourceIds);
+    throwIfVolunteerHubError(reassignment.error);
+  }
+  const removal = await supabase
+    .from("volunteer_hub_small_group_members")
+    .delete()
+    .eq("ministry_id", ministryId)
+    .eq("group_id", groupId);
+  throwIfVolunteerHubError(removal.error);
+  if (!refs.length) return;
+  const insertion = await supabase.from("volunteer_hub_small_group_members").insert(refs.map((ref) => ({
+    ministry_id: ministryId,
+    group_id: groupId,
+    student_source: ref.source,
+    student_ref_id: ref.refId
+  })));
+  throwIfVolunteerHubError(insertion.error);
 }
 
 async function insertLiveAudit(ministryId: string, actor: VolunteerHubVolunteer, action: string, target: string) {
@@ -1304,6 +1380,27 @@ export function applyVolunteerHubAction(session: AuthSession, action: VolunteerH
       audit(current, actor, "Previewed GroupMe message", group.name);
       break;
     }
+    case "create_group": {
+      requireDirector(actor);
+      const name = action.name.trim();
+      if (!name) throw new Error("Small group name is required.");
+      const memberStudentIds = Array.from(new Set(action.memberStudentIds ?? []));
+      current.smallGroups.forEach((group) => {
+        group.memberStudentIds = group.memberStudentIds.filter((studentId) => !memberStudentIds.includes(studentId));
+      });
+      current.smallGroups.push({
+        id: uid("group"),
+        name,
+        leaderId: action.leaderId ?? actor.id,
+        coLeaderId: action.coLeaderId || undefined,
+        room: action.room?.trim() ?? "",
+        serviceTime: action.serviceTime?.trim() ?? "",
+        memberStudentIds,
+        groupMeConnected: false
+      });
+      audit(current, actor, "Created small group", name);
+      break;
+    }
     case "archive_group": {
       requireDirector(actor);
       const group = current.smallGroups.find((item) => item.id === action.groupId);
@@ -1326,9 +1423,20 @@ export function applyVolunteerHubAction(session: AuthSession, action: VolunteerH
       requireDirector(actor);
       const group = current.smallGroups.find((item) => item.id === action.groupId);
       if (!group) throw new Error("Small group not found.");
+      if (action.name !== undefined && action.name.trim()) group.name = action.name.trim();
       if (action.leaderId !== undefined) group.leaderId = action.leaderId;
       if (action.coLeaderId !== undefined) group.coLeaderId = action.coLeaderId || undefined;
       if (action.room !== undefined) group.room = action.room.trim();
+      if (action.serviceTime !== undefined) group.serviceTime = action.serviceTime.trim();
+      if (action.memberStudentIds !== undefined) {
+        const memberStudentIds = Array.from(new Set(action.memberStudentIds));
+        current.smallGroups.forEach((otherGroup) => {
+          if (otherGroup.id !== group.id) {
+            otherGroup.memberStudentIds = otherGroup.memberStudentIds.filter((studentId) => !memberStudentIds.includes(studentId));
+          }
+        });
+        group.memberStudentIds = memberStudentIds;
+      }
       audit(current, actor, "Updated small group", group.name);
       break;
     }

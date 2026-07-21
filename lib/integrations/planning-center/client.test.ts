@@ -56,6 +56,7 @@ describe("buildPlanningCenterAuthUrl", () => {
     expect(url.searchParams.get("client_id")).toBe("client-id");
     expect(url.searchParams.get("redirect_uri")).toBe(configuredEnv.PLANNING_CENTER_REDIRECT_URI);
     expect(url.searchParams.get("response_type")).toBe("code");
+    expect(url.searchParams.get("scope")).toBe("people check_ins");
     expect(url.searchParams.get("state")).toBe("csrf-state");
   });
 });
@@ -133,6 +134,23 @@ describe("Planning Center normalization", () => {
       checkedInAt: "2026-07-12T23:00:00Z"
     });
   });
+
+  it("maps included event and location names without storing sensitive check-in fields", () => {
+    const attendance = normalizeAttendance({
+      id: "check-2",
+      attributes: { created_at: "2026-07-19T14:00:00Z", medical_notes: "do not store" },
+      relationships: {
+        person: { data: { id: "person-2", type: "Person" } },
+        event_period: { data: { id: "period-2", type: "EventPeriod" } },
+        locations: { data: [{ id: "location-2", type: "Location" }] }
+      }
+    }, [
+      { id: "period-2", type: "EventPeriod", attributes: { name: "Sunday Students" } },
+      { id: "location-2", type: "Location", attributes: { name: "High School Room" } }
+    ]);
+    expect(attendance).toMatchObject({ sessionLabel: "Sunday Students", locationLabel: "High School Room" });
+    expect(JSON.stringify(attendance)).not.toContain("medical_notes");
+  });
 });
 
 describe("Planning Center collection fetches", () => {
@@ -157,7 +175,7 @@ describe("Planning Center collection fetches", () => {
       expect.objectContaining({ externalCheckInId: "check-1", sessionLabel: "Main check-in" })
     ]);
     expect(fetchImpl).toHaveBeenCalledWith(
-      "https://api.example.test/check-ins/v2/check_ins?per_page=100",
+      "https://api.example.test/check-ins/v2/check_ins?per_page=100&order=-created_at&include=event,event_period,locations",
       expect.objectContaining({ headers: expect.objectContaining({ Authorization: "Bearer at" }) })
     );
   });

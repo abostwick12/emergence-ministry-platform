@@ -92,6 +92,8 @@ export type VolunteerHubSmallGroup = {
   serviceTime: string;
   memberStudentIds: string[];
   groupMeConnected: boolean;
+  groupMeGroupId?: string;
+  groupMeGroupName?: string;
   archivedAt?: string;
   archiveReason?: string;
 };
@@ -121,6 +123,8 @@ export type VolunteerHubChatMessage = {
   createdAt: string;
   previewOnly: boolean;
   resourceId?: string;
+  externalMessageId?: string;
+  sourceGuid?: string;
 };
 
 export type VolunteerHubFollowUp = {
@@ -148,7 +152,9 @@ export type VolunteerHubIntegrationStatus = {
     lastSyncAt?: string;
   };
   groupMe: {
-    displayStatus: "preview_only" | "not_connected";
+    configured: boolean;
+    displayStatus: "not_configured" | "storage_unavailable" | "disconnected" | "connected" | "error";
+    connectedGroupCount: number;
     message: string;
   };
 };
@@ -203,9 +209,10 @@ export type VolunteerHubAction =
   | { type: "update_onboarding"; itemId: string; completed?: boolean }
   | { type: "update_profile"; availability?: string; preferredCommunication?: VolunteerHubVolunteer["preferredCommunication"] }
   | { type: "preview_chat_message"; groupId: string; body: string; resourceId?: string }
+  | { type: "create_group"; name: string; leaderId?: string; coLeaderId?: string; room?: string; serviceTime?: string; memberStudentIds?: string[] }
   | { type: "archive_group"; groupId: string; reason?: string }
   | { type: "restore_group"; groupId: string }
-  | { type: "update_group"; groupId: string; leaderId?: string; coLeaderId?: string; room?: string }
+  | { type: "update_group"; groupId: string; name?: string; leaderId?: string; coLeaderId?: string; room?: string; serviceTime?: string; memberStudentIds?: string[] }
   | { type: "add_leader"; name: string; email?: string; role?: string; sourceChurch?: string; profilePhotoUrl?: string }
   | { type: "delete_leader"; volunteerId: string };
 
@@ -213,5 +220,6 @@ export function roleForSession(session: AuthSession): VolunteerHubRole {
   const role = session.user.role.trim().toLowerCase();
   if (role === "admin") return "admin";
   if (role === "leader" || session.isGuest) return "leader";
+  if (role === "director" || role === "staff") return "director";
   return "volunteer";
 }

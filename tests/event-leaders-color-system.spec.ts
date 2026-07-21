@@ -67,6 +67,31 @@ test.describe("event color system and volunteer leaders", () => {
     expect(selectStyle.color).toContain("rgb");
   });
 
+  test("manages a small-group roster and exposes the weekly leader guide", async ({ page }) => {
+    await page.goto("/people");
+    await waitForWorkspace(page);
+    await page.waitForLoadState("networkidle");
+
+    const sixthGradeGroup = page.locator(".volunteer-group-card").filter({ hasText: "6th Grade" });
+    await sixthGradeGroup.getByRole("button", { name: "Manage Group", exact: true }).click();
+
+    const dialog = page.getByRole("dialog", { name: "Manage Small Group" });
+    await dialog.getByText("Leader", { exact: true }).locator("..").locator("select").selectOption("vol_maya");
+    await dialog.getByLabel("Room").fill("Room 105");
+    await dialog.getByRole("checkbox", { name: /Jordan Hayes/i }).check();
+    await dialog.getByRole("button", { name: "Save group" }).click();
+
+    await expect(dialog).toHaveCount(0);
+    await expect(sixthGradeGroup).toContainText("Room 105");
+    await expect(sixthGradeGroup).toContainText("Maya Chen leads 1 student");
+    await expect(page.locator(".volunteer-group-card").filter({ hasText: "8th Grade Boys" })).toContainText("3 students");
+
+    await page.getByRole("navigation", { name: "Volunteer Hub sections" }).getByRole("button", { name: "Weekly Resources" }).click();
+    await expect(page.locator(".volunteer-guide-card").getByRole("heading", { name: "Why God Chooses Jericho's Notorious Outcasts" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Small group questions", exact: true })).toBeVisible();
+    await expect(page.getByText("Joshua 2:1-21", { exact: true })).toBeVisible();
+  });
+
   test("applies event category accents to event rows, task cards, and dashboard calendar chips", async ({ page }) => {
     await page.goto("/events");
     await waitForWorkspace(page);

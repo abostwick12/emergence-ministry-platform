@@ -17,7 +17,7 @@ const session: AuthSession = {
 
 const integrations: VolunteerHubIntegrationStatus = {
   planningCenter: { displayStatus: "connected", peopleCount: 0, attendanceCount: 0 },
-  groupMe: { displayStatus: "preview_only", message: "Preview only." }
+  groupMe: { configured: true, displayStatus: "disconnected", connectedGroupCount: 0, message: "Not connected." }
 };
 
 describe("Volunteer Hub Camp CLC students", () => {

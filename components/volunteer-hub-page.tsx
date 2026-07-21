@@ -1,14 +1,22 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import Image from "next/image";
 import {
   Archive,
   Bell,
   BookOpen,
+  Check,
   CheckCircle2,
   ClipboardCheck,
+  Link2,
+  LoaderCircle,
   MessageSquareText,
+  Plus,
+  RefreshCw,
   RotateCcw,
+  Search,
   Send,
   ShieldCheck,
   UserRound,
@@ -16,6 +24,7 @@ import {
 } from "lucide-react";
 import { PageIntro, StatusBadge } from "@/components/platform-ui";
 import { ResourceAttachments } from "@/components/resource-attachments";
+import { jerichoLeaderGuide } from "@/lib/volunteer-hub/leader-guide";
 import type {
   VolunteerHubAction,
   VolunteerHubPayload,
@@ -27,6 +36,8 @@ import type {
 
 type VolunteerHubMode = "volunteer" | "director";
 type VolunteerTab = "dashboard" | "group" | "students" | "attendance" | "chat" | "resources" | "training" | "onboarding" | "calendar" | "profile";
+type GroupMeChoice = { id: string; name: string; description?: string; memberCount: number };
+type LiveGroupMeMessage = { id: string; senderName: string; text: string; avatarUrl?: string; createdAt: string };
 
 const tabs: Array<{ id: VolunteerTab; label: string }> = [
   { id: "dashboard", label: "Dashboard" },
@@ -47,6 +58,7 @@ export function VolunteerHubPage({ mode = "volunteer" }: { mode?: VolunteerHubMo
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [activeTab, setActiveTab] = useState<VolunteerTab>("dashboard");
+  const [syncingCheckIns, setSyncingCheckIns] = useState(false);
 
   async function load() {
     setError("");
@@ -85,6 +97,40 @@ export function VolunteerHubPage({ mode = "volunteer" }: { mode?: VolunteerHubMo
     setNotice(success);
   }
 
+  async function syncPlanningCenterCheckIns() {
+    setSyncingCheckIns(true);
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch("/api/integrations/planning-center/sync", { method: "POST" });
+      const body = (await response.json().catch(() => ({}))) as { error?: string; result?: { peopleCount: number; attendanceCount: number } };
+      if (!response.ok) {
+        setError(body.error ?? "Planning Center check-ins could not be synced.");
+        return;
+      }
+      await load();
+      setNotice(`Planning Center synced ${body.result?.peopleCount ?? 0} people and ${body.result?.attendanceCount ?? 0} check-ins.`);
+    } finally {
+      setSyncingCheckIns(false);
+    }
+  }
+
+  async function linkGroupMeConversation(platformGroupId: string, groupMeGroupId: string) {
+    setError("");
+    const response = await fetch("/api/integrations/groupme/groups", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ platformGroupId, groupMeGroupId })
+    });
+    const body = (await response.json().catch(() => ({}))) as { error?: string; group?: GroupMeChoice };
+    if (!response.ok) {
+      setError(body.error ?? "GroupMe conversation could not be linked.");
+      return;
+    }
+    await load();
+    setNotice(`${body.group?.name ?? "GroupMe conversation"} linked to the small group.`);
+  }
+
   useEffect(() => {
     void load();
   }, []);
@@ -110,7 +156,7 @@ export function VolunteerHubPage({ mode = "volunteer" }: { mode?: VolunteerHubMo
       {error ? <p className="volunteer-hub-error" role="alert">{error}</p> : null}
 
       {isDirectorMode ? (
-        <DirectorDashboard payload={payload} onAction={act} />
+        <DirectorDashboard payload={payload} onAction={act} onLinkGroupMe={linkGroupMeConversation} onReload={load} />
       ) : (
         <>
           <nav className="volunteer-hub-tabs" aria-label="Volunteer Hub sections">
@@ -120,10 +166,18 @@ export function VolunteerHubPage({ mode = "volunteer" }: { mode?: VolunteerHubMo
               </button>
             ))}
           </nav>
-          <VolunteerTabContent payload={payload} activeTab={activeTab} onTabChange={setActiveTab} onAction={act} />
+          <VolunteerTabContent
+            payload={payload}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            onAction={act}
+            onReload={load}
+            onSyncCheckIns={syncPlanningCenterCheckIns}
+            syncingCheckIns={syncingCheckIns}
+          />
           {payload.role === "admin" || payload.role === "director" || payload.role === "leader" ? (
             <div className="volunteer-hub-grid" aria-label="Volunteer Hub operations">
-              <SmallGroupDirectorPanel payload={payload} onAction={act} />
+              <SmallGroupDirectorPanel payload={payload} onAction={act} onLinkGroupMe={linkGroupMeConversation} onReload={load} />
               <LeaderPoolPanel payload={payload} onAction={act} />
             </div>
           ) : null}
@@ -137,17 +191,23 @@ function VolunteerTabContent({
   payload,
   activeTab,
   onTabChange,
-  onAction
+  onAction,
+  onReload,
+  onSyncCheckIns,
+  syncingCheckIns
 }: {
   payload: VolunteerHubPayload;
   activeTab: VolunteerTab;
   onTabChange: (tab: VolunteerTab) => void;
   onAction: (action: VolunteerHubAction, success: string) => Promise<void>;
+  onReload: () => Promise<void>;
+  onSyncCheckIns: () => Promise<void>;
+  syncingCheckIns: boolean;
 }) {
   if (activeTab === "group") return <SmallGroupWorkspace payload={payload} onAction={onAction} />;
   if (activeTab === "students") return <StudentsWorkspace payload={payload} onAction={onAction} />;
-  if (activeTab === "attendance") return <AttendanceWorkspace payload={payload} onAction={onAction} />;
-  if (activeTab === "chat") return <ChatWorkspace payload={payload} onAction={onAction} />;
+  if (activeTab === "attendance") return <AttendanceWorkspace payload={payload} onAction={onAction} onSync={onSyncCheckIns} syncing={syncingCheckIns} />;
+  if (activeTab === "chat") return <ChatWorkspace payload={payload} onAction={onAction} onReload={onReload} />;
   if (activeTab === "resources") return <ResourcesWorkspace payload={payload} onAction={onAction} />;
   if (activeTab === "training") return <TrainingWorkspace payload={payload} onAction={onAction} />;
   if (activeTab === "onboarding") return <OnboardingWorkspace payload={payload} onAction={onAction} />;
@@ -209,7 +269,7 @@ function TaskPanel({ tasks, onAction }: { tasks: VolunteerHubPayload["tasks"]; o
 function SmallGroupWorkspace({ payload, onAction }: { payload: VolunteerHubPayload; onAction: (action: VolunteerHubAction, success: string) => Promise<void> }) {
   const leader = payload.volunteers.find((volunteer) => volunteer.id === payload.activeGroup.leaderId);
   const coLeader = payload.volunteers.find((volunteer) => volunteer.id === payload.activeGroup.coLeaderId);
-  const actionsEnabled = payload.dataSource !== "live";
+  const actionsEnabled = !payload.readOnlyReason;
   return (
     <div className="volunteer-hub-grid">
       <article className="volunteer-hub-panel volunteer-hub-span-3">
@@ -218,7 +278,7 @@ function SmallGroupWorkspace({ payload, onAction }: { payload: VolunteerHubPaylo
           <span><strong>Leader</strong>{leader?.name ?? "Unassigned"}</span>
           <span><strong>Co-Leader</strong>{coLeader?.name ?? "Open slot"}</span>
           <span><strong>Students</strong>{payload.students.length}</span>
-          <span><strong>GroupMe</strong>{payload.activeGroup.groupMeConnected ? "Connected" : "Preview only"}</span>
+          <span><strong>GroupMe</strong>{payload.activeGroup.groupMeConnected ? payload.activeGroup.groupMeGroupName ?? "Connected" : "Not linked"}</span>
         </div>
       </article>
       {payload.students.length ? payload.students.map((student) => (
@@ -232,7 +292,7 @@ function StudentCard({ student, actionsEnabled, onAction }: { student: Volunteer
   const [note, setNote] = useState("");
   return (
     <article className="volunteer-hub-panel volunteer-student-card">
-      <div className="volunteer-avatar" aria-hidden="true">{student.profilePhotoUrl ? <img src={student.profilePhotoUrl} alt="" /> : initials(student.preferredName)}</div>
+      <div className="volunteer-avatar" aria-hidden="true">{student.profilePhotoUrl ? <Image src={student.profilePhotoUrl} alt="" width={48} height={48} unoptimized /> : initials(student.preferredName)}</div>
       <h3>{student.preferredName}</h3>
       <p>{student.grade} - {student.school}</p>
       <div className="volunteer-student-tags">
@@ -299,7 +359,17 @@ function StudentsWorkspace({ payload, onAction }: { payload: VolunteerHubPayload
   );
 }
 
-function AttendanceWorkspace({ payload, onAction }: { payload: VolunteerHubPayload; onAction: (action: VolunteerHubAction, success: string) => Promise<void> }) {
+function AttendanceWorkspace({
+  payload,
+  onAction,
+  onSync,
+  syncing
+}: {
+  payload: VolunteerHubPayload;
+  onAction: (action: VolunteerHubAction, success: string) => Promise<void>;
+  onSync: () => Promise<void>;
+  syncing: boolean;
+}) {
   const actionsEnabled = !payload.readOnlyReason;
   return (
     <div className="volunteer-hub-grid">
@@ -307,8 +377,21 @@ function AttendanceWorkspace({ payload, onAction }: { payload: VolunteerHubPaylo
       <MetricCard icon={<CheckCircle2 aria-hidden="true" />} label="Present" value={String(payload.attendance.present)} detail={`${payload.attendance.attendancePercent}% attendance from latest imported snapshot.`} />
       <MetricCard icon={<Bell aria-hidden="true" />} label="Need Follow-up" value={String(payload.attendance.needFollowUp)} detail="Suggestions only. No automatic messages are sent." />
       <article className="volunteer-hub-panel volunteer-hub-span-3">
-        <SectionTitle icon={<ClipboardCheck aria-hidden="true" />} eyebrow="Attendance Dashboard" title="Planning Center-backed snapshot" />
-        <p className="muted">Planning Center remains the source of truth. This V1 displays safe operational summaries and stores only review state in the Volunteer Hub preview.</p>
+        <div className="volunteer-panel-head">
+          <SectionTitle icon={<ClipboardCheck aria-hidden="true" />} eyebrow="Attendance Dashboard" title="Planning Center check-in workflow" />
+          {payload.integrations.planningCenter.displayStatus === "connected" ? (
+            <button className="button primary" type="button" disabled={syncing} onClick={() => void onSync()}>
+              {syncing ? <LoaderCircle className="volunteer-spin" aria-hidden="true" /> : <RefreshCw aria-hidden="true" />}
+              {syncing ? "Syncing..." : "Sync check-ins"}
+            </button>
+          ) : (
+            <a className="button primary" href="/api/integrations/planning-center/connect">Connect Planning Center</a>
+          )}
+        </div>
+        <p className="muted">
+          Planning Center remains the student and attendance source of truth. A manual sync imports minimized student and check-in references; Volunteer Hub stores only group assignments and leader review state.
+          {payload.integrations.planningCenter.lastSyncAt ? ` Last synced ${formatDateTime(payload.integrations.planningCenter.lastSyncAt)}.` : ""}
+        </p>
         <div className="volunteer-attendance-list">
           {payload.students.length ? payload.students.map((student) => (
             <div className="volunteer-attendance-row" key={student.id}>
@@ -327,40 +410,166 @@ function AttendanceWorkspace({ payload, onAction }: { payload: VolunteerHubPaylo
   );
 }
 
-function ChatWorkspace({ payload, onAction }: { payload: VolunteerHubPayload; onAction: (action: VolunteerHubAction, success: string) => Promise<void> }) {
+function ChatWorkspace({
+  payload,
+  onAction,
+  onReload
+}: {
+  payload: VolunteerHubPayload;
+  onAction: (action: VolunteerHubAction, success: string) => Promise<void>;
+  onReload: () => Promise<void>;
+}) {
   const [message, setMessage] = useState("");
   const [resourceId, setResourceId] = useState("");
-  const actionsEnabled = payload.dataSource !== "live";
+  const [liveMessages, setLiveMessages] = useState<LiveGroupMeMessage[]>([]);
+  const [loadingMessages, setLoadingMessages] = useState(false);
+  const [chatError, setChatError] = useState("");
+  const [reviewing, setReviewing] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sentStatus, setSentStatus] = useState("");
+  const isLiveConversation = payload.dataSource === "live"
+    && payload.integrations.groupMe.displayStatus === "connected"
+    && payload.activeGroup.groupMeConnected;
+  const isDemoConversation = payload.dataSource !== "live" && !payload.readOnlyReason;
+  const selectedResource = payload.resources.find((resource) => resource.id === resourceId);
+  const outgoingMessage = `${message.trim()}${selectedResource ? `\n\nVolunteer Prep: ${selectedResource.title}` : ""}`;
+
+  useEffect(() => {
+    if (!isLiveConversation) {
+      setLiveMessages([]);
+      return;
+    }
+    const controller = new AbortController();
+    setLoadingMessages(true);
+    setChatError("");
+    void fetch(`/api/integrations/groupme/messages?groupId=${encodeURIComponent(payload.activeGroup.id)}`, {
+      cache: "no-store",
+      signal: controller.signal
+    }).then(async (response) => {
+      const body = (await response.json().catch(() => ({}))) as { messages?: LiveGroupMeMessage[]; error?: string };
+      if (!response.ok) throw new Error(body.error ?? "GroupMe messages could not be loaded.");
+      setLiveMessages(body.messages ?? []);
+    }).catch((error: unknown) => {
+      if (error instanceof Error && error.name !== "AbortError") setChatError(error.message);
+    }).finally(() => setLoadingMessages(false));
+    return () => controller.abort();
+  }, [isLiveConversation, payload.activeGroup.id]);
+
+  async function sendReviewedMessage() {
+    if (!outgoingMessage) return;
+    setSending(true);
+    setChatError("");
+    setSentStatus("");
+    try {
+      const response = await fetch("/api/integrations/groupme/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ groupId: payload.activeGroup.id, message: outgoingMessage, resourceId: resourceId || undefined })
+      });
+      const body = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) throw new Error(body.error ?? "GroupMe message could not be sent.");
+      setMessage("");
+      setResourceId("");
+      setReviewing(false);
+      setSentStatus("Message sent to GroupMe and added to the activity log.");
+      await onReload();
+      const refreshed = await fetch(`/api/integrations/groupme/messages?groupId=${encodeURIComponent(payload.activeGroup.id)}`, { cache: "no-store" });
+      const refreshedBody = (await refreshed.json().catch(() => ({}))) as { messages?: LiveGroupMeMessage[] };
+      if (refreshed.ok) setLiveMessages(refreshedBody.messages ?? []);
+    } catch (error) {
+      setChatError(error instanceof Error ? error.message : "GroupMe message could not be sent.");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  const displayedMessages = isLiveConversation
+    ? liveMessages
+    : payload.chatMessages.slice().reverse().map((chat) => ({
+        id: chat.id,
+        senderName: chat.senderName,
+        text: chat.body,
+        createdAt: chat.createdAt
+      }));
+
   return (
-    <div className="volunteer-hub-grid">
-      <article className="volunteer-hub-panel volunteer-hub-span-2">
-        <SectionTitle icon={<MessageSquareText aria-hidden="true" />} eyebrow="Group Chat" title={`${payload.activeGroup.name} conversation`} />
+    <div className="volunteer-chat-layout">
+      <article className="volunteer-hub-panel volunteer-chat-conversation">
+        <div className="volunteer-panel-head">
+          <SectionTitle icon={<MessageSquareText aria-hidden="true" />} eyebrow="Group Chat" title={payload.activeGroup.groupMeGroupName ?? `${payload.activeGroup.name} conversation`} />
+          <StatusBadge tone={isLiveConversation ? "success" : isDemoConversation ? "info" : "warning"}>
+            {isLiveConversation ? "Live GroupMe" : isDemoConversation ? "Demo workspace" : "Setup needed"}
+          </StatusBadge>
+        </div>
         <p className="muted">{payload.integrations.groupMe.message}</p>
-        <div className="volunteer-chat-window">
-          {payload.chatMessages.length ? payload.chatMessages.map((chat) => (
-            <div className="volunteer-chat-message" key={chat.id}>
-              <strong>{chat.senderName}</strong>
-              <p>{chat.body}</p>
-              <small>{formatDate(chat.createdAt)} - Preview only{chat.resourceId ? " - resource attached" : ""}</small>
-            </div>
-          )) : <EmptyState title="No stored messages" detail="No demo chat history is shown for registered production users." />}
+        {payload.dataSource === "live" && payload.integrations.groupMe.displayStatus !== "connected" ? (
+          <div className="volunteer-chat-setup">
+            <Link2 aria-hidden="true" />
+            <div><strong>Connect GroupMe once for the ministry</strong><p>After OAuth, a director can link each small group to its existing conversation.</p></div>
+            <a className="button primary" href="/api/integrations/groupme/connect">Connect GroupMe</a>
+          </div>
+        ) : null}
+        {payload.dataSource === "live" && payload.integrations.groupMe.displayStatus === "connected" && !payload.activeGroup.groupMeConnected ? (
+          <div className="volunteer-chat-setup">
+            <Link2 aria-hidden="true" />
+            <div><strong>Conversation not linked yet</strong><p>A director can use Manage Group to choose the matching GroupMe conversation.</p></div>
+          </div>
+        ) : null}
+        <div className="volunteer-chat-window" aria-live="polite">
+          {loadingMessages ? <p className="volunteer-chat-loading"><LoaderCircle className="volunteer-spin" aria-hidden="true" />Loading conversation...</p> : null}
+          {displayedMessages.length ? displayedMessages.map((chat) => {
+            const mine = chat.senderName.toLowerCase() === payload.activeVolunteer.name.toLowerCase();
+            return (
+              <div className={mine ? "volunteer-chat-message mine" : "volunteer-chat-message"} key={chat.id}>
+                <span className="volunteer-chat-avatar" aria-hidden="true">{initials(chat.senderName)}</span>
+                <div>
+                  <strong>{chat.senderName}</strong>
+                  <p>{chat.text}</p>
+                  <small>{formatDateTime(chat.createdAt)}</small>
+                </div>
+              </div>
+            );
+          }) : !loadingMessages ? <EmptyState title="Conversation is ready" detail={isLiveConversation ? "No recent GroupMe messages were returned." : "Draft a message below to start the volunteer conversation."} /> : null}
         </div>
       </article>
-      {actionsEnabled ? <form className="volunteer-hub-panel volunteer-chat-composer" onSubmit={(event) => {
+      <form className="volunteer-hub-panel volunteer-chat-composer" onSubmit={(event) => {
         event.preventDefault();
-        void onAction({ type: "preview_chat_message", groupId: payload.activeGroup.id, body: message, resourceId: resourceId || undefined }, "GroupMe preview logged. Nothing was sent.").then(() => {
-          setMessage("");
-          setResourceId("");
-        });
+        if (!outgoingMessage) return;
+        if (isDemoConversation) {
+          void onAction({ type: "preview_chat_message", groupId: payload.activeGroup.id, body: message, resourceId: resourceId || undefined }, "Demo message saved inside Volunteer Hub.").then(() => {
+            setMessage("");
+            setResourceId("");
+          });
+          return;
+        }
+        setReviewing(true);
       }}>
-        <SectionTitle icon={<Send aria-hidden="true" />} eyebrow="Composer" title="Preview a message" />
-        <label className="field"><span>Message</span><textarea className="input" rows={5} value={message} onChange={(event) => setMessage(event.target.value)} /></label>
-        <label className="field"><span>Attach platform resource</span><select className="input" value={resourceId} onChange={(event) => setResourceId(event.target.value)}>
+        <SectionTitle icon={<Send aria-hidden="true" />} eyebrow="Composer" title={isLiveConversation ? "Prepare a leader message" : "Message workspace"} />
+        <label className="field volunteer-message-field"><span>Message</span><textarea className="input" rows={7} maxLength={900} disabled={!isLiveConversation && !isDemoConversation} value={message} onChange={(event) => { setMessage(event.target.value); setReviewing(false); }} placeholder="Share a clear update, encouragement, or preparation reminder..." /><small>{message.length}/900</small></label>
+        <label className="field"><span>Attach platform resource</span><select className="input" disabled={!isLiveConversation && !isDemoConversation} value={resourceId} onChange={(event) => setResourceId(event.target.value)}>
           <option value="">No resource</option>
           {payload.resources.filter((resource) => resource.shareable).map((resource) => <option key={resource.id} value={resource.id}>{resource.title}</option>)}
         </select></label>
-        <button className="button primary" type="submit"><Send aria-hidden="true" />Preview message</button>
-      </form> : null}
+        {reviewing ? (
+          <div className="volunteer-message-review" role="region" aria-label="Review GroupMe message">
+            <span><Check aria-hidden="true" />Ready for final review</span>
+            <p>{outgoingMessage}</p>
+            <div className="volunteer-card-actions">
+              <button className="button" type="button" onClick={() => setReviewing(false)}>Keep editing</button>
+              <button className="button primary" type="button" disabled={sending} onClick={() => void sendReviewedMessage()}>
+                {sending ? <LoaderCircle className="volunteer-spin" aria-hidden="true" /> : <Send aria-hidden="true" />}
+                {sending ? "Sending..." : "Send to GroupMe"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button className="button primary" type="submit" disabled={!outgoingMessage || (!isLiveConversation && !isDemoConversation)}>
+            <Send aria-hidden="true" />{isDemoConversation ? "Save demo message" : "Review message"}
+          </button>
+        )}
+        {chatError ? <p className="volunteer-hub-error" role="alert">{chatError}</p> : null}
+        {sentStatus ? <p className="volunteer-hub-notice" role="status">{sentStatus}</p> : null}
+      </form>
     </div>
   );
 }
@@ -369,13 +578,66 @@ function ResourcesWorkspace({ payload, onAction }: { payload: VolunteerHubPayloa
   return (
     <div className="volunteer-hub-grid">
       <article className="volunteer-hub-panel volunteer-hub-span-3">
-        <SectionTitle icon={<BookOpen aria-hidden="true" />} eyebrow="Weekly Resources" title={payload.resources.length ? "Published preparation" : "No resources published yet"} />
+        <SectionTitle icon={<BookOpen aria-hidden="true" />} eyebrow="Volunteer Prep" title={payload.resources.length ? "This week's leader workflow" : "No resources published yet"} />
         <p className="muted">Preparation estimate: {payload.resources.reduce((sum, resource) => sum + resource.estimatedMinutes, 0)} minutes.</p>
       </article>
+      {payload.resources.some((resource) => resource.id === "res_leader_guide") ? <JerichoLeaderGuideCard /> : null}
       {payload.resources.length ? payload.resources.map((resource) => (
         <ResourceCard key={resource.id} groupId={payload.activeGroup.id} resource={resource} onAction={onAction} />
       )) : <EmptyPanel title="No weekly resources yet" detail="Published leader guides, audio, notes, or parent resources will appear here when they are created for this ministry." />}
     </div>
+  );
+}
+
+function JerichoLeaderGuideCard() {
+  return (
+    <article className="volunteer-hub-panel volunteer-hub-span-3 volunteer-guide-card">
+      <header className="volunteer-guide-hero">
+        <div>
+          <p className="eyebrow">Ready-to-lead guide</p>
+          <h3>{jerichoLeaderGuide.title}</h3>
+          <p>{jerichoLeaderGuide.subtitle}</p>
+        </div>
+        <span>10 min prep</span>
+      </header>
+      <div className="volunteer-guide-scripture" aria-label="Primary passages">
+        {jerichoLeaderGuide.passages.map((passage) => <span key={passage}>{passage}</span>)}
+      </div>
+      <section className="volunteer-guide-big-idea">
+        <p className="eyebrow">Big Idea</p>
+        <strong>{jerichoLeaderGuide.bigIdea}</strong>
+        <p>{jerichoLeaderGuide.leaderGoal}</p>
+      </section>
+      <div className="volunteer-guide-columns">
+        <section>
+          <h4>Teaching flow</h4>
+          <div className="volunteer-guide-movements">
+            {jerichoLeaderGuide.movements.map((movement, index) => (
+              <div key={movement.title}>
+                <span>{index + 1}</span>
+                <div><strong>{movement.title}</strong><p>{movement.summary}</p></div>
+              </div>
+            ))}
+          </div>
+        </section>
+        <section>
+          <h4>Small group questions</h4>
+          <div className="volunteer-guide-questions">
+            {jerichoLeaderGuide.discussion.map((item, index) => (
+              <details key={item.question} open={index === 0}>
+                <summary><span>{item.phase}</span>{item.question}</summary>
+                <p><strong>Leader cue:</strong> {item.leaderCue}</p>
+              </details>
+            ))}
+          </div>
+        </section>
+      </div>
+      <div className="volunteer-guide-footer">
+        <section><p className="eyebrow">Practice</p><p>{jerichoLeaderGuide.practice}</p></section>
+        <section><p className="eyebrow">Close in prayer</p><p>{jerichoLeaderGuide.prayer}</p></section>
+        <section className="volunteer-guide-care"><ShieldCheck aria-hidden="true" /><div><strong>Leader care note</strong><p>{jerichoLeaderGuide.careNote}</p></div></section>
+      </div>
+    </article>
   );
 }
 
@@ -470,7 +732,7 @@ function CalendarWorkspace({ payload }: { payload: VolunteerHubPayload }) {
 function ProfileWorkspace({ payload, onAction }: { payload: VolunteerHubPayload; onAction: (action: VolunteerHubAction, success: string) => Promise<void> }) {
   const [availability, setAvailability] = useState(payload.activeVolunteer.availability);
   const [preferredCommunication, setPreferredCommunication] = useState(payload.activeVolunteer.preferredCommunication);
-  const actionsEnabled = payload.dataSource !== "live";
+  const actionsEnabled = !payload.readOnlyReason;
   return (
     <form className="volunteer-hub-panel volunteer-profile-panel" onSubmit={(event) => {
       event.preventDefault();
@@ -493,7 +755,17 @@ function ProfileWorkspace({ payload, onAction }: { payload: VolunteerHubPayload;
   );
 }
 
-function DirectorDashboard({ payload, onAction }: { payload: VolunteerHubPayload; onAction: (action: VolunteerHubAction, success: string) => Promise<void> }) {
+function DirectorDashboard({
+  payload,
+  onAction,
+  onLinkGroupMe,
+  onReload
+}: {
+  payload: VolunteerHubPayload;
+  onAction: (action: VolunteerHubAction, success: string) => Promise<void>;
+  onLinkGroupMe: (platformGroupId: string, groupMeGroupId: string) => Promise<void>;
+  onReload: () => Promise<void>;
+}) {
   const activeGroupStudents = payload.activeGroups.reduce((sum, group) => sum + group.memberStudentIds.length, 0);
   const completedTraining = payload.trainingModules.filter((module) => module.completed).length;
   return (
@@ -501,7 +773,7 @@ function DirectorDashboard({ payload, onAction }: { payload: VolunteerHubPayload
       <MetricCard icon={<UsersRound aria-hidden="true" />} label="Active Small Groups" value={String(payload.activeGroups.length)} detail={`${activeGroupStudents} assigned students in active groups.`} />
       <MetricCard icon={<ShieldCheck aria-hidden="true" />} label="Training Completion" value={`${completedTraining}/${payload.trainingModules.length}`} detail="Quarterly leader-readiness modules." />
       <MetricCard icon={<Archive aria-hidden="true" />} label="Archived Groups" value={String(payload.archivedGroups.length)} detail="Reversible archive for consolidated groups." />
-      <SmallGroupDirectorPanel payload={payload} onAction={onAction} />
+      <SmallGroupDirectorPanel payload={payload} onAction={onAction} onLinkGroupMe={onLinkGroupMe} onReload={onReload} />
       <LeaderPoolPanel payload={payload} onAction={onAction} />
       <article className="volunteer-hub-panel volunteer-hub-span-3">
         <SectionTitle icon={<ClipboardCheck aria-hidden="true" />} eyebrow="Audit Activity" title="Accountability log" />
@@ -520,30 +792,53 @@ function DirectorDashboard({ payload, onAction }: { payload: VolunteerHubPayload
   );
 }
 
-function SmallGroupDirectorPanel({ payload, onAction }: { payload: VolunteerHubPayload; onAction: (action: VolunteerHubAction, success: string) => Promise<void> }) {
+function SmallGroupDirectorPanel({
+  payload,
+  onAction,
+  onLinkGroupMe,
+  onReload
+}: {
+  payload: VolunteerHubPayload;
+  onAction: (action: VolunteerHubAction, success: string) => Promise<void>;
+  onLinkGroupMe: (platformGroupId: string, groupMeGroupId: string) => Promise<void>;
+  onReload: () => Promise<void>;
+}) {
   const [managedGroup, setManagedGroup] = useState<VolunteerHubSmallGroup | null>(null);
-  if (payload.dataSource === "live") {
-    return (
-      <article className="volunteer-hub-panel volunteer-hub-span-3">
-        <SectionTitle icon={<UsersRound aria-hidden="true" />} eyebrow="Live Roster" title="Planning Center-backed student refs" />
-        <div className="volunteer-group-card-grid">
-          {payload.activeGroups.map((group) => (
-            <article className="volunteer-group-card" key={group.id}>
-              <strong>{group.name}</strong>
-              <span>{group.room} - {group.serviceTime}</span>
-              <p>{group.memberStudentIds.length} student refs are available. Group assignment and archive controls need persistent Volunteer Hub tables before they can be enabled.</p>
-            </article>
-          ))}
-        </div>
-      </article>
-    );
-  }
+  const [creating, setCreating] = useState(false);
+  const [name, setName] = useState("");
+  const [room, setRoom] = useState("");
+  const [serviceTime, setServiceTime] = useState("Sunday - 9:00 AM");
+  const [leaderId, setLeaderId] = useState(payload.volunteers[0]?.id ?? "");
   return (
     <article className="volunteer-hub-panel volunteer-hub-span-3">
-      <SectionTitle icon={<UsersRound aria-hidden="true" />} eyebrow="Small Groups" title="Active and archived small groups" />
+      <div className="volunteer-panel-head">
+        <SectionTitle icon={<UsersRound aria-hidden="true" />} eyebrow="Small Groups" title="Active and archived small groups" />
+        <div className="volunteer-card-actions">
+          {payload.integrations.groupMe.displayStatus !== "connected" && payload.dataSource === "live" ? (
+            <a className="button" href="/api/integrations/groupme/connect"><Link2 aria-hidden="true" />Connect GroupMe</a>
+          ) : null}
+          {!payload.readOnlyReason ? <button className="button primary" type="button" onClick={() => setCreating((value) => !value)}><Plus aria-hidden="true" />Create Group</button> : null}
+        </div>
+      </div>
+      {creating ? (
+        <form className="volunteer-create-group" onSubmit={(event) => {
+          event.preventDefault();
+          void onAction({ type: "create_group", name, room, serviceTime, leaderId }, "Small group created.").then(() => {
+            setName("");
+            setRoom("");
+            setCreating(false);
+          });
+        }}>
+          <label className="field"><span>Group name</span><input className="input" required value={name} onChange={(event) => setName(event.target.value)} placeholder="9th Grade Girls" /></label>
+          <label className="field"><span>Primary leader</span><select className="input" value={leaderId} onChange={(event) => setLeaderId(event.target.value)}><option value="">Unassigned</option>{payload.volunteers.map((volunteer) => <option key={volunteer.id} value={volunteer.id}>{volunteer.name}</option>)}</select></label>
+          <label className="field"><span>Room</span><input className="input" value={room} onChange={(event) => setRoom(event.target.value)} placeholder="Room 204" /></label>
+          <label className="field"><span>Meeting time</span><input className="input" value={serviceTime} onChange={(event) => setServiceTime(event.target.value)} /></label>
+          <button className="button primary" type="submit">Create and manage roster</button>
+        </form>
+      ) : null}
       <div className="volunteer-group-card-grid">
         {payload.activeGroups.map((group) => (
-          <GroupCard key={group.id} group={group} volunteers={payload.volunteers} onManage={() => setManagedGroup(group)} onArchive={(reason) => onAction({ type: "archive_group", groupId: group.id, reason }, "Small group archived.")} />
+          <GroupCard key={group.id} group={group} volunteers={payload.volunteers} persisted={payload.dataSource !== "live" || isUuid(group.id)} onManage={() => setManagedGroup(group)} onArchive={(reason) => onAction({ type: "archive_group", groupId: group.id, reason }, "Small group archived.")} />
         ))}
       </div>
       <h3 className="volunteer-subtitle">Archived small groups</h3>
@@ -558,7 +853,18 @@ function SmallGroupDirectorPanel({ payload, onAction }: { payload: VolunteerHubP
           </article>
         )) : <p className="muted">No small groups are archived.</p>}
       </div>
-      {managedGroup ? <ManageGroupDialog group={managedGroup} volunteers={payload.volunteers} onClose={() => setManagedGroup(null)} /> : null}
+      {managedGroup ? (
+        <ManageGroupDialog
+          group={managedGroup}
+          volunteers={payload.volunteers}
+          students={payload.studentRoster}
+          groupMeStatus={payload.integrations.groupMe.displayStatus}
+          onAction={onAction}
+          onLinkGroupMe={onLinkGroupMe}
+          onReload={onReload}
+          onClose={() => setManagedGroup(null)}
+        />
+      ) : null}
     </article>
   );
 }
@@ -566,11 +872,13 @@ function SmallGroupDirectorPanel({ payload, onAction }: { payload: VolunteerHubP
 function GroupCard({
   group,
   volunteers,
+  persisted,
   onManage,
   onArchive
 }: {
   group: VolunteerHubSmallGroup;
   volunteers: VolunteerHubVolunteer[];
+  persisted: boolean;
   onManage: () => void;
   onArchive: (reason: string) => Promise<void>;
 }) {
@@ -578,40 +886,150 @@ function GroupCard({
   const leader = volunteers.find((volunteer) => volunteer.id === group.leaderId);
   return (
     <article className="volunteer-group-card">
-      <button className="volunteer-group-menu-button" type="button" aria-label={`Open ${group.name} small group menu`} onClick={onManage}>
+      {persisted ? <button className="volunteer-group-menu-button" type="button" aria-label={`Open ${group.name} small group menu`} onClick={onManage}>
         <UsersRound aria-hidden="true" />
-      </button>
+      </button> : null}
       <strong>{group.name}</strong>
       <span>{group.room} - {group.serviceTime}</span>
-      <p>{leader?.name ?? "Unassigned"} leads {group.memberStudentIds.length} students.</p>
-      <button className="button compact-button" type="button" onClick={onManage}>Manage Group</button>
-      <label className="field volunteer-archive-reason">
+      <p>{leader?.name ?? "Unassigned"} leads {group.memberStudentIds.length} {group.memberStudentIds.length === 1 ? "student" : "students"}.</p>
+      {group.groupMeConnected ? <StatusBadge tone="success">{group.groupMeGroupName ?? "GroupMe linked"}</StatusBadge> : <StatusBadge tone="warning">GroupMe not linked</StatusBadge>}
+      {persisted ? <button className="button compact-button" type="button" onClick={onManage}>Manage Group</button> : <p className="muted">Create a permanent group to assign this imported roster.</p>}
+      {persisted ? <label className="field volunteer-archive-reason">
         <span>Archive reason</span>
         <input className="input" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Consolidated with another group" />
-      </label>
-      <button className="button compact-button danger" type="button" onClick={() => onArchive(reason)}>
+      </label> : null}
+      {persisted ? <button className="button compact-button danger" type="button" onClick={() => onArchive(reason)}>
         <Archive aria-hidden="true" />Archive small group
-      </button>
+      </button> : null}
     </article>
   );
 }
 
-function ManageGroupDialog({ group, volunteers, onClose }: { group: VolunteerHubSmallGroup; volunteers: VolunteerHubVolunteer[]; onClose: () => void }) {
-  return (
+function ManageGroupDialog({
+  group,
+  volunteers,
+  students,
+  groupMeStatus,
+  onAction,
+  onLinkGroupMe,
+  onReload,
+  onClose
+}: {
+  group: VolunteerHubSmallGroup;
+  volunteers: VolunteerHubVolunteer[];
+  students: VolunteerHubStudent[];
+  groupMeStatus: VolunteerHubPayload["integrations"]["groupMe"]["displayStatus"];
+  onAction: (action: VolunteerHubAction, success: string) => Promise<void>;
+  onLinkGroupMe: (platformGroupId: string, groupMeGroupId: string) => Promise<void>;
+  onReload: () => Promise<void>;
+  onClose: () => void;
+}) {
+  const [name, setName] = useState(group.name);
+  const [leaderId, setLeaderId] = useState(group.leaderId);
+  const [coLeaderId, setCoLeaderId] = useState(group.coLeaderId ?? "");
+  const [room, setRoom] = useState(group.room);
+  const [serviceTime, setServiceTime] = useState(group.serviceTime);
+  const [memberStudentIds, setMemberStudentIds] = useState(group.memberStudentIds);
+  const [studentQuery, setStudentQuery] = useState("");
+  const [groupMeGroups, setGroupMeGroups] = useState<GroupMeChoice[]>([]);
+  const [groupMeGroupId, setGroupMeGroupId] = useState(group.groupMeGroupId ?? "");
+  const [loadingGroupMe, setLoadingGroupMe] = useState(false);
+  const [dialogError, setDialogError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const filteredStudents = students.filter((student) => {
+    const query = studentQuery.trim().toLowerCase();
+    return !query || `${student.fullName} ${student.grade} ${student.school}`.toLowerCase().includes(query);
+  });
+
+  useEffect(() => {
+    if (groupMeStatus !== "connected" || !isUuid(group.id)) return;
+    const controller = new AbortController();
+    setLoadingGroupMe(true);
+    void fetch("/api/integrations/groupme/groups", { cache: "no-store", signal: controller.signal })
+      .then(async (response) => {
+        const body = (await response.json().catch(() => ({}))) as { groups?: GroupMeChoice[]; error?: string };
+        if (!response.ok) throw new Error(body.error ?? "GroupMe conversations could not be loaded.");
+        setGroupMeGroups(body.groups ?? []);
+      })
+      .catch((error: unknown) => {
+        if (error instanceof Error && error.name !== "AbortError") setDialogError(error.message);
+      })
+      .finally(() => setLoadingGroupMe(false));
+    return () => controller.abort();
+  }, [group.id, groupMeStatus]);
+
+  async function saveGroup(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSaving(true);
+    setDialogError("");
+    try {
+      await onAction({
+        type: "update_group",
+        groupId: group.id,
+        name,
+        leaderId,
+        coLeaderId,
+        room,
+        serviceTime,
+        memberStudentIds
+      }, "Small group leaders and roster updated.");
+      if (groupMeGroupId && groupMeGroupId !== group.groupMeGroupId) {
+        await onLinkGroupMe(group.id, groupMeGroupId);
+      }
+      await onReload();
+      onClose();
+    } catch (error) {
+      setDialogError(error instanceof Error ? error.message : "Small group could not be saved.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return createPortal(
     <div className="ministry-people-modal-backdrop" role="presentation">
-      <section className="ministry-people-modal" role="dialog" aria-modal="true" aria-label="Manage Small Group">
+      <section className="ministry-people-modal volunteer-manage-group-dialog" role="dialog" aria-modal="true" aria-label="Manage Small Group">
         <div className="ministry-people-modal-head">
           <div>
             <h3>Manage Small Group</h3>
-            <p>{group.name} is managed from the Volunteer Hub V1 preview. Archive/restore is active; leader reassignment will persist with the production schema.</p>
+            <p>Assign leaders, build the student roster, set the meeting details, and link the correct GroupMe conversation.</p>
           </div>
           <button className="button compact-button" type="button" onClick={onClose}>Close</button>
         </div>
-        <label className="field"><span>Leader</span><select className="input" defaultValue={group.leaderId}>{volunteers.map((volunteer) => <option key={volunteer.id} value={volunteer.id}>{volunteer.name} - {volunteer.role}</option>)}</select></label>
-        <label className="field"><span>Co-Leader</span><select className="input" defaultValue={group.coLeaderId ?? ""}><option value="">Open slot</option>{volunteers.map((volunteer) => <option key={volunteer.id} value={volunteer.id}>{volunteer.name} - {volunteer.role}</option>)}</select></label>
-        <label className="field"><span>Room</span><input className="input" defaultValue={group.room} /></label>
+        <form className="volunteer-manage-group-form" onSubmit={saveGroup}>
+          <div className="volunteer-manage-group-fields">
+            <label className="field"><span>Group name</span><input className="input" required value={name} onChange={(event) => setName(event.target.value)} /></label>
+            <label className="field"><span>Leader</span><select className="input" value={leaderId} onChange={(event) => setLeaderId(event.target.value)}><option value="">Unassigned</option>{volunteers.map((volunteer) => <option key={volunteer.id} value={volunteer.id}>{volunteer.name} - {volunteer.role}</option>)}</select></label>
+            <label className="field"><span>Co-Leader</span><select className="input" value={coLeaderId} onChange={(event) => setCoLeaderId(event.target.value)}><option value="">Open slot</option>{volunteers.map((volunteer) => <option key={volunteer.id} value={volunteer.id}>{volunteer.name} - {volunteer.role}</option>)}</select></label>
+            <label className="field"><span>Room</span><input className="input" value={room} onChange={(event) => setRoom(event.target.value)} /></label>
+            <label className="field"><span>Meeting time</span><input className="input" value={serviceTime} onChange={(event) => setServiceTime(event.target.value)} /></label>
+            <label className="field"><span>GroupMe conversation</span><select className="input" disabled={groupMeStatus !== "connected" || loadingGroupMe} value={groupMeGroupId} onChange={(event) => setGroupMeGroupId(event.target.value)}><option value="">{loadingGroupMe ? "Loading conversations..." : "Not linked"}</option>{groupMeGroups.map((choice) => <option key={choice.id} value={choice.id}>{choice.name} ({choice.memberCount})</option>)}</select></label>
+          </div>
+          <fieldset className="volunteer-member-picker">
+            <legend>Students in this group <span>{memberStudentIds.length} selected</span></legend>
+            <label className="volunteer-member-search"><Search aria-hidden="true" /><span className="sr-only">Search students</span><input className="input" value={studentQuery} onChange={(event) => setStudentQuery(event.target.value)} placeholder="Search name, grade, or school" /></label>
+            <div className="volunteer-member-list">
+              {filteredStudents.map((student) => {
+                const selected = memberStudentIds.includes(student.id);
+                return (
+                  <label className={selected ? "selected" : ""} key={student.id}>
+                    <input type="checkbox" checked={selected} onChange={() => setMemberStudentIds((current) => selected ? current.filter((id) => id !== student.id) : [...current, student.id])} />
+                    <span className="volunteer-avatar" aria-hidden="true">{initials(student.preferredName)}</span>
+                    <span><strong>{student.fullName}</strong><small>{student.grade} - {student.school}</small></span>
+                    {selected ? <Check aria-hidden="true" /> : null}
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
+          {dialogError ? <p className="volunteer-hub-error" role="alert">{dialogError}</p> : null}
+          <div className="volunteer-card-actions volunteer-manage-actions">
+            <button className="button" type="button" onClick={onClose}>Cancel</button>
+            <button className="button primary" type="submit" disabled={saving}>{saving ? <LoaderCircle className="volunteer-spin" aria-hidden="true" /> : <Check aria-hidden="true" />}{saving ? "Saving..." : "Save group"}</button>
+          </div>
+        </form>
       </section>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -706,7 +1124,9 @@ function HubStatus({ integrations }: { integrations: VolunteerHubPayload["integr
       </StatusBadge>
       <StatusBadge tone="info">{integrations.planningCenter.peopleCount} people refs</StatusBadge>
       <StatusBadge tone="info">{integrations.planningCenter.attendanceCount} attendance refs</StatusBadge>
-      <StatusBadge tone="warning">GroupMe preview-only</StatusBadge>
+      <StatusBadge tone={integrations.groupMe.displayStatus === "connected" ? "success" : "warning"}>
+        GroupMe: {integrations.groupMe.displayStatus.replaceAll("_", " ")}
+      </StatusBadge>
     </div>
   );
 }
@@ -732,6 +1152,16 @@ function formatDate(value: string) {
   const date = new Date(value);
   if (!value || Number.isNaN(date.getTime())) return "Not available";
   return date.toLocaleDateString([], { month: "short", day: "numeric" });
+}
+
+function formatDateTime(value: string) {
+  const date = new Date(value);
+  if (!value || Number.isNaN(date.getTime())) return "Time unavailable";
+  return date.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
 function EmptyPanel({ title, detail }: { title: string; detail: string }) {
