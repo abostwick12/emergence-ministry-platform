@@ -19493,7 +19493,7 @@ body:has(.login-shell) h3 {
 
 .volunteer-roster-filters {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) minmax(150px, 220px) minmax(150px, 220px);
+  grid-template-columns: minmax(220px, 1fr) minmax(150px, 220px);
   gap: 12px;
   align-items: end;
 }
@@ -19901,6 +19901,37 @@ body:has(.login-shell) h3 {
   justify-content: flex-end;
 }
 
+.volunteer-service-group-list {
+  display: grid;
+  gap: 14px;
+}
+
+.volunteer-service-group {
+  display: grid;
+  gap: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.48);
+  padding: 14px;
+}
+
+.volunteer-service-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.volunteer-service-group-head > div {
+  display: grid;
+  gap: 4px;
+}
+
+.volunteer-service-group-head strong {
+  color: #f8fbff;
+}
+
 .volunteer-group-card-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -20010,6 +20041,16 @@ body:has(.login-shell) h3 {
 
   .volunteer-hub-panel {
     padding: 14px;
+  }
+
+  .volunteer-service-group-head .button,
+  .volunteer-group-card .button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .volunteer-group-card {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .volunteer-create-group,

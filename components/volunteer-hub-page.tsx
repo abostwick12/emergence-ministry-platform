@@ -38,6 +38,7 @@ type VolunteerHubMode = "volunteer" | "director";
 type VolunteerTab = "dashboard" | "group" | "students" | "attendance" | "chat" | "resources" | "training" | "onboarding" | "calendar" | "profile";
 type GroupMeChoice = { id: string; name: string; description?: string; memberCount: number };
 type LiveGroupMeMessage = { id: string; senderName: string; text: string; avatarUrl?: string; createdAt: string };
+type ServiceGroupBucket = { serviceTime: string; groups: VolunteerHubSmallGroup[]; studentCount: number };
 
 const tabs: Array<{ id: VolunteerTab; label: string }> = [
   { id: "dashboard", label: "Dashboard" },
@@ -51,6 +52,8 @@ const tabs: Array<{ id: VolunteerTab; label: string }> = [
   { id: "calendar", label: "Calendar" },
   { id: "profile", label: "Profile" }
 ];
+
+const defaultServiceTimes = ["Sunday - 9:00 AM", "Sunday - 10:30 AM", "Wednesday - 6:30 PM"];
 
 export function VolunteerHubPage({ mode = "volunteer" }: { mode?: VolunteerHubMode }) {
   const [payload, setPayload] = useState<VolunteerHubPayload | null>(null);
@@ -302,9 +305,7 @@ function StudentCard({ student, actionsEnabled, onAction }: { student: Volunteer
         {student.source === "camp_clc" ? <StatusBadge tone="info">Camp CLC</StatusBadge> : null}
       </div>
       <dl className="volunteer-facts">
-        {student.teamName ? <div><dt>Team</dt><dd>{student.teamName}</dd></div> : null}
         {student.cabin ? <div><dt>Room</dt><dd>{student.cabin}</dd></div> : null}
-        {student.vehicleName ? <div><dt>Vehicle</dt><dd>{student.vehicleName}</dd></div> : null}
         <div><dt>Last attended</dt><dd>{formatDate(student.lastAttended)}</dd></div>
         <div><dt>Birthday</dt><dd>{student.birthday}</dd></div>
         <div><dt>Parent contact</dt><dd>{student.parentContactAvailable ? "Permission based" : "Not available"}</dd></div>
@@ -326,16 +327,10 @@ function StudentCard({ student, actionsEnabled, onAction }: { student: Volunteer
 
 function StudentsWorkspace({ payload, onAction }: { payload: VolunteerHubPayload; onAction: (action: VolunteerHubAction, success: string) => Promise<void> }) {
   const [query, setQuery] = useState("");
-  const [team, setTeam] = useState("all");
   const [source, setSource] = useState("all");
-  const teams = useMemo(
-    () => Array.from(new Set(payload.studentRoster.map((student) => student.teamName).filter((value): value is string => Boolean(value)))).sort(),
-    [payload.studentRoster]
-  );
   const filtered = payload.studentRoster.filter((student) => {
-    const text = `${student.preferredName} ${student.fullName} ${student.grade} ${student.teamName ?? ""} ${student.cabin ?? ""}`.toLowerCase();
+    const text = `${student.preferredName} ${student.fullName} ${student.grade} ${student.school} ${student.cabin ?? ""}`.toLowerCase();
     return (!query.trim() || text.includes(query.trim().toLowerCase()))
-      && (team === "all" || student.teamName === team)
       && (source === "all" || student.source === source);
   });
   const actionsEnabled = !payload.readOnlyReason;
@@ -347,8 +342,7 @@ function StudentsWorkspace({ payload, onAction }: { payload: VolunteerHubPayload
       <article className="volunteer-hub-panel volunteer-hub-span-3 volunteer-student-roster-tools">
         <SectionTitle icon={<UsersRound aria-hidden="true" />} eyebrow="Students" title="Roster view" />
         <div className="volunteer-roster-filters">
-          <label className="field"><span>Search</span><input className="input" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Name, grade, team, or room" /></label>
-          <label className="field"><span>Team</span><select className="input" value={team} onChange={(event) => setTeam(event.target.value)}><option value="all">All teams</option>{teams.map((teamName) => <option key={teamName} value={teamName}>{teamName}</option>)}</select></label>
+          <label className="field"><span>Search</span><input className="input" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Name, grade, school, or room" /></label>
           <label className="field"><span>Source</span><select className="input" value={source} onChange={(event) => setSource(event.target.value)}><option value="all">All sources</option><option value="camp_clc">Camp CLC</option><option value="planning_center">Planning Center</option><option value="demo">Demo</option></select></label>
         </div>
       </article>
@@ -807,17 +801,24 @@ function SmallGroupDirectorPanel({
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const [room, setRoom] = useState("");
-  const [serviceTime, setServiceTime] = useState("Sunday - 9:00 AM");
+  const serviceOptions = useMemo(() => uniqueServiceTimes([
+    payload.activeGroup.serviceTime,
+    ...payload.activeGroups.map((group) => group.serviceTime),
+    ...payload.archivedGroups.map((group) => group.serviceTime),
+    ...defaultServiceTimes
+  ]), [payload.activeGroup.serviceTime, payload.activeGroups, payload.archivedGroups]);
+  const serviceBuckets = useMemo(() => groupSmallGroupsByService(payload.activeGroups), [payload.activeGroups]);
+  const [serviceTime, setServiceTime] = useState(payload.activeGroup.serviceTime || serviceOptions[0] || defaultServiceTimes[0]);
   const [leaderId, setLeaderId] = useState(payload.volunteers[0]?.id ?? "");
   return (
     <article className="volunteer-hub-panel volunteer-hub-span-3">
       <div className="volunteer-panel-head">
-        <SectionTitle icon={<UsersRound aria-hidden="true" />} eyebrow="Small Groups" title="Active and archived small groups" />
+        <SectionTitle icon={<UsersRound aria-hidden="true" />} eyebrow="Small Groups" title="Small groups by service" />
         <div className="volunteer-card-actions">
           {payload.integrations.groupMe.displayStatus !== "connected" && payload.dataSource === "live" ? (
             <a className="button" href="/api/integrations/groupme/connect"><Link2 aria-hidden="true" />Connect GroupMe</a>
           ) : null}
-          {!payload.readOnlyReason ? <button className="button primary" type="button" onClick={() => setCreating((value) => !value)}><Plus aria-hidden="true" />Create Group</button> : null}
+          {!payload.readOnlyReason ? <button className="button primary" type="button" onClick={() => setCreating((value) => !value)}><Plus aria-hidden="true" />Create Service Group</button> : null}
         </div>
       </div>
       {creating ? (
@@ -829,17 +830,40 @@ function SmallGroupDirectorPanel({
             setCreating(false);
           });
         }}>
+          <label className="field"><span>Service</span><input className="input" list="volunteer-service-times" required value={serviceTime} onChange={(event) => setServiceTime(event.target.value)} placeholder="Sunday - 10:30 AM" /></label>
           <label className="field"><span>Group name</span><input className="input" required value={name} onChange={(event) => setName(event.target.value)} placeholder="9th Grade Girls" /></label>
           <label className="field"><span>Primary leader</span><select className="input" value={leaderId} onChange={(event) => setLeaderId(event.target.value)}><option value="">Unassigned</option>{payload.volunteers.map((volunteer) => <option key={volunteer.id} value={volunteer.id}>{volunteer.name}</option>)}</select></label>
           <label className="field"><span>Room</span><input className="input" value={room} onChange={(event) => setRoom(event.target.value)} placeholder="Room 204" /></label>
-          <label className="field"><span>Meeting time</span><input className="input" value={serviceTime} onChange={(event) => setServiceTime(event.target.value)} /></label>
+          <datalist id="volunteer-service-times">
+            {serviceOptions.map((option) => <option key={option} value={option} />)}
+          </datalist>
           <button className="button primary" type="submit">Create and manage roster</button>
         </form>
       ) : null}
-      <div className="volunteer-group-card-grid">
-        {payload.activeGroups.map((group) => (
-          <GroupCard key={group.id} group={group} volunteers={payload.volunteers} persisted={payload.dataSource !== "live" || isUuid(group.id)} onManage={() => setManagedGroup(group)} onArchive={(reason) => onAction({ type: "archive_group", groupId: group.id, reason }, "Small group archived.")} />
-        ))}
+      <div className="volunteer-service-group-list">
+        {serviceBuckets.length ? serviceBuckets.map((bucket) => (
+          <section className="volunteer-service-group" key={bucket.serviceTime} aria-label={`${bucket.serviceTime} small groups`}>
+            <header className="volunteer-service-group-head">
+              <div>
+                <span className="eyebrow">{bucket.serviceTime}</span>
+                <strong>{bucket.groups.length} {bucket.groups.length === 1 ? "group" : "groups"} - {bucket.studentCount} {bucket.studentCount === 1 ? "student" : "students"}</strong>
+              </div>
+              {!payload.readOnlyReason ? (
+                <button className="button compact-button" type="button" onClick={() => {
+                  setServiceTime(bucket.serviceTime);
+                  setCreating(true);
+                }}>
+                  <Plus aria-hidden="true" />New group
+                </button>
+              ) : null}
+            </header>
+            <div className="volunteer-group-card-grid">
+              {bucket.groups.map((group) => (
+                <GroupCard key={group.id} group={group} volunteers={payload.volunteers} persisted={payload.dataSource !== "live" || isUuid(group.id)} onManage={() => setManagedGroup(group)} onArchive={(reason) => onAction({ type: "archive_group", groupId: group.id, reason }, "Small group archived.")} />
+              ))}
+            </div>
+          </section>
+        )) : <EmptyState title="No active small groups" detail="Create the first group for a service, then assign leaders and students." />}
       </div>
       <h3 className="volunteer-subtitle">Archived small groups</h3>
       <div className="volunteer-group-card-grid">
@@ -858,6 +882,7 @@ function SmallGroupDirectorPanel({
           group={managedGroup}
           volunteers={payload.volunteers}
           students={payload.studentRoster}
+          serviceOptions={serviceOptions}
           groupMeStatus={payload.integrations.groupMe.displayStatus}
           onAction={onAction}
           onLinkGroupMe={onLinkGroupMe}
@@ -909,6 +934,7 @@ function ManageGroupDialog({
   group,
   volunteers,
   students,
+  serviceOptions,
   groupMeStatus,
   onAction,
   onLinkGroupMe,
@@ -918,6 +944,7 @@ function ManageGroupDialog({
   group: VolunteerHubSmallGroup;
   volunteers: VolunteerHubVolunteer[];
   students: VolunteerHubStudent[];
+  serviceOptions: string[];
   groupMeStatus: VolunteerHubPayload["integrations"]["groupMe"]["displayStatus"];
   onAction: (action: VolunteerHubAction, success: string) => Promise<void>;
   onLinkGroupMe: (platformGroupId: string, groupMeGroupId: string) => Promise<void>;
@@ -1001,7 +1028,10 @@ function ManageGroupDialog({
             <label className="field"><span>Leader</span><select className="input" value={leaderId} onChange={(event) => setLeaderId(event.target.value)}><option value="">Unassigned</option>{volunteers.map((volunteer) => <option key={volunteer.id} value={volunteer.id}>{volunteer.name} - {volunteer.role}</option>)}</select></label>
             <label className="field"><span>Co-Leader</span><select className="input" value={coLeaderId} onChange={(event) => setCoLeaderId(event.target.value)}><option value="">Open slot</option>{volunteers.map((volunteer) => <option key={volunteer.id} value={volunteer.id}>{volunteer.name} - {volunteer.role}</option>)}</select></label>
             <label className="field"><span>Room</span><input className="input" value={room} onChange={(event) => setRoom(event.target.value)} /></label>
-            <label className="field"><span>Meeting time</span><input className="input" value={serviceTime} onChange={(event) => setServiceTime(event.target.value)} /></label>
+            <label className="field"><span>Service</span><input className="input" list="volunteer-manage-service-times" value={serviceTime} onChange={(event) => setServiceTime(event.target.value)} /></label>
+            <datalist id="volunteer-manage-service-times">
+              {serviceOptions.map((option) => <option key={option} value={option} />)}
+            </datalist>
             <label className="field"><span>GroupMe conversation</span><select className="input" disabled={groupMeStatus !== "connected" || loadingGroupMe} value={groupMeGroupId} onChange={(event) => setGroupMeGroupId(event.target.value)}><option value="">{loadingGroupMe ? "Loading conversations..." : "Not linked"}</option>{groupMeGroups.map((choice) => <option key={choice.id} value={choice.id}>{choice.name} ({choice.memberCount})</option>)}</select></label>
           </div>
           <fieldset className="volunteer-member-picker">
@@ -1087,6 +1117,32 @@ function MetricCard({ icon, label, value, detail }: { icon: ReactNode; label: st
       <div><span>{label}</span><strong>{value}</strong><p>{detail}</p></div>
     </article>
   );
+}
+
+function uniqueServiceTimes(values: string[]) {
+  const seen = new Set<string>();
+  return values
+    .map((value) => value.trim())
+    .filter((value) => {
+      if (!value || seen.has(value)) return false;
+      seen.add(value);
+      return true;
+    });
+}
+
+function groupSmallGroupsByService(groups: VolunteerHubSmallGroup[]): ServiceGroupBucket[] {
+  const buckets = new Map<string, VolunteerHubSmallGroup[]>();
+  groups.forEach((group) => {
+    const serviceTime = group.serviceTime.trim() || "Unscheduled service";
+    buckets.set(serviceTime, [...(buckets.get(serviceTime) ?? []), group]);
+  });
+  return Array.from(buckets.entries())
+    .map(([serviceTime, serviceGroups]) => ({
+      serviceTime,
+      groups: serviceGroups,
+      studentCount: serviceGroups.reduce((sum, group) => sum + group.memberStudentIds.length, 0)
+    }))
+    .sort((left, right) => left.serviceTime.localeCompare(right.serviceTime));
 }
 
 function LatestResources({ resources, onOpen }: { resources: VolunteerHubResource[]; onOpen: () => void }) {

@@ -57,7 +57,9 @@ test.describe("Personal Command Center", () => {
     );
     await applicationCard.getByRole("combobox").selectOption("interview");
     await applicationUpdate;
-    await expect(applicationCard.getByRole("combobox")).toHaveValue("interview");
+    const interviewColumn = page.getByLabel("Interview applications");
+    const movedApplicationCard = interviewColumn.locator("article").filter({ hasText: company });
+    await expect(movedApplicationCard.getByRole("combobox")).toHaveValue("interview");
   });
 });
 
