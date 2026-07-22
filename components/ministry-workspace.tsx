@@ -828,6 +828,18 @@ function TasksWorkspace({
   const filteredTasks = sortTasksByUrgency(statusFilter === "all" ? searchedTasks : searchedTasks.filter((task) => task.status === statusFilter));
   const groupedFilteredTasks = groupTasksByEvent(filteredTasks, events);
 
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 720px)");
+    if (mediaQuery.matches) setViewMode("list");
+
+    function handleChange(event: MediaQueryListEvent) {
+      if (event.matches) setViewMode("list");
+    }
+
+    mediaQuery.addEventListener("change", handleChange);
+    return () => mediaQuery.removeEventListener("change", handleChange);
+  }, []);
+
   return (
     <section className="tasks-workspace tasks-lovable-workspace" id="kanban-dashboard">
       <div className="toolbar tasks-header tasks-lovable-toolbar">
@@ -852,6 +864,11 @@ function TasksWorkspace({
           <span className="sr-only">Search tasks</span>
           <input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search tasks..." type="search" />
         </label>
+      </div>
+      <div className="mobile-task-summary" aria-label="Task summary">
+        <span><strong>{searchedTasks.filter((task) => task.status === "blocked").length}</strong> stuck</span>
+        <span><strong>{searchedTasks.filter((task) => task.status !== "done").length}</strong> open</span>
+        <span><strong>{searchedTasks.filter((task) => task.status === "done").length}</strong> done</span>
       </div>
       {viewMode === "kanban" ? (
         <div className="kanban task-board">
@@ -966,9 +983,92 @@ function TasksWorkspace({
               </tbody>
             </table>
           </div>
+          <div className="mobile-task-action-list" aria-label="Mobile task action list">
+            {groupedFilteredTasks.length ? (
+              groupedFilteredTasks.map((group) => (
+                <section className="mobile-task-group" key={group.eventId} aria-labelledby={`mobile-task-group-${group.eventId}`}>
+                  <header className="mobile-task-group-header">
+                    <h2 id={`mobile-task-group-${group.eventId}`}>{group.eventTitle}</h2>
+                    <span>{group.tasks.length} task{group.tasks.length === 1 ? "" : "s"}</span>
+                  </header>
+                  {group.tasks.map((task) => (
+                    <MobileTaskActionCard key={task.id} task={task} eventTitle={group.eventTitle} users={users} canSaveChanges={canSaveChanges} onUpdate={onUpdate} />
+                  ))}
+                </section>
+              ))
+            ) : (
+              <QuietState title="No tasks found">Try another search or status filter.</QuietState>
+            )}
+          </div>
         </div>
       )}
     </section>
+  );
+}
+
+function MobileTaskActionCard({
+  task,
+  eventTitle,
+  users,
+  canSaveChanges,
+  onUpdate
+}: {
+  task: ActiveTask;
+  eventTitle: string;
+  users: User[];
+  canSaveChanges: boolean;
+  onUpdate: (taskId: string, body: Partial<ActiveTask>) => Promise<void>;
+}) {
+  const [dueDate, setDueDate] = useState(toDateInputValue(task.dueDate));
+  const [dueSaveState, setDueSaveState] = useState<"idle" | "saving" | "saved">("idle");
+  const owner = users.find((user) => user.id === task.assignedUserId);
+  const isCritical = task.timelineOffsetDays <= -30 || task.status === "blocked";
+
+  useEffect(() => {
+    setDueDate(toDateInputValue(task.dueDate));
+    setDueSaveState("idle");
+  }, [task.dueDate]);
+
+  async function saveDueDate(nextDueDate: string) {
+    setDueDate(nextDueDate);
+    if (!nextDueDate) return;
+    setDueSaveState("saving");
+    await onUpdate(task.id, { dueDate: new Date(`${nextDueDate}T12:00:00`).toISOString() });
+    setDueSaveState("saved");
+  }
+
+  return (
+    <article className={isCritical ? "mobile-task-action-card critical" : "mobile-task-action-card"}>
+      <div className="mobile-task-action-copy">
+        <span className={task.status === "done" ? "pill done" : task.status === "blocked" ? "pill blocked" : "pill"}>{statusLabels[task.status]}</span>
+        <h3>{task.taskTitle}</h3>
+        <p>{eventTitle}</p>
+        <small>{owner ? `${owner.firstName} ${owner.lastName}` : "Unassigned"}</small>
+      </div>
+      <div className="mobile-task-action-controls">
+        <label>
+          <span>Due</span>
+          <input className="input" aria-label={`Due date for ${task.taskTitle}`} type="date" value={dueDate} disabled={!canSaveChanges} onChange={(event) => void saveDueDate(event.target.value)} />
+        </label>
+        <label>
+          <span>Status</span>
+          <select
+            className="input"
+            aria-label={`Status for ${task.taskTitle}`}
+            value={task.status}
+            disabled={!canSaveChanges}
+            onChange={(event) => void onUpdate(task.id, { status: event.target.value as TaskStatus })}
+          >
+            {statuses.map((status) => (
+              <option key={status} value={status}>
+                {statusLabels[status]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <span className="inline-save-state">{!canSaveChanges ? "Read only" : dueSaveState === "saving" ? "Saving..." : dueSaveState === "saved" ? "Saved" : "Autosaves"}</span>
+      </div>
+    </article>
   );
 }
 
@@ -1094,6 +1194,16 @@ function EventsWorkspace({
   return (
     <section className="events-workspace-panel events-lovable-workspace" id="events-workspace">
       <div className="events-lovable-toolbar" aria-label="Event filters">
+        <label className="mobile-event-filter-field">
+          <span>Show events</span>
+          <select className="input" value={activeTab} onChange={(event) => setActiveTab(event.target.value as EventTabKey)}>
+            {(Object.keys(eventTabLabels) as EventTabKey[]).map((tabKey) => (
+              <option key={tabKey} value={tabKey}>
+                {eventTabLabels[tabKey]}
+              </option>
+            ))}
+          </select>
+        </label>
         <div className="events-lovable-tabs" role="tablist" aria-label="Event timeframe">
           {(Object.keys(eventTabLabels) as EventTabKey[]).map((tabKey) => (
             <button
