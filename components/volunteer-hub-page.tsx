@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
 import {
@@ -138,6 +138,21 @@ export function VolunteerHubPage({ mode = "volunteer" }: { mode?: VolunteerHubMo
     void load();
   }, []);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const groupMeStatus = params.get("groupme");
+    if (groupMeStatus === "connected") {
+      setNotice("GroupMe connected. Choose Manage Group on a small group, then select the matching GroupMe conversation.");
+    } else if (groupMeStatus === "error") {
+      setError("GroupMe connected screen returned without saving. Try reconnecting, then choose a small-group conversation.");
+    }
+    if (groupMeStatus) {
+      params.delete("groupme");
+      const nextSearch = params.toString();
+      window.history.replaceState(null, "", `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ""}${window.location.hash}`);
+    }
+  }, []);
+
   if (loading) return <section className="panel volunteer-hub-loading">Loading ministry workspace...</section>;
   if (error && !payload) return <section className="panel volunteer-hub-loading" role="alert">{error}</section>;
   if (!payload) return null;
@@ -162,6 +177,7 @@ export function VolunteerHubPage({ mode = "volunteer" }: { mode?: VolunteerHubMo
         <DirectorDashboard payload={payload} onAction={act} onLinkGroupMe={linkGroupMeConversation} onReload={load} />
       ) : (
         <>
+          <MobileVolunteerPriorities payload={payload} activeTab={activeTab} onTabChange={setActiveTab} />
           <nav className="volunteer-hub-tabs" aria-label="Volunteer Hub sections">
             {tabs.map((tab) => (
               <button key={tab.id} type="button" className={activeTab === tab.id ? "active" : ""} onClick={() => setActiveTab(tab.id)}>
@@ -186,6 +202,71 @@ export function VolunteerHubPage({ mode = "volunteer" }: { mode?: VolunteerHubMo
           ) : null}
         </>
       )}
+    </section>
+  );
+}
+
+function MobileVolunteerPriorities({
+  payload,
+  activeTab,
+  onTabChange
+}: {
+  payload: VolunteerHubPayload;
+  activeTab: VolunteerTab;
+  onTabChange: (tab: VolunteerTab) => void;
+}) {
+  const openTasks = payload.tasks.filter((task) => !task.completed).length;
+  const followUps = payload.students.filter((student) => student.followUpNeeded).length;
+  const unreadMessages = payload.notifications.filter((item) => item.unread && item.href.includes("chat")).length;
+  const priorityTabs: Array<{ id: VolunteerTab; label: string; title: string; detail: string; icon: ReactNode }> = [
+    {
+      id: "dashboard",
+      label: "Today",
+      title: openTasks ? `${openTasks} task${openTasks === 1 ? "" : "s"}` : "Ready",
+      detail: payload.activeGroup.serviceTime,
+      icon: <ClipboardCheck aria-hidden="true" />
+    },
+    {
+      id: "students",
+      label: "Students",
+      title: followUps ? `${followUps} follow-up${followUps === 1 ? "" : "s"}` : `${payload.students.length} assigned`,
+      detail: payload.activeGroup.name,
+      icon: <UsersRound aria-hidden="true" />
+    },
+    {
+      id: "resources",
+      label: "Resources",
+      title: `${payload.resources.length} prep item${payload.resources.length === 1 ? "" : "s"}`,
+      detail: `${payload.resources.reduce((sum, resource) => sum + resource.estimatedMinutes, 0)} min prep`,
+      icon: <BookOpen aria-hidden="true" />
+    },
+    {
+      id: "chat",
+      label: "Chat",
+      title: payload.activeGroup.groupMeConnected ? "GroupMe linked" : unreadMessages ? `${unreadMessages} update${unreadMessages === 1 ? "" : "s"}` : "Message prep",
+      detail: payload.integrations.groupMe.displayStatus === "connected" ? "Review before sending" : "Preview only",
+      icon: <MessageSquareText aria-hidden="true" />
+    }
+  ];
+
+  return (
+    <section className="mobile-volunteer-priorities" aria-label="Volunteer mobile priorities">
+      <div className="mobile-volunteer-priority-grid">
+        {priorityTabs.map((tab) => (
+          <button key={tab.id} className={activeTab === tab.id ? "mobile-volunteer-priority active" : "mobile-volunteer-priority"} type="button" onClick={() => onTabChange(tab.id)}>
+            {tab.icon}
+            <span>{tab.label}</span>
+            <strong>{tab.title}</strong>
+            <small>{tab.detail}</small>
+          </button>
+        ))}
+      </div>
+      <div className="mobile-volunteer-more">
+        <label htmlFor="mobile-volunteer-more-select">More volunteer tools</label>
+        <select id="mobile-volunteer-more-select" className="input" value={activeTab} onChange={(event) => onTabChange(event.target.value as VolunteerTab)}>
+          {tabs.map((tab) => <option key={tab.id} value={tab.id}>{tab.label}</option>)}
+        </select>
+      </div>
     </section>
   );
 }
@@ -574,6 +655,7 @@ function ResourcesWorkspace({ payload, onAction }: { payload: VolunteerHubPayloa
       <article className="volunteer-hub-panel volunteer-hub-span-3">
         <SectionTitle icon={<BookOpen aria-hidden="true" />} eyebrow="Volunteer Prep" title={payload.resources.length ? "This week's leader workflow" : "No resources published yet"} />
         <p className="muted">Preparation estimate: {payload.resources.reduce((sum, resource) => sum + resource.estimatedMinutes, 0)} minutes.</p>
+        <ResourceAttachments compact parentType="small_group_resource" parentId={payload.activeGroup.id} title="Small-group videos and resources" />
       </article>
       {payload.resources.some((resource) => resource.id === "res_leader_guide") ? <JerichoLeaderGuideCard /> : null}
       {payload.resources.length ? payload.resources.map((resource) => (
@@ -810,17 +892,57 @@ function SmallGroupDirectorPanel({
   const serviceBuckets = useMemo(() => groupSmallGroupsByService(payload.activeGroups), [payload.activeGroups]);
   const [serviceTime, setServiceTime] = useState(payload.activeGroup.serviceTime || serviceOptions[0] || defaultServiceTimes[0]);
   const [leaderId, setLeaderId] = useState(payload.volunteers[0]?.id ?? "");
+  const [groupMeGroups, setGroupMeGroups] = useState<GroupMeChoice[]>([]);
+  const [loadingGroupMe, setLoadingGroupMe] = useState(false);
+  const [groupMeError, setGroupMeError] = useState("");
+  const groupMeDisplayStatus = payload.integrations.groupMe.displayStatus;
+
+  const loadGroupMeGroups = useCallback(async () => {
+    if (groupMeDisplayStatus !== "connected") return;
+    setLoadingGroupMe(true);
+    setGroupMeError("");
+    try {
+      const response = await fetch("/api/integrations/groupme/groups", { cache: "no-store" });
+      const body = (await response.json().catch(() => ({}))) as { groups?: GroupMeChoice[]; error?: string };
+      if (!response.ok) throw new Error(body.error ?? "GroupMe conversations could not be loaded.");
+      setGroupMeGroups(body.groups ?? []);
+    } catch (error) {
+      setGroupMeError(error instanceof Error ? error.message : "GroupMe conversations could not be loaded.");
+    } finally {
+      setLoadingGroupMe(false);
+    }
+  }, [groupMeDisplayStatus]);
+
+  useEffect(() => {
+    void loadGroupMeGroups();
+  }, [loadGroupMeGroups]);
+
   return (
     <article className="volunteer-hub-panel volunteer-hub-span-3">
       <div className="volunteer-panel-head">
         <SectionTitle icon={<UsersRound aria-hidden="true" />} eyebrow="Small Groups" title="Small groups by service" />
         <div className="volunteer-card-actions">
-          {payload.integrations.groupMe.displayStatus !== "connected" && payload.dataSource === "live" ? (
+          {groupMeDisplayStatus !== "connected" && payload.dataSource === "live" ? (
             <a className="button" href="/api/integrations/groupme/connect"><Link2 aria-hidden="true" />Connect GroupMe</a>
           ) : null}
           {!payload.readOnlyReason ? <button className="button primary" type="button" onClick={() => setCreating((value) => !value)}><Plus aria-hidden="true" />Create Service Group</button> : null}
         </div>
       </div>
+      {payload.dataSource === "live" ? (
+        <div className="volunteer-groupme-population" role="status" aria-live="polite">
+          <Link2 aria-hidden="true" />
+          <div>
+            <strong>{groupMeStatusHeadline(groupMeDisplayStatus, groupMeGroups.length, loadingGroupMe)}</strong>
+            <p>{groupMeError || groupMePopulationDetail(groupMeDisplayStatus, groupMeGroups.length, payload.integrations.groupMe.message)}</p>
+          </div>
+          {groupMeDisplayStatus === "connected" ? (
+            <button className="button compact-button" type="button" disabled={loadingGroupMe} onClick={() => void loadGroupMeGroups()}>
+              {loadingGroupMe ? <LoaderCircle className="volunteer-spin" aria-hidden="true" /> : <RefreshCw aria-hidden="true" />}
+              Refresh conversations
+            </button>
+          ) : null}
+        </div>
+      ) : null}
       {creating ? (
         <form className="volunteer-create-group" onSubmit={(event) => {
           event.preventDefault();
@@ -883,7 +1005,9 @@ function SmallGroupDirectorPanel({
           volunteers={payload.volunteers}
           students={payload.studentRoster}
           serviceOptions={serviceOptions}
-          groupMeStatus={payload.integrations.groupMe.displayStatus}
+          groupMeStatus={groupMeDisplayStatus}
+          groupMeGroups={groupMeGroups}
+          loadingGroupMe={loadingGroupMe}
           onAction={onAction}
           onLinkGroupMe={onLinkGroupMe}
           onReload={onReload}
@@ -936,6 +1060,8 @@ function ManageGroupDialog({
   students,
   serviceOptions,
   groupMeStatus,
+  groupMeGroups,
+  loadingGroupMe,
   onAction,
   onLinkGroupMe,
   onReload,
@@ -946,6 +1072,8 @@ function ManageGroupDialog({
   students: VolunteerHubStudent[];
   serviceOptions: string[];
   groupMeStatus: VolunteerHubPayload["integrations"]["groupMe"]["displayStatus"];
+  groupMeGroups: GroupMeChoice[];
+  loadingGroupMe: boolean;
   onAction: (action: VolunteerHubAction, success: string) => Promise<void>;
   onLinkGroupMe: (platformGroupId: string, groupMeGroupId: string) => Promise<void>;
   onReload: () => Promise<void>;
@@ -958,32 +1086,13 @@ function ManageGroupDialog({
   const [serviceTime, setServiceTime] = useState(group.serviceTime);
   const [memberStudentIds, setMemberStudentIds] = useState(group.memberStudentIds);
   const [studentQuery, setStudentQuery] = useState("");
-  const [groupMeGroups, setGroupMeGroups] = useState<GroupMeChoice[]>([]);
   const [groupMeGroupId, setGroupMeGroupId] = useState(group.groupMeGroupId ?? "");
-  const [loadingGroupMe, setLoadingGroupMe] = useState(false);
   const [dialogError, setDialogError] = useState("");
   const [saving, setSaving] = useState(false);
   const filteredStudents = students.filter((student) => {
     const query = studentQuery.trim().toLowerCase();
     return !query || `${student.fullName} ${student.grade} ${student.school}`.toLowerCase().includes(query);
   });
-
-  useEffect(() => {
-    if (groupMeStatus !== "connected" || !isUuid(group.id)) return;
-    const controller = new AbortController();
-    setLoadingGroupMe(true);
-    void fetch("/api/integrations/groupme/groups", { cache: "no-store", signal: controller.signal })
-      .then(async (response) => {
-        const body = (await response.json().catch(() => ({}))) as { groups?: GroupMeChoice[]; error?: string };
-        if (!response.ok) throw new Error(body.error ?? "GroupMe conversations could not be loaded.");
-        setGroupMeGroups(body.groups ?? []);
-      })
-      .catch((error: unknown) => {
-        if (error instanceof Error && error.name !== "AbortError") setDialogError(error.message);
-      })
-      .finally(() => setLoadingGroupMe(false));
-    return () => controller.abort();
-  }, [group.id, groupMeStatus]);
 
   async function saveGroup(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1128,6 +1237,21 @@ function uniqueServiceTimes(values: string[]) {
       seen.add(value);
       return true;
     });
+}
+
+function groupMeStatusHeadline(status: VolunteerHubPayload["integrations"]["groupMe"]["displayStatus"], groupCount: number, loading: boolean) {
+  if (loading) return "Loading GroupMe conversations";
+  if (status === "connected") return groupCount ? `${groupCount} GroupMe conversations available` : "GroupMe connected";
+  if (status === "not_configured") return "GroupMe setup needed";
+  if (status === "storage_unavailable") return "GroupMe storage unavailable";
+  if (status === "error") return "GroupMe needs attention";
+  return "GroupMe not connected";
+}
+
+function groupMePopulationDetail(status: VolunteerHubPayload["integrations"]["groupMe"]["displayStatus"], groupCount: number, fallback: string) {
+  if (status === "connected" && groupCount) return "Choose Manage Group on a small group, then select the matching conversation.";
+  if (status === "connected") return "No conversations were returned for the connected GroupMe account. Refresh or reconnect with the account that owns the ministry groups.";
+  return fallback;
 }
 
 function groupSmallGroupsByService(groups: VolunteerHubSmallGroup[]): ServiceGroupBucket[] {

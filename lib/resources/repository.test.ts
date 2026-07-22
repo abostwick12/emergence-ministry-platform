@@ -52,6 +52,30 @@ describe("resource attachment repository", () => {
     });
   });
 
+  it("saves YouTube embeds only for YouTube URLs", async () => {
+    const resource = await createResourceAttachment(session("admin"), {
+      externalUrl: "https://youtu.be/7_CGP-12AE0",
+      parentId: "group_8th_boys",
+      parentType: "small_group_resource",
+      resourceType: "youtube",
+      title: "Leader prep video",
+      visibility: "volunteer_leaders"
+    });
+
+    expect(resource.resourceType).toBe("youtube");
+    expect(resource.externalUrl).toContain("youtu.be");
+
+    await expect(
+      createResourceAttachment(session("admin"), {
+        externalUrl: "https://example.com/not-a-video",
+        parentId: "group_8th_boys",
+        parentType: "small_group_resource",
+        resourceType: "youtube",
+        title: "Wrong video"
+      })
+    ).rejects.toThrow("valid YouTube URL");
+  });
+
   it("blocks non-admin resource management", async () => {
     await expect(
       createResourceAttachment(session("leader"), {
