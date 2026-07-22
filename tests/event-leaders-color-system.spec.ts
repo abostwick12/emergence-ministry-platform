@@ -134,7 +134,7 @@ test.describe("event color system and volunteer leaders", () => {
     expect(eventAccent.borderColor).not.toBe("rgba(0, 0, 0, 0)");
     expect(eventAccent.boxShadow).not.toBe("none");
 
-    await page.getByRole("button", { name: /Expand task tree/i }).first().click();
+    await page.getByRole("button", { name: "View tasks" }).first().click();
     const subtask = page.locator(".event-task-tree-item").first();
     await expect(subtask).toBeVisible();
     await expect(subtask).toHaveCSS("background-color", /rgb/);

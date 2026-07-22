@@ -479,6 +479,133 @@
   border-color: rgba(22, 217, 245, 0.34);
 }
 
+.app-shell:not(.app-shell-camp) .event-card-row.event-action-card-row {
+  grid-template-columns: minmax(280px, 0.95fr) minmax(320px, 1fr);
+}
+
+.app-shell:not(.app-shell-camp) .event-readiness-panel {
+  display: grid;
+  grid-template-areas:
+    "copy next"
+    "actions actions";
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 0.72fr);
+  align-items: center;
+  gap: 18px;
+  min-width: 0;
+  border-left: 1px solid rgba(129, 164, 214, 0.18);
+  padding: 28px 24px;
+}
+
+.app-shell:not(.app-shell-camp) .event-readiness-copy,
+.app-shell:not(.app-shell-camp) .event-next-action {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.app-shell:not(.app-shell-camp) .event-readiness-copy {
+  grid-area: copy;
+}
+
+.app-shell:not(.app-shell-camp) .event-next-action {
+  grid-area: next;
+}
+
+.app-shell:not(.app-shell-camp) .event-readiness-copy strong {
+  color: #f7fbff;
+  font-family: var(--font-platform-serif), Georgia, serif;
+  font-size: 24px;
+  line-height: 1.1;
+}
+
+.app-shell:not(.app-shell-camp) .event-readiness-ready .event-readiness-copy strong {
+  color: #86efac;
+}
+
+.app-shell:not(.app-shell-camp) .event-readiness-warning .event-readiness-copy strong,
+.app-shell:not(.app-shell-camp) .event-readiness-attention .event-readiness-copy strong {
+  color: var(--platform-gold);
+}
+
+.app-shell:not(.app-shell-camp) .event-readiness-copy p,
+.app-shell:not(.app-shell-camp) .event-next-action p {
+  margin: 0;
+  color: rgba(231, 242, 251, 0.82);
+  line-height: 1.45;
+}
+
+.app-shell:not(.app-shell-camp) .event-next-action {
+  border-left: 3px solid var(--platform-gold);
+  padding-left: 14px;
+}
+
+.app-shell:not(.app-shell-camp) .event-next-action span {
+  color: var(--platform-gold);
+  font-family: var(--font-platform-mono), ui-monospace, monospace;
+  font-size: 12px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.app-shell:not(.app-shell-camp) .event-card-actions {
+  grid-area: actions;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 10px;
+}
+
+.app-shell:not(.app-shell-camp) .event-card-actions .button {
+  min-width: 150px;
+  white-space: nowrap;
+}
+
+.app-shell:not(.app-shell-camp) .event-detail-strip {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  border-top: 1px solid rgba(129, 164, 214, 0.18);
+}
+
+.app-shell:not(.app-shell-camp) .event-detail-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 48px;
+  border: 0;
+  border-right: 1px solid rgba(129, 164, 214, 0.14);
+  background: rgba(3, 14, 28, 0.28);
+  color: rgba(231, 242, 251, 0.82);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+}
+
+.app-shell:not(.app-shell-camp) .event-detail-button:last-child {
+  border-right: 0;
+}
+
+.app-shell:not(.app-shell-camp) .event-detail-button:hover,
+.app-shell:not(.app-shell-camp) .event-detail-button:focus-visible {
+  background: rgba(14, 165, 233, 0.14);
+  color: #f7fbff;
+}
+
+.app-shell:not(.app-shell-camp) .event-detail-button strong {
+  color: var(--platform-cyan);
+  font-size: 13px;
+}
+
+.app-shell:not(.app-shell-camp) .event-expanded-resources {
+  display: grid;
+  gap: 14px;
+}
+
+.app-shell:not(.app-shell-camp) .event-planning-details {
+  border-top: 1px solid rgba(129, 164, 214, 0.18);
+}
+
 .app-shell:not(.app-shell-camp) .worship-lovable-page {
   width: 100%;
   min-width: 0;

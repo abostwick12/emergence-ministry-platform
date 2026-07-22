@@ -204,20 +204,17 @@ test.describe("MVP event automation navigation smoke tests", () => {
 
     const winterRow = page.locator(".event-row-card", { hasText: "Winter Retreat" });
     await expect(winterRow.locator(".event-identity-section")).toBeVisible();
-    await expect(winterRow.locator(".event-summary-scroll")).toBeVisible();
-    const operationsRail = winterRow.locator(".event-operations-rail");
-    await expect(operationsRail).toBeVisible();
-    await expect(winterRow.getByRole("heading", { name: "Event Targets" })).toBeVisible();
-    await expect(operationsRail.getByText("Event Vision", { exact: true })).toBeVisible();
-    await expect(operationsRail).toContainText("A weekend retreat for worship");
+    await expect(winterRow.locator(".event-readiness-panel")).toBeVisible();
+    await expect(winterRow.locator(".event-readiness-panel")).toContainText("Next");
+    await expect(winterRow.locator(".event-detail-strip")).toBeVisible();
+    await expect(winterRow.locator(".event-summary-scroll")).toHaveCount(0);
     await expect(winterRow.locator(".event-identity-meta")).toContainText("Volunteers needed");
-    await expect(winterRow.locator(".event-summary-scroll").getByRole("button", { name: /Notes/ })).toBeVisible();
     const rowAccentRailWidth = await winterRow.evaluate((element) => getComputedStyle(element, "::before").width);
     expect(rowAccentRailWidth).toBe("3px");
-    const summaryOwnsHorizontalScroll = await winterRow
-      .locator(".event-summary-scroll")
-      .evaluate((element) => element.scrollWidth > element.clientWidth);
-    expect(summaryOwnsHorizontalScroll).toBe(true);
+
+    await winterRow.getByRole("button", { name: "View tasks" }).click();
+    await expect(winterRow.getByRole("heading", { name: "Planning details" })).toBeVisible();
+    await expect(winterRow.locator(".event-summary-scroll").getByRole("button", { name: /Notes/ })).toBeVisible();
 
     const pageHasHorizontalScroll = await page.evaluate(
       () => document.documentElement.scrollWidth > document.documentElement.clientWidth
@@ -247,9 +244,10 @@ test.describe("MVP event automation navigation smoke tests", () => {
     expect(await filters.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true);
 
     const firstEvent = workspace.locator(".event-row-card").first();
-    await expect(firstEvent.locator(".event-operations-rail")).toHaveCSS("grid-template-columns", /.+/);
-    const railColumnCount = await firstEvent.locator(".event-operations-rail").evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" ").length);
-    expect(railColumnCount).toBe(1);
+    await expect(firstEvent.locator(".event-readiness-panel")).toBeVisible();
+    await expect(firstEvent.locator(".event-detail-strip")).toBeHidden();
+    const cardColumnCount = await firstEvent.locator(".event-card-row.event-lovable-card-row").evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" ").length);
+    expect(cardColumnCount).toBe(1);
     expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
   });
 
@@ -280,10 +278,12 @@ test.describe("MVP event automation navigation smoke tests", () => {
 
     const winterRow = page.locator(".event-row-card", { hasText: "Winter Retreat" });
     const subtaskList = winterRow.getByLabel("Winter Retreat subtasks");
-    await expect(subtaskList).toBeVisible();
-    await winterRow.getByRole("button", { name: /Collapse task tree/ }).click();
     await expect(subtaskList).not.toBeVisible();
-    await winterRow.getByRole("button", { name: /Expand task tree/ }).click();
+    await winterRow.getByRole("button", { name: "View tasks" }).click();
+    await expect(subtaskList).toBeVisible();
+    await winterRow.getByRole("button", { name: "Hide details" }).click();
+    await expect(subtaskList).not.toBeVisible();
+    await winterRow.getByRole("button", { name: "View tasks" }).click();
     await expect(subtaskList).toBeVisible();
     await expect(subtaskList.locator(".event-task-tree-item").first()).toBeVisible();
     await expect(subtaskList.getByRole("button", { name: /Save due date/ })).toHaveCount(0);

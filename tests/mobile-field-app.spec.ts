@@ -66,12 +66,14 @@ test.describe("mobile ministry field app", () => {
     await login(page);
 
     await page.goto("/events");
-    const eventTimeline = page.locator(".event-summary-scroll").first();
-    await expect(eventTimeline).toHaveCSS("display", "grid");
-    await expect(eventTimeline.locator(".summary-field").first()).toHaveCSS("width", /\d+px/);
+    const eventReadiness = page.locator(".event-readiness-panel").first();
+    await expect(eventReadiness).toBeVisible();
+    await expect(eventReadiness.getByRole("button", { name: /Fix missing info|Open event/ })).toBeVisible();
+    await expect(eventReadiness.getByRole("button", { name: "View tasks" })).toBeVisible();
     await expect(page.locator(".workflow-stack > .ministry-emma-panel")).toBeHidden();
     const eventCard = page.locator(".event-card-row.event-lovable-card-row").first();
     expect(await eventCard.evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" ").length)).toBe(1);
+    await expect(page.locator(".event-detail-strip").first()).toBeHidden();
     expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
 
     await page.goto("/tasks");
