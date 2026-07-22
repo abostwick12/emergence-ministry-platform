@@ -239,9 +239,8 @@ test.describe("MVP event automation navigation smoke tests", () => {
     });
     expect(workspaceSurface).toEqual({ backgroundImage: "none", borderTopWidth: "0px", boxShadow: "none" });
 
-    const filters = workspace.locator(".events-lovable-tabs");
-    await expect(filters).toHaveCSS("flex-wrap", "nowrap");
-    expect(await filters.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true);
+    await expect(workspace.getByLabel("Show events")).toBeVisible();
+    await expect(workspace.locator(".events-lovable-tabs")).toBeHidden();
 
     const firstEvent = workspace.locator(".event-row-card").first();
     await expect(firstEvent.locator(".event-readiness-panel")).toBeVisible();
