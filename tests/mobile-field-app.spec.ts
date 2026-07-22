@@ -71,18 +71,20 @@ test.describe("mobile ministry field app", () => {
     await expect(eventReadiness.getByRole("button", { name: /Fix missing info|Open event/ })).toBeVisible();
     await expect(eventReadiness.getByRole("button", { name: "View tasks" })).toBeVisible();
     await expect(page.locator(".workflow-stack > .ministry-emma-panel")).toBeHidden();
+    await expect(page.getByLabel("Show events")).toBeVisible();
     const eventCard = page.locator(".event-card-row.event-lovable-card-row").first();
     expect(await eventCard.evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" ").length)).toBe(1);
     await expect(page.locator(".event-detail-strip").first()).toBeHidden();
     expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
 
     await page.goto("/tasks");
+    await expect(page.locator(".mobile-task-summary")).toBeVisible();
+    await expect(page.locator(".mobile-task-action-list")).toBeVisible();
+    await expect(page.locator(".task-table-wrap")).toBeHidden();
+    await page.getByRole("button", { name: "Kanban", exact: true }).click();
     const board = page.locator(".task-board");
     await expect(board).toBeVisible();
     expect(await board.evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" ").length)).toBe(1);
-    await page.getByRole("button", { name: "List", exact: true }).click();
-    await expect(page.locator(".task-table thead")).toBeHidden();
-    await expect(page.locator(".task-table tbody tr:not(.task-event-group-row)").first()).toHaveCSS("display", "block");
 
     await page.goto("/people");
     await page.getByRole("button", { name: "Attendance", exact: true }).click();

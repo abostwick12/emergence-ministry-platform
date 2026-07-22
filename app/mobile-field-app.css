@@ -1,7 +1,10 @@
 .mobile-field-controls,
 .mobile-field-dashboard,
 .mobile-field-header-kicker,
-.mobile-field-header-copy {
+.mobile-field-header-copy,
+.mobile-event-filter-field,
+.mobile-task-summary,
+.mobile-task-action-list {
   display: none;
 }
 
@@ -114,6 +117,82 @@
     width: 100%;
     max-width: 100%;
     min-width: 0;
+  }
+
+  .app-shell:not(.app-shell-camp) .editorial-placeholder-page {
+    gap: 10px;
+  }
+
+  .app-shell:not(.app-shell-camp) .editorial-placeholder-page .platform-page-intro {
+    padding-bottom: 6px;
+  }
+
+  .app-shell:not(.app-shell-camp) .editorial-placeholder-page .platform-page-intro h2 {
+    font-size: 30px;
+  }
+
+  .app-shell:not(.app-shell-camp) .editorial-placeholder-page .platform-page-intro p {
+    max-width: none;
+    font-size: 15px;
+    line-height: 1.45;
+  }
+
+  .app-shell:not(.app-shell-camp) .ministry-launch-list {
+    gap: 10px;
+  }
+
+  .app-shell:not(.app-shell-camp) .ministry-launch-list .placeholder-capability-row {
+    grid-template-columns: 42px minmax(0, 1fr) auto;
+    gap: 4px 12px;
+    min-height: 82px;
+    border: 1px solid var(--platform-border);
+    border-radius: 8px;
+    background: rgba(7, 18, 34, 0.74);
+    padding: 14px;
+  }
+
+  .app-shell:not(.app-shell-camp) .ministry-launch-icon {
+    grid-row: 1 / span 3;
+    display: grid;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    border: 1px solid rgba(22, 217, 245, 0.24);
+    border-radius: 8px;
+    background: rgba(22, 217, 245, 0.09);
+    color: var(--platform-cyan);
+  }
+
+  .app-shell:not(.app-shell-camp) .ministry-launch-icon svg {
+    width: 21px;
+    height: 21px;
+  }
+
+  .app-shell:not(.app-shell-camp) .ministry-launch-list .placeholder-capability-row strong,
+  .app-shell:not(.app-shell-camp) .ministry-launch-list .placeholder-capability-row p {
+    min-width: 0;
+  }
+
+  .app-shell:not(.app-shell-camp) .ministry-launch-list .placeholder-capability-row p {
+    grid-column: 2 / -1;
+    font-size: 14px;
+    line-height: 1.35;
+  }
+
+  .app-shell:not(.app-shell-camp) .ministry-launch-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    color: var(--platform-cyan);
+    font-size: 12px;
+    font-weight: 900;
+    white-space: nowrap;
+  }
+
+  .app-shell:not(.app-shell-camp) .ministry-launch-action svg {
+    width: 15px;
+    height: 15px;
   }
 
   .app-shell:not(.app-shell-camp) .event-card-row.event-lovable-card-row {
@@ -603,6 +682,40 @@
     border-radius: 8px;
   }
 
+  .app-shell:not(.app-shell-camp) .events-lovable-workspace {
+    gap: 14px;
+  }
+
+  .app-shell:not(.app-shell-camp) .events-lovable-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .app-shell:not(.app-shell-camp) .events-lovable-tabs {
+    display: none;
+  }
+
+  .app-shell:not(.app-shell-camp) .mobile-event-filter-field {
+    display: grid;
+    gap: 7px;
+  }
+
+  .app-shell:not(.app-shell-camp) .mobile-event-filter-field span,
+  .app-shell:not(.app-shell-camp) .mobile-task-action-controls label span {
+    color: var(--muted);
+    font-family: var(--font-platform-mono), ui-monospace, monospace;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .app-shell:not(.app-shell-camp) .events-create-button {
+    justify-content: center;
+    width: 100%;
+  }
+
   .app-shell:not(.app-shell-camp) .event-row-card.event-accent-card .event-identity-section {
     gap: 12px;
     border-right: 0;
@@ -712,6 +825,47 @@
     scroll-snap-type: none;
   }
 
+  .app-shell:not(.app-shell-camp) .tasks-lovable-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .app-shell:not(.app-shell-camp) .tasks-lovable-toolbar .segmented-control,
+  .app-shell:not(.app-shell-camp) .tasks-search-field {
+    width: 100%;
+  }
+
+  .app-shell:not(.app-shell-camp) .tasks-lovable-toolbar .segmented-control {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .app-shell:not(.app-shell-camp) .mobile-task-summary {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .app-shell:not(.app-shell-camp) .mobile-task-summary span {
+    display: grid;
+    gap: 2px;
+    min-height: 54px;
+    border: 1px solid var(--platform-border);
+    border-radius: 8px;
+    background: rgba(7, 18, 34, 0.7);
+    color: var(--muted);
+    padding: 9px 10px;
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  .app-shell:not(.app-shell-camp) .mobile-task-summary strong {
+    color: var(--text);
+    font-size: 18px;
+    line-height: 1;
+  }
+
   .app-shell:not(.app-shell-camp) .task-lane,
   .app-shell:not(.app-shell-camp) .tasks-lovable-workspace .task-lane {
     min-height: 0;
@@ -719,9 +873,90 @@
   }
 
   .app-shell:not(.app-shell-camp) .task-table-wrap {
-    overflow: visible;
-    border: 0;
-    background: transparent;
+    display: none;
+  }
+
+  .app-shell:not(.app-shell-camp) .mobile-task-action-list {
+    display: grid;
+    gap: 14px;
+  }
+
+  .app-shell:not(.app-shell-camp) .mobile-task-group {
+    display: grid;
+    gap: 10px;
+  }
+
+  .app-shell:not(.app-shell-camp) .mobile-task-group-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border-bottom: 1px solid var(--platform-border);
+    padding-bottom: 8px;
+  }
+
+  .app-shell:not(.app-shell-camp) .mobile-task-group-header h2 {
+    margin: 0;
+    color: var(--text);
+    font-size: 15px;
+    line-height: 1.2;
+  }
+
+  .app-shell:not(.app-shell-camp) .mobile-task-group-header span {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+    white-space: nowrap;
+  }
+
+  .app-shell:not(.app-shell-camp) .mobile-task-action-card {
+    display: grid;
+    gap: 12px;
+    border: 1px solid var(--platform-border);
+    border-left: 3px solid rgba(22, 217, 245, 0.78);
+    border-radius: 8px;
+    background: rgba(7, 18, 34, 0.86);
+    padding: 14px;
+  }
+
+  .app-shell:not(.app-shell-camp) .mobile-task-action-card.critical {
+    border-left-color: var(--platform-gold);
+  }
+
+  .app-shell:not(.app-shell-camp) .mobile-task-action-copy {
+    display: grid;
+    gap: 5px;
+    min-width: 0;
+  }
+
+  .app-shell:not(.app-shell-camp) .mobile-task-action-copy .pill {
+    justify-self: start;
+  }
+
+  .app-shell:not(.app-shell-camp) .mobile-task-action-copy h3 {
+    margin: 0;
+    color: var(--text);
+    font-size: 16px;
+    line-height: 1.25;
+  }
+
+  .app-shell:not(.app-shell-camp) .mobile-task-action-copy p,
+  .app-shell:not(.app-shell-camp) .mobile-task-action-copy small {
+    margin: 0;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.35;
+  }
+
+  .app-shell:not(.app-shell-camp) .mobile-task-action-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 9px;
+  }
+
+  .app-shell:not(.app-shell-camp) .mobile-task-action-controls label {
+    display: grid;
+    gap: 6px;
   }
 
   .app-shell:not(.app-shell-camp) .task-table,
