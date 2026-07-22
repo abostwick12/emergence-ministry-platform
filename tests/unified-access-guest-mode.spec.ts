@@ -45,13 +45,15 @@ test.describe("Unified access and competition guest mode", () => {
     await expect(page.locator(".event-row-card", { hasText: eventName })).toBeVisible({ timeout: 15000 });
 
     const row = page.locator(".event-row-card", { hasText: eventName });
+    await row.getByRole("button", { name: "View tasks" }).click();
     await row.getByRole("button", { name: "Delete fake event" }).click();
-    await expect(page.locator(".event-row-card", { hasText: eventName })).toHaveCount(0);
+    await expect(row).toBeHidden();
 
     const seededRow = page.locator(".event-row-card", { hasText: "Competition Launch Night" });
     await expect(seededRow).toBeVisible();
+    await seededRow.getByRole("button", { name: "View tasks" }).click();
     await seededRow.getByRole("button", { name: "Delete fake event" }).click();
-    await expect(page.locator(".event-row-card", { hasText: "Competition Launch Night" })).toHaveCount(0);
+    await expect(seededRow).toBeHidden();
 
     await page.goto("/api/auth/logout");
     await enterGuestMode(page);

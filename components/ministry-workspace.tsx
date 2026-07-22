@@ -98,11 +98,12 @@ export default function MinistryWorkspace({
   const { openCreate, openEdit, state: cardState } = useEventCard();
   const [isLoading, setIsLoading] = useState(!initialOverview && !initialLoadError);
   const [notice, setNotice] = useState("Preview adapters active. Live provider credentials are not required.");
-  const [expandedEventIds, setExpandedEventIds] = useState<string[]>(["evt_winter_retreat"]);
+  const [expandedEventIds, setExpandedEventIds] = useState<string[]>([]);
   const [eventLeaderAssignments, setEventLeaderAssignments] = useState<EventLeaderAssignments>({});
   const [customVolunteerLeaders, setCustomVolunteerLeaders] = useState<VolunteerLeader[]>([]);
   const [deletedVolunteerLeaderIds, setDeletedVolunteerLeaderIds] = useState<string[]>([]);
   const initialLoadStartedRef = useRef(Boolean(initialOverview || initialLoadError));
+  const locallyDeletedEventIdsRef = useRef(new Set<string>());
 
   async function loadOverview() {
     setLoadError("");
@@ -122,9 +123,35 @@ export default function MinistryWorkspace({
       setIsLoading(false);
       return;
     }
-    setOverview(nextOverview);
+    setOverview(filterLocallyDeletedEvents(nextOverview));
     if (isDashboardResponse) setDashboardAttention(data.attention ?? null);
     setIsLoading(false);
+  }
+
+  function filterLocallyDeletedEvents(nextOverview: Overview) {
+    const deletedEventIds = locallyDeletedEventIdsRef.current;
+    if (deletedEventIds.size === 0) return nextOverview;
+    return {
+      ...nextOverview,
+      events: nextOverview.events.filter((event) => !deletedEventIds.has(event.id)),
+      tasks: nextOverview.tasks.filter((task) => !deletedEventIds.has(task.eventId)),
+      expenses: nextOverview.expenses.filter((expense) => !deletedEventIds.has(expense.eventId))
+    };
+  }
+
+  function removeEventLocally(eventId: string) {
+    locallyDeletedEventIdsRef.current.add(eventId);
+    setOverview((current) =>
+      current
+        ? {
+            ...current,
+            events: current.events.filter((event) => event.id !== eventId),
+            tasks: current.tasks.filter((task) => task.eventId !== eventId),
+            expenses: current.expenses.filter((expense) => expense.eventId !== eventId)
+          }
+        : current
+    );
+    setExpandedEventIds((current) => current.filter((id) => id !== eventId));
   }
 
   useEffect(() => {
@@ -264,11 +291,18 @@ export default function MinistryWorkspace({
   }
 
   async function deleteGuestEvent(eventId: string) {
+    const canRemoveOptimistically = eventId.startsWith("guest_evt");
+    if (canRemoveOptimistically) removeEventLocally(eventId);
     const response = await fetch(`/api/events/${eventId}`, { method: "DELETE" });
     if (!response.ok) {
+      if (canRemoveOptimistically) {
+        locallyDeletedEventIdsRef.current.delete(eventId);
+        await refresh();
+      }
       setNotice("Event delete failed. Administrators can delete archived events.");
       return;
     }
+    if (!canRemoveOptimistically) removeEventLocally(eventId);
     setNotice("Event deleted.");
     await refresh();
   }
@@ -1172,38 +1206,173 @@ function EventRowCard({
   onRefresh: () => Promise<void>;
 }) {
   const rowTone = getEventRowTone(event);
+  const actualBudget = expenses.reduce((sum, expense) => sum + expense.amount, 0);
+  const readiness = getEventReadiness({
+    event,
+    tasks,
+    completeTasks,
+    missingCount,
+    owner,
+    assignedLeaders
+  });
 
   return (
     <article className={`event-row event-row-card event-accent-card ${rowTone}`} data-start-time={event.startTime} style={eventAccentStyle(event.type)}>
-      <div className="event-card-row event-lovable-card-row" role="row">
+      <div className="event-card-row event-lovable-card-row event-action-card-row" role="row">
         <EventIdentitySection event={event} tasks={tasks} completeTasks={completeTasks} owner={owner} assignedLeaders={assignedLeaders} />
-        <EventScrollableSummary
+        <EventReadinessPanel
           event={event}
-          expenses={expenses}
-          tasks={tasks}
-          completeTasks={completeTasks}
-          missingCount={missingCount}
+          readiness={readiness}
           isExpanded={isExpanded}
           onToggleEvent={onToggleEvent}
           onOpenEvent={onOpenEvent}
-          onUpdateEvent={onUpdateEvent}
-          onArchiveEvent={onArchiveEvent}
-          onRestoreEvent={onRestoreEvent}
-          onDeleteEvent={onDeleteEvent}
-          canSaveChanges={canSaveChanges}
-          canDeleteArchivedEvent={canDeleteArchivedEvent}
         />
-        <EventVisionRail event={event} />
       </div>
+      <EventDetailStrip
+        event={event}
+        tasks={tasks}
+        completeTasks={completeTasks}
+        actualBudget={actualBudget}
+        missingCount={missingCount}
+        isExpanded={isExpanded}
+        onToggleEvent={onToggleEvent}
+        onOpenEvent={onOpenEvent}
+      />
 
       {isExpanded ? (
         <div className="event-expanded-resources">
+          <EventPlanningDetails
+            event={event}
+            actualBudget={actualBudget}
+            tasks={tasks}
+            completeTasks={completeTasks}
+            missingCount={missingCount}
+            onOpenEvent={onOpenEvent}
+            onUpdateEvent={onUpdateEvent}
+            onArchiveEvent={onArchiveEvent}
+            onRestoreEvent={onRestoreEvent}
+            onDeleteEvent={onDeleteEvent}
+            canSaveChanges={canSaveChanges}
+            canDeleteArchivedEvent={canDeleteArchivedEvent}
+          />
           <EventFilesPanel event={event} onRefresh={onRefresh} />
           <EventTaskTree event={event} tasks={tasks} users={users} canSaveChanges={canSaveChanges} onUpdateTask={onUpdateTask} onOpenEvent={onOpenEvent} />
         </div>
       ) : null}
     </article>
   );
+}
+
+type EventReadiness = {
+  label: string;
+  detail: string;
+  nextAction: string;
+  tone: "ready" | "warning" | "attention";
+};
+
+function getEventReadiness({
+  event,
+  tasks,
+  completeTasks,
+  missingCount,
+  owner,
+  assignedLeaders
+}: {
+  event: MinistryEvent;
+  tasks: ActiveTask[];
+  completeTasks: number;
+  missingCount: number;
+  owner?: User;
+  assignedLeaders: VolunteerLeader[];
+}): EventReadiness {
+  const openTasks = tasks.length - completeTasks;
+  const missingDetails = [
+    !event.targetGroup ? "audience" : "",
+    !event.location ? "location" : "",
+    !owner ? "owner" : "",
+    !event.description.trim() ? "vision" : "",
+    !assignedLeaders.length ? "leaders" : ""
+  ].filter(Boolean);
+  const firstMissing = missingDetails[0];
+
+  if (event.archivedAt) {
+    return {
+      label: "Archived",
+      detail: `Archived ${formatDate(event.archivedAt)}.`,
+      nextAction: "Restore this event before making changes.",
+      tone: "attention"
+    };
+  }
+
+  if (firstMissing === "audience") {
+    return {
+      label: "Needs audience",
+      detail: "Communication drafts need a clear target group.",
+      nextAction: "Add audience before communication draft.",
+      tone: "warning"
+    };
+  }
+
+  if (firstMissing === "location") {
+    return {
+      label: "Needs location",
+      detail: "Families and leaders still need to know where to go.",
+      nextAction: "Add location before communication draft.",
+      tone: "warning"
+    };
+  }
+
+  if (firstMissing === "owner") {
+    return {
+      label: "Needs owner",
+      detail: "No one owns the communication follow-through yet.",
+      nextAction: "Assign an owner before this moves forward.",
+      tone: "warning"
+    };
+  }
+
+  if (firstMissing === "vision") {
+    return {
+      label: "Needs vision",
+      detail: "The event purpose is still blank.",
+      nextAction: "Add the short ministry purpose.",
+      tone: "warning"
+    };
+  }
+
+  if (firstMissing === "leaders") {
+    return {
+      label: "Needs leaders",
+      detail: "No leaders are assigned to this event yet.",
+      nextAction: "Assign leaders so the team knows who is serving.",
+      tone: "warning"
+    };
+  }
+
+  if (event.status === "stuck") {
+    return {
+      label: "Needs help",
+      detail: "This event is marked stuck.",
+      nextAction: "Review the blocker and choose the next owner.",
+      tone: "attention"
+    };
+  }
+
+  if (missingCount > 0) {
+    return {
+      label: "Needs details",
+      detail: `${missingCount} planning detail${missingCount === 1 ? "" : "s"} still need review.`,
+      nextAction: "Finish the missing planning details.",
+      tone: "warning"
+    };
+  }
+
+  return {
+    label: openTasks ? "Ready for review" : "Ready",
+    detail: openTasks ? `${openTasks} task${openTasks === 1 ? "" : "s"} still need follow-up.` : "All key info is complete.",
+    nextAction: openTasks ? "Review tasks and assign owners." : "Keep this event ready.",
+    tone: "ready"
+  };
 }
 
 function getEventRowTone(event: MinistryEvent) {
@@ -1350,14 +1519,101 @@ function EventDateBlock({ event }: { event: MinistryEvent }) {
   );
 }
 
-function EventScrollableSummary({
+function EventReadinessPanel({
   event,
-  expenses,
+  readiness,
+  isExpanded,
+  onToggleEvent,
+  onOpenEvent
+}: {
+  event: MinistryEvent;
+  readiness: EventReadiness;
+  isExpanded: boolean;
+  onToggleEvent: (eventId: string) => void;
+  onOpenEvent: (eventId: string) => void;
+}) {
+  return (
+    <section className={`event-readiness-panel event-readiness-${readiness.tone}`} role="cell" aria-label={`${event.title} readiness`}>
+      <div className="event-readiness-copy">
+        <span className="summary-label">Readiness</span>
+        <strong>{readiness.label}</strong>
+        <p>{readiness.detail}</p>
+      </div>
+      <div className="event-next-action">
+        <span>Next</span>
+        <p>{readiness.nextAction}</p>
+      </div>
+      <div className="event-card-actions">
+        <button className="button primary" type="button" onClick={() => onOpenEvent(event.id)}>
+          {readiness.tone === "ready" ? "Open event" : "Fix missing info"}
+        </button>
+        <button
+          className="button compact-button"
+          type="button"
+          onClick={() => onToggleEvent(event.id)}
+          aria-expanded={isExpanded}
+        >
+          {isExpanded ? "Hide details" : "View tasks"}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function EventDetailStrip({
+  event,
   tasks,
   completeTasks,
+  actualBudget,
   missingCount,
   isExpanded,
   onToggleEvent,
+  onOpenEvent
+}: {
+  event: MinistryEvent;
+  tasks: ActiveTask[];
+  completeTasks: number;
+  actualBudget: number;
+  missingCount: number;
+  isExpanded: boolean;
+  onToggleEvent: (eventId: string) => void;
+  onOpenEvent: (eventId: string) => void;
+}) {
+  const filesCount = Math.max(1, Math.ceil(tasks.length / 2));
+  const communicationCount = missingCount ? `${missingCount} missing` : "ready";
+  const budgetLabel = actualBudget ? money(actualBudget) : event.budgetTarget ? money(event.budgetTarget) : "missing";
+  const details = [
+    { label: "Tasks", value: `${completeTasks}/${tasks.length}`, action: "toggle" },
+    { label: "Comms", value: communicationCount, action: "open" },
+    { label: "Budget", value: budgetLabel, action: "open" },
+    { label: "Files", value: `${filesCount}`, action: "toggle" },
+    { label: "History", value: "log", action: "open" }
+  ] as const;
+
+  return (
+    <div className="event-detail-strip" aria-label={`${event.title} detail sections`}>
+      {details.map((detail) => (
+        <button
+          className="event-detail-button"
+          key={detail.label}
+          type="button"
+          aria-expanded={detail.action === "toggle" ? isExpanded : undefined}
+          onClick={() => detail.action === "toggle" ? onToggleEvent(event.id) : onOpenEvent(event.id)}
+        >
+          <span>{detail.label}</span>
+          <strong>{detail.value}</strong>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function EventPlanningDetails({
+  event,
+  actualBudget,
+  tasks,
+  completeTasks,
+  missingCount,
   onOpenEvent,
   onUpdateEvent,
   onArchiveEvent,
@@ -1367,12 +1623,10 @@ function EventScrollableSummary({
   canDeleteArchivedEvent
 }: {
   event: MinistryEvent;
-  expenses: EventExpense[];
+  actualBudget: number;
   tasks: ActiveTask[];
   completeTasks: number;
   missingCount: number;
-  isExpanded: boolean;
-  onToggleEvent: (eventId: string) => void;
   onOpenEvent: (eventId: string) => void;
   onUpdateEvent: (eventId: string, body: Partial<MinistryEvent>) => Promise<void>;
   onArchiveEvent: (eventId: string) => Promise<void>;
@@ -1381,26 +1635,18 @@ function EventScrollableSummary({
   canSaveChanges: boolean;
   canDeleteArchivedEvent: boolean;
 }) {
-  const actualBudget = expenses.reduce((sum, expense) => sum + expense.amount, 0);
   const openTasks = tasks.length - completeTasks;
   const communicationStatus = missingCount === 0 ? "Preview ready" : `${missingCount} item${missingCount === 1 ? "" : "s"} needed`;
   const driveStatus = event.googleDriveFolderId ? "Google Drive folder ready" : "No folder yet";
   const priority = event.type === "conference" ? "High" : event.type === "missions_trip" ? "Medium" : "Normal";
 
   return (
-    <div className="event-summary-shell" role="cell">
+    <section className="event-summary-shell event-planning-details" aria-label={`${event.title} planning details`}>
       <div className="event-summary-heading">
-        <h3>Event Targets</h3>
-        <button
-          className="summary-toggle-button"
-          type="button"
-          onClick={() => onToggleEvent(event.id)}
-          aria-label={isExpanded ? `Collapse task tree for ${event.title}` : `Expand task tree for ${event.title}`}
-        >
-          Tasks {tasks.length} {isExpanded ? "-" : "+"}
-        </button>
+        <h3>Planning details</h3>
       </div>
-      <div className="event-summary-scroll" aria-label={`${event.title} planning timeline`}>        {event.googleImportStatus === "planning_details_incomplete" ? (
+      <div className="event-summary-scroll" aria-label={`${event.title} planning details`}>
+        {event.googleImportStatus === "planning_details_incomplete" ? (
           <div className="summary-field warning google-import-summary">
             <span className="summary-label">Google import</span>
             <strong>Imported from Google Calendar</strong>
@@ -1474,17 +1720,7 @@ function EventScrollableSummary({
           ) : null}
         </div>
       </div>
-    </div>
-  );
-}
-
-function EventVisionRail({ event }: { event: MinistryEvent }) {
-  const vision = event.description?.trim() || event.notes?.trim() || "Event vision has not been added yet.";
-  return (
-    <aside className="event-operations-rail event-vision-rail" role="cell" aria-label={`${event.title} event vision`}>
-      <span className="summary-label">Event Vision</span>
-      <p>{vision}</p>
-    </aside>
+    </section>
   );
 }
 
@@ -1690,7 +1926,15 @@ function EventTaskTreeItem({
       </div>
       <div className="field compact-field task-tree-date">
         <label htmlFor={`event-due-${task.id}`}>Due date</label>
-        <input className="input" id={`event-due-${task.id}`} type="date" value={dueDate} disabled={!canSaveChanges} onChange={(event) => void saveDueDate(event.target.value)} />
+        <input
+          className="input"
+          id={`event-due-${task.id}`}
+          type="date"
+          value={dueDate}
+          disabled={!canSaveChanges}
+          aria-label={`Due date for ${task.taskTitle}`}
+          onChange={(event) => void saveDueDate(event.target.value)}
+        />
         <span className="inline-save-state">{!canSaveChanges ? "Read only" : dueSaveState === "saving" ? "Saving..." : dueSaveState === "saved" ? "Saved" : "Autosaves"}</span>
       </div>
       <div className="task-tree-status">
