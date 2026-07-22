@@ -5,7 +5,6 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 import {
   BarChart3,
-  Bell,
   BookOpen,
   BookOpenText,
   Bot,
@@ -20,7 +19,6 @@ import {
   Music,
   NotebookPen,
   PanelsTopLeft,
-  Search,
   Settings,
   TentTree,
   Users
@@ -291,20 +289,12 @@ export function AppShell({
             </div>
 
             <div className="app-header-right">
-              <label className="app-search-pill" aria-label="Search coming soon">
-                <Search className="app-search-icon" aria-hidden="true" />
-                <input disabled placeholder="Search..." suppressHydrationWarning type="search" />
-              </label>
               {process.env.NODE_ENV === "development" && !isProductionLaunchPath ? (
                 <>
                   <span className="pill stub">Preview Mode</span>
                   {devAuth ? <span className="pill dev-auth">DEV AUTH</span> : null}
                 </>
               ) : null}
-              <span className="hub-bell" role="img" aria-label="2 notifications">
-                <Bell className="hub-bell-icon" aria-hidden="true" />
-                <span className="hub-bell-badge">2</span>
-              </span>
             </div>
           </header>
         ) : null}
