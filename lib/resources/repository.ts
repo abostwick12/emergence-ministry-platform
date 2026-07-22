@@ -5,6 +5,11 @@ import { DEFAULT_MINISTRY_ID } from "@/lib/ministry/constants";
 import { resolveMinistryScope } from "@/lib/ministry/scope";
 import { validateResourceFile } from "@/lib/resources/file-validation";
 import {
+  createGoogleDriveBackedEventResource,
+  GoogleDemoNotConnectedError,
+  GoogleDemoStorageUnavailableError
+} from "@/lib/integrations/google-demo/repository";
+import {
   assertKnownStaticParent,
   canReadResourceVisibility,
   inferExternalResourceType,
@@ -144,10 +149,35 @@ export async function createResourceAttachment(session: AuthSession, input: Crea
   const notificationIntent = normalizeNotificationIntent(input.notificationIntent);
 
   if (input.file) {
+    if (parent.parentType === "event") {
+      const googleResource = await maybeCreateGoogleDriveBackedEventResource(session, parent.parentId, input);
+      if (googleResource) return googleResource;
+    }
     return createUploadedResource(session, parent, input, notificationIntent);
   }
 
   return createExternalResource(session, parent, input, notificationIntent);
+}
+
+async function maybeCreateGoogleDriveBackedEventResource(session: AuthSession, eventId: string, input: CreateResourceAttachmentInput) {
+  if (!input.file) return null;
+  try {
+    return await createGoogleDriveBackedEventResource(session, {
+      eventId,
+      title: input.title,
+      description: input.description,
+      file: input.file
+    });
+  } catch (error) {
+    if (
+      error instanceof GoogleDemoNotConnectedError ||
+      error instanceof GoogleDemoStorageUnavailableError ||
+      (error instanceof Error && /google_demo_tokens|schema cache|does not exist|not configured/i.test(error.message))
+    ) {
+      return null;
+    }
+    throw error;
+  }
 }
 
 export async function updateResourceAttachment(session: AuthSession, attachmentId: string, input: UpdateResourceAttachmentInput) {

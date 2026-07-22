@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { MinistryEmmaPanel } from "@/components/ministry-emma-panel";
 import { EditorialSection, PageIntro } from "@/components/platform-ui";
+import { GoogleDemoIntegrationControl } from "@/components/google-demo-integration-control";
 import { PlanningCenterIntegrationControl } from "@/components/planning-center-integration-control";
 import type { CampStaffMember } from "@/lib/camp/types";
 import type { MinistryEmmaPage } from "@/lib/emma/ministry-page-assistant";
@@ -1099,6 +1100,7 @@ function SettingsWorkspace({ overview, user }: { overview: MinistryOverview; use
         <SectionHead eyebrow="Connected services" title="Live readiness with real controls only" />
         <p className="settings-readiness-copy">Connect or review the services the platform can actually verify. Preview-only sends and protected provider boundaries remain descriptive, never disguised as launch buttons.</p>
         <div className="ministry-launch-setting-grid settings-readiness-controls">
+          <GoogleDemoIntegrationControl />
           <PlanningCenterIntegrationControl />
           <EmmaReadinessSettingCard />
         </div>

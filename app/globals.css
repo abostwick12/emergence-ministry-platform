@@ -2407,6 +2407,43 @@ textarea:focus-visible {
   min-width: 140px;
 }
 
+.google-demo-event-status {
+  align-items: flex-start;
+}
+
+.google-demo-event-status .button {
+  white-space: nowrap;
+}
+
+.integration-status-message {
+  flex-basis: 100%;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.integration-status-message.error {
+  color: var(--danger);
+}
+
+.event-files-panel {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.event-files-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.event-files-toolbar .toolbar {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 /* ── Sidebar Add Event button ────────────────────────────────── */
 
 .sidebar-add-event {
@@ -16058,6 +16095,29 @@ body:has(.login-shell) h3 {
   text-decoration: none;
 }
 
+.google-demo-status-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: 8px 12px;
+  margin: 4px 0;
+}
+
+.google-demo-status-grid span {
+  color: var(--platform-muted);
+  font-family: var(--font-platform-mono), ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.google-demo-status-grid strong {
+  color: #f7fbff;
+  font-size: 13px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
 .ministry-launch-mini-card svg {
   color: var(--platform-cyan);
 }
@@ -16654,6 +16714,19 @@ body:has(.login-shell) h3 {
   .ministry-launch-setting-grid,
   .ministry-emma-layout {
     grid-template-columns: 1fr;
+  }
+
+  .google-demo-status-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .event-files-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .event-files-toolbar .toolbar {
+    justify-content: flex-start;
   }
 
   .ministry-emma-header {
