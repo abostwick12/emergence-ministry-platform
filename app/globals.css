@@ -15705,38 +15705,6 @@ body:has(.login-shell) h3 {
   padding-top: 0;
 }
 
-.app-shell:not(.app-shell-camp) .app-search-pill {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 40px;
-  width: min(260px, 32vw);
-  border: 1px solid rgba(129, 164, 214, 0.17);
-  border-radius: 999px;
-  background: rgba(18, 34, 58, 0.54);
-  color: var(--platform-muted);
-  padding: 0 14px;
-}
-
-.app-shell:not(.app-shell-camp) .app-search-pill input {
-  width: 100%;
-  border: 0;
-  background: transparent;
-  color: #f7fbff;
-  outline: 0;
-}
-
-.app-shell:not(.app-shell-camp) .hub-bell {
-  border-color: rgba(129, 164, 214, 0.17);
-  background: rgba(18, 34, 58, 0.54);
-  color: var(--platform-muted);
-}
-
-.app-shell:not(.app-shell-camp) .hub-bell-badge {
-  background: var(--platform-cyan);
-  color: #06111f;
-}
-
 .app-shell:not(.app-shell-camp) .app-content {
   padding: 34px 40px 80px;
 }

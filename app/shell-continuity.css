@@ -739,43 +739,6 @@ html:has(.app-shell:not(.app-shell-camp)) body {
   min-width: fit-content;
 }
 
-.app-shell:not(.app-shell-camp) .app-search-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-  min-width: 206px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: var(--radius-pill);
-  background: rgba(255, 255, 255, 0.04);
-  color: #64748b;
-  padding: 9px 14px;
-}
-
-.app-shell:not(.app-shell-camp) .app-search-pill input {
-  width: 132px;
-  border: 0;
-  background: transparent;
-  color: #94a3b8;
-  outline: none;
-  padding: 0;
-}
-
-.app-shell:not(.app-shell-camp) .app-search-pill input::placeholder {
-  color: #64748b;
-}
-
-.app-shell:not(.app-shell-camp) .hub-bell {
-  border-color: rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.05);
-  color: #94a3b8;
-  box-shadow: none;
-}
-
-.app-shell:not(.app-shell-camp) .hub-bell-badge {
-  background: linear-gradient(135deg, #38bdf8, #2563eb);
-  box-shadow: 0 0 12px rgba(56, 189, 248, 0.55);
-}
-
 .app-shell:not(.app-shell-camp) :is(.panel, .card, .dashboard-card, .kpi-card, .pulse-panel, .next-cal-panel, .calendar-panel, .student-reading-help, .student-scripture-tool, .student-question-composer, .student-next-step, .student-feed-section, .student-feed-rail-card, .leader-review-queue, .leader-review-detail, .leader-workspace-hero, .leader-gloo-diagnostics, .leader-student-invites, .leader-student-access-item, .knowledge-control-hero, .knowledge-test-bench, .knowledge-test-preview, .knowledge-source-form, .knowledge-source-card, .scripture-trial-insights, .scripture-launch-readiness-item, .scripture-trial-list, .scripture-trial-question, .scripture-trial-empty, .leader-review-context, .leader-review-context-card) {
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius-md);
