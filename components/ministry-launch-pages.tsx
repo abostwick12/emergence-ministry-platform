@@ -26,6 +26,7 @@ import { GoogleDemoIntegrationControl } from "@/components/google-demo-integrati
 import { PlanningCenterIntegrationControl } from "@/components/planning-center-integration-control";
 import type { CampStaffMember } from "@/lib/camp/types";
 import type { MinistryEmmaPage } from "@/lib/emma/ministry-page-assistant";
+import { platformPersonName, platformPersonRoleLine, platformRoleLabel } from "@/lib/platform/roles";
 import type { ActiveTask, ActivityLog, EventExpense, MinistryEvent, User } from "@/lib/types";
 import { formatDate, money } from "@/lib/utils";
 import {
@@ -842,7 +843,7 @@ function buildPeopleLeaderPool(campStaff: CampStaffMember[], owners: User[]): Pe
   return owners.map((user) => ({
     id: `user-${user.id}`,
     name: displayName(user),
-    role: user.role === "admin" ? "Admin" : "Leader",
+    role: platformRoleLabel(user.role),
     email: user.email
   }));
 }
@@ -1105,13 +1106,14 @@ function BudgetWorkspace({ overview, refresh }: { overview: MinistryOverview; re
 }
 
 function SettingsWorkspace({ overview, user }: { overview: MinistryOverview; user: SettingsUser }) {
+  const currentRoleLabel = user?.role ? platformRoleLabel(user.role) : "Guest";
   return (
     <>
       <section className="ministry-mobile-command-strip" aria-label="Settings priority">
         <div>
           <p className="eyebrow">Start here</p>
           <strong>Connect services, then manage access</strong>
-          <span>{user?.fullName ? `${user.fullName} is signed in as ${(user.role ?? "guest").toUpperCase()}.` : "No active session profile is loaded."}</span>
+          <span>{user?.fullName ? `${user.fullName} is signed in as ${currentRoleLabel}.` : "No active session profile is loaded."}</span>
         </div>
         <nav aria-label="Settings quick actions">
           <a href="#settings-connected-services">Services</a>
@@ -1120,7 +1122,7 @@ function SettingsWorkspace({ overview, user }: { overview: MinistryOverview; use
       </section>
 
       <div className="ministry-launch-grid settings-readiness-grid">
-        <LaunchMetric icon={<ShieldCheck aria-hidden="true" />} label="Current role" value={(user?.role ?? "guest").toUpperCase()} detail={user?.fullName ?? "No active session profile"} tone="cyan" />
+        <LaunchMetric icon={<ShieldCheck aria-hidden="true" />} label="Current role" value={currentRoleLabel} detail={user?.fullName ?? "No active session profile"} tone="cyan" />
         <LaunchMetric icon={<CheckCircle2 aria-hidden="true" />} label="Active workflows" value={String(overview.events.length)} detail="Events currently available to operational pages" tone="gold" />
         <LaunchMetric icon={<UsersRound aria-hidden="true" />} label="Signed in as" value={user?.fullName?.split(" ")[0] ?? "Guest"} detail={user?.email ?? "No authenticated email"} tone="violet" />
 
@@ -1276,11 +1278,11 @@ function missingCommunicationFields(event: MinistryEvent) {
 function ownerName(ownerId: string | undefined, users: User[]) {
   if (!ownerId) return "No owner";
   const owner = users.find((user) => user.id === ownerId);
-  return owner ? displayName(owner) : "Unknown owner";
+  return owner ? platformPersonRoleLine(owner) : "Unknown owner";
 }
 
 function displayName(user: User) {
-  return `${user.firstName} ${user.lastName}`.trim() || user.email;
+  return platformPersonName(user);
 }
 
 function ownedEvents(userId: string, events: MinistryEvent[]) {

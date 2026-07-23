@@ -33,13 +33,7 @@ import { firstNameForPerson } from "@/lib/auth/display-name";
 import type { Role } from "@/lib/types";
 import type { PlatformPageKey } from "@/lib/platform/page-registry";
 import { getAppShellNavigation } from "@/lib/app-shell-navigation";
-
-const roleLabels: Record<Role, string> = {
-  admin: "Admin",
-  leader: "Leader",
-  student: "Student",
-  parent: "Parent"
-};
+import { platformRoleLabel } from "@/lib/platform/roles";
 
 function initialsForUser(displayName: string): string {
   const parts = displayName.split(/\s+/).filter(Boolean);
@@ -243,7 +237,7 @@ export function AppShell({
                       type="button"
                       onClick={() => setActiveRole(role)}
                     >
-                      {roleLabels[role]}
+                      {platformRoleLabel(role)}
                     </button>
                   ))}
                 </div>
@@ -266,7 +260,7 @@ export function AppShell({
               <span className="sidebar-avatar" aria-hidden="true">{userInitials}</span>
               <span className="sidebar-profile-text">
                 <strong>{firstName}</strong>
-                <span className="muted">{roleLabels[sessionRole ?? activeRole]}</span>
+                <span className="muted">{platformRoleLabel(sessionRole ?? activeRole)}</span>
               </span>
               <a className="sidebar-profile-logout" href="/api/auth/logout">
                 Log out

@@ -2,6 +2,7 @@
 
 import { FormEvent, useMemo, useState } from "react";
 
+import { platformRoleLabelLower } from "@/lib/platform/roles";
 import type { RegistrationInviteRole } from "@/lib/platform/registration";
 
 type PlatformRegistrationFormProps = {
@@ -84,7 +85,7 @@ export function PlatformRegistrationForm({ code, expiresAt, label, ministryName,
       <div className="student-join-context">
         <strong>{ministryName}</strong>
         <span>{label}</span>
-        <small>{expires ? `Create your ${roleLabel(role)} account before ${expires}.` : `Create your ${roleLabel(role)} account.`}</small>
+        <small>{expires ? `Create your ${platformRoleLabelLower(role)} account before ${expires}.` : `Create your ${platformRoleLabelLower(role)} account.`}</small>
       </div>
 
       <label className="field">
@@ -127,8 +128,3 @@ function formatExpiry(value: string | null) {
   return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-function roleLabel(role: RegistrationInviteRole) {
-  if (role === "student") return "student";
-  if (role === "parent") return "parent";
-  return "leader";
-}
