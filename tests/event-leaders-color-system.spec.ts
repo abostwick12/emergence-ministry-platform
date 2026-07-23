@@ -39,6 +39,9 @@ test.describe("event color system and volunteer leaders", () => {
 
     await page.goto("/directors/volunteers");
     await waitForWorkspace(page);
+    await expect(page.getByRole("heading", { name: "What needs attention" })).toBeVisible();
+    await expect(page.locator(".volunteer-director-priority-grid")).toContainText("Small groups");
+    await expect(page.locator(".volunteer-director-priority-grid")).toContainText("Leaders");
     await page.getByRole("button", { name: "Add Leader" }).click();
     const form = page.locator(".ministry-people-add-leader-form");
     await form.getByLabel("Name").fill("Taylor Morgan");
@@ -96,13 +99,15 @@ test.describe("event color system and volunteer leaders", () => {
     await waitForWorkspace(page);
     await page.getByRole("navigation", { name: "Volunteer Hub sections" }).getByRole("button", { name: "Students" }).click();
 
-    await expect(page.getByRole("heading", { name: "Roster view" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Student list" })).toBeVisible();
     await expect(page.getByText("Vehicle", { exact: true })).toHaveCount(0);
     await expect(page.getByText("Team", { exact: true })).toHaveCount(0);
     await expect(page.getByText("Camp CLC", { exact: true })).toHaveCount(0);
     await expect(page.getByText("Room", { exact: true })).toHaveCount(0);
     await expect(page.getByPlaceholder("Name, grade, or school")).toBeVisible();
-    await expect(page.getByLabel("Source")).toBeVisible();
+    await expect(page.getByLabel("Student list")).toBeVisible();
+    await expect(page.getByText("All student refs")).toHaveCount(0);
+    await expect(page.getByText("Synced ministry student references.")).toHaveCount(0);
   });
 
   test("manages a small-group roster and exposes the weekly leader guide", async ({ page }) => {
@@ -146,9 +151,10 @@ test.describe("event color system and volunteer leaders", () => {
 
     await expect(dialog).toHaveCount(0);
     await expect(page.getByRole("region", { name: "Sunday - 10:30 AM small groups" })).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "Archived small groups" })).toContainText("Restore brings the group back with its leaders and roster intact.");
     const archivedCard = page.locator(".volunteer-group-card.archived").filter({ hasText: "10:30 High School Girls" });
     await expect(archivedCard).toContainText("Testing archive lifecycle");
-    await archivedCard.getByRole("button", { name: "Restore" }).click();
+    await archivedCard.getByRole("button", { name: "Restore group" }).click();
     await expect(page.getByRole("region", { name: "Sunday - 10:30 AM small groups" })).toContainText("10:30 High School Girls");
   });
 
