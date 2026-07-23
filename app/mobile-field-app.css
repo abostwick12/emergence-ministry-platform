@@ -998,6 +998,17 @@
     gap: 9px;
   }
 
+  .app-shell:not(.app-shell-camp) .mobile-task-quick-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .app-shell:not(.app-shell-camp) .mobile-task-quick-actions .button {
+    min-height: 44px;
+    justify-content: center;
+  }
+
   .app-shell:not(.app-shell-camp) .mobile-task-action-controls label {
     display: grid;
     gap: 6px;

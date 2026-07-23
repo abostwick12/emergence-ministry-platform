@@ -68,7 +68,7 @@ test.describe("mobile ministry field app", () => {
     await page.goto("/events");
     const eventReadiness = page.locator(".event-readiness-panel").first();
     await expect(eventReadiness).toBeVisible();
-    await expect(eventReadiness.getByRole("button", { name: /Fix missing info|Open event/ })).toBeVisible();
+    await expect(eventReadiness.getByRole("button", { name: /Show quick fixes|Open event/ })).toBeVisible();
     await expect(eventReadiness.getByRole("button", { name: "View tasks" })).toBeVisible();
     await expect(page.locator(".workflow-stack > .ministry-emma-panel")).toBeHidden();
     await expect(page.getByLabel("Show events")).toBeVisible();
