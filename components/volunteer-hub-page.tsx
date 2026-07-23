@@ -84,7 +84,7 @@ export function VolunteerHubPage({ mode = "volunteer" }: { mode?: VolunteerHubMo
       setError(payload.readOnlyReason);
       return;
     }
-    setNotice("");
+    setNotice(actionWorkingMessage(action));
     setError("");
     const response = await fetch("/api/volunteer-hub", {
       method: "POST",
@@ -93,6 +93,7 @@ export function VolunteerHubPage({ mode = "volunteer" }: { mode?: VolunteerHubMo
     });
     const body = (await response.json().catch(() => ({}))) as VolunteerHubPayload | { error?: string };
     if (!response.ok || "error" in body || !("activeVolunteer" in body)) {
+      setNotice("");
       setError("error" in body && body.error ? body.error : "Volunteer Hub action failed.");
       return;
     }
@@ -318,7 +319,7 @@ function ServingCard({ payload }: { payload: VolunteerHubPayload }) {
         <span>Leader Meeting</span>
         <strong>8:40 AM</strong>
       </div>}
-      <p>{isLive ? `${payload.students.length} synced student refs are available for real ministry setup.` : `${leader?.name ?? "Leader"}${coLeader ? ` and ${coLeader.name}` : ""} are assigned.`}</p>
+      <p>{isLive ? `${payload.students.length} synced students are available for real ministry setup.` : `${leader?.name ?? "Leader"}${coLeader ? ` and ${coLeader.name}` : ""} are assigned.`}</p>
     </article>
   );
 }
@@ -361,7 +362,7 @@ function SmallGroupWorkspace({ payload, onAction }: { payload: VolunteerHubPaylo
       </article>
       {payload.students.length ? payload.students.map((student) => (
         <StudentCard key={student.id} student={student} actionsEnabled={actionsEnabled} onAction={onAction} />
-      )) : <EmptyPanel title="No students assigned yet" detail="No student roster rows are available for this workspace yet. Sync Planning Center or assign students to groups to populate this view." />}
+      )) : <EmptyPanel title="No students assigned yet" detail="No students are assigned to this workspace yet. Sync Planning Center or assign students to groups to populate this view." />}
     </div>
   );
 }
@@ -410,18 +411,18 @@ function StudentsWorkspace({ payload, onAction }: { payload: VolunteerHubPayload
 
   return (
     <div className="volunteer-hub-grid">
-      <MetricCard icon={<UsersRound aria-hidden="true" />} label="Students" value={String(payload.studentRoster.length)} detail="Visible student references available for small-group care." />
-      <MetricCard icon={<ClipboardCheck aria-hidden="true" />} label="Planning Center" value={String(payload.studentRosterSource.planningCenterCount)} detail="Synced ministry student references." />
+      <MetricCard icon={<UsersRound aria-hidden="true" />} label="Student List" value={String(payload.studentRoster.length)} detail="Students available for small-group care." />
+      <MetricCard icon={<ClipboardCheck aria-hidden="true" />} label="Synced Students" value={String(payload.studentRosterSource.planningCenterCount)} detail="Students brought in from Planning Center." />
       <article className="volunteer-hub-panel volunteer-hub-span-3 volunteer-student-roster-tools">
-        <SectionTitle icon={<UsersRound aria-hidden="true" />} eyebrow="Students" title="Roster view" />
+        <SectionTitle icon={<UsersRound aria-hidden="true" />} eyebrow="Students" title="Student list" />
         <div className="volunteer-roster-filters">
           <label className="field"><span>Search</span><input className="input" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Name, grade, or school" /></label>
-          <label className="field"><span>Source</span><select className="input" value={source} onChange={(event) => setSource(event.target.value)}><option value="all">All student refs</option>{visibleSources.map((sourceValue) => <option key={sourceValue} value={sourceValue}>{studentSourceLabel(sourceValue)}</option>)}</select></label>
+          <label className="field"><span>Student list</span><select className="input" value={source} onChange={(event) => setSource(event.target.value)}><option value="all">All students</option>{visibleSources.map((sourceValue) => <option key={sourceValue} value={sourceValue}>{studentSourceLabel(sourceValue)}</option>)}</select></label>
         </div>
       </article>
       {filtered.length ? filtered.map((student) => (
         <StudentCard key={student.id} student={student} actionsEnabled={actionsEnabled} onAction={onAction} />
-      )) : <EmptyPanel title="No students match these filters" detail="Adjust the search, team, or source filters to widen the roster view." />}
+      )) : <EmptyPanel title="No students match these filters" detail="Adjust the search or student list filter to widen the view." />}
     </div>
   );
 }
@@ -456,7 +457,7 @@ function AttendanceWorkspace({
           )}
         </div>
         <p className="muted">
-          Planning Center remains the student and attendance source of truth. A manual sync imports minimized student and check-in references; Volunteer Hub stores only group assignments and leader review state.
+          Planning Center remains the student and attendance source of truth. A manual sync brings in only the student and check-in details needed for leader follow-up.
           {payload.integrations.planningCenter.lastSyncAt ? ` Last synced ${formatDateTime(payload.integrations.planningCenter.lastSyncAt)}.` : ""}
         </p>
         <div className="volunteer-attendance-list">
@@ -470,7 +471,7 @@ function AttendanceWorkspace({
                 {student.followUpNeeded ? "Mark reviewed" : "Reviewed"}
               </button>
             </div>
-          )) : <EmptyState title="No attendance rows yet" detail="Planning Center attendance summaries will appear here after a sync has imported check-in references." />}
+          )) : <EmptyState title="No attendance yet" detail="Check-in summaries will appear here after Planning Center is synced." />}
         </div>
       </article>
     </div>
@@ -782,7 +783,7 @@ function OnboardingWorkspace({ payload, onAction }: { payload: VolunteerHubPaylo
 function CalendarWorkspace({ payload }: { payload: VolunteerHubPayload }) {
   const items = payload.dataSource === "live" ? [
     ["Serving schedule", payload.activeGroup.serviceTime],
-    ["Student roster", `${payload.students.length} Planning Center student refs`]
+    ["Student list", `${payload.students.length} synced students`]
   ] : [
     ["Serving schedule", payload.activeGroup.serviceTime],
     ["Leader meeting", "Sunday - 8:40 AM"],
@@ -838,6 +839,14 @@ function DirectorDashboard({
   const completedTraining = payload.trainingModules.filter((module) => module.completed).length;
   return (
     <div className="volunteer-hub-grid">
+      <article className="volunteer-hub-panel volunteer-hub-span-3 volunteer-director-priority">
+        <SectionTitle icon={<ShieldCheck aria-hidden="true" />} eyebrow="Director View" title="What needs attention" />
+        <div className="volunteer-director-priority-grid">
+          <a href="#director-small-groups"><UsersRound aria-hidden="true" /><span>Small groups</span><strong>{payload.activeGroups.length} active</strong></a>
+          <a href="#director-leaders"><UserRound aria-hidden="true" /><span>Leaders</span><strong>{payload.volunteers.length} on roster</strong></a>
+          <a href="#director-archived-groups"><Archive aria-hidden="true" /><span>Archived</span><strong>{payload.archivedGroups.length} reversible</strong></a>
+        </div>
+      </article>
       <MetricCard icon={<UsersRound aria-hidden="true" />} label="Active Small Groups" value={String(payload.activeGroups.length)} detail={`${activeGroupStudents} assigned students in active groups.`} />
       <MetricCard icon={<ShieldCheck aria-hidden="true" />} label="Training Completion" value={`${completedTraining}/${payload.trainingModules.length}`} detail="Quarterly leader-readiness modules." />
       <MetricCard icon={<Archive aria-hidden="true" />} label="Archived Groups" value={String(payload.archivedGroups.length)} detail="Reversible archive for consolidated groups." />
@@ -873,6 +882,7 @@ function SmallGroupDirectorPanel({
 }) {
   const [managedGroup, setManagedGroup] = useState<VolunteerHubSmallGroup | null>(null);
   const [draftServiceTime, setDraftServiceTime] = useState("");
+  const [restoringGroupId, setRestoringGroupId] = useState("");
   const serviceOptions = useMemo(() => uniqueServiceTimes([
     payload.activeGroup.serviceTime,
     ...payload.activeGroups.map((group) => group.serviceTime),
@@ -885,6 +895,16 @@ function SmallGroupDirectorPanel({
   const [groupMeError, setGroupMeError] = useState("");
   const groupMeDisplayStatus = payload.integrations.groupMe.displayStatus;
   const canManageGroups = !payload.readOnlyReason;
+
+  async function restoreGroup(groupId: string) {
+    setRestoringGroupId(groupId);
+    try {
+      await onAction({ type: "restore_group", groupId }, "Small group restored to the active service list.");
+      await onReload();
+    } finally {
+      setRestoringGroupId("");
+    }
+  }
 
   const loadGroupMeGroups = useCallback(async () => {
     if (groupMeDisplayStatus !== "connected") return;
@@ -907,7 +927,7 @@ function SmallGroupDirectorPanel({
   }, [loadGroupMeGroups]);
 
   return (
-    <article className="volunteer-hub-panel volunteer-hub-span-3">
+    <article className="volunteer-hub-panel volunteer-hub-span-3" id="director-small-groups">
       <div className="volunteer-panel-head">
         <SectionTitle icon={<UsersRound aria-hidden="true" />} eyebrow="Small Groups" title="Small groups by service" />
         <div className="volunteer-card-actions">
@@ -956,18 +976,31 @@ function SmallGroupDirectorPanel({
           </section>
         )) : <EmptyState title="No active small groups" detail="Create the first group for a service, then assign leaders and students." />}
       </div>
-      <h3 className="volunteer-subtitle">Archived small groups</h3>
-      <div className="volunteer-group-card-grid">
-        {payload.archivedGroups.length ? payload.archivedGroups.map((group) => (
-          <article className="volunteer-group-card archived" key={group.id}>
-            <strong>{group.name}</strong>
-            <p>{group.archiveReason ?? "Archived."}</p>
-            <button className="button compact-button" type="button" onClick={() => onAction({ type: "restore_group", groupId: group.id }, "Small group restored.")}>
-              <RotateCcw aria-hidden="true" />Restore
-            </button>
-          </article>
-        )) : <p className="muted">No small groups are archived.</p>}
-      </div>
+      <section className="volunteer-archived-groups" id="director-archived-groups" aria-label="Archived small groups">
+        <div className="volunteer-archived-groups-head">
+          <div>
+            <h3 className="volunteer-subtitle">Archived small groups</h3>
+            <p>Archived groups are hidden from active service planning. Restore brings the group back with its leaders and roster intact.</p>
+          </div>
+          <StatusBadge tone={payload.archivedGroups.length ? "warning" : "success"}>{payload.archivedGroups.length} archived</StatusBadge>
+        </div>
+        <div className="volunteer-group-card-grid volunteer-archived-grid">
+          {payload.archivedGroups.length ? payload.archivedGroups.map((group) => {
+            const isRestoring = restoringGroupId === group.id;
+            return (
+              <article className="volunteer-group-card archived" key={group.id}>
+                <strong>{group.name}</strong>
+                <small className="volunteer-archived-meta">{group.serviceTime} - {group.room}</small>
+                <p>{group.archiveReason ?? "Archived for cleanup. Restore it if this group should serve again."}</p>
+                <button className="button compact-button" type="button" disabled={isRestoring} onClick={() => void restoreGroup(group.id)}>
+                  {isRestoring ? <LoaderCircle className="volunteer-spin" aria-hidden="true" /> : <RotateCcw aria-hidden="true" />}
+                  {isRestoring ? "Restoring..." : "Restore group"}
+                </button>
+              </article>
+            );
+          }) : <EmptyState title="No archived small groups" detail="Groups you archive for seasonal cleanup or consolidation will appear here." />}
+        </div>
+      </section>
       {draftServiceTime ? (
         <ManageGroupDialog
           mode="create"
@@ -1201,7 +1234,7 @@ function LeaderPoolPanel({ payload, onAction }: { payload: VolunteerHubPayload; 
   const [role, setRole] = useState("Small Group Coach");
   const [sourceChurch, setSourceChurch] = useState("Lead Emergence");
   return (
-    <article className="volunteer-hub-panel volunteer-hub-span-3">
+    <article className="volunteer-hub-panel volunteer-hub-span-3" id="director-leaders">
       <div className="volunteer-panel-head">
         <SectionTitle icon={<UserRound aria-hidden="true" />} eyebrow="Leader Pool" title="Small group leaders" />
         {payload.readOnlyReason ? null : <button className="button primary" type="button" onClick={() => setOpen((value) => !value)}>Add Leader</button>}
@@ -1274,9 +1307,34 @@ function newSmallGroupDraft(serviceTime: string, leaderId: string): VolunteerHub
 }
 
 function studentSourceLabel(source: NonNullable<VolunteerHubStudent["source"]>) {
-  if (source === "planning_center") return "Planning Center";
-  if (source === "demo") return "Demo";
-  return "Imported roster";
+  if (source === "planning_center") return "Planning Center students";
+  if (source === "demo") return "Sample students";
+  return "Imported students";
+}
+
+function actionWorkingMessage(action: VolunteerHubAction) {
+  switch (action.type) {
+    case "create_group":
+      return "Creating small group...";
+    case "update_group":
+      return "Saving small group...";
+    case "archive_group":
+      return "Archiving small group...";
+    case "restore_group":
+      return "Restoring small group...";
+    case "add_leader":
+      return "Adding volunteer leader...";
+    case "delete_leader":
+      return "Removing volunteer leader...";
+    case "review_attendance":
+      return "Marking follow-up reviewed...";
+    case "preview_chat_message":
+      return "Saving message draft...";
+    case "update_profile":
+      return "Saving profile...";
+    default:
+      return "Saving Volunteer Hub changes...";
+  }
 }
 
 function groupMeStatusHeadline(status: VolunteerHubPayload["integrations"]["groupMe"]["displayStatus"], groupCount: number, loading: boolean) {
@@ -1342,8 +1400,8 @@ function HubStatus({ integrations }: { integrations: VolunteerHubPayload["integr
       <StatusBadge tone={integrations.planningCenter.displayStatus === "connected" ? "success" : "warning"}>
         Planning Center: {integrations.planningCenter.displayStatus}
       </StatusBadge>
-      <StatusBadge tone="info">{integrations.planningCenter.peopleCount} people refs</StatusBadge>
-      <StatusBadge tone="info">{integrations.planningCenter.attendanceCount} attendance refs</StatusBadge>
+      <StatusBadge tone="info">{integrations.planningCenter.peopleCount} people</StatusBadge>
+      <StatusBadge tone="info">{integrations.planningCenter.attendanceCount} check-ins</StatusBadge>
       <StatusBadge tone={integrations.groupMe.displayStatus === "connected" ? "success" : "warning"}>
         GroupMe: {integrations.groupMe.displayStatus.replaceAll("_", " ")}
       </StatusBadge>
