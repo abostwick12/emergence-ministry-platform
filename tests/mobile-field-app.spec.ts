@@ -87,7 +87,13 @@ test.describe("mobile ministry field app", () => {
     expect(await board.evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" ").length)).toBe(1);
 
     await page.goto("/people");
-    await page.getByRole("button", { name: "Attendance", exact: true }).click();
+    const volunteerPriorities = page.getByRole("region", { name: "Volunteer mobile priorities" });
+    await expect(volunteerPriorities).toBeVisible();
+    await expect(volunteerPriorities.getByRole("button", { name: /Today/ })).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "Volunteer Hub sections" })).toBeHidden();
+    await volunteerPriorities.getByRole("button", { name: /Resources/ }).click();
+    await expect(page.getByRole("region", { name: "Small-group videos and resources" })).toBeVisible();
+    await page.getByLabel("More volunteer tools").selectOption("attendance");
     const attendanceCard = page.locator(".volunteer-attendance-row").first();
     if (await attendanceCard.count()) {
       await expect(attendanceCard).toHaveCSS("grid-template-columns", /.+/);

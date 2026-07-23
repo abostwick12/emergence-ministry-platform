@@ -381,6 +381,9 @@ async function createExternalResource(
 ) {
   const externalUrl = normalizeExternalUrl(input.externalUrl);
   const resourceType = normalizeResourceType(input.resourceType, inferExternalResourceType(externalUrl));
+  if (resourceType === "youtube" && inferExternalResourceType(externalUrl) !== "youtube") {
+    throw new ResourceAttachmentError("Add a valid YouTube URL.", 400, "invalid_youtube_url");
+  }
   const now = new Date().toISOString();
   const title = normalizedText(input.title, titleFromUrl(externalUrl), 140);
   const resource: ResourceAttachment = {

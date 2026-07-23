@@ -44,7 +44,7 @@ type ResourceAttachmentsProps = {
   title?: string;
 };
 
-type AddMode = "file" | "link";
+type AddMode = "file" | "youtube" | "link";
 type SaveStatus = "idle" | "loading" | "saving" | "success" | "error";
 
 type EditState = {
@@ -131,7 +131,7 @@ export function ResourceAttachments({ compact = false, parentId, parentType, tit
   async function submitResource() {
     if (!canManage || status === "saving") return;
     setStatus("saving");
-    setMessage(mode === "file" ? "Uploading resource..." : "Adding link...");
+    setMessage(mode === "file" ? "Uploading resource..." : mode === "youtube" ? "Embedding YouTube video..." : "Adding link...");
 
     try {
       if (mode === "file") {
@@ -150,10 +150,16 @@ export function ResourceAttachments({ compact = false, parentId, parentType, tit
           await createResourceRequest(formData);
         }
       } else {
+        if (mode === "youtube" && !youtubeEmbedUrl(externalUrl)) {
+          setStatus("error");
+          setMessage("Add a valid YouTube watch, short, or embed URL.");
+          return;
+        }
         await createResourceRequest({
           description,
           externalUrl,
           notificationIntent,
+          resourceType: mode === "youtube" ? "youtube" : undefined,
           title: titleInput,
           visibility
         });
@@ -346,7 +352,11 @@ export function ResourceAttachments({ compact = false, parentId, parentType, tit
             </button>
             <button className={mode === "link" ? "button compact-button active" : "button compact-button"} type="button" onClick={() => setMode("link")}>
               <LinkIcon aria-hidden="true" />
-              External Link
+              Link
+            </button>
+            <button className={mode === "youtube" ? "button compact-button active" : "button compact-button"} type="button" onClick={() => setMode("youtube")}>
+              <Video aria-hidden="true" />
+              YouTube Video
             </button>
           </div>
 
@@ -367,6 +377,11 @@ export function ResourceAttachments({ compact = false, parentId, parentType, tit
               <span>{files.length ? `${files.length} selected` : "PDF, image, audio, video, Office, text, or CSV"}</span>
               <input ref={inputRef} className="sr-only" type="file" multiple onChange={(event) => onFileSelect(event.target.files)} />
             </div>
+          ) : mode === "youtube" ? (
+            <label className="field">
+              <span>YouTube video URL</span>
+              <input className="input" value={externalUrl} onChange={(event) => setExternalUrl(event.target.value)} placeholder="https://www.youtube.com/watch?v=..." />
+            </label>
           ) : (
             <label className="field">
               <span>External URL</span>
@@ -595,6 +610,7 @@ function ResourceCard({
               <span>{resourceVisibilityLabels[resource.visibility]}</span>
               {resource.originalFilename ? <span>{resource.originalFilename}</span> : null}
             </div>
+            {resource.resourceType === "youtube" && resource.externalUrl ? <YouTubeResourceEmbed resource={resource} /> : null}
           </>
         )}
       </div>
@@ -649,6 +665,43 @@ function ResourceCard({
   );
 }
 
+function YouTubeResourceEmbed({ resource }: { resource: ResourceAttachment }) {
+  const embedUrl = youtubeEmbedUrl(resource.externalUrl);
+  if (!embedUrl) return null;
+  return (
+    <div className="resource-youtube-embed">
+      <iframe
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+        allowFullScreen
+        loading="lazy"
+        referrerPolicy="strict-origin-when-cross-origin"
+        src={embedUrl}
+        title={`${resource.title} video`}
+      />
+    </div>
+  );
+}
+
+function youtubeEmbedUrl(rawUrl?: string) {
+  if (!rawUrl) return "";
+  try {
+    const url = new URL(rawUrl);
+    const hostname = url.hostname.toLowerCase().replace(/^www\./, "");
+    let videoId = "";
+    if (hostname === "youtu.be") {
+      videoId = url.pathname.split("/").filter(Boolean)[0] ?? "";
+    } else if (hostname.endsWith("youtube.com")) {
+      if (url.pathname.startsWith("/embed/")) videoId = url.pathname.split("/").filter(Boolean)[1] ?? "";
+      else if (url.pathname.startsWith("/shorts/")) videoId = url.pathname.split("/").filter(Boolean)[1] ?? "";
+      else videoId = url.searchParams.get("v") ?? "";
+    }
+    if (!/^[\w-]{6,}$/.test(videoId)) return "";
+    return `https://www.youtube.com/embed/${videoId}`;
+  } catch {
+    return "";
+  }
+}
+
 async function patchResource(attachmentId: string, body: Record<string, unknown>) {
   const response = await fetch(`/api/resource-attachments/items/${attachmentId}`, {
     method: "PATCH",
@@ -681,6 +734,7 @@ function iconForResource(resource: ResourceAttachment) {
 }
 
 function previewLabel(resource: ResourceAttachment) {
+  if (resource.resourceType === "youtube") return "Open on YouTube";
   if (resource.externalUrl) return "Open";
   if (resource.resourceType === "image" || resource.resourceType === "pdf" || resource.resourceType === "video" || resource.resourceType === "audio") return "Preview";
   return "Open";
