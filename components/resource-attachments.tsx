@@ -599,13 +599,13 @@ function ResourceCard({
         ) : (
           <>
             <div className="resource-card-title-row">
+              <span className="resource-type-badge">{resource.resourceType === "youtube" ? "YouTube" : resource.resourceType.replace(/_/g, " ")}</span>
               <strong>{resource.title}</strong>
               {resource.isFeatured ? <span className="pill amber">Featured</span> : null}
               {archived ? <span className="pill">Archived</span> : null}
             </div>
             {resource.description ? <p>{resource.description}</p> : null}
             <div className="resource-card-meta">
-              <span>{resource.resourceType.replace(/_/g, " ")}</span>
               {resource.fileSizeBytes ? <span>{formatBytes(resource.fileSizeBytes)}</span> : null}
               <span>{resourceVisibilityLabels[resource.visibility]}</span>
               {resource.originalFilename ? <span>{resource.originalFilename}</span> : null}

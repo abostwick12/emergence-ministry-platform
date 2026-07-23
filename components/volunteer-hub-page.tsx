@@ -719,10 +719,20 @@ function JerichoLeaderGuideCard() {
 function ResourceCard({ resource, groupId, onAction }: { resource: VolunteerHubResource; groupId: string; onAction: (action: VolunteerHubAction, success: string) => Promise<void> }) {
   return (
     <article className="volunteer-hub-panel volunteer-resource-card">
-      <BookOpen aria-hidden="true" />
-      <h3>{resource.title}</h3>
+      <div className="volunteer-resource-card-head">
+        <span className={resource.completed ? "volunteer-resource-icon complete" : "volunteer-resource-icon"} aria-hidden="true">
+          {resource.completed ? <CheckCircle2 /> : <BookOpen />}
+        </span>
+        <div>
+          <span className="eyebrow">{resource.shareable ? "Shareable prep" : "Leader prep"}</span>
+          <h3>{resource.title}</h3>
+        </div>
+      </div>
       <p>{resource.detail}</p>
-      <span>{resource.estimatedMinutes} minutes</span>
+      <div className="volunteer-resource-card-meta">
+        <span>{resource.estimatedMinutes} min prep</span>
+        <StatusBadge tone={resource.completed ? "success" : "info"}>{resource.completed ? "Completed" : "Ready"}</StatusBadge>
+      </div>
       <div className="volunteer-card-actions">
         <button className="button compact-button" type="button" onClick={() => onAction({ type: "complete_resource", resourceId: resource.id, completed: !resource.completed }, resource.completed ? "Resource reopened." : "Resource completed.")}>
           {resource.completed ? "Reopen" : "Mark complete"}

@@ -702,20 +702,24 @@ function SmallGroupCard({
   leaders: PeopleLeader[];
   onSelect: () => void;
 }) {
+  const filledSlots = group.leaderIds.filter(Boolean).length;
   return (
     <button className={`ministry-people-group-card ${accentClass}`} type="button" onClick={onSelect} aria-label={`Open ${group.name} small group menu`}>
       <div className="ministry-people-group-head">
         <span className="ministry-people-group-dot" aria-hidden="true" />
-        <strong>{group.name}</strong>
-        <span>{group.memberCount}</span>
+        <span className="ministry-people-group-title">
+          <strong>{group.name}</strong>
+          <small>{group.room}</small>
+        </span>
+        <span className="ministry-people-count-badge">{group.memberCount}</span>
       </div>
       <div className="ministry-people-group-body">
         <PeopleLeaderSlot roleLabel="Leader" leader={leaderById(group.leaderIds[0], leaders)} />
         <PeopleLeaderSlot roleLabel="Co-leader" leader={leaderById(group.leaderIds[1], leaders)} />
       </div>
       <div className="ministry-people-group-footer">
-        <span>{group.room}</span>
-        <span>Open group menu</span>
+        <span>{filledSlots}/2 leader slots filled</span>
+        <span>Manage group</span>
       </div>
     </button>
   );
@@ -760,7 +764,7 @@ function LeaderPoolRow({ leader, selectedService, onDelete }: { leader: PeopleLe
         <strong>{leader.name}</strong>
         <small>{leader.role}{leader.sourceChurch ? ` - ${leader.sourceChurch}` : ""}</small>
       </span>
-      <span className="pill blue">{assignment?.name ?? "Available"}</span>
+      <span className={assignment ? "ministry-people-assignment-chip assigned" : "ministry-people-assignment-chip"}>{assignment?.name ?? "Available"}</span>
       <button className="button compact-button danger ministry-people-delete-leader" type="button" onClick={() => onDelete(leader)} aria-label={`Delete leader ${leader.name}`}>
         <Trash2 aria-hidden="true" />
         Delete
