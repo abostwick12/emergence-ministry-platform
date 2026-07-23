@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ArrowRight, CalendarCheck2, HeartHandshake, LogIn, MessageSquareText } from "lucide-react";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 
 type LoginResponse = {
   user?: {
@@ -13,7 +13,41 @@ type LoginResponse = {
 
 export default function LoginPage() {
   const [error, setError] = useState("");
+  const [statusMessage, setStatusMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    const currentUrl = new URL(window.location.href);
+    const hashParams = new URLSearchParams(currentUrl.hash.startsWith("#") ? currentUrl.hash.slice(1) : currentUrl.hash);
+    const accessToken = currentUrl.searchParams.get("access_token") ?? hashParams.get("access_token");
+    const state = currentUrl.searchParams.get("state") ?? hashParams.get("state");
+
+    if (!accessToken) return;
+
+    setStatusMessage("Finishing GroupMe connection...");
+    window.history.replaceState(null, "", "/login");
+
+    void fetch("/api/integrations/groupme/callback/complete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      cache: "no-store",
+      body: JSON.stringify({ accessToken, state })
+    })
+      .then(async (response) => {
+        const body = (await response.json().catch(() => ({}))) as { redirectTo?: string; error?: string };
+        if (body.redirectTo) {
+          window.location.replace(body.redirectTo);
+          return;
+        }
+        setStatusMessage("");
+        setError(response.status === 401 ? "Sign in to Lead Emergence, then connect GroupMe again." : body.error ?? "GroupMe returned without a saved connection. Try Connect GroupMe again.");
+      })
+      .catch(() => {
+        setStatusMessage("");
+        setError("GroupMe returned, but Lead Emergence could not finish the connection. Try Connect GroupMe again.");
+      });
+  }, []);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -83,6 +117,7 @@ export default function LoginPage() {
               <label htmlFor="password">Password</label>
               <input className="input" id="password" name="password" type="password" autoComplete="current-password" required />
             </div>
+            {statusMessage ? <p className="auth-success" role="status">{statusMessage}</p> : null}
             {error ? <p className="auth-error" role="alert">{error}</p> : null}
             <button className="button primary login-entry-submit" type="submit" disabled={isSubmitting}>
               <LogIn size={18} aria-hidden="true" />
