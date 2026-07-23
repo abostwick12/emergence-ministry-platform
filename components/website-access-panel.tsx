@@ -318,6 +318,7 @@ export function WebsiteAccessPanel({ canManagePlatformAccess }: { canManagePlatf
         {members.map((member) => {
           const draftRole = draftRoles[member.id] ?? member.role;
           const unchanged = draftRole === member.role;
+          const enabledPageCount = pages.filter((page) => member.pageAccess[page.key as PlatformPageKey]).length;
           return (
             <article className={member.active ? "website-access-row" : "website-access-row inactive"} key={member.id}>
               <span className="website-access-person-icon" aria-hidden="true"><UserCog size={18} /></span>
@@ -427,23 +428,29 @@ export function WebsiteAccessPanel({ canManagePlatformAccess }: { canManagePlatf
                   {busyKey === `${member.id}:ai-limit` ? "Saving..." : "Save AI"}
                 </button>
               </div>
-              <div className="website-page-access-grid" aria-label={`Page access for ${member.displayName}`}>
-                {pages.map((page) => (
-                  <label className="camp-access-toggle row-toggle" key={`${member.id}:${page.key}`}>
-                    <input
-                      type="checkbox"
-                      checked={member.pageAccess[page.key as PlatformPageKey] ?? false}
-                      disabled={!member.active || (member.currentUser && page.key === "settings") || busyKey === `${member.id}:${page.key}`}
-                      onChange={(event) => void patchAccess(
-                        { userId: member.id, pageKey: page.key, allowed: event.target.checked },
-                        `${member.id}:${page.key}`,
-                        `${page.label} access updated for ${member.displayName}.`
-                      )}
-                    />
-                    <span>{page.label}</span>
-                  </label>
-                ))}
-              </div>
+              <details className="website-page-access-details">
+                <summary>
+                  <span>Page access</span>
+                  <small>{enabledPageCount} of {pages.length} pages enabled</small>
+                </summary>
+                <div className="website-page-access-grid" aria-label={`Page access for ${member.displayName}`}>
+                  {pages.map((page) => (
+                    <label className="camp-access-toggle row-toggle" key={`${member.id}:${page.key}`}>
+                      <input
+                        type="checkbox"
+                        checked={member.pageAccess[page.key as PlatformPageKey] ?? false}
+                        disabled={!member.active || (member.currentUser && page.key === "settings") || busyKey === `${member.id}:${page.key}`}
+                        onChange={(event) => void patchAccess(
+                          { userId: member.id, pageKey: page.key, allowed: event.target.checked },
+                          `${member.id}:${page.key}`,
+                          `${page.label} access updated for ${member.displayName}.`
+                        )}
+                      />
+                      <span>{page.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </details>
             </article>
           );
         })}

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { isSupabaseConfigured } from "@/lib/auth/config";
 import { clearAuthCookies, getSupabaseAuthClient, setAuthCookies } from "@/lib/auth/server";
+import { normalizePlatformRole } from "@/lib/platform/roles";
 
 export async function POST(request: Request) {
   let body: { accessToken?: string; refreshToken?: string; type?: string } = {};
@@ -39,7 +40,7 @@ export async function POST(request: Request) {
       id: data.user.id,
       email: data.user.email,
       fullName: data.user.user_metadata?.full_name ?? data.user.email,
-      role: data.user.user_metadata?.role ?? "staff"
+      role: normalizePlatformRole(data.user.user_metadata?.role)
     }
   });
   clearAuthCookies(response);

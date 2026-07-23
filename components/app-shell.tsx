@@ -80,7 +80,7 @@ function NavIcon({ href }: { href: string }) {
 const pageTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
   "/ministry": "Ministry Hub",
-  "/directors": "Directors Hub",
+  "/directors": "Leader Hub",
   "/directors/resources": "Resource Development",
   "/directors/volunteers": "Volunteer Dashboard",
   "/camp": "Camp Command Center",
@@ -105,7 +105,7 @@ const pageTitles: Record<string, string> = {
 const pageSubtitles: Record<string, string> = {
   "/dashboard": "See what needs human attention, protect what can wait, and keep ministry moving with clarity.",
   "/ministry": "Plan events, worship, tasks, communication, and budget work from one ministry operations hub.",
-  "/directors": "Monitor formation, sermon preparation, resource development, and volunteer readiness in one director view.",
+  "/directors": "Monitor formation, sermon preparation, resource development, and volunteer readiness in one leader view.",
   "/directors/resources": "Stage leader resources, training assets, and discipleship material before anything is published.",
   "/directors/volunteers": "Monitor volunteer coverage and resource readiness without bypassing human review.",
   "/events": "Plan every gathering around purpose, readiness, and the people it is meant to serve.",

@@ -892,6 +892,12 @@ function Step1Form({
         </div>
       </div>
 
+      <details className="event-card-optional-details" open={mode === "edit"}>
+        <summary>
+          <span>Optional planning details</span>
+          <small>Budget, volunteer count, internal notes, and package settings</small>
+        </summary>
+        <div className="event-card-optional-body">
       <div className="form-grid-3">
         <div className="field">
           <label htmlFor="ec-priority">Priority</label>
@@ -989,6 +995,8 @@ function Step1Form({
           <span>Create ProPresenter Playlist <span className="pill stub">Stub Mode</span></span>
         </label>
       </fieldset>
+        </div>
+      </details>
     </div>
   );
 }

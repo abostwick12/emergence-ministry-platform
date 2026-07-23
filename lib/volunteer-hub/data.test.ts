@@ -25,6 +25,7 @@ describe("Volunteer Hub data", () => {
     expect(payload.activeGroups.some((group) => group.archivedAt)).toBe(false);
     expect(payload.archivedGroups).toHaveLength(1);
     expect(payload.activeGroup.name).toBe("8th Grade Boys");
+    expect(payload.volunteers.map((volunteer) => volunteer.role)).not.toContain("director");
   });
 
   it("archives and restores small groups without deleting audit history", async () => {

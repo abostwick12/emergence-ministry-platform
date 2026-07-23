@@ -13,7 +13,7 @@ const dashboardLinks: AppNavLink[] = [
   { href: "/ministry", label: "Ministry Hub", pageKey: "ministry_hub" },
   { href: "/student", label: "Student Portal", pageKey: "student_portal" },
   { href: "/people", label: "Volunteer Hub", pageKey: "people" },
-  { href: "/directors", label: "Directors Hub", pageKey: "directors_hub" },
+  { href: "/directors", label: "Leader Hub", pageKey: "directors_hub" },
   { href: "/camp", label: "Camp", pageKey: "camp" },
   { href: "/settings", label: "Settings", pageKey: "settings" }
 ];
@@ -47,7 +47,7 @@ const volunteerHubLinks: AppNavLink[] = [
 
 const directorsHubLinks: AppNavLink[] = [
   { href: "/dashboard", label: "Dashboard", pageKey: "dashboard" },
-  { href: "/directors", label: "Directors Hub", pageKey: "directors_hub" },
+  { href: "/directors", label: "Leader Hub", pageKey: "directors_hub" },
   { href: "/leader-prep", label: "Sermon Prep", pageKey: "leader_prep" },
   { href: "/directors/resources", label: "Resource Development", pageKey: "resource_development" },
   { href: "/discipleship", label: "Discipleship Dashboard", pageKey: "discipleship" },
@@ -166,7 +166,7 @@ export function getAppShellNavigation({
     },
     {
       id: "director",
-      label: "Director",
+      label: "Leader",
       href: "/directors",
       links: filterByPageAccess(withFeatureVisibility(directorsHubLinks.filter((link) => link.href !== "/dashboard")))
     },

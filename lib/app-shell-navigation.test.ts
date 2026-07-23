@@ -18,7 +18,7 @@ describe("volunteer hub navigation", () => {
     }
   });
 
-  it("includes director volunteer monitoring in the Volunteer Hub context", () => {
+  it("includes leader volunteer monitoring in the Volunteer Hub context", () => {
     const navigation = getAppShellNavigation({
       campOnly: false,
       isStudentShell: false,
@@ -67,7 +67,7 @@ describe("volunteer hub navigation", () => {
       "Ministry",
       "Volunteer",
       "Student",
-      "Director",
+      "Leader",
       "More"
     ]);
     expect(

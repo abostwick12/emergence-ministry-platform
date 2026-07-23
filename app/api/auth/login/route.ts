@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getMockAuthUser, isMockAuthEnabled, isSupabaseConfigured } from "@/lib/auth/config";
 import { getSupabaseAuthClient, setAuthCookies } from "@/lib/auth/server";
 import { isPlatformUserActiveById } from "@/lib/platform/access-admin";
+import { normalizePlatformRole } from "@/lib/platform/roles";
 
 export async function POST(request: Request) {
   const body = (await request.json()) as { email?: string; password?: string };
@@ -39,7 +40,7 @@ export async function POST(request: Request) {
       id: data.user.id,
       email: data.user.email,
       fullName: profile?.fullName ?? metadataString(data.user.user_metadata, "full_name") ?? data.user.email,
-      role: profile?.role ?? metadataString(data.user.app_metadata, "role") ?? metadataString(data.user.user_metadata, "role") ?? "staff"
+      role: normalizePlatformRole(profile?.role ?? metadataString(data.user.app_metadata, "role") ?? metadataString(data.user.user_metadata, "role"))
     }
   });
   setAuthCookies(response, {

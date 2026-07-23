@@ -13,6 +13,7 @@ import {
   platformPages,
   type PlatformPageKey
 } from "@/lib/platform/page-registry";
+import { normalizePlatformRole } from "@/lib/platform/roles";
 
 export const platformRoles: Role[] = ["admin", "leader", "student", "parent"];
 export const platformDataAccessModes = ["demo", "read_only", "save"] as const;
@@ -624,7 +625,11 @@ function guestPageSet(rows: GuestPagePermissionRow[]) {
 }
 
 function parseRole(value: string | null | undefined): Role | null {
-  return platformRoles.includes(value as Role) ? (value as Role) : null;
+  const normalized = value?.trim().toLowerCase();
+  if (!normalized) return null;
+  if (platformRoles.includes(normalized as Role)) return normalized as Role;
+  if (normalized === "staff" || normalized === "director") return normalizePlatformRole(normalized);
+  return null;
 }
 
 function parseAccessMode(value: string | null | undefined): PlatformDataAccessMode | null {

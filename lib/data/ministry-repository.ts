@@ -24,6 +24,7 @@ import { isSupabaseConfigured } from "@/lib/auth/config";
 import { resolveMinistryScope } from "@/lib/ministry/scope";
 import { measureServerOperation } from "@/lib/performance/timing";
 import { getPlatformDataAccessModeForSession } from "@/lib/platform/access-admin";
+import { normalizePlatformRole } from "@/lib/platform/roles";
 import { syncPlatformEventToGoogle } from "@/lib/integrations/google-demo/repository";
 import * as mockStore from "@/lib/store";
 import {
@@ -821,8 +822,7 @@ function toEventExpenses(rows: SupabaseEventRow[]): EventExpense[] {
 }
 
 function toRole(value?: string | null): Role {
-  if (value === "admin" || value === "leader" || value === "student" || value === "parent") return value;
-  return value === "staff" ? "admin" : "leader";
+  return normalizePlatformRole(value);
 }
 
 function toEventType(value?: string | null): EventType {

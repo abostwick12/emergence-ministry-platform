@@ -20,7 +20,7 @@ export const landingVideoScenes: LandingVideoScene[] = [
     eyebrow: "Dashboard",
     title: "See what needs attention before the week starts.",
     body: "Upcoming events, ministry pulse, calendar pressure, and blocked work move into one daily operating view.",
-    productArea: "Ministry Director View",
+    productArea: "Ministry Leader View",
     metric: "5 events this week",
     accent: "cyan"
   },
@@ -68,7 +68,7 @@ export const landingVideoScenes: LandingVideoScene[] = [
 
 export const landingRoleEntries: LandingRoleEntry[] = [
   {
-    audience: "Ministry Director",
+    audience: "Ministry Leader",
     title: "Run ministry operations",
     description: "Open the dashboard for events, tasks, budget visibility, ministry pulse, and launch-readiness work.",
     href: "/login?next=/dashboard",
