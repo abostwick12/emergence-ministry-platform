@@ -106,7 +106,9 @@ test.describe("Unified access and competition guest mode", () => {
     const campToggle = guestControls.locator("label", { hasText: "Camp" }).getByRole("checkbox");
     await expect(campToggle).toBeDisabled();
 
-    const jordanAccess = page.getByLabel("Page access for Jordan Reed");
+    const jordanRow = page.locator(".website-access-row", { hasText: "Jordan Reed" });
+    await jordanRow.locator("summary", { hasText: "Page access" }).click();
+    const jordanAccess = jordanRow.getByLabel("Page access for Jordan Reed");
     const filesToggle = jordanAccess.locator("label", { hasText: "Files" }).getByRole("checkbox");
     const wasFilesAllowed = await filesToggle.isChecked();
     const filesPatch = page.waitForResponse(

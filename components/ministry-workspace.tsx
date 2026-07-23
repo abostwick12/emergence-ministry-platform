@@ -827,6 +827,11 @@ function TasksWorkspace({
     : tasks;
   const filteredTasks = sortTasksByUrgency(statusFilter === "all" ? searchedTasks : searchedTasks.filter((task) => task.status === statusFilter));
   const groupedFilteredTasks = groupTasksByEvent(filteredTasks, events);
+  const openTasks = searchedTasks.filter((task) => task.status !== "done");
+  const blockedTasks = searchedTasks.filter((task) => task.status === "blocked");
+  const completedTasks = searchedTasks.filter((task) => task.status === "done");
+  const nextTask = sortTasksByUrgency(openTasks)[0] ?? searchedTasks[0];
+  const nextTaskEvent = nextTask ? events.find((event) => event.id === nextTask.eventId) : undefined;
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(max-width: 720px)");
@@ -842,6 +847,17 @@ function TasksWorkspace({
 
   return (
     <section className="tasks-workspace tasks-lovable-workspace" id="kanban-dashboard">
+      <section className="ministry-mobile-command-strip task-mobile-command-strip" aria-label="Task priority">
+        <div>
+          <p className="eyebrow">Start here</p>
+          <strong>{nextTask ? nextTask.taskTitle : "No tasks waiting"}</strong>
+          <span>{nextTask ? `${nextTaskEvent?.title ?? "Event"} - due ${formatDate(nextTask.dueDate)}` : "Create an event to generate the next checklist."}</span>
+        </div>
+        <nav aria-label="Task quick actions">
+          <a href="#task-mobile-list">Task cards</a>
+          <a href="#task-filters">Filters</a>
+        </nav>
+      </section>
       <div className="toolbar tasks-header tasks-lovable-toolbar">
         <div className="segmented-control" role="group" aria-label="Task view">
           <button
@@ -866,9 +882,9 @@ function TasksWorkspace({
         </label>
       </div>
       <div className="mobile-task-summary" aria-label="Task summary">
-        <span><strong>{searchedTasks.filter((task) => task.status === "blocked").length}</strong> stuck</span>
-        <span><strong>{searchedTasks.filter((task) => task.status !== "done").length}</strong> open</span>
-        <span><strong>{searchedTasks.filter((task) => task.status === "done").length}</strong> done</span>
+        <span><strong>{blockedTasks.length}</strong> stuck</span>
+        <span><strong>{openTasks.length}</strong> open</span>
+        <span><strong>{completedTasks.length}</strong> done</span>
       </div>
       {viewMode === "kanban" ? (
         <div className="kanban task-board">
@@ -936,7 +952,7 @@ function TasksWorkspace({
         </div>
       ) : (
         <div className="grid">
-          <div className="field task-filter">
+          <div className="field task-filter" id="task-filters">
             <label htmlFor="task-status-filter">Filter by status</label>
             <select
               className="input"
@@ -983,7 +999,7 @@ function TasksWorkspace({
               </tbody>
             </table>
           </div>
-          <div className="mobile-task-action-list" aria-label="Mobile task action list">
+          <div className="mobile-task-action-list" id="task-mobile-list" aria-label="Mobile task action list">
             {groupedFilteredTasks.length ? (
               groupedFilteredTasks.map((group) => (
                 <section className="mobile-task-group" key={group.eventId} aria-labelledby={`mobile-task-group-${group.eventId}`}>
@@ -1190,9 +1206,32 @@ function EventsWorkspace({
   const groupedEvents = groupEventsByTimeframe(events);
   const archivedEvents = getArchivedEvents(events);
   const visibleEvents = activeTab === "archived" ? archivedEvents : getEventsForTab(activeTab, groupedEvents);
+  const upcomingEventsList = getEventsForTab("upcoming", groupedEvents);
+  const nextEvent = upcomingEventsList[0];
+  const needsAttentionCount = upcomingEventsList.filter((event) => {
+    const eventTasks = tasks.filter((task) => task.eventId === event.id);
+    const owner = users.find((user) => user.id === event.contactOwnerId);
+    const assignedLeaders = eventLeaderAssignments[event.id] ?? [];
+    return event.status === "stuck"
+      || estimateMissingInformationCount(event) > 0
+      || !owner
+      || assignedLeaders.length === 0
+      || eventTasks.some((task) => task.status === "blocked");
+  }).length;
 
   return (
     <section className="events-workspace-panel events-lovable-workspace" id="events-workspace">
+      <section className="ministry-mobile-command-strip event-mobile-command-strip" aria-label="Event priority">
+        <div>
+          <p className="eyebrow">Start here</p>
+          <strong>{needsAttentionCount ? `${needsAttentionCount} event${needsAttentionCount === 1 ? "" : "s"} need attention` : "Upcoming events are ready"}</strong>
+          <span>{nextEvent ? `${nextEvent.title} - ${formatDate(nextEvent.startTime)}` : "Create the next ministry event when you are ready."}</span>
+        </div>
+        <nav aria-label="Event quick actions">
+          <a href="#event-list">Event cards</a>
+          {canCreateEvent ? <button type="button" onClick={onCreateEvent}>New event</button> : null}
+        </nav>
+      </section>
       <div className="events-lovable-toolbar" aria-label="Event filters">
         <label className="mobile-event-filter-field">
           <span>Show events</span>
@@ -1226,7 +1265,7 @@ function EventsWorkspace({
         ) : null}
       </div>
 
-      <div className="event-lovable-list" aria-label={`${eventTabLabels[activeTab]} events`}>
+      <div className="event-lovable-list" id="event-list" aria-label={`${eventTabLabels[activeTab]} events`}>
         {visibleEvents.length ? (
           visibleEvents.map((event) => {
             const eventTasks = tasks.filter((task) => task.eventId === event.id);

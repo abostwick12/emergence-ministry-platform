@@ -220,6 +220,6 @@ export function roleForSession(session: AuthSession): VolunteerHubRole {
   const role = session.user.role.trim().toLowerCase();
   if (role === "admin") return "admin";
   if (role === "leader" || session.isGuest) return "leader";
-  if (role === "director" || role === "staff") return "director";
+  if (role === "director" || role === "staff") return "leader";
   return "volunteer";
 }

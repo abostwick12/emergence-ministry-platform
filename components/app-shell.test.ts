@@ -82,7 +82,7 @@ describe("app shell navigation", () => {
     ]);
   });
 
-  it("uses the directors hub menu inside director routes", () => {
+  it("uses the leader hub menu inside leader routes", () => {
     const navigation = getAppShellNavigation({
       campOnly: false,
       isStudentShell: false,

@@ -62,7 +62,7 @@ test.describe("MVP event automation navigation smoke tests", () => {
       ["Ministry Hub", "/ministry", "Ministry Hub"],
       ["Student Portal", "/student", "Student Portal"],
       ["Volunteer Hub", "/people", "Volunteer Hub"],
-      ["Directors Hub", "/directors", "Directors Hub"],
+      ["Leader Hub", "/directors", "Leader Hub"],
       ["Settings", "/settings", "Settings"]
     ] as const) {
       await sidebar.getByRole("link", { name: route[0] }).click();
@@ -119,7 +119,7 @@ test.describe("MVP event automation navigation smoke tests", () => {
 
     await mobileNav.getByText("More", { exact: true }).click();
     const more = page.getByLabel("More navigation");
-    for (const label of [/Director/, /Student/, "Camp", "Settings"]) {
+    for (const label of [/Leader/, /Student/, "Camp", "Settings"]) {
       await expect(more.getByRole("link", { name: label })).toBeVisible();
     }
   });
@@ -458,7 +458,7 @@ test.describe("MVP event automation navigation smoke tests", () => {
 
     for (const route of [
       ["/communications", "Communication Drafts", "Event Copy Queue"],
-      ["/people", "Good Morning Maya", "Today's Tasks"],
+      ["/people", "Good Morning Andrew", "Today's Tasks"],
       ["/budget", "Budget Workspace", "Where the money is going"],
       ["/settings", "Platform Settings", "Connected services"]
     ] as const) {

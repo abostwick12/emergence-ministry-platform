@@ -26,7 +26,7 @@ test.describe("Student Scripture Hub shell", () => {
 
     const sidebar = page.getByRole("navigation", { name: "Desktop navigation" });
     const portalLink = sidebar.getByRole("link", { name: "Student Portal", exact: true });
-    const directorsLink = sidebar.getByRole("link", { name: "Directors Hub", exact: true });
+    const directorsLink = sidebar.getByRole("link", { name: "Leader Hub", exact: true });
 
     await expect(portalLink).toBeVisible();
     await expect(directorsLink).toBeVisible();

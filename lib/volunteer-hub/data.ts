@@ -179,7 +179,7 @@ function createInitialState(): VolunteerHubState {
       {
         id: "vol_maya",
         name: "Maya Chen",
-        role: "director",
+        role: "leader",
         email: "maya@lead-emergence.test",
         servingAreas: ["Volunteer Development", "Training"],
         availability: "Weekdays and monthly trainings",
@@ -314,7 +314,7 @@ function createInitialState(): VolunteerHubState {
       { id: "on_background", label: "Background Check", completed: true, blocksStudentContact: true },
       { id: "on_policy", label: "Child Safety Policy", completed: true, blocksStudentContact: true },
       { id: "on_shadow", label: "Shadow Sunday", completed: false, blocksStudentContact: false },
-      { id: "on_approval", label: "Director Approval", completed: false, blocksStudentContact: true }
+      { id: "on_approval", label: "Leader Approval", completed: false, blocksStudentContact: true }
     ],
     notifications: [
       { id: "note_training", label: "Training Due", detail: "Pastoral Follow-up Basics is due soon.", href: "#training", unread: true },
@@ -736,8 +736,7 @@ function mergeSessionVolunteer(volunteers: VolunteerHubVolunteer[], sessionVolun
 function volunteerRole(role: string | null | undefined): VolunteerHubRole {
   const normalized = (role ?? "").trim().toLowerCase();
   if (normalized === "admin") return "admin";
-  if (normalized === "leader") return "leader";
-  if (normalized === "director" || normalized === "staff") return "director";
+  if (normalized === "leader" || normalized === "director" || normalized === "staff") return "leader";
   return "volunteer";
 }
 
@@ -1465,7 +1464,7 @@ export function applyVolunteerHubAction(session: AuthSession, action: VolunteerH
       requireDirector(actor);
       const leader = current.volunteers.find((item) => item.id === action.volunteerId);
       if (!leader) throw new Error("Volunteer leader not found.");
-      if (leader.role === "admin" || leader.role === "director") throw new Error("Director and admin leaders cannot be removed here.");
+      if (leader.role === "admin") throw new Error("Administrator leaders cannot be removed here.");
       current.smallGroups.forEach((group) => {
         if (group.leaderId === leader.id) group.leaderId = "vol_maya";
         if (group.coLeaderId === leader.id) group.coLeaderId = undefined;
@@ -1482,13 +1481,13 @@ export function applyVolunteerHubAction(session: AuthSession, action: VolunteerH
 function resolveActiveVolunteer(stateValue: VolunteerHubState, session: AuthSession, role: VolunteerHubRole) {
   const byUser = stateValue.volunteers.find((volunteer) => volunteer.userId === session.user.id);
   if (byUser) return byUser;
-  if (role === "admin") return stateValue.volunteers.find((volunteer) => volunteer.role === "director") ?? stateValue.volunteers[0];
+  if (role === "admin") return stateValue.volunteers.find((volunteer) => volunteer.role === "leader") ?? stateValue.volunteers[0];
   return stateValue.volunteers.find((volunteer) => volunteer.id === "vol_andrew") ?? stateValue.volunteers[0];
 }
 
 function getVisibleActiveGroups(stateValue: VolunteerHubState, activeVolunteer: VolunteerHubVolunteer, role: VolunteerHubRole) {
   const activeGroups = stateValue.smallGroups.filter((group) => !group.archivedAt);
-  if (role === "admin" || role === "director") return activeGroups;
+  if (role === "admin" || role === "director" || role === "leader") return activeGroups;
   return activeGroups.filter((group) => group.leaderId === activeVolunteer.id || group.coLeaderId === activeVolunteer.id);
 }
 
@@ -1520,7 +1519,7 @@ function audit(stateValue: VolunteerHubState, actor: VolunteerHubVolunteer, acti
 
 function requireDirector(actor: VolunteerHubVolunteer) {
   if (actor.role !== "admin" && actor.role !== "director" && actor.role !== "leader") {
-    throw new Error("Director-level Volunteer Hub access is required.");
+    throw new Error("Leader-level Volunteer Hub access is required.");
   }
 }
 

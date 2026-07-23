@@ -167,9 +167,9 @@ export function VolunteerHubPage({ mode = "volunteer" }: { mode?: VolunteerHubMo
   const isDirectorMode = mode === "director";
 
   return (
-    <section className={isDirectorMode ? "volunteer-hub volunteer-hub-director" : "volunteer-hub"} aria-label={isDirectorMode ? "Volunteer director dashboard" : "Volunteer Hub"}>
+    <section className={isDirectorMode ? "volunteer-hub volunteer-hub-director" : "volunteer-hub"} aria-label={isDirectorMode ? "Leader volunteer dashboard" : "Volunteer Hub"}>
       <PageIntro
-        eyebrow={isDirectorMode ? "Directors Hub" : "Volunteer Hub"}
+        eyebrow={isDirectorMode ? "Leader Hub" : "Volunteer Hub"}
         title={isDirectorMode ? "Volunteer Dashboard" : `Good Morning ${firstName(payload.activeVolunteer.name)}`}
         description={isDirectorMode
           ? "Monitor readiness, follow-up health, training, resources, and small group consolidation from one place."
@@ -579,14 +579,14 @@ function ChatWorkspace({
         {payload.dataSource === "live" && payload.integrations.groupMe.displayStatus !== "connected" ? (
           <div className="volunteer-chat-setup">
             <Link2 aria-hidden="true" />
-            <div><strong>Connect GroupMe once for the ministry</strong><p>After OAuth, a director can link each small group to its existing conversation.</p></div>
+            <div><strong>Connect GroupMe once for the ministry</strong><p>After OAuth, a leader can link each small group to its existing conversation.</p></div>
             <a className="button primary" href="/api/integrations/groupme/connect">Connect GroupMe</a>
           </div>
         ) : null}
         {payload.dataSource === "live" && payload.integrations.groupMe.displayStatus === "connected" && !payload.activeGroup.groupMeConnected ? (
           <div className="volunteer-chat-setup">
             <Link2 aria-hidden="true" />
-            <div><strong>Conversation not linked yet</strong><p>A director can use Manage Group to choose the matching GroupMe conversation.</p></div>
+            <div><strong>Conversation not linked yet</strong><p>A leader can use Manage Group to choose the matching GroupMe conversation.</p></div>
           </div>
         ) : null}
         <div className="volunteer-chat-window" aria-live="polite">
@@ -846,7 +846,7 @@ function DirectorDashboard({
   return (
     <div className="volunteer-hub-grid">
       <article className="volunteer-hub-panel volunteer-hub-span-3 volunteer-director-priority">
-        <SectionTitle icon={<ShieldCheck aria-hidden="true" />} eyebrow="Director View" title="What needs attention" />
+        <SectionTitle icon={<ShieldCheck aria-hidden="true" />} eyebrow="Leader View" title="What needs attention" />
         <div className="volunteer-director-priority-grid">
           <a href="#director-small-groups"><UsersRound aria-hidden="true" /><span>Small groups</span><strong>{payload.activeGroups.length} active</strong></a>
           <a href="#director-leaders"><UserRound aria-hidden="true" /><span>Leaders</span><strong>{payload.volunteers.length} on roster</strong></a>
@@ -1231,8 +1231,8 @@ function ManageGroupDialog({
         <form className="volunteer-manage-group-form" onSubmit={saveGroup}>
           <div className="volunteer-manage-group-fields">
             <label className="field"><span>Group name</span><input className="input" required value={name} onChange={(event) => setName(event.target.value)} /></label>
-            <label className="field"><span>Leader</span><select className="input" value={leaderId} onChange={(event) => setLeaderId(event.target.value)}><option value="">Unassigned</option>{volunteers.map((volunteer) => <option key={volunteer.id} value={volunteer.id}>{volunteer.name} - {volunteer.role}</option>)}</select></label>
-            <label className="field"><span>Co-Leader</span><select className="input" value={coLeaderId} onChange={(event) => setCoLeaderId(event.target.value)}><option value="">Open slot</option>{volunteers.map((volunteer) => <option key={volunteer.id} value={volunteer.id}>{volunteer.name} - {volunteer.role}</option>)}</select></label>
+            <label className="field"><span>Leader</span><select className="input" value={leaderId} onChange={(event) => setLeaderId(event.target.value)}><option value="">Unassigned</option>{volunteers.map((volunteer) => <option key={volunteer.id} value={volunteer.id}>{volunteer.name} - {volunteerRoleLabel(volunteer.role)}</option>)}</select></label>
+            <label className="field"><span>Co-Leader</span><select className="input" value={coLeaderId} onChange={(event) => setCoLeaderId(event.target.value)}><option value="">Open slot</option>{volunteers.map((volunteer) => <option key={volunteer.id} value={volunteer.id}>{volunteer.name} - {volunteerRoleLabel(volunteer.role)}</option>)}</select></label>
             <label className="field"><span>Room</span><input className="input" value={room} onChange={(event) => setRoom(event.target.value)} /></label>
             <label className="field"><span>Service</span><input className="input" list="volunteer-manage-service-times" value={serviceTime} onChange={(event) => setServiceTime(event.target.value)} /></label>
             <datalist id="volunteer-manage-service-times">
@@ -1319,9 +1319,9 @@ function LeaderPoolPanel({ payload, onAction }: { payload: VolunteerHubPayload; 
           <div className="ministry-people-leader-row volunteer-leader-row" key={volunteer.id}>
             <span className="volunteer-avatar" aria-hidden="true">{initials(volunteer.name)}</span>
             <strong>{volunteer.name}</strong>
-            <span>{volunteer.role}</span>
+            <span>{volunteerRoleLabel(volunteer.role)}</span>
             <span>{volunteer.email}</span>
-            <button className="button compact-button" type="button" disabled={Boolean(payload.readOnlyReason) || volunteer.role === "admin" || volunteer.role === "director"} aria-label={`Delete leader ${volunteer.name}`} onClick={() => onAction({ type: "delete_leader", volunteerId: volunteer.id }, "Volunteer leader removed.")}>
+            <button className="button compact-button" type="button" disabled={Boolean(payload.readOnlyReason) || volunteer.role === "admin"} aria-label={`Delete leader ${volunteer.name}`} onClick={() => onAction({ type: "delete_leader", volunteerId: volunteer.id }, "Volunteer leader removed.")}>
               Delete
             </button>
           </div>
@@ -1338,6 +1338,12 @@ function MetricCard({ icon, label, value, detail }: { icon: ReactNode; label: st
       <div><span>{label}</span><strong>{value}</strong><p>{detail}</p></div>
     </article>
   );
+}
+
+function volunteerRoleLabel(role: VolunteerHubVolunteer["role"]) {
+  if (role === "admin") return "Admin";
+  if (role === "volunteer") return "Volunteer";
+  return "Leader";
 }
 
 function uniqueServiceTimes(values: string[]) {

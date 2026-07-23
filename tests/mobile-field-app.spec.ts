@@ -46,7 +46,7 @@ test.describe("mobile ministry field app", () => {
     await expect(more.getByRole("link", { name: /Ministry/ })).toBeVisible();
     await expect(more.getByRole("link", { name: /Volunteer/ })).toBeVisible();
     await expect(more.getByRole("link", { name: /Student/ })).toBeVisible();
-    await expect(more.getByRole("link", { name: /Director/ })).toBeVisible();
+    await expect(more.getByRole("link", { name: /Leader/ })).toBeVisible();
 
     const overflow = await page.evaluate(() => ({
       hasOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
