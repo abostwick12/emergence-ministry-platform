@@ -18278,6 +18278,41 @@ body:has(.login-shell) h3 {
   line-height: 1.55;
 }
 
+.app-shell:not(.app-shell-camp) .student-lovable-passage-guide {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 6px 0 0;
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-passage-guide div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  border-top: 1px solid rgba(129, 164, 214, 0.16);
+  padding-top: 10px;
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-passage-guide div:first-child {
+  grid-column: 1 / -1;
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-passage-guide dt {
+  color: var(--platform-gold);
+  font-family: var(--font-platform-mono), ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-passage-guide dd {
+  margin: 0;
+  color: #d8e5f5;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .app-shell:not(.app-shell-camp) .student-lovable-question-list {
   display: grid;
   gap: 10px;
@@ -19214,6 +19249,10 @@ body:has(.login-shell) h3 {
 
   .app-shell:not(.app-shell-camp) .student-lovable-section-body {
     padding: 14px;
+  }
+
+  .app-shell:not(.app-shell-camp) .student-lovable-passage-guide {
+    grid-template-columns: 1fr;
   }
 
   .app-shell:not(.app-shell-camp) .student-lovable-card-row,

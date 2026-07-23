@@ -272,6 +272,11 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(journey.getByRole("group", { name: "Choose an investigation path" })).toContainText(
       /Cross Referencing|Context Clues|Repeated Words|Compare Translations|Observation Lists|Author's Purpose|Genre Awareness/
     );
+    const passageGuide = journey.locator('dl[aria-label="Passage-specific study guide"]');
+    await expect(passageGuide).toContainText("Passage focus");
+    await expect(passageGuide).toContainText("Genesis 1:26-31");
+    await expect(passageGuide).toContainText("God speaks");
+    await expect(passageGuide).toContainText("Study habit");
     await expect(journey.getByRole("region", { name: "YouVersion guided prayer media" })).toContainText("Open in YouVersion");
     await expect(journey).toContainText("Genesis 1:26-31");
     await expect(journey).toContainText("shamar");
@@ -280,6 +285,9 @@ test.describe("Student Scripture Hub shell", () => {
       "href",
       "https://www.blueletterbible.org/lexicon/h8104/kjv/wlc/0-1/"
     );
+    await journey.getByRole("button", { name: /Cause and Effect/ }).click();
+    await expect(passageGuide).toContainText("What happens because of something else");
+    await expect(passageGuide).toContainText("Whole-story bridge");
     const journeyEntries = page.getByRole("group", { name: "Journey entries" });
     await journeyEntries.getByRole("button", { name: "Add entry" }).click();
     await expect(journeyEntries.getByRole("button", { name: "2" })).toBeVisible();

@@ -77,6 +77,15 @@ export type StudentJourneyExploreTool = {
   storageStudyPath: StudentJourneyStudyPath;
 };
 
+export type StudentJourneyExploreGuide = {
+  summary: string;
+  passageFocus: string;
+  textClue: string;
+  storylineBridge: string;
+  studyHabit: string;
+  nextQuestion: string;
+};
+
 export type StudentYouVersionPracticeMedia = {
   id: string;
   kind: "video" | "guided-prayer" | "audio";
@@ -329,38 +338,95 @@ export function getJourneyExploreToolPair(journeyId: string, entrySequence: numb
 }
 
 export function buildJourneyExploreInsight(tool: StudentJourneyExploreTool, journey: StudentJourneyJournal): string {
+  return buildJourneyExploreGuide(tool, journey).summary;
+}
+
+export function buildJourneyExploreGuide(tool: StudentJourneyExploreTool, journey: StudentJourneyJournal): StudentJourneyExploreGuide {
   const primaryReading = journey.readingPath[0];
   const primaryReference = primaryReading?.reference ?? journey.rhythm?.receive ?? "today's Scripture";
   const supportingReferences = journey.readingPath.slice(1, 3).map((reading) => reading.reference);
   const theme = journey.rhythm?.explore ?? journey.title;
   const keyword = journey.keyWords[0];
   const genre = genreInsightForReference(primaryReference);
+  const profile = passageStudyProfileForReference(primaryReference, theme);
+  const supportText = supportingReferences.length
+    ? `Then compare ${supportingReferences.join(" and ")} for what repeats, deepens, or corrects your first reading.`
+    : profile.storylineBridge;
 
   if (tool.id === "genre-awareness") {
-    return `Journey guide reads ${primaryReference} as ${genre.label}. For ${theme}, notice ${genre.guidance}`;
+    return {
+      summary: `Journey guide reads ${primaryReference} as ${genre.label}. For ${theme}, notice ${genre.guidance}`,
+      passageFocus: `${primaryReference}: ${primaryReading?.title ?? profile.focus}`,
+      textClue: profile.contextClue,
+      storylineBridge: supportText,
+      studyHabit: "Before applying the passage, name its genre and ask how that kind of writing communicates truth.",
+      nextQuestion: `How should ${genre.label} shape the way you read ${theme}?`
+    };
   }
 
   if (tool.id === "word-study" && keyword) {
-    return `Journey guide highlights ${keyword.term}${keyword.transliteration ? ` (${keyword.transliteration})` : ""} in ${primaryReference}: ${keyword.meaning} ${keyword.invitation}`;
+    return {
+      summary: `Journey guide highlights ${keyword.term}${keyword.transliteration ? ` (${keyword.transliteration})` : ""} in ${primaryReference}: ${keyword.meaning} ${keyword.invitation}`,
+      passageFocus: `${primaryReference}: ${primaryReading?.title ?? profile.focus}`,
+      textClue: `Track ${keyword.term}${keyword.transliteration ? ` (${keyword.transliteration})` : ""} inside the passage before building a big idea from it.`,
+      storylineBridge: supportText,
+      studyHabit: "Let a word's immediate sentence, paragraph, and book context guide the word study before using outside tools.",
+      nextQuestion: keyword.invitation
+    };
   }
 
   if (tool.id === "cross-referencing" && supportingReferences.length) {
-    return `Journey guide connects ${primaryReference} with ${supportingReferences.join(" and ")}. Compare the passages for what deepens, repeats, or corrects your first reading of ${theme}.`;
+    return {
+      summary: `Journey guide connects ${primaryReference} with ${supportingReferences.join(" and ")}. Compare the passages for what deepens, repeats, or corrects your first reading of ${theme}.`,
+      passageFocus: `${primaryReference}: ${primaryReading?.title ?? profile.focus}`,
+      textClue: profile.textClue,
+      storylineBridge: supportText,
+      studyHabit: "Use cross-references as conversation partners, not shortcuts; write both the connection and the difference.",
+      nextQuestion: `What does the second passage clarify about ${theme} without flattening either passage?`
+    };
   }
 
   if (tool.id === "historical-background") {
-    return `Journey guide places ${primaryReference} inside the larger formation story. Ask what situation, audience, or covenant moment makes ${theme} easier to read with care.`;
+    return {
+      summary: `Journey guide places ${primaryReference} inside the larger formation story. Ask what situation, audience, or covenant moment makes ${theme} easier to read with care.`,
+      passageFocus: `${primaryReference}: ${primaryReading?.title ?? profile.focus}`,
+      textClue: profile.contextClue,
+      storylineBridge: profile.storylineBridge,
+      studyHabit: "Ask who is speaking, who is listening, what moment of the story they are in, and what pressure they face.",
+      nextQuestion: `What background detail keeps ${theme} from becoming a detached life tip?`
+    };
   }
 
   if (tool.id === "theme-tracing" || tool.id === "biblical-theology") {
-    return `Journey guide ties ${theme} to formation before performance, presence before platform, and faithful response before quick answers. Trace how ${primaryReference} fits that larger story.`;
+    return {
+      summary: `Journey guide ties ${theme} to formation before performance, presence before platform, and faithful response before quick answers. Trace how ${primaryReference} fits that larger story.`,
+      passageFocus: `${primaryReference}: ${primaryReading?.title ?? profile.focus}`,
+      textClue: profile.textClue,
+      storylineBridge: profile.storylineBridge,
+      studyHabit: "Trace the theme through creation, fracture, covenant, Christ, church, and new creation without forcing every stop.",
+      nextQuestion: `Where does ${theme} sit in the Bible's larger story?`
+    };
   }
 
   if (tool.storageStudyPath === "inductive") {
-    return `Journey guide starts with ${primaryReference} and ${theme}. Use ${tool.label.toLowerCase()} to name what the passage actually says before turning it into advice.`;
+    return {
+      summary: `Journey guide starts with ${primaryReference} and ${theme}. Use ${tool.label.toLowerCase()} to name what the passage actually says before turning it into advice.`,
+      passageFocus: `${primaryReference}: ${primaryReading?.title ?? profile.focus}`,
+      textClue: profile.textClue,
+      storylineBridge: supportText,
+      studyHabit: "Move in order: observe what is there, interpret in context, then practice one faithful response.",
+      nextQuestion: tool.prompt
+    };
   }
 
-  return `Journey guide starts with ${primaryReference} and ${theme}. Use ${tool.label.toLowerCase()} to slow down, notice the strongest clue in the text, and write what it helps you see.`;
+  return {
+    summary: `Journey guide starts with ${primaryReference} and ${theme}. Use ${tool.label.toLowerCase()} to slow down, notice the strongest clue in the text, and write what it helps you see.`,
+    passageFocus: `${primaryReference}: ${primaryReading?.title ?? profile.focus}`,
+    textClue: profile.textClue,
+    storylineBridge: supportText,
+    studyHabit: "Stay close to the passage long enough for curiosity to become careful attention.",
+    nextQuestion: tool.prompt
+  };
 }
 
 export function getYouVersionPracticeMedia(journeyId: string, entrySequence: number): StudentYouVersionPracticeMedia {
@@ -1628,6 +1694,200 @@ function genreInsightForReference(reference: string): { label: string; guidance:
   return {
     label: "biblical literature that should be read on its own terms",
     guidance: "what kind of passage it is, how it communicates, and what clues keep your interpretation humble."
+  };
+}
+
+function passageStudyProfileForReference(reference: string, theme: string): {
+  focus: string;
+  textClue: string;
+  contextClue: string;
+  storylineBridge: string;
+} {
+  if (/genesis\s+1\b/i.test(reference)) {
+    return {
+      focus: "creation, blessing, image, and vocation",
+      textClue: "Notice how God speaks, separates, fills, blesses, gives food, and calls creation good before people do anything to earn it.",
+      contextClue: "Read the repeated rhythm of creation as ordered abundance, not just as background information.",
+      storylineBridge: "Genesis 1 starts the Bible's story with gift, purpose, and image-bearing before the story turns toward rupture and rescue."
+    };
+  }
+
+  if (/genesis\s+2\b/i.test(reference)) {
+    return {
+      focus: "garden vocation and trust",
+      textClue: "Watch the order: God forms, places, provides, gives work, gives permission, and only then gives a boundary.",
+      contextClue: "Read the command inside abundance so the passage does not sound like scarcity is the center of the story.",
+      storylineBridge: "Genesis 2 deepens creation into vocation: humans are invited to serve and guard what God gives."
+    };
+  }
+
+  if (/genesis\s+3\b/i.test(reference)) {
+    return {
+      focus: "desire, hiding, consequences, and pursuit",
+      textClue: "Track the movement from questioning God's goodness to taking, hiding, blame, judgment, mercy, and exile.",
+      contextClue: "Hold human choice and God's pursuit together; the passage is more than an explanation of why evil exists.",
+      storylineBridge: "Genesis 3 names real fracture while keeping the story open for mercy, promise, and future rescue."
+    };
+  }
+
+  if (/genesis\s+[6-9]\b/i.test(reference)) {
+    return {
+      focus: "judgment, preservation, and renewed beginning",
+      textClue: "Notice the grief over violence, the ark as preservation, the waters receding, and the renewed creation language after the flood.",
+      contextClue: "Read Noah's story as mercy inside judgment, not as a simple hero story.",
+      storylineBridge: "The flood shows de-creation and re-creation patterns that keep appearing when Scripture describes rescue."
+    };
+  }
+
+  if (/luke\s+9\b/i.test(reference)) {
+    return {
+      focus: "following Jesus on the way",
+      textClue: "Notice calling, dependence, costly discipleship, and the repeated question of what kind of Messiah Jesus is.",
+      contextClue: "Read the chapter as formation for followers before treating leadership as platform or performance.",
+      storylineBridge: "Luke 9 turns discipleship toward the cross-shaped way of Jesus."
+    };
+  }
+
+  if (/exodus\s+3\b/i.test(reference)) {
+    return {
+      focus: "holy presence, calling, and reluctance",
+      textClue: "Watch Moses notice the bush, hear God's name, receive a mission, and bring honest objections.",
+      contextClue: "Read the call inside God's compassion for oppressed people, not as a private confidence hack.",
+      storylineBridge: "Exodus 3 connects God's presence with deliverance and sends an unlikely servant into God's rescue story."
+    };
+  }
+
+  if (/exodus\s+18\b/i.test(reference)) {
+    return {
+      focus: "shared wisdom and delegated leadership",
+      textClue: "Notice Jethro's observation, Moses' overload, the counsel to teach, delegate, and share responsibility.",
+      contextClue: "Read shared leadership as care for the people, not just productivity advice.",
+      storylineBridge: "Exodus 18 shows formation happening through wise community before Israel reaches Sinai."
+    };
+  }
+
+  if (/exodus\s+31\b/i.test(reference)) {
+    return {
+      focus: "Spirit-filled skill for faithful work",
+      textClue: "Notice the Spirit filling Bezalel with wisdom, understanding, knowledge, craftsmanship, and concrete tasks.",
+      contextClue: "Read gifts as service to God's dwelling presence, not as self-expression alone.",
+      storylineBridge: "Exodus 31 connects Spirit, beauty, work, and worship before Acts shows the Spirit forming a public witness."
+    };
+  }
+
+  if (/1\s*samuel\s+16\b/i.test(reference)) {
+    return {
+      focus: "hidden identity and God's seeing",
+      textClue: "Notice the contrast between outward appearance, overlooked service, anointing, and the Spirit's presence.",
+      contextClue: "Read David's calling as God's initiative before making it about personal ambition.",
+      storylineBridge: "David's story prepares the longing for a faithful king fulfilled in Christ."
+    };
+  }
+
+  if (/1\s*samuel\s+24\b/i.test(reference)) {
+    return {
+      focus: "waiting, restraint, and trust",
+      textClue: "Watch David refuse a shortcut, honor Saul, and entrust timing to God.",
+      contextClue: "Read the cave scene as tested patience, not passive avoidance.",
+      storylineBridge: "The kingdom story teaches that faithful waiting can be obedience when power is available."
+    };
+  }
+
+  if (/psalm\s+1\b/i.test(reference)) {
+    return {
+      focus: "delight, formation, and rooted life",
+      textClue: "Notice the two ways, the image of a tree by water, and the slow fruit of meditation.",
+      contextClue: "Read Psalm 1 as the doorway into prayer-shaped wisdom.",
+      storylineBridge: "Wisdom begins with where a person is planted and what a person rehearses."
+    };
+  }
+
+  if (/psalm\s+23\b/i.test(reference)) {
+    return {
+      focus: "shepherding, rest, courage, and presence",
+      textClue: "Trace the movement from provision and quiet waters to dark valleys, a table, goodness, and dwelling with God.",
+      contextClue: "Read rest as trust in the Shepherd's presence, not as escaping hard places.",
+      storylineBridge: "Psalm 23 gives language for the Lord's faithful care that Jesus later embodies as the good shepherd."
+    };
+  }
+
+  if (/proverbs\s+3\b/i.test(reference)) {
+    return {
+      focus: "trust, wisdom, and loving correction",
+      textClue: "Notice trust, straight paths, humility, and discipline held together as wisdom formation.",
+      contextClue: "Read correction as the training of a loved child, not as rejection.",
+      storylineBridge: "Proverbs forms people who can receive instruction as part of walking in wisdom."
+    };
+  }
+
+  if (/hebrews\s+12\b/i.test(reference)) {
+    return {
+      focus: "endurance, discipline, and beloved formation",
+      textClue: "Notice the race image, Jesus' endurance, the language of children, and the fruit of trained righteousness.",
+      contextClue: "Read discipline through belonging and endurance before reducing it to punishment.",
+      storylineBridge: "Hebrews carries wisdom-shaped correction into Christian perseverance with Jesus at the center."
+    };
+  }
+
+  if (/mark\s+8\b/i.test(reference)) {
+    return {
+      focus: "confession, cross, and the way of Jesus",
+      textClue: "Notice Peter's confession, Jesus' teaching about suffering, and the call to deny self and follow.",
+      contextClue: "Read identity and mission together; Jesus defines Messiahship before defining discipleship.",
+      storylineBridge: "Mark 8 turns the kingdom story toward the cross-shaped path of the Messiah."
+    };
+  }
+
+  if (/mark\s+2\b/i.test(reference)) {
+    return {
+      focus: "Sabbath as gift and Jesus' authority",
+      textClue: "Notice the conflict, the appeal to David, and Jesus naming Sabbath as made for people.",
+      contextClue: "Read Sabbath as mercy and lordship, not as bare rule-keeping.",
+      storylineBridge: "Jesus restores Sabbath to its life-giving purpose inside the kingdom He brings."
+    };
+  }
+
+  if (/john\s+15\b/i.test(reference)) {
+    return {
+      focus: "abiding, pruning, fruit, and love",
+      textClue: "Track abide, fruit, pruning, word, prayer, love, and obedience as connected ideas.",
+      contextClue: "Read fruit as life from union with Jesus before treating it as pressure to produce.",
+      storylineBridge: "John 15 places growth inside life with Christ, the true vine."
+    };
+  }
+
+  if (/acts\s+2\b/i.test(reference)) {
+    return {
+      focus: "Spirit, witness, shared life, and public hope",
+      textClue: "Notice the Spirit's arrival, many languages, Peter's Scripture-shaped witness, repentance, baptism, and shared community.",
+      contextClue: "Read Pentecost as God forming a people, not only empowering individual moments.",
+      storylineBridge: "Acts 2 shows the promised Spirit creating public witness and a worshiping community."
+    };
+  }
+
+  if (/1\s*corinthians\s+15\b/i.test(reference)) {
+    return {
+      focus: "the gospel announcement and resurrection hope",
+      textClue: "Notice what Paul says is of first importance, the witnesses, and the resurrection as the center of hope.",
+      contextClue: "Read the gospel as news received, passed on, and grounded in Jesus' death and resurrection.",
+      storylineBridge: "The resurrection opens the future of new creation rather than ending with private forgiveness only."
+    };
+  }
+
+  if (/ephesians\s+2\b/i.test(reference)) {
+    return {
+      focus: "grace, new life, and reconciled people",
+      textClue: "Trace the movement from death to mercy, grace, created-for-good-works life, and one new humanity.",
+      contextClue: "Read grace as rescue that creates a people, not merely a private reset.",
+      storylineBridge: "Ephesians 2 connects salvation, vocation, and reconciliation in Christ."
+    };
+  }
+
+  return {
+    focus: `${theme} in context`,
+    textClue: `Name what the passage repeats, emphasizes, commands, promises, or reveals before summarizing ${theme}.`,
+    contextClue: "Read the nearby paragraph, the book setting, and the kind of writing before applying the passage.",
+    storylineBridge: "Ask how this passage fits Scripture's movement from creation, fracture, covenant, Christ, church, and new creation."
   };
 }
 

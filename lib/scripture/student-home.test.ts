@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildJourneyExploreGuide,
   buildJourneyExploreInsight,
   buildGroupDiscussionNextStep,
   buildQuestionNextStep,
@@ -293,6 +294,25 @@ describe("student home feed personalization", () => {
     expect([wordTool.label, passageTool.label]).not.toEqual(["Word Study", "Inductive Study"]);
     expect([wordTool.category, passageTool.category]).toEqual(expect.arrayContaining(["Word Level"]));
     expect([wordTool.storageStudyPath, passageTool.storageStudyPath].sort()).toEqual(["inductive", "word"]);
+    expect(buildJourneyExploreGuide(wordTool, nextStep.journeyJournal)).toMatchObject({
+      passageFocus: expect.stringContaining("Genesis 1:26-31"),
+      textClue: expect.stringMatching(/God speaks|Track/),
+      storylineBridge: expect.stringContaining("Genesis 2:4-17"),
+      studyHabit: expect.stringMatching(/passage|context|sentence/i),
+      nextQuestion: expect.any(String)
+    });
+  });
+
+  it("builds passage-specific Explore guidance for formation journey entries", () => {
+    const daySix = studentLeaderFormationJourney.entries[5];
+    const [, passageTool] = getJourneyExploreToolPair(daySix.id, 6);
+    const guide = buildJourneyExploreGuide(passageTool, daySix);
+
+    expect(guide.passageFocus).toContain("Hebrews 12");
+    expect(guide.textClue).toMatch(/discipline|correction|race|children|endurance|belonging/i);
+    expect(guide.storylineBridge).toContain("Proverbs 3:11-12");
+    expect(guide.studyHabit).toMatch(/observe|context|genre|who is speaking|before applying|Move in order/i);
+    expect(guide.nextQuestion.length).toBeGreaterThan(20);
   });
 
   it("builds distinct gospel journey entries for repeated student journal work", () => {
