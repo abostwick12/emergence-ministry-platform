@@ -1057,7 +1057,10 @@ function MobileTaskActionCard({
   return (
     <article className={isCritical ? "mobile-task-action-card critical" : "mobile-task-action-card"}>
       <div className="mobile-task-action-copy">
-        <span className={task.status === "done" ? "pill done" : task.status === "blocked" ? "pill blocked" : "pill"}>{statusLabels[task.status]}</span>
+        <div className="mobile-task-action-topline">
+          <span className={task.status === "done" ? "pill done" : task.status === "blocked" ? "pill blocked" : "pill"}>{statusLabels[task.status]}</span>
+          <span>{isCritical ? "High priority" : "Normal priority"}</span>
+        </div>
         <h3>{task.taskTitle}</h3>
         <p>{eventTitle}</p>
         <small>{owner ? platformPersonRoleLine(owner) : "Unassigned"}</small>
@@ -1608,28 +1611,37 @@ function EventIdentitySection({
   const startDate = event.startTime ? formatDate(event.startTime) : "Missing date";
   const timeRange = event.startTime ? formatEventTimeRange(event) : "Missing time";
   const volunteersNeeded = formatVolunteersNeeded(event);
+  const taskProgress = tasks.length ? Math.round((completeTasks / tasks.length) * 100) : 0;
   return (
     <div
       className="event-identity-section event-identity-clickable"
       role="cell"
       onClick={() => openEdit(event.id)}
     >
-      <div className="event-status-line">
-        <span className="event-type-tag">{eventTypeLabels[event.type]}</span>
-        <span className="event-state-label">{humanizeStatus(event.status)}</span>
-      </div>
-      <div className="event-row-title">
-        <button
-          className="button ghost"
-          type="button"
-          onClick={(clickEvent) => {
-            clickEvent.stopPropagation();
-            openEdit(event.id);
-          }}
-          aria-label={`Edit event: ${event.title}`}
-        >
-          {event.title}
-        </button>
+      <div className="event-card-primary-line">
+        <span className="event-date-chip" aria-hidden="true">
+          <strong>{event.startTime ? new Date(event.startTime).toLocaleDateString([], { month: "short" }) : "TBD"}</strong>
+          <span>{event.startTime ? new Date(event.startTime).getDate() : "--"}</span>
+        </span>
+        <div className="event-card-title-stack">
+          <div className="event-status-line">
+            <span className="event-type-tag">{eventTypeLabels[event.type]}</span>
+            <span className="event-state-label">{humanizeStatus(event.status)}</span>
+          </div>
+          <div className="event-row-title">
+            <button
+              className="button ghost"
+              type="button"
+              onClick={(clickEvent) => {
+                clickEvent.stopPropagation();
+                openEdit(event.id);
+              }}
+              aria-label={`Edit event: ${event.title}`}
+            >
+              {event.title}
+            </button>
+          </div>
+        </div>
       </div>
       <div className="event-identity-meta lovable-event-meta">
         <span>
@@ -1653,6 +1665,13 @@ function EventIdentitySection({
         <span className="sr-only">
           {completeTasks} of {tasks.length} checklist tasks complete
         </span>
+      </div>
+      <div className="event-card-progress" aria-label={`${completeTasks} of ${tasks.length} event tasks complete`}>
+        <span style={{ width: `${taskProgress}%` }} />
+      </div>
+      <div className="event-card-progress-meta">
+        <strong>{completeTasks}/{tasks.length}</strong>
+        <span>tasks complete</span>
       </div>
     </div>
   );
@@ -2257,14 +2276,17 @@ function TaskCard({
 
   return (
     <article className={task.status === "blocked" ? "task-card task-event-accent attention" : "task-card task-event-accent"} style={event ? eventAccentStyle(event.type) : undefined}>
-      <div>
-        <strong className="task-card-title">{task.taskTitle}</strong>
-        <div className="task-card-event">{event?.title ?? "Event"}</div>
-        <div className="task-summary">
-          <span className="task-card-date">Due {formatDate(task.dueDate)}</span>
+      <div className="task-card-shell">
+        <div className="task-card-headerline">
           <span className={task.status === "done" ? "pill done" : task.status === "blocked" ? "pill blocked" : "pill"}>
             {statusLabels[task.status]}
           </span>
+          <span>{task.timelineOffsetDays <= -30 || task.status === "blocked" ? "High priority" : "Normal"}</span>
+        </div>
+        <strong className="task-card-title">{task.taskTitle}</strong>
+        <div className="task-card-event">{event?.title ?? "Event"}</div>
+        <div className="task-summary task-card-facts">
+          <span className="task-card-date">Due {formatDate(task.dueDate)}</span>
           <span className="muted">
             {owner ? platformPersonRoleLine(owner) : "Unassigned"}
           </span>

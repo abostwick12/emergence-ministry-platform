@@ -428,6 +428,50 @@
   padding: 32px 28px;
 }
 
+.app-shell:not(.app-shell-camp) .event-card-primary-line {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+  min-width: 0;
+}
+
+.app-shell:not(.app-shell-camp) .event-date-chip {
+  display: grid;
+  place-items: center;
+  width: 66px;
+  min-height: 76px;
+  border: 1px solid color-mix(in srgb, var(--event-accent) 54%, rgba(129, 164, 214, 0.22));
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--event-accent) 28%, transparent), rgba(4, 13, 27, 0.84)),
+    rgba(7, 18, 34, 0.78);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 12px 28px rgba(0, 0, 0, 0.2);
+}
+
+.app-shell:not(.app-shell-camp) .event-date-chip strong {
+  color: var(--platform-gold);
+  font-family: var(--font-platform-mono), ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.app-shell:not(.app-shell-camp) .event-date-chip span {
+  color: #f7fbff;
+  font-family: var(--font-platform-serif), Georgia, serif;
+  font-size: 34px;
+  line-height: 0.95;
+}
+
+.app-shell:not(.app-shell-camp) .event-card-title-stack {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
 .app-shell:not(.app-shell-camp) .event-row-title .button.ghost {
   font-size: clamp(27px, 2.5vw, 39px);
   overflow-wrap: anywhere;
@@ -437,6 +481,38 @@
   min-width: 0;
   font-size: 15px;
   overflow-wrap: anywhere;
+}
+
+.app-shell:not(.app-shell-camp) .event-card-progress {
+  overflow: hidden;
+  height: 8px;
+  border: 1px solid rgba(129, 164, 214, 0.18);
+  border-radius: 999px;
+  background: rgba(3, 14, 28, 0.64);
+}
+
+.app-shell:not(.app-shell-camp) .event-card-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--event-accent), var(--platform-cyan));
+  box-shadow: 0 0 18px color-mix(in srgb, var(--event-accent) 36%, transparent);
+}
+
+.app-shell:not(.app-shell-camp) .event-card-progress-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--platform-muted);
+  font-family: var(--font-platform-mono), ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.app-shell:not(.app-shell-camp) .event-card-progress-meta strong {
+  color: #f7fbff;
 }
 
 .app-shell:not(.app-shell-camp) .event-summary-shell {
@@ -678,6 +754,26 @@
 }
 
 @media (max-width: 720px) {
+  .app-shell:not(.app-shell-camp) .event-card-primary-line {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .app-shell:not(.app-shell-camp) .event-date-chip {
+    grid-template-columns: auto auto;
+    justify-content: start;
+    width: 100%;
+    min-height: 46px;
+    padding: 8px 12px;
+  }
+
+  .app-shell:not(.app-shell-camp) .event-date-chip span {
+    font-size: 26px;
+  }
+
+  .app-shell:not(.app-shell-camp) .event-card-progress-meta {
+    font-size: 10px;
+  }
+
   .app-shell:not(.app-shell-camp) .event-operations-rail {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -1735,6 +1831,30 @@
   padding: 14px;
 }
 
+.app-shell:not(.app-shell-camp) .tasks-lovable-workspace .task-card-shell {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.app-shell:not(.app-shell-camp) .tasks-lovable-workspace .task-card-headerline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.app-shell:not(.app-shell-camp) .tasks-lovable-workspace .task-card-headerline > span:last-child {
+  color: var(--platform-muted);
+  font-family: var(--font-platform-mono), ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
 .app-shell:not(.app-shell-camp) .tasks-lovable-workspace .task-card-title {
   font-size: 14px;
   line-height: 1.28;
@@ -1743,6 +1863,11 @@
 .app-shell:not(.app-shell-camp) .tasks-lovable-workspace .task-card-date {
   font-size: 12px;
   font-weight: 750;
+}
+
+.app-shell:not(.app-shell-camp) .tasks-lovable-workspace .task-card-facts {
+  display: grid;
+  gap: 4px;
 }
 
 .app-shell:not(.app-shell-camp) .tasks-lovable-workspace .task-card-management {
