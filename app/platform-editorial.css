@@ -678,6 +678,59 @@
   gap: 14px;
 }
 
+.app-shell:not(.app-shell-camp) .event-quick-fix-panel {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  border-top: 1px solid rgba(129, 164, 214, 0.18);
+  border-bottom: 1px solid rgba(129, 164, 214, 0.12);
+  background:
+    radial-gradient(90% 120% at 0% 0%, rgba(245, 184, 79, 0.12), transparent 62%),
+    rgba(6, 17, 34, 0.58);
+  padding: 20px 24px;
+}
+
+.app-shell:not(.app-shell-camp) .event-quick-fix-head,
+.app-shell:not(.app-shell-camp) .event-quick-fix-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.app-shell:not(.app-shell-camp) .event-quick-fix-head h3 {
+  margin: 0;
+  color: #f7fbff;
+  font-family: var(--font-platform-serif), Georgia, serif;
+  font-size: 24px;
+  font-weight: 500;
+}
+
+.app-shell:not(.app-shell-camp) .event-quick-fix-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  min-width: 0;
+}
+
+.app-shell:not(.app-shell-camp) .event-quick-fix-grid .field {
+  margin: 0;
+}
+
+.app-shell:not(.app-shell-camp) .event-quick-fix-vision {
+  grid-column: 1 / -1;
+}
+
+.app-shell:not(.app-shell-camp) .event-quick-fix-actions {
+  justify-content: flex-start;
+}
+
+.app-shell:not(.app-shell-camp) .event-quick-fix-actions .button {
+  min-height: 42px;
+}
+
 .app-shell:not(.app-shell-camp) .event-planning-details {
   border-top: 1px solid rgba(129, 164, 214, 0.18);
 }
@@ -772,6 +825,14 @@
 
   .app-shell:not(.app-shell-camp) .event-card-progress-meta {
     font-size: 10px;
+  }
+
+  .app-shell:not(.app-shell-camp) .event-quick-fix-panel {
+    padding: 16px 14px;
+  }
+
+  .app-shell:not(.app-shell-camp) .event-quick-fix-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .app-shell:not(.app-shell-camp) .event-operations-rail {
@@ -1868,6 +1929,20 @@
 .app-shell:not(.app-shell-camp) .tasks-lovable-workspace .task-card-facts {
   display: grid;
   gap: 4px;
+}
+
+.app-shell:not(.app-shell-camp) .tasks-lovable-workspace .task-card-quick-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.app-shell:not(.app-shell-camp) .tasks-lovable-workspace .task-card-quick-actions .button {
+  min-height: 36px;
+  justify-content: center;
+  padding-inline: 8px;
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 .app-shell:not(.app-shell-camp) .tasks-lovable-workspace .task-card-management {

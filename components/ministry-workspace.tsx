@@ -1066,9 +1066,45 @@ function MobileTaskActionCard({
         <small>{owner ? platformPersonRoleLine(owner) : "Unassigned"}</small>
       </div>
       <div className="mobile-task-action-controls">
+        <div className="mobile-task-quick-actions" aria-label={`Quick actions for ${task.taskTitle}`}>
+          {task.status === "done" ? (
+            <button className="button compact-button" type="button" disabled={!canSaveChanges} onClick={() => void onUpdate(task.id, { status: "todo" })}>
+              Reopen
+            </button>
+          ) : (
+            <button className="button primary compact-button" type="button" disabled={!canSaveChanges} onClick={() => void onUpdate(task.id, { status: "done" })}>
+              Mark done
+            </button>
+          )}
+          {task.status === "blocked" ? (
+            <button className="button compact-button" type="button" disabled={!canSaveChanges} onClick={() => void onUpdate(task.id, { status: "todo" })}>
+              Unblock
+            </button>
+          ) : task.status === "todo" ? (
+            <button className="button compact-button" type="button" disabled={!canSaveChanges} onClick={() => void onUpdate(task.id, { status: "in_progress" })}>
+              Start
+            </button>
+          ) : null}
+        </div>
         <label>
           <span>Due</span>
           <input className="input" aria-label={`Due date for ${task.taskTitle}`} type="date" value={dueDate} disabled={!canSaveChanges} onChange={(event) => void saveDueDate(event.target.value)} />
+        </label>
+        <label>
+          <span>Task owner</span>
+          <select
+            className="input"
+            aria-label={`Task owner for ${task.taskTitle}`}
+            value={task.assignedUserId}
+            disabled={!canSaveChanges}
+            onChange={(event) => void onUpdate(task.id, { assignedUserId: event.target.value })}
+          >
+            {users.map((user) => (
+              <option key={user.id} value={user.id}>
+                {platformPersonRoleLine(user)}
+              </option>
+            ))}
+          </select>
         </label>
         <label>
           <span>Status</span>
@@ -1394,6 +1430,15 @@ function EventRowCard({
 
       {isExpanded ? (
         <div className="event-expanded-resources">
+          <EventQuickFixPanel
+            event={event}
+            owner={owner}
+            assignedLeaders={assignedLeaders}
+            users={users}
+            canSaveChanges={canSaveChanges}
+            onUpdateEvent={onUpdateEvent}
+            onOpenEvent={onOpenEvent}
+          />
           <EventPlanningDetails
             event={event}
             actualBudget={actualBudget}
@@ -1701,6 +1746,11 @@ function EventReadinessPanel({
   onToggleEvent: (eventId: string) => void;
   onOpenEvent: (eventId: string) => void;
 }) {
+  const primaryAction = readiness.tone !== "ready" && !isExpanded
+    ? () => onToggleEvent(event.id)
+    : () => onOpenEvent(event.id);
+  const primaryLabel = readiness.tone === "ready" ? "Open event" : isExpanded ? "Open full card" : "Show quick fixes";
+
   return (
     <section className={`event-readiness-panel event-readiness-${readiness.tone}`} role="cell" aria-label={`${event.title} readiness`}>
       <div className="event-readiness-copy">
@@ -1713,8 +1763,8 @@ function EventReadinessPanel({
         <p>{readiness.nextAction}</p>
       </div>
       <div className="event-card-actions">
-        <button className="button primary" type="button" onClick={() => onOpenEvent(event.id)}>
-          {readiness.tone === "ready" ? "Open event" : "Fix missing info"}
+        <button className="button primary" type="button" onClick={primaryAction}>
+          {primaryLabel}
         </button>
         <button
           className="button compact-button"
@@ -1774,6 +1824,104 @@ function EventDetailStrip({
         </button>
       ))}
     </div>
+  );
+}
+
+function EventQuickFixPanel({
+  event,
+  owner,
+  assignedLeaders,
+  users,
+  canSaveChanges,
+  onUpdateEvent,
+  onOpenEvent
+}: {
+  event: MinistryEvent;
+  owner?: User;
+  assignedLeaders: VolunteerLeader[];
+  users: User[];
+  canSaveChanges: boolean;
+  onUpdateEvent: (eventId: string, body: Partial<MinistryEvent>) => Promise<void>;
+  onOpenEvent: (eventId: string) => void;
+}) {
+  const [targetGroup, setTargetGroup] = useState(event.targetGroup ?? "");
+  const [location, setLocation] = useState(event.location ?? "");
+  const [description, setDescription] = useState(event.description ?? "");
+  const [contactOwnerId, setContactOwnerId] = useState(event.contactOwnerId ?? users[0]?.id ?? "");
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
+  const missing = [
+    !event.targetGroup ? "audience" : "",
+    !event.location ? "location" : "",
+    !owner ? "communication owner" : "",
+    !event.description.trim() ? "vision" : "",
+    !assignedLeaders.length ? "leaders" : ""
+  ].filter(Boolean);
+
+  useEffect(() => {
+    setTargetGroup(event.targetGroup ?? "");
+    setLocation(event.location ?? "");
+    setDescription(event.description ?? "");
+    setContactOwnerId(event.contactOwnerId ?? users[0]?.id ?? "");
+    setSaveState("idle");
+  }, [event.contactOwnerId, event.description, event.location, event.targetGroup, users]);
+
+  if (!missing.length) return null;
+
+  async function saveQuickFixes() {
+    setSaveState("saving");
+    await onUpdateEvent(event.id, {
+      contactOwnerId: contactOwnerId || undefined,
+      description: description.trim(),
+      location: location.trim() || undefined,
+      targetGroup: targetGroup.trim() || undefined
+    });
+    setSaveState("saved");
+  }
+
+  return (
+    <section className="event-quick-fix-panel" aria-label={`${event.title} quick fixes`}>
+      <div className="event-quick-fix-head">
+        <div>
+          <p className="eyebrow">Quick fixes</p>
+          <h3>{missing.length} missing item{missing.length === 1 ? "" : "s"}</h3>
+        </div>
+        <StatusBadge tone="warning">{missing.join(", ")}</StatusBadge>
+      </div>
+      <div className="event-quick-fix-grid">
+        <label className="field">
+          <span>Audience</span>
+          <input className="input" value={targetGroup} disabled={!canSaveChanges} onChange={(inputEvent) => setTargetGroup(inputEvent.target.value)} placeholder="High school students, parents, leaders" />
+        </label>
+        <label className="field">
+          <span>Location</span>
+          <input className="input" value={location} disabled={!canSaveChanges} onChange={(inputEvent) => setLocation(inputEvent.target.value)} placeholder="Student Center, Room 202" />
+        </label>
+        <label className="field">
+          <span>Communication owner</span>
+          <select className="input" value={contactOwnerId} disabled={!canSaveChanges || !users.length} onChange={(inputEvent) => setContactOwnerId(inputEvent.target.value)}>
+            <option value="">Unassigned</option>
+            {users.map((user) => (
+              <option key={user.id} value={user.id}>
+                {platformPersonRoleLine(user)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field event-quick-fix-vision">
+          <span>Event vision</span>
+          <textarea className="input" rows={3} value={description} disabled={!canSaveChanges} onChange={(inputEvent) => setDescription(inputEvent.target.value)} placeholder="One clear sentence about why this gathering matters." />
+        </label>
+      </div>
+      <div className="event-quick-fix-actions">
+        <button className="button primary" type="button" disabled={!canSaveChanges || saveState === "saving"} onClick={() => void saveQuickFixes()}>
+          {saveState === "saving" ? "Saving..." : "Save quick fixes"}
+        </button>
+        <button className="button compact-button" type="button" onClick={() => onOpenEvent(event.id)}>
+          Open leader picker
+        </button>
+        <span className="inline-save-state">{!canSaveChanges ? "Read only" : saveState === "saved" ? "Saved" : "Saves to the event card"}</span>
+      </div>
+    </section>
   );
 }
 
@@ -2291,6 +2439,26 @@ function TaskCard({
             {owner ? platformPersonRoleLine(owner) : "Unassigned"}
           </span>
         </div>
+      </div>
+      <div className="task-card-quick-actions" aria-label={`Quick actions for ${task.taskTitle}`}>
+        {task.status === "done" ? (
+          <button className="button compact-button" type="button" disabled={!canSaveChanges} onClick={() => void onUpdate(task.id, { status: "todo" })}>
+            Reopen
+          </button>
+        ) : (
+          <button className="button primary compact-button" type="button" disabled={!canSaveChanges} onClick={() => void onUpdate(task.id, { status: "done" })}>
+            Mark done
+          </button>
+        )}
+        {task.status === "blocked" ? (
+          <button className="button compact-button" type="button" disabled={!canSaveChanges} onClick={() => void onUpdate(task.id, { status: "todo" })}>
+            Unblock
+          </button>
+        ) : task.status === "todo" ? (
+          <button className="button compact-button" type="button" disabled={!canSaveChanges} onClick={() => void onUpdate(task.id, { status: "in_progress" })}>
+            Start
+          </button>
+        ) : null}
       </div>
 
       <details className="task-card-management">
