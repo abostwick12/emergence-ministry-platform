@@ -18,7 +18,7 @@ test.describe("event color system and volunteer leaders", () => {
     await login(page);
   });
 
-  test("keeps Volunteer Hub volunteer-first and supports leader add/delete in director tools", async ({ page }) => {
+  test("keeps Volunteer Hub volunteer-first and supports leader add/delete in leader tools", async ({ page }) => {
     await page.goto("/people");
     await waitForWorkspace(page);
     await expect(page.getByRole("navigation", { name: "Desktop navigation" })).not.toContainText("Command Center");
@@ -40,8 +40,8 @@ test.describe("event color system and volunteer leaders", () => {
     await page.goto("/directors/volunteers");
     await waitForWorkspace(page);
     await expect(page.getByRole("heading", { name: "What needs attention" })).toBeVisible();
-    await expect(page.locator(".volunteer-director-priority-grid")).toContainText("Small groups");
-    await expect(page.locator(".volunteer-director-priority-grid")).toContainText("Leaders");
+    await expect(page.locator(".volunteer-leader-priority-grid")).toContainText("Small groups");
+    await expect(page.locator(".volunteer-leader-priority-grid")).toContainText("Leaders");
     await page.getByRole("button", { name: "Add Leader" }).click();
     const form = page.locator(".ministry-people-add-leader-form");
     await form.getByLabel("Name").fill("Taylor Morgan");
@@ -74,7 +74,7 @@ test.describe("event color system and volunteer leaders", () => {
     expect(selectStyle.color).toContain("rgb");
   });
 
-  test("creates small groups from a service-first director workflow", async ({ page }) => {
+  test("creates small groups from a service-first leader workflow", async ({ page }) => {
     await page.goto("/directors/volunteers");
     await waitForWorkspace(page);
 
@@ -137,7 +137,7 @@ test.describe("event color system and volunteer leaders", () => {
     await expect(page.getByText("Joshua 2:1-21", { exact: true })).toBeVisible();
   });
 
-  test("archives and restores small groups from director management", async ({ page }) => {
+  test("archives and restores small groups from leader management", async ({ page }) => {
     await page.goto("/directors/volunteers");
     await waitForWorkspace(page);
 

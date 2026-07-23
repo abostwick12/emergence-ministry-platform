@@ -6,10 +6,11 @@ import { Copy, Link2, ShieldCheck, UserCog } from "lucide-react";
 import type { PlatformAccessMember, PlatformAccessPage, PlatformDataAccessMode } from "@/lib/platform/access-admin";
 import type { PlatformRegistrationInviteSummary, RegistrationInviteRole } from "@/lib/platform/registration";
 import type { PlatformPageKey } from "@/lib/platform/page-registry";
+import { platformRoleLabel } from "@/lib/platform/roles";
 import type { Role } from "@/lib/types";
 
 const roleOptions: Array<{ value: Role; label: string }> = [
-  { value: "admin", label: "Administrator" },
+  { value: "admin", label: "Admin" },
   { value: "leader", label: "Leader" },
   { value: "student", label: "Student" },
   { value: "parent", label: "Parent" }
@@ -49,6 +50,7 @@ export function WebsiteAccessPanel({ canManagePlatformAccess }: { canManagePlatf
   const [registrationRole, setRegistrationRole] = useState<RegistrationInviteRole>("leader");
   const [draftRoles, setDraftRoles] = useState<Record<string, Role>>({});
   const [draftAiLimits, setDraftAiLimits] = useState<Record<string, string>>({});
+  const [roleFilter, setRoleFilter] = useState<Role | "all">("all");
   const [storage, setStorage] = useState<"supabase" | "preview">("preview");
   const [loading, setLoading] = useState(canManagePlatformAccess);
   const [busyKey, setBusyKey] = useState("");
@@ -86,6 +88,18 @@ export function WebsiteAccessPanel({ canManagePlatformAccess }: { canManagePlatf
   }, [load]);
 
   const guestPublicCount = useMemo(() => pages.filter((page) => page.guestPublic).length, [pages]);
+  const activeMembers = useMemo(() => members.filter((member) => member.active), [members]);
+  const filteredMembers = useMemo(
+    () => roleFilter === "all" ? members : members.filter((member) => member.role === roleFilter),
+    [members, roleFilter]
+  );
+  const roleCounts = useMemo(
+    () => roleOptions.map((role) => ({
+      ...role,
+      count: activeMembers.filter((member) => member.role === role.value).length
+    })),
+    [activeMembers]
+  );
 
   async function createRegistrationInvite(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -213,15 +227,35 @@ export function WebsiteAccessPanel({ canManagePlatformAccess }: { canManagePlatf
       ) : null}
       {message ? <p className={`website-access-message ${message.tone}`} role="status">{message.text}</p> : null}
 
-      <section className="website-access-list" aria-label="Guest public page controls">
-        <div className="toolbar split">
+      <section className="website-people-command" aria-label="People source of truth">
+        <div>
+          <p className="eyebrow">People source of truth</p>
+          <h3 className="section-title flush">{activeMembers.length} active {activeMembers.length === 1 ? "person" : "people"}</h3>
+          <p>Roles shown here are the labels the rest of Lead Emergence should use.</p>
+        </div>
+        <div className="website-role-filter-list" aria-label="Filter people by role">
+          <button className={roleFilter === "all" ? "active" : ""} type="button" aria-pressed={roleFilter === "all"} onClick={() => setRoleFilter("all")}>
+            <span>All</span>
+            <strong>{members.length}</strong>
+          </button>
+          {roleCounts.map((role) => (
+            <button key={role.value} className={roleFilter === role.value ? "active" : ""} type="button" aria-pressed={roleFilter === role.value} onClick={() => setRoleFilter(role.value)}>
+              <span>{pluralRoleLabel(role.value)}</span>
+              <strong>{role.count}</strong>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <details className="website-access-list website-access-section-details" aria-label="Guest public page controls">
+        <summary className="toolbar split">
           <div>
             <p className="eyebrow">Competition guest mode</p>
             <h3 className="section-title flush">Public guest pages</h3>
           </div>
           <span className="pill">{guestPublicCount} public</span>
-        </div>
-        <div className="website-role-summary">
+        </summary>
+        <div className="website-role-summary website-section-detail-body">
           {pages.map((page) => (
             <label className="camp-access-toggle row-toggle" key={page.key}>
               <input
@@ -239,17 +273,17 @@ export function WebsiteAccessPanel({ canManagePlatformAccess }: { canManagePlatf
             </label>
           ))}
         </div>
-      </section>
+      </details>
 
-      <section className="website-access-list" aria-label="Registration link controls">
-        <div className="toolbar split">
+      <details className="website-access-list website-access-section-details" aria-label="Registration link controls">
+        <summary className="toolbar split">
           <div>
             <p className="eyebrow">Self registration</p>
             <h3 className="section-title flush">Controlled account links</h3>
           </div>
           <span className="pill">{registrationInvites.filter((invite) => invite.isActive).length} active</span>
-        </div>
-        <form className="registration-link-form" onSubmit={createRegistrationInvite}>
+        </summary>
+        <form className="registration-link-form website-section-detail-body" onSubmit={createRegistrationInvite}>
           <label>
             <span>Link label</span>
             <input className="input" name="label" placeholder="Sunday leaders, Camp drivers, Parent access" maxLength={80} />
@@ -310,12 +344,13 @@ export function WebsiteAccessPanel({ canManagePlatformAccess }: { canManagePlatf
             <p className="quiet-state">Create a link when someone needs to set up their own account.</p>
           )}
         </div>
-      </section>
+      </details>
 
       <div className="website-access-list" aria-busy={loading}>
         {loading ? <p className="quiet-state">Loading users...</p> : null}
         {!loading && !members.length ? <p className="quiet-state">No website profiles are available.</p> : null}
-        {members.map((member) => {
+        {!loading && members.length && !filteredMembers.length ? <p className="quiet-state">No {roleFilter === "all" ? "people" : pluralRoleLabel(roleFilter).toLowerCase()} match this filter.</p> : null}
+        {filteredMembers.map((member) => {
           const draftRole = draftRoles[member.id] ?? member.role;
           const unchanged = draftRole === member.role;
           const enabledPageCount = pages.filter((page) => member.pageAccess[page.key as PlatformPageKey]).length;
@@ -327,107 +362,119 @@ export function WebsiteAccessPanel({ canManagePlatformAccess }: { canManagePlatf
                 <span>{member.email}</span>
                 <small>{member.active ? (member.currentUser ? "Current signed-in administrator" : "Active") : "Deactivated"}</small>
               </div>
-              <label>
-                <span>Platform role</span>
-                <select
-                  aria-label={`Platform role for ${member.displayName}`}
-                  disabled={member.currentUser || !member.active}
-                  onChange={(event) => setDraftRoles((current) => ({ ...current, [member.id]: event.target.value as Role }))}
-                  value={draftRole}
-                >
-                  {roleOptions.map((role) => <option key={role.value} value={role.value}>{role.label}</option>)}
-                </select>
-              </label>
-              <button
-                className="button secondary"
-                disabled={member.currentUser || !member.active || unchanged || busyKey === `${member.id}:role`}
-                onClick={() => void patchAccess({ userId: member.id, role: draftRole }, `${member.id}:role`, `${member.displayName}'s role was updated.`)}
-                type="button"
-              >
-                {busyKey === `${member.id}:role` ? "Saving..." : unchanged ? "Saved" : "Save role"}
-              </button>
-              <button
-                className="button compact-button"
-                disabled={member.currentUser || !member.active || busyKey === `${member.id}:deactivate`}
-                onClick={() => void deactivate(member)}
-                type="button"
-              >
-                {busyKey === `${member.id}:deactivate` ? "Deactivating..." : "Deactivate"}
-              </button>
-              <div className="website-ai-access-row">
-                <label>
-                  <span>Data access</span>
-                  <select
-                    aria-label={`Data access for ${member.displayName}`}
-                    disabled={member.currentUser || !member.active || busyKey === `${member.id}:access-mode`}
-                    value={member.accessMode}
-                    onChange={(event) => {
-                      const accessMode = normalizeAccessMode(event.target.value) ?? "read_only";
+              <div className="website-access-summary-pills" aria-label={`Current access summary for ${member.displayName}`}>
+                <span>{platformRoleLabel(member.role)}</span>
+                <span>{accessModeLabel(member.accessMode)}</span>
+                <span>{member.aiAccess.enabled ? "AI on" : "AI off"}</span>
+                <span>{enabledPageCount} pages</span>
+              </div>
+              <details className="website-member-controls-details">
+                <summary>
+                  <span>Manage access</span>
+                  <small>{platformRoleLabel(member.role)} - {accessModeLabel(member.accessMode)}</small>
+                </summary>
+                <div className="website-member-controls-grid">
+                  <label>
+                    <span>Platform role</span>
+                    <select
+                      aria-label={`Platform role for ${member.displayName}`}
+                      disabled={member.currentUser || !member.active}
+                      onChange={(event) => setDraftRoles((current) => ({ ...current, [member.id]: event.target.value as Role }))}
+                      value={draftRole}
+                    >
+                      {roleOptions.map((role) => <option key={role.value} value={role.value}>{role.label}</option>)}
+                    </select>
+                  </label>
+                  <button
+                    className="button secondary"
+                    disabled={member.currentUser || !member.active || unchanged || busyKey === `${member.id}:role`}
+                    onClick={() => void patchAccess({ userId: member.id, role: draftRole }, `${member.id}:role`, `${member.displayName}'s role was updated.`)}
+                    type="button"
+                  >
+                    {busyKey === `${member.id}:role` ? "Saving..." : unchanged ? "Saved" : "Save role"}
+                  </button>
+                  <label>
+                    <span>Data access</span>
+                    <select
+                      aria-label={`Data access for ${member.displayName}`}
+                      disabled={member.currentUser || !member.active || busyKey === `${member.id}:access-mode`}
+                      value={member.accessMode}
+                      onChange={(event) => {
+                        const accessMode = normalizeAccessMode(event.target.value) ?? "read_only";
+                        void patchAccess(
+                          {
+                            userId: member.id,
+                            accessMode
+                          },
+                          `${member.id}:access-mode`,
+                          `${member.displayName} is set to ${accessModeLabel(accessMode)}.`
+                        );
+                      }}
+                    >
+                      {accessModeOptions.map((mode) => <option key={mode.value} value={mode.value}>{mode.label}</option>)}
+                    </select>
+                    <small>{accessModeDescription(member.accessMode)}</small>
+                  </label>
+                  <label className="camp-access-toggle row-toggle">
+                    <input
+                      type="checkbox"
+                      checked={member.aiAccess.enabled}
+                      disabled={!member.active || busyKey === `${member.id}:ai-toggle`}
+                      onChange={(event) => void patchAccess(
+                        {
+                          userId: member.id,
+                          aiEnabled: event.target.checked,
+                          aiMonthlyLimit: member.aiAccess.monthlyLimit
+                        },
+                        `${member.id}:ai-toggle`,
+                        `AI access ${event.target.checked ? "enabled" : "disabled"} for ${member.displayName}.`
+                      )}
+                    />
+                    <span>AI access</span>
+                    <small>{member.aiAccess.currentMonthUsage} used this month</small>
+                  </label>
+                  <label>
+                    <span>Monthly AI requests</span>
+                    <input
+                      className="input"
+                      type="number"
+                      min={1}
+                      max={1000}
+                      placeholder="No limit"
+                      value={draftAiLimits[member.id] ?? ""}
+                      onChange={(event) => setDraftAiLimits((current) => ({ ...current, [member.id]: event.target.value }))}
+                      disabled={!member.active}
+                    />
+                  </label>
+                  <button
+                    className="button compact-button"
+                    type="button"
+                    disabled={!member.active || busyKey === `${member.id}:ai-limit`}
+                    onClick={() => {
+                      const value = (draftAiLimits[member.id] ?? "").trim();
                       void patchAccess(
                         {
                           userId: member.id,
-                          accessMode
+                          aiEnabled: member.aiAccess.enabled,
+                          aiMonthlyLimit: value ? Number(value) : null
                         },
-                        `${member.id}:access-mode`,
-                        `${member.displayName} is set to ${accessModeLabel(accessMode)}.`
+                        `${member.id}:ai-limit`,
+                        `AI limit updated for ${member.displayName}.`
                       );
                     }}
                   >
-                    {accessModeOptions.map((mode) => <option key={mode.value} value={mode.value}>{mode.label}</option>)}
-                  </select>
-                  <small>{accessModeDescription(member.accessMode)}</small>
-                </label>
-                <label className="camp-access-toggle row-toggle">
-                  <input
-                    type="checkbox"
-                    checked={member.aiAccess.enabled}
-                    disabled={!member.active || busyKey === `${member.id}:ai-toggle`}
-                    onChange={(event) => void patchAccess(
-                      {
-                        userId: member.id,
-                        aiEnabled: event.target.checked,
-                        aiMonthlyLimit: member.aiAccess.monthlyLimit
-                      },
-                      `${member.id}:ai-toggle`,
-                      `AI access ${event.target.checked ? "enabled" : "disabled"} for ${member.displayName}.`
-                    )}
-                  />
-                  <span>AI access</span>
-                  <small>{member.aiAccess.currentMonthUsage} used this month</small>
-                </label>
-                <label>
-                  <span>Monthly AI requests</span>
-                  <input
-                    className="input"
-                    type="number"
-                    min={1}
-                    max={1000}
-                    placeholder="No limit"
-                    value={draftAiLimits[member.id] ?? ""}
-                    onChange={(event) => setDraftAiLimits((current) => ({ ...current, [member.id]: event.target.value }))}
-                    disabled={!member.active}
-                  />
-                </label>
-                <button
-                  className="button compact-button"
-                  type="button"
-                  disabled={!member.active || busyKey === `${member.id}:ai-limit`}
-                  onClick={() => {
-                    const value = (draftAiLimits[member.id] ?? "").trim();
-                    void patchAccess(
-                      {
-                        userId: member.id,
-                        aiEnabled: member.aiAccess.enabled,
-                        aiMonthlyLimit: value ? Number(value) : null
-                      },
-                      `${member.id}:ai-limit`,
-                      `AI limit updated for ${member.displayName}.`
-                    );
-                  }}
-                >
-                  {busyKey === `${member.id}:ai-limit` ? "Saving..." : "Save AI"}
-                </button>
-              </div>
+                    {busyKey === `${member.id}:ai-limit` ? "Saving..." : "Save AI"}
+                  </button>
+                  <button
+                    className="button compact-button"
+                    disabled={member.currentUser || !member.active || busyKey === `${member.id}:deactivate`}
+                    onClick={() => void deactivate(member)}
+                    type="button"
+                  >
+                    {busyKey === `${member.id}:deactivate` ? "Deactivating..." : "Deactivate"}
+                  </button>
+                </div>
+              </details>
               <details className="website-page-access-details">
                 <summary>
                   <span>Page access</span>
@@ -460,9 +507,12 @@ export function WebsiteAccessPanel({ canManagePlatformAccess }: { canManagePlatf
 }
 
 function roleLabel(role: RegistrationInviteRole) {
-  if (role === "student") return "Student";
-  if (role === "parent") return "Parent";
-  return "Leader";
+  return platformRoleLabel(role);
+}
+
+function pluralRoleLabel(role: Role) {
+  if (role === "admin") return "Admins";
+  return `${platformRoleLabel(role)}s`;
 }
 
 function normalizeAccessMode(value: FormDataEntryValue | string | null): PlatformDataAccessMode | null {
