@@ -93,16 +93,24 @@ function cleanEnv(value: string | undefined) {
   return trimmed || undefined;
 }
 
+function firstEnv(env: GoogleDemoEnv, keys: string[]) {
+  for (const key of keys) {
+    const value = cleanEnv(env[key]);
+    if (value) return value;
+  }
+  return undefined;
+}
+
 export function readGoogleDemoConfig(env: GoogleDemoEnv = process.env): GoogleDemoConfig {
-  const clientId = cleanEnv(env.GOOGLE_DEMO_CLIENT_ID);
-  const clientSecret = cleanEnv(env.GOOGLE_DEMO_CLIENT_SECRET);
-  const redirectUri = cleanEnv(env.GOOGLE_DEMO_REDIRECT_URI);
-  const encryptionKey = cleanEnv(env.GOOGLE_DEMO_ENCRYPTION_KEY);
+  const clientId = firstEnv(env, ["GOOGLE_DEMO_CLIENT_ID", "GOOGLE_CLIENT_ID"]);
+  const clientSecret = firstEnv(env, ["GOOGLE_DEMO_CLIENT_SECRET", "GOOGLE_CLIENT_SECRET"]);
+  const redirectUri = firstEnv(env, ["GOOGLE_DEMO_REDIRECT_URI", "GOOGLE_REDIRECT_URI"]);
+  const encryptionKey = firstEnv(env, ["GOOGLE_DEMO_ENCRYPTION_KEY", "GOOGLE_INTEGRATION_ENCRYPTION_KEY"]);
   const required: Array<[string, string | undefined]> = [
-    ["GOOGLE_DEMO_CLIENT_ID", clientId],
-    ["GOOGLE_DEMO_CLIENT_SECRET", clientSecret],
-    ["GOOGLE_DEMO_REDIRECT_URI", redirectUri],
-    ["GOOGLE_DEMO_ENCRYPTION_KEY", encryptionKey]
+    ["GOOGLE_CLIENT_ID or GOOGLE_DEMO_CLIENT_ID", clientId],
+    ["GOOGLE_CLIENT_SECRET or GOOGLE_DEMO_CLIENT_SECRET", clientSecret],
+    ["GOOGLE_REDIRECT_URI or GOOGLE_DEMO_REDIRECT_URI", redirectUri],
+    ["GOOGLE_INTEGRATION_ENCRYPTION_KEY or GOOGLE_DEMO_ENCRYPTION_KEY", encryptionKey]
   ];
   const missing = required.filter(([, value]) => !value).map(([key]) => key);
   return { configured: missing.length === 0, clientId, clientSecret, redirectUri, encryptionKey, missing };

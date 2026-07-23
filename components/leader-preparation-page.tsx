@@ -50,6 +50,9 @@ export function LeaderPreparationPage() {
 
   const readerLink = useMemo(() => buildYouVersionReaderLink(passage), [passage]);
   const completeCount = checklist.filter((item) => item.complete).length;
+  const nextChecklistItem = checklist.find((item) => !item.complete);
+  const guideAction: PrepAction = prepActions.find((action) => action.id === "guide") ?? { id: "guide", label: "Generate leader guide", tone: "cyan" };
+  const audioAction: PrepAction = prepActions.find((action) => action.id === "audio") ?? { id: "audio", label: "Generate audio summary", tone: "gold" };
 
   function runPreviewAction(action: PrepAction) {
     const target = action.id === "slides" ? "Canva slide" : action.id === "audio" ? "audio summary" : action.label.replace("Generate ", "");
@@ -72,6 +75,30 @@ export function LeaderPreparationPage() {
 
   return (
     <section className="leader-prep-page" aria-label="Leader Preparation workspace">
+      <section className="leader-prep-mobile-command" aria-label="Leader prep priority">
+        <div>
+          <p className="eyebrow">Start here</p>
+          <strong>{nextChecklistItem ? nextChecklistItem.label : "Ready for Sunday"}</strong>
+          <span>{readerLink.ok ? `${readerLink.displayReference} is ready in YouVersion.` : readerLink.message}</span>
+        </div>
+        <div className="leader-prep-mobile-command-actions">
+          <button type="button" onClick={() => runPreviewAction(guideAction)}>
+            <FileText aria-hidden="true" />
+            Guide
+          </button>
+          <button type="button" onClick={() => runPreviewAction(audioAction)}>
+            <Mic2 aria-hidden="true" />
+            Audio
+          </button>
+          {readerLink.ok ? (
+            <a href={readerLink.url} target="_blank" rel="noreferrer">
+              <BookOpen aria-hidden="true" />
+              Bible
+            </a>
+          ) : null}
+        </div>
+      </section>
+
       <div className="leader-prep-layout">
         <article className="leader-prep-editor" aria-labelledby="leader-prep-editor-title">
           <header className="leader-prep-editor-header">
@@ -84,7 +111,7 @@ export function LeaderPreparationPage() {
 
           <div className="leader-prep-editor-body">
             <div className="leader-prep-title-field">
-              <input aria-label="Sermon title" value={title} onChange={(event) => setTitle(event.target.value)} />
+              <textarea aria-label="Sermon title" value={title} onChange={(event) => setTitle(event.target.value)} rows={2} />
             </div>
 
             <div className="leader-prep-meta-row">

@@ -169,6 +169,7 @@ export async function connectGroupMe(session: AuthSession, accessToken: string) 
   if (!config.configured || !config.encryptionKey) throw new GroupMeConfigError(config.missing);
   const ministryId = await ministryIdFor(session);
   const supabase = adminClient();
+  const availableGroups = await listGroupMeGroups({ accessToken: token });
   const now = new Date().toISOString();
   const encrypted = encryptGroupMeToken(token, config.encryptionKey);
   const result = await supabase.schema(PRIVATE_SCHEMA).from("groupme_tokens").upsert({
@@ -179,6 +180,7 @@ export async function connectGroupMe(session: AuthSession, accessToken: string) 
   }, { onConflict: "ministry_id" });
   if (result.error) throw new Error(result.error.message);
   await upsertIntegrationMetadata(supabase, ministryId, "connected", now);
+  return { groupCount: availableGroups.length };
 }
 
 export async function disconnectGroupMe(session: AuthSession) {

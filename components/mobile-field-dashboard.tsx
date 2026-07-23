@@ -62,7 +62,7 @@ export function MobileFieldDashboard({
       label: "Today's schedule",
       value: todayEvents.length ? `${todayEvents.length} event${todayEvents.length === 1 ? "" : "s"}` : "Clear",
       detail: todayEvents.length
-        ? todayEvents.slice(0, 2).map((event) => event.title).join(" · ")
+        ? todayEvents.slice(0, 2).map((event) => event.title).join(" - ")
         : nextEvent
           ? `Next: ${nextEvent.title}`
           : "No upcoming events are scheduled.",
@@ -80,7 +80,7 @@ export function MobileFieldDashboard({
       label: "Tasks",
       value: `${openTasks.length} open`,
       detail: overdueTasks.length || blockedTasks.length
-        ? `${overdueTasks.length} overdue · ${blockedTasks.length} blocked`
+        ? `${overdueTasks.length} overdue - ${blockedTasks.length} blocked`
         : "No overdue or blocked work.",
       meta: attention?.decisions.length ? `${attention.decisions.length} need review` : "Plan is moving",
       href: "/tasks",
@@ -108,7 +108,7 @@ export function MobileFieldDashboard({
       detail: communicationReviewCount
         ? "Event previews are missing planning details."
         : "Upcoming event previews have their core details.",
-      meta: "Preview only · No live sends",
+      meta: "Preview only - No live sends",
       href: "/communications",
       icon: MessageSquareText,
       tone: communicationReviewCount ? "gold" : "green"
@@ -151,6 +151,12 @@ export function MobileFieldDashboard({
           );
         })}
       </div>
+      <nav className="mobile-field-quick-actions" aria-label="Fast ministry actions">
+        <Link href="/events">Events</Link>
+        <Link href="/tasks">Tasks</Link>
+        <Link href="/communications">Communications</Link>
+        <Link href="/directors/volunteers">Volunteers</Link>
+      </nav>
     </section>
   );
 }

@@ -195,7 +195,7 @@ export function WebsiteAccessPanel({ canManagePlatformAccess }: { canManagePlatf
   if (!canManagePlatformAccess) return null;
 
   return (
-    <section className="website-access-panel" aria-labelledby="website-access-title">
+    <section className="website-access-panel" id="website-access-panel" aria-labelledby="website-access-title">
       <header className="website-access-heading">
         <div>
           <p className="eyebrow">Access management</p>

@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { requireEmergeOperationsWriteAccess } from "@/lib/app-area-access";
 import { GROUPME_OAUTH_STATE_COOKIE } from "@/lib/integrations/groupme/client";
-import { connectGroupMe } from "@/lib/integrations/groupme/repository";
+import { connectGroupMe, redactGroupMeError } from "@/lib/integrations/groupme/repository";
 
 const VOLUNTEER_HUB_PAGE = "/people";
 
@@ -15,9 +15,11 @@ export async function GET(request: Request) {
   const state = url.searchParams.get("state");
   const expectedState = cookies().get(GROUPME_OAUTH_STATE_COOKIE)?.value;
 
-  const redirectWithStatus = (status: "connected" | "error") => {
+  const redirectWithStatus = (status: "connected" | "error", groupCount?: number, reason?: string) => {
     const redirectUrl = new URL(VOLUNTEER_HUB_PAGE, request.url);
     redirectUrl.searchParams.set("groupme", status);
+    if (typeof groupCount === "number") redirectUrl.searchParams.set("groupme_groups", String(groupCount));
+    if (reason) redirectUrl.searchParams.set("groupme_reason", reason);
     const response = NextResponse.redirect(redirectUrl);
     response.headers.set("Referrer-Policy", "no-referrer");
     response.headers.set("Cache-Control", "no-store");
@@ -34,9 +36,13 @@ export async function GET(request: Request) {
   if (!accessToken || !expectedState || (state !== null && state !== expectedState)) return redirectWithStatus("error");
 
   try {
-    await connectGroupMe(access.session, accessToken);
-    return redirectWithStatus("connected");
-  } catch {
-    return redirectWithStatus("error");
+    const result = await connectGroupMe(access.session, accessToken);
+    return redirectWithStatus("connected", result.groupCount);
+  } catch (error) {
+    console.warn("[groupme] OAuth callback failed", {
+      timestamp: new Date().toISOString(),
+      reason: redactGroupMeError(error)
+    });
+    return redirectWithStatus("error", undefined, redactGroupMeError(error));
   }
 }

@@ -274,48 +274,63 @@ function CommunicationsWorkspace({ overview }: { overview: MinistryOverview }) {
   const missingOwner = upcoming.filter((event) => !event.contactOwnerId).length;
   const ready = upcoming.filter((event) => missingCommunicationFields(event).length === 0).length;
   const reviewNeeded = upcoming.length - ready;
+  const nextReviewEvent = upcoming.find((event) => missingCommunicationFields(event).length > 0) ?? upcoming[0];
 
   return (
-    <div className="ministry-launch-grid">
-      <LaunchMetric icon={<Mail aria-hidden="true" />} label="Ready previews" value={String(ready)} detail="Events with core copy fields filled" tone="cyan" />
-      <LaunchMetric icon={<Bell aria-hidden="true" />} label="Needs review" value={String(reviewNeeded)} detail="Missing details before drafts are useful" tone="gold" />
-      <LaunchMetric icon={<UsersRound aria-hidden="true" />} label="Owner gaps" value={String(missingOwner)} detail="Events without a communication owner" tone="violet" />
-
-      <article className="ministry-launch-panel ministry-launch-span-2">
-        <SectionHead eyebrow="Event Copy Queue" title="What needs attention before people hear about it" />
-        <div className="ministry-launch-list">
-          {upcoming.map((event) => {
-            const missing = missingCommunicationFields(event);
-            return (
-              <LaunchRow
-                key={event.id}
-                icon={<MessageSquareText aria-hidden="true" />}
-                title={event.title}
-                meta={`${formatDate(event.startTime)} - ${ownerName(event.contactOwnerId, overview.users)}`}
-                badge={missing.length ? `${missing.length} missing` : "Ready"}
-                badgeTone={missing.length ? "amber" : "green"}
-                href="/events"
-              >
-                {missing.length ? `Need ${missing.join(", ")} before previews are trustworthy.` : "Core event details are ready for preview generation."}
-              </LaunchRow>
-            );
-          })}
+    <>
+      <section className="ministry-mobile-command-strip" aria-label="Communications priority">
+        <div>
+          <p className="eyebrow">Start here</p>
+          <strong>{reviewNeeded ? `${reviewNeeded} event${reviewNeeded === 1 ? "" : "s"} need review` : "Previews are ready"}</strong>
+          <span>{nextReviewEvent ? `${nextReviewEvent.title} - ${formatDate(nextReviewEvent.startTime)}` : "No upcoming events are waiting."}</span>
         </div>
-      </article>
+        <nav aria-label="Communications quick actions">
+          <Link href="/events">Open events</Link>
+          <a href="#communications-channel-plan">Channels</a>
+        </nav>
+      </section>
 
-      <article className="ministry-launch-panel">
-        <SectionHead eyebrow="Channels" title="Preview surfaces" />
-        <div className="ministry-launch-card-list">
-          {["Parent email", "Leader update", "Text summary", "Briefing notes"].map((channel) => (
-            <div className="ministry-launch-mini-card" key={channel}>
-              <FileText aria-hidden="true" />
-              <strong>{channel}</strong>
-              <span>Generated from Master Event Card details. Sending stays off.</span>
-            </div>
-          ))}
-        </div>
-      </article>
-    </div>
+      <div className="ministry-launch-grid">
+        <LaunchMetric icon={<Mail aria-hidden="true" />} label="Ready previews" value={String(ready)} detail="Events with core copy fields filled" tone="cyan" />
+        <LaunchMetric icon={<Bell aria-hidden="true" />} label="Needs review" value={String(reviewNeeded)} detail="Missing details before drafts are useful" tone="gold" />
+        <LaunchMetric icon={<UsersRound aria-hidden="true" />} label="Owner gaps" value={String(missingOwner)} detail="Events without a communication owner" tone="violet" />
+
+        <article className="ministry-launch-panel ministry-launch-span-2">
+          <SectionHead eyebrow="Event Copy Queue" title="What needs attention before people hear about it" />
+          <div className="ministry-launch-list">
+            {upcoming.map((event) => {
+              const missing = missingCommunicationFields(event);
+              return (
+                <LaunchRow
+                  key={event.id}
+                  icon={<MessageSquareText aria-hidden="true" />}
+                  title={event.title}
+                  meta={`${formatDate(event.startTime)} - ${ownerName(event.contactOwnerId, overview.users)}`}
+                  badge={missing.length ? `${missing.length} missing` : "Ready"}
+                  badgeTone={missing.length ? "amber" : "green"}
+                  href="/events"
+                >
+                  {missing.length ? `Need ${missing.join(", ")} before previews are trustworthy.` : "Core event details are ready for preview generation."}
+                </LaunchRow>
+              );
+            })}
+          </div>
+        </article>
+
+        <article className="ministry-launch-panel" id="communications-channel-plan">
+          <SectionHead eyebrow="Channels" title="Preview surfaces" />
+          <div className="ministry-launch-card-list">
+            {["Parent email", "Leader update", "Text summary", "Briefing notes"].map((channel) => (
+              <div className="ministry-launch-mini-card" key={channel}>
+                <FileText aria-hidden="true" />
+                <strong>{channel}</strong>
+                <span>Generated from Master Event Card details. Sending stays off.</span>
+              </div>
+            ))}
+          </div>
+        </article>
+      </div>
+    </>
   );
 }
 
@@ -1091,21 +1106,35 @@ function BudgetWorkspace({ overview, refresh }: { overview: MinistryOverview; re
 
 function SettingsWorkspace({ overview, user }: { overview: MinistryOverview; user: SettingsUser }) {
   return (
-    <div className="ministry-launch-grid settings-readiness-grid">
-      <LaunchMetric icon={<ShieldCheck aria-hidden="true" />} label="Current role" value={(user?.role ?? "guest").toUpperCase()} detail={user?.fullName ?? "No active session profile"} tone="cyan" />
-      <LaunchMetric icon={<CheckCircle2 aria-hidden="true" />} label="Active workflows" value={String(overview.events.length)} detail="Events currently available to operational pages" tone="gold" />
-      <LaunchMetric icon={<UsersRound aria-hidden="true" />} label="Signed in as" value={user?.fullName?.split(" ")[0] ?? "Guest"} detail={user?.email ?? "No authenticated email"} tone="violet" />
-
-      <article className="ministry-launch-panel ministry-launch-span-3 settings-readiness-panel">
-        <SectionHead eyebrow="Connected services" title="Live readiness with real controls only" />
-        <p className="settings-readiness-copy">Connect or review the services the platform can actually verify. Preview-only sends and protected provider boundaries remain descriptive, never disguised as launch buttons.</p>
-        <div className="ministry-launch-setting-grid settings-readiness-controls">
-          <GoogleDemoIntegrationControl />
-          <PlanningCenterIntegrationControl />
-          <EmmaReadinessSettingCard />
+    <>
+      <section className="ministry-mobile-command-strip" aria-label="Settings priority">
+        <div>
+          <p className="eyebrow">Start here</p>
+          <strong>Connect services, then manage access</strong>
+          <span>{user?.fullName ? `${user.fullName} is signed in as ${(user.role ?? "guest").toUpperCase()}.` : "No active session profile is loaded."}</span>
         </div>
-      </article>
-    </div>
+        <nav aria-label="Settings quick actions">
+          <a href="#settings-connected-services">Services</a>
+          <a href="#website-access-panel">Access</a>
+        </nav>
+      </section>
+
+      <div className="ministry-launch-grid settings-readiness-grid">
+        <LaunchMetric icon={<ShieldCheck aria-hidden="true" />} label="Current role" value={(user?.role ?? "guest").toUpperCase()} detail={user?.fullName ?? "No active session profile"} tone="cyan" />
+        <LaunchMetric icon={<CheckCircle2 aria-hidden="true" />} label="Active workflows" value={String(overview.events.length)} detail="Events currently available to operational pages" tone="gold" />
+        <LaunchMetric icon={<UsersRound aria-hidden="true" />} label="Signed in as" value={user?.fullName?.split(" ")[0] ?? "Guest"} detail={user?.email ?? "No authenticated email"} tone="violet" />
+
+        <article className="ministry-launch-panel ministry-launch-span-3 settings-readiness-panel" id="settings-connected-services">
+          <SectionHead eyebrow="Connected services" title="Live readiness with real controls only" />
+          <p className="settings-readiness-copy">Connect or review the services the platform can actually verify. Preview-only sends and protected provider boundaries remain descriptive, never disguised as launch buttons.</p>
+          <div className="ministry-launch-setting-grid settings-readiness-controls">
+            <GoogleDemoIntegrationControl />
+            <PlanningCenterIntegrationControl />
+            <EmmaReadinessSettingCard />
+          </div>
+        </article>
+      </div>
+    </>
   );
 }
 function EmmaReadinessSettingCard() {

@@ -2922,6 +2922,98 @@ textarea:focus-visible {
 .legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #475569; }
 .legend-dot { width: 9px; height: 9px; border-radius: 50%; }
 
+.calendar-mobile-agenda {
+  display: none;
+}
+
+.calendar-mobile-agenda-item {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  min-height: 72px;
+  border: 1px solid rgba(125, 211, 252, 0.28);
+  border-radius: 10px;
+  background: rgba(240, 249, 255, 0.74);
+  color: #0f2c54;
+  padding: 10px;
+  text-align: left;
+}
+
+.calendar-mobile-agenda-item > span:first-child {
+  display: grid;
+  place-items: center;
+  height: 52px;
+  border-radius: 9px;
+  background: linear-gradient(150deg, #0ea5e9, #2563eb);
+  color: #fff;
+}
+
+.calendar-mobile-agenda-item > span:first-child strong {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+.calendar-mobile-agenda-item > span:first-child em {
+  font-size: 20px;
+  font-style: normal;
+  font-weight: 850;
+  line-height: 1;
+}
+
+.calendar-mobile-agenda-item > span:last-child {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.calendar-mobile-agenda-item > span:last-child strong {
+  overflow: hidden;
+  color: #0f2c54;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.calendar-mobile-agenda-item small {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.calendar-mobile-agenda-item:hover,
+.calendar-mobile-agenda-item:focus-visible {
+  border-color: #0ea5e9;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.16);
+}
+
+@media (max-width: 760px) {
+  .calendar-panel {
+    gap: 14px;
+  }
+
+  .calendar-controls {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .calendar-month {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .calendar-mobile-agenda {
+    display: grid;
+    gap: 10px;
+  }
+
+  .calendar-grid,
+  .calendar-legend {
+    display: none;
+  }
+}
+
 /* ════════════════════════════════════════════════════════════════
    Liquid-glass surface system
    Reusable translucent surface tokens shared across the dashboard.
@@ -16063,7 +16155,7 @@ body:has(.login-shell) h3 {
   color: #f7fbff;
 }
 
-.ministry-launch-row svg:last-child {
+.ministry-launch-row > svg:last-child {
   color: var(--platform-muted);
 }
 
@@ -16143,6 +16235,10 @@ body:has(.login-shell) h3 {
   gap: 12px;
   color: #fecaca;
   background: rgba(127, 29, 29, 0.18);
+}
+
+.ministry-mobile-command-strip {
+  display: none;
 }
 
 .ministry-budget-row {
@@ -16687,6 +16783,65 @@ body:has(.login-shell) h3 {
 }
 
 @media (max-width: 720px) {
+  .ministry-mobile-command-strip {
+    display: grid;
+    gap: 14px;
+    border: 1px solid rgba(129, 164, 214, 0.2);
+    border-radius: 12px;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.055), transparent 86px),
+      rgba(10, 20, 38, 0.9);
+    box-shadow: var(--platform-shadow);
+    padding: 16px;
+  }
+
+  .ministry-mobile-command-strip > div {
+    display: grid;
+    gap: 6px;
+  }
+
+  .ministry-mobile-command-strip strong {
+    color: #f7fbff;
+    font-family: var(--font-platform-serif), Georgia, serif;
+    font-size: 22px;
+    font-weight: 550;
+    line-height: 1.08;
+  }
+
+  .ministry-mobile-command-strip span {
+    color: var(--platform-muted);
+    font-size: 13px;
+    font-weight: 750;
+    line-height: 1.45;
+  }
+
+  .ministry-mobile-command-strip nav {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .ministry-mobile-command-strip a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 42px;
+    border: 1px solid rgba(56, 189, 248, 0.28);
+    border-radius: 10px;
+    background: rgba(56, 189, 248, 0.1);
+    color: #7dd3fc;
+    font-size: 13px;
+    font-weight: 900;
+    text-decoration: none;
+  }
+
+  .ministry-mobile-command-strip a:focus-visible,
+  .ministry-mobile-command-strip a:hover {
+    border-color: rgba(56, 189, 248, 0.62);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.16);
+  }
+
   .ministry-launch-hero {
     display: grid;
   }
@@ -16725,13 +16880,29 @@ body:has(.login-shell) h3 {
   }
 
   .ministry-launch-row {
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: 34px minmax(0, 1fr);
+    align-items: start;
+    gap: 12px;
   }
 
-  .ministry-launch-row .pill,
-  .ministry-launch-row svg:last-child {
+  .ministry-launch-row .pill {
+    grid-column: 2;
     justify-self: start;
-    margin-left: 48px;
+    margin-left: 0;
+  }
+
+  .ministry-launch-row > svg:last-child {
+    display: none;
+  }
+
+  .ministry-launch-row-copy strong {
+    font-size: 16px;
+    line-height: 1.15;
+  }
+
+  .ministry-launch-row-copy > span,
+  .ministry-launch-row-copy small {
+    font-size: 12px;
   }
 
   .ministry-people-toolbar,
@@ -18767,6 +18938,10 @@ body:has(.login-shell) h3 {
   padding: 18px 0 54px;
 }
 
+.leader-prep-mobile-command {
+  display: none;
+}
+
 .leader-prep-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(320px, 340px);
@@ -18822,7 +18997,7 @@ body:has(.login-shell) h3 {
   padding: 32px;
 }
 
-.leader-prep-title-field input,
+.leader-prep-title-field textarea,
 .leader-prep-meta-row input,
 .leader-prep-big-idea textarea,
 .leader-prep-body-field textarea {
@@ -18833,8 +19008,9 @@ body:has(.login-shell) h3 {
   outline: none;
 }
 
-.leader-prep-title-field input {
+.leader-prep-title-field textarea {
   min-height: 82px;
+  resize: none;
   font-family: Georgia, "Times New Roman", serif;
   font-size: clamp(2rem, 4vw, 2.65rem);
   font-weight: 800;
@@ -19255,7 +19431,78 @@ body:has(.login-shell) h3 {
 
 @media (max-width: 760px) {
   .leader-prep-page {
+    display: grid;
+    gap: 14px;
     padding: 14px 0 118px;
+  }
+
+  .leader-prep-mobile-command {
+    display: grid;
+    gap: 14px;
+    border: 1px solid rgba(129, 164, 214, 0.18);
+    border-radius: 14px;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.055), transparent 86px),
+      rgba(10, 20, 38, 0.88);
+    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.28);
+    padding: 16px;
+  }
+
+  .leader-prep-mobile-command > div:first-child {
+    display: grid;
+    gap: 6px;
+  }
+
+  .leader-prep-mobile-command strong {
+    color: #f8fafc;
+    font-family: var(--font-platform-serif), Georgia, serif;
+    font-size: 22px;
+    font-weight: 550;
+    line-height: 1.08;
+  }
+
+  .leader-prep-mobile-command span {
+    color: #a8b8cd;
+    font-size: 13px;
+    font-weight: 750;
+    line-height: 1.45;
+  }
+
+  .leader-prep-mobile-command-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .leader-prep-mobile-command-actions a,
+  .leader-prep-mobile-command-actions button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 42px;
+    border: 1px solid rgba(56, 189, 248, 0.28);
+    border-radius: 10px;
+    background: rgba(56, 189, 248, 0.1);
+    color: #7dd3fc;
+    font-size: 12px;
+    font-weight: 900;
+    text-decoration: none;
+  }
+
+  .leader-prep-mobile-command-actions svg {
+    width: 15px;
+    height: 15px;
+    flex: none;
+  }
+
+  .leader-prep-mobile-command-actions a:focus-visible,
+  .leader-prep-mobile-command-actions button:focus-visible,
+  .leader-prep-mobile-command-actions a:hover,
+  .leader-prep-mobile-command-actions button:hover {
+    border-color: rgba(56, 189, 248, 0.62);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.16);
   }
 
   .leader-prep-editor {
@@ -19278,7 +19525,7 @@ body:has(.login-shell) h3 {
     padding-inline: 18px;
   }
 
-  .leader-prep-title-field input {
+  .leader-prep-title-field textarea {
     min-height: 72px;
     font-size: clamp(1.7rem, 10vw, 2.4rem);
   }
