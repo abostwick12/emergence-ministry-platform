@@ -19996,6 +19996,27 @@ body:has(.login-shell) h3 {
   justify-content: flex-end;
 }
 
+.volunteer-archive-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 280px) auto;
+  gap: 12px;
+  align-items: end;
+  border: 1px solid rgba(239, 68, 68, 0.28);
+  border-radius: 8px;
+  background: rgba(127, 29, 29, 0.18);
+  padding: 14px;
+}
+
+.volunteer-archive-panel strong,
+.volunteer-archive-panel p {
+  margin: 0;
+}
+
+.volunteer-archive-panel p {
+  color: #b9c7d8;
+  line-height: 1.4;
+}
+
 .volunteer-service-group-list {
   display: grid;
   gap: 14px;
@@ -20228,6 +20249,7 @@ body:has(.login-shell) h3 {
 
   .volunteer-create-group,
   .volunteer-manage-group-fields,
+  .volunteer-archive-panel,
   .volunteer-member-list {
     grid-template-columns: minmax(0, 1fr);
   }

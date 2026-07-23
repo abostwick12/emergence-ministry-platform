@@ -194,12 +194,6 @@ export function VolunteerHubPage({ mode = "volunteer" }: { mode?: VolunteerHubMo
             onSyncCheckIns={syncPlanningCenterCheckIns}
             syncingCheckIns={syncingCheckIns}
           />
-          {payload.role === "admin" || payload.role === "director" || payload.role === "leader" ? (
-            <div className="volunteer-hub-grid" aria-label="Volunteer Hub operations">
-              <SmallGroupDirectorPanel payload={payload} onAction={act} onLinkGroupMe={linkGroupMeConversation} onReload={load} />
-              <LeaderPoolPanel payload={payload} onAction={act} />
-            </div>
-          ) : null}
         </>
       )}
     </section>
@@ -383,15 +377,12 @@ function StudentCard({ student, actionsEnabled, onAction }: { student: Volunteer
         <StatusBadge tone={student.attendanceStatus === "present" ? "success" : student.attendanceStatus === "absent" ? "warning" : "info"}>{student.attendanceStatus}</StatusBadge>
         {student.followUpNeeded ? <StatusBadge tone="warning">Needs follow-up</StatusBadge> : null}
         {student.prayerRequestIndicator ? <StatusBadge tone="info">Prayer indicator</StatusBadge> : null}
-        {student.source === "camp_clc" ? <StatusBadge tone="info">Camp CLC</StatusBadge> : null}
       </div>
       <dl className="volunteer-facts">
-        {student.cabin ? <div><dt>Room</dt><dd>{student.cabin}</dd></div> : null}
         <div><dt>Last attended</dt><dd>{formatDate(student.lastAttended)}</dd></div>
         <div><dt>Birthday</dt><dd>{student.birthday}</dd></div>
         <div><dt>Parent contact</dt><dd>{student.parentContactAvailable ? "Permission based" : "Not available"}</dd></div>
       </dl>
-      {student.safeIndicators?.length ? <p className="muted">{student.safeIndicators.join(" / ")}</p> : null}
       {actionsEnabled ? <form className="volunteer-inline-form" onSubmit={(event) => {
         event.preventDefault();
         void onAction({ type: "add_follow_up", studentId: student.id, note }, "Follow-up assigned.").then(() => setNote(""));
@@ -409,8 +400,9 @@ function StudentCard({ student, actionsEnabled, onAction }: { student: Volunteer
 function StudentsWorkspace({ payload, onAction }: { payload: VolunteerHubPayload; onAction: (action: VolunteerHubAction, success: string) => Promise<void> }) {
   const [query, setQuery] = useState("");
   const [source, setSource] = useState("all");
+  const visibleSources = Array.from(new Set(payload.studentRoster.map((student) => student.source).filter((sourceValue): sourceValue is NonNullable<VolunteerHubStudent["source"]> => Boolean(sourceValue))));
   const filtered = payload.studentRoster.filter((student) => {
-    const text = `${student.preferredName} ${student.fullName} ${student.grade} ${student.school} ${student.cabin ?? ""}`.toLowerCase();
+    const text = `${student.preferredName} ${student.fullName} ${student.grade} ${student.school}`.toLowerCase();
     return (!query.trim() || text.includes(query.trim().toLowerCase()))
       && (source === "all" || student.source === source);
   });
@@ -418,13 +410,13 @@ function StudentsWorkspace({ payload, onAction }: { payload: VolunteerHubPayload
 
   return (
     <div className="volunteer-hub-grid">
-      <MetricCard icon={<UsersRound aria-hidden="true" />} label="CLC Camp Students" value={String(payload.studentRosterSource.campClcCount)} detail="Filtered through the Camp CLC roster boundary." />
-      <MetricCard icon={<ClipboardCheck aria-hidden="true" />} label="Planning Center Refs" value={String(payload.studentRosterSource.planningCenterCount)} detail="Synced ministry student references." />
+      <MetricCard icon={<UsersRound aria-hidden="true" />} label="Students" value={String(payload.studentRoster.length)} detail="Visible student references available for small-group care." />
+      <MetricCard icon={<ClipboardCheck aria-hidden="true" />} label="Planning Center" value={String(payload.studentRosterSource.planningCenterCount)} detail="Synced ministry student references." />
       <article className="volunteer-hub-panel volunteer-hub-span-3 volunteer-student-roster-tools">
         <SectionTitle icon={<UsersRound aria-hidden="true" />} eyebrow="Students" title="Roster view" />
         <div className="volunteer-roster-filters">
-          <label className="field"><span>Search</span><input className="input" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Name, grade, school, or room" /></label>
-          <label className="field"><span>Source</span><select className="input" value={source} onChange={(event) => setSource(event.target.value)}><option value="all">All sources</option><option value="camp_clc">Camp CLC</option><option value="planning_center">Planning Center</option><option value="demo">Demo</option></select></label>
+          <label className="field"><span>Search</span><input className="input" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Name, grade, or school" /></label>
+          <label className="field"><span>Source</span><select className="input" value={source} onChange={(event) => setSource(event.target.value)}><option value="all">All student refs</option>{visibleSources.map((sourceValue) => <option key={sourceValue} value={sourceValue}>{studentSourceLabel(sourceValue)}</option>)}</select></label>
         </div>
       </article>
       {filtered.length ? filtered.map((student) => (
@@ -880,9 +872,7 @@ function SmallGroupDirectorPanel({
   onReload: () => Promise<void>;
 }) {
   const [managedGroup, setManagedGroup] = useState<VolunteerHubSmallGroup | null>(null);
-  const [creating, setCreating] = useState(false);
-  const [name, setName] = useState("");
-  const [room, setRoom] = useState("");
+  const [draftServiceTime, setDraftServiceTime] = useState("");
   const serviceOptions = useMemo(() => uniqueServiceTimes([
     payload.activeGroup.serviceTime,
     ...payload.activeGroups.map((group) => group.serviceTime),
@@ -890,12 +880,11 @@ function SmallGroupDirectorPanel({
     ...defaultServiceTimes
   ]), [payload.activeGroup.serviceTime, payload.activeGroups, payload.archivedGroups]);
   const serviceBuckets = useMemo(() => groupSmallGroupsByService(payload.activeGroups), [payload.activeGroups]);
-  const [serviceTime, setServiceTime] = useState(payload.activeGroup.serviceTime || serviceOptions[0] || defaultServiceTimes[0]);
-  const [leaderId, setLeaderId] = useState(payload.volunteers[0]?.id ?? "");
   const [groupMeGroups, setGroupMeGroups] = useState<GroupMeChoice[]>([]);
   const [loadingGroupMe, setLoadingGroupMe] = useState(false);
   const [groupMeError, setGroupMeError] = useState("");
   const groupMeDisplayStatus = payload.integrations.groupMe.displayStatus;
+  const canManageGroups = !payload.readOnlyReason;
 
   const loadGroupMeGroups = useCallback(async () => {
     if (groupMeDisplayStatus !== "connected") return;
@@ -925,7 +914,7 @@ function SmallGroupDirectorPanel({
           {groupMeDisplayStatus !== "connected" && payload.dataSource === "live" ? (
             <a className="button" href="/api/integrations/groupme/connect"><Link2 aria-hidden="true" />Connect GroupMe</a>
           ) : null}
-          {!payload.readOnlyReason ? <button className="button primary" type="button" onClick={() => setCreating((value) => !value)}><Plus aria-hidden="true" />Create Service Group</button> : null}
+          {canManageGroups ? <button className="button primary" type="button" onClick={() => setDraftServiceTime(serviceOptions[0] || defaultServiceTimes[0])}><Plus aria-hidden="true" />Add Small Group</button> : null}
         </div>
       </div>
       {payload.dataSource === "live" ? (
@@ -943,25 +932,6 @@ function SmallGroupDirectorPanel({
           ) : null}
         </div>
       ) : null}
-      {creating ? (
-        <form className="volunteer-create-group" onSubmit={(event) => {
-          event.preventDefault();
-          void onAction({ type: "create_group", name, room, serviceTime, leaderId }, "Small group created.").then(() => {
-            setName("");
-            setRoom("");
-            setCreating(false);
-          });
-        }}>
-          <label className="field"><span>Service</span><input className="input" list="volunteer-service-times" required value={serviceTime} onChange={(event) => setServiceTime(event.target.value)} placeholder="Sunday - 10:30 AM" /></label>
-          <label className="field"><span>Group name</span><input className="input" required value={name} onChange={(event) => setName(event.target.value)} placeholder="9th Grade Girls" /></label>
-          <label className="field"><span>Primary leader</span><select className="input" value={leaderId} onChange={(event) => setLeaderId(event.target.value)}><option value="">Unassigned</option>{payload.volunteers.map((volunteer) => <option key={volunteer.id} value={volunteer.id}>{volunteer.name}</option>)}</select></label>
-          <label className="field"><span>Room</span><input className="input" value={room} onChange={(event) => setRoom(event.target.value)} placeholder="Room 204" /></label>
-          <datalist id="volunteer-service-times">
-            {serviceOptions.map((option) => <option key={option} value={option} />)}
-          </datalist>
-          <button className="button primary" type="submit">Create and manage roster</button>
-        </form>
-      ) : null}
       <div className="volunteer-service-group-list">
         {serviceBuckets.length ? serviceBuckets.map((bucket) => (
           <section className="volunteer-service-group" key={bucket.serviceTime} aria-label={`${bucket.serviceTime} small groups`}>
@@ -970,10 +940,9 @@ function SmallGroupDirectorPanel({
                 <span className="eyebrow">{bucket.serviceTime}</span>
                 <strong>{bucket.groups.length} {bucket.groups.length === 1 ? "group" : "groups"} - {bucket.studentCount} {bucket.studentCount === 1 ? "student" : "students"}</strong>
               </div>
-              {!payload.readOnlyReason ? (
+              {canManageGroups ? (
                 <button className="button compact-button" type="button" onClick={() => {
-                  setServiceTime(bucket.serviceTime);
-                  setCreating(true);
+                  setDraftServiceTime(bucket.serviceTime);
                 }}>
                   <Plus aria-hidden="true" />New group
                 </button>
@@ -981,7 +950,7 @@ function SmallGroupDirectorPanel({
             </header>
             <div className="volunteer-group-card-grid">
               {bucket.groups.map((group) => (
-                <GroupCard key={group.id} group={group} volunteers={payload.volunteers} persisted={payload.dataSource !== "live" || isUuid(group.id)} onManage={() => setManagedGroup(group)} onArchive={(reason) => onAction({ type: "archive_group", groupId: group.id, reason }, "Small group archived.")} />
+                <GroupCard key={group.id} group={group} volunteers={payload.volunteers} persisted={payload.dataSource !== "live" || isUuid(group.id)} onManage={() => setManagedGroup(group)} />
               ))}
             </div>
           </section>
@@ -999,8 +968,25 @@ function SmallGroupDirectorPanel({
           </article>
         )) : <p className="muted">No small groups are archived.</p>}
       </div>
+      {draftServiceTime ? (
+        <ManageGroupDialog
+          mode="create"
+          group={newSmallGroupDraft(draftServiceTime, payload.volunteers[0]?.id ?? "")}
+          volunteers={payload.volunteers}
+          students={payload.studentRoster}
+          serviceOptions={serviceOptions}
+          groupMeStatus={groupMeDisplayStatus}
+          groupMeGroups={groupMeGroups}
+          loadingGroupMe={loadingGroupMe}
+          onAction={onAction}
+          onLinkGroupMe={onLinkGroupMe}
+          onReload={onReload}
+          onClose={() => setDraftServiceTime("")}
+        />
+      ) : null}
       {managedGroup ? (
         <ManageGroupDialog
+          mode="edit"
           group={managedGroup}
           volunteers={payload.volunteers}
           students={payload.studentRoster}
@@ -1022,16 +1008,13 @@ function GroupCard({
   group,
   volunteers,
   persisted,
-  onManage,
-  onArchive
+  onManage
 }: {
   group: VolunteerHubSmallGroup;
   volunteers: VolunteerHubVolunteer[];
   persisted: boolean;
   onManage: () => void;
-  onArchive: (reason: string) => Promise<void>;
 }) {
-  const [reason, setReason] = useState("");
   const leader = volunteers.find((volunteer) => volunteer.id === group.leaderId);
   return (
     <article className="volunteer-group-card">
@@ -1043,18 +1026,12 @@ function GroupCard({
       <p>{leader?.name ?? "Unassigned"} leads {group.memberStudentIds.length} {group.memberStudentIds.length === 1 ? "student" : "students"}.</p>
       {group.groupMeConnected ? <StatusBadge tone="success">{group.groupMeGroupName ?? "GroupMe linked"}</StatusBadge> : <StatusBadge tone="warning">GroupMe not linked</StatusBadge>}
       {persisted ? <button className="button compact-button" type="button" onClick={onManage}>Manage Group</button> : <p className="muted">Create a permanent group to assign this imported roster.</p>}
-      {persisted ? <label className="field volunteer-archive-reason">
-        <span>Archive reason</span>
-        <input className="input" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Consolidated with another group" />
-      </label> : null}
-      {persisted ? <button className="button compact-button danger" type="button" onClick={() => onArchive(reason)}>
-        <Archive aria-hidden="true" />Archive small group
-      </button> : null}
     </article>
   );
 }
 
 function ManageGroupDialog({
+  mode,
   group,
   volunteers,
   students,
@@ -1067,6 +1044,7 @@ function ManageGroupDialog({
   onReload,
   onClose
 }: {
+  mode: "create" | "edit";
   group: VolunteerHubSmallGroup;
   volunteers: VolunteerHubVolunteer[];
   students: VolunteerHubStudent[];
@@ -1079,6 +1057,7 @@ function ManageGroupDialog({
   onReload: () => Promise<void>;
   onClose: () => void;
 }) {
+  const isCreate = mode === "create";
   const [name, setName] = useState(group.name);
   const [leaderId, setLeaderId] = useState(group.leaderId);
   const [coLeaderId, setCoLeaderId] = useState(group.coLeaderId ?? "");
@@ -1087,6 +1066,7 @@ function ManageGroupDialog({
   const [memberStudentIds, setMemberStudentIds] = useState(group.memberStudentIds);
   const [studentQuery, setStudentQuery] = useState("");
   const [groupMeGroupId, setGroupMeGroupId] = useState(group.groupMeGroupId ?? "");
+  const [archiveReason, setArchiveReason] = useState(group.archiveReason ?? "");
   const [dialogError, setDialogError] = useState("");
   const [saving, setSaving] = useState(false);
   const filteredStudents = students.filter((student) => {
@@ -1099,17 +1079,29 @@ function ManageGroupDialog({
     setSaving(true);
     setDialogError("");
     try {
-      await onAction({
-        type: "update_group",
-        groupId: group.id,
-        name,
-        leaderId,
-        coLeaderId,
-        room,
-        serviceTime,
-        memberStudentIds
-      }, "Small group leaders and roster updated.");
-      if (groupMeGroupId && groupMeGroupId !== group.groupMeGroupId) {
+      if (isCreate) {
+        await onAction({
+          type: "create_group",
+          name,
+          leaderId,
+          coLeaderId,
+          room,
+          serviceTime,
+          memberStudentIds
+        }, "Small group created.");
+      } else {
+        await onAction({
+          type: "update_group",
+          groupId: group.id,
+          name,
+          leaderId,
+          coLeaderId,
+          room,
+          serviceTime,
+          memberStudentIds
+        }, "Small group leaders and roster updated.");
+      }
+      if (!isCreate && groupMeGroupId && groupMeGroupId !== group.groupMeGroupId) {
         await onLinkGroupMe(group.id, groupMeGroupId);
       }
       await onReload();
@@ -1121,13 +1113,28 @@ function ManageGroupDialog({
     }
   }
 
+  async function archiveGroup() {
+    if (isCreate) return;
+    setSaving(true);
+    setDialogError("");
+    try {
+      await onAction({ type: "archive_group", groupId: group.id, reason: archiveReason }, "Small group archived.");
+      await onReload();
+      onClose();
+    } catch (error) {
+      setDialogError(error instanceof Error ? error.message : "Small group could not be archived.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return createPortal(
     <div className="ministry-people-modal-backdrop" role="presentation">
-      <section className="ministry-people-modal volunteer-manage-group-dialog" role="dialog" aria-modal="true" aria-label="Manage Small Group">
+      <section className="ministry-people-modal volunteer-manage-group-dialog" role="dialog" aria-modal="true" aria-label={isCreate ? "Add Small Group" : "Manage Small Group"}>
         <div className="ministry-people-modal-head">
           <div>
-            <h3>Manage Small Group</h3>
-            <p>Assign leaders, build the student roster, set the meeting details, and link the correct GroupMe conversation.</p>
+            <h3>{isCreate ? "Add Small Group" : "Manage Small Group"}</h3>
+            <p>{isCreate ? "Create the group with leaders, room, service, and students in one save." : "Update leaders, roster, meeting details, GroupMe, or archive the group."}</p>
           </div>
           <button className="button compact-button" type="button" onClick={onClose}>Close</button>
         </div>
@@ -1141,7 +1148,7 @@ function ManageGroupDialog({
             <datalist id="volunteer-manage-service-times">
               {serviceOptions.map((option) => <option key={option} value={option} />)}
             </datalist>
-            <label className="field"><span>GroupMe conversation</span><select className="input" disabled={groupMeStatus !== "connected" || loadingGroupMe} value={groupMeGroupId} onChange={(event) => setGroupMeGroupId(event.target.value)}><option value="">{loadingGroupMe ? "Loading conversations..." : "Not linked"}</option>{groupMeGroups.map((choice) => <option key={choice.id} value={choice.id}>{choice.name} ({choice.memberCount})</option>)}</select></label>
+            <label className="field"><span>GroupMe conversation</span><select className="input" disabled={isCreate || groupMeStatus !== "connected" || loadingGroupMe} value={groupMeGroupId} onChange={(event) => setGroupMeGroupId(event.target.value)}><option value="">{isCreate ? "Save group first" : loadingGroupMe ? "Loading conversations..." : "Not linked"}</option>{groupMeGroups.map((choice) => <option key={choice.id} value={choice.id}>{choice.name} ({choice.memberCount})</option>)}</select></label>
           </div>
           <fieldset className="volunteer-member-picker">
             <legend>Students in this group <span>{memberStudentIds.length} selected</span></legend>
@@ -1160,10 +1167,25 @@ function ManageGroupDialog({
               })}
             </div>
           </fieldset>
+          {!isCreate ? (
+            <section className="volunteer-archive-panel" aria-label="Archive small group">
+              <div>
+                <strong>Archive this group</strong>
+                <p>Archived groups leave the active service list and can be restored later.</p>
+              </div>
+              <label className="field">
+                <span>Archive reason</span>
+                <input className="input" value={archiveReason} onChange={(event) => setArchiveReason(event.target.value)} placeholder="Consolidated with another group" />
+              </label>
+              <button className="button compact-button danger" type="button" disabled={saving} onClick={() => void archiveGroup()}>
+                <Archive aria-hidden="true" />Archive group
+              </button>
+            </section>
+          ) : null}
           {dialogError ? <p className="volunteer-hub-error" role="alert">{dialogError}</p> : null}
           <div className="volunteer-card-actions volunteer-manage-actions">
             <button className="button" type="button" onClick={onClose}>Cancel</button>
-            <button className="button primary" type="submit" disabled={saving}>{saving ? <LoaderCircle className="volunteer-spin" aria-hidden="true" /> : <Check aria-hidden="true" />}{saving ? "Saving..." : "Save group"}</button>
+            <button className="button primary" type="submit" disabled={saving}>{saving ? <LoaderCircle className="volunteer-spin" aria-hidden="true" /> : <Check aria-hidden="true" />}{saving ? "Saving..." : isCreate ? "Create group" : "Save group"}</button>
           </div>
         </form>
       </section>
@@ -1237,6 +1259,24 @@ function uniqueServiceTimes(values: string[]) {
       seen.add(value);
       return true;
     });
+}
+
+function newSmallGroupDraft(serviceTime: string, leaderId: string): VolunteerHubSmallGroup {
+  return {
+    id: "",
+    name: "",
+    leaderId,
+    room: "",
+    serviceTime,
+    memberStudentIds: [],
+    groupMeConnected: false
+  };
+}
+
+function studentSourceLabel(source: NonNullable<VolunteerHubStudent["source"]>) {
+  if (source === "planning_center") return "Planning Center";
+  if (source === "demo") return "Demo";
+  return "Imported roster";
 }
 
 function groupMeStatusHeadline(status: VolunteerHubPayload["integrations"]["groupMe"]["displayStatus"], groupCount: number, loading: boolean) {
