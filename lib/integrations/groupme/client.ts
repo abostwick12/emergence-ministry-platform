@@ -1,6 +1,7 @@
 const GROUPME_AUTH_URL = "https://oauth.groupme.com/oauth/authorize";
 const DEFAULT_GROUPME_API_BASE_URL = "https://api.groupme.com/v3";
 
+export const GROUPME_CALLBACK_PATH = "/integrations/groupme/callback";
 export const GROUPME_OAUTH_STATE_COOKIE = "lead_groupme_oauth_state";
 
 type GroupMeEnv = Record<string, string | undefined>;
@@ -109,12 +110,17 @@ function requireConfig(env?: GroupMeEnv) {
   return config as GroupMeConfig & { clientId: string; redirectUri: string; encryptionKey: string };
 }
 
-export function buildGroupMeAuthUrl(params: { state: string; env?: GroupMeEnv }) {
+export function buildGroupMeAuthUrl(params: { state: string; redirectUri?: string; env?: GroupMeEnv }) {
   const config = requireConfig(params.env);
   const url = new URL(GROUPME_AUTH_URL);
   url.searchParams.set("client_id", config.clientId);
+  url.searchParams.set("redirect_uri", params.redirectUri ?? config.redirectUri);
   url.searchParams.set("state", params.state);
   return url.toString();
+}
+
+export function groupMeCallbackUrlForRequest(requestUrl: string) {
+  return new URL(GROUPME_CALLBACK_PATH, requestUrl).toString();
 }
 
 async function requestGroupMe<T>(params: {

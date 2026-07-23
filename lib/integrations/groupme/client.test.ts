@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   buildGroupMeAuthUrl,
+  groupMeCallbackUrlForRequest,
   GroupMeConfigError,
   listGroupMeGroups,
   listGroupMeMessages,
@@ -25,12 +26,21 @@ describe("GroupMe configuration", () => {
     expect(readGroupMeConfig(configuredEnv).configured).toBe(true);
   });
 
-  it("builds the authorization URL with CSRF state", () => {
+  it("builds the authorization URL with CSRF state and the configured callback", () => {
     const url = new URL(buildGroupMeAuthUrl({ state: "csrf-state", env: configuredEnv }));
     expect(url.origin + url.pathname).toBe("https://oauth.groupme.com/oauth/authorize");
     expect(url.searchParams.get("client_id")).toBe("client-id");
+    expect(url.searchParams.get("redirect_uri")).toBe("https://example.com/api/integrations/groupme/callback");
     expect(url.searchParams.get("state")).toBe("csrf-state");
     expect(url.toString()).not.toContain("local-test-encryption-key");
+  });
+
+  it("can aim GroupMe at the callback page on the current app host", () => {
+    const redirectUri = groupMeCallbackUrlForRequest("https://www.leademergence.com/api/integrations/groupme/connect");
+    const url = new URL(buildGroupMeAuthUrl({ state: "csrf-state", redirectUri, env: configuredEnv }));
+
+    expect(redirectUri).toBe("https://www.leademergence.com/integrations/groupme/callback");
+    expect(url.searchParams.get("redirect_uri")).toBe(redirectUri);
   });
 
   it("fails closed when server configuration is missing", () => {
