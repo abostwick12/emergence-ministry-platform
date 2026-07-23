@@ -162,7 +162,7 @@ export async function getGroupMeStatus(session: AuthSession): Promise<GroupMeSta
   }
 }
 
-export async function connectGroupMe(session: AuthSession, accessToken: string) {
+export async function connectGroupMe(session: AuthSession, accessToken: string, source: "oauth" | "manual_token" = "oauth") {
   const token = accessToken.trim();
   if (!token) throw new GroupMeNotConnectedError();
   const config = readGroupMeConfig();
@@ -179,7 +179,7 @@ export async function connectGroupMe(session: AuthSession, accessToken: string) 
     updated_at: now
   }, { onConflict: "ministry_id" });
   if (result.error) throw new Error(result.error.message);
-  await upsertIntegrationMetadata(supabase, ministryId, "connected", now);
+  await upsertIntegrationMetadata(supabase, ministryId, "connected", now, source);
   return { groupCount: availableGroups.length };
 }
 
@@ -192,7 +192,7 @@ export async function disconnectGroupMe(session: AuthSession) {
     .from("volunteer_hub_small_groups")
     .update({ group_me_connected: false, group_me_group_id: null, group_me_group_name: null })
     .eq("ministry_id", ministryId);
-  await upsertIntegrationMetadata(supabase, ministryId, "disconnected", null);
+  await upsertIntegrationMetadata(supabase, ministryId, "disconnected", null, "oauth");
 }
 
 export async function listAvailableGroupMeGroups(session: AuthSession): Promise<GroupMeGroup[]> {
@@ -281,14 +281,20 @@ async function loadPlatformGroup(session: AuthSession, platformGroupId: string) 
   return result.data;
 }
 
-async function upsertIntegrationMetadata(supabase: SupabaseClient, ministryId: string, status: "connected" | "disconnected", connectedAt: string | null) {
+async function upsertIntegrationMetadata(
+  supabase: SupabaseClient,
+  ministryId: string,
+  status: "connected" | "disconnected",
+  connectedAt: string | null,
+  source: "oauth" | "manual_token"
+) {
   const result = await supabase.from("ministry_integrations").upsert({
     ministry_id: ministryId,
     provider: PROVIDER,
     status,
     connected_at: connectedAt,
     last_error: null,
-    config: { source: "oauth", sendMode: "manual_review" }
+    config: { source, sendMode: "manual_review" }
   }, { onConflict: "ministry_id,provider" });
   if (result.error) throw new Error(result.error.message);
 }

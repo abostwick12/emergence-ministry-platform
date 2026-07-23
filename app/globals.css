@@ -20134,6 +20134,11 @@ body:has(.login-shell) h3 {
   padding: 12px;
 }
 
+.volunteer-groupme-setup {
+  display: grid;
+  gap: 10px;
+}
+
 .volunteer-groupme-population > svg {
   width: 20px;
   height: 20px;
@@ -20155,6 +20160,26 @@ body:has(.login-shell) h3 {
 .volunteer-groupme-population p {
   color: #b9c7d8;
   line-height: 1.4;
+}
+
+.volunteer-groupme-manual-token {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.64);
+  padding: 12px;
+}
+
+.volunteer-groupme-manual-token p {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #b9c7d8;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  line-height: 1.45;
 }
 
 .volunteer-director-priority {
@@ -20663,6 +20688,10 @@ body:has(.login-shell) h3 {
     grid-column: 1 / -1;
     width: 100%;
     justify-content: center;
+  }
+
+  .volunteer-groupme-manual-token {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .volunteer-guide-hero {
