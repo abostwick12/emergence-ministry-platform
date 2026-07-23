@@ -6,7 +6,7 @@ import { Copy, Link2, ShieldCheck, UserCog } from "lucide-react";
 import type { PlatformAccessMember, PlatformAccessPage, PlatformDataAccessMode } from "@/lib/platform/access-admin";
 import type { PlatformRegistrationInviteSummary, RegistrationInviteRole } from "@/lib/platform/registration";
 import type { PlatformPageKey } from "@/lib/platform/page-registry";
-import { platformRoleLabel } from "@/lib/platform/roles";
+import { platformRoleLabel, platformRoleLabelPlural } from "@/lib/platform/roles";
 import type { Role } from "@/lib/types";
 
 const roleOptions: Array<{ value: Role; label: string }> = [
@@ -240,7 +240,7 @@ export function WebsiteAccessPanel({ canManagePlatformAccess }: { canManagePlatf
           </button>
           {roleCounts.map((role) => (
             <button key={role.value} className={roleFilter === role.value ? "active" : ""} type="button" aria-pressed={roleFilter === role.value} onClick={() => setRoleFilter(role.value)}>
-              <span>{pluralRoleLabel(role.value)}</span>
+              <span>{platformRoleLabelPlural(role.value)}</span>
               <strong>{role.count}</strong>
             </button>
           ))}
@@ -349,7 +349,7 @@ export function WebsiteAccessPanel({ canManagePlatformAccess }: { canManagePlatf
       <div className="website-access-list" aria-busy={loading}>
         {loading ? <p className="quiet-state">Loading users...</p> : null}
         {!loading && !members.length ? <p className="quiet-state">No website profiles are available.</p> : null}
-        {!loading && members.length && !filteredMembers.length ? <p className="quiet-state">No {roleFilter === "all" ? "people" : pluralRoleLabel(roleFilter).toLowerCase()} match this filter.</p> : null}
+        {!loading && members.length && !filteredMembers.length ? <p className="quiet-state">No {roleFilter === "all" ? "people" : platformRoleLabelPlural(roleFilter).toLowerCase()} match this filter.</p> : null}
         {filteredMembers.map((member) => {
           const draftRole = draftRoles[member.id] ?? member.role;
           const unchanged = draftRole === member.role;
@@ -508,11 +508,6 @@ export function WebsiteAccessPanel({ canManagePlatformAccess }: { canManagePlatf
 
 function roleLabel(role: RegistrationInviteRole) {
   return platformRoleLabel(role);
-}
-
-function pluralRoleLabel(role: Role) {
-  if (role === "admin") return "Admins";
-  return `${platformRoleLabel(role)}s`;
 }
 
 function normalizeAccessMode(value: FormDataEntryValue | string | null): PlatformDataAccessMode | null {

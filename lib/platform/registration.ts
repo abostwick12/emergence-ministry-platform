@@ -6,6 +6,7 @@ import { resolvePersonName } from "@/lib/auth/display-name";
 import { isSupabaseConfigured } from "@/lib/auth/config";
 import { resolveMinistryScope } from "@/lib/ministry/scope";
 import { platformDataAccessModes, type PlatformDataAccessMode } from "@/lib/platform/access-admin";
+import { platformRoleLabel } from "@/lib/platform/roles";
 import type { Role } from "@/lib/types";
 
 export type RegistrationInviteRole = Exclude<Role, "admin">;
@@ -445,9 +446,7 @@ function normalizeExpiry(value: string | null | undefined) {
 }
 
 function roleLabel(role: RegistrationInviteRole) {
-  if (role === "student") return "Student";
-  if (role === "parent") return "Parent";
-  return "Leader";
+  return platformRoleLabel(role);
 }
 
 export class PlatformRegistrationError extends Error {

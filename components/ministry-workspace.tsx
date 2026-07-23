@@ -14,6 +14,7 @@ import type { DashboardAttention } from "@/lib/dashboard-attention";
 import type { MinistryOverview } from "@/lib/data/ministry-repository";
 import { eventTypeLabels } from "@/lib/templates";
 import { eventCategoryColors } from "@/lib/event-categories";
+import { platformPersonName, platformPersonRoleLine, platformRoleLabel } from "@/lib/platform/roles";
 import {
   loadCustomVolunteerLeaders,
   loadDeletedVolunteerLeaderIds,
@@ -72,8 +73,8 @@ function eventAccentStyle(type: MinistryEvent["type"]) {
 function usersToVolunteerLeaders(users: User[]): VolunteerLeader[] {
   return users.map((user) => ({
     id: `user-${user.id}`,
-    name: `${user.firstName} ${user.lastName}`.trim() || user.email,
-    role: user.role === "admin" ? "Admin" : "Leader",
+    name: platformPersonName(user),
+    role: platformRoleLabel(user.role),
     email: user.email
   }));
 }
@@ -974,7 +975,7 @@ function TasksWorkspace({
                 <tr>
                   <th>Task</th>
                   <th>Event</th>
-                  <th>Owner</th>
+                  <th>Assigned to</th>
                   <th>Due date</th>
                   <th>Status</th>
                   <th>Notes</th>
@@ -1059,7 +1060,7 @@ function MobileTaskActionCard({
         <span className={task.status === "done" ? "pill done" : task.status === "blocked" ? "pill blocked" : "pill"}>{statusLabels[task.status]}</span>
         <h3>{task.taskTitle}</h3>
         <p>{eventTitle}</p>
-        <small>{owner ? `${owner.firstName} ${owner.lastName}` : "Unassigned"}</small>
+        <small>{owner ? platformPersonRoleLine(owner) : "Unassigned"}</small>
       </div>
       <div className="mobile-task-action-controls">
         <label>
@@ -1124,7 +1125,7 @@ function TaskTableRow({
     <tr>
       <td>{task.taskTitle}</td>
       <td>{eventTitle}</td>
-      <td>{owner ? `${owner.firstName} ${owner.lastName}` : "Unassigned"}</td>
+      <td>{owner ? platformPersonRoleLine(owner) : "Unassigned"}</td>
       <td>
         <div className="table-inline-edit">
           <input className="input" aria-label={`Due date for ${task.taskTitle}`} type="date" value={dueDate} disabled={!canSaveChanges} onChange={(event) => void saveDueDate(event.target.value)} />
@@ -1641,7 +1642,7 @@ function EventIdentitySection({
         </span>
         <span>
           <UserRound aria-hidden="true" />
-          {owner ? `${owner.firstName} ${owner.lastName}` : "Owner unassigned"}
+          {owner ? platformPersonRoleLine(owner) : "Communication owner unassigned"}
           <span aria-hidden="true"> · </span>
           {volunteersNeeded}
         </span>
@@ -2070,8 +2071,8 @@ function EventTaskTreeItem({
         {task.timelineOffsetDays <= -30 || task.status === "blocked" ? <span className="pill blocked">Critical</span> : null}
       </div>
       <div className="task-tree-owner">
-        <span className="summary-label">Owner</span>
-        <span>{owner ? `${owner.firstName} ${owner.lastName}` : "Unassigned"}</span>
+        <span className="summary-label">Task owner</span>
+        <span>{owner ? platformPersonRoleLine(owner) : "Unassigned"}</span>
       </div>
       <div className="field compact-field task-tree-date">
         <label htmlFor={`event-due-${task.id}`}>Due date</label>
@@ -2247,6 +2248,7 @@ function TaskCard({
   const [title, setTitle] = useState(task.taskTitle);
   const [dueDate, setDueDate] = useState(toDateInputValue(task.dueDate));
   const [isEditing, setIsEditing] = useState(false);
+  const owner = users.find((user) => user.id === task.assignedUserId);
 
   useEffect(() => {
     setTitle(task.taskTitle);
@@ -2264,7 +2266,7 @@ function TaskCard({
             {statusLabels[task.status]}
           </span>
           <span className="muted">
-            {users.find((user) => user.id === task.assignedUserId)?.firstName ?? "Unassigned"}
+            {owner ? platformPersonRoleLine(owner) : "Unassigned"}
           </span>
         </div>
       </div>
@@ -2290,7 +2292,7 @@ function TaskCard({
             </select>
           </div>
           <div className="field">
-            <label htmlFor={`owner-${task.id}`}>Owner</label>
+            <label htmlFor={`owner-${task.id}`}>Task owner</label>
             <select
               className="input"
               id={`owner-${task.id}`}
@@ -2300,7 +2302,7 @@ function TaskCard({
             >
               {users.map((user) => (
                 <option key={user.id} value={user.id}>
-                  {user.firstName} {user.lastName}
+                  {platformPersonRoleLine(user)}
                 </option>
               ))}
             </select>

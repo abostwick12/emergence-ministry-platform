@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { platformRoleLabel } from "@/lib/platform/roles";
 
 const navItems = [
   { href: "/student", label: "Home" },
@@ -27,7 +28,7 @@ export function StudentShell({ children, user }: StudentShellProps) {
               <Link href="/student">Student Portal</Link>
             </div>
             <div className="student-shell-profile">
-              <span className="pill blue">{user.role}</span>
+              <span className="pill blue">{platformRoleLabel(user.role)}</span>
               <strong>{user.name}</strong>
             </div>
           </div>

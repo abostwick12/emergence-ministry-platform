@@ -19,6 +19,7 @@ import {
   type VolunteerLeader
 } from "@/lib/volunteer-leaders";
 import { formatDate, formatDateTime } from "@/lib/utils";
+import { platformPersonName, platformPersonRoleLine, platformRoleLabel } from "@/lib/platform/roles";
 import type {
   ActiveTask,
   EventType,
@@ -54,8 +55,8 @@ const priorityOptions = [
 function usersToVolunteerLeaders(users: User[]): VolunteerLeader[] {
   return users.map((user) => ({
     id: `user-${user.id}`,
-    name: `${user.firstName} ${user.lastName}`.trim() || user.email,
-    role: user.role === "admin" ? "Admin" : "Leader",
+    name: platformPersonName(user),
+    role: platformRoleLabel(user.role),
     email: user.email
   }));
 }
@@ -790,7 +791,7 @@ function Step1Form({
           />
         </div>
         <div className="field">
-          <label htmlFor="ec-owner">Owner</label>
+          <label htmlFor="ec-owner">Communication owner</label>
           <select
             className="input"
             id="ec-owner"
@@ -798,7 +799,7 @@ function Step1Form({
             onChange={(e) => onChange("contactOwnerId", e.target.value)}
           >
             {users.map((u) => (
-              <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
+              <option key={u.id} value={u.id}>{platformPersonRoleLine(u)}</option>
             ))}
           </select>
         </div>
@@ -1220,7 +1221,7 @@ function TaskEditRow({
       </div>
       <div className="task-edit-meta">
         <div className="field compact-field">
-          <label htmlFor={`modal-owner-${task.id}`}>Owner</label>
+          <label htmlFor={`modal-owner-${task.id}`}>Task owner</label>
           <select
             className="input"
             id={`modal-owner-${task.id}`}
@@ -1229,7 +1230,7 @@ function TaskEditRow({
             onChange={(e) => void save({ assignedUserId: e.target.value })}
           >
             {users.map((u) => (
-              <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
+              <option key={u.id} value={u.id}>{platformPersonRoleLine(u)}</option>
             ))}
           </select>
         </div>
