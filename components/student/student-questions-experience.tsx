@@ -9,7 +9,7 @@ import { YouVersionReaderWindow } from "@/components/student/youversion-reader-w
 import type { DiscussionWorkflowState } from "@/lib/scripture/discussion-workflow";
 import { studentLeaderFormationJourney } from "@/lib/scripture/student-formation-journeys";
 import {
-  buildJourneyExploreInsight,
+  buildJourneyExploreGuide,
   buildQuestionNextStep,
   getJourneyExploreToolPair,
   getYouVersionPracticeMedia,
@@ -350,7 +350,7 @@ function StudentLovableJournalEntry({
   const keyWords = activeJourney.keyWords.slice(0, 3);
   const exploreTools = getJourneyExploreToolPair(activeJourney.id, entrySequence);
   const selectedExploreTool = exploreTools.find((tool) => tool.storageStudyPath === draft.studyPath) ?? exploreTools[0];
-  const selectedExploreInsight = buildJourneyExploreInsight(selectedExploreTool, activeJourney);
+  const selectedExploreGuide = buildJourneyExploreGuide(selectedExploreTool, activeJourney);
   const practiceDetailItems = buildPracticeDetailItems(practice, draft.selectedPractice, guidedPrayer);
   const youVersionPracticeMedia = practice.youVersionMedia ?? getYouVersionPracticeMedia(activeJourney.id, entrySequence);
   const phases = [
@@ -518,7 +518,29 @@ function StudentLovableJournalEntry({
         <div className="student-lovable-tool-note" aria-label="Selected Bible study tool">
           <span>{selectedExploreTool.category}</span>
           <strong>{selectedExploreTool.label}</strong>
-          <p>{selectedExploreInsight}</p>
+          <p>{selectedExploreGuide.summary}</p>
+          <dl className="student-lovable-passage-guide" aria-label="Passage-specific study guide">
+            <div>
+              <dt>Passage focus</dt>
+              <dd>{selectedExploreGuide.passageFocus}</dd>
+            </div>
+            <div>
+              <dt>Text clue</dt>
+              <dd>{selectedExploreGuide.textClue}</dd>
+            </div>
+            <div>
+              <dt>Whole-story bridge</dt>
+              <dd>{selectedExploreGuide.storylineBridge}</dd>
+            </div>
+            <div>
+              <dt>Study habit</dt>
+              <dd>{selectedExploreGuide.studyHabit}</dd>
+            </div>
+            <div>
+              <dt>Next question</dt>
+              <dd>{selectedExploreGuide.nextQuestion}</dd>
+            </div>
+          </dl>
         </div>
         {draft.studyPath === "word" && keyWords.length ? (
           <div className="student-lovable-keyword-row" aria-label="Study support cards">
