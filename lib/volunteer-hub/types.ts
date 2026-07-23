@@ -1,6 +1,6 @@
 import type { AuthSession } from "@/lib/auth/server";
 
-export type VolunteerHubRole = "volunteer" | "leader" | "director" | "admin";
+export type VolunteerHubRole = "volunteer" | "leader" | "admin";
 export type VolunteerHubDataSource = "live" | "guest_demo" | "mock";
 export type VolunteerHubStudentSource = "planning_center" | "camp_clc" | "demo";
 

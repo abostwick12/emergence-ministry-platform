@@ -34,7 +34,7 @@ import type {
   VolunteerHubVolunteer
 } from "@/lib/volunteer-hub/types";
 
-type VolunteerHubMode = "volunteer" | "director";
+type VolunteerHubMode = "volunteer" | "leader";
 type VolunteerTab = "dashboard" | "group" | "students" | "attendance" | "chat" | "resources" | "training" | "onboarding" | "calendar" | "profile";
 type GroupMeChoice = { id: string; name: string; description?: string; memberCount: number };
 type LiveGroupMeMessage = { id: string; senderName: string; text: string; avatarUrl?: string; createdAt: string };
@@ -164,14 +164,14 @@ export function VolunteerHubPage({ mode = "volunteer" }: { mode?: VolunteerHubMo
   if (error && !payload) return <section className="panel volunteer-hub-loading" role="alert">{error}</section>;
   if (!payload) return null;
 
-  const isDirectorMode = mode === "director";
+  const isLeaderMode = mode === "leader";
 
   return (
-    <section className={isDirectorMode ? "volunteer-hub volunteer-hub-director" : "volunteer-hub"} aria-label={isDirectorMode ? "Leader volunteer dashboard" : "Volunteer Hub"}>
+    <section className={isLeaderMode ? "volunteer-hub volunteer-hub-leader" : "volunteer-hub"} aria-label={isLeaderMode ? "Leader volunteer dashboard" : "Volunteer Hub"}>
       <PageIntro
-        eyebrow={isDirectorMode ? "Leader Hub" : "Volunteer Hub"}
-        title={isDirectorMode ? "Volunteer Dashboard" : `Good Morning ${firstName(payload.activeVolunteer.name)}`}
-        description={isDirectorMode
+        eyebrow={isLeaderMode ? "Leader Hub" : "Volunteer Hub"}
+        title={isLeaderMode ? "Volunteer Dashboard" : `Good Morning ${firstName(payload.activeVolunteer.name)}`}
+        description={isLeaderMode
           ? "Monitor readiness, follow-up health, training, resources, and small group consolidation from one place."
           : "Prepare for serving, care for assigned students, and keep every action connected to relationship-first ministry."}
         actions={<HubStatus integrations={payload.integrations} />}
@@ -180,8 +180,8 @@ export function VolunteerHubPage({ mode = "volunteer" }: { mode?: VolunteerHubMo
       {notice ? <p className="volunteer-hub-notice" role="status">{notice}</p> : null}
       {error ? <p className="volunteer-hub-error" role="alert">{error}</p> : null}
 
-      {isDirectorMode ? (
-        <DirectorDashboard payload={payload} onAction={act} onLinkGroupMe={linkGroupMeConversation} onReload={load} />
+      {isLeaderMode ? (
+        <LeaderVolunteerDashboard payload={payload} onAction={act} onLinkGroupMe={linkGroupMeConversation} onReload={load} />
       ) : (
         <>
           <MobileVolunteerPriorities payload={payload} activeTab={activeTab} onTabChange={setActiveTab} />
@@ -830,7 +830,7 @@ function ProfileWorkspace({ payload, onAction }: { payload: VolunteerHubPayload;
   );
 }
 
-function DirectorDashboard({
+function LeaderVolunteerDashboard({
   payload,
   onAction,
   onLinkGroupMe,
@@ -845,18 +845,18 @@ function DirectorDashboard({
   const completedTraining = payload.trainingModules.filter((module) => module.completed).length;
   return (
     <div className="volunteer-hub-grid">
-      <article className="volunteer-hub-panel volunteer-hub-span-3 volunteer-director-priority">
+      <article className="volunteer-hub-panel volunteer-hub-span-3 volunteer-leader-priority">
         <SectionTitle icon={<ShieldCheck aria-hidden="true" />} eyebrow="Leader View" title="What needs attention" />
-        <div className="volunteer-director-priority-grid">
-          <a href="#director-small-groups"><UsersRound aria-hidden="true" /><span>Small groups</span><strong>{payload.activeGroups.length} active</strong></a>
-          <a href="#director-leaders"><UserRound aria-hidden="true" /><span>Leaders</span><strong>{payload.volunteers.length} on roster</strong></a>
-          <a href="#director-archived-groups"><Archive aria-hidden="true" /><span>Archived</span><strong>{payload.archivedGroups.length} reversible</strong></a>
+        <div className="volunteer-leader-priority-grid">
+          <a href="#leader-small-groups"><UsersRound aria-hidden="true" /><span>Small groups</span><strong>{payload.activeGroups.length} active</strong></a>
+          <a href="#leader-volunteers"><UserRound aria-hidden="true" /><span>Leaders</span><strong>{payload.volunteers.length} on roster</strong></a>
+          <a href="#leader-archived-groups"><Archive aria-hidden="true" /><span>Archived</span><strong>{payload.archivedGroups.length} reversible</strong></a>
         </div>
       </article>
       <MetricCard icon={<UsersRound aria-hidden="true" />} label="Active Small Groups" value={String(payload.activeGroups.length)} detail={`${activeGroupStudents} assigned students in active groups.`} />
       <MetricCard icon={<ShieldCheck aria-hidden="true" />} label="Training Completion" value={`${completedTraining}/${payload.trainingModules.length}`} detail="Quarterly leader-readiness modules." />
       <MetricCard icon={<Archive aria-hidden="true" />} label="Archived Groups" value={String(payload.archivedGroups.length)} detail="Reversible archive for consolidated groups." />
-      <SmallGroupDirectorPanel payload={payload} onAction={onAction} onLinkGroupMe={onLinkGroupMe} onReload={onReload} />
+      <SmallGroupLeaderPanel payload={payload} onAction={onAction} onLinkGroupMe={onLinkGroupMe} onReload={onReload} />
       <LeaderPoolPanel payload={payload} onAction={onAction} />
       <article className="volunteer-hub-panel volunteer-hub-span-3">
         <SectionTitle icon={<ClipboardCheck aria-hidden="true" />} eyebrow="Audit Activity" title="Accountability log" />
@@ -875,7 +875,7 @@ function DirectorDashboard({
   );
 }
 
-function SmallGroupDirectorPanel({
+function SmallGroupLeaderPanel({
   payload,
   onAction,
   onLinkGroupMe,
@@ -962,7 +962,7 @@ function SmallGroupDirectorPanel({
   }
 
   return (
-    <article className="volunteer-hub-panel volunteer-hub-span-3" id="director-small-groups">
+    <article className="volunteer-hub-panel volunteer-hub-span-3" id="leader-small-groups">
       <div className="volunteer-panel-head">
         <SectionTitle icon={<UsersRound aria-hidden="true" />} eyebrow="Small Groups" title="Small groups by service" />
         <div className="volunteer-card-actions">
@@ -1033,7 +1033,7 @@ function SmallGroupDirectorPanel({
           </section>
         )) : <EmptyState title="No active small groups" detail="Create the first group for a service, then assign leaders and students." />}
       </div>
-      <section className="volunteer-archived-groups" id="director-archived-groups" aria-label="Archived small groups">
+      <section className="volunteer-archived-groups" id="leader-archived-groups" aria-label="Archived small groups">
         <div className="volunteer-archived-groups-head">
           <div>
             <h3 className="volunteer-subtitle">Archived small groups</h3>
@@ -1111,10 +1111,19 @@ function GroupCard({
       {persisted ? <button className="volunteer-group-menu-button" type="button" aria-label={`Open ${group.name} small group menu`} onClick={onManage}>
         <UsersRound aria-hidden="true" />
       </button> : null}
-      <strong>{group.name}</strong>
-      <span>{group.room} - {group.serviceTime}</span>
-      <p>{leader?.name ?? "Unassigned"} leads {group.memberStudentIds.length} {group.memberStudentIds.length === 1 ? "student" : "students"}.</p>
-      {group.groupMeConnected ? <StatusBadge tone="success">{group.groupMeGroupName ?? "GroupMe linked"}</StatusBadge> : <StatusBadge tone="warning">GroupMe not linked</StatusBadge>}
+      <div className="volunteer-group-card-header">
+        <span className="volunteer-group-card-meta">{group.serviceTime}</span>
+        <strong>{group.name}</strong>
+        <small>{group.room || "Room not set"}</small>
+      </div>
+      <div className="volunteer-group-card-stats">
+        <span><strong>{group.memberStudentIds.length}</strong>{` ${group.memberStudentIds.length === 1 ? "student" : "students"}`}</span>
+        <span><strong>{leader?.name ?? "Unassigned"}</strong>{" leader"}</span>
+      </div>
+      <p className="sr-only">{leader?.name ?? "Unassigned"} leads {group.memberStudentIds.length} {group.memberStudentIds.length === 1 ? "student" : "students"}.</p>
+      <div className="volunteer-group-card-footer">
+        {group.groupMeConnected ? <StatusBadge tone="success">{group.groupMeGroupName ?? "GroupMe linked"}</StatusBadge> : <StatusBadge tone="warning">GroupMe not linked</StatusBadge>}
+      </div>
       {persisted ? <button className="button compact-button" type="button" onClick={onManage}>Manage Group</button> : <p className="muted">Create a permanent group to assign this imported roster.</p>}
     </article>
   );
@@ -1291,7 +1300,7 @@ function LeaderPoolPanel({ payload, onAction }: { payload: VolunteerHubPayload; 
   const [role, setRole] = useState("Small Group Coach");
   const [sourceChurch, setSourceChurch] = useState("Lead Emergence");
   return (
-    <article className="volunteer-hub-panel volunteer-hub-span-3" id="director-leaders">
+    <article className="volunteer-hub-panel volunteer-hub-span-3" id="leader-volunteers">
       <div className="volunteer-panel-head">
         <SectionTitle icon={<UserRound aria-hidden="true" />} eyebrow="Leader Pool" title="Small group leaders" />
         {payload.readOnlyReason ? null : <button className="button primary" type="button" onClick={() => setOpen((value) => !value)}>Add Leader</button>}

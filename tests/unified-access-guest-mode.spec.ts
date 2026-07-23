@@ -86,6 +86,7 @@ test.describe("Unified access and competition guest mode", () => {
     await expect(page.getByText("Jordan Reed")).toBeVisible();
 
     const guestControls = page.getByLabel("Guest public page controls");
+    await guestControls.locator("summary", { hasText: "Public guest pages" }).click();
     const budgetToggle = guestControls.locator("label", { hasText: "Budget" }).getByRole("checkbox");
     const wasBudgetPublic = await budgetToggle.isChecked();
     const budgetPatch = page.waitForResponse(

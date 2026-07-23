@@ -386,7 +386,7 @@ function buildVolunteerHubPayload(
       campClcCount: current.students.filter((student) => student.source === "camp_clc").length
     },
     activeGroups: visibleActiveGroups,
-    archivedGroups: role === "admin" || role === "director" || role === "leader" ? current.smallGroups.filter((group) => group.archivedAt) : [],
+    archivedGroups: role === "admin" || role === "leader" ? current.smallGroups.filter((group) => group.archivedAt) : [],
     volunteers: current.volunteers,
     tasks: current.tasks,
     resources: current.resources,
@@ -1380,7 +1380,7 @@ export function applyVolunteerHubAction(session: AuthSession, action: VolunteerH
       break;
     }
     case "create_group": {
-      requireDirector(actor);
+      requireLeaderManager(actor);
       const name = action.name.trim();
       if (!name) throw new Error("Small group name is required.");
       const memberStudentIds = Array.from(new Set(action.memberStudentIds ?? []));
@@ -1401,7 +1401,7 @@ export function applyVolunteerHubAction(session: AuthSession, action: VolunteerH
       break;
     }
     case "archive_group": {
-      requireDirector(actor);
+      requireLeaderManager(actor);
       const group = current.smallGroups.find((item) => item.id === action.groupId);
       if (!group) throw new Error("Small group not found.");
       group.archivedAt = new Date().toISOString();
@@ -1410,7 +1410,7 @@ export function applyVolunteerHubAction(session: AuthSession, action: VolunteerH
       break;
     }
     case "restore_group": {
-      requireDirector(actor);
+      requireLeaderManager(actor);
       const group = current.smallGroups.find((item) => item.id === action.groupId);
       if (!group) throw new Error("Small group not found.");
       group.archivedAt = undefined;
@@ -1419,7 +1419,7 @@ export function applyVolunteerHubAction(session: AuthSession, action: VolunteerH
       break;
     }
     case "update_group": {
-      requireDirector(actor);
+      requireLeaderManager(actor);
       const group = current.smallGroups.find((item) => item.id === action.groupId);
       if (!group) throw new Error("Small group not found.");
       if (action.name !== undefined && action.name.trim()) group.name = action.name.trim();
@@ -1440,7 +1440,7 @@ export function applyVolunteerHubAction(session: AuthSession, action: VolunteerH
       break;
     }
     case "add_leader": {
-      requireDirector(actor);
+      requireLeaderManager(actor);
       if (!action.name.trim()) throw new Error("Leader name is required.");
       const leader: VolunteerHubVolunteer = {
         id: uid("vol"),
@@ -1461,7 +1461,7 @@ export function applyVolunteerHubAction(session: AuthSession, action: VolunteerH
       break;
     }
     case "delete_leader": {
-      requireDirector(actor);
+      requireLeaderManager(actor);
       const leader = current.volunteers.find((item) => item.id === action.volunteerId);
       if (!leader) throw new Error("Volunteer leader not found.");
       if (leader.role === "admin") throw new Error("Administrator leaders cannot be removed here.");
@@ -1487,7 +1487,7 @@ function resolveActiveVolunteer(stateValue: VolunteerHubState, session: AuthSess
 
 function getVisibleActiveGroups(stateValue: VolunteerHubState, activeVolunteer: VolunteerHubVolunteer, role: VolunteerHubRole) {
   const activeGroups = stateValue.smallGroups.filter((group) => !group.archivedAt);
-  if (role === "admin" || role === "director" || role === "leader") return activeGroups;
+  if (role === "admin" || role === "leader") return activeGroups;
   return activeGroups.filter((group) => group.leaderId === activeVolunteer.id || group.coLeaderId === activeVolunteer.id);
 }
 
@@ -1517,8 +1517,8 @@ function audit(stateValue: VolunteerHubState, actor: VolunteerHubVolunteer, acti
   });
 }
 
-function requireDirector(actor: VolunteerHubVolunteer) {
-  if (actor.role !== "admin" && actor.role !== "director" && actor.role !== "leader") {
+function requireLeaderManager(actor: VolunteerHubVolunteer) {
+  if (actor.role !== "admin" && actor.role !== "leader") {
     throw new Error("Leader-level Volunteer Hub access is required.");
   }
 }
