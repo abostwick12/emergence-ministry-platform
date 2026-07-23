@@ -899,6 +899,8 @@ function SmallGroupDirectorPanel({
   const [groupMeGroups, setGroupMeGroups] = useState<GroupMeChoice[]>([]);
   const [loadingGroupMe, setLoadingGroupMe] = useState(false);
   const [groupMeError, setGroupMeError] = useState("");
+  const [manualGroupMeToken, setManualGroupMeToken] = useState("");
+  const [connectingGroupMeToken, setConnectingGroupMeToken] = useState(false);
   const groupMeDisplayStatus = payload.integrations.groupMe.displayStatus;
   const canManageGroups = !payload.readOnlyReason;
 
@@ -932,6 +934,33 @@ function SmallGroupDirectorPanel({
     void loadGroupMeGroups();
   }, [loadGroupMeGroups]);
 
+  async function connectGroupMeWithToken(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const token = manualGroupMeToken.trim();
+    if (!token) {
+      setGroupMeError("Paste a GroupMe access token before connecting.");
+      return;
+    }
+
+    setConnectingGroupMeToken(true);
+    setGroupMeError("");
+    try {
+      const response = await fetch("/api/integrations/groupme/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accessToken: token })
+      });
+      const body = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) throw new Error(body.error ?? "GroupMe could not be connected with that token.");
+      setManualGroupMeToken("");
+      await onReload();
+    } catch (error) {
+      setGroupMeError(error instanceof Error ? error.message : "GroupMe could not be connected with that token.");
+    } finally {
+      setConnectingGroupMeToken(false);
+    }
+  }
+
   return (
     <article className="volunteer-hub-panel volunteer-hub-span-3" id="director-small-groups">
       <div className="volunteer-panel-head">
@@ -944,17 +973,39 @@ function SmallGroupDirectorPanel({
         </div>
       </div>
       {payload.dataSource === "live" ? (
-        <div className="volunteer-groupme-population" role="status" aria-live="polite">
-          <Link2 aria-hidden="true" />
-          <div>
-            <strong>{groupMeStatusHeadline(groupMeDisplayStatus, groupMeGroups.length, loadingGroupMe)}</strong>
-            <p>{groupMeError || groupMePopulationDetail(groupMeDisplayStatus, groupMeGroups.length, payload.integrations.groupMe.message)}</p>
+        <div className="volunteer-groupme-setup">
+          <div className="volunteer-groupme-population" role="status" aria-live="polite">
+            <Link2 aria-hidden="true" />
+            <div>
+              <strong>{groupMeStatusHeadline(groupMeDisplayStatus, groupMeGroups.length, loadingGroupMe)}</strong>
+              <p>{groupMeError || groupMePopulationDetail(groupMeDisplayStatus, groupMeGroups.length, payload.integrations.groupMe.message)}</p>
+            </div>
+            {groupMeDisplayStatus === "connected" ? (
+              <button className="button compact-button" type="button" disabled={loadingGroupMe} onClick={() => void loadGroupMeGroups()}>
+                {loadingGroupMe ? <LoaderCircle className="volunteer-spin" aria-hidden="true" /> : <RefreshCw aria-hidden="true" />}
+                Refresh conversations
+              </button>
+            ) : null}
           </div>
-          {groupMeDisplayStatus === "connected" ? (
-            <button className="button compact-button" type="button" disabled={loadingGroupMe} onClick={() => void loadGroupMeGroups()}>
-              {loadingGroupMe ? <LoaderCircle className="volunteer-spin" aria-hidden="true" /> : <RefreshCw aria-hidden="true" />}
-              Refresh conversations
-            </button>
+          {groupMeDisplayStatus !== "connected" && canManageGroups ? (
+            <form className="volunteer-groupme-manual-token" onSubmit={connectGroupMeWithToken}>
+              <label className="field">
+                <span>GroupMe access token</span>
+                <input
+                  className="input"
+                  type="password"
+                  autoComplete="off"
+                  value={manualGroupMeToken}
+                  onChange={(event) => setManualGroupMeToken(event.currentTarget.value)}
+                  placeholder="Paste token from GroupMe Developers"
+                />
+              </label>
+              <button className="button primary" type="submit" disabled={connectingGroupMeToken || !manualGroupMeToken.trim()}>
+                {connectingGroupMeToken ? <LoaderCircle className="volunteer-spin" aria-hidden="true" /> : <Link2 aria-hidden="true" />}
+                {connectingGroupMeToken ? "Connecting..." : "Connect with token"}
+              </button>
+              <p>Use this when OAuth keeps looping. The token is verified with GroupMe, then stored encrypted.</p>
+            </form>
           ) : null}
         </div>
       ) : null}
