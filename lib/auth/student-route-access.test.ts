@@ -101,6 +101,20 @@ describe("student route access", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("x-middleware-next")).toBe("1");
   });
+
+  it("lets the GroupMe callback page handle OAuth returns before app auth redirects", async () => {
+    const response = await middleware(new NextRequest("http://localhost/integrations/groupme/callback?access_token=token"));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-middleware-next")).toBe("1");
+  });
+
+  it("lets GroupMe callback API routes enforce auth inside the handler", async () => {
+    const response = await middleware(new NextRequest("http://localhost/api/integrations/groupme/callback?access_token=token"));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-middleware-next")).toBe("1");
+  });
 });
 
 function enableMockStudentAuth() {

@@ -25,6 +25,7 @@ vi.mock("@/lib/integrations/groupme/repository", () => ({
 }));
 
 import { GET } from "@/app/api/integrations/groupme/callback/route";
+import { POST as completePOST } from "@/app/api/integrations/groupme/callback/complete/route";
 
 const session = {
   isMock: false,
@@ -72,5 +73,31 @@ describe("GroupMe OAuth callback", () => {
 
     expect(mocks.connectGroupMe).not.toHaveBeenCalled();
     expect(location.searchParams.get("groupme")).toBe("error");
+  });
+
+  it("returns a Volunteer Hub redirect for the callback bridge after a verified connection", async () => {
+    mocks.connectGroupMe.mockResolvedValue({ groupCount: 2 });
+
+    const response = await completePOST(new Request("https://platform.test/api/integrations/groupme/callback/complete", {
+      method: "POST",
+      body: JSON.stringify({ accessToken: "token-123", state: "csrf-state" })
+    }));
+    const body = (await response.json()) as { redirectTo: string };
+
+    expect(mocks.connectGroupMe).toHaveBeenCalledWith(session, "token-123");
+    expect(body.redirectTo).toBe("/people?groupme=connected&groupme_groups=2");
+  });
+
+  it("rejects callback bridge attempts without the connect cookie", async () => {
+    mocks.cookieGet.mockReturnValue(undefined);
+
+    const response = await completePOST(new Request("https://platform.test/api/integrations/groupme/callback/complete", {
+      method: "POST",
+      body: JSON.stringify({ accessToken: "token-123", state: "csrf-state" })
+    }));
+    const body = (await response.json()) as { redirectTo: string };
+
+    expect(mocks.connectGroupMe).not.toHaveBeenCalled();
+    expect(body.redirectTo).toBe("/people?groupme=error");
   });
 });

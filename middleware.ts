@@ -14,6 +14,9 @@ const publicPaths = [
   "/api/auth/logout",
   "/api/auth/invite-session",
   "/api/daily-intelligence/brief",
+  "/api/integrations/groupme/callback",
+  "/api/integrations/groupme/callback/complete",
+  "/integrations/groupme/callback",
   "/api/student/join"
 ];
 const publicPathPrefixes = ["/join/", "/register/"];
