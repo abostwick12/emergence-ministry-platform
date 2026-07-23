@@ -18,7 +18,7 @@ test.describe("event color system and volunteer leaders", () => {
     await login(page);
   });
 
-  test("hides Command Center in Volunteer Hub and supports leader add/delete", async ({ page }) => {
+  test("keeps Volunteer Hub volunteer-first and supports leader add/delete in director tools", async ({ page }) => {
     await page.goto("/people");
     await waitForWorkspace(page);
     await expect(page.getByRole("navigation", { name: "Desktop navigation" })).not.toContainText("Command Center");
@@ -34,7 +34,11 @@ test.describe("event color system and volunteer leaders", () => {
       "Calendar",
       "Profile"
     ]);
+    await expect(page.getByRole("button", { name: "Add Leader" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Add Small Group" })).toHaveCount(0);
 
+    await page.goto("/directors/volunteers");
+    await waitForWorkspace(page);
     await page.getByRole("button", { name: "Add Leader" }).click();
     const form = page.locator(".ministry-people-add-leader-form");
     await form.getByLabel("Name").fill("Taylor Morgan");
@@ -50,7 +54,7 @@ test.describe("event color system and volunteer leaders", () => {
   });
 
   test("keeps Manage Small Group selects readable", async ({ page }) => {
-    await page.goto("/people");
+    await page.goto("/directors/volunteers");
     await waitForWorkspace(page);
     const sixthGradeGroup = page.locator(".volunteer-group-card").filter({ hasText: "6th Grade" });
     await sixthGradeGroup.getByRole("button", { name: /Open 6th Grade small group menu/i }).click();
@@ -74,18 +78,20 @@ test.describe("event color system and volunteer leaders", () => {
     await expect(page.getByRole("heading", { name: "Small groups by service" })).toBeVisible();
     await expect(page.getByRole("region", { name: "Sunday - 9:00 AM small groups" })).toContainText("3 groups - 4 students");
 
-    await page.getByRole("button", { name: "Create Service Group" }).click();
-    const createForm = page.locator(".volunteer-create-group");
-    await expect(createForm.getByLabel("Service")).toHaveValue("Sunday - 9:00 AM");
-    await createForm.getByLabel("Service").fill("Sunday - 10:30 AM");
-    await createForm.getByLabel("Group name").fill("10:30 High School Girls");
-    await createForm.getByLabel("Room").fill("Room 210");
-    await createForm.getByRole("button", { name: "Create and manage roster" }).click();
+    await page.getByRole("button", { name: "Add Small Group" }).click();
+    const dialog = page.getByRole("dialog", { name: "Add Small Group" });
+    await expect(dialog.getByLabel("Service")).toHaveValue("Sunday - 9:00 AM");
+    await dialog.getByLabel("Service").fill("Sunday - 10:30 AM");
+    await dialog.getByLabel("Group name").fill("10:30 High School Girls");
+    await dialog.getByLabel("Room").fill("Room 210");
+    await dialog.getByRole("checkbox", { name: /Noah Carter/i }).check();
+    await dialog.getByRole("button", { name: "Create group" }).click();
 
     await expect(page.getByRole("region", { name: "Sunday - 10:30 AM small groups" })).toContainText("10:30 High School Girls");
+    await expect(page.locator(".volunteer-group-card").filter({ hasText: "10:30 High School Girls" })).toContainText("1 student");
   });
 
-  test("keeps Camp team and vehicle details off non-Camp student cards", async ({ page }) => {
+  test("keeps Camp details out of Volunteer Hub student cards", async ({ page }) => {
     await page.goto("/people");
     await waitForWorkspace(page);
     await page.getByRole("navigation", { name: "Volunteer Hub sections" }).getByRole("button", { name: "Students" }).click();
@@ -93,12 +99,14 @@ test.describe("event color system and volunteer leaders", () => {
     await expect(page.getByRole("heading", { name: "Roster view" })).toBeVisible();
     await expect(page.getByText("Vehicle", { exact: true })).toHaveCount(0);
     await expect(page.getByText("Team", { exact: true })).toHaveCount(0);
-    await expect(page.getByPlaceholder("Name, grade, school, or room")).toBeVisible();
+    await expect(page.getByText("Camp CLC", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("Room", { exact: true })).toHaveCount(0);
+    await expect(page.getByPlaceholder("Name, grade, or school")).toBeVisible();
     await expect(page.getByLabel("Source")).toBeVisible();
   });
 
   test("manages a small-group roster and exposes the weekly leader guide", async ({ page }) => {
-    await page.goto("/people");
+    await page.goto("/directors/volunteers");
     await waitForWorkspace(page);
     await page.waitForLoadState("networkidle");
 
@@ -114,12 +122,34 @@ test.describe("event color system and volunteer leaders", () => {
     await expect(dialog).toHaveCount(0);
     await expect(sixthGradeGroup).toContainText("Room 105");
     await expect(sixthGradeGroup).toContainText("Maya Chen leads 1 student");
-    await expect(page.locator(".volunteer-group-card").filter({ hasText: "8th Grade Boys" })).toContainText("3 students");
+    await expect(page.locator(".volunteer-group-card").filter({ hasText: "8th Grade Boys" })).toContainText("2 students");
 
+    await page.goto("/people");
+    await waitForWorkspace(page);
     await page.getByRole("navigation", { name: "Volunteer Hub sections" }).getByRole("button", { name: "Weekly Resources" }).click();
     await expect(page.locator(".volunteer-guide-card").getByRole("heading", { name: "Why God Chooses Jericho's Notorious Outcasts" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Small group questions", exact: true })).toBeVisible();
     await expect(page.getByText("Joshua 2:1-21", { exact: true })).toBeVisible();
+  });
+
+  test("archives and restores small groups from director management", async ({ page }) => {
+    await page.goto("/directors/volunteers");
+    await waitForWorkspace(page);
+
+    const groupCard = page.locator(".volunteer-group-card").filter({ hasText: "10:30 High School Girls" });
+    await expect(groupCard).toBeVisible();
+    await groupCard.getByRole("button", { name: "Manage Group", exact: true }).click();
+
+    const dialog = page.getByRole("dialog", { name: "Manage Small Group" });
+    await dialog.getByLabel("Archive reason").fill("Testing archive lifecycle");
+    await dialog.getByRole("button", { name: "Archive group" }).click();
+
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "Sunday - 10:30 AM small groups" })).toHaveCount(0);
+    const archivedCard = page.locator(".volunteer-group-card.archived").filter({ hasText: "10:30 High School Girls" });
+    await expect(archivedCard).toContainText("Testing archive lifecycle");
+    await archivedCard.getByRole("button", { name: "Restore" }).click();
+    await expect(page.getByRole("region", { name: "Sunday - 10:30 AM small groups" })).toContainText("10:30 High School Girls");
   });
 
   test("applies event category accents to event rows, task cards, and dashboard calendar chips", async ({ page }) => {
