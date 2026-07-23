@@ -142,13 +142,19 @@ export function VolunteerHubPage({ mode = "volunteer" }: { mode?: VolunteerHubMo
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const groupMeStatus = params.get("groupme");
+    const groupMeGroupCount = Number(params.get("groupme_groups") ?? "0");
+    const groupMeReason = params.get("groupme_reason");
     if (groupMeStatus === "connected") {
-      setNotice("GroupMe connected. Choose Manage Group on a small group, then select the matching GroupMe conversation.");
+      setNotice(groupMeGroupCount
+        ? `GroupMe connected. ${groupMeGroupCount} conversation${groupMeGroupCount === 1 ? "" : "s"} are available to link to small groups.`
+        : "GroupMe connected, but no conversations were returned for this account. Reconnect with the account that owns the ministry groups if the list stays empty.");
     } else if (groupMeStatus === "error") {
-      setError("GroupMe connected screen returned without saving. Try reconnecting, then choose a small-group conversation.");
+      setError(groupMeReason ?? "GroupMe connected screen returned without saving. Try reconnecting, then choose a small-group conversation.");
     }
     if (groupMeStatus) {
       params.delete("groupme");
+      params.delete("groupme_groups");
+      params.delete("groupme_reason");
       const nextSearch = params.toString();
       window.history.replaceState(null, "", `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ""}${window.location.hash}`);
     }

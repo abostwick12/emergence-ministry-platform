@@ -47,7 +47,7 @@ function statusDetail(status: GoogleDemoStatus) {
     return "Platform event saves sync to Google immediately. Google-created changes import only when you run sync.";
   }
   if (status.displayStatus === "disconnected") {
-    return "Connect the personal Google account that owns the Emerge calendar and demo Drive root.";
+    return "Google OAuth is configured. Connect the account that owns the Emerge calendar and the Lead Emergence Drive root.";
   }
   if (status.displayStatus === "storage_unavailable") {
     return "Apply the Google demo migration and configure the server-only Supabase service role key.";
@@ -55,7 +55,7 @@ function statusDetail(status: GoogleDemoStatus) {
   if (status.displayStatus === "error") {
     return status.lastError ?? "Reconnect Google or run sync again.";
   }
-  return "Add Google demo OAuth and encryption environment variables before connecting.";
+  return "Add the shared Google OAuth variables plus a server-only Google integration encryption key before connecting.";
 }
 
 function formatSync(value: string | undefined) {
@@ -143,14 +143,14 @@ export function GoogleDemoIntegrationControl() {
 
   return (
     <div className="ministry-launch-setting-card google-demo-control">
-      <strong>Google Integration</strong>
+      <strong>Google Calendar and Drive</strong>
       <p>{detail}</p>
       <div className="google-demo-status-grid">
         <span>Connected Google account</span>
         <strong>{status.connectedGoogleAccount ?? "Not connected"}</strong>
-        <span>Selected demo calendar</span>
+        <span>Selected calendar</span>
         <strong>{status.selectedDemoCalendar ?? "Emerge"}</strong>
-        <span>Selected demo Drive folder</span>
+        <span>Selected Drive folder</span>
         <strong>{status.selectedDemoDriveFolder ?? "Lead Emergence automated Platform"}</strong>
         <span>Last calendar sync</span>
         <strong>{formatSync(status.lastCalendarSync)}</strong>

@@ -65,6 +65,17 @@ export function MinistryCalendar({ events }: { events: MinistryEvent[] }) {
   }, [events]);
 
   const monthLabel = month.toLocaleDateString([], { month: "long", year: "numeric" });
+  const mobileAgenda = useMemo(() => {
+    const start = new Date(month.getFullYear(), month.getMonth(), 1);
+    const end = new Date(month.getFullYear(), month.getMonth() + 1, 1);
+    return events
+      .filter((event) => {
+        const eventStart = new Date(event.startTime);
+        return eventStart >= start && eventStart < end;
+      })
+      .sort((first, second) => new Date(first.startTime).getTime() - new Date(second.startTime).getTime())
+      .slice(0, 8);
+  }, [events, month]);
 
   return (
     <section className="panel calendar-panel" aria-label="Ministry Calendar">
@@ -82,7 +93,7 @@ export function MinistryCalendar({ events }: { events: MinistryEvent[] }) {
             aria-label="Previous month"
             onClick={() => setMonth((current) => addMonths(current, -1))}
           >
-            ‹
+            {"<"}
           </button>
           <strong className="calendar-month" aria-live="polite">
             {monthLabel}
@@ -93,7 +104,7 @@ export function MinistryCalendar({ events }: { events: MinistryEvent[] }) {
             aria-label="Next month"
             onClick={() => setMonth((current) => addMonths(current, 1))}
           >
-            ›
+            {">"}
           </button>
           <button
             className="calendar-today-btn"
@@ -103,6 +114,24 @@ export function MinistryCalendar({ events }: { events: MinistryEvent[] }) {
             Today
           </button>
         </div>
+      </div>
+
+      <div className="calendar-mobile-agenda" aria-label={`${monthLabel} agenda`}>
+        {mobileAgenda.length ? mobileAgenda.map((event) => {
+          const start = new Date(event.startTime);
+          return (
+            <button className="calendar-mobile-agenda-item" type="button" key={event.id} onClick={() => openEdit(event.id)}>
+              <span aria-hidden="true">
+                <strong>{start.toLocaleDateString([], { month: "short" }).toUpperCase()}</strong>
+                <em>{start.getDate()}</em>
+              </span>
+              <span>
+                <strong>{event.title}</strong>
+                <small>{formatChipTime(event.startTime)}{event.location ? ` - ${event.location}` : ""}</small>
+              </span>
+            </button>
+          );
+        }) : <p className="muted">No events are scheduled this month.</p>}
       </div>
 
       <div className="calendar-grid" role="grid" aria-label={`${monthLabel} ministry calendar`}>
