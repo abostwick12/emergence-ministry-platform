@@ -404,10 +404,10 @@ function SmallGroupWorkspace({
           <span><strong>GroupMe</strong>{payload.activeGroup.groupMeConnected ? payload.activeGroup.groupMeGroupName ?? "Connected" : "Not linked"}</span>
         </div>
       </article>
+      {canManageGroups ? <SmallGroupLeaderPanel payload={payload} onAction={onAction} onLinkGroupMe={onLinkGroupMe} onReload={onReload} /> : null}
       {payload.students.length ? payload.students.map((student) => (
         <StudentCard key={student.id} student={student} actionsEnabled={actionsEnabled} onAction={onAction} />
       )) : <EmptyPanel title="No students assigned yet" detail="No students are assigned to this workspace yet. Sync Planning Center or assign students to groups to populate this view." />}
-      {canManageGroups ? <SmallGroupLeaderPanel payload={payload} onAction={onAction} onLinkGroupMe={onLinkGroupMe} onReload={onReload} /> : null}
     </div>
   );
 }
@@ -944,6 +944,7 @@ function SmallGroupLeaderPanel({
     ...payload.archivedGroups.map((group) => group.serviceTime),
     ...defaultServiceTimes
   ]), [payload.activeGroup.serviceTime, payload.activeGroups, payload.archivedGroups]);
+  const defaultServiceTime = preferredDefaultServiceTime(serviceOptions);
   const serviceBuckets = useMemo(() => groupSmallGroupsByService(payload.activeGroups), [payload.activeGroups]);
   const [groupMeGroups, setGroupMeGroups] = useState<GroupMeChoice[]>([]);
   const [loadingGroupMe, setLoadingGroupMe] = useState(false);
@@ -1023,7 +1024,7 @@ function SmallGroupLeaderPanel({
           name: template.name,
           leaderId: payload.activeVolunteer.id,
           room: template.room,
-          serviceTime: serviceOptions[0] || defaultServiceTimes[0],
+          serviceTime: defaultServiceTime,
           memberStudentIds: payload.studentRoster.filter((student) => standardTemplateMatchesStudent(template, student)).map((student) => student.id)
         }, `${template.name} created from the live roster.`);
       }
@@ -1047,7 +1048,7 @@ function SmallGroupLeaderPanel({
               {buildingStandardGroups ? "Creating..." : "Create Standard Groups"}
             </button>
           ) : null}
-          {canManageGroups ? <button className="button primary" type="button" onClick={() => setDraftServiceTime(serviceOptions[0] || defaultServiceTimes[0])}><Plus aria-hidden="true" />Add Small Group</button> : null}
+          {canManageGroups ? <button className="button primary" type="button" onClick={() => setDraftServiceTime(defaultServiceTime)}><Plus aria-hidden="true" />Add Small Group</button> : null}
         </div>
       </div>
       {canManageGroups && missingStandardGroups.length ? (
@@ -1111,7 +1112,14 @@ function SmallGroupLeaderPanel({
             </header>
             <div className="volunteer-group-card-grid">
               {bucket.groups.map((group) => (
-                <GroupCard key={group.id} group={group} volunteers={payload.volunteers} persisted={payload.dataSource !== "live" || isUuid(group.id)} onManage={() => setManagedGroup(group)} />
+                <GroupCard
+                  key={group.id}
+                  group={group}
+                  volunteers={payload.volunteers}
+                  persisted={payload.dataSource !== "live" || isUuid(group.id)}
+                  onManage={() => setManagedGroup(group)}
+                  onCreatePermanent={() => setDraftServiceTime(defaultServiceTime)}
+                />
               ))}
             </div>
           </section>
@@ -1182,12 +1190,14 @@ function GroupCard({
   group,
   volunteers,
   persisted,
-  onManage
+  onManage,
+  onCreatePermanent
 }: {
   group: VolunteerHubSmallGroup;
   volunteers: VolunteerHubVolunteer[];
   persisted: boolean;
   onManage: () => void;
+  onCreatePermanent?: () => void;
 }) {
   const leader = volunteers.find((volunteer) => volunteer.id === group.leaderId);
   return (
@@ -1208,7 +1218,15 @@ function GroupCard({
       <div className="volunteer-group-card-footer">
         {group.groupMeConnected ? <StatusBadge tone="success">{group.groupMeGroupName ?? "GroupMe linked"}</StatusBadge> : <StatusBadge tone="warning">GroupMe not linked</StatusBadge>}
       </div>
-      {persisted ? <button className="button compact-button" type="button" onClick={onManage}>Manage Group</button> : <p className="muted">Create a permanent group to assign this imported roster.</p>}
+      {persisted ? (
+        <button className="button compact-button" type="button" onClick={onManage}>Manage Group</button>
+      ) : (
+        <div className="volunteer-card-actions">
+          <button className="button primary compact-button" type="button" onClick={onCreatePermanent}>
+            <Plus aria-hidden="true" />Add Small Group
+          </button>
+        </div>
+      )}
     </article>
   );
 }
@@ -1486,6 +1504,10 @@ function uniqueServiceTimes(values: string[]) {
       seen.add(value);
       return true;
     });
+}
+
+function preferredDefaultServiceTime(values: string[]) {
+  return values.find((value) => value.trim().toLowerCase() !== "imported roster") ?? defaultServiceTimes[0];
 }
 
 function newSmallGroupDraft(serviceTime: string, leaderId: string): VolunteerHubSmallGroup {
