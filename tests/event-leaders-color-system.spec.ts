@@ -35,7 +35,7 @@ test.describe("event color system and volunteer leaders", () => {
       "Profile"
     ]);
     await expect(page.getByRole("button", { name: "Add Leader" })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Add Small Group" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Add Small Group" })).toBeVisible();
 
     await page.goto("/directors/volunteers");
     await waitForWorkspace(page);

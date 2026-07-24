@@ -54,6 +54,22 @@ const tabs: Array<{ id: VolunteerTab; label: string }> = [
 ];
 
 const defaultServiceTimes = ["Sunday - 9:00 AM", "Sunday - 10:30 AM", "Wednesday - 6:30 PM"];
+const standardSmallGroupTemplates = [
+  { name: "6th Grade", room: "Room 101", minGrade: 6, maxGrade: 6 },
+  { name: "7-8th Grade Girls", room: "Room 201", minGrade: 7, maxGrade: 8, gender: "female" },
+  { name: "7-8th Grade Boys", room: "Room 202", minGrade: 7, maxGrade: 8, gender: "male" },
+  { name: "9-10th Grade Boys", room: "Room 203", minGrade: 9, maxGrade: 10, gender: "male" },
+  { name: "11-12th Grade Boys", room: "Room 204", minGrade: 11, maxGrade: 12, gender: "male" },
+  { name: "High School Girls", room: "Room 205", minGrade: 9, maxGrade: 12, gender: "female" }
+] satisfies StandardSmallGroupTemplate[];
+
+type StandardSmallGroupTemplate = {
+  name: string;
+  room: string;
+  minGrade: number;
+  maxGrade: number;
+  gender?: VolunteerHubStudent["gender"];
+};
 
 export function VolunteerHubPage({ mode = "volunteer" }: { mode?: VolunteerHubMode }) {
   const [payload, setPayload] = useState<VolunteerHubPayload | null>(null);
@@ -317,6 +333,7 @@ function VolunteerTabContent({
       <TaskPanel tasks={payload.tasks} onAction={onAction} />
       <LatestResources resources={payload.resources} onOpen={() => onTabChange("resources")} />
       <NotificationsPanel payload={payload} onOpen={onTabChange} />
+      {canManageSmallGroups(payload) ? <SmallGroupLeaderPanel payload={payload} onAction={onAction} onLinkGroupMe={onLinkGroupMe} onReload={onReload} /> : null}
     </div>
   );
 }
@@ -375,7 +392,7 @@ function SmallGroupWorkspace({
   const leader = payload.volunteers.find((volunteer) => volunteer.id === payload.activeGroup.leaderId);
   const coLeader = payload.volunteers.find((volunteer) => volunteer.id === payload.activeGroup.coLeaderId);
   const actionsEnabled = !payload.readOnlyReason;
-  const canManageGroups = payload.role === "admin" || payload.role === "leader";
+  const canManageGroups = canManageSmallGroups(payload);
   return (
     <div className="volunteer-hub-grid">
       <article className="volunteer-hub-panel volunteer-hub-span-3">
@@ -933,8 +950,11 @@ function SmallGroupLeaderPanel({
   const [groupMeError, setGroupMeError] = useState("");
   const [manualGroupMeToken, setManualGroupMeToken] = useState("");
   const [connectingGroupMeToken, setConnectingGroupMeToken] = useState(false);
+  const [buildingStandardGroups, setBuildingStandardGroups] = useState(false);
   const groupMeDisplayStatus = payload.integrations.groupMe.displayStatus;
   const canManageGroups = !payload.readOnlyReason;
+  const missingStandardGroups = useMemo(() => missingStandardSmallGroupTemplates(payload.activeGroups, payload.archivedGroups), [payload.activeGroups, payload.archivedGroups]);
+  const unknownGenderCount = useMemo(() => payload.studentRoster.filter((student) => student.gender !== "female" && student.gender !== "male").length, [payload.studentRoster]);
 
   async function restoreGroup(groupId: string) {
     setRestoringGroupId(groupId);
@@ -993,6 +1013,26 @@ function SmallGroupLeaderPanel({
     }
   }
 
+  async function createStandardGroups() {
+    if (!missingStandardGroups.length || buildingStandardGroups) return;
+    setBuildingStandardGroups(true);
+    try {
+      for (const template of missingStandardGroups) {
+        await onAction({
+          type: "create_group",
+          name: template.name,
+          leaderId: payload.activeVolunteer.id,
+          room: template.room,
+          serviceTime: serviceOptions[0] || defaultServiceTimes[0],
+          memberStudentIds: payload.studentRoster.filter((student) => standardTemplateMatchesStudent(template, student)).map((student) => student.id)
+        }, `${template.name} created from the live roster.`);
+      }
+      await onReload();
+    } finally {
+      setBuildingStandardGroups(false);
+    }
+  }
+
   return (
     <article className="volunteer-hub-panel volunteer-hub-span-3" id="leader-small-groups">
       <div className="volunteer-panel-head">
@@ -1001,9 +1041,21 @@ function SmallGroupLeaderPanel({
           {groupMeDisplayStatus !== "connected" && payload.dataSource === "live" ? (
             <a className="button" href="/api/integrations/groupme/connect"><Link2 aria-hidden="true" />Connect GroupMe</a>
           ) : null}
+          {canManageGroups && missingStandardGroups.length ? (
+            <button className="button" type="button" disabled={buildingStandardGroups} onClick={() => void createStandardGroups()}>
+              {buildingStandardGroups ? <LoaderCircle className="volunteer-spin" aria-hidden="true" /> : <UsersRound aria-hidden="true" />}
+              {buildingStandardGroups ? "Creating..." : "Create Standard Groups"}
+            </button>
+          ) : null}
           {canManageGroups ? <button className="button primary" type="button" onClick={() => setDraftServiceTime(serviceOptions[0] || defaultServiceTimes[0])}><Plus aria-hidden="true" />Add Small Group</button> : null}
         </div>
       </div>
+      {canManageGroups && missingStandardGroups.length ? (
+        <p className="volunteer-hub-notice" role="status">
+          Create Standard Groups will add {missingStandardGroups.map((group) => group.name).join(", ")} using the current live student roster and existing leader profiles.
+          {unknownGenderCount ? ` ${unknownGenderCount} student${unknownGenderCount === 1 ? "" : "s"} without synced gender will stay available for manual assignment.` : ""}
+        </p>
+      ) : null}
       {payload.dataSource === "live" ? (
         <div className="volunteer-groupme-setup">
           <div className="volunteer-groupme-population" role="status" aria-live="polite">
@@ -1385,6 +1437,34 @@ function volunteerRoleLabel(role: VolunteerHubVolunteer["role"]) {
   if (role === "admin") return "Admin";
   if (role === "volunteer") return "Volunteer";
   return "Leader";
+}
+
+function canManageSmallGroups(payload: VolunteerHubPayload) {
+  return payload.role === "admin" || payload.role === "leader";
+}
+
+function missingStandardSmallGroupTemplates(activeGroups: VolunteerHubSmallGroup[], archivedGroups: VolunteerHubSmallGroup[]) {
+  const existingNames = new Set([...activeGroups, ...archivedGroups].map((group) => normalizeSmallGroupName(group.name)));
+  return standardSmallGroupTemplates.filter((template) => !existingNames.has(normalizeSmallGroupName(template.name)));
+}
+
+function standardTemplateMatchesStudent(template: StandardSmallGroupTemplate, student: VolunteerHubStudent) {
+  const grade = gradeNumber(student.grade);
+  if (grade < template.minGrade || grade > template.maxGrade) return false;
+  return template.gender ? student.gender === template.gender : true;
+}
+
+function gradeNumber(value: string) {
+  const match = value.match(/\b([6-9]|1[0-2])(?:st|nd|rd|th)?\b/i);
+  return match ? Number(match[1]) : 99;
+}
+
+function normalizeSmallGroupName(name: string) {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/\b(\d+)(?:st|nd|rd|th)-(\d+)(?:st|nd|rd|th)\b/g, "$1-$2th")
+    .replace(/\s+/g, " ");
 }
 
 function studentDescriptor(student: VolunteerHubStudent) {
