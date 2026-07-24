@@ -236,6 +236,7 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(formationJournal.getByRole("heading", { name: "The Rhythm of the Way" })).toBeVisible();
     await expect(formationJournal).toContainText("Day 1: Before You Begin");
     await expect(formationJournal).toContainText("Receive the Story / Step 1");
+    await expect(formationJournal.getByLabel("Receive formation guide")).toContainText("Lifelong habit");
     await formationSelector.getByRole("group", { name: "Journey entries" }).getByRole("button", { name: "6", exact: true }).click();
     await expect(formationJournal).toContainText("Day 6: Teachability");
     await expect(formationJournal).toContainText("Proverbs 3:11-12");
@@ -288,6 +289,9 @@ test.describe("Student Scripture Hub shell", () => {
     await journey.getByRole("button", { name: /Cause and Effect/ }).click();
     await expect(passageGuide).toContainText("What happens because of something else");
     await expect(passageGuide).toContainText("Whole-story bridge");
+    await expect(journey.getByLabel("Practice formation guide")).toContainText("Formation aim");
+    await expect(journey.getByLabel("Walk formation guide")).toContainText("Concrete step");
+    await expect(journey.getByLabel("See formation guide")).toContainText("Discernment habit");
     const journeyEntries = page.getByRole("group", { name: "Journey entries" });
     await journeyEntries.getByRole("button", { name: "Add entry" }).click();
     await expect(journeyEntries.getByRole("button", { name: "2" })).toBeVisible();
@@ -347,6 +351,8 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page.getByRole("region", { name: "Tonight discussion prep" })).toContainText("Reflected");
     const reviewDetail = page.getByRole("article", { name: "Selected discussion review" });
     await expect(reviewDetail.getByRole("heading", { name: "Why did God put the tree in the garden?" })).toBeVisible();
+    await expect(reviewDetail.getByLabel("Formation readiness")).toContainText("Question to conversation path");
+    await expect(reviewDetail.getByLabel("Formation readiness")).toContainText("Passage anchor");
     await reviewDetail.getByRole("button", { name: "Approve" }).click();
     await expect(page.getByRole("status").filter({ hasText: "Leader decision saved." })).toBeVisible();
     await reviewDetail.getByRole("button", { name: "Open guide" }).click();

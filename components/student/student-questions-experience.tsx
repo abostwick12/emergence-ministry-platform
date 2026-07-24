@@ -351,7 +351,11 @@ function StudentLovableJournalEntry({
   const exploreTools = getJourneyExploreToolPair(activeJourney.id, entrySequence);
   const selectedExploreTool = exploreTools.find((tool) => tool.storageStudyPath === draft.studyPath) ?? exploreTools[0];
   const selectedExploreGuide = buildJourneyExploreGuide(selectedExploreTool, activeJourney);
+  const receiveGuide = buildReceiveFormationGuide(activeJourney, selectedReading, selectedExploreGuide.passageFocus);
   const practiceDetailItems = buildPracticeDetailItems(practice, draft.selectedPractice, guidedPrayer);
+  const practiceGuide = buildPracticeFormationGuide(activeJourney, practice, draft.selectedPractice, guidedPrayer);
+  const walkGuide = buildWalkFormationGuide(activeJourney, prompt, walkPrompt);
+  const seeGuide = buildSeeFormationGuide(activeJourney, prompt);
   const youVersionPracticeMedia = practice.youVersionMedia ?? getYouVersionPracticeMedia(activeJourney.id, entrySequence);
   const phases = [
     { label: "Receive", complete: Boolean(draft.scriptureReflection.trim()) },
@@ -487,6 +491,7 @@ function StudentLovableJournalEntry({
             </button>
           ))}
         </div>
+        <FormationGuideList ariaLabel="Receive formation guide" items={receiveGuide} />
         <YouVersionReaderWindow link={selectedReader?.ok ? selectedReader : undefined} title="Choose a recommended passage" />
         <textarea
           onChange={(event) => updateDraft({ scriptureReflection: event.target.value })}
@@ -586,6 +591,7 @@ function StudentLovableJournalEntry({
           <summary>Open practice details</summary>
           <ol>{practiceDetailItems.map((item) => <li key={item}>{item}</li>)}</ol>
         </details>
+        <FormationGuideList ariaLabel="Practice formation guide" items={practiceGuide} />
         <section className="student-lovable-youversion-practice" aria-label="YouVersion guided prayer media">
           {youVersionPracticeMedia.embedUrl ? (
             <iframe
@@ -616,6 +622,7 @@ function StudentLovableJournalEntry({
         eyebrow="Walk the Story / Step 4"
         title={activeJourney.rhythm?.walk ?? walkPrompt ?? activeJourney.openingPrompt}
       >
+        <FormationGuideList ariaLabel="Walk formation guide" items={walkGuide} />
         <textarea
           onChange={(event) => updateDraft({ livingReflection: event.target.value })}
           placeholder="Where does this touch your actual life - relationships, your week, your phone, your calendar? What is one concrete step?"
@@ -629,6 +636,7 @@ function StudentLovableJournalEntry({
         eyebrow="See the Story Growing / Step 5"
         title={activeJourney.rhythm?.see ?? "We learn to recognize what God has been doing all along."}
       >
+        <FormationGuideList ariaLabel="See formation guide" items={seeGuide} />
         <textarea
           onChange={(event) => updateDraft({ fruitReflection: event.target.value })}
           placeholder="What fruit - however small - is beginning to show? Where is it hard-won? Where has God surprised you?"
@@ -646,6 +654,105 @@ function StudentLovableJournalEntry({
       </div>
     </section>
   );
+}
+
+type FormationGuideItem = {
+  label: string;
+  value: string;
+};
+
+function FormationGuideList({ ariaLabel, items }: { ariaLabel: string; items: FormationGuideItem[] }) {
+  return (
+    <dl className="student-lovable-formation-guide" aria-label={ariaLabel}>
+      {items.map((item) => (
+        <div key={item.label}>
+          <dt>{item.label}</dt>
+          <dd>{item.value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+function buildReceiveFormationGuide(
+  journey: StudentJourneyJournal,
+  reading: StudentJourneyJournal["readingPath"][number] | undefined,
+  passageFocus: string
+): FormationGuideItem[] {
+  const reference = reading ? `${reading.reference}: ${reading.title}` : journey.title;
+
+  return [
+    {
+      label: "Read slowly for",
+      value: passageFocus
+    },
+    {
+      label: "Passage anchor",
+      value: reference
+    },
+    {
+      label: "Lifelong habit",
+      value: "Listen before solving. Name what the passage actually says about God, people, and the world before deciding what to do."
+    }
+  ];
+}
+
+function buildPracticeFormationGuide(
+  journey: StudentJourneyJournal,
+  practice: StudentJourneyPractice,
+  selectedPractice: JournalEntryDraft["selectedPractice"],
+  guidedPrayer?: StudentGuidedPrayer
+): FormationGuideItem[] {
+  const practiceName = selectedPractice === "guided" && guidedPrayer ? guidedPrayer.title : practice.title;
+
+  return [
+    {
+      label: "Formation aim",
+      value: practice.reflectionPrompt
+    },
+    {
+      label: "Practice plan",
+      value: `Give ${practiceName.toLowerCase()} a real time, place, and limit so ${journey.title.toLowerCase()} moves from an idea into obedience.`
+    },
+    {
+      label: "Lifelong habit",
+      value: "Let study become worship, repentance, courage, or love. Scripture is learned deeply when it is lived faithfully."
+    }
+  ];
+}
+
+function buildWalkFormationGuide(journey: StudentJourneyJournal, prompt?: StudentDiscussionPrompt, walkPrompt?: string): FormationGuideItem[] {
+  return [
+    {
+      label: "Ordinary place",
+      value: prompt ? `Carry "${prompt.question}" into one real conversation, decision, or temptation this week.` : walkPrompt ?? journey.openingPrompt
+    },
+    {
+      label: "Concrete step",
+      value: "Choose one action small enough to do today and specific enough that you will know whether you followed through."
+    },
+    {
+      label: "Community cue",
+      value: "Bring one honest sentence to a leader or group: what you noticed, what you resisted, or where you need prayer."
+    }
+  ];
+}
+
+function buildSeeFormationGuide(journey: StudentJourneyJournal, prompt?: StudentDiscussionPrompt): FormationGuideItem[] {
+  return [
+    {
+      label: "Fruit to watch",
+      value: journey.rhythm?.see ?? "Look for small signs of repentance, courage, patience, humility, love, or renewed trust."
+    },
+    {
+      label: "Discernment habit",
+      value: "Do not only measure answers. Notice what kind of person Scripture is forming you to become with Jesus."
+    },
+    {
+      label: "Next faithful question",
+      value: prompt ? `Ask how this question is becoming prayer, practice, and love for others.` : "Return tomorrow with one place where the passage met real life."
+    }
+  ];
 }
 
 function buildPracticeDetailItems(

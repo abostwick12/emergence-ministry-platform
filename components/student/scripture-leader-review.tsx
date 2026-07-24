@@ -847,6 +847,10 @@ function LeaderReviewDetail({
   const studentNextStep = useMemo(() => buildQuestionNextStep(prompt, prompt.knowledgeContext ?? []), [prompt]);
   const videoScript = useMemo(() => buildDiscussionVideoScript({ ...prompt, discussionPrompt }), [discussionPrompt, prompt]);
   const reviewDraft = useMemo(() => buildLeaderReviewDraft(prompt, localDraft), [localDraft, prompt]);
+  const formationReadiness = useMemo(
+    () => buildLeaderFormationReadiness(prompt, studentNextStep, storylineMatch),
+    [prompt, studentNextStep, storylineMatch]
+  );
   const canSave = reviewReady && !savingAction;
   const canApprove = canSave && discussionPrompt.trim().length > 0 && prompt.status !== "posted";
   const canPost = canSave && prompt.status === "approved";
@@ -890,6 +894,7 @@ function LeaderReviewDetail({
         <MetaTile label="Care signal" value={careText(prompt) || "Standard review"} />
       </div>
 
+      <LeaderFormationReadiness items={formationReadiness} />
       <LeaderStorylineContext match={storylineMatch} />
       <LeaderStudentJourneyContext nextStep={studentNextStep} prompt={prompt} />
 
@@ -968,6 +973,25 @@ function LeaderReviewDetail({
         </button>
       </div>
     </article>
+  );
+}
+
+function LeaderFormationReadiness({ items }: { items: FormationReadinessItem[] }) {
+  return (
+    <section className="leader-formation-readiness" aria-label="Formation readiness">
+      <div>
+        <p className="eyebrow">Formation Readiness</p>
+        <h3>Question to conversation path</h3>
+      </div>
+      <dl>
+        {items.map((item) => (
+          <div key={item.label}>
+            <dt>{item.label}</dt>
+            <dd>{item.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
   );
 }
 
@@ -1082,6 +1106,38 @@ function LeaderDiscussionVideoScriptPanel({
       </p>
     </section>
   );
+}
+
+type FormationReadinessItem = {
+  label: string;
+  value: string;
+};
+
+function buildLeaderFormationReadiness(
+  prompt: StudentDiscussionPrompt,
+  nextStep: StudentQuestionNextStep,
+  match: StorylineQuestionMatch
+): FormationReadinessItem[] {
+  const reflected = (prompt.studentReflectionCount ?? 0) > 0;
+
+  return [
+    {
+      label: "Passage anchor",
+      value: prompt.scriptureReference || match.keyPassages[0] || "Open the primary passage before approving."
+    },
+    {
+      label: "Student posture",
+      value: reflected ? "Student has begun reflecting before the group conversation." : "Student has a private journey ready while leaders review."
+    },
+    {
+      label: "Group aim",
+      value: nextStep.wrestleTogetherPrompt
+    },
+    {
+      label: "Leader lens",
+      value: "Keep the approved prompt Socratic, pastoral, and concrete enough for students to practice this week."
+    }
+  ];
 }
 
 function LeaderStudentJourneyContext({
