@@ -197,6 +197,7 @@ export function VolunteerHubPage({ mode = "volunteer" }: { mode?: VolunteerHubMo
             activeTab={activeTab}
             onTabChange={setActiveTab}
             onAction={act}
+            onLinkGroupMe={linkGroupMeConversation}
             onReload={load}
             onSyncCheckIns={syncPlanningCenterCheckIns}
             syncingCheckIns={syncingCheckIns}
@@ -226,6 +227,13 @@ function MobileVolunteerPriorities({
       title: openTasks ? `${openTasks} task${openTasks === 1 ? "" : "s"}` : "Ready",
       detail: payload.activeGroup.serviceTime,
       icon: <ClipboardCheck aria-hidden="true" />
+    },
+    {
+      id: "group",
+      label: "My Small Group",
+      title: payload.activeGroup.name,
+      detail: `${payload.students.length} assigned`,
+      icon: <UsersRound aria-hidden="true" />
     },
     {
       id: "students",
@@ -277,6 +285,7 @@ function VolunteerTabContent({
   activeTab,
   onTabChange,
   onAction,
+  onLinkGroupMe,
   onReload,
   onSyncCheckIns,
   syncingCheckIns
@@ -285,11 +294,12 @@ function VolunteerTabContent({
   activeTab: VolunteerTab;
   onTabChange: (tab: VolunteerTab) => void;
   onAction: (action: VolunteerHubAction, success: string) => Promise<void>;
+  onLinkGroupMe: (platformGroupId: string, groupMeGroupId: string) => Promise<void>;
   onReload: () => Promise<void>;
   onSyncCheckIns: () => Promise<void>;
   syncingCheckIns: boolean;
 }) {
-  if (activeTab === "group") return <SmallGroupWorkspace payload={payload} onAction={onAction} />;
+  if (activeTab === "group") return <SmallGroupWorkspace payload={payload} onAction={onAction} onLinkGroupMe={onLinkGroupMe} onReload={onReload} />;
   if (activeTab === "students") return <StudentsWorkspace payload={payload} onAction={onAction} />;
   if (activeTab === "attendance") return <AttendanceWorkspace payload={payload} onAction={onAction} onSync={onSyncCheckIns} syncing={syncingCheckIns} />;
   if (activeTab === "chat") return <ChatWorkspace payload={payload} onAction={onAction} onReload={onReload} />;
@@ -351,10 +361,21 @@ function TaskPanel({ tasks, onAction }: { tasks: VolunteerHubPayload["tasks"]; o
   );
 }
 
-function SmallGroupWorkspace({ payload, onAction }: { payload: VolunteerHubPayload; onAction: (action: VolunteerHubAction, success: string) => Promise<void> }) {
+function SmallGroupWorkspace({
+  payload,
+  onAction,
+  onLinkGroupMe,
+  onReload
+}: {
+  payload: VolunteerHubPayload;
+  onAction: (action: VolunteerHubAction, success: string) => Promise<void>;
+  onLinkGroupMe: (platformGroupId: string, groupMeGroupId: string) => Promise<void>;
+  onReload: () => Promise<void>;
+}) {
   const leader = payload.volunteers.find((volunteer) => volunteer.id === payload.activeGroup.leaderId);
   const coLeader = payload.volunteers.find((volunteer) => volunteer.id === payload.activeGroup.coLeaderId);
   const actionsEnabled = !payload.readOnlyReason;
+  const canManageGroups = payload.role === "admin" || payload.role === "leader";
   return (
     <div className="volunteer-hub-grid">
       <article className="volunteer-hub-panel volunteer-hub-span-3">
@@ -369,6 +390,7 @@ function SmallGroupWorkspace({ payload, onAction }: { payload: VolunteerHubPaylo
       {payload.students.length ? payload.students.map((student) => (
         <StudentCard key={student.id} student={student} actionsEnabled={actionsEnabled} onAction={onAction} />
       )) : <EmptyPanel title="No students assigned yet" detail="No students are assigned to this workspace yet. Sync Planning Center or assign students to groups to populate this view." />}
+      {canManageGroups ? <SmallGroupLeaderPanel payload={payload} onAction={onAction} onLinkGroupMe={onLinkGroupMe} onReload={onReload} /> : null}
     </div>
   );
 }
@@ -379,7 +401,7 @@ function StudentCard({ student, actionsEnabled, onAction }: { student: Volunteer
     <article className="volunteer-hub-panel volunteer-student-card">
       <div className="volunteer-avatar" aria-hidden="true">{student.profilePhotoUrl ? <Image src={student.profilePhotoUrl} alt="" width={48} height={48} unoptimized /> : initials(student.preferredName)}</div>
       <h3>{student.preferredName}</h3>
-      <p>{student.grade} - {student.school}</p>
+      <p>{studentDescriptor(student)}</p>
       <div className="volunteer-student-tags">
         <StatusBadge tone={student.attendanceStatus === "present" ? "success" : student.attendanceStatus === "absent" ? "warning" : "info"}>{student.attendanceStatus}</StatusBadge>
         {student.followUpNeeded ? <StatusBadge tone="warning">Needs follow-up</StatusBadge> : null}
@@ -409,7 +431,7 @@ function StudentsWorkspace({ payload, onAction }: { payload: VolunteerHubPayload
   const [source, setSource] = useState("all");
   const visibleSources = Array.from(new Set(payload.studentRoster.map((student) => student.source).filter((sourceValue): sourceValue is NonNullable<VolunteerHubStudent["source"]> => Boolean(sourceValue))));
   const filtered = payload.studentRoster.filter((student) => {
-    const text = `${student.preferredName} ${student.fullName} ${student.grade} ${student.school}`.toLowerCase();
+    const text = `${student.preferredName} ${student.fullName} ${student.grade} ${genderLabel(student.gender)} ${student.school}`.toLowerCase();
     return (!query.trim() || text.includes(query.trim().toLowerCase()))
       && (source === "all" || student.source === source);
   });
@@ -1180,7 +1202,7 @@ function ManageGroupDialog({
   const [saving, setSaving] = useState(false);
   const filteredStudents = students.filter((student) => {
     const query = studentQuery.trim().toLowerCase();
-    return !query || `${student.fullName} ${student.grade} ${student.school}`.toLowerCase().includes(query);
+    return !query || `${student.fullName} ${student.grade} ${genderLabel(student.gender)} ${student.school}`.toLowerCase().includes(query);
   });
 
   async function saveGroup(event: FormEvent<HTMLFormElement>) {
@@ -1269,7 +1291,7 @@ function ManageGroupDialog({
                   <label className={selected ? "selected" : ""} key={student.id}>
                     <input type="checkbox" checked={selected} onChange={() => setMemberStudentIds((current) => selected ? current.filter((id) => id !== student.id) : [...current, student.id])} />
                     <span className="volunteer-avatar" aria-hidden="true">{initials(student.preferredName)}</span>
-                    <span><strong>{student.fullName}</strong><small>{student.grade} - {student.school}</small></span>
+                    <span><strong>{student.fullName}</strong><small>{studentDescriptor(student)}</small></span>
                     {selected ? <Check aria-hidden="true" /> : null}
                   </label>
                 );
@@ -1363,6 +1385,16 @@ function volunteerRoleLabel(role: VolunteerHubVolunteer["role"]) {
   if (role === "admin") return "Admin";
   if (role === "volunteer") return "Volunteer";
   return "Leader";
+}
+
+function studentDescriptor(student: VolunteerHubStudent) {
+  return [student.grade, genderLabel(student.gender), student.school].filter(Boolean).join(" - ");
+}
+
+function genderLabel(gender: VolunteerHubStudent["gender"]) {
+  if (gender === "female") return "Girls";
+  if (gender === "male") return "Boys";
+  return "";
 }
 
 function uniqueServiceTimes(values: string[]) {

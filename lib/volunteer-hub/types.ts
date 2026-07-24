@@ -11,6 +11,7 @@ export type VolunteerHubStudent = {
   fullName: string;
   profilePhotoUrl?: string;
   grade: string;
+  gender?: "female" | "male" | "unknown";
   school: string;
   birthday: string;
   teamId?: string;

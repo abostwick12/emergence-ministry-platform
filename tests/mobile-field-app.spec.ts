@@ -90,7 +90,10 @@ test.describe("mobile ministry field app", () => {
     const volunteerPriorities = page.getByRole("region", { name: "Volunteer mobile priorities" });
     await expect(volunteerPriorities).toBeVisible();
     await expect(volunteerPriorities.getByRole("button", { name: /Today/ })).toBeVisible();
+    await expect(volunteerPriorities.getByRole("button", { name: /My Small Group/ })).toBeVisible();
     await expect(page.getByRole("navigation", { name: "Volunteer Hub sections" })).toBeHidden();
+    await volunteerPriorities.getByRole("button", { name: /My Small Group/ }).click();
+    await expect(page.getByText("Permanent Small Group Workspace")).toBeVisible();
     await volunteerPriorities.getByRole("button", { name: /Resources/ }).click();
     await expect(page.getByRole("region", { name: "Small-group videos and resources" })).toBeVisible();
     await page.getByLabel("More volunteer tools").selectOption("attendance");

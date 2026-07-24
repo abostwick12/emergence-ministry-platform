@@ -872,10 +872,10 @@ function buildInitialSmallGroupServices(leaders: PeopleLeader[]): SmallGroupServ
 function buildSmallGroupsForService(serviceName: string, leaders: PeopleLeader[]): SmallGroup[] {
   const groupNames = [
     "6th Grade",
-    "7th-8th Grade Boys",
-    "7th-8th Grade Girls",
-    "9th-10th Grade Boys",
-    "11th-12th Grade Boys",
+    "7-8th Grade Girls",
+    "7-8th Grade Boys",
+    "9-10th Grade Boys",
+    "11-12th Grade Boys",
     "High School Girls"
   ];
   const rooms = ["Room 101", "Room 102", "Room 201", "Room 202", "Cafe", "Prayer Room"];

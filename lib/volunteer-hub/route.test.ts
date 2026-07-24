@@ -51,7 +51,7 @@ describe("Volunteer Hub route", () => {
 
     expect(response.status).toBe(200);
     expect(payload.dataSource).toBe("mock");
-    expect(payload.activeGroup.name).toBe("8th Grade Boys");
+    expect(payload.activeGroup.name).toBe("7-8th Grade Boys");
     expect(payload.integrations.planningCenter).toMatchObject({ peopleCount: 4, attendanceCount: 7 });
     expect(payload.archivedGroups).toEqual(expect.any(Array));
   });

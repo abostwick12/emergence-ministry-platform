@@ -24,7 +24,31 @@ describe("Volunteer Hub data", () => {
     expect(payload.dataSource).toBe("mock");
     expect(payload.activeGroups.some((group) => group.archivedAt)).toBe(false);
     expect(payload.archivedGroups).toHaveLength(1);
-    expect(payload.activeGroup.name).toBe("8th Grade Boys");
+    expect(payload.activeGroup.name).toBe("7-8th Grade Boys");
+    expect(payload.activeGroups.map((group) => group.name)).toEqual([
+      "6th Grade",
+      "7-8th Grade Girls",
+      "7-8th Grade Boys",
+      "9-10th Grade Boys",
+      "11-12th Grade Boys",
+      "High School Girls"
+    ]);
+    expect(payload.studentRoster.map((student) => student.fullName)).toEqual([
+      "Harper Wells",
+      "Luke Bennett",
+      "Ava Thompson",
+      "Sofia Ramirez",
+      "Eli Brooks",
+      "Jordan Hayes",
+      "Micah Allen",
+      "Noah Carter",
+      "Emma Price",
+      "Caleb Morris",
+      "Owen Davis",
+      "Chloe Wilson",
+      "Isaac Turner",
+      "Grant Miller"
+    ]);
     expect(payload.volunteers.map((volunteer) => volunteer.role)).not.toContain("director");
   });
 
@@ -34,13 +58,13 @@ describe("Volunteer Hub data", () => {
 
     expect(payload.activeGroups.find((group) => group.id === "group_8th_boys")).toBeUndefined();
     expect(payload.archivedGroups.find((group) => group.id === "group_8th_boys")?.archiveReason).toBe("Consolidated with middle school group.");
-    expect(payload.audit[0]).toMatchObject({ action: "Archived small group", target: "8th Grade Boys" });
+    expect(payload.audit[0]).toMatchObject({ action: "Archived small group", target: "7-8th Grade Boys" });
 
     applyVolunteerHubAction(session, { type: "restore_group", groupId: "group_8th_boys" });
     payload = await getVolunteerHubPayload(session, integrations);
 
     expect(payload.activeGroups.find((group) => group.id === "group_8th_boys")).toBeTruthy();
-    expect(payload.audit[0]).toMatchObject({ action: "Restored small group", target: "8th Grade Boys" });
+    expect(payload.audit[0]).toMatchObject({ action: "Restored small group", target: "7-8th Grade Boys" });
   });
 
   it("updates attendance follow-up and task/resource progress", async () => {
