@@ -157,7 +157,7 @@ function createInitialState(): VolunteerHubState {
         name: "Andrew Walker",
         role: "leader",
         email: "andrew@lead-emergence.test",
-        servingAreas: ["8th Grade Boys", "Sunday Morning"],
+        servingAreas: ["7-8th Grade Boys", "Sunday Morning"],
         availability: "Sundays at 9:00 AM and leader meetings",
         skills: ["Small groups", "Student follow-up", "Teaching"],
         backgroundCheckExpires: daysFromNow(120),
@@ -169,7 +169,7 @@ function createInitialState(): VolunteerHubState {
         name: "Patrick Reed",
         role: "volunteer",
         email: "patrick@lead-emergence.test",
-        servingAreas: ["8th Grade Boys"],
+        servingAreas: ["7-8th Grade Boys"],
         availability: "Sundays at 9:00 AM",
         skills: ["Discussion", "Hospitality"],
         backgroundCheckExpires: daysFromNow(80),
@@ -195,6 +195,7 @@ function createInitialState(): VolunteerHubState {
         preferredName: "Jordan",
         fullName: "Jordan Hayes",
         grade: "8th Grade",
+        gender: "male",
         school: "Riverbend Middle",
         birthday: "August 14",
         attendanceStatus: "present",
@@ -211,6 +212,7 @@ function createInitialState(): VolunteerHubState {
         preferredName: "Micah",
         fullName: "Micah Allen",
         grade: "8th Grade",
+        gender: "male",
         school: "Northview Middle",
         birthday: "September 2",
         attendanceStatus: "absent",
@@ -226,6 +228,7 @@ function createInitialState(): VolunteerHubState {
         preferredName: "Eli",
         fullName: "Eli Brooks",
         grade: "8th Grade",
+        gender: "male",
         school: "Riverbend Middle",
         birthday: "October 21",
         attendanceStatus: "present",
@@ -238,6 +241,7 @@ function createInitialState(): VolunteerHubState {
         preferredName: "Noah",
         fullName: "Noah Carter",
         grade: "8th Grade",
+        gender: "male",
         school: "Hillside",
         birthday: "November 8",
         attendanceStatus: "guest",
@@ -247,12 +251,144 @@ function createInitialState(): VolunteerHubState {
         followUpNeeded: true,
         followUpStatus: "suggested",
         parentContactAvailable: false
+      },
+      {
+        id: "stu_luke",
+        preferredName: "Luke",
+        fullName: "Luke Bennett",
+        grade: "6th Grade",
+        gender: "male",
+        school: "Riverbend Middle",
+        birthday: "March 12",
+        attendanceStatus: "present",
+        lastAttended: daysFromNow(-7),
+        consecutiveAbsences: 0,
+        parentContactAvailable: true
+      },
+      {
+        id: "stu_harper",
+        preferredName: "Harper",
+        fullName: "Harper Wells",
+        grade: "6th Grade",
+        gender: "female",
+        school: "Northview Middle",
+        birthday: "April 28",
+        attendanceStatus: "present",
+        lastAttended: daysFromNow(-7),
+        consecutiveAbsences: 0,
+        parentContactAvailable: true
+      },
+      {
+        id: "stu_ava",
+        preferredName: "Ava",
+        fullName: "Ava Thompson",
+        grade: "7th Grade",
+        gender: "female",
+        school: "Riverbend Middle",
+        birthday: "May 6",
+        attendanceStatus: "present",
+        lastAttended: daysFromNow(-7),
+        consecutiveAbsences: 0,
+        parentContactAvailable: true
+      },
+      {
+        id: "stu_sofia",
+        preferredName: "Sofia",
+        fullName: "Sofia Ramirez",
+        grade: "8th Grade",
+        gender: "female",
+        school: "Hillside",
+        birthday: "June 19",
+        attendanceStatus: "absent",
+        lastAttended: daysFromNow(-14),
+        consecutiveAbsences: 1,
+        followUpNeeded: true,
+        followUpStatus: "suggested",
+        parentContactAvailable: true
+      },
+      {
+        id: "stu_caleb",
+        preferredName: "Caleb",
+        fullName: "Caleb Morris",
+        grade: "9th Grade",
+        gender: "male",
+        school: "Central High",
+        birthday: "January 24",
+        attendanceStatus: "present",
+        lastAttended: daysFromNow(-7),
+        consecutiveAbsences: 0,
+        parentContactAvailable: true
+      },
+      {
+        id: "stu_owen",
+        preferredName: "Owen",
+        fullName: "Owen Davis",
+        grade: "10th Grade",
+        gender: "male",
+        school: "Central High",
+        birthday: "February 10",
+        attendanceStatus: "present",
+        lastAttended: daysFromNow(-7),
+        consecutiveAbsences: 0,
+        parentContactAvailable: true
+      },
+      {
+        id: "stu_isaac",
+        preferredName: "Isaac",
+        fullName: "Isaac Turner",
+        grade: "11th Grade",
+        gender: "male",
+        school: "Central High",
+        birthday: "July 30",
+        attendanceStatus: "present",
+        lastAttended: daysFromNow(-7),
+        consecutiveAbsences: 0,
+        parentContactAvailable: true
+      },
+      {
+        id: "stu_grant",
+        preferredName: "Grant",
+        fullName: "Grant Miller",
+        grade: "12th Grade",
+        gender: "male",
+        school: "Central High",
+        birthday: "December 4",
+        attendanceStatus: "pending",
+        lastAttended: daysFromNow(-21),
+        consecutiveAbsences: 1,
+        parentContactAvailable: true
+      },
+      {
+        id: "stu_emma",
+        preferredName: "Emma",
+        fullName: "Emma Price",
+        grade: "9th Grade",
+        gender: "female",
+        school: "Central High",
+        birthday: "August 3",
+        attendanceStatus: "present",
+        lastAttended: daysFromNow(-7),
+        consecutiveAbsences: 0,
+        parentContactAvailable: true
+      },
+      {
+        id: "stu_chloe",
+        preferredName: "Chloe",
+        fullName: "Chloe Wilson",
+        grade: "11th Grade",
+        gender: "female",
+        school: "Central High",
+        birthday: "September 17",
+        attendanceStatus: "present",
+        lastAttended: daysFromNow(-7),
+        consecutiveAbsences: 0,
+        parentContactAvailable: true
       }
     ],
     smallGroups: [
       {
         id: "group_8th_boys",
-        name: "8th Grade Boys",
+        name: "7-8th Grade Boys",
         leaderId: "vol_andrew",
         coLeaderId: "vol_patrick",
         room: "Room 202",
@@ -262,11 +398,11 @@ function createInitialState(): VolunteerHubState {
       },
       {
         id: "group_7th_girls",
-        name: "7th Grade Girls",
+        name: "7-8th Grade Girls",
         leaderId: "vol_maya",
         room: "Room 201",
         serviceTime: "Sunday - 9:00 AM",
-        memberStudentIds: [],
+        memberStudentIds: ["stu_ava", "stu_sofia"],
         groupMeConnected: false
       },
       {
@@ -275,7 +411,35 @@ function createInitialState(): VolunteerHubState {
         leaderId: "vol_patrick",
         room: "Room 101",
         serviceTime: "Sunday - 9:00 AM",
-        memberStudentIds: [],
+        memberStudentIds: ["stu_luke", "stu_harper"],
+        groupMeConnected: false
+      },
+      {
+        id: "group_9_10_boys",
+        name: "9-10th Grade Boys",
+        leaderId: "vol_andrew",
+        coLeaderId: "vol_patrick",
+        room: "Room 203",
+        serviceTime: "Sunday - 9:00 AM",
+        memberStudentIds: ["stu_caleb", "stu_owen"],
+        groupMeConnected: false
+      },
+      {
+        id: "group_11_12_boys",
+        name: "11-12th Grade Boys",
+        leaderId: "vol_patrick",
+        room: "Room 204",
+        serviceTime: "Sunday - 9:00 AM",
+        memberStudentIds: ["stu_isaac", "stu_grant"],
+        groupMeConnected: false
+      },
+      {
+        id: "group_high_school_girls",
+        name: "High School Girls",
+        leaderId: "vol_maya",
+        room: "Room 205",
+        serviceTime: "Sunday - 9:00 AM",
+        memberStudentIds: ["stu_emma", "stu_chloe"],
         groupMeConnected: false
       },
       {
@@ -370,7 +534,7 @@ function buildVolunteerHubPayload(
   const activeVolunteer = resolveActiveVolunteer(current, session, role);
   const visibleActiveGroups = getVisibleActiveGroups(current, activeVolunteer, role);
   const activeGroup = visibleActiveGroups[0] ?? liveRosterGroup(activeVolunteer, []);
-  const students = current.students.filter((student) => activeGroup.memberStudentIds.includes(student.id));
+  const students = sortStudentsByGradeGender(current.students.filter((student) => activeGroup.memberStudentIds.includes(student.id)));
   const followUps = current.followUps.filter((followUp) => students.some((student) => student.id === followUp.studentId));
 
   return {
@@ -380,12 +544,12 @@ function buildVolunteerHubPayload(
     activeVolunteer,
     activeGroup,
     students,
-    studentRoster: current.students,
+    studentRoster: sortStudentsByGradeGender(current.students),
     studentRosterSource: {
       planningCenterCount: current.students.filter((student) => student.source === "planning_center").length,
       campClcCount: current.students.filter((student) => student.source === "camp_clc").length
     },
-    activeGroups: visibleActiveGroups,
+    activeGroups: sortSmallGroupsByGradeGender(visibleActiveGroups),
     archivedGroups: role === "admin" || role === "leader" ? current.smallGroups.filter((group) => group.archivedAt) : [],
     volunteers: current.volunteers,
     tasks: current.tasks,
@@ -1489,6 +1653,44 @@ function getVisibleActiveGroups(stateValue: VolunteerHubState, activeVolunteer: 
   const activeGroups = stateValue.smallGroups.filter((group) => !group.archivedAt);
   if (role === "admin" || role === "leader") return activeGroups;
   return activeGroups.filter((group) => group.leaderId === activeVolunteer.id || group.coLeaderId === activeVolunteer.id);
+}
+
+function sortStudentsByGradeGender(students: VolunteerHubStudent[]) {
+  return [...students].sort((left, right) =>
+    gradeRank(left.grade) - gradeRank(right.grade) ||
+    genderRank(left.gender) - genderRank(right.gender) ||
+    left.fullName.localeCompare(right.fullName)
+  );
+}
+
+function sortSmallGroupsByGradeGender(groups: VolunteerHubSmallGroup[]) {
+  return [...groups].sort((left, right) =>
+    smallGroupRank(left.name) - smallGroupRank(right.name) ||
+    left.serviceTime.localeCompare(right.serviceTime) ||
+    left.name.localeCompare(right.name)
+  );
+}
+
+function gradeRank(value: string) {
+  const match = value.match(/\b([6-9]|1[0-2])(?:st|nd|rd|th)?\b/i);
+  return match ? Number(match[1]) : 99;
+}
+
+function genderRank(value: VolunteerHubStudent["gender"]) {
+  if (value === "female") return 0;
+  if (value === "male") return 1;
+  return 2;
+}
+
+function smallGroupRank(name: string) {
+  const normalized = name.toLowerCase();
+  if (normalized.includes("6th")) return 6;
+  if (normalized.includes("7-8") && normalized.includes("girl")) return 7;
+  if (normalized.includes("7-8") && normalized.includes("boy")) return 8;
+  if (normalized.includes("9-10")) return 9;
+  if (normalized.includes("11-12")) return 11;
+  if (normalized.includes("high school") && normalized.includes("girl")) return 12;
+  return 99;
 }
 
 function summarizeAttendance(students: Array<{ attendanceStatus: string; followUpNeeded?: boolean }>): VolunteerHubAttendanceSnapshot {

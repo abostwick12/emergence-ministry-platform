@@ -79,7 +79,7 @@ test.describe("event color system and volunteer leaders", () => {
     await waitForWorkspace(page);
 
     await expect(page.getByRole("heading", { name: "Small groups by service" })).toBeVisible();
-    await expect(page.getByRole("region", { name: "Sunday - 9:00 AM small groups" })).toContainText("3 groups - 4 students");
+    await expect(page.getByRole("region", { name: "Sunday - 9:00 AM small groups" })).toContainText("6 groups - 14 students");
 
     await page.getByRole("button", { name: "Add Small Group" }).click();
     const dialog = page.getByRole("dialog", { name: "Add Small Group" });
@@ -92,6 +92,24 @@ test.describe("event color system and volunteer leaders", () => {
 
     await expect(page.getByRole("region", { name: "Sunday - 10:30 AM small groups" })).toContainText("10:30 High School Girls");
     await expect(page.locator(".volunteer-group-card").filter({ hasText: "10:30 High School Girls" })).toContainText("1 student");
+  });
+
+  test("creates small groups from the Volunteer Hub small group workspace", async ({ page }) => {
+    await page.goto("/people");
+    await waitForWorkspace(page);
+
+    await page.getByRole("navigation", { name: "Volunteer Hub sections" }).getByRole("button", { name: "My Small Group" }).click();
+    await expect(page.getByRole("heading", { name: "Small groups by service" })).toBeVisible();
+
+    await page.getByRole("button", { name: "Add Small Group" }).click();
+    const dialog = page.getByRole("dialog", { name: "Add Small Group" });
+    await dialog.getByLabel("Group name").fill("9:00 Middle School Girls");
+    await dialog.getByLabel("Room").fill("Room 118");
+    await dialog.getByRole("checkbox", { name: /Jordan Hayes/i }).check();
+    await dialog.getByRole("button", { name: "Create group" }).click();
+
+    await expect(page.getByRole("region", { name: "Sunday - 9:00 AM small groups" })).toContainText("9:00 Middle School Girls");
+    await expect(page.locator(".volunteer-group-card").filter({ hasText: "9:00 Middle School Girls" })).toContainText("1 student");
   });
 
   test("keeps Camp details out of Volunteer Hub student cards", async ({ page }) => {
@@ -126,8 +144,8 @@ test.describe("event color system and volunteer leaders", () => {
 
     await expect(dialog).toHaveCount(0);
     await expect(sixthGradeGroup).toContainText("Room 105");
-    await expect(sixthGradeGroup).toContainText("Maya Chen leads 1 student");
-    await expect(page.locator(".volunteer-group-card").filter({ hasText: "8th Grade Boys" })).toContainText("2 students");
+    await expect(sixthGradeGroup).toContainText("Maya Chen leads 3 students");
+    await expect(page.locator(".volunteer-group-card").filter({ hasText: "7-8th Grade Boys" })).toContainText("2 students");
 
     await page.goto("/people");
     await waitForWorkspace(page);
