@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { UnifiedDashboardBrandArt } from "@/components/unified-dashboard-brand-art";
 
 type DemoStep = {
-  id: "student" | "scripture" | "gloo" | "leader" | "slack";
+  id: "student" | "scripture" | "journey" | "leader" | "slack";
   label: string;
   eyebrow: string;
   title: string;
@@ -30,12 +30,12 @@ const demoSteps: DemoStep[] = [
       "The server looks up the selected passage and keeps Bible text transient, so leaders can ground the conversation without storing licensed Scripture content."
   },
   {
-    id: "gloo",
-    label: "Gloo generation",
-    eyebrow: "Gloo AI Studio API",
-    title: "Faith-tuned AI shapes a Socratic discussion starter.",
+    id: "journey",
+    label: "Journey Journal",
+    eyebrow: "Formation engine",
+    title: "The student receives a Bible-study rhythm while leaders prepare.",
     body:
-      "The AI does not hand students a packaged answer. It classifies safety, frames the biblical tension, and drafts questions for leader review."
+      "The Journey Journal deepens the question through Receive, Explore, Practice, Walk, and See, so students build lifelong Scripture habits instead of waiting for a packaged answer."
   },
   {
     id: "leader",
@@ -131,7 +131,7 @@ export function HackathonPublicDemo() {
           </div>
           <div className="app-header-right">
             <span className="pill blue">YouVersion</span>
-            <span className="pill green">Gloo AI Studio</span>
+            <span className="pill green">Journey Journal</span>
           </div>
         </header>
 
@@ -264,11 +264,11 @@ export function HackathonPublicDemo() {
                 </p>
               </article>
               <article className="card dashboard-card">
-                <span className="pill green">Gloo AI Studio</span>
-                <h3>Faith-tuned generation is review-first</h3>
+                <span className="pill green">Journey Journal</span>
+                <h3>Formation keeps moving without a live provider</h3>
                 <p>
-                  The next provider adapter will produce structured safety, metanarrative framing, and Socratic prompts
-                  for leader approval before delivery.
+                  The local Scripture journey already gives students passage-aware study steps, embodied practice, and
+                  leader-visible readiness while external AI credentials are added later.
                 </p>
               </article>
               <article className="card dashboard-card">

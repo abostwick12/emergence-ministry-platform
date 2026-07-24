@@ -9,7 +9,9 @@ test.describe("Hackathon public demo", () => {
     await expect(page.getByRole("heading", { name: "Hackathon Demo", level: 1 })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Scripture-native social discipleship for student ministry." })).toBeVisible();
     await expect(page.getByRole("heading", { name: "One hard question, one guided conversation" })).toBeVisible();
-    await expect(page.getByRole("tab", { name: /Gloo generation/ })).toBeVisible();
+    await expect(page.getByRole("tab", { name: /Journey Journal/ })).toBeVisible();
+    await page.getByRole("tab", { name: /Journey Journal/ }).click();
+    await expect(page.getByText("Receive, Explore, Practice, Walk, and See")).toBeVisible();
     await expect(page.getByText("#hs-scripture-questions")).toBeVisible();
     await expect(page.getByRole("heading", { name: "Emerge Ministry Platform" })).toHaveCount(0);
   });
