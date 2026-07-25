@@ -72,6 +72,39 @@ export function getServerSession(): Promise<AuthSession | null> {
   return session;
 }
 
+export async function refreshServerAccountSession(): Promise<{
+  session: AuthSession;
+  accessToken: string;
+  refreshToken: string;
+} | null> {
+  const refreshToken = cookies().get(authCookieNames.refreshToken)?.value?.trim();
+  if (!refreshToken || !isSupabaseConfigured()) return null;
+
+  try {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+      method: "POST",
+      headers: {
+        apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ refresh_token: refreshToken })
+    });
+    if (!response.ok) return null;
+
+    const body = (await response.json()) as { access_token?: unknown; refresh_token?: unknown };
+    const accessToken = typeof body.access_token === "string" ? body.access_token.trim() : "";
+    const nextRefreshToken = typeof body.refresh_token === "string" ? body.refresh_token.trim() : refreshToken;
+    if (!accessToken) return null;
+
+    const session = await loadAccountSession(accessToken);
+    if (!session) return null;
+
+    return { session, accessToken, refreshToken: nextRefreshToken };
+  } catch {
+    return null;
+  }
+}
+
 async function loadServerSession(cookieStore: ReturnType<typeof cookies>): Promise<AuthSession | null> {
   const accessTokenCookie = cookieStore.get(authCookieNames.accessToken);
   const refreshTokenCookie = cookieStore.get(authCookieNames.refreshToken);
