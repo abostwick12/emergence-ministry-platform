@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ArrowRight, CalendarCheck2, HeartHandshake, LogIn, MessageSquareText } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
+import { clearPendingGroupMeCallback, readPendingGroupMeCallback, savePendingGroupMeCallback } from "@/lib/integrations/groupme/pending-callback";
 
 type LoginResponse = {
   user?: {
@@ -11,20 +12,11 @@ type LoginResponse = {
   error?: string;
 };
 
-type PendingGroupMeCallback = {
-  accessToken: string;
-  state: string | null;
-  createdAt: number;
-};
-
 type GroupMeCallbackResult = {
   redirectTo?: string;
   error?: string;
   status: number;
 };
-
-const GROUPME_PENDING_CALLBACK_KEY = "lead-emergence.pending-groupme-callback.v1";
-const GROUPME_PENDING_CALLBACK_MAX_AGE_MS = 10 * 60 * 1000;
 
 export default function LoginPage() {
   const [error, setError] = useState("");
@@ -193,40 +185,5 @@ async function completeGroupMeCallback(input: { accessToken: string; state: stri
   });
   const body = (await response.json().catch(() => ({}))) as { redirectTo?: string; error?: string };
   return { ...body, status: response.status };
-}
-
-function savePendingGroupMeCallback(callback: PendingGroupMeCallback) {
-  try {
-    window.sessionStorage.setItem(GROUPME_PENDING_CALLBACK_KEY, JSON.stringify(callback));
-  } catch {
-    // If storage is blocked, the immediate callback attempt above still runs.
-  }
-}
-
-function readPendingGroupMeCallback(): PendingGroupMeCallback | null {
-  try {
-    const raw = window.sessionStorage.getItem(GROUPME_PENDING_CALLBACK_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<PendingGroupMeCallback>;
-    const accessToken = typeof parsed.accessToken === "string" ? parsed.accessToken.trim() : "";
-    const state = typeof parsed.state === "string" ? parsed.state : null;
-    const createdAt = typeof parsed.createdAt === "number" ? parsed.createdAt : 0;
-    if (!accessToken || !createdAt || Date.now() - createdAt > GROUPME_PENDING_CALLBACK_MAX_AGE_MS) {
-      clearPendingGroupMeCallback();
-      return null;
-    }
-    return { accessToken, state, createdAt };
-  } catch {
-    clearPendingGroupMeCallback();
-    return null;
-  }
-}
-
-function clearPendingGroupMeCallback() {
-  try {
-    window.sessionStorage.removeItem(GROUPME_PENDING_CALLBACK_KEY);
-  } catch {
-    // Storage cleanup is best effort.
-  }
 }
 

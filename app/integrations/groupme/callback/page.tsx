@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { savePendingGroupMeCallback } from "@/lib/integrations/groupme/pending-callback";
 
 const fallbackError = "GroupMe returned without a saved connection. Start from Connect GroupMe and finish the sign-in in the same browser.";
 
@@ -33,7 +34,12 @@ export default function GroupMeCallbackPage() {
           window.location.replace(body.redirectTo);
           return;
         }
-        const reason = response.status === 401 ? "Sign back in to Lead Emergence, then reconnect GroupMe." : body.error ?? fallbackError;
+        if (response.status === 401) {
+          savePendingGroupMeCallback({ accessToken, state, createdAt: Date.now() });
+          window.location.replace(`/login?next=${encodeURIComponent("/people")}`);
+          return;
+        }
+        const reason = body.error ?? fallbackError;
         window.location.replace(`/people?groupme=error&groupme_reason=${encodeURIComponent(reason)}`);
       })
       .catch(() => {
