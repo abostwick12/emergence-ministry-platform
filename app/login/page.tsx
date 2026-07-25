@@ -11,6 +11,21 @@ type LoginResponse = {
   error?: string;
 };
 
+type PendingGroupMeCallback = {
+  accessToken: string;
+  state: string | null;
+  createdAt: number;
+};
+
+type GroupMeCallbackResult = {
+  redirectTo?: string;
+  error?: string;
+  status: number;
+};
+
+const GROUPME_PENDING_CALLBACK_KEY = "lead-emergence.pending-groupme-callback.v1";
+const GROUPME_PENDING_CALLBACK_MAX_AGE_MS = 10 * 60 * 1000;
+
 export default function LoginPage() {
   const [error, setError] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
@@ -25,29 +40,49 @@ export default function LoginPage() {
     if (!accessToken) return;
 
     setStatusMessage("Finishing GroupMe connection...");
+    savePendingGroupMeCallback({ accessToken, state, createdAt: Date.now() });
     window.history.replaceState(null, "", "/login");
 
-    void fetch("/api/integrations/groupme/callback/complete", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "same-origin",
-      cache: "no-store",
-      body: JSON.stringify({ accessToken, state })
-    })
-      .then(async (response) => {
-        const body = (await response.json().catch(() => ({}))) as { redirectTo?: string; error?: string };
-        if (body.redirectTo) {
-          window.location.replace(body.redirectTo);
-          return;
-        }
-        setStatusMessage("");
-        setError(response.status === 401 ? "Sign in to Lead Emergence, then connect GroupMe again." : body.error ?? "GroupMe returned without a saved connection. Try Connect GroupMe again.");
-      })
-      .catch(() => {
-        setStatusMessage("");
-        setError("GroupMe returned, but Lead Emergence could not finish the connection. Try Connect GroupMe again.");
-      });
+    void completeGroupMeCallback({ accessToken, state }).then((result) => {
+      if (result.redirectTo) {
+        clearPendingGroupMeCallback();
+        window.location.replace(result.redirectTo);
+        return;
+      }
+      setStatusMessage("");
+      if (result.status === 401) {
+        setError("Sign in to Lead Emergence to finish connecting GroupMe.");
+        return;
+      }
+      clearPendingGroupMeCallback();
+      setError(result.error ?? "GroupMe returned without a saved connection. Try Connect GroupMe again.");
+    }).catch(() => {
+      setStatusMessage("");
+      setError("Sign in to Lead Emergence to finish connecting GroupMe.");
+    });
   }, []);
+
+  async function finishPendingGroupMeConnection() {
+    const pending = readPendingGroupMeCallback();
+    if (!pending) return null;
+
+    setStatusMessage("Finishing GroupMe connection...");
+    try {
+      const result = await completeGroupMeCallback(pending);
+      if (result.redirectTo) {
+        clearPendingGroupMeCallback();
+        return result.redirectTo;
+      }
+      if (result.status !== 401) clearPendingGroupMeCallback();
+      setStatusMessage("");
+      setError(result.error ?? "Lead Emergence signed in, but GroupMe could not finish connecting. Try Connect GroupMe again.");
+      return null;
+    } catch {
+      setStatusMessage("");
+      setError("Lead Emergence signed in, but GroupMe could not finish connecting. Try Connect GroupMe again.");
+      return null;
+    }
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -73,6 +108,11 @@ export default function LoginPage() {
     }
 
     const nextPath = getSafeNextPath(new URLSearchParams(window.location.search).get("next"), body?.user?.role);
+    const groupMeRedirect = await finishPendingGroupMeConnection();
+    if (groupMeRedirect) {
+      window.location.assign(groupMeRedirect);
+      return;
+    }
     window.location.assign(nextPath);
   }
 
@@ -141,5 +181,52 @@ export default function LoginPage() {
 function getSafeNextPath(value: string | null, role?: string) {
   if (!value || !value.startsWith("/") || value.startsWith("//")) return role?.trim().toLowerCase() === "student" ? "/student" : "/dashboard";
   return value;
+}
+
+async function completeGroupMeCallback(input: { accessToken: string; state: string | null }): Promise<GroupMeCallbackResult> {
+  const response = await fetch("/api/integrations/groupme/callback/complete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
+    cache: "no-store",
+    body: JSON.stringify({ accessToken: input.accessToken, state: input.state })
+  });
+  const body = (await response.json().catch(() => ({}))) as { redirectTo?: string; error?: string };
+  return { ...body, status: response.status };
+}
+
+function savePendingGroupMeCallback(callback: PendingGroupMeCallback) {
+  try {
+    window.sessionStorage.setItem(GROUPME_PENDING_CALLBACK_KEY, JSON.stringify(callback));
+  } catch {
+    // If storage is blocked, the immediate callback attempt above still runs.
+  }
+}
+
+function readPendingGroupMeCallback(): PendingGroupMeCallback | null {
+  try {
+    const raw = window.sessionStorage.getItem(GROUPME_PENDING_CALLBACK_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<PendingGroupMeCallback>;
+    const accessToken = typeof parsed.accessToken === "string" ? parsed.accessToken.trim() : "";
+    const state = typeof parsed.state === "string" ? parsed.state : null;
+    const createdAt = typeof parsed.createdAt === "number" ? parsed.createdAt : 0;
+    if (!accessToken || !createdAt || Date.now() - createdAt > GROUPME_PENDING_CALLBACK_MAX_AGE_MS) {
+      clearPendingGroupMeCallback();
+      return null;
+    }
+    return { accessToken, state, createdAt };
+  } catch {
+    clearPendingGroupMeCallback();
+    return null;
+  }
+}
+
+function clearPendingGroupMeCallback() {
+  try {
+    window.sessionStorage.removeItem(GROUPME_PENDING_CALLBACK_KEY);
+  } catch {
+    // Storage cleanup is best effort.
+  }
 }
 
