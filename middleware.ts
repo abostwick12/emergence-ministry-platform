@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAccessTokenUnexpired } from "./lib/auth/access-token";
-import { authCookieNames, isMockAuthEnabled } from "./lib/auth/config";
-import { clearAuthCookies, clearGuestCookie, clearNonAccountCookies } from "./lib/auth/cookies";
+import { authCookieNames, isMockAuthEnabled, isSupabaseConfigured } from "./lib/auth/config";
+import { clearAuthCookies, clearGuestCookie, clearNonAccountCookies, setAuthCookies } from "./lib/auth/cookies";
 
 const publicPaths = [
   "/",
@@ -26,7 +26,7 @@ function hasGuestSessionCookie(request: NextRequest) {
   return Boolean(request.cookies.get(authCookieNames.guestSession)?.value);
 }
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-lead-emergence-pathname", pathname);
@@ -50,7 +50,12 @@ export function middleware(request: NextRequest) {
 
   if (hasRealAccountCookies) {
     if (!accessToken || !isAccessTokenUnexpired(accessToken)) {
-      return unauthenticatedResponse(request, pathname, true);
+      const refreshed = await refreshAccountCookies(request);
+      if (!refreshed) return unauthenticatedResponse(request, pathname, true);
+
+      const response = NextResponse.next({ request: { headers: requestHeaders } });
+      setAuthCookies(response, refreshed);
+      return response;
     }
 
     const response = NextResponse.next({ request: { headers: requestHeaders } });
@@ -82,6 +87,31 @@ export function middleware(request: NextRequest) {
   }
 
   return NextResponse.next({ request: { headers: requestHeaders } });
+}
+
+async function refreshAccountCookies(request: NextRequest) {
+  const refreshToken = request.cookies.get(authCookieNames.refreshToken)?.value?.trim();
+  if (!refreshToken || !isSupabaseConfigured()) return null;
+
+  try {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+      method: "POST",
+      headers: {
+        apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ refresh_token: refreshToken })
+    });
+    if (!response.ok) return null;
+
+    const body = (await response.json()) as { access_token?: unknown; refresh_token?: unknown };
+    const accessToken = typeof body.access_token === "string" ? body.access_token.trim() : "";
+    const nextRefreshToken = typeof body.refresh_token === "string" ? body.refresh_token.trim() : refreshToken;
+    if (!accessToken) return null;
+    return { accessToken, refreshToken: nextRefreshToken };
+  } catch {
+    return null;
+  }
 }
 
 function unauthenticatedResponse(request: NextRequest, pathname: string, clearCookies = false) {

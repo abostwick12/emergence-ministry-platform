@@ -84,6 +84,34 @@ describe("student route access", () => {
     expectClearedAuthCookies(response);
   });
 
+  it("refreshes an expired account token when Supabase accepts the refresh cookie", async () => {
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://supabase.example.test";
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon-key";
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json({
+      access_token: jwt({ exp: Math.floor(Date.now() / 1000) + 3_600 }),
+      refresh_token: "new-refresh-token"
+    }));
+
+    const response = await middleware(cookieRequest("/people", {
+      [authCookieNames.accessToken]: jwt({ exp: Math.floor(Date.now() / 1000) - 60 }),
+      [authCookieNames.refreshToken]: "old-refresh-token",
+      [authCookieNames.guestSession]: "stale-guest"
+    }));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-middleware-next")).toBe("1");
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "https://supabase.example.test/auth/v1/token?grant_type=refresh_token",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ refresh_token: "old-refresh-token" })
+      })
+    );
+    expect(response.cookies.get(authCookieNames.accessToken)?.value).toBeTruthy();
+    expect(response.cookies.get(authCookieNames.refreshToken)?.value).toBe("new-refresh-token");
+    expect(response.cookies.get(authCookieNames.guestSession)?.value).toBe("");
+  });
+
   it("returns 401 for an expired account session on a protected API", async () => {
     const response = await middleware(cookieRequest("/api/events", {
       [authCookieNames.accessToken]: jwt({ exp: Math.floor(Date.now() / 1000) - 60 }),
