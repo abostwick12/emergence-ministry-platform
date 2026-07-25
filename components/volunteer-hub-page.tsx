@@ -55,7 +55,7 @@ const tabs: Array<{ id: VolunteerTab; label: string }> = [
   { id: "profile", label: "Profile" }
 ];
 
-const defaultServiceTimes = ["Sunday - 9:00 AM", "Sunday - 10:30 AM", "Wednesday - 6:30 PM"];
+const defaultServiceTimes = ["Sunday - 9:00 AM", "Sunday - 10:30 AM", "Middle School Sunday Night", "High School Sunday Night", "Wednesday - 6:30 PM"];
 const standardSmallGroupTemplates = [
   { name: "6th Grade", room: "Room 101", minGrade: 6, maxGrade: 6 },
   { name: "7-8th Grade Girls", room: "Room 201", minGrade: 7, maxGrade: 8, gender: "female" },
@@ -243,6 +243,10 @@ function MobileVolunteerPriorities({
   const openTasks = payload.tasks.filter((task) => !task.completed).length;
   const followUps = payload.students.filter((student) => student.followUpNeeded).length;
   const unreadMessages = payload.notifications.filter((item) => item.unread && item.href.includes("chat")).length;
+  const assignedGroups = groupsAssignedToVolunteer(payload.activeGroups, payload.activeVolunteer);
+  const activeStudentCount = assignedGroups.length > 1
+    ? new Set(assignedGroups.flatMap((group) => group.memberStudentIds)).size
+    : payload.students.length;
   const priorityTabs: Array<{ id: VolunteerTab; label: string; title: string; detail: string; icon: ReactNode }> = [
     {
       id: "dashboard",
@@ -254,8 +258,8 @@ function MobileVolunteerPriorities({
     {
       id: "group",
       label: "My Small Group",
-      title: payload.activeGroup.name,
-      detail: `${payload.students.length} assigned`,
+      title: assignedGroups.length > 1 ? `${assignedGroups.length} groups` : payload.activeGroup.name,
+      detail: `${activeStudentCount} assigned`,
       icon: <UsersRound aria-hidden="true" />
     },
     {
@@ -402,19 +406,46 @@ function SmallGroupWorkspace({
   const coLeader = payload.volunteers.find((volunteer) => volunteer.id === payload.activeGroup.coLeaderId);
   const actionsEnabled = !payload.readOnlyReason;
   const canManageGroups = canManageSmallGroups(payload);
+  const assignedGroups = groupsAssignedToVolunteer(payload.activeGroups, payload.activeVolunteer);
+  const workspaceGroups = assignedGroups.length ? assignedGroups : [payload.activeGroup];
+  const workspaceStudentIds = new Set(workspaceGroups.flatMap((group) => group.memberStudentIds));
+  const workspaceStudents = workspaceGroups.length > 1
+    ? payload.studentRoster.filter((student) => workspaceStudentIds.has(student.id)).sort(compareVolunteerStudents)
+    : payload.students;
   return (
     <div className="volunteer-hub-grid">
       <article className="volunteer-hub-panel volunteer-hub-span-3">
-        <SectionTitle icon={<UsersRound aria-hidden="true" />} eyebrow="Permanent Small Group Workspace" title={payload.activeGroup.name} />
-        <div className="volunteer-group-summary">
-          <span><strong>Leader</strong>{leader?.name ?? "Unassigned"}</span>
-          <span><strong>Co-Leader</strong>{coLeader?.name ?? "Open slot"}</span>
-          <span><strong>Students</strong>{payload.students.length}</span>
-          <span><strong>GroupMe</strong>{payload.activeGroup.groupMeConnected ? payload.activeGroup.groupMeGroupName ?? "Connected" : "Not linked"}</span>
-        </div>
+        <SectionTitle icon={<UsersRound aria-hidden="true" />} eyebrow="Permanent Small Group Workspace" title={workspaceGroups.length > 1 ? "My Small Groups" : payload.activeGroup.name} />
+        {workspaceGroups.length > 1 ? (
+          <div className="volunteer-assigned-group-list">
+            {workspaceGroups.map((group) => {
+              const assignedLeader = payload.volunteers.find((volunteer) => volunteer.id === group.leaderId);
+              const assignedCoLeader = payload.volunteers.find((volunteer) => volunteer.id === group.coLeaderId);
+              return (
+                <article className="volunteer-assigned-group-card" key={group.id}>
+                  <div>
+                    <strong>{group.name}</strong>
+                    <span>{group.serviceTime}</span>
+                  </div>
+                  <span><strong>Leader</strong>{assignedLeader?.name ?? "Unassigned"}</span>
+                  <span><strong>Co-Leader</strong>{assignedCoLeader?.name ?? "Open slot"}</span>
+                  <span><strong>Students</strong>{group.memberStudentIds.length}</span>
+                  <span><strong>Room</strong>{group.room || "Room not set"}</span>
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="volunteer-group-summary">
+            <span><strong>Leader</strong>{leader?.name ?? "Unassigned"}</span>
+            <span><strong>Co-Leader</strong>{coLeader?.name ?? "Open slot"}</span>
+            <span><strong>Students</strong>{payload.students.length}</span>
+            <span><strong>GroupMe</strong>{payload.activeGroup.groupMeConnected ? payload.activeGroup.groupMeGroupName ?? "Connected" : "Not linked"}</span>
+          </div>
+        )}
       </article>
       {canManageGroups ? <SmallGroupLeaderPanel payload={payload} onAction={onAction} onLinkGroupMe={onLinkGroupMe} onReload={onReload} onSyncCheckIns={onSyncCheckIns} /> : null}
-      {payload.students.length ? payload.students.map((student) => (
+      {workspaceStudents.length ? workspaceStudents.map((student) => (
         <StudentCard key={student.id} student={student} actionsEnabled={actionsEnabled} onAction={onAction} />
       )) : <EmptyPanel title="No students assigned yet" detail="No students are assigned to this workspace yet. Sync Planning Center or assign students to groups to populate this view." />}
     </div>
@@ -1664,6 +1695,15 @@ function volunteerRoleLabel(role: VolunteerHubVolunteer["role"]) {
 
 function canManageSmallGroups(payload: VolunteerHubPayload) {
   return payload.role === "admin" || payload.role === "leader";
+}
+
+function groupsAssignedToVolunteer(groups: VolunteerHubSmallGroup[], volunteer: VolunteerHubVolunteer) {
+  return groupSmallGroupsByService(groups.filter((group) => isGroupAssignedToVolunteer(group, volunteer)))
+    .flatMap((bucket) => bucket.groups);
+}
+
+function isGroupAssignedToVolunteer(group: VolunteerHubSmallGroup, volunteer: VolunteerHubVolunteer) {
+  return group.leaderId === volunteer.id || group.coLeaderId === volunteer.id;
 }
 
 function missingStandardSmallGroupTemplates(activeGroups: VolunteerHubSmallGroup[], archivedGroups: VolunteerHubSmallGroup[]) {

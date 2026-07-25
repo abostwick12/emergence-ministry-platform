@@ -533,7 +533,7 @@ function buildVolunteerHubPayload(
   const role = roleForSession(session);
   const activeVolunteer = resolveActiveVolunteer(current, session, role);
   const visibleActiveGroups = getVisibleActiveGroups(current, activeVolunteer, role);
-  const activeGroup = visibleActiveGroups[0] ?? liveRosterGroup(activeVolunteer, []);
+  const activeGroup = resolveActiveSmallGroup(visibleActiveGroups, activeVolunteer) ?? liveRosterGroup(activeVolunteer, []);
   const students = sortStudentsByGradeGender(current.students.filter((student) => activeGroup.memberStudentIds.includes(student.id)));
   const followUps = current.followUps.filter((followUp) => students.some((student) => student.id === followUp.studentId));
 
@@ -1652,6 +1652,15 @@ function getVisibleActiveGroups(stateValue: VolunteerHubState, activeVolunteer: 
   const activeGroups = stateValue.smallGroups.filter((group) => !group.archivedAt);
   if (role === "admin" || role === "leader") return activeGroups;
   return activeGroups.filter((group) => group.leaderId === activeVolunteer.id || group.coLeaderId === activeVolunteer.id);
+}
+
+function resolveActiveSmallGroup(groups: VolunteerHubSmallGroup[], activeVolunteer: VolunteerHubVolunteer) {
+  const assignedGroups = groups.filter((group) => isVolunteerAssignedToGroup(group, activeVolunteer));
+  return sortSmallGroupsByGradeGender(assignedGroups)[0] ?? sortSmallGroupsByGradeGender(groups)[0];
+}
+
+function isVolunteerAssignedToGroup(group: VolunteerHubSmallGroup, volunteer: VolunteerHubVolunteer) {
+  return group.leaderId === volunteer.id || group.coLeaderId === volunteer.id;
 }
 
 function sortStudentsByGradeGender(students: VolunteerHubStudent[]) {

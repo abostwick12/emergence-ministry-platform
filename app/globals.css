@@ -20467,6 +20467,55 @@ body:has(.login-shell) h3 {
   padding: 12px;
 }
 
+.volunteer-assigned-group-list {
+  display: grid;
+  gap: 10px;
+}
+
+.volunteer-assigned-group-card {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.2fr) repeat(4, minmax(110px, 0.7fr));
+  gap: 8px;
+  align-items: stretch;
+  border: 1px solid rgba(125, 211, 252, 0.18);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(14, 116, 144, 0.22), rgba(15, 23, 42, 0.8)),
+    rgba(15, 23, 42, 0.62);
+  padding: 10px;
+}
+
+.volunteer-assigned-group-card > div,
+.volunteer-assigned-group-card > span {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.5);
+  padding: 9px 10px;
+}
+
+.volunteer-assigned-group-card strong,
+.volunteer-assigned-group-card span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.volunteer-assigned-group-card > div > strong {
+  color: #ffffff;
+  font-size: var(--text-base);
+}
+
+.volunteer-assigned-group-card > div > span,
+.volunteer-assigned-group-card > span > strong {
+  color: #7dd3fc;
+  font-size: 0.68rem;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .volunteer-avatar {
   display: grid;
   place-items: center;
@@ -21737,6 +21786,7 @@ body:has(.login-shell) h3 {
   .volunteer-hub-grid,
   .volunteer-leader-priority-grid,
   .volunteer-group-card-grid,
+  .volunteer-assigned-group-card,
   .volunteer-group-summary,
   .volunteer-facts,
   .volunteer-roster-filters {

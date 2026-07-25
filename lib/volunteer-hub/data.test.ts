@@ -67,6 +67,16 @@ describe("Volunteer Hub data", () => {
     expect(payload.audit[0]).toMatchObject({ action: "Restored small group", target: "7-8th Grade Boys" });
   });
 
+  it("keeps My Small Group focused on groups assigned to the active leader", async () => {
+    applyVolunteerHubAction(session, { type: "archive_group", groupId: "group_8th_boys", reason: "Testing next assigned group selection." });
+
+    const payload = await getVolunteerHubPayload(session, integrations);
+
+    expect(payload.activeGroup.name).toBe("9-10th Grade Boys");
+    expect(payload.activeGroup.leaderId).toBe("vol_andrew");
+    expect(payload.students.map((student) => student.fullName)).toEqual(["Caleb Morris", "Owen Davis"]);
+  });
+
   it("updates attendance follow-up and task/resource progress", async () => {
     applyVolunteerHubAction(session, { type: "review_attendance", studentId: "stu_micah" });
     applyVolunteerHubAction(session, { type: "complete_task", taskId: "task_followup" });
