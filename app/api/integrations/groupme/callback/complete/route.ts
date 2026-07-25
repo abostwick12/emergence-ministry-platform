@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { requireEmergeOperationsWriteAccess } from "@/lib/app-area-access";
 import { GROUPME_OAUTH_STATE_COOKIE } from "@/lib/integrations/groupme/client";
+import { applyRefreshedAuthCookies, requireGroupMeCallbackWriteAccess } from "@/lib/integrations/groupme/callback-access";
 import { connectGroupMe, redactGroupMeError } from "@/lib/integrations/groupme/repository";
 
 const VOLUNTEER_HUB_PAGE = "/people";
@@ -12,7 +12,7 @@ type CallbackBody = {
 };
 
 export async function POST(request: Request) {
-  const access = await requireEmergeOperationsWriteAccess();
+  const { access, refreshedAuthCookies } = await requireGroupMeCallbackWriteAccess();
   if (!access.allowed) return access.response;
 
   const body = (await request.json().catch(() => ({}))) as CallbackBody;
@@ -32,7 +32,7 @@ export async function POST(request: Request) {
       maxAge: 0,
       path: "/api/integrations/groupme"
     });
-    return response;
+    return applyRefreshedAuthCookies(response, refreshedAuthCookies);
   };
 
   if (!accessToken || !expectedState || (state !== null && state !== expectedState)) return jsonWithStatus("error");

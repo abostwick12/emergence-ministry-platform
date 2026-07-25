@@ -10,6 +10,10 @@ export type EmergeOperationsAccess =
 export async function requireEmergeOperationsAccess(): Promise<EmergeOperationsAccess> {
   const session = await getServerSession();
   if (!session) return { allowed: false, response: unauthorizedResponse() };
+  return resolveEmergeOperationsAccess(session);
+}
+
+export async function resolveEmergeOperationsAccess(session: AuthSession): Promise<EmergeOperationsAccess> {
   if (session.isGuest) {
     return { allowed: true, session, context: resolveCampAccessContext({ ...session, isMock: true }, "andrew") };
   }
@@ -38,6 +42,12 @@ export async function requireEmergeOperationsAccess(): Promise<EmergeOperationsA
 
 export async function requireEmergeOperationsWriteAccess(): Promise<EmergeOperationsAccess> {
   const access = await requireEmergeOperationsAccess();
+  if (!access.allowed) return access;
+  return resolveEmergeOperationsWriteAccess(access.session);
+}
+
+export async function resolveEmergeOperationsWriteAccess(session: AuthSession): Promise<EmergeOperationsAccess> {
+  const access = await resolveEmergeOperationsAccess(session);
   if (!access.allowed) return access;
   if (!access.session.isGuest && !(await canPlatformUserSaveChanges(access.session))) {
     return {

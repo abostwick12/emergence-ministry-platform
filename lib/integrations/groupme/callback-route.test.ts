@@ -4,7 +4,10 @@ const mocks = vi.hoisted(() => ({
   cookieGet: vi.fn(),
   connectGroupMe: vi.fn(),
   redactGroupMeError: vi.fn((error: unknown) => (error instanceof Error ? error.message : "GroupMe action failed.")),
-  requireEmergeOperationsWriteAccess: vi.fn()
+  refreshServerAccountSession: vi.fn(),
+  requireEmergeOperationsWriteAccess: vi.fn(),
+  resolveEmergeOperationsWriteAccess: vi.fn(),
+  setAuthCookies: vi.fn()
 }));
 
 vi.mock("next/headers", () => ({
@@ -12,7 +15,13 @@ vi.mock("next/headers", () => ({
 }));
 
 vi.mock("@/lib/app-area-access", () => ({
-  requireEmergeOperationsWriteAccess: mocks.requireEmergeOperationsWriteAccess
+  requireEmergeOperationsWriteAccess: mocks.requireEmergeOperationsWriteAccess,
+  resolveEmergeOperationsWriteAccess: mocks.resolveEmergeOperationsWriteAccess
+}));
+
+vi.mock("@/lib/auth/server", () => ({
+  refreshServerAccountSession: mocks.refreshServerAccountSession,
+  setAuthCookies: mocks.setAuthCookies
 }));
 
 vi.mock("@/lib/integrations/groupme/client", () => ({
@@ -37,9 +46,13 @@ describe("GroupMe OAuth callback", () => {
     mocks.cookieGet.mockReset();
     mocks.connectGroupMe.mockReset();
     mocks.redactGroupMeError.mockClear();
+    mocks.refreshServerAccountSession.mockReset();
     mocks.requireEmergeOperationsWriteAccess.mockReset();
+    mocks.resolveEmergeOperationsWriteAccess.mockReset();
+    mocks.setAuthCookies.mockReset();
     mocks.cookieGet.mockReturnValue({ value: "csrf-state" });
     mocks.requireEmergeOperationsWriteAccess.mockResolvedValue({ allowed: true, session });
+    mocks.resolveEmergeOperationsWriteAccess.mockResolvedValue({ allowed: true, session });
   });
 
   it("redirects with the populated conversation count after a verified connection", async () => {
@@ -86,6 +99,39 @@ describe("GroupMe OAuth callback", () => {
 
     expect(mocks.connectGroupMe).toHaveBeenCalledWith(session, "token-123");
     expect(body.redirectTo).toBe("/people?groupme=connected&groupme_groups=2");
+  });
+
+  it("refreshes the app session before completing the callback bridge when the access cookie expired", async () => {
+    const refreshedSession = {
+      isMock: false,
+      user: { id: "user-2", email: "refreshed@example.com", fullName: "Refreshed Leader", role: "admin" }
+    };
+    mocks.requireEmergeOperationsWriteAccess.mockResolvedValue({
+      allowed: false,
+      response: Response.json({ error: "Authentication required" }, { status: 401 })
+    });
+    mocks.refreshServerAccountSession.mockResolvedValue({
+      session: refreshedSession,
+      accessToken: "fresh-access-token",
+      refreshToken: "fresh-refresh-token"
+    });
+    mocks.resolveEmergeOperationsWriteAccess.mockResolvedValue({ allowed: true, session: refreshedSession });
+    mocks.connectGroupMe.mockResolvedValue({ groupCount: 1 });
+
+    const response = await completePOST(new Request("https://platform.test/api/integrations/groupme/callback/complete", {
+      method: "POST",
+      body: JSON.stringify({ accessToken: "groupme-token", state: "csrf-state" })
+    }));
+    const body = (await response.json()) as { redirectTo: string };
+
+    expect(mocks.refreshServerAccountSession).toHaveBeenCalled();
+    expect(mocks.resolveEmergeOperationsWriteAccess).toHaveBeenCalledWith(refreshedSession);
+    expect(mocks.connectGroupMe).toHaveBeenCalledWith(refreshedSession, "groupme-token");
+    expect(mocks.setAuthCookies).toHaveBeenCalledWith(expect.any(Object), {
+      accessToken: "fresh-access-token",
+      refreshToken: "fresh-refresh-token"
+    });
+    expect(body.redirectTo).toBe("/people?groupme=connected&groupme_groups=1");
   });
 
   it("rejects callback bridge attempts without the connect cookie", async () => {

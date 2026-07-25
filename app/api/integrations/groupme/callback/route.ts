@@ -1,13 +1,13 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { requireEmergeOperationsWriteAccess } from "@/lib/app-area-access";
 import { GROUPME_OAUTH_STATE_COOKIE } from "@/lib/integrations/groupme/client";
+import { applyRefreshedAuthCookies, requireGroupMeCallbackWriteAccess } from "@/lib/integrations/groupme/callback-access";
 import { connectGroupMe, redactGroupMeError } from "@/lib/integrations/groupme/repository";
 
 const VOLUNTEER_HUB_PAGE = "/people";
 
 export async function GET(request: Request) {
-  const access = await requireEmergeOperationsWriteAccess();
+  const { access, refreshedAuthCookies } = await requireGroupMeCallbackWriteAccess();
   if (!access.allowed) return access.response;
 
   const url = new URL(request.url);
@@ -27,7 +27,7 @@ export async function GET(request: Request) {
       maxAge: 0,
       path: "/api/integrations/groupme"
     });
-    return response;
+    return applyRefreshedAuthCookies(response, refreshedAuthCookies);
   };
 
   // GroupMe's documented implicit callback only guarantees `access_token`.
