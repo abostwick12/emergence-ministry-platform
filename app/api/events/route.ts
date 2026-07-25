@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireEmergeOperationsAccess, requireEmergeOperationsWriteAccess } from "@/lib/app-area-access";
 import { createMinistryEvent, getOverview } from "@/lib/data/ministry-repository";
 import { normalizeEventType } from "@/lib/event-categories";
+import { normalizeSupportNeeds } from "@/lib/event-planning-support";
 
 export async function GET() {
   const access = await requireEmergeOperationsAccess();
@@ -27,6 +28,8 @@ export async function POST(request: Request) {
     volunteersNeeded?: number;
     priority?: string;
     contactOwnerId?: string;
+    supportNeeds?: unknown;
+    supportNotes?: string;
   };
 
   const missing = ["title", "type", "startTime", "endTime"].filter((field) => !body[field as keyof typeof body]);
@@ -47,7 +50,9 @@ export async function POST(request: Request) {
       budgetActual: body.budgetActual,
       volunteersNeeded: body.volunteersNeeded,
       priority: body.priority,
-      contactOwnerId: body.contactOwnerId
+      contactOwnerId: body.contactOwnerId,
+      supportNeeds: normalizeSupportNeeds(body.supportNeeds),
+      supportNotes: body.supportNotes
     });
 
     return NextResponse.json(workspace, { status: 201 });

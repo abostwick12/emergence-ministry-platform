@@ -10,6 +10,13 @@ import { useRole } from "@/components/role-context";
 import { eventTypeLabels, defaultTemplateTasks } from "@/lib/templates";
 import { eventTypes } from "@/lib/event-categories";
 import {
+  eventSupportNeedLabels,
+  eventSupportNeeds,
+  needsPlanningCenterSpaceOwnerDraft,
+  planningCenterSpaceOwnerLabel,
+  type EventSupportNeed
+} from "@/lib/event-planning-support";
+import {
   loadCustomVolunteerLeaders,
   loadDeletedVolunteerLeaderIds,
   loadEventLeaderAssignments,
@@ -107,6 +114,8 @@ interface Step1State {
   budgetActual: string;
   volunteersNeeded: string;
   notes: string;
+  supportNeeds: EventSupportNeed[];
+  supportNotes: string;
   generateTasks: boolean;
   generateComms: boolean;
   createProPresenter: boolean;
@@ -139,6 +148,8 @@ function buildInitialStep1(event?: MinistryEvent, firstUserId?: string): Step1St
       budgetActual: event.budgetActual?.toString() ?? "",
       volunteersNeeded: event.volunteersNeeded?.toString() ?? "",
       notes: event.notes ?? "",
+      supportNeeds: [],
+      supportNotes: "",
       generateTasks: false,
       generateComms: false,
       createProPresenter: false
@@ -160,6 +171,8 @@ function buildInitialStep1(event?: MinistryEvent, firstUserId?: string): Step1St
     budgetActual: "",
     volunteersNeeded: "",
     notes: "",
+    supportNeeds: [],
+    supportNotes: "",
     generateTasks: true,
     generateComms: false,
     createProPresenter: false
@@ -436,7 +449,9 @@ function MasterEventCardInner({
           budgetActual: currentStep1.budgetActual ? Number(currentStep1.budgetActual) : undefined,
           volunteersNeeded: currentStep1.volunteersNeeded ? Number(currentStep1.volunteersNeeded) : undefined,
           priority: currentStep1.priority,
-          contactOwnerId: currentStep1.contactOwnerId || undefined
+          contactOwnerId: currentStep1.contactOwnerId || undefined,
+          supportNeeds: currentStep1.supportNeeds,
+          supportNotes: currentStep1.supportNotes || undefined
         })
       });
 
@@ -654,6 +669,7 @@ function MasterEventCardInner({
               volunteerLeaders={volunteerLeaders}
               assignedLeaderIds={eventLeaderAssignments[workspace?.event.id ?? eventId ?? ""] ?? []}
               mode={mode}
+              plannerRole={activeRole}
               readOnly={!canSaveChanges}
               onChange={updateStep1}
               onStartChange={handleStartChange}
@@ -733,6 +749,7 @@ function Step1Form({
   volunteerLeaders,
   assignedLeaderIds,
   mode,
+  plannerRole,
   readOnly,
   onChange,
   onStartChange,
@@ -744,12 +761,27 @@ function Step1Form({
   volunteerLeaders: VolunteerLeader[];
   assignedLeaderIds: string[];
   mode: "create" | "edit";
+  plannerRole: string;
   readOnly: boolean;
   onChange: <K extends keyof Step1State>(key: K, value: Step1State[K]) => void;
   onStartChange: (value: string) => void;
   onEndChange: (value: string) => void;
   onToggleLeader: (leaderId: string) => void;
 }) {
+  const selectedOwner = users.find((user) => user.id === state.contactOwnerId) ?? users[0];
+  const showSpaceOwnerDraft = needsPlanningCenterSpaceOwnerDraft(
+    { location: state.location, contactOwnerId: selectedOwner?.id },
+    users,
+    plannerRole
+  );
+
+  function toggleSupportNeed(need: EventSupportNeed, checked: boolean) {
+    const next = checked
+      ? [...state.supportNeeds, need]
+      : state.supportNeeds.filter((item) => item !== need);
+    onChange("supportNeeds", Array.from(new Set(next)));
+  }
+
   return (
     <div className="event-card-form">
       <div className="form-grid-2">
@@ -892,6 +924,42 @@ function Step1Form({
           </select>
         </div>
       </div>
+
+      {mode === "create" && showSpaceOwnerDraft ? (
+        <div className="event-card-space-check">
+          <strong>Planning Center space check</strong>
+          <p className="muted">
+            Because this event is outside the youth room and the planner is not a director, EMMA will draft an availability email to {planningCenterSpaceOwnerLabel(state.location)}. Nothing sends automatically.
+          </p>
+        </div>
+      ) : null}
+
+      {mode === "create" ? (
+        <fieldset className="event-card-toggles">
+          <legend>EMMA support questions</legend>
+          {eventSupportNeeds.map((need) => (
+            <label className="toggle-row" key={need}>
+              <input
+                type="checkbox"
+                checked={state.supportNeeds.includes(need)}
+                onChange={(e) => toggleSupportNeed(need, e.target.checked)}
+              />
+              <span>{eventSupportNeedLabels[need]}</span>
+            </label>
+          ))}
+          <div className="field">
+            <label htmlFor="ec-support-notes">Support details</label>
+            <textarea
+              className="input"
+              id="ec-support-notes"
+              rows={2}
+              placeholder="Mics, slides, tables, chairs, food volume, or other setup notes."
+              value={state.supportNotes}
+              onChange={(e) => onChange("supportNotes", e.target.value)}
+            />
+          </div>
+        </fieldset>
+      ) : null}
 
       <details className="event-card-optional-details" open={mode === "edit"}>
         <summary>
@@ -1273,6 +1341,7 @@ function TaskEditRow({
 function communicationTypeLabel(type: string) {
   if (type === "parent_email") return "Parent Email";
   if (type === "leader_brief") return "Leader Announcement";
+  if (type === "space_owner_email") return "Planning Center Space Owner";
   return "Blast Text Summary";
 }
 

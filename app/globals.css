@@ -15430,6 +15430,26 @@ html:has(.app-shell-camp) body {
   padding: 16px;
 }
 
+.event-card-space-check {
+  border: 1px solid rgba(125, 211, 252, 0.20);
+  border-radius: 12px;
+  background: rgba(14, 165, 233, 0.10);
+  color: #dbeafe;
+  padding: 14px 16px;
+}
+
+.event-card-space-check strong {
+  display: block;
+  color: #f8fafc;
+  font-size: 14px;
+  font-weight: 900;
+  margin-bottom: 4px;
+}
+
+.event-card-space-check p {
+  margin: 0;
+}
+
 .toggle-row {
   align-items: flex-start;
   color: #dbeafe;
