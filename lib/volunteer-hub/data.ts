@@ -719,8 +719,7 @@ async function loadPersistedVolunteerHubState(session: AuthSession, ministryId?:
   if (isMissingVolunteerHubTableError(leaders.error)) return emptyPersistedState(false);
   if (leaders.error) return emptyPersistedState(false);
 
-  const seed = await ensureDefaultVolunteerHubItems(session, ministryId);
-  if (!seed) return emptyPersistedState(false);
+  await ensureDefaultVolunteerHubItems(session, ministryId);
 
   const [groups, members, items, progress, followUps, reviews, chats, audit] = await Promise.all([
     supabase

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties, type FormEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
 import {
@@ -19,6 +19,7 @@ import {
   Search,
   Send,
   ShieldCheck,
+  UserPlus,
   UserRound,
   UsersRound
 } from "lucide-react";
@@ -39,6 +40,7 @@ type VolunteerTab = "dashboard" | "group" | "students" | "attendance" | "chat" |
 type GroupMeChoice = { id: string; name: string; description?: string; memberCount: number };
 type LiveGroupMeMessage = { id: string; senderName: string; text: string; avatarUrl?: string; createdAt: string };
 type ServiceGroupBucket = { serviceTime: string; groups: VolunteerHubSmallGroup[]; studentCount: number };
+type SmallGroupDraftTemplate = VolunteerHubSmallGroup & { accent: string; draftLabel: string };
 
 const tabs: Array<{ id: VolunteerTab; label: string }> = [
   { id: "dashboard", label: "Dashboard" },
@@ -184,20 +186,25 @@ export function VolunteerHubPage({ mode = "volunteer" }: { mode?: VolunteerHubMo
 
   return (
     <section className={isLeaderMode ? "volunteer-hub volunteer-hub-leader" : "volunteer-hub"} aria-label={isLeaderMode ? "Leader volunteer dashboard" : "Volunteer Hub"}>
-      <PageIntro
-        eyebrow={isLeaderMode ? "Leader Hub" : "Volunteer Hub"}
-        title={isLeaderMode ? "Volunteer Dashboard" : `Good Morning ${firstName(payload.activeVolunteer.name)}`}
-        description={isLeaderMode
-          ? "Monitor readiness, follow-up health, training, resources, and small group consolidation from one place."
-          : "Prepare for serving, care for assigned students, and keep every action connected to relationship-first ministry."}
-        actions={<HubStatus integrations={payload.integrations} />}
-      />
+      {isLeaderMode ? (
+        <div className="volunteer-hub-leader-status" aria-label="Volunteer dashboard status">
+          <p>Monitor readiness, follow-up health, training, resources, and small group consolidation from one place.</p>
+          <HubStatus integrations={payload.integrations} />
+        </div>
+      ) : (
+        <PageIntro
+          eyebrow="Volunteer Hub"
+          title={`Good Morning ${firstName(payload.activeVolunteer.name)}`}
+          description="Prepare for serving, care for assigned students, and keep every action connected to relationship-first ministry."
+          actions={<HubStatus integrations={payload.integrations} />}
+        />
+      )}
       {payload.readOnlyReason ? <p className="volunteer-hub-notice" role="status">{payload.readOnlyReason}</p> : null}
       {notice ? <p className="volunteer-hub-notice" role="status">{notice}</p> : null}
       {error ? <p className="volunteer-hub-error" role="alert">{error}</p> : null}
 
       {isLeaderMode ? (
-        <LeaderVolunteerDashboard payload={payload} onAction={act} onLinkGroupMe={linkGroupMeConversation} onReload={load} />
+        <LeaderVolunteerDashboard payload={payload} onAction={act} onLinkGroupMe={linkGroupMeConversation} onReload={load} onSyncCheckIns={syncPlanningCenterCheckIns} />
       ) : (
         <>
           <MobileVolunteerPriorities payload={payload} activeTab={activeTab} onTabChange={setActiveTab} />
@@ -315,7 +322,7 @@ function VolunteerTabContent({
   onSyncCheckIns: () => Promise<void>;
   syncingCheckIns: boolean;
 }) {
-  if (activeTab === "group") return <SmallGroupWorkspace payload={payload} onAction={onAction} onLinkGroupMe={onLinkGroupMe} onReload={onReload} />;
+  if (activeTab === "group") return <SmallGroupWorkspace payload={payload} onAction={onAction} onLinkGroupMe={onLinkGroupMe} onReload={onReload} onSyncCheckIns={onSyncCheckIns} />;
   if (activeTab === "students") return <StudentsWorkspace payload={payload} onAction={onAction} />;
   if (activeTab === "attendance") return <AttendanceWorkspace payload={payload} onAction={onAction} onSync={onSyncCheckIns} syncing={syncingCheckIns} />;
   if (activeTab === "chat") return <ChatWorkspace payload={payload} onAction={onAction} onReload={onReload} />;
@@ -333,7 +340,7 @@ function VolunteerTabContent({
       <TaskPanel tasks={payload.tasks} onAction={onAction} />
       <LatestResources resources={payload.resources} onOpen={() => onTabChange("resources")} />
       <NotificationsPanel payload={payload} onOpen={onTabChange} />
-      {canManageSmallGroups(payload) ? <SmallGroupLeaderPanel payload={payload} onAction={onAction} onLinkGroupMe={onLinkGroupMe} onReload={onReload} /> : null}
+      {canManageSmallGroups(payload) ? <SmallGroupLeaderPanel payload={payload} onAction={onAction} onLinkGroupMe={onLinkGroupMe} onReload={onReload} onSyncCheckIns={onSyncCheckIns} /> : null}
     </div>
   );
 }
@@ -382,12 +389,14 @@ function SmallGroupWorkspace({
   payload,
   onAction,
   onLinkGroupMe,
-  onReload
+  onReload,
+  onSyncCheckIns
 }: {
   payload: VolunteerHubPayload;
   onAction: (action: VolunteerHubAction, success: string) => Promise<void>;
   onLinkGroupMe: (platformGroupId: string, groupMeGroupId: string) => Promise<void>;
   onReload: () => Promise<void>;
+  onSyncCheckIns: () => Promise<void>;
 }) {
   const leader = payload.volunteers.find((volunteer) => volunteer.id === payload.activeGroup.leaderId);
   const coLeader = payload.volunteers.find((volunteer) => volunteer.id === payload.activeGroup.coLeaderId);
@@ -404,7 +413,7 @@ function SmallGroupWorkspace({
           <span><strong>GroupMe</strong>{payload.activeGroup.groupMeConnected ? payload.activeGroup.groupMeGroupName ?? "Connected" : "Not linked"}</span>
         </div>
       </article>
-      {canManageGroups ? <SmallGroupLeaderPanel payload={payload} onAction={onAction} onLinkGroupMe={onLinkGroupMe} onReload={onReload} /> : null}
+      {canManageGroups ? <SmallGroupLeaderPanel payload={payload} onAction={onAction} onLinkGroupMe={onLinkGroupMe} onReload={onReload} onSyncCheckIns={onSyncCheckIns} /> : null}
       {payload.students.length ? payload.students.map((student) => (
         <StudentCard key={student.id} student={student} actionsEnabled={actionsEnabled} onAction={onAction} />
       )) : <EmptyPanel title="No students assigned yet" detail="No students are assigned to this workspace yet. Sync Planning Center or assign students to groups to populate this view." />}
@@ -416,7 +425,7 @@ function StudentCard({ student, actionsEnabled, onAction }: { student: Volunteer
   const [note, setNote] = useState("");
   return (
     <article className="volunteer-hub-panel volunteer-student-card">
-      <div className="volunteer-avatar" aria-hidden="true">{student.profilePhotoUrl ? <Image src={student.profilePhotoUrl} alt="" width={48} height={48} unoptimized /> : initials(student.preferredName)}</div>
+      <PersonAvatar name={student.preferredName} photoUrl={student.profilePhotoUrl} />
       <h3>{student.preferredName}</h3>
       <p>{studentDescriptor(student)}</p>
       <div className="volunteer-student-tags">
@@ -883,12 +892,14 @@ function LeaderVolunteerDashboard({
   payload,
   onAction,
   onLinkGroupMe,
-  onReload
+  onReload,
+  onSyncCheckIns
 }: {
   payload: VolunteerHubPayload;
   onAction: (action: VolunteerHubAction, success: string) => Promise<void>;
   onLinkGroupMe: (platformGroupId: string, groupMeGroupId: string) => Promise<void>;
   onReload: () => Promise<void>;
+  onSyncCheckIns: () => Promise<void>;
 }) {
   const activeGroupStudents = payload.activeGroups.reduce((sum, group) => sum + group.memberStudentIds.length, 0);
   const completedTraining = payload.trainingModules.filter((module) => module.completed).length;
@@ -905,7 +916,7 @@ function LeaderVolunteerDashboard({
       <MetricCard icon={<UsersRound aria-hidden="true" />} label="Active Small Groups" value={String(payload.activeGroups.length)} detail={`${activeGroupStudents} assigned students in active groups.`} />
       <MetricCard icon={<ShieldCheck aria-hidden="true" />} label="Training Completion" value={`${completedTraining}/${payload.trainingModules.length}`} detail="Quarterly leader-readiness modules." />
       <MetricCard icon={<Archive aria-hidden="true" />} label="Archived Groups" value={String(payload.archivedGroups.length)} detail="Reversible archive for consolidated groups." />
-      <SmallGroupLeaderPanel payload={payload} onAction={onAction} onLinkGroupMe={onLinkGroupMe} onReload={onReload} />
+      <SmallGroupLeaderPanel payload={payload} onAction={onAction} onLinkGroupMe={onLinkGroupMe} onReload={onReload} onSyncCheckIns={onSyncCheckIns} />
       <LeaderPoolPanel payload={payload} onAction={onAction} />
       <article className="volunteer-hub-panel volunteer-hub-span-3">
         <SectionTitle icon={<ClipboardCheck aria-hidden="true" />} eyebrow="Audit Activity" title="Accountability log" />
@@ -928,15 +939,17 @@ function SmallGroupLeaderPanel({
   payload,
   onAction,
   onLinkGroupMe,
-  onReload
+  onReload,
+  onSyncCheckIns
 }: {
   payload: VolunteerHubPayload;
   onAction: (action: VolunteerHubAction, success: string) => Promise<void>;
   onLinkGroupMe: (platformGroupId: string, groupMeGroupId: string) => Promise<void>;
   onReload: () => Promise<void>;
+  onSyncCheckIns: () => Promise<void>;
 }) {
   const [managedGroup, setManagedGroup] = useState<VolunteerHubSmallGroup | null>(null);
-  const [draftServiceTime, setDraftServiceTime] = useState("");
+  const [draftGroup, setDraftGroup] = useState<VolunteerHubSmallGroup | null>(null);
   const [restoringGroupId, setRestoringGroupId] = useState("");
   const serviceOptions = useMemo(() => uniqueServiceTimes([
     payload.activeGroup.serviceTime,
@@ -955,6 +968,10 @@ function SmallGroupLeaderPanel({
   const groupMeDisplayStatus = payload.integrations.groupMe.displayStatus;
   const canManageGroups = !payload.readOnlyReason;
   const missingStandardGroups = useMemo(() => missingStandardSmallGroupTemplates(payload.activeGroups, payload.archivedGroups), [payload.activeGroups, payload.archivedGroups]);
+  const standardDrafts = useMemo(
+    () => missingStandardGroups.map((template, index) => standardGroupDraft(template, payload, defaultServiceTime, index)),
+    [defaultServiceTime, missingStandardGroups, payload]
+  );
   const unknownGenderCount = useMemo(() => payload.studentRoster.filter((student) => student.gender !== "female" && student.gender !== "male").length, [payload.studentRoster]);
 
   async function restoreGroup(groupId: string) {
@@ -1048,7 +1065,7 @@ function SmallGroupLeaderPanel({
               {buildingStandardGroups ? "Creating..." : "Create Standard Groups"}
             </button>
           ) : null}
-          {canManageGroups ? <button className="button primary" type="button" onClick={() => setDraftServiceTime(defaultServiceTime)}><Plus aria-hidden="true" />Add Small Group</button> : null}
+          {canManageGroups ? <button className="button primary" type="button" onClick={() => setDraftGroup(newSmallGroupDraft(defaultServiceTime, payload.volunteers[0]?.id ?? ""))}><Plus aria-hidden="true" />Add Small Group</button> : null}
         </div>
       </div>
       {canManageGroups && missingStandardGroups.length ? (
@@ -1056,6 +1073,22 @@ function SmallGroupLeaderPanel({
           Create Standard Groups will add {missingStandardGroups.map((group) => group.name).join(", ")} using the current live student roster and existing leader profiles.
           {unknownGenderCount ? ` ${unknownGenderCount} student${unknownGenderCount === 1 ? "" : "s"} without synced gender will stay available for manual assignment.` : ""}
         </p>
+      ) : null}
+      {canManageGroups && standardDrafts.length ? (
+        <section className="volunteer-standard-groups" aria-label="Standard small group setup">
+          <div className="volunteer-standard-groups-head">
+            <div>
+              <p className="eyebrow">Ready to build</p>
+              <h3 className="volunteer-subtitle">Grade and gender small groups</h3>
+            </div>
+            <span>{standardDrafts.length} to create</span>
+          </div>
+          <div className="volunteer-group-card-grid">
+            {standardDrafts.map((group) => (
+              <StandardGroupSetupCard key={group.id} group={group} volunteers={payload.volunteers} onManage={() => setDraftGroup(group)} />
+            ))}
+          </div>
+        </section>
       ) : null}
       {payload.dataSource === "live" ? (
         <div className="volunteer-groupme-setup">
@@ -1104,7 +1137,7 @@ function SmallGroupLeaderPanel({
               </div>
               {canManageGroups ? (
                 <button className="button compact-button" type="button" onClick={() => {
-                  setDraftServiceTime(bucket.serviceTime);
+                  setDraftGroup(newSmallGroupDraft(bucket.serviceTime, payload.volunteers[0]?.id ?? ""));
                 }}>
                   <Plus aria-hidden="true" />New group
                 </button>
@@ -1116,9 +1149,10 @@ function SmallGroupLeaderPanel({
                   key={group.id}
                   group={group}
                   volunteers={payload.volunteers}
+                  students={payload.studentRoster}
                   persisted={payload.dataSource !== "live" || isUuid(group.id)}
                   onManage={() => setManagedGroup(group)}
-                  onCreatePermanent={() => setDraftServiceTime(defaultServiceTime)}
+                  onCreatePermanent={() => setDraftGroup({ ...group, id: "", serviceTime: defaultServiceTime })}
                 />
               ))}
             </div>
@@ -1150,10 +1184,10 @@ function SmallGroupLeaderPanel({
           }) : <EmptyState title="No archived small groups" detail="Groups you archive for seasonal cleanup or consolidation will appear here." />}
         </div>
       </section>
-      {draftServiceTime ? (
+      {draftGroup ? (
         <ManageGroupDialog
           mode="create"
-          group={newSmallGroupDraft(draftServiceTime, payload.volunteers[0]?.id ?? "")}
+          group={draftGroup}
           volunteers={payload.volunteers}
           students={payload.studentRoster}
           serviceOptions={serviceOptions}
@@ -1163,7 +1197,8 @@ function SmallGroupLeaderPanel({
           onAction={onAction}
           onLinkGroupMe={onLinkGroupMe}
           onReload={onReload}
-          onClose={() => setDraftServiceTime("")}
+          onSyncCheckIns={onSyncCheckIns}
+          onClose={() => setDraftGroup(null)}
         />
       ) : null}
       {managedGroup ? (
@@ -1179,6 +1214,7 @@ function SmallGroupLeaderPanel({
           onAction={onAction}
           onLinkGroupMe={onLinkGroupMe}
           onReload={onReload}
+          onSyncCheckIns={onSyncCheckIns}
           onClose={() => setManagedGroup(null)}
         />
       ) : null}
@@ -1189,32 +1225,48 @@ function SmallGroupLeaderPanel({
 function GroupCard({
   group,
   volunteers,
+  students,
   persisted,
   onManage,
   onCreatePermanent
 }: {
   group: VolunteerHubSmallGroup;
   volunteers: VolunteerHubVolunteer[];
+  students: VolunteerHubStudent[];
   persisted: boolean;
   onManage: () => void;
   onCreatePermanent?: () => void;
 }) {
   const leader = volunteers.find((volunteer) => volunteer.id === group.leaderId);
+  const coLeader = volunteers.find((volunteer) => volunteer.id === group.coLeaderId);
+  const rosterPreview = students.filter((student) => group.memberStudentIds.includes(student.id)).slice(0, 4);
+  const accent = smallGroupAccent(group.name);
+  const accentStyle = { "--volunteer-group-accent": accent } as CSSProperties;
   return (
-    <article className="volunteer-group-card">
+    <article className="volunteer-group-card volunteer-group-team-card" style={accentStyle}>
       {persisted ? <button className="volunteer-group-menu-button" type="button" aria-label={`Open ${group.name} small group menu`} onClick={onManage}>
         <UsersRound aria-hidden="true" />
       </button> : null}
-      <div className="volunteer-group-card-header">
-        <span className="volunteer-group-card-meta">{group.serviceTime}</span>
-        <strong>{group.name}</strong>
-        <small>{group.room || "Room not set"}</small>
+      <div className="volunteer-group-team-card-head">
+        <span className="volunteer-group-team-dot" aria-hidden="true" />
+        <span className="volunteer-group-team-name">{group.name || "New Small Group"}</span>
+        <span className="volunteer-group-team-count">{group.memberStudentIds.length}</span>
       </div>
-      <div className="volunteer-group-card-stats">
-        <span><strong>{group.memberStudentIds.length}</strong>{` ${group.memberStudentIds.length === 1 ? "student" : "students"}`}</span>
-        <span><strong>{leader?.name ?? "Unassigned"}</strong>{" leader"}</span>
+      <div className="volunteer-group-team-card-body">
+        <LeaderProfileLine label="Leader" volunteer={leader} fallback="Add leader" />
+        <LeaderProfileLine label="Co-Leader" volunteer={coLeader} fallback="Add co-leader" />
+        <div className="volunteer-group-room-row">
+          <span>{group.serviceTime || "Service not set"}</span>
+          <span>{group.room || "Room not set"}</span>
+        </div>
       </div>
       <p className="sr-only">{leader?.name ?? "Unassigned"} leads {group.memberStudentIds.length} {group.memberStudentIds.length === 1 ? "student" : "students"}.</p>
+      {rosterPreview.length ? (
+        <div className="volunteer-group-roster-preview" aria-label={`${group.name} roster preview`}>
+          {rosterPreview.map((student) => <PersonAvatar key={student.id} name={student.preferredName} photoUrl={student.profilePhotoUrl} size="sm" />)}
+          {group.memberStudentIds.length > rosterPreview.length ? <span>+{group.memberStudentIds.length - rosterPreview.length}</span> : null}
+        </div>
+      ) : null}
       <div className="volunteer-group-card-footer">
         {group.groupMeConnected ? <StatusBadge tone="success">{group.groupMeGroupName ?? "GroupMe linked"}</StatusBadge> : <StatusBadge tone="warning">GroupMe not linked</StatusBadge>}
       </div>
@@ -1231,6 +1283,33 @@ function GroupCard({
   );
 }
 
+function StandardGroupSetupCard({
+  group,
+  volunteers,
+  onManage
+}: {
+  group: SmallGroupDraftTemplate;
+  volunteers: VolunteerHubVolunteer[];
+  onManage: () => void;
+}) {
+  const leader = volunteers.find((volunteer) => volunteer.id === group.leaderId);
+  const accentStyle = { "--volunteer-group-accent": group.accent } as CSSProperties;
+  return (
+    <button type="button" className="volunteer-group-card volunteer-group-team-card volunteer-standard-group-card" style={accentStyle} onClick={onManage} aria-label={`Open ${group.name} small group setup`}>
+      <div className="volunteer-group-team-card-head">
+        <span className="volunteer-group-team-dot" aria-hidden="true" />
+        <span className="volunteer-group-team-name">{group.name}</span>
+        <span className="volunteer-group-team-count">{group.memberStudentIds.length}</span>
+      </div>
+      <div className="volunteer-group-team-card-body">
+        <LeaderProfileLine label="Leader" volunteer={leader} fallback="Choose leader" />
+        <span className="volunteer-standard-group-detail">{group.draftLabel}</span>
+        <span className="volunteer-group-card-cta">Open group setup</span>
+      </div>
+    </button>
+  );
+}
+
 function ManageGroupDialog({
   mode,
   group,
@@ -1243,6 +1322,7 @@ function ManageGroupDialog({
   onAction,
   onLinkGroupMe,
   onReload,
+  onSyncCheckIns,
   onClose
 }: {
   mode: "create" | "edit";
@@ -1256,6 +1336,7 @@ function ManageGroupDialog({
   onAction: (action: VolunteerHubAction, success: string) => Promise<void>;
   onLinkGroupMe: (platformGroupId: string, groupMeGroupId: string) => Promise<void>;
   onReload: () => Promise<void>;
+  onSyncCheckIns: () => Promise<void>;
   onClose: () => void;
 }) {
   const isCreate = mode === "create";
@@ -1270,10 +1351,47 @@ function ManageGroupDialog({
   const [archiveReason, setArchiveReason] = useState(group.archiveReason ?? "");
   const [dialogError, setDialogError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [selectedStudentId, setSelectedStudentId] = useState("");
+  const [syncingDialogCheckIns, setSyncingDialogCheckIns] = useState(false);
+  const leader = volunteers.find((volunteer) => volunteer.id === leaderId);
+  const coLeader = volunteers.find((volunteer) => volunteer.id === coLeaderId);
+  const assignedStudents = students
+    .filter((student) => memberStudentIds.includes(student.id))
+    .sort(compareVolunteerStudents);
+  const assignableStudents = students
+    .filter((student) => !memberStudentIds.includes(student.id))
+    .sort(compareVolunteerStudents);
+  const checkedInStudents = assignableStudents.filter((student) => student.source === "planning_center" && student.attendanceStatus === "present");
+  const accent = smallGroupAccent(name || group.name);
+  const accentStyle = { "--volunteer-group-accent": accent } as CSSProperties;
   const filteredStudents = students.filter((student) => {
     const query = studentQuery.trim().toLowerCase();
     return !query || `${student.fullName} ${student.grade} ${genderLabel(student.gender)} ${student.school}`.toLowerCase().includes(query);
   });
+
+  function addSelectedStudent() {
+    if (!selectedStudentId) return;
+    setMemberStudentIds((current) => current.includes(selectedStudentId) ? current : [...current, selectedStudentId]);
+    setSelectedStudentId("");
+  }
+
+  function addCheckedInStudents() {
+    if (!checkedInStudents.length) return;
+    setMemberStudentIds((current) => Array.from(new Set([...current, ...checkedInStudents.map((student) => student.id)])));
+  }
+
+  async function syncPlanningCenterIntoDialog() {
+    setSyncingDialogCheckIns(true);
+    setDialogError("");
+    try {
+      await onSyncCheckIns();
+      await onReload();
+    } catch (error) {
+      setDialogError(error instanceof Error ? error.message : "Planning Center check-ins could not be imported.");
+    } finally {
+      setSyncingDialogCheckIns(false);
+    }
+  }
 
   async function saveGroup(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1340,6 +1458,19 @@ function ManageGroupDialog({
           <button className="button compact-button" type="button" onClick={onClose}>Close</button>
         </div>
         <form className="volunteer-manage-group-form" onSubmit={saveGroup}>
+          <section className="volunteer-group-detail-meta" style={accentStyle} aria-label="Small group details">
+            <div className="volunteer-group-detail-head">
+              <span className="volunteer-group-team-dot" aria-hidden="true" />
+              <div>
+                <strong>{name || "New Small Group"}</strong>
+                <p>{memberStudentIds.length} {memberStudentIds.length === 1 ? "student" : "students"} assigned</p>
+              </div>
+            </div>
+            <div className="volunteer-group-detail-leaders">
+              <LeaderProfileLine label="Leader" volunteer={leader} fallback="Choose leader" />
+              <LeaderProfileLine label="Co-Leader" volunteer={coLeader} fallback="Open slot" />
+            </div>
+          </section>
           <div className="volunteer-manage-group-fields">
             <label className="field"><span>Group name</span><input className="input" required value={name} onChange={(event) => setName(event.target.value)} /></label>
             <label className="field"><span>Leader</span><select className="input" value={leaderId} onChange={(event) => setLeaderId(event.target.value)}><option value="">Unassigned</option>{volunteers.map((volunteer) => <option key={volunteer.id} value={volunteer.id}>{volunteer.name} - {volunteerRoleLabel(volunteer.role)}</option>)}</select></label>
@@ -1351,6 +1482,52 @@ function ManageGroupDialog({
             </datalist>
             <label className="field"><span>GroupMe conversation</span><select className="input" disabled={isCreate || groupMeStatus !== "connected" || loadingGroupMe} value={groupMeGroupId} onChange={(event) => setGroupMeGroupId(event.target.value)}><option value="">{isCreate ? "Save group first" : loadingGroupMe ? "Loading conversations..." : "Not linked"}</option>{groupMeGroups.map((choice) => <option key={choice.id} value={choice.id}>{choice.name} ({choice.memberCount})</option>)}</select></label>
           </div>
+          <section className="volunteer-group-assignment-manager" style={accentStyle} aria-label={`${name || group.name || "Small group"} student assignments`}>
+            <div className="volunteer-group-assignment-head">
+              <div>
+                <strong>Student assignments</strong>
+                <p>Assign students from the live roster without changing their Planning Center profile.</p>
+              </div>
+              <span>{assignedStudents.length}</span>
+            </div>
+            <div className="volunteer-group-assignment-controls">
+              <label className="field">
+                <span>Quick add student</span>
+                <select className="input" value={selectedStudentId} disabled={saving || assignableStudents.length === 0} onChange={(event) => setSelectedStudentId(event.target.value)}>
+                  <option value="">{assignableStudents.length ? "Choose a student" : "All visible students are assigned"}</option>
+                  {assignableStudents.map((student) => (
+                    <option key={student.id} value={student.id}>{student.fullName} - {studentDescriptor(student)}</option>
+                  ))}
+                </select>
+              </label>
+              <button className="button primary compact-button" type="button" disabled={saving || !selectedStudentId} onClick={addSelectedStudent}>
+                <UserPlus aria-hidden="true" />Add to group
+              </button>
+              <button className="button compact-button" type="button" disabled={saving || syncingDialogCheckIns} onClick={() => void syncPlanningCenterIntoDialog()}>
+                {syncingDialogCheckIns ? <LoaderCircle className="volunteer-spin" aria-hidden="true" /> : <RefreshCw aria-hidden="true" />}
+                {syncingDialogCheckIns ? "Importing..." : "Import check-ins"}
+              </button>
+              <button className="button compact-button" type="button" disabled={saving || checkedInStudents.length === 0} onClick={addCheckedInStudents}>
+                <CheckCircle2 aria-hidden="true" />Add checked-in
+              </button>
+            </div>
+            {assignedStudents.length ? (
+              <ul className="volunteer-group-assignment-list">
+                {assignedStudents.map((student) => (
+                  <li key={student.id}>
+                    <PersonAvatar name={student.preferredName} photoUrl={student.profilePhotoUrl} size="sm" />
+                    <span>
+                      <strong>{student.fullName}</strong>
+                      <small>{studentDescriptor(student)}</small>
+                    </span>
+                    <button className="button compact-button" type="button" disabled={saving} onClick={() => setMemberStudentIds((current) => current.filter((id) => id !== student.id))}>Remove</button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="volunteer-assignment-empty">No students assigned to this group yet.</p>
+            )}
+          </section>
           <fieldset className="volunteer-member-picker">
             <legend>Students in this group <span>{memberStudentIds.length} selected</span></legend>
             <label className="volunteer-member-search"><Search aria-hidden="true" /><span className="sr-only">Search students</span><input className="input" value={studentQuery} onChange={(event) => setStudentQuery(event.target.value)} placeholder="Search name, grade, or school" /></label>
@@ -1360,7 +1537,7 @@ function ManageGroupDialog({
                 return (
                   <label className={selected ? "selected" : ""} key={student.id}>
                     <input type="checkbox" checked={selected} onChange={() => setMemberStudentIds((current) => selected ? current.filter((id) => id !== student.id) : [...current, student.id])} />
-                    <span className="volunteer-avatar" aria-hidden="true">{initials(student.preferredName)}</span>
+                    <PersonAvatar name={student.preferredName} photoUrl={student.profilePhotoUrl} size="sm" />
                     <span><strong>{student.fullName}</strong><small>{studentDescriptor(student)}</small></span>
                     {selected ? <Check aria-hidden="true" /> : null}
                   </label>
@@ -1428,7 +1605,7 @@ function LeaderPoolPanel({ payload, onAction }: { payload: VolunteerHubPayload; 
       <div className="volunteer-leader-list">
         {payload.volunteers.length ? payload.volunteers.map((volunteer) => (
           <div className="ministry-people-leader-row volunteer-leader-row" key={volunteer.id}>
-            <span className="volunteer-avatar" aria-hidden="true">{initials(volunteer.name)}</span>
+            <PersonAvatar name={volunteer.name} photoUrl={volunteer.profilePhotoUrl} size="sm" />
             <strong>{volunteer.name}</strong>
             <span>{volunteerRoleLabel(volunteer.role)}</span>
             <span>{volunteer.email}</span>
@@ -1448,6 +1625,34 @@ function MetricCard({ icon, label, value, detail }: { icon: ReactNode; label: st
       <span className="volunteer-metric-icon">{icon}</span>
       <div><span>{label}</span><strong>{value}</strong><p>{detail}</p></div>
     </article>
+  );
+}
+
+function PersonAvatar({ name, photoUrl, size = "md" }: { name: string; photoUrl?: string; size?: "sm" | "md" }) {
+  return (
+    <span className={size === "sm" ? "volunteer-avatar sm" : "volunteer-avatar"} aria-hidden="true">
+      {photoUrl ? <Image src={photoUrl} alt="" width={size === "sm" ? 36 : 48} height={size === "sm" ? 36 : 48} unoptimized /> : initials(name)}
+    </span>
+  );
+}
+
+function LeaderProfileLine({
+  label,
+  volunteer,
+  fallback
+}: {
+  label: "Leader" | "Co-Leader";
+  volunteer?: VolunteerHubVolunteer;
+  fallback: string;
+}) {
+  return (
+    <span className={volunteer ? "volunteer-leader-profile-line assigned" : "volunteer-leader-profile-line empty"}>
+      <PersonAvatar name={volunteer?.name ?? fallback} photoUrl={volunteer?.profilePhotoUrl} size="sm" />
+      <span>
+        <small>{label}</small>
+        <strong>{volunteer?.name ?? fallback}</strong>
+      </span>
+    </span>
   );
 }
 
@@ -1520,6 +1725,51 @@ function newSmallGroupDraft(serviceTime: string, leaderId: string): VolunteerHub
     memberStudentIds: [],
     groupMeConnected: false
   };
+}
+
+function standardGroupDraft(template: StandardSmallGroupTemplate, payload: VolunteerHubPayload, serviceTime: string, index: number): SmallGroupDraftTemplate {
+  const memberStudentIds = payload.studentRoster
+    .filter((student) => standardTemplateMatchesStudent(template, student))
+    .sort(compareVolunteerStudents)
+    .map((student) => student.id);
+  return {
+    id: `standard_${normalizeSmallGroupName(template.name).replace(/[^a-z0-9]+/g, "_")}`,
+    name: template.name,
+    leaderId: payload.activeVolunteer.id,
+    room: template.room,
+    serviceTime,
+    memberStudentIds,
+    groupMeConnected: false,
+    accent: smallGroupAccent(template.name, index),
+    draftLabel: memberStudentIds.length
+      ? `${memberStudentIds.length} matched by grade and gender`
+      : "Open setup and assign from roster"
+  };
+}
+
+function smallGroupAccent(name: string, index = 0) {
+  const normalized = normalizeSmallGroupName(name);
+  if (normalized.includes("6th")) return "#2563eb";
+  if (normalized.includes("girls") && normalized.includes("7-8")) return "#dc2626";
+  if (normalized.includes("boys") && normalized.includes("7-8")) return "#b8860b";
+  if (normalized.includes("9-10")) return "#16a34a";
+  if (normalized.includes("11-12")) return "#ea580c";
+  if (normalized.includes("high school girls")) return "#7c3aed";
+  return ["#2563eb", "#dc2626", "#b8860b", "#16a34a", "#ea580c", "#7c3aed"][index % 6] ?? "#22d3ee";
+}
+
+function compareVolunteerStudents(left: VolunteerHubStudent, right: VolunteerHubStudent) {
+  const gradeDiff = gradeNumber(left.grade) - gradeNumber(right.grade);
+  if (gradeDiff !== 0) return gradeDiff;
+  const genderDiff = genderSortValue(left.gender) - genderSortValue(right.gender);
+  if (genderDiff !== 0) return genderDiff;
+  return left.fullName.localeCompare(right.fullName);
+}
+
+function genderSortValue(gender: VolunteerHubStudent["gender"]) {
+  if (gender === "female") return 0;
+  if (gender === "male") return 1;
+  return 2;
 }
 
 function studentSourceLabel(source: NonNullable<VolunteerHubStudent["source"]>) {
