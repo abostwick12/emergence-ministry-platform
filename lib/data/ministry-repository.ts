@@ -3,6 +3,12 @@ import { getMissingInformation } from "@/lib/missing-info";
 import { defaultTemplateTasks } from "@/lib/templates";
 import { normalizeEventType } from "@/lib/event-categories";
 import { applyTaskDerivedEventStatuses, deriveEventStatusFromTaskStatuses } from "@/lib/ministry/event-status";
+import {
+  buildEventSupportNotes,
+  buildPlanningCenterSpaceOwnerDraft,
+  supportTaskTitlesForNeeds,
+  type EventSupportNeed
+} from "@/lib/event-planning-support";
 import type {
   ActiveTask,
   ActivityLog,
@@ -263,11 +269,13 @@ export async function createMinistryEvent(
     volunteersNeeded?: number;
     priority?: string;
     contactOwnerId?: string;
+    supportNeeds?: EventSupportNeed[];
+    supportNotes?: string;
   }
 ) {
-  if (await shouldUseSessionOnlySandbox(session)) return createGuestEvent(sessionSandboxId(session), input);
+  if (await shouldUseSessionOnlySandbox(session)) return createGuestEvent(sessionSandboxId(session), { ...input, plannerRole: session.user.role });
   if (shouldUseMock(session)) {
-    return mockStore.createEvent(input);
+    return mockStore.createEvent({ ...input, plannerRole: session.user.role });
   }
 
   const supabase = getSupabaseAuthClient(session.accessToken);
@@ -295,6 +303,7 @@ export async function createMinistryEvent(
     budget_actual: input.budgetActual ?? 0,
     volunteers_needed: input.volunteersNeeded ?? defaultVolunteers,
     communication_owner: input.contactOwnerId ?? session.user.id,
+    notes: buildEventSupportNotes(input.supportNeeds ?? [], input.supportNotes) || null,
     created_by: session.user.id
   };
 
@@ -316,7 +325,10 @@ export async function createMinistryEvent(
 
   await createActivityLog(session, insertResult.data.id, null, `Created event: ${input.title}`);
   await generateTemplateTasks(session, insertResult.data);
+  await generateSupportTasks(session, insertResult.data, input.supportNeeds ?? []);
   await syncSavedEventToGoogleDemo(session, insertResult.data.id, input.title);
+  const workspace = await stagePlanningCenterSpaceOwnerDraft(session, insertResult.data.id);
+  if (workspace) return workspace;
   return getEventWorkspace(session, insertResult.data.id);
 }
 
@@ -599,6 +611,33 @@ export async function generateMinistryCommunicationPreviews(session: AuthSession
   return previews;
 }
 
+async function stagePlanningCenterSpaceOwnerDraft(session: AuthSession, eventId: string) {
+  const workspace = await getEventWorkspace(session, eventId);
+  if (!workspace) return undefined;
+
+  const draft = buildPlanningCenterSpaceOwnerDraft(workspace.event, (await getOverview(session)).users, session.user.role);
+  if (!draft) return workspace;
+
+  ephemeral.communications.unshift(draft);
+  await createActivityLog(session, eventId, null, `Drafted Planning Center space-owner email for ${workspace.event.title}`);
+  return {
+    ...workspace,
+    communications: [draft, ...workspace.communications],
+    activity: [
+      {
+        id: uid("act"),
+        eventId,
+        actorId: session.user.id,
+        message: `Drafted Planning Center space-owner email for ${workspace.event.title}`,
+        metadata: { sent: false },
+        timestamp: new Date().toISOString(),
+        type: "communication_preview_generated"
+      },
+      ...workspace.activity
+    ]
+  };
+}
+
 export async function runMinistryIntegrationStub(
   session: AuthSession,
   eventId: string,
@@ -672,6 +711,33 @@ async function generateTemplateTasks(session: AuthSession, event: SupabaseEventR
 
   await Promise.all(
     (result.data ?? []).map((task) => createActivityLog(session, event.id, task.id, `Generated task: ${task.title}`))
+  );
+}
+
+async function generateSupportTasks(session: AuthSession, event: SupabaseEventRow, supportNeeds: EventSupportNeed[]) {
+  const titles = supportTaskTitlesForNeeds(supportNeeds);
+  if (!titles.length) return;
+
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const dueDate = event.start_date ? addDays(`${event.start_date}T12:00:00`, -14).slice(0, 10) : null;
+  const rows = titles.map((title) => ({
+    ...ministryScopeColumns(event.ministry_id ?? undefined),
+    event_id: event.id,
+    title,
+    owner: session.user.id,
+    due_date: dueDate,
+    status: "todo",
+    priority: "normal",
+    critical: false,
+    file_status: "No file attached",
+    created_by: session.user.id
+  }));
+
+  const result = await supabase.from("tasks").insert(rows).select("id,title").returns<Array<{ id: string; title: string }>>();
+  throwIfSupabaseError(result.error);
+
+  await Promise.all(
+    (result.data ?? []).map((task) => createActivityLog(session, event.id, task.id, `Generated support task: ${task.title}`))
   );
 }
 

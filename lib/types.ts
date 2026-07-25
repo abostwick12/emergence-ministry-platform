@@ -95,7 +95,7 @@ export interface ActiveTask {
 export interface CommunicationPackage {
   id: string;
   eventId: string;
-  type: "parent_email" | "leader_brief" | "student_announcement";
+  type: "parent_email" | "leader_brief" | "student_announcement" | "space_owner_email";
   payload: {
     subject: string;
     body: string;
