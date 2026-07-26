@@ -64,7 +64,13 @@ export async function resolveProviderSelection(
   const providerId =
     input?.provider ??
     normalizeProviderId(featureConfig?.primaryProvider) ??
-    (mode === "mock" ? "mock" : normalizeProviderId(process.env.EMMA_DEFAULT_PROVIDER) ?? mode);
+    (mode === "mock"
+      ? "mock"
+      : defaultProviderForAvailableConfig(process.env.EMMA_DEFAULT_PROVIDER, {
+          azureConfig: readAzureOpenAIEmmaConfig(),
+          geminiApiKey: process.env.GEMINI_API_KEY,
+          openAiApiKey: process.env.OPENAI_API_KEY
+        }) ?? mode);
 
   if (!canUseCampStubMode() && providerId === "mock") {
     throw emmaErrors.provider("EMMA launch mode requires a real provider configuration.");
@@ -103,6 +109,22 @@ function normalizeProviderMode(
 
 function normalizeProviderId(value: string | null | undefined): EmmaProviderId | undefined {
   if (value === "mock" || value === "gemini" || value === "openai" || value === "azure") return value;
+  return undefined;
+}
+
+function defaultProviderForAvailableConfig(
+  value: string | null | undefined,
+  config: {
+    geminiApiKey: string | undefined;
+    openAiApiKey: string | undefined;
+    azureConfig: ReturnType<typeof readAzureOpenAIEmmaConfig>;
+  }
+): EmmaProviderId | undefined {
+  const providerId = normalizeProviderId(value);
+  if (providerId === "gemini" && config.geminiApiKey?.trim()) return "gemini";
+  if (providerId === "openai" && config.openAiApiKey?.trim()) return "openai";
+  if (providerId === "azure" && config.azureConfig) return "azure";
+  if (providerId === "mock") return "mock";
   return undefined;
 }
 

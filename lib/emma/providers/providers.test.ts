@@ -463,6 +463,16 @@ describe("audited provider execution", () => {
     });
   });
 
+  it("does not let an unconfigured default provider override an available OpenAI provider", async () => {
+    process.env.OPENAI_API_KEY = "configured-openai-key";
+    process.env.EMMA_DEFAULT_PROVIDER = "gemini";
+
+    await expect(resolveProviderSelection(session())).resolves.toMatchObject({
+      providerId: "openai",
+      model: "gpt-4o-mini"
+    });
+  });
+
   it("selects Azure OpenAI when Azure config is available without Gemini", async () => {
     process.env.AZURE_OPENAI_ENDPOINT = "https://example-resource.openai.azure.com";
     process.env.AZURE_OPENAI_API_KEY = "configured-azure-key";

@@ -236,6 +236,49 @@ describe("ministry page server-backed EMMA chat", () => {
     });
   });
 
+  it("keeps OpenAI live when EMMA_DEFAULT_PROVIDER still names an unconfigured Gemini default", async () => {
+    process.env.OPENAI_API_KEY = "test-openai-key";
+    process.env.EMMA_DEFAULT_PROVIDER = "gemini";
+    process.env.EMMA_DEFAULT_MODEL = "gpt-4o-mini";
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          model: "gpt-4o-mini",
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  summary: "OpenAI guidance despite stale Gemini default.",
+                  points: ["Use the current event snapshot before assigning work."],
+                  nextActions: ["Open the event workspace for review."],
+                  confidence: 0.8,
+                  warnings: []
+                })
+              }
+            }
+          ],
+          usage: { total_tokens: 35 }
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const admin = session();
+    const result = await runMinistryPageServerChat({
+      overview: overview(),
+      rawInput: { page: "events", prompt: "What should I open first?", selectedEventId: "evt_1" },
+      session: admin
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.providerMode).toBe("live_provider");
+    expect(result.data.provider).toBe("openai");
+    expect(result.data.response.summary).toBe("OpenAI guidance despite stale Gemini default.");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("falls back from invalid Gemini output to OpenAI when both providers are configured", async () => {
     process.env.EMMA_PROVIDER_MODE = "gemini";
     process.env.GEMINI_API_KEY = "test-gemini-key";
