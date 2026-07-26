@@ -38,15 +38,25 @@ export function MinistryEmmaPanel({
   defaultExpanded = false,
   overview,
   page,
-  staticSignals = []
+  staticSignals = [],
+  title = "EMMA Ministry Assistant",
+  promptTemplates = ministryEmmaUniversalPromptTemplates
 }: {
   defaultExpanded?: boolean;
   overview?: MinistryEmmaOverview;
   page: MinistryEmmaPage;
   staticSignals?: string[];
+  title?: string;
+  promptTemplates?: readonly string[];
 }) {
   const staticSignalKey = staticSignals.join("\n");
   const stableStaticSignals = useMemo(() => (staticSignalKey ? staticSignalKey.split("\n") : []), [staticSignalKey]);
+  const promptTemplateKey = promptTemplates.join("\n");
+  const stablePromptTemplates = useMemo(
+    () => (promptTemplateKey ? promptTemplateKey.split("\n") : [...ministryEmmaUniversalPromptTemplates]),
+    [promptTemplateKey]
+  );
+  const initialPrompt = stablePromptTemplates[0] ?? ministryEmmaUniversalPromptTemplates[0];
   const [providerStatus, setProviderStatus] = useState("Checking provider");
   const [prompt, setPrompt] = useState("");
   const [createProposal, setCreateProposal] = useState(false);
@@ -58,7 +68,7 @@ export function MinistryEmmaPanel({
       answerMinistryEmmaPrompt({
         overview,
         page,
-        prompt: ministryEmmaUniversalPromptTemplates[0],
+        prompt: initialPrompt,
         staticSignals: stableStaticSignals
       }),
       "EMMA is ready."
@@ -92,13 +102,13 @@ export function MinistryEmmaPanel({
         answerMinistryEmmaPrompt({
           overview,
           page,
-          prompt: ministryEmmaUniversalPromptTemplates[0],
+          prompt: initialPrompt,
           staticSignals: stableStaticSignals
         }),
         "EMMA is ready."
       )
     ]);
-  }, [overview, page, stableStaticSignals]);
+  }, [overview, page, initialPrompt, stableStaticSignals]);
 
   useEffect(() => {
     const thread = threadRef.current;
@@ -177,7 +187,7 @@ export function MinistryEmmaPanel({
         </span>
         <div>
           <p className="eyebrow">EMMA</p>
-          <h3 id={`ministry-emma-${page}-title`}>EMMA Ministry Assistant</h3>
+          <h3 id={`ministry-emma-${page}-title`}>{title}</h3>
         </div>
         <div className="ministry-emma-guardrails" aria-label="EMMA guardrails">
           <span className="pill">
@@ -241,7 +251,7 @@ export function MinistryEmmaPanel({
 
         <form className="ministry-emma-controls" onSubmit={(event) => void submit(event)}>
           <div className="ministry-emma-prompts" aria-label="EMMA prompts">
-            {ministryEmmaUniversalPromptTemplates.map((template) => (
+            {stablePromptTemplates.map((template) => (
               <button className="button compact-button" key={template} type="button" onClick={() => setPrompt(template)}>
                 {template}
               </button>

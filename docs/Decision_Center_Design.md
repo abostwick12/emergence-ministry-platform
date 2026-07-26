@@ -33,9 +33,13 @@ Every portal therefore contains two layers:
 
 Decision Centers exist to support leadership decisions, not operational work.
 
+Decision Centers are conversational interfaces first and visual dashboards second.
+
 They summarize verified information, highlight meaningful patterns, provide evidence, and guide leaders toward the operational workspaces where action occurs.
 
 Decision Centers should never become secondary navigation pages or replace operational workflows.
+
+Leaders rarely arrive knowing exactly which metric they need. Decision Centers should begin by helping leaders ask better questions. Meridian, through EMMA, should surface relevant context, evidence, and recommended next steps dynamically. Visualizations, metrics, and reports exist to support that conversation, not replace it.
 
 Their purpose is to answer:
 
@@ -319,6 +323,7 @@ Every portal must answer:
 
 Decision Centers should include:
 
+- EMMA Conversation: the primary surface for asking and refining leadership questions.
 - Direction: emphasis, horizon, owner, last reviewed or generated date.
 - Health Snapshot: four to six meaningful measures.
 - Signals: factual observations only.
@@ -354,6 +359,7 @@ Evidence should include source kind, label, detail, freshness, and confidence. I
 ## Non-Negotiables
 
 - Do not duplicate sidebar navigation inside portal landing pages.
+- Do not lead Decision Centers with dashboards when a conversation should guide discovery.
 - Do not expose leadership analytics to volunteers or students.
 - Do not replace pastoral discernment with AI recommendations.
 - Do not let AI providers query operational data directly.

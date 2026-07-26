@@ -105,6 +105,10 @@
     display: none;
   }
 
+  .app-shell:not(.app-shell-camp) .app-content .ministry-conversation-first .ministry-emma-panel {
+    display: grid;
+  }
+
   .app-shell:not(.app-shell-camp) .mobile-emma-sheet-body .ministry-emma-panel {
     display: grid;
   }
