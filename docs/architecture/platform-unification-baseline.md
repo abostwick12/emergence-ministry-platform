@@ -93,6 +93,17 @@ helpers through established boundaries.
 
 Canonical architecture docs now live in `docs/architecture/`.
 
+Architecture Evolution docs in `docs/` define the long-term platform north
+star and should be read before broad hub, Meridian, retrieval, or Vision
+Platform work:
+
+- `docs/Architecture_Vision.md`
+- `docs/Architecture_Roadmap.md`
+- `docs/Meridian.md`
+- `docs/Vision_Platform.md`
+- `docs/Decision_Center_Design.md`
+- `docs/Obsidian_Knowledge_Model.md`
+
 Module docs should describe implementation details, current gaps, and
 regression risks, then link back to the canonical architecture docs for shared
 rules. Avoid copying long policy blocks into multiple module docs; copied

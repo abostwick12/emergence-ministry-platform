@@ -1,42 +1,77 @@
-import Link from "next/link";
-import { ArrowRight, CalendarDays, CheckSquare, Mail, Music2, WalletCards, type LucideIcon } from "lucide-react";
+import {
+  DecisionMetricGrid,
+  DecisionSignalList,
+  EvidenceStack,
+  JudgedIntegrationFlowList,
+  LeadershipAttentionList
+} from "@/components/decision-center";
+import { EditorialSection, PageIntro, QuietState, StatusBadge } from "@/components/platform-ui";
+import { requireEmergeOperationsAccess } from "@/lib/app-area-access";
+import { buildMinistryDecisionCenterState } from "@/lib/decision-center/ministry";
+import { getOverview } from "@/lib/data/ministry-repository";
 
-import { EditorialSection, PageIntro } from "@/components/platform-ui";
+export default async function MinistryHubPage() {
+  const access = await requireEmergeOperationsAccess();
+  if (!access.allowed) {
+    return (
+      <section className="placeholder-page editorial-placeholder-page" aria-labelledby="ministry-hub-title">
+        <PageIntro
+          eyebrow="Ministry Hub"
+          title="Ministry Decision Center"
+          description="Ministry workspace access could not be verified."
+          actions={<StatusBadge tone="warning">Access needed</StatusBadge>}
+        />
+      </section>
+    );
+  }
 
-const ministryAreas = [
-  { href: "/events", title: "Events", detail: "Plan and update event readiness.", action: "Review events", icon: CalendarDays },
-  { href: "/tasks", title: "Tasks", detail: "See what needs an owner, update, or follow-up.", action: "Work tasks", icon: CheckSquare },
-  { href: "/communications", title: "Communications", detail: "Prepare drafts for review. Nothing sends live.", action: "Review drafts", icon: Mail },
-  { href: "/worship", title: "Worship", detail: "Plan services, rehearsals, and presentation prep.", action: "Plan worship", icon: Music2 },
-  { href: "/budget", title: "Budget", detail: "Track event expenses and budget targets.", action: "Check budget", icon: WalletCards }
-] satisfies Array<{ href: string; title: string; detail: string; action: string; icon: LucideIcon }>;
+  try {
+    const overview = await getOverview(access.session);
+    const center = buildMinistryDecisionCenterState(overview);
 
-export default function MinistryHubPage() {
-  return (
-    <section className="placeholder-page editorial-placeholder-page" aria-labelledby="ministry-hub-title">
-      <PageIntro
-        eyebrow="Ministry Hub"
-        title="Ministry operations"
-        description="Open the workspaces your team uses every week."
-      />
+    return (
+      <section className="ministry-launch-page" aria-labelledby="ministry-hub-title">
+        <PageIntro
+          eyebrow="Ministry Hub"
+          title={center.title}
+          description="A leadership view for direction, signals, evidence, and operational next steps without replacing the existing workspaces."
+          actions={<StatusBadge tone="info">Architecture Evolution - Phase 1-3</StatusBadge>}
+        />
 
-      <EditorialSection eyebrow="Open" title="Choose a workspace">
-        <div className="placeholder-capability-list ministry-launch-list">
-          {ministryAreas.map((area) => (
-            <Link className="placeholder-capability-row" href={area.href} key={area.href}>
-              <span className="ministry-launch-icon" aria-hidden="true">
-                <area.icon />
-              </span>
-              <strong>{area.title}</strong>
-              <p>{area.detail}</p>
-              <span className="ministry-launch-action">
-                {area.action}
-                <ArrowRight aria-hidden="true" />
-              </span>
-            </Link>
-          ))}
-        </div>
-      </EditorialSection>
-    </section>
-  );
+        <EditorialSection eyebrow="Direction" title={center.direction.emphasis} description={`${center.direction.horizon} - owner: ${center.direction.owner}. ${center.direction.reviewedAt}.`}>
+          <DecisionMetricGrid metrics={center.metrics} />
+        </EditorialSection>
+
+        <EditorialSection eyebrow="Signals" title="What the current ministry data is saying" description="Signals are factual observations from existing events, tasks, budgets, activity, and judged Scripture integration boundaries.">
+          <DecisionSignalList signals={center.signals} />
+        </EditorialSection>
+
+        <EditorialSection eyebrow="Attention" title="Areas for leadership attention" description="These are review prompts, not automated decisions. Use the linked operational workspace to act.">
+          <LeadershipAttentionList items={center.attention} />
+        </EditorialSection>
+
+        <EditorialSection eyebrow="Evidence" title="Evidence drawers" description="Each signal keeps the source and boundary visible before anyone treats it as an insight.">
+          <EvidenceStack signals={center.signals} />
+        </EditorialSection>
+
+        <EditorialSection eyebrow="Competition Proof" title="Judged YouVersion and Gloo flow" description="The architecture keeps the scored integration path visible instead of burying it under generic decision-center language.">
+          <JudgedIntegrationFlowList flows={center.judgedIntegrationFlows} />
+        </EditorialSection>
+      </section>
+    );
+  } catch {
+    return (
+      <section className="placeholder-page editorial-placeholder-page" aria-labelledby="ministry-hub-title">
+        <PageIntro
+          eyebrow="Ministry Hub"
+          title="Ministry Decision Center"
+          description="Current ministry signals could not be loaded."
+          actions={<StatusBadge tone="warning">Needs data</StatusBadge>}
+        />
+        <QuietState title="Decision center unavailable">
+          Open Events, Tasks, Communications, or Budget directly while the decision-center snapshot is unavailable.
+        </QuietState>
+      </section>
+    );
+  }
 }
