@@ -9,7 +9,7 @@ import { createMockEmmaProvider } from "./mock-provider";
 import { createOpenAIEmmaProvider, DEFAULT_OPENAI_EMMA_MODEL } from "./openai-provider";
 import type { EmmaProvider, EmmaProviderId } from "./types";
 
-export const DEFAULT_GEMINI_MODEL = "gemini-3.5-flash";
+export const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash-lite";
 export const DEFAULT_MOCK_MODEL = "mock-emma-model";
 export const DEFAULT_AZURE_OPENAI_EMMA_MODEL = process.env.AZURE_OPENAI_DEPLOYMENT?.trim() || "azure-openai-deployment";
 export { DEFAULT_OPENAI_EMMA_MODEL };
@@ -78,7 +78,7 @@ export async function resolveProviderSelection(
 
   return {
     providerId,
-    model,
+    model: normalizeProviderModel(providerId, model),
     timeoutMs: input?.timeoutMs ?? featureConfig?.timeoutMs ?? undefined,
     temperature: input?.temperature ?? featureConfig?.temperature ?? undefined,
     maxOutputTokens: input?.maxOutputTokens ?? featureConfig?.maxOutputTokens ?? undefined
@@ -111,4 +111,15 @@ function defaultModelForProvider(providerId: EmmaProviderId) {
   if (providerId === "openai") return process.env.OPENAI_MODEL?.trim() || DEFAULT_OPENAI_EMMA_MODEL;
   if (providerId === "azure") return process.env.AZURE_OPENAI_DEPLOYMENT?.trim() || DEFAULT_AZURE_OPENAI_EMMA_MODEL;
   return DEFAULT_MOCK_MODEL;
+}
+
+export function normalizeProviderModel(providerId: EmmaProviderId, model: string): string {
+  const trimmed = model.trim();
+  if (providerId !== "gemini") return trimmed;
+
+  const aliases: Record<string, string> = {
+    "gemini-3.5-flash": DEFAULT_GEMINI_MODEL,
+    "models/gemini-3.5-flash": `models/${DEFAULT_GEMINI_MODEL}`
+  };
+  return aliases[trimmed.toLowerCase()] ?? trimmed;
 }

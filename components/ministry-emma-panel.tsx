@@ -165,7 +165,9 @@ export function MinistryEmmaPanel({
       setMessages((current) => [
         ...current,
         toEmmaMessage(
-          payload.response ?? answerMinistryEmmaPrompt({ overview, alignmentProfile, page, prompt: trimmedPrompt, staticSignals: stableStaticSignals }),
+          isMinistryEmmaResponse(payload.response)
+            ? payload.response
+            : answerMinistryEmmaPrompt({ overview, alignmentProfile, page, prompt: trimmedPrompt, staticSignals: stableStaticSignals }),
           buildChatAudit(payload as EmmaChatResult)
         )
       ]);
@@ -300,6 +302,19 @@ function toEmmaMessage(response: MinistryEmmaResponse, audit?: string): EmmaMess
     nextActions: response.nextActions,
     audit
   };
+}
+
+function isMinistryEmmaResponse(value: unknown): value is MinistryEmmaResponse {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const response = value as Partial<MinistryEmmaResponse>;
+  return (
+    typeof response.summary === "string" &&
+    response.summary.trim().length > 0 &&
+    Array.isArray(response.points) &&
+    response.points.every((point) => typeof point === "string") &&
+    Array.isArray(response.nextActions) &&
+    response.nextActions.every((action) => typeof action === "string")
+  );
 }
 
 function buildChatAudit(payload: EmmaChatResult): string {
