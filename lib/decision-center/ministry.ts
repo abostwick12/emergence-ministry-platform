@@ -1,12 +1,20 @@
 import type { MinistryOverview } from "@/lib/data/ministry-repository";
 import type { ActiveTask, MinistryEvent, User } from "@/lib/types";
 import type { DecisionCenterState, DecisionEvidence, DecisionSignal, JudgedIntegrationFlow, LeadershipAttentionItem } from "@/lib/decision-center/types";
+import {
+  buildResponsibilityVisibility,
+  defaultMinistryAlignmentProfile,
+  shouldForegroundScripture,
+  shouldForegroundVolunteerSignals,
+  type MinistryAlignmentProfile
+} from "@/lib/ministry/alignment";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export function buildMinistryDecisionCenterState(
   overview: MinistryOverview,
-  now: Date = new Date()
+  now: Date = new Date(),
+  alignmentProfile: MinistryAlignmentProfile = defaultMinistryAlignmentProfile
 ): DecisionCenterState {
   const activeEvents = overview.events.filter((event) => !event.archivedAt);
   const upcomingEvents = activeEvents
@@ -21,22 +29,24 @@ export function buildMinistryDecisionCenterState(
   const budgetActual = activeEvents.reduce((sum, event) => sum + Number(event.budgetActual ?? 0), 0);
   const recentActivity = overview.activity.slice(0, 6);
 
-  const signals = [
+  const signals = foregroundSeasonSignals([
     buildReadinessSignal(readinessGapEvents, upcomingWindow),
     buildTaskSignal(openTasks, blockedTasks, overview.tasks),
     buildOwnerSignal(ownerGapEvents, upcomingWindow, overview.users),
     buildBudgetSignal(budgetActual, budgetTarget, activeEvents),
     buildIntegrationSignal()
-  ].filter((signal): signal is DecisionSignal => Boolean(signal));
+  ].filter((signal): signal is DecisionSignal => Boolean(signal)), alignmentProfile);
 
   return {
     kind: "ministry",
     title: "Ministry Decision Center",
     direction: {
-      emphasis: "Competition MVP stability while Architecture Evolution creates the long-term decision layer.",
+      emphasis: alignmentProfile.currentSeason.title,
       horizon: upcomingWindow.length ? "Next 30 days" : "No active 30-day event window",
-      owner: primaryOwnerLabel(overview.users),
-      reviewedAt: `Generated ${formatDate(now.toISOString())}`
+      owner: alignmentProfile.currentSeason.owner || primaryOwnerLabel(overview.users),
+      reviewedAt: alignmentProfile.currentSeason.reviewDate
+        ? `Review ${formatDate(alignmentProfile.currentSeason.reviewDate)}`
+        : `Generated ${formatDate(now.toISOString())}`
     },
     metrics: [
       {
@@ -68,8 +78,10 @@ export function buildMinistryDecisionCenterState(
         tone: budgetTarget && budgetActual > budgetTarget ? "critical" : "neutral"
       }
     ],
+    alignmentProfile,
     signals,
     attention: buildAttention(signals, recentActivity),
+    responsibility: buildResponsibilityVisibility(overview),
     judgedIntegrationFlows: judgedIntegrationFlows()
   };
 }
@@ -82,6 +94,8 @@ function buildReadinessSignal(eventsWithGaps: MinistryEvent[], upcomingWindow: M
       summary: "The decision center cannot assess readiness until an upcoming event is scheduled.",
       confidence: "High",
       freshness: "Current overview",
+      definition: "Counts upcoming event records in the current ministry overview.",
+      boundary: "Does not infer ministry health, attendance, or spiritual formation from an empty calendar.",
       evidence: [{ id: "events.empty", sourceKind: "event", label: "Events", detail: "No events were found in the next 30 days." }],
       tone: "neutral",
       targetHref: "/events",
@@ -97,6 +111,8 @@ function buildReadinessSignal(eventsWithGaps: MinistryEvent[], upcomingWindow: M
     summary: "Upcoming events are missing details that affect communication, budget, or volunteer preparation.",
     confidence: "High",
     freshness: "Current overview",
+    definition: "Counts upcoming events in the next 30 days that are missing description, location, audience, or communication owner.",
+    boundary: "Shows observable readiness gaps only; it does not score event quality or ministry faithfulness.",
     evidence: eventsWithGaps.slice(0, 4).map((event) => ({
       id: `event.${event.id}.readiness`,
       sourceKind: "event",
@@ -119,6 +135,8 @@ function buildTaskSignal(openTasks: ActiveTask[], blockedTasks: ActiveTask[], al
       summary: "Baseline tasks will give this decision center stronger evidence after event work is created.",
       confidence: "High",
       freshness: "Current overview",
+      definition: "Checks whether any task rows are available to support operational interpretation.",
+      boundary: "Missing task data means task evidence is unavailable, not that the ministry lacks work.",
       evidence: [{ id: "tasks.empty", sourceKind: "task", label: "Tasks", detail: "No task rows are available in the overview." }],
       tone: "neutral",
       targetHref: "/tasks",
@@ -135,6 +153,8 @@ function buildTaskSignal(openTasks: ActiveTask[], blockedTasks: ActiveTask[], al
       : "Open work is visible, but no task is currently marked blocked.",
     confidence: "High",
     freshness: "Current overview",
+    definition: "Counts open tasks and foregrounds blocked tasks when any are present.",
+    boundary: "Does not infer burnout, staffing performance, or priority rank from task count alone.",
     evidence: priorityTasks.map((task) => ({
       id: `task.${task.id}`,
       sourceKind: "task",
@@ -156,6 +176,8 @@ function buildOwnerSignal(ownerGapEvents: MinistryEvent[], upcomingWindow: Minis
     summary: "Communication drafts are strongest when a real owner is attached before the preview step.",
     confidence: users.length ? "High" : "Moderate",
     freshness: "Current overview",
+    definition: "Counts upcoming events in the next 30 days without a communication owner.",
+    boundary: "Indicates an ownership field gap only; it does not evaluate a leader's capacity or performance.",
     evidence: ownerGapEvents.slice(0, 4).map((event) => ({
       id: `event.${event.id}.owner`,
       sourceKind: "event",
@@ -180,6 +202,8 @@ function buildBudgetSignal(budgetActual: number, budgetTarget: number, events: M
       : "Budget data can now support event portfolio decisions, but it should not be treated as the only measure of ministry value.",
     confidence: budgetTarget ? "High" : "Moderate",
     freshness: "Current overview",
+    definition: "Compares recorded event budget actuals with visible event budget targets.",
+    boundary: "Budget evidence supports stewardship review but does not measure ministry value or formation impact.",
     evidence: [
       {
         id: "budget.totals",
@@ -207,6 +231,8 @@ function buildIntegrationSignal(): DecisionSignal {
     summary: "Decision-center architecture must keep the API-scored Scripture path visible instead of burying it behind generic intelligence UI.",
     confidence: "High",
     freshness: "Architecture Phase 1-3",
+    definition: "Documents the visible routes and provider seams for judged Scripture and AI-generation flows.",
+    boundary: "Architecture evidence is not a live usage metric and should not be treated as student formation proof.",
     evidence: [
       {
         id: "integration.youversion",
@@ -225,6 +251,22 @@ function buildIntegrationSignal(): DecisionSignal {
     targetHref: "/student/scripture/questions",
     targetLabel: "Open Journey Journal"
   };
+}
+
+function foregroundSeasonSignals(signals: DecisionSignal[], alignmentProfile: MinistryAlignmentProfile): DecisionSignal[] {
+  if (shouldForegroundScripture(alignmentProfile)) {
+    return [...signals].sort((left, right) => scoreSignalForSeason(right, "scripture") - scoreSignalForSeason(left, "scripture"));
+  }
+  if (shouldForegroundVolunteerSignals(alignmentProfile)) {
+    return [...signals].sort((left, right) => scoreSignalForSeason(right, "volunteer") - scoreSignalForSeason(left, "volunteer"));
+  }
+  return signals;
+}
+
+function scoreSignalForSeason(signal: DecisionSignal, season: "scripture" | "volunteer") {
+  const text = `${signal.id} ${signal.title} ${signal.summary}`.toLowerCase();
+  if (season === "scripture") return /scripture|youversion|gloo|reading|journey/.test(text) ? 1 : 0;
+  return /volunteer|leader|owner|task|communication/.test(text) ? 1 : 0;
 }
 
 function buildAttention(signals: DecisionSignal[], recentActivity: unknown[]): LeadershipAttentionItem[] {

@@ -22,6 +22,7 @@ import {
 } from "@/lib/emma/repository";
 import type { ContextManifest, EmmaActionProposalRecord, EmmaResponse } from "@/lib/emma/types";
 import type { Role } from "@/lib/types";
+import { normalizeMinistryAlignmentProfile, type MinistryAlignmentProfile } from "@/lib/ministry/alignment";
 import { z } from "zod";
 
 const CHAT_ROLES: ReadonlyArray<Role> = ["admin", "leader"];
@@ -41,6 +42,7 @@ const ministryEmmaPageSchema = z.enum([
 
 const ministryPageChatInputSchema = z
   .object({
+    alignmentProfile: z.unknown().optional(),
     page: ministryEmmaPageSchema,
     prompt: z.string().trim().min(1).max(MAX_PROMPT_CHARS),
     selectedEventId: z.string().trim().min(1).optional(),
@@ -72,6 +74,7 @@ type MinistryPageRecommendationPayload = {
   response: MinistryEmmaResponse;
   selectedEventId: string | null;
   executed: false;
+  alignmentProfile?: MinistryAlignmentProfile;
 };
 
 export type MinistryEmmaReadiness = {
@@ -149,11 +152,13 @@ export async function runMinistryPageServerChat({
     assertCanChat(session);
 
     const fallbackResponse = answerMinistryEmmaPrompt({
+      alignmentProfile: normalizeMinistryAlignmentProfile(input.alignmentProfile),
       overview,
       page: input.page,
       prompt: input.prompt
     });
-    const contextManifest = buildMinistryPageContextManifest(overview, input.selectedEventId);
+    const alignmentProfile = normalizeMinistryAlignmentProfile(input.alignmentProfile);
+    const contextManifest = buildMinistryPageContextManifest(overview, input.selectedEventId, alignmentProfile);
 
     const shouldAttemptProvider = shouldAttemptLiveProvider(session);
     if (shouldAttemptProvider) {
@@ -165,6 +170,7 @@ export async function runMinistryPageServerChat({
   } catch (error) {
     if (session && input && canUseLocalFallback(session)) {
       const response = answerMinistryEmmaPrompt({
+        alignmentProfile: normalizeMinistryAlignmentProfile(input.alignmentProfile),
         overview,
         page: input.page,
         prompt: input.prompt
@@ -475,7 +481,8 @@ async function createInertPageProposal({
     prompt: input.prompt,
     response,
     selectedEventId: input.selectedEventId ?? null,
-    executed: false
+    executed: false,
+    alignmentProfile: normalizeMinistryAlignmentProfile(input.alignmentProfile)
   };
 
   return createActionProposal(session, {
@@ -498,12 +505,22 @@ function toMinistryEmmaResponse(output: MinistryPageChatOutput): MinistryEmmaRes
   };
 }
 
-function buildMinistryPageContextManifest(overview: MinistryEmmaOverview, selectedEventId?: string): ContextManifest {
+function buildMinistryPageContextManifest(
+  overview: MinistryEmmaOverview,
+  selectedEventId?: string,
+  alignmentProfile?: MinistryAlignmentProfile
+): ContextManifest {
   const selectedEvent = selectedEventId ? overview.events.find((event) => event.id === selectedEventId) : undefined;
   const events = selectedEvent ? [selectedEvent] : overview.events.slice(0, 8);
 
   return {
     entries: [
+      ...(alignmentProfile ? [{
+        recordId: "ministry_alignment_profile",
+        recordType: "leadership_authored_alignment_context",
+        category: "voice_profile" as const,
+        sourceTable: "application_alignment_context"
+      }] : []),
       ...events.map((event) => ({
         recordId: event.id,
         recordType: "event",
@@ -540,16 +557,30 @@ function buildMinistryPageUserPrompt({
   overview: MinistryEmmaOverview;
 }): string {
   const selectedEvent = input.selectedEventId ? overview.events.find((event) => event.id === input.selectedEventId) : null;
+  const alignmentProfile = normalizeMinistryAlignmentProfile(input.alignmentProfile);
 
   return JSON.stringify({
-    task: "Answer the ministry user's page-level EMMA prompt with concise operational guidance.",
+    task: "Answer the ministry user's page-level EMMA prompt with concise operational guidance. When alignment context is relevant, compare evidence against leadership-authored criteria without scoring or setting priorities.",
     page: input.page,
     prompt: input.prompt,
     guardrails: [
       "No writes, sends, syncs, or external promises.",
       "Use only this sanitized snapshot.",
-      "Keep sensitive student, parent-contact, medical, pastoral-care, and confidential data out."
+      "Keep sensitive student, parent-contact, medical, pastoral-care, and confidential data out.",
+      "EMMA must never determine ministry priorities independently.",
+      "Do not declare what God is telling the ministry to do.",
+      "Do not rank concerns unless leadership explicitly defined that ordering.",
+      "Do not create alignment scores, percentage alignment, or red/yellow/green ministry-health statuses.",
+      "Use this response pattern when applicable: Leadership stated, Current observable signal, Evidence, Interpretation, Leadership question."
     ],
+    leadershipAuthoredAlignment: {
+      vision: alignmentProfile.vision,
+      mission: alignmentProfile.mission,
+      values: alignmentProfile.values.map((value) => ({ title: value.title, description: value.description })),
+      currentSeason: alignmentProfile.currentSeason,
+      successLooksLike: alignmentProfile.successLooksLike,
+      evidenceBoundary: "Spiritual maturity, love for Christ, and the work of the Holy Spirit cannot be measured directly by operational data."
+    },
     selectedEvent: selectedEvent ? safeEvent(selectedEvent) : null,
     snapshot: {
       eventCount: overview.events.length,

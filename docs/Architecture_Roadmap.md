@@ -7,10 +7,11 @@ This first Architecture Evolution build combines the safe portions of the first 
 - architecture vision and roadmap docs
 - shared decision-center contracts and display primitives
 - Ministry Hub redesign into a decision center using existing data only
+- leadership-authored Ministry Alignment context without scoring
 - portal-layer philosophy: operational layer plus Meridian intelligence layer
 - explicit YouVersion and Gloo scoring-path documentation
 
-No migrations, route renames, Volunteer Hub split, live Meridian publishing, or Camp changes belong in this first build.
+No migrations, route renames, Volunteer Hub split, live Meridian publishing, alignment scoring engine, or Camp changes belong in this first build.
 
 ## Phase 1: Architecture Foundation
 
@@ -29,8 +30,10 @@ No migrations, route renames, Volunteer Hub split, live Meridian publishing, or 
 ## Phase 3: Ministry Hub Decision Center
 
 - Replace workspace-launcher behavior with direction, health snapshot, signals, attention items, evidence drawers, and action links.
+- Lead with editable Vision, Mission, Values, Current Season, and Success Looks Like context.
+- Let EMMA compare evidence against leadership-authored criteria without setting priorities.
 - Use existing event, task, budget, communication, and activity data.
-- Add a visible competition-proof section for YouVersion and Gloo.
+- Keep the competition-proof YouVersion and Gloo path available in evidence details.
 - Preserve operational pages and sidebar behavior.
 
 ## Later Phases

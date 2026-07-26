@@ -49,6 +49,40 @@ Their purpose is to answer:
 - What evidence supports it?
 - Where should I go to act?
 
+## Ministry Alignment Model
+
+The Ministry Hub compares the observable life of the ministry against leadership-authored direction:
+
+```text
+Identity
+  -> Vision
+  -> Mission
+  -> Values
+  -> Current Season
+  -> Success Looks Like
+  -> Meridian
+  -> Objective Ministry Signals
+  -> Evidence Interpretation
+  -> EMMA
+  -> Leadership Prayer and Discussion
+  -> Leadership Decisions
+  -> Operational Work
+  -> Outcomes
+  -> Meridian learns
+```
+
+EMMA must never determine ministry priorities independently.
+
+Leadership determines priorities through the editable Vision, Mission, Values, Current Season, and Success Looks Like fields.
+
+EMMA may compare available evidence against those leadership-authored statements. It may surface observable alignment, possible misalignment, mixed evidence, insufficient evidence, unavailable evidence, or questions requiring leadership review.
+
+EMMA must not declare what God is telling the ministry to do, rank one ministry priority above another on its own, fabricate confidence, create alignment scores, or present its interpretation as pastoral discernment.
+
+Signal interpretation, not replacement for discernment or the work of the Holy Spirit.
+
+Metrics without mission become noise. Mission gives every insight meaning.
+
 ## Portal Architecture
 
 ### Dashboard
@@ -77,7 +111,7 @@ Meridian adds:
 
 Primary user: directors and ministry staff.
 
-Primary question: How healthy is our ministry, and where should we focus next?
+Primary question: Is what is happening in the ministry consistent with who we said we are, what we exist to do, how we intend to operate, and what leadership has prayerfully chosen to emphasize in this season?
 
 Operational Layer:
 
@@ -324,6 +358,7 @@ Every portal must answer:
 Decision Centers should include:
 
 - EMMA Conversation: the primary surface for asking and refining leadership questions.
+- Ministry Alignment: leadership-authored Vision, Mission, Values, Current Season, and Success Looks Like.
 - Direction: emphasis, horizon, owner, last reviewed or generated date.
 - Health Snapshot: four to six meaningful measures.
 - Signals: factual observations only.
@@ -362,6 +397,7 @@ Evidence should include source kind, label, detail, freshness, and confidence. I
 - Do not lead Decision Centers with dashboards when a conversation should guide discovery.
 - Do not expose leadership analytics to volunteers or students.
 - Do not replace pastoral discernment with AI recommendations.
+- Do not create alignment scores, percentage alignment, hidden weighting, or autonomous ministry priority rankings before an approved alignment engine exists.
 - Do not let AI providers query operational data directly.
 - Do not independently calculate shared intelligence outside its owning hub.
 - Every Meridian insight must link to evidence.

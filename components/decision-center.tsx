@@ -8,6 +8,7 @@ import type {
   JudgedIntegrationFlow,
   LeadershipAttentionItem
 } from "@/lib/decision-center/types";
+import type { ResponsibilityVisibility } from "@/lib/ministry/alignment";
 
 export function DecisionMetricGrid({ metrics }: { metrics: DecisionCenterMetric[] }) {
   return (
@@ -42,7 +43,7 @@ export function DecisionSignalList({ signals }: { signals: DecisionSignal[] }) {
           key={signal.id}
           title={signal.title}
           summary={signal.summary}
-          meta={`${signal.confidence} confidence - ${signal.freshness}`}
+          meta={`${evidenceSupportLabel(signal.confidence)} - ${signal.freshness} - ${signal.definition}`}
           tone={signal.tone}
           action={<SignalAction signal={signal} />}
         />
@@ -55,11 +56,12 @@ export function EvidenceStack({ signals }: { signals: DecisionSignal[] }) {
   return (
     <div className="ministry-launch-list" aria-label="Evidence drawer previews">
       {signals.map((signal) => (
-        <details className="ministry-launch-panel" key={signal.id}>
+        <details className="ministry-launch-panel" key={signal.id} open>
           <summary>
             <strong>{signal.title}</strong>
-            <StatusBadge tone={confidenceTone(signal.confidence)}>{signal.confidence}</StatusBadge>
+            <StatusBadge tone={confidenceTone(signal.confidence)}>{evidenceSupportLabel(signal.confidence)}</StatusBadge>
           </summary>
+          <p className="decision-signal-boundary">{signal.boundary}</p>
           <EvidenceList evidence={signal.evidence} />
         </details>
       ))}
@@ -110,10 +112,30 @@ export function JudgedIntegrationFlowList({ flows }: { flows: JudgedIntegrationF
   );
 }
 
+export function ResponsibilityVisibilityList({ items }: { items: ResponsibilityVisibility[] }) {
+  return (
+    <div className="ministry-launch-card-list" aria-label="Responsibility visibility">
+      {items.map((item) => (
+        <article className="ministry-launch-mini-card" key={item.id}>
+          <strong>{item.area}</strong>
+          <span>{item.status}</span>
+          <p>{item.ownerLabel}</p>
+          <EvidenceList
+            evidence={[
+              { id: `${item.id}.source`, sourceKind: "activity", label: "Source", detail: item.source },
+              { id: `${item.id}.milestone`, sourceKind: "task", label: "Next milestone", detail: item.nextMilestone }
+            ]}
+          />
+        </article>
+      ))}
+    </div>
+  );
+}
+
 function SignalAction({ signal }: { signal: DecisionSignal }) {
   return (
     <div className="toolbar">
-      <StatusBadge tone={confidenceTone(signal.confidence)}>{signal.confidence}</StatusBadge>
+      <StatusBadge tone={confidenceTone(signal.confidence)}>{evidenceSupportLabel(signal.confidence)}</StatusBadge>
       <Link className="button compact-button" href={signal.targetHref}>
         {signal.targetLabel}
       </Link>
@@ -141,6 +163,12 @@ function confidenceTone(confidence: DecisionSignal["confidence"]): PlatformTone 
   if (confidence === "High") return "success";
   if (confidence === "Moderate") return "gold";
   return "warning";
+}
+
+function evidenceSupportLabel(confidence: DecisionSignal["confidence"]) {
+  if (confidence === "High") return "Strong evidence support";
+  if (confidence === "Moderate") return "Partial evidence support";
+  return "Limited evidence support";
 }
 
 function sourceTone(sourceKind: DecisionEvidence["sourceKind"]): PlatformTone {

@@ -1,4 +1,5 @@
 import type { PlatformTone } from "@/components/platform-ui";
+import type { MinistryAlignmentProfile, ResponsibilityVisibility } from "@/lib/ministry/alignment";
 
 export type DecisionCenterKind = "ministry" | "volunteer" | "leader";
 
@@ -34,6 +35,8 @@ export type DecisionSignal = {
   summary: string;
   confidence: ConfidenceLabel;
   freshness: string;
+  definition: string;
+  boundary: string;
   evidence: DecisionEvidence[];
   tone: PlatformTone;
   targetHref: string;
@@ -71,7 +74,9 @@ export type DecisionCenterState = {
     reviewedAt: string;
   };
   metrics: DecisionCenterMetric[];
+  alignmentProfile: MinistryAlignmentProfile;
   signals: DecisionSignal[];
   attention: LeadershipAttentionItem[];
+  responsibility: ResponsibilityVisibility[];
   judgedIntegrationFlows: JudgedIntegrationFlow[];
 };
