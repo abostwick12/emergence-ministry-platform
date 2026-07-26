@@ -11,13 +11,19 @@ import { ministryPageChatSchema, ministryPageChatSystemPrompt, type MinistryPage
 import { runEmmaProviderForRequest } from "@/lib/emma/providers/run-provider";
 import type { EmmaProviderId } from "@/lib/emma/providers/types";
 import { readAzureOpenAIEmmaConfig } from "@/lib/emma/providers/azure-openai-provider";
-import { DEFAULT_AZURE_OPENAI_EMMA_MODEL, DEFAULT_GEMINI_MODEL, DEFAULT_OPENAI_EMMA_MODEL } from "@/lib/emma/providers/registry";
+import {
+  DEFAULT_AZURE_OPENAI_EMMA_MODEL,
+  DEFAULT_GEMINI_MODEL,
+  DEFAULT_OPENAI_EMMA_MODEL,
+  normalizeProviderModel
+} from "@/lib/emma/providers/registry";
 import { buildGuestEmmaResponse, guestAuditLabel } from "@/lib/guest/stock-ai";
 import {
   completeAiRun,
   createActionProposal,
   createAiRequest,
   createAiRun,
+  getAiRequest,
   updateAiRequestStatus
 } from "@/lib/emma/repository";
 import type { ContextManifest, EmmaActionProposalRecord, EmmaResponse } from "@/lib/emma/types";
@@ -105,7 +111,7 @@ export function getMinistryEmmaReadiness(input: { session?: AuthSession | null; 
   const env = input.env ?? process.env;
   const providerMode = resolveMinistryEmmaProviderMode(env);
   const liveProviderConfigured = providerMode !== "mock";
-  const model = env.EMMA_DEFAULT_MODEL?.trim() || defaultMinistryEmmaModel(providerMode, env);
+  const model = normalizeReadinessModel(providerMode, env.EMMA_DEFAULT_MODEL?.trim() || defaultMinistryEmmaModel(providerMode, env));
 
   return {
     serverBacked: true,
@@ -239,6 +245,11 @@ function defaultMinistryEmmaModel(providerMode: "gemini" | "openai" | "azure" | 
   return "deterministic-fallback";
 }
 
+function normalizeReadinessModel(providerMode: "gemini" | "openai" | "azure" | "mock", model: string) {
+  if (providerMode === "mock") return model;
+  return normalizeProviderModel(providerMode, model);
+}
+
 async function runLiveProviderChat({
   contextManifest,
   fallbackResponse,
@@ -292,6 +303,7 @@ async function runLiveProviderChat({
   if (!providerResult.ok) {
     const fallback = await runAuditedFallbackChat({
       contextManifest,
+      existingRequestId: request.id,
       fallbackResponse,
       input,
       session,
@@ -405,23 +417,27 @@ function shouldRetryMinistryChatProvider(primaryErrorMessage: string): boolean {
 
 async function runAuditedFallbackChat({
   contextManifest,
+  existingRequestId,
   fallbackResponse,
   input,
   session,
   warnings = ["No live EMMA provider was configured. Deterministic fallback was used."]
 }: {
   contextManifest: ContextManifest;
+  existingRequestId?: string;
   fallbackResponse: MinistryEmmaResponse;
   input: MinistryPageServerChatInput;
   session: AuthSession;
   warnings?: string[];
 }): Promise<EmmaResponse<MinistryPageServerChatResult>> {
-  const request = await createAiRequest(session, {
-    source: "assistant_panel",
-    workflow: "GENERATE_MINISTRY_SUMMARY",
-    sourceRecordType: "ministry_page",
-    sourceRecordId: input.page
-  });
+  const request = existingRequestId
+    ? await getAiRequest(session, existingRequestId)
+    : await createAiRequest(session, {
+        source: "assistant_panel",
+        workflow: "GENERATE_MINISTRY_SUMMARY",
+        sourceRecordType: "ministry_page",
+        sourceRecordId: input.page
+      });
   await updateAiRequestStatus(session, request.id, "running");
 
   const run = await createAiRun(session, {

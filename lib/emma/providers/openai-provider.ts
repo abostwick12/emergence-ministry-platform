@@ -15,7 +15,20 @@ type OpenAIChatResponse = {
   };
 };
 
-const OPENAI_CHAT_COMPLETIONS_URL = "https://api.openai.com/v1/chat/completions";
+type OpenAIResponsesResponse = {
+  output_text?: string;
+  output?: Array<{ content?: Array<{ text?: string; type?: string }> }>;
+  model?: string;
+  usage?: {
+    input_tokens?: number;
+    output_tokens?: number;
+    total_tokens?: number;
+    prompt_tokens?: number;
+    completion_tokens?: number;
+  };
+};
+
+const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 
 export const DEFAULT_OPENAI_EMMA_MODEL = "gpt-4o-mini";
 
@@ -35,7 +48,7 @@ export function createOpenAIEmmaProvider(options?: { apiKey?: string; fetchImpl?
       const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
       try {
-        const response = await fetchImpl(OPENAI_CHAT_COMPLETIONS_URL, {
+        const response = await fetchImpl(OPENAI_RESPONSES_URL, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -44,13 +57,34 @@ export function createOpenAIEmmaProvider(options?: { apiKey?: string; fetchImpl?
           signal: controller.signal,
           body: JSON.stringify({
             model: request.model || DEFAULT_OPENAI_EMMA_MODEL,
-            messages: [
-              { role: "system", content: request.systemPrompt },
-              { role: "user", content: request.userPrompt }
+            instructions: request.systemPrompt,
+            input: [
+              {
+                role: "user",
+                content: [{ type: "input_text", text: request.userPrompt }]
+              }
             ],
             temperature: request.temperature ?? 0.2,
-            max_tokens: request.maxOutputTokens,
-            response_format: { type: "json_object" }
+            max_output_tokens: request.maxOutputTokens,
+            text: {
+              format: {
+                type: "json_schema",
+                name: "ministry_emma_response",
+                strict: false,
+                schema: {
+                  type: "object",
+                  additionalProperties: false,
+                  properties: {
+                    summary: { type: "string" },
+                    points: { type: "array", items: { type: "string" } },
+                    nextActions: { type: "array", items: { type: "string" } },
+                    confidence: { type: "number" },
+                    warnings: { type: "array", items: { type: "string" } }
+                  },
+                  required: ["summary", "points", "nextActions"]
+                }
+              }
+            }
           })
         });
 
@@ -58,8 +92,8 @@ export function createOpenAIEmmaProvider(options?: { apiKey?: string; fetchImpl?
           throw providerErrorFromHttpStatus(response.status);
         }
 
-        const json = (await response.json()) as OpenAIChatResponse;
-        const text = json.choices?.[0]?.message?.content?.trim();
+        const json = (await response.json()) as OpenAIResponsesResponse | OpenAIChatResponse;
+        const text = extractOpenAIOutputText(json);
         if (!text) {
           throw providerError("invalid_output");
         }
@@ -76,8 +110,8 @@ export function createOpenAIEmmaProvider(options?: { apiKey?: string; fetchImpl?
           model: json.model ?? request.model ?? DEFAULT_OPENAI_EMMA_MODEL,
           output,
           usage: {
-            promptTokens: json.usage?.prompt_tokens,
-            completionTokens: json.usage?.completion_tokens,
+            promptTokens: usageNumber(json.usage, "input_tokens") ?? usageNumber(json.usage, "prompt_tokens"),
+            completionTokens: usageNumber(json.usage, "output_tokens") ?? usageNumber(json.usage, "completion_tokens"),
             totalTokens: json.usage?.total_tokens
           }
         };
@@ -86,6 +120,31 @@ export function createOpenAIEmmaProvider(options?: { apiKey?: string; fetchImpl?
       }
     }
   };
+}
+
+function usageNumber(usage: OpenAIResponsesResponse["usage"] | OpenAIChatResponse["usage"], key: string): number | undefined {
+  if (!usage || typeof usage !== "object") return undefined;
+  const value = (usage as Record<string, unknown>)[key];
+  return typeof value === "number" ? value : undefined;
+}
+
+function extractOpenAIOutputText(json: OpenAIResponsesResponse | OpenAIChatResponse): string | undefined {
+  if ("output_text" in json && typeof json.output_text === "string" && json.output_text.trim()) {
+    return json.output_text.trim();
+  }
+
+  if ("output" in json) {
+    const text = json.output
+      ?.flatMap((item) => item.content ?? [])
+      .map((content) => content.text)
+      .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+      .join("\n")
+      .trim();
+    if (text) return text;
+  }
+
+  if ("choices" in json) return json.choices?.[0]?.message?.content?.trim();
+  return undefined;
 }
 
 function extractJsonObjectText(content: string) {

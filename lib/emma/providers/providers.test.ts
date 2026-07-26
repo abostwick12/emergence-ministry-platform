@@ -242,7 +242,7 @@ describe("EMMA OpenAI provider", () => {
     });
   });
 
-  it("sends a chat-completions JSON request and parses fenced JSON output", async () => {
+  it("sends a Responses API structured-output request and parses output text", async () => {
     let requestUrl = "";
     let requestBody: Record<string, unknown> | null = null;
     const provider = createOpenAIEmmaProvider({
@@ -253,23 +253,17 @@ describe("EMMA OpenAI provider", () => {
         return new Response(
           JSON.stringify({
             model: "gpt-4o-mini",
-            choices: [
-              {
-                message: {
-                  content:
-                    "```json\n" +
-                    JSON.stringify({
-                      summary: "OpenAI EMMA response",
-                      points: ["safe point"],
-                      nextActions: ["review next step"],
-                      confidence: 0.91,
-                      warnings: []
-                    }) +
-                    "\n```"
-                }
-              }
-            ],
-            usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 }
+            output_text:
+              "```json\n" +
+              JSON.stringify({
+                summary: "OpenAI EMMA response",
+                points: ["safe point"],
+                nextActions: ["review next step"],
+                confidence: 0.91,
+                warnings: []
+              }) +
+              "\n```",
+            usage: { input_tokens: 10, output_tokens: 20, total_tokens: 30 }
           }),
           { status: 200, headers: { "Content-Type": "application/json" } }
         );
@@ -284,16 +278,14 @@ describe("EMMA OpenAI provider", () => {
       maxOutputTokens: 400
     });
 
-    expect(requestUrl).toBe("https://api.openai.com/v1/chat/completions");
+    expect(requestUrl).toBe("https://api.openai.com/v1/responses");
     expect(requestBody).toMatchObject({
       model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: "system" },
-        { role: "user", content: "user" }
-      ],
+      instructions: "system",
+      input: [{ role: "user", content: [{ type: "input_text", text: "user" }] }],
       temperature: 0,
-      max_tokens: 400,
-      response_format: { type: "json_object" }
+      max_output_tokens: 400,
+      text: { format: { type: "json_schema", name: "ministry_emma_response" } }
     });
     expect(JSON.stringify(requestBody)).not.toContain("sk-test-key");
     expect(result).toMatchObject({
@@ -448,7 +440,17 @@ describe("audited provider execution", () => {
 
     await expect(resolveProviderSelection(session())).resolves.toMatchObject({
       providerId: "gemini",
-      model: "gemini-3.5-flash"
+      model: "gemini-2.5-flash-lite"
+    });
+  });
+
+  it("maps stale Gemini model aliases to the current supported default", async () => {
+    process.env.GEMINI_API_KEY = "configured-key";
+    process.env.EMMA_DEFAULT_MODEL = "gemini-3.5-flash";
+
+    await expect(resolveProviderSelection(session())).resolves.toMatchObject({
+      providerId: "gemini",
+      model: "gemini-2.5-flash-lite"
     });
   });
 

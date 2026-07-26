@@ -118,14 +118,14 @@ describe("ministry page server-backed EMMA chat", () => {
     const parsed = ministryPageChatSchema.parse({
       answer: "Provider summary with alternate field names.",
       key_points: ["Review readiness."],
-      next_actions: ["Open the event workspace."],
+      suggestedNextQuestions: "Open the event workspace.; Review the next blocked task.",
       extraProviderField: "ignored"
     });
 
     expect(parsed).toEqual({
       summary: "Provider summary with alternate field names.",
       points: ["Review readiness."],
-      nextActions: ["Open the event workspace."],
+      nextActions: ["Open the event workspace.", "Review the next blocked task."],
       confidence: 0.7,
       warnings: []
     });
@@ -361,6 +361,49 @@ describe("ministry page server-backed EMMA chat", () => {
     ]);
   });
 
+  it("completes the original request when deterministic fallback rescues a provider failure", async () => {
+    process.env.EMMA_PROVIDER_MODE = "gemini";
+    process.env.GEMINI_API_KEY = "test-gemini-key";
+    process.env.EMMA_DEFAULT_MODEL = "gemini-3.5-flash";
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          error: {
+            code: 404,
+            status: "NOT_FOUND",
+            message: "model not found"
+          }
+        }),
+        { status: 404, headers: { "Content-Type": "application/json" } }
+      )
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const admin = session();
+    const result = await runMinistryPageServerChat({
+      overview: overview(),
+      rawInput: { page: "events", prompt: "What should I open first?", selectedEventId: "evt_1" },
+      session: admin
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.providerMode).toBe("audited_fallback");
+    expect(result.data.provider).toBe("deterministic");
+    expect(result.data.response.summary).toContain("upcoming events");
+    expect(result.data.warnings.join(" ")).toContain("Live EMMA provider attempt failed safely");
+
+    const trail = await getEmmaAuditTrail(admin, result.data.requestId);
+    expect(trail.request.status).toBe("completed");
+    expect(trail.runs.map((run) => `${run.skillKey}:${run.status}`)).toEqual([
+      "ministry_page_chat_fallback:succeeded",
+      "ministry_page_chat:failed"
+    ]);
+    expect(trail.providerAttempts.map((attempt) => `${attempt.provider}:${attempt.status}:${attempt.model}`)).toEqual([
+      "gemini:failure:gemini-2.5-flash-lite"
+    ]);
+  });
+
   it("blocks roles outside Admin and Leader", async () => {
     const result = await runMinistryPageServerChat({
       overview: overview(),
@@ -446,7 +489,7 @@ describe("ministry page server-backed EMMA chat", () => {
     expect(readiness).toMatchObject({
       liveProviderConfigured: true,
       provider: "gemini",
-      model: "gemini-3.5-flash",
+      model: "gemini-2.5-flash-lite",
       status: "live"
     });
     expect(JSON.stringify(readiness)).not.toContain("secret-key");

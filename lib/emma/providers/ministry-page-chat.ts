@@ -13,8 +13,17 @@ export const ministryPageChatSchema = z.preprocess((value) => {
   const record = value as Record<string, unknown>;
   return {
     summary: firstString(record.summary, record.answer, record.response),
-    points: firstStringArray(record.points, record.keyPoints, record.key_points),
-    nextActions: firstStringArray(record.nextActions, record.next_actions, record.actions, record.nextSteps, record.next_steps),
+    points: firstStringArray(record.points, record.keyPoints, record.key_points, record.insights, record.observations),
+    nextActions: firstStringArray(
+      record.nextActions,
+      record.next_actions,
+      record.actions,
+      record.nextSteps,
+      record.next_steps,
+      record.suggestedNextQuestions,
+      record.suggested_next_questions,
+      record.recommendations
+    ),
     confidence: record.confidence ?? 0.7,
     warnings: firstStringArray(record.warnings)
   };
@@ -31,5 +40,18 @@ function firstString(...values: unknown[]): unknown {
 
 function firstStringArray(...values: unknown[]): string[] {
   const value = values.find((item) => Array.isArray(item));
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && Boolean(item.trim())) : [];
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => (typeof item === "string" ? item : typeof item === "number" || typeof item === "boolean" ? String(item) : ""))
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  const stringValue = values.find((item) => typeof item === "string" && item.trim());
+  if (typeof stringValue !== "string") return [];
+
+  return stringValue
+    .split(/\r?\n|(?:^|\s)\d+\.\s+|;\s+/)
+    .map((item) => item.trim().replace(/^[-*]\s+/, ""))
+    .filter(Boolean);
 }
