@@ -1,4 +1,18 @@
-# Decision Center Design
+# Architecture Stability
+
+This document defines the stable architectural principles governing the Lead Emergence platform.
+
+Implementation details may evolve.
+
+These principles should not.
+
+Any proposed change to this document should meet three requirements:
+
+1. Solve a genuine architectural problem.
+2. Improve clarity for the primary user.
+3. Preserve the separation between operational workspaces and Meridian-powered decision support.
+
+New features should conform to this document rather than redefine it.
 
 ## North Star
 
@@ -14,6 +28,22 @@ Every portal therefore contains two layers:
 
 - Operational Layer: where work is completed.
 - Intelligence Layer: where Meridian surfaces context, patterns, evidence, and insight appropriate to that user's responsibilities.
+
+## Decision Center Philosophy
+
+Decision Centers exist to support leadership decisions, not operational work.
+
+They summarize verified information, highlight meaningful patterns, provide evidence, and guide leaders toward the operational workspaces where action occurs.
+
+Decision Centers should never become secondary navigation pages or replace operational workflows.
+
+Their purpose is to answer:
+
+- Where are we now?
+- What is Meridian noticing?
+- Why does it matter?
+- What evidence supports it?
+- Where should I go to act?
 
 ## Portal Architecture
 
@@ -124,7 +154,7 @@ Meridian Layer:
 
 This is where strategic ministry intelligence lives.
 
-## Shared Intelligence Ownership
+## Domain Ownership
 
 Volunteer health, coverage, recruitment, workload, and sustainability are computed once within the Leader Hub intelligence layer.
 
@@ -151,21 +181,47 @@ The same ownership model should apply to other domains:
 
 Everyone else reads from the source.
 
-## Meridian Philosophy
+## Meridian
 
-Meridian is not another page.
+Meridian is the church's evolving ministry memory.
 
-Meridian is the church's evolving ministry memory. It exists beneath the portals. Every approved resource contributes to Meridian. Every portal consumes Meridian differently.
+Meridian preserves approved ministry knowledge, relationships, decisions, lessons learned, and organizational context.
+
+Its purpose is not merely to store information but to preserve institutional wisdom that can be responsibly reused by future leaders and AI-assisted workflows.
+
+Meridian exists beneath every portal.
+
+Users interact with Meridian indirectly through scoped intelligence tailored to their role.
+
+Every approved resource contributes to Meridian. Every portal consumes Meridian differently.
 
 Students never see leadership analytics. Volunteers never see staffing discussions. Directors see organizational context. Teaching leaders see formation context.
 
 The same knowledge base serves different users through scoped retrieval.
+
+## Human Authority
+
+Meridian supports leadership.
+
+It never replaces leadership.
+
+Pastors, ministry leaders, and church leadership remain responsible for theological interpretation, ministry direction, discipleship strategy, staffing, and organizational decisions.
+
+Meridian provides context.
+
+Humans provide judgment.
 
 ## Meridian Intelligence Pipeline
 
 Meridian is not an AI model.
 
 Meridian is the structured ministry memory and orchestration layer. AI providers are consumers of Meridian and contributors to approved outputs.
+
+AI providers never become the source of truth.
+
+They generate candidate outputs.
+
+Only approved content becomes part of Meridian.
 
 ### Responsibilities
 
@@ -224,6 +280,23 @@ Supabase
   -> Application
 ```
 
+## Retrieval Principle
+
+Meridian retrieves context using governance before relevance.
+
+Retrieval order is:
+
+1. Permission
+2. Sensitivity
+3. Publication status
+4. AI scope
+5. Domain ownership
+6. Authority level
+7. Freshness
+8. Semantic relevance
+
+Semantic similarity alone must never determine AI context.
+
 ## Design Rules
 
 Every portal must answer:
@@ -234,7 +307,13 @@ Every portal must answer:
 4. What Meridian context helps them make those decisions?
 5. What evidence supports Meridian's insights?
 
-Navigation belongs in the sidebar. Decision support belongs on the portal landing page. Operational work belongs on the workspace pages.
+> **Architecture Placement Rule**
+>
+> Navigation belongs in the sidebar.
+>
+> Decision support belongs on the portal landing page.
+>
+> Operational work belongs on the workspace pages.
 
 ## Decision Center Sections
 
@@ -283,6 +362,10 @@ Evidence should include source kind, label, detail, freshness, and confidence. I
 - Every recommendation must remain advisory.
 - Every portal should feel tailored to its primary user.
 
-## First Implementation
+## Architecture Evolution
 
-The first implementation is the Ministry Hub. It uses existing event, task, budget, activity, and Scripture integration boundaries. Later intelligence layers should reuse the same primitives while preserving each portal's audience, source-of-truth ownership, and operational boundary.
+The first implementation focuses on the Ministry Hub.
+
+Subsequent implementations should expand the architecture without altering its governing principles.
+
+Future additions, including Meridian publishing, the Meridian Web, and the Vision Platform, must conform to this document rather than redefine it.
