@@ -676,6 +676,65 @@
 
   .mobile-attention-safe-zone { display: block; }
 
+  .mobile-judge-path-card {
+    display: grid;
+    gap: 10px;
+    border: 1px solid color-mix(in srgb, var(--platform-cyan) 34%, var(--platform-border));
+    border-radius: var(--radius-lg);
+    background:
+      linear-gradient(145deg, color-mix(in srgb, var(--platform-cyan) 10%, var(--surface)), var(--surface)),
+      var(--surface);
+    box-shadow: var(--shadow-md);
+    padding: 16px;
+  }
+
+  .mobile-judge-path-card h3 {
+    margin: 0;
+    color: var(--text);
+    font-family: var(--font-platform-serif), Georgia, serif;
+    font-size: var(--text-lg);
+    font-weight: 650;
+    line-height: 1.2;
+  }
+
+  .mobile-judge-path-card nav {
+    display: grid;
+    gap: 8px;
+  }
+
+  .mobile-judge-path-card a {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 42px;
+    border: 1px solid var(--platform-border);
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--surface) 90%, var(--platform-cyan));
+    color: var(--text);
+    font-size: var(--text-sm);
+    font-weight: 850;
+    overflow-wrap: anywhere;
+    padding: 10px 12px;
+    text-decoration: none;
+  }
+
+  .mobile-judge-path-card a::after {
+    color: var(--platform-cyan);
+    content: "Open";
+    font-family: var(--font-platform-mono), ui-monospace, monospace;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .mobile-judge-path-card a:focus-visible,
+  .mobile-judge-path-card a:hover {
+    border-color: var(--platform-cyan);
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--platform-cyan) 22%, transparent);
+  }
+
   .mobile-field-quick-actions {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));

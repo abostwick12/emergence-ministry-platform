@@ -444,6 +444,9 @@ function GlooDiagnosticPanel({
         <p className="eyebrow">AI Connection</p>
         <h2>Test the draft connection</h2>
         <p>Runs one safe sample draft through the server-side AI connection and reports what happened.</p>
+        <p className="leader-provider-boundary">
+          Judged provider step: Meridian-governed context is sent to Gloo AI Studio for ministry-specific synthesis, then leaders review any draft before students see it.
+        </p>
       </div>
       <div className="leader-gloo-diagnostics-actions">
         <span className={readiness.gloo ? "pill green" : "pill amber"}>{readiness.gloo ? "Connected" : "Needs Gloo setup"}</span>

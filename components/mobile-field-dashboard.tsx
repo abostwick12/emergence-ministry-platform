@@ -151,6 +151,15 @@ export function MobileFieldDashboard({
           );
         })}
       </div>
+      <section className="mobile-judge-path-card" aria-label="Competition review path">
+        <p className="eyebrow">Competition review path</p>
+        <h3>Inspect the platform story in order.</h3>
+        <nav aria-label="Suggested judge stops">
+          <Link href="/ministry">Ministry Alignment</Link>
+          <Link href="/student/scripture/resources?reference=John%203%3A16">YouVersion Reader</Link>
+          <Link href="/discipleship">Discipleship Review</Link>
+        </nav>
+      </section>
       <nav className="mobile-field-quick-actions" aria-label="Fast ministry actions">
         <Link href="/events">Events</Link>
         <Link href="/tasks">Tasks</Link>

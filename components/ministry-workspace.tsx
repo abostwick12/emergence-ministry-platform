@@ -689,6 +689,30 @@ function DashboardWorkspace({
     <>
       <MobileFieldDashboard attention={attention} overview={overview} />
       <section className="grid dashboard-snapshot dashboard-watercolor editorial-dashboard desktop-dashboard-workspace">
+      <section className="panel judge-path-panel" aria-label="Competition review path">
+        <div className="judge-path-copy">
+          <p className="eyebrow">Competition review path</p>
+          <h2 className="section-title flush">Inspect the platform story in order.</h2>
+          <p>
+            Start with ministry alignment, then open the student Scripture journey, then review the leader-side Meridian and Gloo approval flow.
+          </p>
+        </div>
+        <div className="judge-path-links" aria-label="Suggested judge stops">
+          <Link href="/ministry">
+            <strong>1. Ministry Alignment</strong>
+            <span>Leadership criteria, EMMA signals, visible evidence</span>
+          </Link>
+          <Link href="/student/scripture/resources?reference=John%203%3A16">
+            <strong>2. YouVersion Reader</strong>
+            <span>Reference resolution without storing Bible text</span>
+          </Link>
+          <Link href="/discipleship">
+            <strong>3. Discipleship Review</strong>
+            <span>Meridian preview, Gloo readiness, human approval</span>
+          </Link>
+        </div>
+      </section>
+
       <EditorialSection
         eyebrow="Decide and unblock"
         title="Needs Your Attention"

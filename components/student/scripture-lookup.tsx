@@ -52,6 +52,9 @@ export function ScriptureLookup({ initialReference = "" }: { initialReference?: 
       <div className="grid gap-2">
         <p className="eyebrow">YouVersion reader</p>
         <h2 className="section-title flush">Open Scripture without leaving the journey.</h2>
+        <p className="scripture-provider-boundary">
+          Judged provider step: Lead Emergence resolves the reference server-side and opens YouVersion surfaces. Meridian stores references and relationships, not Bible text.
+        </p>
       </div>
 
       <form className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]" onSubmit={submitLookup}>

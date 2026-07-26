@@ -163,6 +163,24 @@ export default function LoginPage() {
             Continue as guest <ArrowRight size={18} aria-hidden="true" />
           </Link>
 
+          <div className="login-entry-judge-path" aria-label="Competition review path">
+            <p className="eyebrow">Competition review path</p>
+            <ol>
+              <li>
+                <strong>Ministry Alignment</strong>
+                <span>See leadership-authored direction with EMMA evidence boundaries.</span>
+              </li>
+              <li>
+                <strong>Student Scripture</strong>
+                <span>Open the YouVersion reader and student formation journey.</span>
+              </li>
+              <li>
+                <strong>Discipleship Review</strong>
+                <span>Inspect Gloo AI Studio readiness, Meridian previews, and human approval.</span>
+              </li>
+            </ol>
+          </div>
+
           <p className="login-entry-invite">Students receive access through a group invite.</p>
         </section>
       </div>
