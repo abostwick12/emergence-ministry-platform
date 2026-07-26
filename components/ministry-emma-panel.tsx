@@ -10,6 +10,7 @@ import {
   type MinistryEmmaResponse
 } from "@/lib/emma/ministry-page-assistant";
 import { AssistantBrief, AssistantWorkspace } from "@/components/platform-ui";
+import type { MinistryAlignmentProfile } from "@/lib/ministry/alignment";
 
 type EmmaChatResult = {
   ok: true;
@@ -35,18 +36,30 @@ type EmmaMessage = {
 };
 
 export function MinistryEmmaPanel({
+  alignmentProfile,
   defaultExpanded = false,
   overview,
   page,
-  staticSignals = []
+  staticSignals = [],
+  title = "EMMA Ministry Assistant",
+  promptTemplates = ministryEmmaUniversalPromptTemplates
 }: {
+  alignmentProfile?: MinistryAlignmentProfile;
   defaultExpanded?: boolean;
   overview?: MinistryEmmaOverview;
   page: MinistryEmmaPage;
   staticSignals?: string[];
+  title?: string;
+  promptTemplates?: readonly string[];
 }) {
   const staticSignalKey = staticSignals.join("\n");
   const stableStaticSignals = useMemo(() => (staticSignalKey ? staticSignalKey.split("\n") : []), [staticSignalKey]);
+  const promptTemplateKey = promptTemplates.join("\n");
+  const stablePromptTemplates = useMemo(
+    () => (promptTemplateKey ? promptTemplateKey.split("\n") : [...ministryEmmaUniversalPromptTemplates]),
+    [promptTemplateKey]
+  );
+  const initialPrompt = stablePromptTemplates[0] ?? ministryEmmaUniversalPromptTemplates[0];
   const [providerStatus, setProviderStatus] = useState("Checking provider");
   const [prompt, setPrompt] = useState("");
   const [createProposal, setCreateProposal] = useState(false);
@@ -57,8 +70,9 @@ export function MinistryEmmaPanel({
     toEmmaMessage(
       answerMinistryEmmaPrompt({
         overview,
+        alignmentProfile,
         page,
-        prompt: ministryEmmaUniversalPromptTemplates[0],
+        prompt: initialPrompt,
         staticSignals: stableStaticSignals
       }),
       "EMMA is ready."
@@ -92,13 +106,13 @@ export function MinistryEmmaPanel({
         answerMinistryEmmaPrompt({
           overview,
           page,
-          prompt: ministryEmmaUniversalPromptTemplates[0],
+          prompt: initialPrompt,
           staticSignals: stableStaticSignals
         }),
         "EMMA is ready."
       )
     ]);
-  }, [overview, page, stableStaticSignals]);
+  }, [overview, alignmentProfile, page, initialPrompt, stableStaticSignals]);
 
   useEffect(() => {
     const thread = threadRef.current;
@@ -128,6 +142,7 @@ export function MinistryEmmaPanel({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          alignmentProfile,
           page,
           prompt: trimmedPrompt,
           createProposal
@@ -136,7 +151,7 @@ export function MinistryEmmaPanel({
       const payload = (await response.json().catch(() => ({}))) as Partial<EmmaChatResult> & { ok?: boolean; error?: string };
 
       if (!response.ok || payload.ok !== true) {
-        const fallback = answerMinistryEmmaPrompt({ overview, page, prompt: trimmedPrompt, staticSignals: stableStaticSignals });
+        const fallback = answerMinistryEmmaPrompt({ overview, alignmentProfile, page, prompt: trimmedPrompt, staticSignals: stableStaticSignals });
         setMessages((current) => [
           ...current,
           toEmmaMessage(
@@ -150,12 +165,12 @@ export function MinistryEmmaPanel({
       setMessages((current) => [
         ...current,
         toEmmaMessage(
-          payload.response ?? answerMinistryEmmaPrompt({ overview, page, prompt: trimmedPrompt, staticSignals: stableStaticSignals }),
+          payload.response ?? answerMinistryEmmaPrompt({ overview, alignmentProfile, page, prompt: trimmedPrompt, staticSignals: stableStaticSignals }),
           buildChatAudit(payload as EmmaChatResult)
         )
       ]);
     } catch {
-      const fallback = answerMinistryEmmaPrompt({ overview, page, prompt: trimmedPrompt, staticSignals: stableStaticSignals });
+      const fallback = answerMinistryEmmaPrompt({ overview, alignmentProfile, page, prompt: trimmedPrompt, staticSignals: stableStaticSignals });
       setMessages((current) => [
         ...current,
         toEmmaMessage(
@@ -177,7 +192,7 @@ export function MinistryEmmaPanel({
         </span>
         <div>
           <p className="eyebrow">EMMA</p>
-          <h3 id={`ministry-emma-${page}-title`}>EMMA Ministry Assistant</h3>
+          <h3 id={`ministry-emma-${page}-title`}>{title}</h3>
         </div>
         <div className="ministry-emma-guardrails" aria-label="EMMA guardrails">
           <span className="pill">
@@ -241,7 +256,7 @@ export function MinistryEmmaPanel({
 
         <form className="ministry-emma-controls" onSubmit={(event) => void submit(event)}>
           <div className="ministry-emma-prompts" aria-label="EMMA prompts">
-            {ministryEmmaUniversalPromptTemplates.map((template) => (
+            {stablePromptTemplates.map((template) => (
               <button className="button compact-button" key={template} type="button" onClick={() => setPrompt(template)}>
                 {template}
               </button>

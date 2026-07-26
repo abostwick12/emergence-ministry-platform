@@ -1,42 +1,55 @@
-import Link from "next/link";
-import { ArrowRight, CalendarDays, CheckSquare, Mail, Music2, WalletCards, type LucideIcon } from "lucide-react";
+import { MinistryAlignmentWorkspace } from "@/components/ministry-alignment-workspace";
+import { PageIntro, QuietState, StatusBadge } from "@/components/platform-ui";
+import { requireEmergeOperationsAccess } from "@/lib/app-area-access";
+import { getOverview } from "@/lib/data/ministry-repository";
+import { defaultMinistryAlignmentProfile } from "@/lib/ministry/alignment";
 
-import { EditorialSection, PageIntro } from "@/components/platform-ui";
+export default async function MinistryHubPage() {
+  const access = await requireEmergeOperationsAccess();
+  if (!access.allowed) {
+    return (
+      <section className="placeholder-page editorial-placeholder-page" aria-labelledby="ministry-hub-title">
+        <PageIntro
+          eyebrow="Ministry Hub"
+          title="Ministry Decision Center"
+          description="Ministry workspace access could not be verified."
+          actions={<StatusBadge tone="warning">Access needed</StatusBadge>}
+        />
+      </section>
+    );
+  }
 
-const ministryAreas = [
-  { href: "/events", title: "Events", detail: "Plan and update event readiness.", action: "Review events", icon: CalendarDays },
-  { href: "/tasks", title: "Tasks", detail: "See what needs an owner, update, or follow-up.", action: "Work tasks", icon: CheckSquare },
-  { href: "/communications", title: "Communications", detail: "Prepare drafts for review. Nothing sends live.", action: "Review drafts", icon: Mail },
-  { href: "/worship", title: "Worship", detail: "Plan services, rehearsals, and presentation prep.", action: "Plan worship", icon: Music2 },
-  { href: "/budget", title: "Budget", detail: "Track event expenses and budget targets.", action: "Check budget", icon: WalletCards }
-] satisfies Array<{ href: string; title: string; detail: string; action: string; icon: LucideIcon }>;
+  try {
+    const overview = await getOverview(access.session);
 
-export default function MinistryHubPage() {
-  return (
-    <section className="placeholder-page editorial-placeholder-page" aria-labelledby="ministry-hub-title">
-      <PageIntro
-        eyebrow="Ministry Hub"
-        title="Ministry operations"
-        description="Open the workspaces your team uses every week."
-      />
-
-      <EditorialSection eyebrow="Open" title="Choose a workspace">
-        <div className="placeholder-capability-list ministry-launch-list">
-          {ministryAreas.map((area) => (
-            <Link className="placeholder-capability-row" href={area.href} key={area.href}>
-              <span className="ministry-launch-icon" aria-hidden="true">
-                <area.icon />
-              </span>
-              <strong>{area.title}</strong>
-              <p>{area.detail}</p>
-              <span className="ministry-launch-action">
-                {area.action}
-                <ArrowRight aria-hidden="true" />
-              </span>
-            </Link>
-          ))}
-        </div>
-      </EditorialSection>
-    </section>
-  );
+    return (
+      <section className="ministry-launch-page ministry-conversation-first" aria-labelledby="ministry-hub-title">
+        <PageIntro
+          eyebrow="Ministry Hub"
+          title="Ministry Alignment"
+          description="Leadership-authored direction, EMMA conversation, observable signals, and inspectable evidence in one discernment workspace."
+          actions={<StatusBadge tone="info">Architecture Evolution - Phase 1-3</StatusBadge>}
+        />
+        <MinistryAlignmentWorkspace
+          generatedAt={new Date().toISOString()}
+          initialProfile={defaultMinistryAlignmentProfile}
+          overview={overview}
+        />
+      </section>
+    );
+  } catch {
+    return (
+      <section className="placeholder-page editorial-placeholder-page" aria-labelledby="ministry-hub-title">
+        <PageIntro
+          eyebrow="Ministry Hub"
+          title="Ministry Decision Center"
+          description="Current ministry signals could not be loaded."
+          actions={<StatusBadge tone="warning">Needs data</StatusBadge>}
+        />
+        <QuietState title="Decision center unavailable">
+          Open Events, Tasks, Communications, or Budget directly while the decision-center snapshot is unavailable.
+        </QuietState>
+      </section>
+    );
+  }
 }

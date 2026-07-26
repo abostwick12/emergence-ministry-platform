@@ -1,4 +1,5 @@
 import type { ActiveTask, ActivityLog, EventExpense, MinistryEvent, User } from "@/lib/types";
+import { defaultMinistryAlignmentProfile, type MinistryAlignmentProfile } from "@/lib/ministry/alignment";
 import { money } from "@/lib/utils";
 
 export type MinistryEmmaPage =
@@ -57,19 +58,26 @@ export const ministryEmmaPromptTemplates: Record<MinistryEmmaPage, string[]> = {
 };
 
 export function answerMinistryEmmaPrompt({
+  alignmentProfile,
   overview,
   page,
   prompt,
   staticSignals = []
 }: {
+  alignmentProfile?: MinistryAlignmentProfile;
   overview?: MinistryEmmaOverview;
   page: MinistryEmmaPage;
   prompt: string;
   staticSignals?: string[];
 }): MinistryEmmaResponse {
   const normalizedPrompt = prompt.toLowerCase();
+  const profile = alignmentProfile ?? defaultMinistryAlignmentProfile;
   if (!overview) {
     return answerStaticPage(page, staticSignals);
+  }
+
+  if (page === "dashboard" || isAlignmentPrompt(normalizedPrompt)) {
+    return answerAlignment(overview, profile, normalizedPrompt);
   }
 
   if (page === "files") {
@@ -142,6 +150,42 @@ function answerDashboard(overview: MinistryEmmaOverview): MinistryEmmaResponse {
     ],
     nextActions: ["Open the next event card.", "Resolve blocked task owners.", "Run an audited event summary for deeper context."]
   };
+}
+
+function answerAlignment(overview: MinistryEmmaOverview, profile: MinistryAlignmentProfile, normalizedPrompt: string): MinistryEmmaResponse {
+  const upcomingEvents = upcoming(overview.events);
+  const openTasks = overview.tasks.filter((task) => task.status !== "done");
+  const blocked = openTasks.filter((task) => task.status === "blocked");
+  const communicationGaps = overview.events.filter((event) => missingCommunicationFields(event).length > 0);
+  const criterion = selectAlignmentCriterion(profile, normalizedPrompt);
+  const eventLine = upcomingEvents[0] ? `${upcomingEvents[0].title} is the next visible event.` : "No upcoming event is visible.";
+  const observableSignal = `${upcomingEvents.length} upcoming events, ${openTasks.length} open tasks, ${blocked.length} blocked tasks, and ${communicationGaps.length} event communication gaps are visible in the current overview.`;
+
+  return {
+    summary: `Leadership stated: ${criterion} Current observable signal: ${observableSignal}`,
+    points: [
+      `Evidence: ${eventLine} The snapshot includes event, task, budget, activity, and approved Scripture-flow boundaries available to this page.`,
+      "Interpretation: EMMA can compare the evidence with leadership-authored criteria, but this is not a verdict or priority ranking.",
+      "Evidence limit: spiritual maturity, love for Christ, and the work of the Holy Spirit cannot be measured directly by this data."
+    ],
+    nextActions: [
+      "Review visible signals before changing direction.",
+      "Name what evidence is missing or mixed.",
+      "Take the question into leadership prayer and discussion."
+    ]
+  };
+}
+
+function isAlignmentPrompt(normalizedPrompt: string): boolean {
+  return /\b(alignment|vision|mission|values|season|success|evidence|signals|consistent|priority|priorities|discernment)\b/.test(normalizedPrompt);
+}
+
+function selectAlignmentCriterion(profile: MinistryAlignmentProfile, normalizedPrompt: string): string {
+  if (normalizedPrompt.includes("vision")) return profile.vision;
+  if (normalizedPrompt.includes("mission")) return profile.mission;
+  if (normalizedPrompt.includes("value")) return profile.values[0]?.title ?? profile.mission;
+  if (normalizedPrompt.includes("season")) return `${profile.currentSeason.title}: ${profile.currentSeason.description}`;
+  return profile.successLooksLike[0] ?? profile.mission;
 }
 
 function answerTasks(overview: MinistryEmmaOverview): MinistryEmmaResponse {

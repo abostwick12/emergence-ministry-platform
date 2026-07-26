@@ -12,6 +12,7 @@ import {
 import { ministryPageChatSchema } from "@/lib/emma/providers/ministry-page-chat";
 import { __resetEmmaMockStoreForTests, __setEmmaRepositorySupabaseClientForTests, getEmmaAuditTrail } from "@/lib/emma/repository";
 import type { MinistryEmmaOverview } from "@/lib/emma/ministry-page-assistant";
+import { defaultMinistryAlignmentProfile } from "@/lib/ministry/alignment";
 
 type TestSession = AuthSession & { testMinistryId: string };
 
@@ -374,6 +375,33 @@ describe("ministry page server-backed EMMA chat", () => {
         message: "Only Admin or Leader roles may use ministry EMMA chat."
       }
     });
+  });
+
+  it("audits leadership-authored alignment context without unrestricted operational records", async () => {
+    const admin = session();
+    const result = await runMinistryPageServerChat({
+      overview: overview(),
+      rawInput: {
+        page: "dashboard",
+        prompt: "Where does the evidence support our Success Looks Like criteria?",
+        alignmentProfile: defaultMinistryAlignmentProfile
+      },
+      session: admin
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.response.summary).toContain("Leadership stated:");
+    expect(result.data.response.points.join(" ")).toContain("not a verdict or priority ranking");
+
+    const trail = await getEmmaAuditTrail(admin, result.data.requestId);
+    expect(trail.runs[0]?.contextManifest.entries).toContainEqual({
+      recordId: "ministry_alignment_profile",
+      recordType: "leadership_authored_alignment_context",
+      category: "voice_profile",
+      sourceTable: "application_alignment_context"
+    });
+    expect(trail.runs[0]?.contextManifest.entries.some((entry) => entry.sourceTable === "*")).toBe(false);
   });
 
   it("returns deterministic chat when audit persistence is unavailable", async () => {
