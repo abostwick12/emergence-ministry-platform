@@ -1,0 +1,101 @@
+# Competition Judge Walkthrough
+
+This runbook keeps the competition path visible and repeatable. It describes what judges should see today, what is intentionally preview-only, and where the scored YouVersion and Gloo AI Studio integration flow sits in the platform.
+
+## Production Entry
+
+Production URL:
+
+```text
+https://emergence-ministry-platform.vercel.app
+```
+
+Recommended judge path:
+
+1. Open `/login`.
+2. Choose the competition review or guest path.
+3. Confirm the dashboard loads with the Lead Emergence shell.
+4. Open the Ministry Hub and review Ministry Alignment.
+5. Open Student Scripture resources with a passage reference.
+6. Review the discipleship and AI readiness surfaces.
+7. Confirm restricted Camp routes redirect rather than exposing protected data.
+
+## What To Evaluate
+
+Lead Emergence is competition-ready as an operational ministry platform with visible architecture for a larger ministry intelligence ecosystem.
+
+Evaluate the current build for:
+
+- authenticated and guest-accessible review flows
+- clear operational surfaces for events, tasks, communications, budget, students, and ministry health
+- scoped preview behavior instead of live sending or unsafe automation
+- visible evidence that provider integrations have defined boundaries
+- architecture that can grow into Meridian, Meridian Web, and the Vision Platform without replacing the current MVP
+
+## Judged Provider Flow
+
+The judged provider path should remain easy to identify during review.
+
+### YouVersion Platform
+
+YouVersion sits in the Scripture grounding step before generation.
+
+Current visible surfaces:
+
+- `/student/scripture/resources`
+- `/student/scripture/questions`
+- `POST /api/student/scripture/lookup`
+
+Expected behavior:
+
+- Bible references can resolve to reader links and approved Scripture metadata.
+- The app can direct users to Bible.com surfaces.
+- Lead Emergence stores references and relationships, not licensed Bible text as permanent Meridian memory.
+
+### Gloo AI Studio
+
+Meridian orchestrates insight generation by providing governed context to Gloo AI Studio.
+
+Current visible surfaces:
+
+- `POST /api/student/scripture/discussion`
+- `POST /api/student/scripture/reading-plan`
+- discipleship and AI readiness indicators
+
+Expected behavior:
+
+- Gloo AI Studio is the intended primary ministry intelligence provider for ministry-specific synthesis, student-question discussion drafts, and reading-plan drafts.
+- Generated outputs remain candidate outputs until reviewed or approved by a human leader.
+- No AI provider receives direct operational database access.
+
+## Live Today
+
+The production build currently demonstrates:
+
+- Lead Emergence dashboard and app shell
+- guest competition review path
+- operational event, task, communication, and budget workflows
+- Ministry Alignment decision surface
+- Student Scripture resource and question surfaces
+- YouVersion reader/reference seams
+- Gloo AI Studio generation seams and readiness boundaries
+- protected Camp route behavior
+
+## Structurally Enabled
+
+These capabilities are intentionally architectural in this phase:
+
+- Meridian governed retrieval
+- Meridian publishing
+- full Gloo AI Studio production orchestration
+- YouVersion reading-plan integration beyond current reference and reader-link seams
+- Meridian Web
+- Vision Platform
+
+## Review Boundaries
+
+- Communication outputs are drafts or previews unless explicitly sent by a future approved workflow.
+- AI outputs are candidate outputs, not institutional memory.
+- Human leaders remain responsible for teaching, theology, pastoral care, staffing, and ministry direction.
+- Volunteer Hub remains the volunteer-facing workspace at `/volunteer`.
+- Leadership-level volunteer health intelligence belongs under the Leader Hub.

@@ -19,7 +19,9 @@ jobs:
   full-validation:
     name: Build and E2E
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # A cold Linux runner compiles most App Router pages during the serialized
+    # Playwright pass. Keep enough room for retries without masking real failures.
+    timeout-minutes: 35
     if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'full-ci')
 
     steps:
