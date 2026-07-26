@@ -69,6 +69,7 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page.getByText("Create one launch link")).toBeVisible();
     await page.getByText("AI draft connection diagnostics", { exact: true }).click();
     await expect(page.getByRole("heading", { name: "Test the draft connection" })).toBeVisible();
+    await expect(page.getByLabel("Gloo diagnostics")).toContainText("Meridian-governed context is sent to Gloo AI Studio");
     await expect(page.getByRole("button", { name: "Run Connection Test" })).toBeVisible();
     await expect(page.getByRole("tab", { name: /Needs review/ })).toBeVisible();
   });
@@ -190,9 +191,11 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page.getByRole("dialog", { name: "Avoiding proof-texting study tool" })).toContainText("Before quoting a verse");
     await page.getByRole("button", { name: "Close study tool" }).click();
     await expect(page.getByRole("heading", { name: "Open Scripture without leaving the journey." })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Scripture lookup" })).toContainText("Lead Emergence resolves the reference server-side");
     await page.getByLabel("Scripture reference").fill("John 3:16");
     await page.getByRole("button", { name: "Open Reader" }).click();
     await expect(page.getByRole("status")).toContainText("Bible App reader opened.");
+    await expect(page.getByRole("region", { name: "YouVersion Bible reader" })).toContainText("YouVersion supplies canonical Scripture surfaces");
     await expect(page.getByRole("region", { name: "YouVersion Bible reader" }).getByRole("link", { name: "Open" })).toHaveAttribute(
       "href",
       "https://www.bible.com/bible/111/JHN.3.16.NIV"
@@ -450,10 +453,12 @@ test.describe("Student Scripture Hub shell", () => {
     );
 
     await page.goto("/student/scripture/resources");
+    await expect(page.getByRole("region", { name: "Scripture lookup" })).toContainText("Lead Emergence resolves the reference server-side");
     await page.getByLabel("Scripture reference").fill("John 3:16");
     await page.getByRole("button", { name: "Open Reader" }).click();
     await expect(page.getByRole("status")).toContainText("Bible App reader opened.");
     await expect(page.getByRole("heading", { name: "John 3:16" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "YouVersion Bible reader" })).toContainText("YouVersion supplies canonical Scripture surfaces");
     await expect(page.getByRole("region", { name: "YouVersion Bible reader" }).getByRole("link", { name: "Open" })).toHaveAttribute(
       "href",
       "https://www.bible.com/bible/111/JHN.3.16.NIV"

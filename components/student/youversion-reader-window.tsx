@@ -40,6 +40,9 @@ export function YouVersionReaderWindow({ link, title = "Bible App reader" }: You
         />
       </div>
       <p className="youversion-reader-note">Open in YouVersion for sign-in, audio, notes, and highlights.</p>
+      <p className="youversion-reader-note provider-boundary">
+        Provider boundary: YouVersion supplies canonical Scripture surfaces; Lead Emergence keeps only the approved reference context for Meridian retrieval.
+      </p>
     </section>
   );
 }

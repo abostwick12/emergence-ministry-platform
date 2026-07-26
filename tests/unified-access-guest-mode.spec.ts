@@ -9,12 +9,20 @@ test.describe("Unified access and competition guest mode", () => {
     await expect(page).toHaveURL(/\/login$/);
     await expect(page.getByRole("button", { name: "Log in" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Continue as guest" })).toHaveAttribute("href", "/api/auth/guest");
+    await expect(page.getByLabel("Competition review path")).toContainText("Ministry Alignment");
+    await expect(page.getByLabel("Competition review path")).toContainText("YouVersion reader");
+    await expect(page.getByLabel("Competition review path")).toContainText("Gloo AI Studio readiness");
   });
 
   test("guest enters public pages and cannot reach protected sections by default", async ({ page }) => {
     await enterGuestMode(page);
 
     await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible();
+    const judgePath = page.locator('[aria-label="Competition review path"]:visible');
+    await expect(judgePath).toContainText("Inspect the platform story in order.");
+    await expect(judgePath.getByRole("link", { name: /Ministry Alignment/ })).toHaveAttribute("href", "/ministry");
+    await expect(judgePath.getByRole("link", { name: /YouVersion Reader/ })).toHaveAttribute("href", "/student/scripture/resources?reference=John%203%3A16");
+    await expect(judgePath.getByRole("link", { name: /Discipleship Review/ })).toHaveAttribute("href", "/discipleship");
     const sidebar = page.getByRole("navigation", { name: "Desktop navigation" });
     await expect(sidebar.getByRole("link", { name: "Ministry Hub" })).toBeVisible();
     await expect(sidebar.getByRole("link", { name: "Student Portal" })).toBeVisible();
@@ -131,6 +139,7 @@ test.describe("Unified access and competition guest mode", () => {
   test("mobile login replaces guest mode in the same browser context", async ({ context, page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await enterGuestMode(page);
+    await expect(page.locator('[aria-label="Competition review path"]:visible')).toContainText("YouVersion Reader");
 
     await page.goto("/settings");
     await expect(page).toHaveURL(/\/login$/);
