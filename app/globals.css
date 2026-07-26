@@ -19745,7 +19745,7 @@ body:has(.login-shell) h3 {
   padding: 32px;
 }
 
-.leader-prep-title-field textarea,
+.leader-prep-title-field input,
 .leader-prep-meta-row input,
 .leader-prep-big-idea textarea,
 .leader-prep-body-field textarea {
@@ -19756,15 +19756,13 @@ body:has(.login-shell) h3 {
   outline: none;
 }
 
-.leader-prep-title-field textarea {
+.leader-prep-title-field input {
   min-height: 82px;
-  resize: none;
   font-family: Georgia, "Times New Roman", serif;
   font-size: clamp(2rem, 4vw, 2.65rem);
   font-weight: 800;
   letter-spacing: 0;
   line-height: 1.08;
-  overflow: hidden;
 }
 
 .leader-prep-meta-row {
@@ -20273,7 +20271,7 @@ body:has(.login-shell) h3 {
     padding-inline: 18px;
   }
 
-  .leader-prep-title-field textarea {
+  .leader-prep-title-field input {
     min-height: 72px;
     font-size: clamp(1.7rem, 10vw, 2.4rem);
   }
