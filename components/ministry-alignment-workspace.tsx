@@ -86,7 +86,7 @@ export function MinistryAlignmentWorkspace({
     <>
       <EditorialSection
         eyebrow="Leadership-authored context"
-        title="Ministry Alignment"
+        title="Alignment profile"
         description="Compare observable ministry life with the Vision, Mission, Values, Current Season, and Success Looks Like statements leaders have named."
       >
         <MinistryAlignmentPanel profile={profile} onEdit={() => setEditOpen(true)} onReset={resetProfile} />
@@ -112,8 +112,8 @@ export function MinistryAlignmentWorkspace({
       </EditorialSection>
 
       <EditorialSection
-        eyebrow="Current Ministry Signals"
-        title={`Signals foregrounded for ${center.direction.emphasis}`}
+        eyebrow="Decision evidence"
+        title={`Current signals for ${center.direction.emphasis}`}
         description="Signals are factual observations with definitions, evidence boundaries, and no verdict labels."
       >
         <DecisionSignalList signals={center.signals} />

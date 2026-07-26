@@ -227,13 +227,15 @@ export function saveLocalStudentQuestionReflection(
 }
 
 export function getLocalStudentJourneyEntries(session: AuthSession) {
-  return Object.values(stateFor(session).journeyEntries).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  return Object.values(stateFor(session).journeyEntries)
+    .map(stripQaTestingTextFromJourneyEntry)
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
 export function saveLocalStudentJourneyEntry(session: AuthSession, input: SaveStudentJourneyEntryInput) {
   const now = new Date().toISOString();
   const entry: StudentJourneyEntry = {
-    ...input,
+    ...stripQaTestingTextFromJourneyInput(input),
     savedAt: now,
     updatedAt: now
   };
@@ -290,4 +292,30 @@ function stateFor(session: AuthSession) {
 
 function normalizeLocalText(value: string | undefined) {
   return (value ?? "").normalize("NFKC").replace(/\s+/g, " ").trim();
+}
+
+function stripQaTestingTextFromJourneyEntry(entry: StudentJourneyEntry): StudentJourneyEntry {
+  return {
+    ...entry,
+    scriptureReflection: stripQaTestingText(entry.scriptureReflection),
+    questionReflection: stripQaTestingText(entry.questionReflection),
+    practiceReflection: stripQaTestingText(entry.practiceReflection),
+    livingReflection: stripQaTestingText(entry.livingReflection),
+    fruitReflection: stripQaTestingText(entry.fruitReflection)
+  };
+}
+
+function stripQaTestingTextFromJourneyInput(input: SaveStudentJourneyEntryInput): SaveStudentJourneyEntryInput {
+  return {
+    ...input,
+    scriptureReflection: stripQaTestingText(input.scriptureReflection),
+    questionReflection: stripQaTestingText(input.questionReflection),
+    practiceReflection: stripQaTestingText(input.practiceReflection),
+    livingReflection: stripQaTestingText(input.livingReflection),
+    fruitReflection: stripQaTestingText(input.fruitReflection)
+  };
+}
+
+function stripQaTestingText(value: string) {
+  return value.trim().toLowerCase() === "testing" ? "" : value;
 }

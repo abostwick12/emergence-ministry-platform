@@ -859,11 +859,11 @@ function emptyJournalDraft(firstReadingId: string): JournalEntryDraft {
 
 function journeyEntryToDraft(entry: StudentJourneyEntry, firstReadingId: string): JournalEntryDraft {
   return {
-    scriptureReflection: entry.scriptureReflection,
-    questionReflection: entry.questionReflection,
-    practiceReflection: entry.practiceReflection,
-    livingReflection: entry.livingReflection,
-    fruitReflection: entry.fruitReflection,
+    scriptureReflection: removeQaTestingDraftValue(entry.scriptureReflection),
+    questionReflection: removeQaTestingDraftValue(entry.questionReflection),
+    practiceReflection: removeQaTestingDraftValue(entry.practiceReflection),
+    livingReflection: removeQaTestingDraftValue(entry.livingReflection),
+    fruitReflection: removeQaTestingDraftValue(entry.fruitReflection),
     selectedPractice: entry.selectedPractice,
     studyPath: entry.studyPath,
     selectedReadingId: entry.selectedReadingId || firstReadingId,
@@ -905,11 +905,11 @@ function readJournalDraft(storageKey: string): JournalEntryDraft | undefined {
     const parsed = JSON.parse(window.localStorage.getItem(storageKey) ?? "null") as Partial<JournalEntryDraft> | null;
     if (!parsed || typeof parsed !== "object") return undefined;
     return {
-      scriptureReflection: typeof parsed.scriptureReflection === "string" ? parsed.scriptureReflection : "",
-      questionReflection: typeof parsed.questionReflection === "string" ? parsed.questionReflection : "",
-      practiceReflection: typeof parsed.practiceReflection === "string" ? parsed.practiceReflection : "",
-      livingReflection: typeof parsed.livingReflection === "string" ? parsed.livingReflection : "",
-      fruitReflection: typeof parsed.fruitReflection === "string" ? parsed.fruitReflection : "",
+      scriptureReflection: typeof parsed.scriptureReflection === "string" ? removeQaTestingDraftValue(parsed.scriptureReflection) : "",
+      questionReflection: typeof parsed.questionReflection === "string" ? removeQaTestingDraftValue(parsed.questionReflection) : "",
+      practiceReflection: typeof parsed.practiceReflection === "string" ? removeQaTestingDraftValue(parsed.practiceReflection) : "",
+      livingReflection: typeof parsed.livingReflection === "string" ? removeQaTestingDraftValue(parsed.livingReflection) : "",
+      fruitReflection: typeof parsed.fruitReflection === "string" ? removeQaTestingDraftValue(parsed.fruitReflection) : "",
       selectedPractice: parsed.selectedPractice === "guided" ? "guided" : "embodied",
       studyPath: parsed.studyPath === "inductive" ? "inductive" : "word",
       selectedReadingId: typeof parsed.selectedReadingId === "string" ? parsed.selectedReadingId : "",
@@ -918,6 +918,10 @@ function readJournalDraft(storageKey: string): JournalEntryDraft | undefined {
   } catch {
     return undefined;
   }
+}
+
+function removeQaTestingDraftValue(value: string) {
+  return value.trim().toLowerCase() === "testing" ? "" : value;
 }
 
 function readArchivedPromptIds() {

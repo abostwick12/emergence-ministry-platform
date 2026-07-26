@@ -231,7 +231,7 @@ export function MinistryEmmaPanel({
                 {message.author === "user" ? <Send aria-hidden="true" /> : <Sparkles aria-hidden="true" />}
                 <strong>{message.author === "user" ? "You" : "EMMA"}</strong>
               </div>
-              <p>{message.body}</p>
+              <EmmaMessageProse body={message.body} collapsible={message.author === "emma"} />
               {message.points?.length ? (
                 <ul>
                   {message.points.map((point) => (
@@ -257,7 +257,7 @@ export function MinistryEmmaPanel({
         <form className="ministry-emma-controls" onSubmit={(event) => void submit(event)}>
           <div className="ministry-emma-prompts" aria-label="EMMA prompts">
             {stablePromptTemplates.map((template) => (
-              <button className="button compact-button" key={template} type="button" onClick={() => setPrompt(template)}>
+              <button className="button ghost compact-button ministry-emma-prompt-button" key={template} type="button" onClick={() => setPrompt(template)}>
                 {template}
               </button>
             ))}
@@ -300,6 +300,40 @@ function toEmmaMessage(response: MinistryEmmaResponse, audit?: string): EmmaMess
     nextActions: response.nextActions,
     audit
   };
+}
+
+function EmmaMessageProse({ body, collapsible }: { body: string; collapsible: boolean }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const preview = useMemo(() => buildEmmaProsePreview(body), [body]);
+  const hasAdditionalText = collapsible && body.replace(/\s+/g, " ").trim().length > 220;
+  const isCollapsed = hasAdditionalText && !isExpanded;
+
+  return (
+    <div className={[
+      "ministry-emma-message-prose",
+      hasAdditionalText ? "collapsible" : "",
+      isCollapsed ? "collapsed" : ""
+    ].filter(Boolean).join(" ")}>
+      <p className="ministry-emma-prose-full">{body}</p>
+      {hasAdditionalText ? (
+        <>
+          <p className="ministry-emma-prose-preview">{preview}</p>
+          <button className="button ghost compact-button ministry-emma-read-toggle" type="button" onClick={() => setIsExpanded((current) => !current)}>
+            {isExpanded ? "Collapse response" : "Read full response"}
+          </button>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+function buildEmmaProsePreview(body: string) {
+  const normalized = body.replace(/\s+/g, " ").trim();
+  if (normalized.length <= 220) return normalized;
+  const sentenceMatches = normalized.match(/[^.!?]+[.!?]+(?:\s|$)/g) ?? [];
+  const sentencePreview = sentenceMatches.slice(0, 2).join(" ").replace(/\s+/g, " ").trim();
+  if (sentencePreview.length >= 90 && sentencePreview.length <= 260) return sentencePreview;
+  return `${normalized.slice(0, 210).trimEnd()}...`;
 }
 
 function buildChatAudit(payload: EmmaChatResult): string {

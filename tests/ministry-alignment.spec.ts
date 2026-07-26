@@ -25,7 +25,8 @@ test.describe("Ministry Hub alignment workspace", () => {
     await expect(editor).toHaveCount(0);
     await expect(alignment.getByText("Students practice following Jesus with Scripture, prayer, and service.")).toBeVisible();
 
-    await expect(page.getByText("Current Ministry Signals", { exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Current signals for/i })).toBeVisible();
+    await expect(page.getByText("Current Ministry Signals", { exact: true })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "What EMMA is allowed to consider" })).toBeVisible();
     await expect(page.locator(".ministry-launch-panel[open]").first()).toBeVisible();
     await expect(page.getByText(/alignment score|percentage alignment|Season score|Mission: Strong/i)).toHaveCount(0);

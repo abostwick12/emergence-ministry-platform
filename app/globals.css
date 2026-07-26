@@ -16928,6 +16928,16 @@ body:has(.login-shell) h3 {
   line-height: 1.45;
 }
 
+.ministry-emma-message-prose,
+.ministry-emma-message-prose p {
+  min-width: 0;
+}
+
+.ministry-emma-prose-preview,
+.ministry-emma-read-toggle {
+  display: none;
+}
+
 .ministry-emma-message ul {
   padding-left: 18px;
 }
@@ -16948,6 +16958,23 @@ body:has(.login-shell) h3 {
 .ministry-emma-actions-list svg {
   width: 14px;
   height: 14px;
+}
+
+.ministry-emma-prompts .ministry-emma-prompt-button {
+  min-height: 36px;
+  border-color: rgba(129, 164, 214, 0.13);
+  background: rgba(5, 14, 28, 0.28);
+  box-shadow: none;
+  color: var(--platform-muted);
+  font-size: var(--text-xs);
+  padding: 7px 10px;
+}
+
+.ministry-emma-prompts .ministry-emma-prompt-button:hover {
+  border-color: rgba(129, 164, 214, 0.22);
+  background: rgba(5, 14, 28, 0.42);
+  color: #f7fbff;
+  transform: none;
 }
 
 .ministry-emma-field {
@@ -17111,6 +17138,20 @@ body:has(.login-shell) h3 {
   .ministry-emma-guardrails {
     grid-column: 1 / -1;
     justify-content: flex-start;
+  }
+
+  .ministry-emma-message-prose.collapsible.collapsed .ministry-emma-prose-full {
+    display: none;
+  }
+
+  .ministry-emma-message-prose.collapsible.collapsed .ministry-emma-prose-preview {
+    display: block;
+  }
+
+  .ministry-emma-message-prose.collapsible .ministry-emma-read-toggle {
+    display: inline-flex;
+    justify-self: start;
+    margin-top: 2px;
   }
 
   .ministry-launch-row {
