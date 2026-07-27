@@ -102,17 +102,18 @@ test.describe("Unified access and competition guest mode", () => {
     await login(page);
     await page.goto("/settings");
 
-    await expect(page.getByRole("heading", { name: "Page access across the platform" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Guarded access center" })).toBeVisible();
     await expect(page.getByText("Local preview mode is active")).toBeVisible();
     await expect(page.getByText("Jordan Reed")).toBeVisible();
 
+    await page.getByRole("button", { name: "Public demo" }).click();
     const guestControls = page.getByLabel("Guest public page controls");
-    await guestControls.locator("summary", { hasText: "Public guest pages" }).click();
     const budgetToggle = guestControls.locator("label", { hasText: "Budget" }).getByRole("checkbox");
     const wasBudgetPublic = await budgetToggle.isChecked();
     const budgetPatch = page.waitForResponse(
       (response) => response.url().endsWith("/api/settings/access") && response.request().method() === "PATCH"
     );
+    page.once("dialog", (dialog) => void dialog.accept());
     await budgetToggle.click();
     const budgetPayload = await (await budgetPatch).json() as { pages?: Array<{ key: string; guestPublic: boolean }> };
     expect(budgetPayload.pages?.find((item) => item.key === "budget")?.guestPublic).toBe(!wasBudgetPublic);
@@ -120,6 +121,7 @@ test.describe("Unified access and competition guest mode", () => {
     const budgetRestorePatch = page.waitForResponse(
       (response) => response.url().endsWith("/api/settings/access") && response.request().method() === "PATCH"
     );
+    page.once("dialog", (dialog) => void dialog.accept());
     await budgetToggle.click();
     const budgetRestorePayload = await (await budgetRestorePatch).json() as { pages?: Array<{ key: string; guestPublic: boolean }> };
     expect(budgetRestorePayload.pages?.find((item) => item.key === "budget")?.guestPublic).toBe(wasBudgetPublic);
@@ -128,14 +130,15 @@ test.describe("Unified access and competition guest mode", () => {
     const campToggle = guestControls.locator("label", { hasText: "Camp" }).getByRole("checkbox");
     await expect(campToggle).toBeDisabled();
 
+    await page.getByRole("button", { name: "Page access" }).click();
     const jordanRow = page.locator(".website-access-row", { hasText: "Jordan Reed" });
-    await jordanRow.locator("summary", { hasText: "Page access" }).click();
     const jordanAccess = jordanRow.getByLabel("Page access for Jordan Reed");
     const filesToggle = jordanAccess.locator("label", { hasText: "Files" }).getByRole("checkbox");
     const wasFilesAllowed = await filesToggle.isChecked();
     const filesPatch = page.waitForResponse(
       (response) => response.url().endsWith("/api/settings/access") && response.request().method() === "PATCH"
     );
+    page.once("dialog", (dialog) => void dialog.accept());
     await filesToggle.click();
     const filesPayload = await (await filesPatch).json() as { member?: { pageAccess?: Record<string, boolean> } };
     expect(filesPayload.member?.pageAccess?.files).toBe(!wasFilesAllowed);
@@ -143,6 +146,7 @@ test.describe("Unified access and competition guest mode", () => {
     const filesRestorePatch = page.waitForResponse(
       (response) => response.url().endsWith("/api/settings/access") && response.request().method() === "PATCH"
     );
+    page.once("dialog", (dialog) => void dialog.accept());
     await filesToggle.click();
     const filesRestorePayload = await (await filesRestorePatch).json() as { member?: { pageAccess?: Record<string, boolean> } };
     expect(filesRestorePayload.member?.pageAccess?.files).toBe(wasFilesAllowed);
@@ -162,7 +166,7 @@ test.describe("Unified access and competition guest mode", () => {
     await page.getByRole("navigation", { name: "Mobile navigation" }).getByText("More", { exact: true }).click();
     await expect(page.getByRole("link", { name: "Settings" })).toBeVisible();
     await page.goto("/settings");
-    await expect(page.getByRole("heading", { name: "Page access across the platform" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Guarded access center" })).toBeVisible();
 
     const cookies = await context.cookies();
     expect(cookies.find((cookie) => cookie.name === "lead_guest_session")).toBeUndefined();

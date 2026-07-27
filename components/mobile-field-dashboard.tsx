@@ -108,7 +108,7 @@ export function MobileFieldDashboard({
       detail: communicationReviewCount
         ? "Event previews are missing planning details."
         : "Upcoming event previews have their core details.",
-      meta: "Preview only - No live sends",
+      meta: "Human approval gates",
       href: "/communications",
       icon: MessageSquareText,
       tone: communicationReviewCount ? "gold" : "green"

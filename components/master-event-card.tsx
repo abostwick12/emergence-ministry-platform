@@ -41,22 +41,22 @@ const taskStatuses: TaskStatus[] = ["todo", "in_progress", "blocked", "done"];
 const taskStatusLabels: Record<TaskStatus, string> = {
   todo: "To do",
   in_progress: "In progress",
-  blocked: "Stuck",
+  blocked: "Blocked",
   done: "Done"
 };
 
 const eventStatusOptions = [
-  { value: "not_started", label: "Not Started" },
-  { value: "planning", label: "In Progress" },
-  { value: "working_on_it", label: "Working on It" },
-  { value: "stuck", label: "Stuck" },
-  { value: "ready", label: "Completed" }
+  { value: "not_started", label: "Needs plan" },
+  { value: "planning", label: "In progress" },
+  { value: "working_on_it", label: "In progress" },
+  { value: "stuck", label: "Blocked" },
+  { value: "ready", label: "Ready" }
 ] as const;
 
 const priorityOptions = [
   { value: "normal", label: "Normal" },
-  { value: "high", label: "High" },
-  { value: "urgent", label: "Urgent" }
+  { value: "high", label: "Needs attention" },
+  { value: "urgent", label: "Guardrail review" }
 ];
 
 function usersToVolunteerLeaders(users: User[]): VolunteerLeader[] {
@@ -640,7 +640,7 @@ function MasterEventCardInner({
             aria-selected={step === 1}
             onClick={() => { setSaveError(""); setStep(1); }}
           >
-            <span className="step-num">1</span> Event Details
+            <span className="step-num">1</span> Basics &amp; People
           </button>
           <button
             className={step === 2 ? "event-card-step active" : "event-card-step"}
@@ -654,7 +654,7 @@ function MasterEventCardInner({
               setStep(2);
             }}
           >
-            <span className="step-num">2</span> Tasks &amp; Integrations
+            <span className="step-num">2</span> Tasks, Copy &amp; Guardrails
           </button>
         </div>
 
@@ -722,7 +722,7 @@ function MasterEventCardInner({
 
           {step === 1 && (
             <button className="button primary" type="button" onClick={() => void handleNext()} disabled={isSaving}>
-              {isSaving ? "Saving..." : "Next: Tasks & Integrations →"}
+              {isSaving ? "Saving..." : "Next: Tasks, Copy & Guardrails"}
             </button>
           )}
 
@@ -774,6 +774,7 @@ function Step1Form({
     users,
     plannerRole
   );
+  const [activePane, setActivePane] = useState<"basics" | "people" | "guardrails" | "details">("basics");
 
   function toggleSupportNeed(need: EventSupportNeed, checked: boolean) {
     const next = checked
@@ -784,6 +785,28 @@ function Step1Form({
 
   return (
     <div className="event-card-form">
+      <div className="event-card-focused-tabs" role="tablist" aria-label="Focused event edit sections">
+        {([
+          ["basics", "Basics"],
+          ["people", "People"],
+          ["guardrails", "Guardrails"],
+          ["details", "Details"]
+        ] as const).map(([pane, label]) => (
+          <button
+            key={pane}
+            className={activePane === pane ? "active" : ""}
+            type="button"
+            role="tab"
+            aria-selected={activePane === pane}
+            onClick={() => setActivePane(pane)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {activePane === "basics" ? (
+        <section className="event-card-focused-pane" aria-label="Event basics">
       <div className="form-grid-2">
         <div className="field">
           <label htmlFor="ec-title">Event Name <span aria-hidden="true">*</span></label>
@@ -822,46 +845,7 @@ function Step1Form({
             onChange={(e) => onChange("targetGroup", e.target.value)}
           />
         </div>
-        <div className="field">
-          <label htmlFor="ec-owner">Communication owner</label>
-          <select
-            className="input"
-            id="ec-owner"
-            value={state.contactOwnerId}
-            onChange={(e) => onChange("contactOwnerId", e.target.value)}
-          >
-            {users.map((u) => (
-              <option key={u.id} value={u.id}>{platformPersonRoleLine(u)}</option>
-            ))}
-          </select>
-        </div>
       </div>
-
-      <fieldset className="event-card-leader-picker">
-        <legend>Assigned Leaders</legend>
-        {mode === "create" ? (
-          <p className="muted">Save the event, then assign leaders from the Volunteer Hub leader pool.</p>
-        ) : volunteerLeaders.length ? (
-          <div className="event-card-leader-options">
-            {volunteerLeaders.map((leader) => (
-              <label className="event-card-leader-option" key={leader.id}>
-                <input
-                  type="checkbox"
-                  checked={assignedLeaderIds.includes(leader.id)}
-                  disabled={readOnly}
-                  onChange={() => onToggleLeader(leader.id)}
-                />
-                <span>
-                  <strong>{leader.name}</strong>
-                  <small>{leader.role}{leader.sourceChurch ? ` - ${leader.sourceChurch}` : ""}</small>
-                </span>
-              </label>
-            ))}
-          </div>
-        ) : (
-          <p className="muted">Add leaders in Volunteer Hub to make them available here.</p>
-        )}
-      </fieldset>
 
       <div className="field">
         <label htmlFor="ec-description">Vision / Description</label>
@@ -924,6 +908,61 @@ function Step1Form({
           </select>
         </div>
       </div>
+        </section>
+      ) : null}
+
+      {activePane === "people" ? (
+        <section className="event-card-focused-pane" aria-label="Event people">
+      <div className="field">
+        <label htmlFor="ec-owner">Communication owner</label>
+        <select
+          className="input"
+          id="ec-owner"
+          value={state.contactOwnerId}
+          onChange={(e) => onChange("contactOwnerId", e.target.value)}
+        >
+          {users.map((u) => (
+            <option key={u.id} value={u.id}>{platformPersonRoleLine(u)}</option>
+          ))}
+        </select>
+      </div>
+
+      <fieldset className="event-card-leader-picker">
+        <legend>Assigned Leaders</legend>
+        {mode === "create" ? (
+          <p className="muted">Save the event, then assign leaders from the Volunteer Hub leader pool.</p>
+        ) : volunteerLeaders.length ? (
+          <div className="event-card-leader-options">
+            {volunteerLeaders.map((leader) => (
+              <label className="event-card-leader-option" key={leader.id}>
+                <input
+                  type="checkbox"
+                  checked={assignedLeaderIds.includes(leader.id)}
+                  disabled={readOnly}
+                  onChange={() => onToggleLeader(leader.id)}
+                />
+                <span>
+                  <strong>{leader.name}</strong>
+                  <small>{leader.role}{leader.sourceChurch ? ` - ${leader.sourceChurch}` : ""}</small>
+                </span>
+              </label>
+            ))}
+          </div>
+        ) : (
+          <p className="muted">Add leaders in Volunteer Hub to make them available here.</p>
+        )}
+      </fieldset>
+        </section>
+      ) : null}
+
+      {activePane === "guardrails" ? (
+        <section className="event-card-focused-pane" aria-label="Event guardrails">
+      <div className="event-card-space-check">
+        <strong>Alignment guardrail</strong>
+        <p className="muted">
+          EMMA keeps ministry plans tied to your church beliefs, culture, and leadership voice before tasks, copy, or integrations move forward. Newer leaders get prompts here when a decision needs more context, approval, or pastoral clarity.
+        </p>
+      </div>
 
       {mode === "create" && showSpaceOwnerDraft ? (
         <div className="event-card-space-check">
@@ -960,8 +999,13 @@ function Step1Form({
           </div>
         </fieldset>
       ) : null}
+      {mode !== "create" && !showSpaceOwnerDraft ? (
+        <p className="muted">No guardrail warning is active for this event. EMMA will still keep sends, provider actions, and integration writes behind review points.</p>
+      ) : null}
+        </section>
+      ) : null}
 
-      <details className="event-card-optional-details" open={mode === "edit"}>
+      {activePane === "details" ? <details className="event-card-optional-details" open>
         <summary>
           <span>Optional planning details</span>
           <small>Budget, volunteer count, internal notes, and package settings</small>
@@ -1065,7 +1109,7 @@ function Step1Form({
         </label>
       </fieldset>
         </div>
-      </details>
+      </details> : null}
     </div>
   );
 }
@@ -1100,10 +1144,32 @@ function Step2Panel({
   showEmmaEventIntelligence: boolean;
 }) {
   const tasks = workspace?.tasks ?? [];
+  const [activePanel, setActivePanel] = useState<"tasks" | "copy" | "integrations" | "guardrails" | "history">("tasks");
 
   return (
     <div className="event-card-step2">
-      <section className="event-card-section">
+      <div className="event-card-focused-tabs" role="tablist" aria-label="Event task and guardrail sections">
+        {([
+          ["tasks", "Tasks"],
+          ["copy", "Copy"],
+          ["integrations", "Integrations"],
+          ["guardrails", "Guardrails"],
+          ["history", "History"]
+        ] as const).map(([panel, label]) => (
+          <button
+            key={panel}
+            className={activePanel === panel ? "active" : ""}
+            type="button"
+            role="tab"
+            aria-selected={activePanel === panel}
+            onClick={() => setActivePanel(panel)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {activePanel === "tasks" ? <section className="event-card-section">
         <div className="toolbar split">
           <h3 className="section-title flush">Event Tasks</h3>
           {mode === "create" && !workspace && (
@@ -1163,9 +1229,9 @@ function Step2Panel({
             )}
           </>
         )}
-      </section>
+      </section> : null}
 
-      <section className="event-card-section">
+      {activePanel === "integrations" ? <section className="event-card-section">
         <h3 className="section-title">Integration Actions</h3>
         <p className="muted event-card-section-note">
           Saving an event syncs it to the Emerge calendar and creates its Google Drive folder when the demo Google account is connected. Imports from Google Calendar run from Settings.
@@ -1200,20 +1266,28 @@ function Step2Panel({
             ))}
           </div>
         )}
-      </section>
+      </section> : null}
 
-      {workspace && showEmmaEventIntelligence ? <EmmaEventIntelligencePanel eventId={workspace.event.id} /> : null}
+      {activePanel === "guardrails" ? (
+        <section className="event-card-section">
+          <h3 className="section-title">Ministry Alignment Guardrails</h3>
+          <p className="muted event-card-section-note">
+            EMMA helps leaders notice missing context, unclear ownership, and actions that deserve human review before the ministry moves forward.
+          </p>
+          {workspace && showEmmaEventIntelligence ? <EmmaEventIntelligencePanel eventId={workspace.event.id} /> : <p className="muted">Admin guardrail intelligence appears here after the event is saved.</p>}
+        </section>
+      ) : null}
 
-      {workspace && workspace.communications.length > 0 && (
+      {activePanel === "copy" && workspace && workspace.communications.length > 0 && (
         <section className="event-card-section">
           <div className="toolbar split">
             <h3 className="section-title flush">Communication Previews</h3>
-            <span className="pill">Preview only — not sent</span>
+            <span className="pill">Review required before sending</span>
           </div>
           <div className="grid event-card-preview-grid">
             {workspace.communications.map((item) => (
               <article className="card" key={item.id}>
-                <span className="pill">Preview only — not sent</span>
+                <span className="pill">Draft only</span>
                 <p className="eyebrow">{communicationTypeLabel(item.type)}</p>
                 <h4 className="event-card-preview-title">{item.payload.subject}</h4>
                 <p className="muted event-card-preview-copy">{item.payload.body}</p>
@@ -1222,8 +1296,14 @@ function Step2Panel({
           </div>
         </section>
       )}
+      {activePanel === "copy" && (!workspace || workspace.communications.length === 0) ? (
+        <section className="event-card-section">
+          <h3 className="section-title">Communication Previews</h3>
+          <p className="muted">Generate the communication package from Integrations after the basics are ready.</p>
+        </section>
+      ) : null}
 
-      {workspace && workspace.activity.length > 0 && (
+      {activePanel === "history" && workspace && workspace.activity.length > 0 && (
         <section className="event-card-section" id="modal-activity-log">
           <h3 className="section-title">Activity Log</h3>
           <div className="grid">
@@ -1236,6 +1316,12 @@ function Step2Panel({
           </div>
         </section>
       )}
+      {activePanel === "history" && (!workspace || workspace.activity.length === 0) ? (
+        <section className="event-card-section" id="modal-activity-log">
+          <h3 className="section-title">Activity Log</h3>
+          <p className="muted">Activity history appears after this event has saved changes.</p>
+        </section>
+      ) : null}
     </div>
   );
 }
@@ -1285,7 +1371,7 @@ function TaskEditRow({
           onChange={(e) => setTitle(e.target.value)}
           onBlur={() => { if (title !== task.taskTitle) void save({ taskTitle: title }); }}
         />
-        {isCritical && <span className="pill blocked">Critical</span>}
+        {isCritical && <span className="pill blocked">Needs attention</span>}
       </div>
       <div className="task-edit-meta">
         <div className="field compact-field">

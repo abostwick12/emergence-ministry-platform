@@ -128,8 +128,8 @@ const expenseCategories = [
 export function MinistryCommunicationsPage() {
   return (
     <LaunchDataPage
-      eyebrow="Communications"
-      title="Communication Drafts"
+      eyebrow="Review gates"
+      title="Copy readiness queue"
       description="Preview what needs to be said, who owns it, and what is still missing before anything gets shared."
       emmaPage="communications"
     >
@@ -155,7 +155,7 @@ export function MinistryBudgetPage() {
   return (
     <LaunchDataPage
       eyebrow="Budget"
-      title="Budget Workspace"
+      title="Stewardship view"
       description="Track event targets, recorded spend, and the next planning cost without connecting accounting yet."
       emmaPage="budget"
       showHero={false}
@@ -168,8 +168,8 @@ export function MinistryBudgetPage() {
 export function MinistrySettingsPage({ user }: { user: SettingsUser }) {
   return (
     <LaunchDataPage
-      eyebrow="Settings"
-      title="Platform Settings"
+      eyebrow="Safeguards"
+      title="Guardrails, access, and live readiness"
       description="Keep access, workflow boundaries, and integration readiness visible without exposing secrets."
       emmaPage="settings"
     >
@@ -252,7 +252,7 @@ function LaunchDataPage({
               description={description}
               actions={<div className="ministry-launch-hero-actions" aria-label="Workspace status">
                 <span className="pill blue">Live workspace</span>
-                <span className="pill amber">Preview-only sending</span>
+                <span className="pill amber">Human approval gates</span>
               </div>}
             />
           ) : null}
@@ -286,7 +286,7 @@ function CommunicationsWorkspace({ overview }: { overview: MinistryOverview }) {
           <span>{nextReviewEvent ? `${nextReviewEvent.title} - ${formatDate(nextReviewEvent.startTime)}` : "No upcoming events are waiting."}</span>
         </div>
         <nav aria-label="Communications quick actions">
-          <Link href="/events">Open events</Link>
+          <Link href="/events">Open event readiness</Link>
           <a href="#communications-channel-plan">Channels</a>
         </nav>
       </section>
@@ -310,6 +310,14 @@ function CommunicationsWorkspace({ overview }: { overview: MinistryOverview }) {
                   badge={missing.length ? `${missing.length} missing` : "Ready"}
                   badgeTone={missing.length ? "amber" : "green"}
                   href="/events"
+                  actions={
+                    <>
+                      {!event.targetGroup ? <span>Add audience</span> : null}
+                      {!event.contactOwnerId ? <span>Assign owner</span> : null}
+                      {!event.description.trim() ? <span>Write event vision</span> : null}
+                      {missing.length ? null : <span>Open event copy</span>}
+                    </>
+                  }
                 >
                   {missing.length ? `Need ${missing.join(", ")} before previews are trustworthy.` : "Core event details are ready for preview generation."}
                 </LaunchRow>
@@ -1207,6 +1215,7 @@ function LaunchRow({
   badge,
   badgeTone,
   href,
+  actions,
   children
 }: {
   icon: ReactNode;
@@ -1215,6 +1224,7 @@ function LaunchRow({
   badge: string;
   badgeTone: "blue" | "green" | "amber";
   href: string;
+  actions?: ReactNode;
   children: ReactNode;
 }) {
   return (
@@ -1224,6 +1234,7 @@ function LaunchRow({
         <strong>{title}</strong>
         <small>{meta}</small>
         <span>{children}</span>
+        {actions ? <span className="ministry-launch-row-actions">{actions}</span> : null}
       </span>
       <span className={`pill ${badgeTone}`}>{badge}</span>
       <ArrowUpRight aria-hidden="true" />

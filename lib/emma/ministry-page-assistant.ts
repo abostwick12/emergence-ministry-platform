@@ -217,7 +217,7 @@ function answerCommunications(overview: MinistryEmmaOverview): MinistryEmmaRespo
     points: [
       needsReview[0] ? `${needsReview[0].event.title} needs ${needsReview[0].missing.join(", ")}.` : "Core communication fields are filled for visible upcoming events.",
       ownerGaps.length ? `${ownerGaps.length} event${plural(ownerGaps.length)} have no communication owner.` : "Communication ownership is assigned.",
-      "Email, text, and GroupMe outputs remain preview-only."
+      "Email, text, and GroupMe outputs stay behind human approval gates."
     ],
     nextActions: ["Fill missing event fields.", "Assign communication owners.", "Run an audited summary for the event with the largest gap."]
   };

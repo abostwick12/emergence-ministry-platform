@@ -43,6 +43,8 @@ type RegistrationInvitesResponse = {
   error?: string;
 };
 
+type AccessSection = "people" | "invites" | "public" | "pages" | "diagnostics";
+
 export function WebsiteAccessPanel({ canManagePlatformAccess }: { canManagePlatformAccess: boolean }) {
   const [members, setMembers] = useState<PlatformAccessMember[]>([]);
   const [pages, setPages] = useState<PlatformAccessPage[]>([]);
@@ -55,6 +57,7 @@ export function WebsiteAccessPanel({ canManagePlatformAccess }: { canManagePlatf
   const [loading, setLoading] = useState(canManagePlatformAccess);
   const [busyKey, setBusyKey] = useState("");
   const [message, setMessage] = useState<{ tone: "error" | "success"; text: string } | null>(null);
+  const [activeSection, setActiveSection] = useState<AccessSection>("people");
 
   const load = useCallback(async () => {
     if (!canManagePlatformAccess) return;
@@ -213,12 +216,12 @@ export function WebsiteAccessPanel({ canManagePlatformAccess }: { canManagePlatf
       <header className="website-access-heading">
         <div>
           <p className="eyebrow">Access management</p>
-          <h2 id="website-access-title">Page access across the platform</h2>
-          <p>Manage registered users, guest-public pages, and deactivate-first account removal from one place.</p>
+          <h2 id="website-access-title">Guarded access center</h2>
+          <p>Choose one admin job at a time: people, invite links, public demo pages, page access, or diagnostics.</p>
         </div>
         <span className="status-badge tone-info">
           <ShieldCheck aria-hidden="true" size={14} />
-          Unified permissions
+          Review before exposure
         </span>
       </header>
 
@@ -227,7 +230,32 @@ export function WebsiteAccessPanel({ canManagePlatformAccess }: { canManagePlatf
       ) : null}
       {message ? <p className={`website-access-message ${message.tone}`} role="status">{message.text}</p> : null}
 
-      <section className="website-people-command" aria-label="People source of truth">
+      <nav className="website-access-mode-tabs" aria-label="Access management sections">
+        {([
+          ["people", "People access"],
+          ["invites", "Invite links"],
+          ["public", "Public demo"],
+          ["pages", "Page access"],
+          ["diagnostics", "Diagnostics"]
+        ] as const).map(([section, label]) => (
+          <button
+            key={section}
+            className={activeSection === section ? "active" : ""}
+            type="button"
+            aria-pressed={activeSection === section}
+            onClick={() => setActiveSection(section)}
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
+
+      <section className="website-access-guardrail" aria-label="Permission guardrail">
+        <strong>{accessSectionHeadline(activeSection)}</strong>
+        <p>{accessSectionCopy(activeSection)}</p>
+      </section>
+
+      {activeSection === "people" || activeSection === "pages" ? <section className="website-people-command" aria-label="People source of truth">
         <div>
           <p className="eyebrow">People source of truth</p>
           <h3 className="section-title flush">{activeMembers.length} active {activeMembers.length === 1 ? "person" : "people"}</h3>
@@ -245,9 +273,9 @@ export function WebsiteAccessPanel({ canManagePlatformAccess }: { canManagePlatf
             </button>
           ))}
         </div>
-      </section>
+      </section> : null}
 
-      <details className="website-access-list website-access-section-details" aria-label="Guest public page controls">
+      {activeSection === "public" ? <details className="website-access-list website-access-section-details" aria-label="Guest public page controls" open>
         <summary className="toolbar split">
           <div>
             <p className="eyebrow">Competition guest mode</p>
@@ -262,20 +290,24 @@ export function WebsiteAccessPanel({ canManagePlatformAccess }: { canManagePlatf
                 type="checkbox"
                 checked={page.guestPublic}
                 disabled={!page.guestEligible || busyKey === `guest:${page.key}`}
-                onChange={(event) => void patchAccess(
-                  { guestPageKey: page.key, guestPublic: event.target.checked },
-                  `guest:${page.key}`,
-                  `${page.label} is now ${event.target.checked ? "public" : "login required"}.`
-                )}
+                onChange={(event) => {
+                  const nextPublic = event.target.checked;
+                  if (!confirmAccessChange(`${page.label} will become ${nextPublic ? "public to guest demo visitors" : "login required"}. Continue?`)) return;
+                  void patchAccess(
+                    { guestPageKey: page.key, guestPublic: nextPublic },
+                    `guest:${page.key}`,
+                    `${page.label} is now ${nextPublic ? "public" : "login required"}.`
+                  );
+                }}
               />
               <span>{page.label}</span>
               <small>{page.guestEligible ? page.path : "Login required"}</small>
             </label>
           ))}
         </div>
-      </details>
+      </details> : null}
 
-      <details className="website-access-list website-access-section-details" aria-label="Registration link controls">
+      {activeSection === "invites" ? <details className="website-access-list website-access-section-details" aria-label="Registration link controls" open>
         <summary className="toolbar split">
           <div>
             <p className="eyebrow">Self registration</p>
@@ -344,9 +376,9 @@ export function WebsiteAccessPanel({ canManagePlatformAccess }: { canManagePlatf
             <p className="quiet-state">Create a link when someone needs to set up their own account.</p>
           )}
         </div>
-      </details>
+      </details> : null}
 
-      <div className="website-access-list" aria-busy={loading}>
+      {activeSection === "people" || activeSection === "pages" ? <div className="website-access-list" aria-busy={loading}>
         {loading ? <p className="quiet-state">Loading users...</p> : null}
         {!loading && !members.length ? <p className="quiet-state">No website profiles are available.</p> : null}
         {!loading && members.length && !filteredMembers.length ? <p className="quiet-state">No {roleFilter === "all" ? "people" : platformRoleLabelPlural(roleFilter).toLowerCase()} match this filter.</p> : null}
@@ -368,7 +400,7 @@ export function WebsiteAccessPanel({ canManagePlatformAccess }: { canManagePlatf
                 <span>{member.aiAccess.enabled ? "AI on" : "AI off"}</span>
                 <span>{enabledPageCount} pages</span>
               </div>
-              <details className="website-member-controls-details">
+              {activeSection === "people" ? <details className="website-member-controls-details">
                 <summary>
                   <span>Manage access</span>
                   <small>{platformRoleLabel(member.role)} - {accessModeLabel(member.accessMode)}</small>
@@ -388,7 +420,10 @@ export function WebsiteAccessPanel({ canManagePlatformAccess }: { canManagePlatf
                   <button
                     className="button secondary"
                     disabled={member.currentUser || !member.active || unchanged || busyKey === `${member.id}:role`}
-                    onClick={() => void patchAccess({ userId: member.id, role: draftRole }, `${member.id}:role`, `${member.displayName}'s role was updated.`)}
+                    onClick={() => {
+                      if (!confirmAccessChange(`${member.displayName} will become ${platformRoleLabel(draftRole)}. Continue?`)) return;
+                      void patchAccess({ userId: member.id, role: draftRole }, `${member.id}:role`, `${member.displayName}'s role was updated.`);
+                    }}
                     type="button"
                   >
                     {busyKey === `${member.id}:role` ? "Saving..." : unchanged ? "Saved" : "Save role"}
@@ -401,6 +436,7 @@ export function WebsiteAccessPanel({ canManagePlatformAccess }: { canManagePlatf
                       value={member.accessMode}
                       onChange={(event) => {
                         const accessMode = normalizeAccessMode(event.target.value) ?? "read_only";
+                        if (!confirmAccessChange(`${member.displayName} will be changed to ${accessModeLabel(accessMode)}. Continue?`)) return;
                         void patchAccess(
                           {
                             userId: member.id,
@@ -468,14 +504,17 @@ export function WebsiteAccessPanel({ canManagePlatformAccess }: { canManagePlatf
                   <button
                     className="button compact-button"
                     disabled={member.currentUser || !member.active || busyKey === `${member.id}:deactivate`}
-                    onClick={() => void deactivate(member)}
+                    onClick={() => {
+                      if (!confirmAccessChange(`${member.displayName} will be deactivated. Continue?`)) return;
+                      void deactivate(member);
+                    }}
                     type="button"
                   >
                     {busyKey === `${member.id}:deactivate` ? "Deactivating..." : "Deactivate"}
                   </button>
                 </div>
-              </details>
-              <details className="website-page-access-details">
+              </details> : null}
+              {activeSection === "pages" ? <details className="website-page-access-details" open>
                 <summary>
                   <span>Page access</span>
                   <small>{enabledPageCount} of {pages.length} pages enabled</small>
@@ -487,23 +526,69 @@ export function WebsiteAccessPanel({ canManagePlatformAccess }: { canManagePlatf
                         type="checkbox"
                         checked={member.pageAccess[page.key as PlatformPageKey] ?? false}
                         disabled={!member.active || (member.currentUser && page.key === "settings") || busyKey === `${member.id}:${page.key}`}
-                        onChange={(event) => void patchAccess(
-                          { userId: member.id, pageKey: page.key, allowed: event.target.checked },
-                          `${member.id}:${page.key}`,
-                          `${page.label} access updated for ${member.displayName}.`
-                        )}
+                        onChange={(event) => {
+                          const allowed = event.target.checked;
+                          if (!confirmAccessChange(`${member.displayName} will ${allowed ? "gain" : "lose"} ${page.label} access. Continue?`)) return;
+                          void patchAccess(
+                            { userId: member.id, pageKey: page.key, allowed },
+                            `${member.id}:${page.key}`,
+                            `${page.label} access updated for ${member.displayName}.`
+                          );
+                        }}
                       />
                       <span>{page.label}</span>
                     </label>
                   ))}
                 </div>
-              </details>
+              </details> : null}
             </article>
           );
         })}
-      </div>
+      </div> : null}
+
+      {activeSection === "diagnostics" ? (
+        <section className="website-access-list website-access-diagnostics" aria-label="Access diagnostics">
+          <article className="website-access-row">
+            <span className="website-access-person-icon" aria-hidden="true"><ShieldCheck size={18} /></span>
+            <div className="website-access-person">
+              <strong>Storage mode</strong>
+              <span>{storage === "supabase" ? "Supabase Auth and permission records" : "Local preview data"}</span>
+              <small>Use this section to verify what the platform can actually enforce before a live demo.</small>
+            </div>
+          </article>
+          <article className="website-access-row">
+            <span className="website-access-person-icon" aria-hidden="true"><UserCog size={18} /></span>
+            <div className="website-access-person">
+              <strong>Current access footprint</strong>
+              <span>{activeMembers.length} active people, {guestPublicCount} public demo pages, {registrationInvites.filter((invite) => invite.isActive).length} active invite links</span>
+              <small>Public exposure and account creation are intentionally separated from day-to-day people access.</small>
+            </div>
+          </article>
+        </section>
+      ) : null}
     </section>
   );
+}
+
+function confirmAccessChange(message: string) {
+  if (typeof window === "undefined") return true;
+  return window.confirm(message);
+}
+
+function accessSectionHeadline(section: AccessSection) {
+  if (section === "people") return "Adjust one person's role or AI access.";
+  if (section === "invites") return "Create limited invite links only when someone needs onboarding.";
+  if (section === "public") return "Public demo pages are separated from real account permissions.";
+  if (section === "pages") return "Page access changes are reviewed person by person.";
+  return "Diagnostics show what is enforceable in this environment.";
+}
+
+function accessSectionCopy(section: AccessSection) {
+  if (section === "people") return "Use this for role, data access, AI limits, and deactivation decisions.";
+  if (section === "invites") return "Keep links narrow, time-bound, and role-specific so account setup does not become a side door.";
+  if (section === "public") return "Only guest-eligible pages can be exposed, and every public change asks for review.";
+  if (section === "pages") return "Grant the smallest page set that lets a person serve well.";
+  return "Confirm whether you are using preview data or live Supabase-backed access before judging behavior.";
 }
 
 function roleLabel(role: RegistrationInviteRole) {

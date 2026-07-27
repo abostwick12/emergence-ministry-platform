@@ -13,8 +13,8 @@ export default function DirectorsHubPage() {
   return (
     <section className="placeholder-page editorial-placeholder-page" aria-labelledby="directors-hub-title">
       <PageIntro
-        eyebrow="Leader Hub"
-        title="Leader workspaces"
+        eyebrow="Oversight"
+        title="Formation and resource workspaces"
         description="Sermon preparation, resource development, discipleship monitoring, and volunteer readiness are grouped here for leader-level oversight."
         actions={<StatusBadge>Leader view</StatusBadge>}
       />

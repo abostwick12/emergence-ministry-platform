@@ -26,7 +26,7 @@ describe("ministry page EMMA assistant", () => {
 
     expect(response.summary).toContain("need communication review");
     expect(response.points).toContain("Winter Retreat needs location, audience, owner.");
-    expect(response.points).toContain("Email, text, and GroupMe outputs remain preview-only.");
+    expect(response.points).toContain("Email, text, and GroupMe outputs stay behind human approval gates.");
   });
 
   it("answers budget prompts with event target and spend risk", () => {
