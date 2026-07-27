@@ -108,9 +108,11 @@ export async function listStudentCuratedResources(session: AuthSession, options:
     if (result.error) throw result.error;
     return filterAndSortResources((result.data ?? []).map(toCuratedResource), options.includeInactive);
   } catch (error) {
-    console.warn("[scripture] curated resource query unavailable", {
-      reason: error instanceof Error ? error.message : "unknown"
-    });
+    if (!isMissingCuratedResourcesTableError(error)) {
+      console.warn("[scripture] curated resource query unavailable", {
+        reason: errorMessage(error)
+      });
+    }
     return filterAndSortResources(await getLocalResources(session), options.includeInactive);
   }
 }
@@ -439,4 +441,20 @@ function assertCanManageVideoResource(session: AuthSession, kind: StudentCurated
 
 function throwIfResourceError(error: { message?: string } | null | undefined, fallback: string): asserts error is null | undefined {
   if (error) throw new StudentCuratedResourceError(error.message || fallback, 500, "storage_error");
+}
+
+function isMissingCuratedResourcesTableError(error: unknown) {
+  const code = typeof error === "object" && error && "code" in error ? String(error.code ?? "") : "";
+  const message = errorMessage(error);
+  return (
+    code === "42P01" ||
+    code === "PGRST205" ||
+    (message.includes("student_curated_resources") && /schema cache|does not exist|not find the table/i.test(message))
+  );
+}
+
+function errorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "object" && error && "message" in error) return String(error.message ?? "unknown");
+  return "unknown";
 }

@@ -354,6 +354,8 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page.getByRole("region", { name: "Tonight discussion prep" })).toContainText("Reflected");
     const reviewDetail = page.getByRole("article", { name: "Selected discussion review" });
     await expect(reviewDetail.getByRole("heading", { name: "Why did God put the tree in the garden?" })).toBeVisible();
+    await expect(reviewDetail).not.toContainText("No passage selected");
+    await expect(reviewDetail).toContainText("Genesis");
     await expect(reviewDetail.getByLabel("Formation readiness")).toContainText("Question to conversation path");
     await expect(reviewDetail.getByLabel("Formation readiness")).toContainText("Passage anchor");
     await reviewDetail.getByRole("button", { name: "Approve" }).click();

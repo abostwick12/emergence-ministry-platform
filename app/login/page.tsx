@@ -168,7 +168,7 @@ export default function LoginPage() {
             <ol>
               <li>
                 <strong>Ministry Alignment</strong>
-                <span>See leadership-authored direction with EMMA evidence boundaries.</span>
+                <span>See leadership-authored direction with Azure EMMA evidence boundaries.</span>
               </li>
               <li>
                 <strong>Student Scripture</strong>
@@ -176,7 +176,7 @@ export default function LoginPage() {
               </li>
               <li>
                 <strong>Discipleship Review</strong>
-                <span>Inspect Gloo AI Studio readiness, Meridian previews, and human approval.</span>
+                <span>Inspect Gloo AI Studio readiness, Meridian previews, and human approval before sharing.</span>
               </li>
             </ol>
           </div>

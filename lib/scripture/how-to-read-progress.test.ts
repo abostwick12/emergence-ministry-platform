@@ -75,6 +75,25 @@ describe("student how to read progress", () => {
     expect(query.query.eq).toHaveBeenCalledWith("student_user_id", "usr_student");
   });
 
+  it("falls back without logging noise when the deployed progress table is missing", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const query = progressQuery([], {
+      message: "Could not find the table 'public.student_how_to_read_progress' in the schema cache",
+      code: "PGRST205"
+    });
+    getSupabaseAuthClientMock.mockReturnValue(query.client);
+
+    const progress = await getStudentHowToReadProgress(session());
+
+    expect(progress).toMatchObject({
+      completedModuleIds: [],
+      shareWithGroup: false,
+      storage: "unavailable"
+    });
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
   it("saves a guide completion and returns refreshed progress", async () => {
     const client = saveProgressClient([
       {
@@ -109,6 +128,22 @@ describe("student how to read progress", () => {
     expect(progress.completedModuleIds).toEqual(["what-is-the-bible", "big-story"]);
   });
 
+  it("returns a clear storage-unavailable error when progress writes hit a missing table", async () => {
+    const client = saveProgressClient([], {
+      message: "Could not find the table 'public.student_how_to_read_progress' in the schema cache",
+      code: "PGRST205"
+    });
+    getSupabaseAuthClientMock.mockReturnValue(client.client);
+
+    await expect(saveStudentHowToReadProgress(session(), {
+      moduleId: "big-story",
+      completed: true
+    })).rejects.toMatchObject({
+      code: "progress_storage_unavailable",
+      status: 503
+    } satisfies Partial<StudentHowToReadProgressError>);
+  });
+
   it("rejects unknown guide ids before saving", async () => {
     getSupabaseAuthClientMock.mockReturnValue(progressQuery([]).client);
 
@@ -129,11 +164,11 @@ describe("student how to read progress", () => {
   });
 });
 
-function progressQuery(rows: Array<Record<string, unknown>>) {
+function progressQuery(rows: Array<Record<string, unknown>>, error: { message: string; code?: string } | null = null) {
   const query = {
     eq: vi.fn(() => query),
     order: vi.fn(() => query),
-    returns: vi.fn(async () => ({ data: rows, error: null }))
+    returns: vi.fn(async () => ({ data: rows, error }))
   };
   const table = {
     select: vi.fn(() => query)
@@ -144,7 +179,7 @@ function progressQuery(rows: Array<Record<string, unknown>>) {
   return { client, table, query };
 }
 
-function saveProgressClient(rows: Array<Record<string, unknown>>) {
+function saveProgressClient(rows: Array<Record<string, unknown>>, saveError: { message: string; code?: string } | null = null) {
   const query = {
     eq: vi.fn(() => query),
     order: vi.fn(() => query),
@@ -152,13 +187,13 @@ function saveProgressClient(rows: Array<Record<string, unknown>>) {
   };
   const saveResult = {
     single: vi.fn(async () => ({
-      data: {
+      data: saveError ? null : {
         module_id: "big-story",
         completed_at: "2026-07-10T14:05:00.000Z",
         share_with_group: false,
         updated_at: "2026-07-10T14:05:00.000Z"
       },
-      error: null
+      error: saveError
     }))
   };
   const table = {

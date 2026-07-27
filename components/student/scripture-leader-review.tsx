@@ -270,7 +270,7 @@ export function ScriptureLeaderReview({ compact = false, initialGroupState, init
                   onClick={() => setSelectedId(prompt.id)}
                   type="button"
                 >
-                  <span>{prompt.scriptureReference || "No passage selected"}</span>
+                  <span>{passageLabelForPrompt(prompt)}</span>
                   <strong>{prompt.question}</strong>
                   <small>{prompt.submittedByName}</small>
                   <ReviewPill status={prompt.status} />
@@ -343,10 +343,12 @@ function TonightPrepPanel({
       <div className="leader-tonight-prep-grid">
         <article className="leader-tonight-primary">
           <span>{tonightPrompt ? nextActionLabel(tonightPrompt) : "No live questions yet"}</span>
-          <h3>{tonightPrompt ? tonightPrompt.discussionPrompt || tonightPrompt.question : "Invite students to ask before small group."}</h3>
+          <h3>{tonightPrompt ? tonightPrompt.question : "Invite students to ask before small group."}</h3>
           <p>
             {tonightPrompt
-              ? tonightPrompt.question
+              ? tonightPrompt.discussionPrompt
+                ? `Draft focus: ${stripPromptPrefix(tonightPrompt.discussionPrompt)}`
+                : "Open the review panel to shape this question into a leader-approved discussion."
               : "When students submit questions, this area becomes the leader's quick read for tonight's discussion."}
           </p>
           {tonightPrompt ? (
@@ -854,6 +856,7 @@ function LeaderReviewDetail({
     () => buildLeaderFormationReadiness(prompt, studentNextStep, storylineMatch),
     [prompt, studentNextStep, storylineMatch]
   );
+  const passageLabel = passageLabelForPrompt(prompt, storylineMatch);
   const canSave = reviewReady && !savingAction;
   const canApprove = canSave && discussionPrompt.trim().length > 0 && prompt.status !== "posted";
   const canPost = canSave && prompt.status === "approved";
@@ -883,7 +886,7 @@ function LeaderReviewDetail({
     <article className="leader-review-detail" aria-label="Selected discussion review">
       <header className="leader-review-detail-header">
         <div>
-          <span>{prompt.scriptureReference || "No passage selected"}</span>
+          <span>{passageLabel}</span>
           <h2>{prompt.question}</h2>
           <p>Submitted by {prompt.submittedByName}</p>
         </div>
@@ -1141,6 +1144,17 @@ function buildLeaderFormationReadiness(
       value: "Keep the approved prompt Socratic, pastoral, and concrete enough for students to practice this week."
     }
   ];
+}
+
+function passageLabelForPrompt(prompt: StudentDiscussionPrompt, match = matchQuestionToStoryline(prompt)) {
+  return prompt.scriptureReference || match.keyPassages[0] || "Passage anchor pending";
+}
+
+function stripPromptPrefix(value: string) {
+  return value
+    .replace(/^Bring this to group:\s*/i, "")
+    .replace(/^Discussion prompt:\s*/i, "")
+    .trim();
 }
 
 function LeaderStudentJourneyContext({

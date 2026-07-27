@@ -1,6 +1,7 @@
 import type { AuthSession } from "@/lib/auth/server";
 import { getSupabaseAuthClient } from "@/lib/auth/server";
 import type { DiscussionWorkflowState } from "@/lib/scripture/discussion-workflow";
+import { matchQuestionToStoryline } from "@/lib/scripture/storyline-guide";
 import type { StudentDiscussionPrompt, StudentDiscussionStatus } from "@/lib/scripture/types";
 
 type StudentQuestionRecommendationRow = {
@@ -139,10 +140,7 @@ export function buildScriptureTrialInsights(
     withSavedNextSteps,
     reflectedQuestions,
     topicCounts: topCounts(prompts.flatMap((prompt) => prompt.topicTags).map(formatTopicLabel), 6),
-    scriptureReferences: topCounts(
-      prompts.map((prompt) => prompt.scriptureReference.trim()).filter(Boolean),
-      5
-    ),
+    scriptureReferences: topCounts(prompts.map(passageLabelForPrompt).filter(Boolean), 5),
     knowledgeMatches: topCounts(
       prompts.flatMap((prompt) => (prompt.knowledgeContext ?? []).map((match) => match.title.trim()).filter(Boolean)),
       5
@@ -154,7 +152,7 @@ export function buildScriptureTrialInsights(
       status: prompt.status,
       aiStatus: prompt.aiStatus,
       safetyLabel: prompt.safetyLabel,
-      scriptureReference: prompt.scriptureReference,
+      scriptureReference: passageLabelForPrompt(prompt),
       knowledgeMatchCount: prompt.knowledgeContext?.length ?? 0,
       hasSavedNextSteps: recommendationPromptIds.has(prompt.id),
       studentReflectionCount: prompt.studentReflectionCount ?? 0,
@@ -180,4 +178,8 @@ function topCounts(values: string[], limit: number): ScriptureTrialInsightTopic[
 
 function formatTopicLabel(topic: string) {
   return topic.replace(/[_-]/g, " ").trim();
+}
+
+function passageLabelForPrompt(prompt: StudentDiscussionPrompt) {
+  return prompt.scriptureReference.trim() || matchQuestionToStoryline(prompt).keyPassages[0] || "";
 }

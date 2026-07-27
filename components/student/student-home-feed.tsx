@@ -695,7 +695,7 @@ function QuestionFeedRow({
   return (
     <article className="student-feed-row">
       <div>
-        <span>{prompt.scriptureReference || "No passage selected"}</span>
+        <span>{prompt.scriptureReference || nextStep?.storylineMatch.keyPassages[0] || "Passage anchor pending"}</span>
         <h3>{prompt.question}</h3>
         <p>{statusText(prompt)}</p>
       </div>
