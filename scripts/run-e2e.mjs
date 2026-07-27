@@ -117,6 +117,20 @@ function buildE2EEnv() {
     env.AZURE_OPENAI_ENDPOINT = "";
     env.AZURE_OPENAI_DEPLOYMENT = "";
     env.AZURE_OPENAI_API_VERSION = "";
+    env.GEMINI_API_KEY = "";
+    env.GEMINI_MODEL = "";
+    env.GLOO_AI_CLIENT_ID = "";
+    env.GLOO_AI_CLIENT_SECRET = "";
+    env.GLOO_AI_STUDIO_API_KEY = "";
+    env.GLOO_AI_STUDIO_API_BASE_URL = "";
+    env.GLOO_AI_BASE_URL = "";
+    env.GLOO_AI_MODEL = "";
+    env.GLOO_AI_STUDIO_MODEL = "";
+    env.GLOO_AI_ESCALATION_MODEL = "";
+    env.GLOO_AI_LONG_CONTEXT_MODEL = "";
+    env.MERIDIAN_FALLBACK_PROVIDER_ORDER = "";
+    env.MERIDIAN_GEMINI_MODEL = "";
+    env.MERIDIAN_OPENAI_MODEL = "";
     env.CAMP_MEDICATION_SCAN_ENABLED = "false";
   }
   return env;

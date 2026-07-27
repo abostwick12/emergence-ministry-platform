@@ -9,6 +9,7 @@ import {
   type MinistryEmmaPage,
   type MinistryEmmaResponse
 } from "@/lib/emma/ministry-page-assistant";
+import { buildMinistryChatAudit } from "@/lib/emma/ministry-chat-audit";
 import { AssistantBrief, AssistantWorkspace } from "@/components/platform-ui";
 import type { MinistryAlignmentProfile } from "@/lib/ministry/alignment";
 
@@ -168,7 +169,7 @@ export function MinistryEmmaPanel({
           isMinistryEmmaResponse(payload.response)
             ? payload.response
             : answerMinistryEmmaPrompt({ overview, alignmentProfile, page, prompt: trimmedPrompt, staticSignals: stableStaticSignals }),
-          buildChatAudit(payload as EmmaChatResult)
+          buildMinistryChatAudit(payload as EmmaChatResult)
         )
       ]);
     } catch {
@@ -315,19 +316,6 @@ function isMinistryEmmaResponse(value: unknown): value is MinistryEmmaResponse {
     Array.isArray(response.nextActions) &&
     response.nextActions.every((action) => typeof action === "string")
   );
-}
-
-function buildChatAudit(payload: EmmaChatResult): string {
-  const providerLabel =
-    payload.providerMode === "guest_simulation"
-      ? "Guest stock response"
-      : payload.providerMode === "live_provider"
-      ? `Provider ${payload.provider} / ${payload.model}`
-      : "Audited deterministic fallback";
-  const warning = payload.warnings?.length ? ` / ${payload.warnings.join(" ")}` : "";
-  return `Request ${payload.requestId} / Run ${payload.runId} / ${providerLabel}${
-    payload.proposalCreated ? ` / Proposal ${payload.proposalId ?? "created"}` : ""
-  }${warning}`;
 }
 
 function createId(prefix: string): string {
