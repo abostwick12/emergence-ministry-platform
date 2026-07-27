@@ -75,6 +75,21 @@ describe("Bible Storyline Guide resources", () => {
     expect(match.studentQuestions).toContain("What kind of trust is being tested?");
   });
 
+  it("matches image-of-God questions to image-bearing before the broader Genesis pathway", () => {
+    const match = matchQuestionToStoryline({
+      question: "What does it mean that we are created in the image and likeness of God?",
+      scriptureReference: "Genesis 1:26"
+    });
+
+    expect(match).toMatchObject({
+      id: "image-bearing-vocation",
+      label: "This starts with image-bearing",
+      title: "Image-bearing and vocation",
+      startsHere: "Genesis 1:26-31"
+    });
+    expect(match.studentQuestions).toContain("How does image-bearing shape the way we treat other people?");
+  });
+
   it("matches deliverance questions to Exodus", () => {
     const match = matchQuestionToStoryline({
       question: "What does Passover teach us about rescue from slavery?"

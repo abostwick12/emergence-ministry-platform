@@ -228,10 +228,11 @@ function shouldAttemptLiveProvider(session: AuthSession): boolean {
 }
 
 function resolveMinistryEmmaProviderMode(env: NodeJS.ProcessEnv = process.env): "gemini" | "openai" | "azure" | "mock" {
-  if (env.EMMA_PROVIDER_MODE === "mock") return "mock";
-  if (env.EMMA_PROVIDER_MODE === "gemini") return env.GEMINI_API_KEY?.trim() ? "gemini" : "mock";
-  if (env.EMMA_PROVIDER_MODE === "openai") return env.OPENAI_API_KEY?.trim() ? "openai" : "mock";
-  if (env.EMMA_PROVIDER_MODE === "azure") return readAzureOpenAIEmmaConfig(env) ? "azure" : "mock";
+  const configuredMode = env.EMMA_PROVIDER_MODE?.trim().toLowerCase();
+  if (configuredMode === "mock") return "mock";
+  if (configuredMode === "gemini") return env.GEMINI_API_KEY?.trim() ? "gemini" : "mock";
+  if (configuredMode === "openai") return env.OPENAI_API_KEY?.trim() ? "openai" : "mock";
+  if (configuredMode === "azure") return readAzureOpenAIEmmaConfig(env) ? "azure" : "mock";
   if (env.GEMINI_API_KEY?.trim()) return "gemini";
   if (readAzureOpenAIEmmaConfig(env)) return "azure";
   if (env.OPENAI_API_KEY?.trim()) return "openai";

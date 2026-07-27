@@ -558,4 +558,27 @@ describe("ministry page server-backed EMMA chat", () => {
     });
     expect(JSON.stringify(readiness)).not.toContain("secret-key");
   });
+
+  it("normalizes Azure provider mode casing and spacing before falling back to Gemini", () => {
+    const readiness = getMinistryEmmaReadiness({
+      session: session(),
+      env: {
+        ...process.env,
+        EMMA_PROVIDER_MODE: " Azure ",
+        GEMINI_API_KEY: "gemini-secret",
+        AZURE_OPENAI_ENDPOINT: "https://example-resource.openai.azure.com",
+        AZURE_OPENAI_API_KEY: "azure-secret",
+        AZURE_OPENAI_DEPLOYMENT: "emma-azure-test"
+      }
+    });
+
+    expect(readiness).toMatchObject({
+      liveProviderConfigured: true,
+      provider: "azure",
+      model: "emma-azure-test",
+      status: "live"
+    });
+    expect(JSON.stringify(readiness)).not.toContain("gemini-secret");
+    expect(JSON.stringify(readiness)).not.toContain("azure-secret");
+  });
 });
