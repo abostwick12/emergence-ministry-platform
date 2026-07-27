@@ -248,19 +248,25 @@ function createInitialSandbox(): GuestSandboxState {
   const users: User[] = [
     { id: "guest_admin", firstName: "Avery", lastName: "Director", email: "avery.director@example.test", role: "admin" },
     { id: "guest_leader", firstName: "Jordan", lastName: "Leader", email: "jordan.leader@example.test", role: "leader" },
-    { id: "guest_volunteer", firstName: "Taylor", lastName: "Volunteer", email: "taylor.volunteer@example.test", role: "leader" }
+    { id: "guest_volunteer", firstName: "Taylor", lastName: "Volunteer", email: "taylor.volunteer@example.test", role: "leader" },
+    { id: "guest_worship", firstName: "Morgan", lastName: "Worship", email: "morgan.worship@example.test", role: "leader" },
+    { id: "guest_care", firstName: "Riley", lastName: "Care", email: "riley.care@example.test", role: "leader" },
+    { id: "guest_ops", firstName: "Sam", lastName: "Operations", email: "sam.operations@example.test", role: "leader" }
   ];
+  const historicalEvents = buildHistoricalMemoryEvents(now, users);
   const events: MinistryEvent[] = [
+    ...historicalEvents,
     fakeEvent("guest_evt_launch", "Competition Launch Night", "A submission walkthrough event connecting Azure EMMA readiness, YouVersion Scripture handoff, Meridian review, and parent communication previews.", "high_school_event", launchNight, users[0].id, 900),
     fakeEvent("guest_evt_serve", "City Serve Saturday", "A service day demo with task ownership, leader assignments, and preview-only family communication.", "missions_trip", serveDay, users[1].id, 1200),
     fakeEvent("guest_evt_retreat", "Fall Retreat Demo", "A retreat planning workspace with fake people, budget targets, workflow readiness, and human-approved communication boundaries.", "conference", retreat, users[0].id, 6500)
   ];
   const state: GuestSandboxState = { users, events, tasks: [], communications: [], integrationLogs: [], expenses: [], activity: [] };
-  events.forEach((event) => {
+  historicalEvents.forEach((event, index) => seedHistoricalMemoryRecord(state, event, index));
+  events.filter((event) => !event.archivedAt).forEach((event) => {
     generateGuestTasks(state, event);
     recordGuestActivity(state, { type: "event_created", eventId: event.id, message: `Loaded fake event: ${event.title}`, metadata: { attendance: event.type === "high_school_event" ? 47 : 31, workflows: 4 } });
   });
-  seedSubmissionProofTasks(state, events[0]);
+  seedSubmissionProofTasks(state, events.find((event) => event.id === "guest_evt_launch"));
   state.expenses.push({ id: "guest_exp_1", eventId: "guest_evt_retreat", categoryId: "lodging", amount: 1500, description: "Fake venue deposit", timestamp: now.toISOString() });
   return state;
 }
@@ -285,6 +291,350 @@ function fakeEvent(id: string, title: string, description: string, type: EventTy
     notes: "Guest sandbox: fake event, people, attendance, AI-readiness proof, and preview-only workflows.",
     createdAt: new Date().toISOString()
   };
+}
+
+function buildHistoricalMemoryEvents(now: Date, users: User[]): MinistryEvent[] {
+  const currentYear = now.getFullYear();
+  const year = (yearsAgo: number) => currentYear - yearsAgo;
+  return [
+    fakeHistoricalEvent({
+      id: "guest_hist_retreat_2021",
+      title: "Fall Retreat 2021",
+      description: "Archived public demo retreat memory with attendance, budget, volunteer load, and follow-up notes.",
+      type: "conference",
+      year: year(5),
+      month: 10,
+      day: 1,
+      days: 2,
+      ownerId: users[0].id,
+      location: "Cedars Camp",
+      targetGroup: "High school students",
+      budgetTarget: 5200,
+      budgetActual: 4985,
+      volunteersNeeded: 6,
+      notes: "Public demo memory. Planning Center snapshot: 58 checked in, 9 first-time students. Debrief named follow-up calls as the main missed opportunity."
+    }),
+    fakeHistoricalEvent({
+      id: "guest_hist_retreat_2022",
+      title: "Fall Retreat 2022",
+      description: "Archived public demo retreat memory showing stronger parent communication and tighter cabin-leader ratios.",
+      type: "conference",
+      year: year(4),
+      month: 9,
+      day: 30,
+      days: 2,
+      ownerId: users[0].id,
+      location: "Cedars Camp",
+      targetGroup: "High school students",
+      budgetTarget: 5600,
+      budgetActual: 5790,
+      volunteersNeeded: 8,
+      notes: "Public demo memory. Planning Center snapshot: 66 checked in, 14 first-time students. Follow-up improved after leaders received a Drive debrief within 72 hours."
+    }),
+    fakeHistoricalEvent({
+      id: "guest_hist_retreat_2023",
+      title: "Fall Retreat 2023",
+      description: "Archived public demo retreat memory connecting worship planning, budget pressure, and leader debrief outcomes.",
+      type: "conference",
+      year: year(3),
+      month: 10,
+      day: 6,
+      days: 2,
+      ownerId: users[1].id,
+      location: "Pine Ridge Camp",
+      targetGroup: "High school students",
+      budgetTarget: 6100,
+      budgetActual: 6375,
+      volunteersNeeded: 9,
+      notes: "Public demo memory. Planning Center snapshot: 71 checked in. ProPresenter playlist was ready early; transportation and scholarship decisions created late pressure."
+    }),
+    fakeHistoricalEvent({
+      id: "guest_hist_retreat_2024",
+      title: "Fall Retreat 2024",
+      description: "Archived public demo retreat memory with earlier task ownership and a stronger post-event story collection process.",
+      type: "conference",
+      year: year(2),
+      month: 10,
+      day: 4,
+      days: 2,
+      ownerId: users[0].id,
+      location: "Pine Ridge Camp",
+      targetGroup: "High school students",
+      budgetTarget: 6500,
+      budgetActual: 6410,
+      volunteersNeeded: 10,
+      notes: "Public demo memory. Planning Center snapshot: 76 checked in. Drive debrief captured five student stories and a recommendation to recruit cabin leaders six weeks earlier."
+    }),
+    fakeHistoricalEvent({
+      id: "guest_hist_serve_2022",
+      title: "City Serve Saturday 2022",
+      description: "Archived public demo serve-day memory showing partner confirmation and transportation readiness.",
+      type: "missions_trip",
+      year: year(4),
+      month: 4,
+      day: 23,
+      days: 0,
+      ownerId: users[2].id,
+      location: "Hope Center",
+      targetGroup: "Middle and high school students",
+      budgetTarget: 900,
+      budgetActual: 835,
+      volunteersNeeded: 7,
+      notes: "Public demo memory. Planning Center snapshot: 42 participants. Partner confirmation arrived 10 days out, which compressed parent communication."
+    }),
+    fakeHistoricalEvent({
+      id: "guest_hist_serve_2023",
+      title: "City Serve Saturday 2023",
+      description: "Archived public demo serve-day memory with earlier partner details and better team assignments.",
+      type: "missions_trip",
+      year: year(3),
+      month: 4,
+      day: 22,
+      days: 0,
+      ownerId: users[2].id,
+      location: "Hope Center",
+      targetGroup: "Middle and high school students",
+      budgetTarget: 950,
+      budgetActual: 910,
+      volunteersNeeded: 8,
+      notes: "Public demo memory. Planning Center snapshot: 49 participants. Earlier partner confirmation reduced last-week task changes."
+    }),
+    fakeHistoricalEvent({
+      id: "guest_hist_serve_2024",
+      title: "City Serve Saturday 2024",
+      description: "Archived public demo serve-day memory showing repeated pressure around drivers and supply handoffs.",
+      type: "missions_trip",
+      year: year(2),
+      month: 4,
+      day: 27,
+      days: 0,
+      ownerId: users[5].id,
+      location: "Hope Center",
+      targetGroup: "Middle and high school students",
+      budgetTarget: 1100,
+      budgetActual: 1180,
+      volunteersNeeded: 9,
+      notes: "Public demo memory. Planning Center snapshot: 55 participants. Debrief recommended assigning drivers before announcing registration."
+    }),
+    fakeHistoricalEvent({
+      id: "guest_hist_worship_2023",
+      title: "Winter Worship Night 2023",
+      description: "Archived public demo worship memory connecting room setup, ProPresenter readiness, and student response follow-up.",
+      type: "combined_event",
+      year: year(3),
+      month: 2,
+      day: 12,
+      days: 0,
+      ownerId: users[3].id,
+      location: "Worship Center",
+      targetGroup: "Students and families",
+      budgetTarget: 1400,
+      budgetActual: 1325,
+      volunteersNeeded: 6,
+      notes: "Public demo memory. ProPresenter playlist was approved three days early. Leader debrief requested clearer prayer-team follow-up."
+    }),
+    fakeHistoricalEvent({
+      id: "guest_hist_worship_2024",
+      title: "Winter Worship Night 2024",
+      description: "Archived public demo worship memory with stronger volunteer ownership and better family preview communication.",
+      type: "combined_event",
+      year: year(2),
+      month: 2,
+      day: 18,
+      days: 0,
+      ownerId: users[3].id,
+      location: "Worship Center",
+      targetGroup: "Students and families",
+      budgetTarget: 1500,
+      budgetActual: 1475,
+      volunteersNeeded: 7,
+      notes: "Public demo memory. Planning Center snapshot: 88 attendees. Drive folder stored leader brief, service order, and parent preview."
+    }),
+    fakeHistoricalEvent({
+      id: "guest_hist_leadership_2021",
+      title: "Student Leadership Night 2021",
+      description: "Archived public demo leadership night memory focused on student ownership and next-step conversations.",
+      type: "high_school_event",
+      year: year(5),
+      month: 8,
+      day: 15,
+      days: 0,
+      ownerId: users[4].id,
+      location: "Student Center",
+      targetGroup: "Student leaders",
+      budgetTarget: 450,
+      budgetActual: 390,
+      volunteersNeeded: 3,
+      notes: "Public demo memory. Debrief tracked 11 student leaders and recommended pairing every event role with a mentor."
+    }),
+    fakeHistoricalEvent({
+      id: "guest_hist_leadership_2024",
+      title: "Student Leadership Night 2024",
+      description: "Archived public demo leadership night memory showing student role continuity across the school year.",
+      type: "high_school_event",
+      year: year(2),
+      month: 8,
+      day: 11,
+      days: 0,
+      ownerId: users[4].id,
+      location: "Student Center",
+      targetGroup: "Student leaders",
+      budgetTarget: 600,
+      budgetActual: 575,
+      volunteersNeeded: 4,
+      notes: "Public demo memory. Planning Center snapshot: 19 student leaders. Follow-up notes flagged worship, welcome, and tech teams as healthy next-step lanes."
+    })
+  ];
+}
+
+function fakeHistoricalEvent(input: {
+  id: string;
+  title: string;
+  description: string;
+  type: EventType;
+  year: number;
+  month: number;
+  day: number;
+  days: number;
+  ownerId: string;
+  location: string;
+  targetGroup: string;
+  budgetTarget: number;
+  budgetActual: number;
+  volunteersNeeded: number;
+  notes: string;
+}): MinistryEvent {
+  const startTime = new Date(input.year, input.month - 1, input.day, 18, 0, 0, 0).toISOString();
+  const endTime = addDays(startTime, input.days);
+  return {
+    id: input.id,
+    title: input.title,
+    description: input.description,
+    type: input.type,
+    startTime,
+    endTime,
+    status: "completed",
+    location: input.location,
+    targetGroup: input.targetGroup,
+    budgetTarget: input.budgetTarget,
+    budgetActual: input.budgetActual,
+    volunteersNeeded: input.volunteersNeeded,
+    priority: input.type === "conference" ? "high" : "normal",
+    contactOwnerId: input.ownerId,
+    assignedLeaderIds: [input.ownerId],
+    autoGeneratedTimeline: [],
+    googleCalendarEventId: `guest-calendar-${input.id}`,
+    googleCalendarEventUrl: `https://calendar.google.com/calendar/event?eid=${input.id}`,
+    googleDriveFolderId: `guest-drive-${input.id}`,
+    googleDriveFolderUrl: `https://drive.google.com/drive/folders/${input.id}`,
+    googleImportStatus: "imported_from_google",
+    proPresenterPlaylistId: input.type === "combined_event" || input.type === "conference" ? `guest-pro-${input.id}` : undefined,
+    notes: input.notes,
+    archivedAt: addDays(endTime, 14),
+    archivedByUserId: input.ownerId,
+    archiveReason: "Archived public demo history for organizational memory.",
+    createdAt: addDays(startTime, -90)
+  };
+}
+
+function seedHistoricalMemoryRecord(state: GuestSandboxState, event: MinistryEvent, index: number) {
+  const taskTemplates = [
+    {
+      title: "Review Planning Center attendance snapshot",
+      offset: -45,
+      notes: "Public demo only: modeled attendance, first-time students, and leader ratio were reviewed before planning the next rhythm."
+    },
+    {
+      title: "Confirm volunteer ownership against last year's load",
+      offset: -30,
+      notes: "Public demo only: previous volunteer gaps shaped the owner list for this archived event."
+    },
+    {
+      title: "Save Drive debrief and story notes",
+      offset: 2,
+      notes: "Public demo only: post-event debrief, follow-up stories, and next recommendations were stored as organizational memory."
+    },
+    {
+      title: "Draft parent and leader follow-up preview",
+      offset: 3,
+      notes: "Preview only: communication history models drafts that required human approval and were never sent by the sandbox."
+    }
+  ];
+
+  const tasks = taskTemplates.map((template, taskIndex) => {
+    const task: ActiveTask = {
+      id: `guest_task_${event.id}_memory_${taskIndex}`,
+      eventId: event.id,
+      taskTitle: template.title,
+      dueDate: addDays(event.startTime, template.offset),
+      assignedUserId: state.users[(index + taskIndex) % state.users.length]?.id ?? state.users[0]?.id ?? "",
+      status: "done",
+      autoGenerated: true,
+      timelineOffsetDays: template.offset,
+      notes: template.notes
+    };
+    state.tasks.push(task);
+    return task;
+  });
+  event.autoGeneratedTimeline = tasks.map((task) => task.id);
+
+  state.expenses.push(
+    {
+      id: `guest_exp_${event.id}_actual`,
+      eventId: event.id,
+      categoryId: event.type === "conference" ? "lodging" : "supplies",
+      amount: event.budgetActual ?? 0,
+      description: `Public demo archived actual for ${event.title}`,
+      timestamp: addDays(event.endTime, 4)
+    },
+    {
+      id: `guest_exp_${event.id}_followup`,
+      eventId: event.id,
+      categoryId: "follow_up",
+      amount: event.type === "conference" ? 225 : 75,
+      description: "Public demo follow-up, care, and leader debrief costs",
+      timestamp: addDays(event.endTime, 6)
+    }
+  );
+
+  state.communications.push({
+    id: `guest_comm_${event.id}_leader_followup`,
+    eventId: event.id,
+    type: "leader_brief",
+    payload: {
+      subject: `Archived preview: ${event.title} debrief`,
+      body: "Preview only - not sent. This public demo record models how leader debriefs, next-step stories, and follow-up needs would remain searchable."
+    },
+    status: "preview",
+    createdAt: addDays(event.endTime, 2)
+  });
+
+  (["planning_center", "google_calendar", "google_drive", "propresenter"] as const).forEach((integrationType) => {
+    if (integrationType === "propresenter" && !event.proPresenterPlaylistId) return;
+    state.integrationLogs.push({
+      id: `guest_sync_${event.id}_${integrationType}`,
+      integrationType,
+      eventId: event.id,
+      status: "stub_mode",
+      details: {
+        action: `${integrationType.replace(/_/g, " ")} memory import`,
+        message: `Public demo stub record for ${event.title}. No live ${integrationType.replace(/_/g, " ")} account was contacted.`
+      },
+      timestamp: addDays(event.endTime, 1)
+    });
+  });
+
+  recordGuestActivity(state, {
+    type: "integration_stub_action",
+    eventId: event.id,
+    message: `Loaded archived public demo memory: ${event.title}`,
+    metadata: {
+      persisted: false,
+      historical: true,
+      attendanceModeled: true,
+      externalSync: false
+    }
+  });
 }
 
 function seedSubmissionProofTasks(state: GuestSandboxState, event: MinistryEvent | undefined) {

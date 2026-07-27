@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Edit3, RotateCcw, Save, X } from "lucide-react";
+import { Database, Edit3, History, Link2, MessageSquareQuote, RotateCcw, Save, X } from "lucide-react";
 
 import {
   DecisionMetricGrid,
@@ -23,6 +23,7 @@ import {
   normalizeMinistryAlignmentProfile,
   type MinistryAlignmentProfile
 } from "@/lib/ministry/alignment";
+import { buildMinistryMemoryDemo, type MinistryMemoryDemo as MinistryMemoryDemoState } from "@/lib/ministry/organizational-memory";
 
 const ministryHubPrompts = [
   "What do our current signals say about this season?",
@@ -49,6 +50,10 @@ export function MinistryAlignmentWorkspace({
   const center = useMemo(
     () => buildMinistryDecisionCenterState(overview, new Date(generatedAt), profile),
     [generatedAt, overview, profile]
+  );
+  const memory = useMemo(
+    () => buildMinistryMemoryDemo(overview, new Date(generatedAt)),
+    [generatedAt, overview]
   );
 
   useEffect(() => {
@@ -90,6 +95,15 @@ export function MinistryAlignmentWorkspace({
         description="Compare observable ministry life with the Vision, Mission, Values, Current Season, and Success Looks Like statements leaders have named."
       >
         <MinistryAlignmentPanel profile={profile} onEdit={() => setEditOpen(true)} onReset={resetProfile} />
+      </EditorialSection>
+
+      <EditorialSection
+        eyebrow="Public demo memory"
+        title="Organizational memory at your fingertips"
+        description="Guest mode uses seeded, fake historical records to model what Planning Center, calendars, files, decks, budgets, and debriefs could surface after real integrations are connected."
+        accent="gold"
+      >
+        <MinistryMemoryDemo memory={memory} />
       </EditorialSection>
 
       <EditorialSection
@@ -168,6 +182,87 @@ export function MinistryAlignmentWorkspace({
         />
       ) : null}
     </>
+  );
+}
+
+function MinistryMemoryDemo({ memory }: { memory: MinistryMemoryDemoState }) {
+  return (
+    <section className="ministry-memory-demo" aria-label="Public demo organizational memory">
+      <div className="ministry-memory-hero">
+        <div>
+          <p className="eyebrow">Seeded public data</p>
+          <h3>{memory.yearSpanLabel} ministry history, modeled for discernment</h3>
+          <p>
+            The records below are intentionally fake, but the pattern is real: repeated ministry rhythms can become a searchable memory
+            for better timing, stronger ownership, and more sustainable decisions.
+          </p>
+        </div>
+        <StatusBadge tone="warning">Stub data, no live sync</StatusBadge>
+      </div>
+
+      <dl className="ministry-memory-stats">
+        <div>
+          <History aria-hidden="true" />
+          <dt>Archived events</dt>
+          <dd>{memory.historicalEventCount}</dd>
+        </div>
+        <div>
+          <Database aria-hidden="true" />
+          <dt>Total memory records</dt>
+          <dd>{memory.recordCount}</dd>
+        </div>
+        <div>
+          <Link2 aria-hidden="true" />
+          <dt>Modeled source signals</dt>
+          <dd>{memory.stubSourceCount}</dd>
+        </div>
+        <div>
+          <MessageSquareQuote aria-hidden="true" />
+          <dt>Active plans</dt>
+          <dd>{memory.currentEventCount}</dd>
+        </div>
+      </dl>
+
+      <div className="ministry-memory-layout">
+        <div className="ministry-memory-column">
+          <header className="ministry-memory-subhead">
+            <span>Decision patterns</span>
+            <strong>{memory.eventFamilyCount} repeated rhythms detected</strong>
+          </header>
+          <div className="ministry-memory-insights">
+            {memory.insights.map((insight) => (
+              <article className={`ministry-memory-insight tone-${insight.tone}`} key={insight.title}>
+                <span>{insight.evidence}</span>
+                <strong>{insight.title}</strong>
+                <p>{insight.detail}</p>
+              </article>
+            ))}
+          </div>
+        </div>
+
+        <aside className="ministry-memory-column">
+          <header className="ministry-memory-subhead">
+            <span>Modeled sources</span>
+            <strong>Ready to demo, clearly not live</strong>
+          </header>
+          <ul className="ministry-memory-sources">
+            {memory.sources.map((source) => (
+              <li key={source.label}>
+                <strong>{source.label}</strong>
+                <p>{source.detail}</p>
+              </li>
+            ))}
+          </ul>
+        </aside>
+      </div>
+
+      <div className="ministry-memory-prompt-bank" aria-label="Organizational memory EMMA prompts">
+        <span>Try asking EMMA</span>
+        <div>
+          {memory.prompts.map((prompt) => <p key={prompt}>{prompt}</p>)}
+        </div>
+      </div>
+    </section>
   );
 }
 
