@@ -2695,6 +2695,85 @@ textarea:focus-visible {
   line-height: 1.4;
 }
 
+.submission-ai-readiness {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.72fr) minmax(0, 1.28fr);
+  gap: 16px;
+  align-items: stretch;
+  border-color: rgba(16, 185, 129, 0.24);
+  background:
+    linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(15, 23, 42, 0.78)),
+    var(--surface);
+}
+
+.submission-ai-readiness-copy {
+  display: grid;
+  align-content: center;
+  gap: 8px;
+}
+
+.submission-ai-readiness-copy p:last-child {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 740;
+  line-height: 1.5;
+}
+
+.submission-ai-readiness-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.submission-ai-readiness-grid article {
+  display: grid;
+  gap: 7px;
+  min-height: 112px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.52);
+  padding: 12px;
+}
+
+.submission-ai-readiness-grid span {
+  color: var(--primary);
+  font-size: var(--text-xs);
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.submission-ai-readiness-grid strong {
+  color: var(--text);
+  font-size: var(--text-sm);
+  line-height: 1.2;
+}
+
+.submission-ai-readiness-grid p {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 760;
+  line-height: 1.42;
+}
+
+@media (max-width: 1100px) {
+  .submission-ai-readiness {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .submission-ai-readiness-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .submission-ai-readiness-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 /* KPI cards */
 .kpi-grid {
   display: grid;

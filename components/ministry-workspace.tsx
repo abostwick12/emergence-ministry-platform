@@ -98,7 +98,9 @@ export default function MinistryWorkspace({
   const { activeRole } = useRole();
   const { openCreate, openEdit, state: cardState } = useEventCard();
   const [isLoading, setIsLoading] = useState(!initialOverview && !initialLoadError);
-  const [notice, setNotice] = useState("Preview adapters active. Live provider credentials are not required.");
+  const [notice, setNotice] = useState(
+    "Production AI path: Azure EMMA live, Gloo/Meridian primary, YouVersion handoff active. Human approval controls every write, send, and integration action."
+  );
   const [expandedEventIds, setExpandedEventIds] = useState<string[]>([]);
   const [eventLeaderAssignments, setEventLeaderAssignments] = useState<EventLeaderAssignments>({});
   const [customVolunteerLeaders, setCustomVolunteerLeaders] = useState<VolunteerLeader[]>([]);
@@ -694,13 +696,13 @@ function DashboardWorkspace({
           <p className="eyebrow">Competition review path</p>
           <h2 className="section-title flush">Inspect the platform story in order.</h2>
           <p>
-            Start with ministry alignment, then open the student Scripture journey, then review the leader-side Meridian and Gloo approval flow.
+            Start with Azure-backed EMMA alignment, then open the YouVersion Scripture handoff, then review the leader-side Meridian and Gloo approval flow.
           </p>
         </div>
         <div className="judge-path-links" aria-label="Suggested judge stops">
           <Link href="/ministry">
             <strong>1. Ministry Alignment</strong>
-            <span>Leadership criteria, EMMA signals, visible evidence</span>
+            <span>Leadership criteria, Azure EMMA signals, visible evidence</span>
           </Link>
           <Link href="/student/scripture/resources?reference=John%203%3A16">
             <strong>2. YouVersion Reader</strong>
@@ -712,6 +714,8 @@ function DashboardWorkspace({
           </Link>
         </div>
       </section>
+
+      <SubmissionAiReadiness />
 
       <EditorialSection
         eyebrow="Decide and unblock"
@@ -823,6 +827,50 @@ function DashboardWorkspace({
       </div>
       </section>
     </>
+  );
+}
+
+function SubmissionAiReadiness() {
+  const signals = [
+    {
+      label: "EMMA",
+      value: "Azure AI live",
+      detail: "Ministry chat is audit-safe and server-backed."
+    },
+    {
+      label: "Meridian",
+      value: "Gloo primary",
+      detail: "Student question drafts route through leader review."
+    },
+    {
+      label: "YouVersion",
+      value: "Reference handoff active",
+      detail: "The platform stores approved references, not Bible text."
+    },
+    {
+      label: "Actions",
+      value: "Human approval required",
+      detail: "No sends, writes, or integrations execute from AI alone."
+    }
+  ];
+
+  return (
+    <section className="panel submission-ai-readiness" aria-label="Submission AI readiness">
+      <div className="submission-ai-readiness-copy">
+        <p className="eyebrow">Submission AI Readiness</p>
+        <h2 className="section-title flush">Live providers, guarded actions.</h2>
+        <p>Public guest mode uses safe stock responses, while the signed-in production path demonstrates the configured AI integrations.</p>
+      </div>
+      <div className="submission-ai-readiness-grid">
+        {signals.map((signal) => (
+          <article key={signal.label}>
+            <span>{signal.label}</span>
+            <strong>{signal.value}</strong>
+            <p>{signal.detail}</p>
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }
 

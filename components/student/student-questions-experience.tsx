@@ -168,7 +168,7 @@ export function StudentQuestionsExperience({ initialJourneyEntries, initialRefle
                 <strong>{isFormationJourneySelected ? studentLeaderFormationJourney.title : selectedPrompt?.question}</strong>
                 <span>{isFormationJourneySelected
                   ? `${studentLeaderFormationJourney.durationLabel} / ${studentLeaderFormationJourney.availableLabel}`
-                  : `${selectedPrompt?.scriptureReference || "Open question"} / ${visibleSelectedEntries.length} ${visibleSelectedEntries.length === 1 ? "entry" : "entries"}`}</span>
+                  : `${selectedPrompt ? passageLabelForPrompt(selectedPrompt, selectedNextStep) : "Open question"} / ${visibleSelectedEntries.length} ${visibleSelectedEntries.length === 1 ? "entry" : "entries"}`}</span>
               </div>
               <ChevronDown aria-hidden="true" size={18} />
             </summary>
@@ -190,7 +190,7 @@ export function StudentQuestionsExperience({ initialJourneyEntries, initialRefle
                   onClick={() => selectJourney(prompt.id)}
                   type="button"
                 >
-                  <span>{prompt.scriptureReference || "Question"}</span>
+                  <span>{passageLabelForPrompt(prompt, nextSteps[prompt.id])}</span>
                   <strong>{prompt.question}</strong>
                 </button>
               ))}
@@ -265,7 +265,7 @@ export function StudentQuestionsExperience({ initialJourneyEntries, initialRefle
             {activePrompts.slice(0, 5).map((prompt) => (
               <article className="student-feed-row" key={prompt.id}>
                 <div>
-                  <span>{prompt.scriptureReference || "No passage selected"}</span>
+                  <span>{passageLabelForPrompt(prompt, nextSteps[prompt.id])}</span>
                   <h3>{prompt.question}</h3>
                   <p>{prompt.status === "pending_review" ? "Sent to your leader for review." : prompt.status.replace(/_/g, " ")}</p>
                 </div>
@@ -825,6 +825,10 @@ function JourneyRhythmIntro() {
       <p className="student-rhythm-closing">This rhythm is not a checklist to complete. It is a way of following Jesus—one faithful step at a time.</p>
     </section>
   );
+}
+
+function passageLabelForPrompt(prompt: StudentDiscussionPrompt, nextStep?: StudentQuestionNextStep | null) {
+  return prompt.scriptureReference || nextStep?.storylineMatch.keyPassages[0] || buildQuestionNextStep(prompt).storylineMatch.keyPassages[0] || "Passage anchor pending";
 }
 
 const studentQuestionArchiveStorageKey = "lead-emergence:student-question-archives";

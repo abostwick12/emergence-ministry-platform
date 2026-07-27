@@ -91,6 +91,21 @@ describe("scripture trial insights", () => {
     });
     expect(insights.recentQuestions).toEqual([]);
   });
+
+  it("uses storyline passage anchors when students submit open questions", () => {
+    const insights = buildScriptureTrialInsights(
+      stateWithPrompts([
+        prompt({
+          question: "What does it mean that we are made in the image of God?",
+          scriptureReference: "",
+          topicTags: ["image of God"]
+        })
+      ])
+    );
+
+    expect(insights.scriptureReferences[0].label).toBe("Genesis 1:26-31");
+    expect(insights.recentQuestions[0].scriptureReference).toBe("Genesis 1:26-31");
+  });
 });
 
 function stateWithPrompts(prompts: StudentDiscussionPrompt[]): DiscussionWorkflowState {

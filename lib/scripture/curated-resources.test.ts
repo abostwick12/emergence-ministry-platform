@@ -4,13 +4,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AuthSession } from "@/lib/auth/server";
 
-const { isSupabaseConfiguredMock, resolveMinistryScopeMock } = vi.hoisted(() => ({
+const { getSupabaseAuthClientMock, isSupabaseConfiguredMock, resolveMinistryScopeMock } = vi.hoisted(() => ({
+  getSupabaseAuthClientMock: vi.fn(),
   isSupabaseConfiguredMock: vi.fn(),
   resolveMinistryScopeMock: vi.fn()
 }));
 
 vi.mock("@/lib/auth/config", () => ({
   isSupabaseConfigured: isSupabaseConfiguredMock
+}));
+
+vi.mock("@/lib/auth/server", () => ({
+  getSupabaseAuthClient: getSupabaseAuthClientMock
 }));
 
 vi.mock("@/lib/ministry/scope", () => ({
@@ -20,6 +25,7 @@ vi.mock("@/lib/ministry/scope", () => ({
 import {
   archiveStudentCuratedResource,
   createStudentCuratedResource,
+  listStudentCuratedResources,
   resetLocalStudentCuratedResourcesForTests,
   updateStudentCuratedResource
 } from "@/lib/scripture/curated-resources";
@@ -222,6 +228,22 @@ describe("student curated resources", () => {
     });
   });
 
+  it("falls back without logging noise when deployed curated resources storage is missing", async () => {
+    isSupabaseConfiguredMock.mockReturnValue(true);
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const query = curatedResourceQuery([], {
+      message: "Could not find the table 'public.student_curated_resources' in the schema cache",
+      code: "PGRST205"
+    });
+    getSupabaseAuthClientMock.mockReturnValue(query.client);
+
+    const resources = await listStudentCuratedResources(liveStudentSession());
+
+    expect(resources.map((resource) => resource.title)).toContain("Walk the garden slowly");
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
   it("creates a separate RLS-protected table from knowledge sources", () => {
     const migration = readFileSync("supabase/migrations/20260712120000_student_curated_resources.sql", "utf8");
     const stageMigration = readFileSync("supabase/migrations/20260712143000_student_curated_resource_stages.sql", "utf8");
@@ -278,4 +300,33 @@ function adminSession(): AuthSession {
       role: "admin"
     }
   };
+}
+
+function liveStudentSession(): AuthSession {
+  return {
+    isMock: false,
+    accessToken: "student-token",
+    user: {
+      id: "usr_student",
+      email: "student@example.test",
+      fullName: "Student User",
+      role: "student"
+    }
+  };
+}
+
+function curatedResourceQuery(rows: Array<Record<string, unknown>>, error: { message: string; code?: string } | null = null) {
+  const query = {
+    eq: vi.fn(() => query),
+    limit: vi.fn(() => query),
+    order: vi.fn(() => query),
+    returns: vi.fn(async () => ({ data: rows, error }))
+  };
+  const table = {
+    select: vi.fn(() => query)
+  };
+  const client = {
+    from: vi.fn(() => table)
+  };
+  return { client, table, query };
 }

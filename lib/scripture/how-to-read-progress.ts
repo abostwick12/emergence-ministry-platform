@@ -50,7 +50,9 @@ export async function getStudentHowToReadProgress(session: AuthSession): Promise
       .returns<StudentHowToReadProgressRow[]>();
 
     if (result.error) {
-      console.warn("[scripture] how to read progress query failed", { message: result.error.message });
+      if (!isMissingProgressTableError(result.error)) {
+        console.warn("[scripture] how to read progress query failed", { message: result.error.message });
+      }
       return emptyProgress("unavailable");
     }
 
@@ -97,6 +99,9 @@ export async function saveStudentHowToReadProgress(session: AuthSession, input: 
     .single<StudentHowToReadProgressRow>();
 
   if (result.error) {
+    if (isMissingProgressTableError(result.error)) {
+      throw new StudentHowToReadProgressError("Progress storage is not ready yet.", 503, "progress_storage_unavailable");
+    }
     throw new StudentHowToReadProgressError("Progress could not be saved.", 500, "save_failed");
   }
   if (!result.data) throw new StudentHowToReadProgressError("Saved progress was not returned.", 500, "missing_progress");
@@ -136,6 +141,11 @@ function normalizeModuleId(value: string) {
     throw new StudentHowToReadProgressError("Choose a valid guide.", 400, "invalid_module");
   }
   return trimmed;
+}
+
+function isMissingProgressTableError(error: { code?: string; message?: string }) {
+  const message = error.message ?? "";
+  return error.code === "42P01" || (message.includes("student_how_to_read_progress") && /schema cache|does not exist|not find the table/i.test(message));
 }
 
 export class StudentHowToReadProgressError extends Error {
