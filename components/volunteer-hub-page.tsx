@@ -193,10 +193,10 @@ export function VolunteerHubPage({ mode = "volunteer" }: { mode?: VolunteerHubMo
         </div>
       ) : (
         <PageIntro
-          eyebrow="Volunteer Hub"
+          eyebrow="Today in ministry"
           title={`Good Morning ${firstName(payload.activeVolunteer.name)}`}
-          description="Prepare for serving, care for assigned students, and keep every action connected to relationship-first ministry."
-          actions={<HubStatus integrations={payload.integrations} />}
+          description="Start with today's group, see who needs care, and use leader-approved resources to create more meaningful discipleship moments."
+          actions={<span className="pill green">Ready to serve</span>}
         />
       )}
       {payload.readOnlyReason ? <p className="volunteer-hub-notice" role="status">{payload.readOnlyReason}</p> : null}
@@ -280,7 +280,7 @@ function MobileVolunteerPriorities({
       id: "chat",
       label: "Chat",
       title: payload.activeGroup.groupMeConnected ? "GroupMe linked" : unreadMessages ? `${unreadMessages} update${unreadMessages === 1 ? "" : "s"}` : "Message prep",
-      detail: payload.integrations.groupMe.displayStatus === "connected" ? "Review before sending" : "Preview only",
+      detail: payload.integrations.groupMe.displayStatus === "connected" ? "Review before sending" : "Message prep",
       icon: <MessageSquareText aria-hidden="true" />
     }
   ];

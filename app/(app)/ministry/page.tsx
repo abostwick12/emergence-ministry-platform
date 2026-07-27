@@ -10,8 +10,8 @@ export default async function MinistryHubPage() {
     return (
       <section className="placeholder-page editorial-placeholder-page" aria-labelledby="ministry-hub-title">
         <PageIntro
-          eyebrow="Ministry Hub"
-          title="Ministry Decision Center"
+          eyebrow="Access check"
+          title="Decision workspace unavailable"
           description="Ministry workspace access could not be verified."
           actions={<StatusBadge tone="warning">Access needed</StatusBadge>}
         />
@@ -25,8 +25,8 @@ export default async function MinistryHubPage() {
     return (
       <section className="ministry-launch-page ministry-conversation-first" aria-labelledby="ministry-hub-title">
         <PageIntro
-          eyebrow="Ministry Hub"
-          title="Ministry Alignment"
+          eyebrow="Decision center"
+          title="Lead with shared context"
           description="Leadership-authored direction, EMMA conversation, observable signals, and inspectable evidence in one discernment workspace."
           actions={<StatusBadge tone="info">Architecture Evolution - Phase 1-3</StatusBadge>}
         />
@@ -41,8 +41,8 @@ export default async function MinistryHubPage() {
     return (
       <section className="placeholder-page editorial-placeholder-page" aria-labelledby="ministry-hub-title">
         <PageIntro
-          eyebrow="Ministry Hub"
-          title="Ministry Decision Center"
+          eyebrow="Snapshot status"
+          title="Decision workspace unavailable"
           description="Current ministry signals could not be loaded."
           actions={<StatusBadge tone="warning">Needs data</StatusBadge>}
         />

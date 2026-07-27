@@ -41,7 +41,7 @@ const taskLaneStatuses: TaskStatus[] = ["blocked", "todo", "in_progress", "done"
 const statusLabels: Record<TaskStatus, string> = {
   todo: "To do",
   in_progress: "In progress",
-  blocked: "Stuck",
+  blocked: "Blocked",
   done: "Done"
 };
 
@@ -1052,7 +1052,7 @@ function TasksWorkspace({
                   <th>Status</th>
                   <th>Notes</th>
                   <th>Priority</th>
-                  <th>Critical</th>
+                  <th>Needs attention</th>
                 </tr>
               </thead>
               <tbody>
@@ -1131,7 +1131,7 @@ function MobileTaskActionCard({
       <div className="mobile-task-action-copy">
         <div className="mobile-task-action-topline">
           <span className={task.status === "done" ? "pill done" : task.status === "blocked" ? "pill blocked" : "pill"}>{statusLabels[task.status]}</span>
-          <span>{isCritical ? "High priority" : "Normal priority"}</span>
+          <span>{isCritical ? "Needs attention" : "Normal priority"}</span>
         </div>
         <h3>{task.taskTitle}</h3>
         <p>{eventTitle}</p>
@@ -1268,8 +1268,8 @@ function TaskTableRow({
           onSave={(notes) => onUpdate(task.id, { notes })}
         />
       </td>
-      <td>{isCritical ? "High" : "Normal"}</td>
-      <td>{isCritical ? "Yes" : "No"}</td>
+      <td>{isCritical ? "Needs attention" : "Normal"}</td>
+      <td>{isCritical ? "Needs review" : "No"}</td>
     </tr>
   );
 }
@@ -1871,14 +1871,14 @@ function EventDetailStrip({
   onOpenEvent: (eventId: string) => void;
 }) {
   const filesCount = Math.max(1, Math.ceil(tasks.length / 2));
-  const communicationCount = missingCount ? `${missingCount} missing` : "ready";
-  const budgetLabel = actualBudget ? money(actualBudget) : event.budgetTarget ? money(event.budgetTarget) : "missing";
+  const communicationCount = missingCount ? `${missingCount} needed` : "Ready";
+  const budgetLabel = actualBudget ? money(actualBudget) : event.budgetTarget ? money(event.budgetTarget) : "Needs target";
   const details = [
     { label: "Tasks", value: `${completeTasks}/${tasks.length}`, action: "toggle" },
-    { label: "Comms", value: communicationCount, action: "open" },
+    { label: "Copy", value: communicationCount, action: "open" },
     { label: "Budget", value: budgetLabel, action: "open" },
     { label: "Files", value: `${filesCount}`, action: "toggle" },
-    { label: "History", value: "log", action: "open" }
+    { label: "History", value: "Open", action: "open" }
   ] as const;
 
   return (
@@ -2025,9 +2025,9 @@ function EventPlanningDetails({
   canDeleteArchivedEvent: boolean;
 }) {
   const openTasks = tasks.length - completeTasks;
-  const communicationStatus = missingCount === 0 ? "Preview ready" : `${missingCount} item${missingCount === 1 ? "" : "s"} needed`;
-  const driveStatus = event.googleDriveFolderId ? "Google Drive folder ready" : "No folder yet";
-  const priority = event.type === "conference" ? "High" : event.type === "missions_trip" ? "Medium" : "Normal";
+  const communicationStatus = missingCount === 0 ? "Ready for review" : `${missingCount} item${missingCount === 1 ? "" : "s"} needed`;
+  const driveStatus = event.googleDriveFolderId ? "Folder linked" : "Needs folder";
+  const priority = event.type === "conference" ? "Needs attention" : event.type === "missions_trip" ? "Watch closely" : "Normal";
 
   return (
     <section className="event-summary-shell event-planning-details" aria-label={`${event.title} planning details`}>
@@ -2055,17 +2055,16 @@ function EventPlanningDetails({
         </div>
         <EventSummaryField label="Budget proposed" value={event.budgetTarget ? money(event.budgetTarget) : "Missing target"} tone={event.budgetTarget ? undefined : "warning"} />
         <EventSummaryField label="Budget actual" value={actualBudget ? money(actualBudget) : "$0 recorded"} />
-        <EventSummaryField label="Registration status" value={event.registrationDeadline ? `Due ${formatDate(event.registrationDeadline)}` : "Not configured"} tone="warning" />
-        <EventSummaryField label="Planning Center status" value="Adapter ready" tone="stub" />
+        <EventSummaryField label="Registration" value={event.registrationDeadline ? `Due ${formatDate(event.registrationDeadline)}` : "Needs decision"} tone="warning" />
+        <EventSummaryField label="Planning Center" value="Ready when connected" tone="stub" />
         <EventSummaryField label="Drive folder status" value={driveStatus} tone={event.googleDriveFolderId ? "success" : "warning"} />
-        <EventSummaryField label="Calendar sync" value={event.googleCalendarEventId ? "Synced to Emerge" : "Not synced yet"} tone={event.googleCalendarEventId ? "success" : "warning"} />
-        <EventSummaryField label="Parent email status" value={communicationStatus} tone={missingCount ? "warning" : "success"} />
-        <EventSummaryField label="GroupMe status" value="Preview only" tone="stub" />
-        <EventSummaryField label="Text status" value="Preview only" tone="stub" />
-        <EventSummaryField label="Files status" value={event.googleDriveFolderId ? "Folder linked" : "No folder yet"} tone={event.googleDriveFolderId ? "success" : "warning"} />
+        <EventSummaryField label="Calendar" value={event.googleCalendarEventId ? "Connected" : "Needs review"} tone={event.googleCalendarEventId ? "success" : "warning"} />
+        <EventSummaryField label="Family copy" value={communicationStatus} tone={missingCount ? "warning" : "success"} />
+        <EventSummaryField label="Leader copy" value={missingCount ? "Needs event details" : "Ready for review"} tone={missingCount ? "warning" : "success"} />
+        <EventSummaryField label="Files" value={event.googleDriveFolderId ? "Folder linked" : "Needs folder"} tone={event.googleDriveFolderId ? "success" : "warning"} />
         <EventSummaryField label="Checklist progress" value={`${completeTasks}/${tasks.length} complete`} tone={openTasks ? undefined : "success"} />
-        <EventSummaryField label="Missing info count" value={`${missingCount} open`} tone={missingCount ? "warning" : "success"} />
-        <EventSummaryField label="Priority" value={priority} tone={priority === "High" ? "warning" : undefined} />
+        <EventSummaryField label="Readiness gaps" value={`${missingCount} open`} tone={missingCount ? "warning" : "success"} />
+        <EventSummaryField label="Ministry risk" value={priority} tone={priority === "Needs attention" ? "warning" : undefined} />
         {event.archivedAt ? <EventSummaryField label="Archived" value={formatDate(event.archivedAt)} tone="warning" /> : null}
         <EventSummaryField label="Last updated" value={formatDate(event.createdAt)} />
         <div className="summary-field action-field">
@@ -2128,8 +2127,8 @@ function EventOperationsRail({
   const progress = Math.round((completeTasks / totalTasks) * 100);
   const volunteersNeeded = estimateVolunteersNeeded(event, tasks);
   const filesCount = Math.max(1, Math.ceil(tasks.length / 2));
-  const parentStatus = missingCount === 0 ? "P:Sent" : "P:Draft";
-  const leaderStatus = event.status === "ready" || event.status === "completed" ? "L:Ready" : "L:Draft";
+  const parentStatus = missingCount === 0 ? "Family copy ready" : "Family copy needs details";
+  const leaderStatus = event.status === "ready" || event.status === "completed" ? "Leader brief ready" : "Leader brief in progress";
 
   return (
     <aside className="event-operations-rail" role="cell" aria-label={`${event.title} operations snapshot`}>
@@ -2161,7 +2160,7 @@ function EventOperationsRail({
           <FileText aria-hidden="true" />
           {filesCount} files
         </span>
-        <span>{parentStatus} · {leaderStatus}</span>
+        <span>{parentStatus} - {leaderStatus}</span>
       </div>
     </aside>
   );
@@ -2307,7 +2306,7 @@ function EventTaskTreeItem({
       <span className="tree-branch" aria-hidden="true" />
       <div className="task-tree-title">
         <strong>{task.taskTitle}</strong>
-        {task.timelineOffsetDays <= -30 || task.status === "blocked" ? <span className="pill blocked">Critical</span> : null}
+        {task.timelineOffsetDays <= -30 || task.status === "blocked" ? <span className="pill blocked">Needs attention</span> : null}
       </div>
       <div className="task-tree-owner">
         <span className="summary-label">Task owner</span>
@@ -2501,7 +2500,7 @@ function TaskCard({
           <span className={task.status === "done" ? "pill done" : task.status === "blocked" ? "pill blocked" : "pill"}>
             {statusLabels[task.status]}
           </span>
-          <span>{task.timelineOffsetDays <= -30 || task.status === "blocked" ? "High priority" : "Normal"}</span>
+          <span>{task.timelineOffsetDays <= -30 || task.status === "blocked" ? "Needs attention" : "Normal"}</span>
         </div>
         <strong className="task-card-title">{task.taskTitle}</strong>
         <div className="task-card-event">{event?.title ?? "Event"}</div>
@@ -2534,7 +2533,7 @@ function TaskCard({
       </div>
 
       <details className="task-card-management">
-        <summary>Manage task</summary>
+        <summary>Change owner, due date, or notes</summary>
       {isEditing ? (
         <div className="task-edit-panel">
           <div className="field">

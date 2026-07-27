@@ -334,11 +334,11 @@ test.describe("MVP event automation navigation smoke tests", () => {
     const tasksWorkspace = page.locator(".tasks-workspace");
     await expect(page.getByRole("heading", { name: "Tasks", exact: true })).toBeVisible();
     await expect(tasksWorkspace.getByRole("button", { name: "Kanban", exact: true })).toBeVisible();
-    for (const lane of ["To do", "In progress", "Stuck", "Done"]) {
+    for (const lane of ["To do", "In progress", "Blocked", "Done"]) {
       await expect(tasksWorkspace.locator(".lane-title", { hasText: lane })).toBeVisible();
     }
     const firstTask = tasksWorkspace.locator(".task-card").first();
-    await firstTask.getByText("Manage task", { exact: true }).click();
+    await firstTask.getByText("Change owner, due date, or notes", { exact: true }).click();
     await expect(firstTask.getByRole("button", { name: /Notes/ })).toBeVisible();
     await expect(firstTask.getByRole("button", { name: "Open event" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Events Workspace" })).toHaveCount(0);
@@ -381,7 +381,8 @@ test.describe("MVP event automation navigation smoke tests", () => {
     const modal = page.getByRole("dialog");
     await expect(modal.getByLabel("Event Name")).toHaveValue("Winter Retreat");
     await modal.getByRole("button", { name: /Next: Tasks/ }).click();
-    await expect(modal.getByRole("tab", { name: /Tasks & Integrations/ })).toHaveAttribute("aria-selected", "true");
+    await expect(modal.getByRole("tab", { name: /Tasks, Copy & Guardrails/ })).toHaveAttribute("aria-selected", "true");
+    await modal.getByRole("tab", { name: "History", exact: true }).click();
     const activityLog = modal.locator("#modal-activity-log");
     await expect(activityLog).toContainText("Changed due date for task: Confirm venue contract and deposit");
     await expect(activityLog).toContainText("Moved task to blocked: Confirm venue contract and deposit");
@@ -396,6 +397,7 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await winterRow.getByRole("button", { name: /Edit event: Winter Retreat/ }).click();
     const modal = page.getByRole("dialog");
     await expect(modal.getByLabel("Event Name")).toHaveValue("Winter Retreat");
+    await modal.getByRole("tab", { name: "Details", exact: true }).click();
     const notesField = modal.getByLabel("Internal Notes");
     await notesField.fill(`Reviewed event notes ${Date.now()}`);
     const eventPatch = page.waitForResponse(
@@ -428,7 +430,8 @@ test.describe("MVP event automation navigation smoke tests", () => {
     const modal2 = page.getByRole("dialog");
     await expect(modal2.getByLabel("Event Name")).toHaveValue("Winter Retreat");
     await modal2.getByRole("button", { name: /Next: Tasks/ }).click();
-    await expect(modal2.getByRole("tab", { name: /Tasks & Integrations/ })).toHaveAttribute("aria-selected", "true");
+    await expect(modal2.getByRole("tab", { name: /Tasks, Copy & Guardrails/ })).toHaveAttribute("aria-selected", "true");
+    await modal2.getByRole("tab", { name: "History", exact: true }).click();
     await expect(modal2.getByText("Updated event notes: Winter Retreat").first()).toBeVisible();
     await expect(modal2.getByText("Updated task notes: Confirm venue contract and deposit").first()).toBeVisible();
   });
@@ -443,30 +446,32 @@ test.describe("MVP event automation navigation smoke tests", () => {
     const modal = page.getByRole("dialog");
     await expect(modal.getByLabel("Event Name")).toHaveValue("Winter Retreat");
     await modal.getByRole("button", { name: /Next: Tasks/ }).click();
-    await expect(modal.getByRole("tab", { name: /Tasks & Integrations/ })).toHaveAttribute("aria-selected", "true");
+    await expect(modal.getByRole("tab", { name: /Tasks, Copy & Guardrails/ })).toHaveAttribute("aria-selected", "true");
 
+    await modal.getByRole("tab", { name: "Integrations", exact: true }).click();
     await modal.getByRole("button", { name: "Run Communication Package stub action" }).click();
+    await modal.getByRole("tab", { name: "Copy", exact: true }).click();
     // Wait for previews to appear (workspace refreshes after stub POST + GET)
     await expect(modal.locator(".eyebrow", { hasText: /^Parent Email$/ }).first()).toBeVisible({ timeout: 15000 });
     await expect(modal.locator(".eyebrow", { hasText: /^Leader Announcement$/ }).first()).toBeVisible();
     await expect(modal.locator(".eyebrow", { hasText: /^Blast Text Summary$/ }).first()).toBeVisible();
-    await expect(modal.getByText(/Preview only.*not sent/).first()).toBeVisible();
+    await expect(modal.getByText("Draft only").first()).toBeVisible();
   });
 
   test("ministry hub pages render launch-ready workspaces", async ({ page }) => {
     await login(page);
 
     for (const route of [
-      ["/communications", "Communication Drafts", "Event Copy Queue"],
+      ["/communications", "Copy readiness queue", "Event Copy Queue"],
       ["/people", "Good Morning Andrew", "Today's Tasks"],
-      ["/budget", "Budget Workspace", "Where the money is going"],
-      ["/settings", "Platform Settings", "Connected services"]
+      ["/budget", "Stewardship view", "Where the money is going"],
+      ["/settings", "Guardrails, access, and live readiness", "Connected services"]
     ] as const) {
       await page.goto(route[0]);
       await expect(page.getByRole("heading", { name: route[1] })).toBeVisible();
       await expect(page.getByText(route[2])).toBeVisible();
       if (route[0] !== "/budget" && route[0] !== "/people") {
-        await expect(page.getByText("Preview-only sending").first()).toBeVisible();
+        await expect(page.getByText("Human approval gates").first()).toBeVisible();
       }
     }
   });
@@ -475,7 +480,7 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await login(page);
 
     for (const route of [
-      ["/files", "Ministry Files", "Google Drive-ready file organization"]
+      ["/files", "Google Drive-ready organization", "Google Drive-ready file organization"]
     ] as const) {
       await page.goto(route[0]);
       await expect(page.getByRole("heading", { name: route[1] })).toBeVisible();
@@ -523,8 +528,8 @@ test.describe("MVP event automation navigation smoke tests", () => {
 
     const modal = page.getByRole("dialog", { name: "Create New Event" });
     await expect(modal).toBeVisible();
-    await expect(modal.getByRole("tab", { name: /Event Details/ })).toBeVisible();
-    await expect(modal.getByRole("tab", { name: /Tasks & Integrations/ })).toBeVisible();
+    await expect(modal.getByRole("tab", { name: /Basics & People/ })).toBeVisible();
+    await expect(modal.getByRole("tab", { name: /Tasks, Copy & Guardrails/ })).toBeVisible();
     await expect(modal.getByLabel("Event Name")).toBeVisible();
     await expect(modal.getByLabel("Ministry Area")).toBeVisible();
     await expect(modal.getByLabel(/Start Date/)).toBeVisible();
@@ -566,7 +571,7 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await modal.getByLabel(/End Date/).fill(toDateTimeLocalInput(end));
 
     await modal.getByRole("button", { name: /Next: Tasks/ }).click();
-    await expect(modal.getByRole("tab", { name: /Tasks & Integrations/ })).toHaveAttribute("aria-selected", "true");
+    await expect(modal.getByRole("tab", { name: /Tasks, Copy & Guardrails/ })).toHaveAttribute("aria-selected", "true");
   });
 
   test("create event: save creates event and shows generated tasks in step 2", async ({ page }) => {
@@ -592,7 +597,7 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await expect(modal.getByLabel(/Start Date/)).toHaveValue(startValue);
     await expect(modal.getByLabel(/End Date/)).toHaveValue(endValue);
     await modal.getByRole("button", { name: /Next: Tasks/ }).click();
-    await expect(modal.getByRole("tab", { name: /Tasks & Integrations/ })).toHaveAttribute("aria-selected", "true");
+    await expect(modal.getByRole("tab", { name: /Tasks, Copy & Guardrails/ })).toHaveAttribute("aria-selected", "true");
     await expect(modal.getByRole("button", { name: /Save & Create Event/ })).toBeVisible();
 
     const createResponse = page.waitForResponse(
@@ -622,7 +627,7 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await modal.getByRole("button", { name: /Next: Tasks/ }).click();
 
     // Should advance (no "End date and time are required" error).
-    await expect(modal.getByRole("tab", { name: /Tasks & Integrations/ })).toHaveAttribute("aria-selected", "true");
+    await expect(modal.getByRole("tab", { name: /Tasks, Copy & Guardrails/ })).toHaveAttribute("aria-selected", "true");
 
     const createResponse = page.waitForResponse(
       (response) => response.url().endsWith("/api/events") && response.request().method() === "POST"
@@ -703,7 +708,7 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await expect(modal.getByLabel("Event Name")).toHaveValue("Winter Retreat");
     await modal.getByRole("button", { name: /Next: Tasks/ }).click();
 
-    await expect(modal.getByRole("tab", { name: /Tasks & Integrations/ })).toHaveAttribute("aria-selected", "true");
+    await expect(modal.getByRole("tab", { name: /Tasks, Copy & Guardrails/ })).toHaveAttribute("aria-selected", "true");
     await expect(modal.locator(".task-edit-row").first()).toBeVisible();
     await expect(modal.getByLabel("New task title")).toBeVisible();
   });
@@ -719,6 +724,7 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await expect(modal.getByLabel("Event Name")).toHaveValue("Winter Retreat");
     await modal.getByRole("button", { name: /Next: Tasks/ }).click();
 
+    await modal.getByRole("tab", { name: "Integrations", exact: true }).click();
     await expect(modal.locator(".stub-control", { hasText: "Google Demo Sync" })).toBeVisible();
     await expect(modal.getByText("Connect in Settings")).toBeVisible();
     await expect(modal.getByRole("button", { name: /Refresh files/ })).toBeVisible();
@@ -753,7 +759,7 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await page.goto("/tasks");
 
     const taskCard = page.locator(".tasks-workspace .task-card").first();
-    await taskCard.getByText("Manage task", { exact: true }).click();
+    await taskCard.getByText("Change owner, due date, or notes", { exact: true }).click();
     await taskCard.getByRole("button", { name: "Open event" }).click();
 
     const modal = page.getByRole("dialog");

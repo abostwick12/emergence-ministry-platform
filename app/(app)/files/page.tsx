@@ -3,8 +3,8 @@ import { PlaceholderPage } from "@/components/placeholder-page";
 export default function FilesPage() {
   return (
     <PlaceholderPage
-      eyebrow="Files"
-      title="Ministry Files"
+      eyebrow="Resource staging"
+      title="Google Drive-ready organization"
       description="Google Drive-ready file organization for event folders, forms, slides, receipts, and leader resources. Live Drive creation is not enabled yet."
       stubLabel="Future Drive Area"
       emmaPage="files"

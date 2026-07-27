@@ -156,7 +156,7 @@ export function WorshipPlanningPage() {
           `${confirmedCount} of ${assignments.length} worship assignments are confirmed.`,
           `${needsReplyCount} student assignment${needsReplyCount === 1 ? "" : "s"} still need replies.`,
           `${readySlides} of ${slides.length} slide item${slides.length === 1 ? "" : "s"} are ready.`,
-          "GroupMe and ProPresenter actions are preview-only in this workspace."
+          "GroupMe and ProPresenter actions stay behind human approval in this workspace."
         ]}
       />
 
@@ -269,7 +269,7 @@ export function WorshipPlanningPage() {
       <details className="worship-secondary-workspace">
         <summary>
           <span>Advanced production tools</span>
-          <small>Rehearsal, preview-only communication, and presentation readiness</small>
+          <small>Rehearsal, approved communication prep, and presentation readiness</small>
         </summary>
       <div className="worship-kpi-row" aria-label="Worship planning metrics">
         <article className="worship-mini-card liquid-card">
@@ -340,7 +340,7 @@ export function WorshipPlanningPage() {
                 <p className="eyebrow">GroupMe</p>
                 <h3>Team message draft</h3>
               </div>
-              <span className="pill stub">Preview only</span>
+              <span className="pill stub">Approval required</span>
             </div>
             <textarea
               className="worship-message-input"

@@ -22657,3 +22657,69 @@ body:has(.login-shell) h3 {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+.website-access-mode-tabs,
+.event-card-focused-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.website-access-mode-tabs button,
+.event-card-focused-tabs button {
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+  min-height: 38px;
+  padding: 8px 14px;
+}
+
+.website-access-mode-tabs button.active,
+.website-access-mode-tabs button:hover,
+.website-access-mode-tabs button:focus-visible,
+.event-card-focused-tabs button.active,
+.event-card-focused-tabs button:hover,
+.event-card-focused-tabs button:focus-visible {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.42);
+  outline: none;
+}
+
+.website-access-guardrail,
+.event-card-focused-pane {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.07);
+  padding: 16px;
+}
+
+.website-access-guardrail strong {
+  display: block;
+  font-size: 0.95rem;
+  margin-bottom: 4px;
+}
+
+.website-access-guardrail p {
+  color: rgba(255, 255, 255, 0.72);
+  margin: 0;
+}
+
+.ministry-launch-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.ministry-launch-row-actions span {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 0.74rem;
+  font-weight: 800;
+  padding: 5px 8px;
+}

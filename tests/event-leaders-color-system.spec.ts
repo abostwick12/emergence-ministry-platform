@@ -217,8 +217,10 @@ test.describe("event color system and volunteer leaders", () => {
     await waitForWorkspace(page);
     await page.getByRole("button", { name: /Edit event:/i }).first().click();
 
-    const dialog = page.getByRole("dialog").filter({ hasText: "Assigned Leaders" });
+    const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
+    await dialog.getByRole("tab", { name: "People", exact: true }).click();
+    await expect(dialog.getByText("Assigned Leaders")).toBeVisible();
     await dialog.getByRole("checkbox", { name: /Avery Bostwick/i }).check();
     await dialog.getByRole("button", { name: "Save Event" }).click();
 
