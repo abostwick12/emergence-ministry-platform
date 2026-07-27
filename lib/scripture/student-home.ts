@@ -2007,7 +2007,10 @@ function stableJourneyIndex(seed: string, modulo: number) {
 }
 
 function stripBringToGroupPrefix(value: string) {
-  return value.replace(/^Bring this to group:\s*/i, "").trim();
+  return value
+    .replace(/^Bring this to group:\s*/i, "")
+    .replace(/^Discussion prompt:\s*/i, "")
+    .trim();
 }
 
 function uniqueQuestions(questions: string[], limit: number) {

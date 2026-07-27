@@ -398,6 +398,27 @@ const storylineQuestionRules: Array<{
   match: Omit<StorylineQuestionMatch, "id">;
 }> = [
   {
+    id: "image-bearing-vocation",
+    pattern: /\b(image of god|image and likeness|likeness of god|god's image|imago dei|image-bearer|image bearer|created in (?:the )?image)\b/,
+    match: {
+      label: "This starts with image-bearing",
+      title: "Image-bearing and vocation",
+      startsHere: "Genesis 1:26-31",
+      developsThrough: "Psalm 8, Israel's calling, wisdom about neighbor-love, and the renewed self in Christ",
+      fulfilledInChrist: "Jesus is the true image of God who restores humanity into received dignity, holiness, and neighbor-honoring love.",
+      studentSummary:
+        "Image-bearing means your dignity is received before it is achieved, and your life is entrusted to reflect God's character with other people and creation.",
+      leaderFrame:
+        "Begin with received dignity and entrusted vocation before moving into identity language. Help students connect image-bearing to worship, neighbor-honor, embodied practice, and Christlike renewal.",
+      keyPassages: ["Genesis 1:26-31", "Psalm 8", "James 3:9-10", "Colossians 3:9-17", "2 Corinthians 3:18"],
+      studentQuestions: [
+        "What dignity does God give before anyone performs or proves anything?",
+        "How does image-bearing shape the way we treat other people?",
+        "Where does Jesus restore what sin distorts in us?"
+      ]
+    }
+  },
+  {
     id: "creation-fracture",
     pattern: /\b(genesis|creation|created|image of god|garden|eden|tree|evil|fall|sin|serpent|curse)\b/,
     match: {

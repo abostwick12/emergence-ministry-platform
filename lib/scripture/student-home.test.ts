@@ -326,6 +326,10 @@ describe("student home feed personalization", () => {
       })
     });
     expect(nextStep.journeyJournal.title).not.toBe("Garden Question Journey");
+    expect(nextStep.storylineMatch).toMatchObject({
+      id: "image-bearing-vocation",
+      title: "Image-bearing and vocation"
+    });
   });
 
   it("uses generated Meridian discussion prompts for the group step when available", () => {
@@ -335,7 +339,7 @@ describe("student home feed personalization", () => {
         question: "What does it mean that we are created in the image and likeness of God?",
         scriptureReference: "Genesis 1:26",
         aiStatus: "generated",
-        discussionPrompt: "How does Genesis 1 connect received dignity with the way we honor other people this week?",
+        discussionPrompt: "Discussion prompt: How does Genesis 1 connect received dignity with the way we honor other people this week?",
         metanarrativeMovement: undefined,
         topicTags: []
       })
