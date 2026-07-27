@@ -448,6 +448,9 @@ type ReadingSource = {
   scriptureReference: string;
   metanarrativeMovement?: StudentDiscussionPrompt["metanarrativeMovement"];
   topicTags?: string[];
+  aiStatus?: StudentDiscussionPrompt["aiStatus"];
+  discussionPrompt?: string;
+  safetyLabel?: StudentDiscussionPrompt["safetyLabel"];
 };
 
 export function buildStudentHomeFeed(
@@ -823,7 +826,7 @@ function buildJourneyJournal(
   primaryKnowledge?: StudentKnowledgeMatch
 ): StudentJourneyJournal {
   const text = promptSearchText(prompt);
-  if (/\b(garden|eden|tree|evil|genesis|creation)\b/.test(text)) {
+  if (isGardenTreeQuestion(text)) {
     return {
       id: "garden-question-journey",
       title: "Garden Question Journey",
@@ -928,6 +931,109 @@ function buildJourneyJournal(
             "As you exhale, release the pressure to solve the whole question at once.",
             "Ask: God, what have You given before You command?",
             "Invite God to meet you without hiding."
+          ]
+        }
+      }
+    };
+  }
+
+  if (isImageBearerQuestion(text)) {
+    return {
+      id: "image-bearer-calling-journey",
+      title: "Image Bearer Calling Journey",
+      subtitle: "Move through creation, vocation, dignity, and renewal before reducing image-bearing to a slogan.",
+      openingPrompt: "Start by asking what God gives humans to be and to do before turning image-bearing into status, talent, or self-esteem alone.",
+      followUpQuestions: [
+        {
+          id: "image-gift",
+          label: "What is given?",
+          prompt: "What does Genesis name about humanity as gift before it names any achievement?",
+          placeholder: "I notice God gives..."
+        },
+        {
+          id: "image-vocation",
+          label: "What is entrusted?",
+          prompt: "What responsibility, relationship, or calling comes with being made in God's image?",
+          placeholder: "The text seems to entrust..."
+        },
+        {
+          id: "image-renewal",
+          label: "Where does Jesus renew this?",
+          prompt: "How might Jesus show us what true humanity and restored image-bearing look like?",
+          placeholder: "Jesus shows..."
+        }
+      ],
+      readingPath: [
+        {
+          id: "genesis-1-image-bearing",
+          reference: "Genesis 1:26-31",
+          lookupReference: "Genesis 1:26",
+          title: "Image, blessing, and vocation",
+          guidance: "Notice image, likeness, blessing, fruitfulness, responsibility, food, and God's very good verdict together.",
+          practice: "Write one sentence about dignity that is received before it is performed."
+        },
+        {
+          id: "psalm-8-humanity",
+          reference: "Psalm 8",
+          lookupReference: "Psalm 8",
+          title: "Wonder, smallness, and entrusted glory",
+          guidance: "Read the psalm as worship. Notice both human smallness and the honor God gives.",
+          practice: "Name one way humility and dignity belong together."
+        },
+        {
+          id: "colossians-3-renewed-image",
+          reference: "Colossians 3:9-17",
+          lookupReference: "Colossians 3:9",
+          title: "The image renewed in Christ",
+          guidance: "Notice renewal, community, compassion, forgiveness, peace, and love as the shape of restored humanity.",
+          practice: "Choose one concrete practice that reflects Jesus' renewed image this week."
+        }
+      ],
+      keyWords: [
+        {
+          term: "image",
+          transliteration: "tselem",
+          originalLanguage: "Hebrew",
+          lexicalUrl: "https://www.blueletterbible.org/lexicon/h6754/kjv/wlc/0-1/",
+          meaning: "Genesis uses image language for humanity's God-given dignity and representative calling.",
+          invitation: "Ask how identity and vocation belong together before turning image-bearing into a generic compliment."
+        },
+        {
+          term: "likeness",
+          transliteration: "demuth",
+          originalLanguage: "Hebrew",
+          lexicalUrl: "https://www.blueletterbible.org/lexicon/h1823/kjv/wlc/0-1/",
+          meaning: "Likeness helps students slow down and ask what humans are made to reflect.",
+          invitation: "Look for what God's character would make visible through people who bear His image faithfully."
+        },
+        {
+          term: "renewed",
+          transliteration: "anakainoo",
+          originalLanguage: "Greek",
+          lexicalUrl: "https://www.blueletterbible.org/lexicon/g341/kjv/tr/0-1/",
+          meaning: "Colossians describes a renewed humanity being formed after the image of the Creator.",
+          invitation: "Connect creation dignity with Christ-shaped renewal instead of separating identity from discipleship."
+        }
+      ],
+      spiritualPractice: {
+        title: "Practice honoring image-bearers",
+        summary: "Let the doctrine become attention, honor, and Christlike action toward real people.",
+        steps: [
+          "Name one person you tend to overlook, compete with, or reduce to a label.",
+          "Pray for them as someone made with God-given dignity.",
+          "Take one concrete action that honors their dignity without making yourself the center.",
+          "Reflect on how Jesus forms image-bearing as love, humility, truth, and service."
+        ],
+        reflectionPrompt: "Where did image-bearing move from an idea into a way of seeing and treating someone?",
+        guidedPrayer: {
+          title: "Prayer for restored sight",
+          durationLabel: "2 minute prayer",
+          backgroundHint: "Quiet place with Genesis 1 open",
+          prompts: [
+            "Thank God for dignity that is received, not earned.",
+            "Ask God to correct any way you reduce yourself or another person.",
+            "Ask Jesus to renew His image in your words, attention, and actions.",
+            "Name one person you want to honor more faithfully today."
           ]
         }
       }
@@ -2138,6 +2244,11 @@ function prayerPromptsForPrompt(prompt: ReadingSource) {
 
 function wrestleTogetherPromptForPrompt(prompt: ReadingSource, primaryKnowledge?: StudentKnowledgeMatch) {
   const text = promptSearchText(prompt);
+  const generatedPrompt = prompt.discussionPrompt?.trim();
+
+  if (prompt.aiStatus === "generated" && generatedPrompt && prompt.safetyLabel !== "pastoral_escalation") {
+    return `Bring this to group: ${stripBringToGroupPrefix(generatedPrompt)}`;
+  }
 
   if (isGospelQuestion(text)) {
     return "Bring this to group: How would Scripture define the gospel as good news about Jesus, and what common shortcuts should we avoid?";
@@ -2177,6 +2288,14 @@ function promptSearchText(prompt: ReadingSource) {
 
 function isGospelQuestion(text: string) {
   return /\b(gospel|good news|salvation|saved|save me|cross|resurrection|atonement|forgiven|forgiveness)\b/.test(text);
+}
+
+function isGardenTreeQuestion(text: string) {
+  return /\b(garden|eden|tree of knowledge|tree of good and evil|forbidden tree|serpent|fall|curse|genesis\s+2|genesis\s+3)\b/.test(text);
+}
+
+function isImageBearerQuestion(text: string) {
+  return /\b(image of god|image and likeness|likeness of god|image-bear|image bear|imago dei|created in (the )?image|made in (the )?image|genesis\s+1:26|genesis\s+1:27)\b/.test(text);
 }
 
 function promptSearchTextForPlan(plan: ScripturePlan) {

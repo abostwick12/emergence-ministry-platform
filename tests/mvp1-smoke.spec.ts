@@ -267,8 +267,8 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await emma.getByRole("button", { name: /Ask EMMA/ }).click();
     expect((await emmaResponse).status()).toBe(200);
 
-    await expect(emma.getByText(/Request .* Run/)).toBeVisible();
-    await expect(emma.getByText(/Audited deterministic fallback|Provider/)).toBeVisible();
+    await expect(emma.getByText(/Audit trail saved|Guided fallback shown|AI response ready/)).toBeVisible();
+    await expect(emma.getByText(/Request .* Run/)).toHaveCount(0);
   });
 
   test("event row expands into compact task tree and opens modal on Open event", async ({ page }) => {

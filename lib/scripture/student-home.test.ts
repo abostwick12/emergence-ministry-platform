@@ -303,6 +303,56 @@ describe("student home feed personalization", () => {
     });
   });
 
+  it("does not send image-of-God questions through the Eden tree journey", () => {
+    const nextStep = buildQuestionNextStep(
+      prompt({
+        id: "question_image",
+        question: "What does it mean that we are created in the image and likeness of God?",
+        scriptureReference: "Genesis 1:26",
+        metanarrativeMovement: undefined,
+        topicTags: []
+      })
+    );
+
+    expect(nextStep.journeyJournal).toMatchObject({
+      title: "Image Bearer Calling Journey",
+      readingPath: [
+        expect.objectContaining({ reference: "Genesis 1:26-31" }),
+        expect.objectContaining({ reference: "Psalm 8" }),
+        expect.objectContaining({ reference: "Colossians 3:9-17" })
+      ],
+      spiritualPractice: expect.objectContaining({
+        title: "Practice honoring image-bearers"
+      })
+    });
+    expect(nextStep.journeyJournal.title).not.toBe("Garden Question Journey");
+  });
+
+  it("uses generated Meridian discussion prompts for the group step when available", () => {
+    const nextStep = buildQuestionNextStep(
+      prompt({
+        id: "question_generated",
+        question: "What does it mean that we are created in the image and likeness of God?",
+        scriptureReference: "Genesis 1:26",
+        aiStatus: "generated",
+        discussionPrompt: "How does Genesis 1 connect received dignity with the way we honor other people this week?",
+        metanarrativeMovement: undefined,
+        topicTags: []
+      })
+    );
+
+    expect(nextStep.wrestleTogetherPrompt).toBe(
+      "Bring this to group: How does Genesis 1 connect received dignity with the way we honor other people this week?"
+    );
+    expect(nextStep.journeyJournalEntries[3].followUpQuestions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          prompt: "How does Genesis 1 connect received dignity with the way we honor other people this week?"
+        })
+      ])
+    );
+  });
+
   it("builds passage-specific Explore guidance for formation journey entries", () => {
     const daySix = studentLeaderFormationJourney.entries[5];
     const [, passageTool] = getJourneyExploreToolPair(daySix.id, 6);
@@ -543,7 +593,7 @@ function prompt(overrides: Partial<StudentDiscussionPrompt>): StudentDiscussionP
     scriptureReference: "",
     metanarrativeMovement: "Jesus / Kingdom Fulfilled",
     aiProvider: "gloo",
-    aiStatus: "generated",
+    aiStatus: "not_configured",
     aiModel: "GPT-5 Nano",
     aiModelTier: "default",
     aiModelReason: "",
