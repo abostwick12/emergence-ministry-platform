@@ -16,6 +16,7 @@ test.describe("Unified access and competition guest mode", () => {
   });
 
   test("guest enters public pages and cannot reach protected sections by default", async ({ page }) => {
+    const memoryRange = `${new Date().getFullYear() - 5}-${new Date().getFullYear()}`;
     await enterGuestMode(page);
 
     await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible();
@@ -38,6 +39,11 @@ test.describe("Unified access and competition guest mode", () => {
 
     await sidebar.getByRole("link", { name: "Ministry Hub" }).click();
     await expect(page).toHaveURL(/\/ministry$/);
+    const memory = page.getByRole("region", { name: "Public demo organizational memory" });
+    await expect(memory).toContainText(`${memoryRange} ministry history, modeled for discernment`);
+    await expect(memory).toContainText("Stub data, no live sync");
+    await expect(memory).toContainText("Planning Center attendance snapshots");
+    await expect(memory).toContainText("Not connected in public demo mode");
     await expect(sidebar.getByRole("link", { name: "Events" })).toBeVisible();
     await expect(sidebar.getByRole("link", { name: "Tasks" })).toBeVisible();
 

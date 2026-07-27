@@ -25,6 +25,13 @@ test.describe("Ministry Hub alignment workspace", () => {
     await expect(editor).toHaveCount(0);
     await expect(alignment.getByText("Students practice following Jesus with Scripture, prayer, and service.")).toBeVisible();
 
+    const memory = page.getByRole("region", { name: "Public demo organizational memory" });
+    await expect(memory).toBeVisible();
+    await expect(memory.getByText(/ministry history, modeled for discernment/)).toBeVisible();
+    await expect(memory.getByText("Stub data, no live sync")).toBeVisible();
+    await expect(memory.getByText("Planning Center attendance snapshots")).toBeVisible();
+    await expect(memory.getByText("Compare this year's retreat plan with the last four retreats.")).toBeVisible();
+
     await expect(page.getByText("Current Ministry Signals", { exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "What EMMA is allowed to consider" })).toBeVisible();
     await expect(page.locator(".ministry-launch-panel[open]").first()).toBeVisible();
@@ -59,6 +66,7 @@ test.describe("Ministry Hub alignment workspace", () => {
 
     await expect(page.getByRole("heading", { name: "Ministry Alignment" }).first()).toBeVisible();
     await expect(page.getByRole("article", { name: "Ministry Alignment" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Public demo organizational memory" })).toBeVisible();
     await expect(page.locator(".ministry-emma-panel").first()).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
   });
