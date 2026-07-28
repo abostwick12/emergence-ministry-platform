@@ -20,7 +20,7 @@ export default async function DiscipleshipPage() {
     redirect(access.destination);
   }
 
-  if (access.role === "student") {
+  if (access.role === "student" && !access.session.isGuest) {
     redirect("/student");
   }
 
@@ -34,6 +34,16 @@ export default async function DiscipleshipPage() {
   const trialInsights = await getScriptureTrialInsights(access.session, state);
   return (
     <div className="discipleship-workspace-stack">
+      <section className="discipleship-workspace-disclosure" aria-label="Gloo leader review path">
+        <div className="discipleship-workspace-disclosure-body">
+          <p className="eyebrow">Gloo AI Studio + Meridian</p>
+          <h2>Leader-reviewed formation drafts stay grounded before anything reaches students.</h2>
+          <p>
+            Gloo readiness, Meridian context, safety labels, and human approval remain visible in this Discipleship workspace so Scripture-guided conversations support leaders instead of replacing pastoral discernment.
+          </p>
+        </div>
+      </section>
+
       <ScriptureLeaderReview compact initialGroupState={groupState} initialState={state} />
 
       <section className="discipleship-secondary-workspaces" aria-label="Discipleship supporting workspaces">

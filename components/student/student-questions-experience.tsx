@@ -160,6 +160,15 @@ export function StudentQuestionsExperience({ initialJourneyEntries, initialRefle
         </button>
         {isComposerOpen ? <StudentQuestionComposer onCreated={addCreatedPrompt} readiness={initialState.readiness} /> : null}
       </section>
+      <section className="student-feed-section student-journey-rhythm-summary" aria-label="Journey Journal rhythm">
+        <div className="student-feed-section-heading">
+          <p className="eyebrow">Journey Journal</p>
+          <h2>Receive, Explore, Practice, Walk, See</h2>
+        </div>
+        <p>
+          Every student question moves through Scripture, interpretation, embodied practice, shared walking, and visible fruit while leaders review the conversation before it reaches the group.
+        </p>
+      </section>
       <section className="student-journal-control" aria-label="Journey journal selector">
           <details className="student-journal-dropdown" ref={journalDropdownRef}>
             <summary>
