@@ -39,7 +39,7 @@ The intended public path is:
 - Production is not on PR #308 yet.
 - The public YouTube demo link is still required before submission.
 - The GitHub repository link is in the writeup, but the repository is private as of July 28, 2026. Make it public or grant judge access before submitting the repo URL.
-- The current MP4 has a blank tail from roughly 2:30 to the end and should be fixed before upload. After the fix, watch the final MP4 end to end for stale branding, readable captions, audio, and unsupported claims.
+- The MP4 blank tail was fixed with the Remotion `ScriptureFrontiersFinalizer`; the expected Desktop submission filename now points to the fixed 178.112 second render. Still watch the final MP4 end to end before upload for stale branding, readable captions, audio, and unsupported claims.
 - After production deploy, run the judge-path verifier against `https://www.leademergence.com` and inspect the generated desktop and mobile screenshots in `test-results/production-judge-path`.
 
 ## Post-Merge Release Steps

@@ -18,6 +18,9 @@
     "daily-intelligence:research-sweep": "node scripts/run-daily-intelligence-brief.mjs --research-sweep",
     "video:landing:studio": "remotion studio remotion/landing/Root.tsx",
     "video:landing:still": "remotion still remotion/landing/Root.tsx LeadEmergenceLandingVideo --frame=90 --scale=0.25 --output=test-results/landing-video-frame.png",
+    "video:scripture:prepare": "node scripts/prepare-scripture-finalizer-source.mjs",
+    "video:scripture:still": "npm run video:scripture:prepare && remotion still remotion/scripture-frontiers/Root.tsx ScriptureFrontiersFinalizer --frame=4560 --scale=0.5 --output=test-results/scripture-frontiers-finalizer-close.png",
+    "video:scripture:render": "npm run video:scripture:prepare && remotion render remotion/scripture-frontiers/Root.tsx ScriptureFrontiersFinalizer \"C:/Users/awbostwick/Desktop/Scripture in new frontiers writeup/scripture-in-new-frontiers-demo-fixed.mp4\" --codec=h264",
     "rag:obsidian:dry-run": "node scripts/obsidian-rag-import.mjs --dry-run",
     "brain:apple-notes:dry-run": "node scripts/apple-notes-brain-compiler.mjs --dry-run",
     "brain:apple-notes:report": "node scripts/apple-notes-brain-review-report.mjs"
