@@ -15,8 +15,8 @@ const guestSession: AuthSession = {
   }
 };
 
-describe("guest EMMA simulation", () => {
-  it("returns stock responses without requiring admin/leader role or provider setup", async () => {
+describe("guest EMMA demo responses", () => {
+  it("returns read-only demo responses without requiring admin/leader role or provider setup", async () => {
     const result = await runMinistryPageServerChat({
       session: guestSession,
       rawInput: { page: "events", prompt: "What should I do next?" },
@@ -24,7 +24,7 @@ describe("guest EMMA simulation", () => {
         events: [{
           id: "guest_evt",
           title: "Guest Event",
-          description: "Fake event.",
+          description: "Demo event.",
           type: "small_group_gathering",
           startTime: new Date().toISOString(),
           endTime: new Date().toISOString(),
@@ -35,7 +35,7 @@ describe("guest EMMA simulation", () => {
         tasks: [{
           id: "guest_task",
           eventId: "guest_evt",
-          taskTitle: "Fake task",
+          taskTitle: "Demo task",
           dueDate: new Date().toISOString(),
           assignedUserId: "guest_leader",
           status: "todo",

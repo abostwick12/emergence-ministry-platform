@@ -28,7 +28,7 @@ test.describe("Unified access and competition guest mode", () => {
     await expect(judgePath.getByRole("link", { name: /Discipleship Review/ })).toHaveAttribute("href", "/discipleship");
     const aiReadiness = page.locator('[aria-label="Submission AI readiness"]:visible');
     await expect(aiReadiness).toContainText("Azure AI live");
-    await expect(aiReadiness).toContainText("Public guest mode uses safe stock responses");
+    await expect(aiReadiness).toContainText("Public guest mode uses read-only demo responses");
     const sidebar = page.getByRole("navigation", { name: "Desktop navigation" });
     await expect(sidebar.getByRole("link", { name: "Ministry Hub" })).toBeVisible();
     await expect(sidebar.getByRole("link", { name: "Student Portal" })).toBeVisible();
@@ -41,7 +41,7 @@ test.describe("Unified access and competition guest mode", () => {
     await expect(page).toHaveURL(/\/ministry$/);
     const memory = page.getByRole("region", { name: "Public demo organizational memory" });
     await expect(memory).toContainText(`${memoryRange} ministry history, modeled for discernment`);
-    await expect(memory).toContainText("Stub data, no live sync");
+    await expect(memory).toContainText("Demo data, no live sync");
     await expect(memory).toContainText("Planning Center attendance snapshots");
     await expect(memory).toContainText("Not connected in public demo mode");
     await expect(sidebar.getByRole("link", { name: "Events" })).toBeVisible();
@@ -53,11 +53,11 @@ test.describe("Unified access and competition guest mode", () => {
     await expect(page.getByText("leader-approved conversations")).toBeVisible();
 
     await page.goto("/camp");
-    await expect(page).toHaveURL(/\/login$/);
+    await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
     await page.goto("/settings");
-    await expect(page).toHaveURL(/\/login$/);
+    await expect(page).toHaveURL(/\/login\?next=%2Fsettings$/);
     await page.goto("/command-center");
-    await expect(page).toHaveURL(/\/login$/);
+    await expect(page).toHaveURL(/\/login\?next=%2Fcommand-center$/);
   });
 
   test("guest sandbox supports in-memory add/delete and resets with a new guest session", async ({ page }) => {
@@ -70,7 +70,7 @@ test.describe("Unified access and competition guest mode", () => {
 
     const row = page.locator(".event-row-card", { hasText: eventName });
     await row.getByRole("button", { name: "View tasks" }).click();
-    await row.getByRole("button", { name: "Delete fake event" }).click();
+    await row.getByRole("button", { name: "Delete demo event" }).click();
     await expect(row).toBeHidden();
 
     const seededRow = page.locator(".event-row-card", { hasText: "Competition Launch Night" });
@@ -78,7 +78,7 @@ test.describe("Unified access and competition guest mode", () => {
     await seededRow.getByRole("button", { name: "View tasks" }).click();
     await expect(seededRow).toContainText("Verify Azure EMMA readiness badge");
     await expect(seededRow).toContainText("Review Meridian image-bearing journey");
-    await seededRow.getByRole("button", { name: "Delete fake event" }).click();
+    await seededRow.getByRole("button", { name: "Delete demo event" }).click();
     await expect(seededRow).toBeHidden();
 
     await page.goto("/api/auth/logout");
@@ -88,7 +88,7 @@ test.describe("Unified access and competition guest mode", () => {
     await expect(page.locator(".event-row-card", { hasText: "Competition Launch Night" })).toBeVisible();
   });
 
-  test("guest EMMA uses stock simulation responses only", async ({ page }) => {
+  test("guest EMMA uses read-only demo responses", async ({ page }) => {
     await enterGuestMode(page);
     await page.goto("/events");
 
@@ -99,8 +99,10 @@ test.describe("Unified access and competition guest mode", () => {
     await emma.getByRole("button", { name: /Ask EMMA/ }).click();
     expect((await response).status()).toBe(200);
 
-    await expect(emma.getByText("Guest EMMA simulation", { exact: false }).first()).toBeVisible();
-    await expect(emma.getByText("no AI provider, workflow trigger, or database write ran", { exact: false }).first()).toBeVisible();
+    await expect(emma.getByText("Guest EMMA demo", { exact: false }).first()).toBeVisible();
+    await expect(emma.getByText("Public guest mode keeps EMMA read-only", { exact: false }).first()).toBeVisible();
+    await expect(emma.getByText("Guest demo response. Read-only guidance shown", { exact: false }).first()).toBeVisible();
+    await expect(emma.getByText(/Fake events|stock guidance|Guided fallback shown|failed safely/i)).toHaveCount(0);
   });
 
   test("admin can manage user page access and public guest pages from settings", async ({ page }) => {
@@ -205,6 +207,18 @@ test.describe("Unified access and competition guest mode", () => {
     for (const name of ["emerge_access_token", "emerge_refresh_token", "emerge_mock_session", "lead_guest_session"]) {
       expect(cookies.find((cookie) => cookie.name === name)).toBeUndefined();
     }
+  });
+
+  test("returning to login clears a previous guest session instead of silently resuming it", async ({ context, page }) => {
+    await enterGuestMode(page);
+    await page.goto("/login");
+    await expect(page.getByRole("link", { name: "Continue as guest" })).toBeVisible();
+
+    const cookies = await context.cookies();
+    expect(cookies.find((cookie) => cookie.name === "lead_guest_session")).toBeUndefined();
+
+    await page.goto("/dashboard");
+    await expect(page).toHaveURL(/\/login\?next=%2Fdashboard$/);
   });
 });
 

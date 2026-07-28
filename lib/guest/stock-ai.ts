@@ -22,20 +22,20 @@ export function buildGuestEmmaResponse(input: {
   const focus = pageFocus[input.page] ?? "Use the safest visible snapshot and keep the next action reviewable.";
 
   return {
-    summary: `Guest EMMA simulation: ${focus}`,
+    summary: `Guest EMMA demo: ${focus}`,
     points: [
-      upcoming.length ? `Fake events in view: ${upcoming.join(", ")}.` : "No fake events are currently in view.",
-      `${openTasks} fake workflow task${openTasks === 1 ? "" : "s"} remain open in this sandbox.`,
-      "This response is selected from curated stock guidance; no AI provider, workflow trigger, or database write ran."
+      upcoming.length ? `Demo events in view: ${upcoming.join(", ")}.` : "No demo events are currently in view.",
+      `${openTasks} sandbox workflow task${openTasks === 1 ? "" : "s"} remain open for review.`,
+      "Public guest mode keeps EMMA read-only: no writes, sends, workflow triggers, or external ministry data changes run."
     ],
     nextActions: [
-      "Pick one fake event and check owner, budget, and communication readiness.",
-      "Move or delete a sandbox task to feel the workflow update.",
-      "Use Login when you are ready to work with real ministry data."
+      "Review whether another event would serve the current Scripture Practice priority.",
+      "Check owner, budget, communication readiness, and leader capacity before adding more activity.",
+      "Use the signed-in workspace when the ministry team is ready to work with real data."
     ]
   };
 }
 
 export function guestAuditLabel() {
-  return "Guest simulation / stock response / no external AI call / no audit write";
+  return "Guest demo response / read-only / no external AI call / no writes";
 }

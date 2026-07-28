@@ -100,7 +100,7 @@ export function MinistryAlignmentWorkspace({
       <EditorialSection
         eyebrow="Public demo memory"
         title="Organizational memory at your fingertips"
-        description="Guest mode uses seeded, fake historical records to model what Planning Center, calendars, files, decks, budgets, and debriefs could surface after real integrations are connected."
+        description="Guest mode uses seeded public demo history to model what Planning Center, calendars, files, decks, budgets, and debriefs could surface after real integrations are connected."
         accent="gold"
       >
         <MinistryMemoryDemo memory={memory} />
@@ -193,11 +193,11 @@ function MinistryMemoryDemo({ memory }: { memory: MinistryMemoryDemoState }) {
           <p className="eyebrow">Seeded public data</p>
           <h3>{memory.yearSpanLabel} ministry history, modeled for discernment</h3>
           <p>
-            The records below are intentionally fake, but the pattern is real: repeated ministry rhythms can become a searchable memory
+            The records below are intentionally modeled for public review, but the pattern is real: repeated ministry rhythms can become a searchable memory
             for better timing, stronger ownership, and more sustainable decisions.
           </p>
         </div>
-        <StatusBadge tone="warning">Stub data, no live sync</StatusBadge>
+        <StatusBadge tone="warning">Demo data, no live sync</StatusBadge>
       </div>
 
       <dl className="ministry-memory-stats">

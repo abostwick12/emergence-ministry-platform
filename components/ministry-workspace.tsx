@@ -859,7 +859,7 @@ function SubmissionAiReadiness() {
       <div className="submission-ai-readiness-copy">
         <p className="eyebrow">Submission AI Readiness</p>
         <h2 className="section-title flush">Live providers, guarded actions.</h2>
-        <p>Public guest mode uses safe stock responses, while the signed-in production path demonstrates the configured AI integrations.</p>
+        <p>Public guest mode uses read-only demo responses, while the signed-in production path demonstrates the configured AI integrations.</p>
       </div>
       <div className="submission-ai-readiness-grid">
         {signals.map((signal) => (
@@ -2103,7 +2103,7 @@ function EventPlanningDetails({
           )}
           {event.id.startsWith("guest_evt") && !event.archivedAt ? (
             <button className="button compact-button" type="button" disabled={!canSaveChanges} onClick={() => void onDeleteEvent(event.id)}>
-              Delete fake event
+              Delete demo event
             </button>
           ) : null}
         </div>
@@ -2611,7 +2611,7 @@ function TaskCard({
         </button>
         {task.id.startsWith("guest_task") ? (
           <button className="button compact-button" type="button" disabled={!canSaveChanges} onClick={() => void onDelete(task.id)}>
-            Delete fake task
+            Delete demo task
           </button>
         ) : null}
       </div>

@@ -23,7 +23,7 @@ describe("buildMinistryChatAudit", () => {
         provider: "mock",
         proposalCreated: false
       })
-    ).toBe("Guest simulation response. No AI provider, workflow trigger, or database write ran.");
+    ).toBe("Guest demo response. Read-only guidance shown; no writes, sends, workflow triggers, or external ministry data changes ran.");
 
     expect(
       buildMinistryChatAudit({
@@ -32,6 +32,6 @@ describe("buildMinistryChatAudit", () => {
         proposalCreated: true,
         warnings: ["EMMA audit persistence was unavailable. Deterministic fallback was returned and no action was executed."]
       })
-    ).toBe("Guided fallback shown; audit storage was unavailable. No actions executed. Recommendation saved for review.");
+    ).toBe("Audited EMMA response shown; audit storage was unavailable. No actions executed. Recommendation saved for review.");
   });
 });

@@ -28,7 +28,7 @@ test.describe("Ministry Hub alignment workspace", () => {
     const memory = page.getByRole("region", { name: "Public demo organizational memory" });
     await expect(memory).toBeVisible();
     await expect(memory.getByText(/ministry history, modeled for discernment/)).toBeVisible();
-    await expect(memory.getByText("Stub data, no live sync")).toBeVisible();
+    await expect(memory.getByText("Demo data, no live sync")).toBeVisible();
     await expect(memory.getByText("Planning Center attendance snapshots")).toBeVisible();
     await expect(memory.getByText("Compare this year's retreat plan with the last four retreats.")).toBeVisible();
 

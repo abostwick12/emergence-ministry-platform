@@ -112,7 +112,7 @@ export function createGuestEvent(sessionId: string, input: {
     createdAt: new Date().toISOString()
   };
   state.events.unshift(event);
-  recordGuestActivity(state, { type: "event_created", eventId: event.id, message: `Guest created fake event: ${event.title}`, metadata: { persisted: false } });
+  recordGuestActivity(state, { type: "event_created", eventId: event.id, message: `Guest created demo event: ${event.title}`, metadata: { persisted: false } });
   generateGuestTasks(state, event);
   generateGuestSupportTasks(state, event, input.supportNeeds ?? []);
   stageGuestPlanningCenterSpaceOwnerDraft(state, event, input.plannerRole);
@@ -125,7 +125,7 @@ export function updateGuestEvent(sessionId: string, eventId: string, input: Part
   if (!event) return undefined;
   Object.assign(event, input);
   syncGuestEventStatus(state, eventId);
-  recordGuestActivity(state, { type: "event_updated", eventId, message: `Guest updated fake event: ${event.title}`, metadata: { persisted: false } });
+  recordGuestActivity(state, { type: "event_updated", eventId, message: `Guest updated demo event: ${event.title}`, metadata: { persisted: false } });
   return getGuestWorkspace(sessionId, eventId);
 }
 
@@ -138,7 +138,7 @@ export function deleteGuestEvent(sessionId: string, eventId: string) {
   state.communications = state.communications.filter((item) => item.eventId !== eventId);
   state.integrationLogs = state.integrationLogs.filter((item) => item.eventId !== eventId);
   state.expenses = state.expenses.filter((item) => item.eventId !== eventId);
-  recordGuestActivity(state, { type: "event_updated", message: `Guest deleted fake event: ${event.title}`, metadata: { persisted: false } });
+  recordGuestActivity(state, { type: "event_updated", message: `Guest deleted demo event: ${event.title}`, metadata: { persisted: false } });
   return true;
 }
 
@@ -163,7 +163,7 @@ export function createGuestTask(sessionId: string, input: {
   };
   state.tasks.push(task);
   syncGuestEventStatus(state, input.eventId);
-  recordGuestActivity(state, { type: "task_generated", eventId: input.eventId, taskId: task.id, message: `Guest added fake task: ${task.taskTitle}`, metadata: { persisted: false } });
+  recordGuestActivity(state, { type: "task_generated", eventId: input.eventId, taskId: task.id, message: `Guest added demo task: ${task.taskTitle}`, metadata: { persisted: false } });
   return task;
 }
 
@@ -173,7 +173,7 @@ export function updateGuestTask(sessionId: string, taskId: string, input: Partia
   if (!task) return undefined;
   Object.assign(task, input);
   syncGuestEventStatus(state, task.eventId);
-  recordGuestActivity(state, { type: "task_edited", eventId: task.eventId, taskId, message: `Guest updated fake task: ${task.taskTitle}`, metadata: { persisted: false } });
+  recordGuestActivity(state, { type: "task_edited", eventId: task.eventId, taskId, message: `Guest updated demo task: ${task.taskTitle}`, metadata: { persisted: false } });
   return task;
 }
 
@@ -183,7 +183,7 @@ export function deleteGuestTask(sessionId: string, taskId: string) {
   if (!task) return false;
   state.tasks = state.tasks.filter((item) => item.id !== taskId);
   syncGuestEventStatus(state, task.eventId);
-  recordGuestActivity(state, { type: "task_edited", eventId: task.eventId, taskId, message: `Guest deleted fake task: ${task.taskTitle}`, metadata: { persisted: false } });
+  recordGuestActivity(state, { type: "task_edited", eventId: task.eventId, taskId, message: `Guest deleted demo task: ${task.taskTitle}`, metadata: { persisted: false } });
   return true;
 }
 
@@ -227,7 +227,7 @@ export function runGuestIntegrationStub(sessionId: string, eventId: string, type
   const state = getGuestSandbox(sessionId);
   const log = integrationAdapters[type].runStubAction(workspace.event);
   state.integrationLogs.unshift(log);
-  recordGuestActivity(state, { type: "integration_stub_action", eventId, message: `Guest ran fake ${type.replace(/_/g, " ")} action.`, metadata: { persisted: false } });
+  recordGuestActivity(state, { type: "integration_stub_action", eventId, message: `Guest ran demo ${type.replace(/_/g, " ")} action.`, metadata: { persisted: false } });
   if (type === "google_drive") workspace.event.googleDriveFolderId = `guest-drive-${eventId}`;
   if (type === "propresenter") workspace.event.proPresenterPlaylistId = `guest-pro-${eventId}`;
   return log;
@@ -258,16 +258,16 @@ function createInitialSandbox(): GuestSandboxState {
     ...historicalEvents,
     fakeEvent("guest_evt_launch", "Competition Launch Night", "A submission walkthrough event connecting Azure EMMA readiness, YouVersion Scripture handoff, Meridian review, and parent communication previews.", "high_school_event", launchNight, users[0].id, 900),
     fakeEvent("guest_evt_serve", "City Serve Saturday", "A service day demo with task ownership, leader assignments, and preview-only family communication.", "missions_trip", serveDay, users[1].id, 1200),
-    fakeEvent("guest_evt_retreat", "Fall Retreat Demo", "A retreat planning workspace with fake people, budget targets, workflow readiness, and human-approved communication boundaries.", "conference", retreat, users[0].id, 6500)
+    fakeEvent("guest_evt_retreat", "Fall Retreat Demo", "A retreat planning workspace with demo people, budget targets, workflow readiness, and human-approved communication boundaries.", "conference", retreat, users[0].id, 6500)
   ];
   const state: GuestSandboxState = { users, events, tasks: [], communications: [], integrationLogs: [], expenses: [], activity: [] };
   historicalEvents.forEach((event, index) => seedHistoricalMemoryRecord(state, event, index));
   events.filter((event) => !event.archivedAt).forEach((event) => {
     generateGuestTasks(state, event);
-    recordGuestActivity(state, { type: "event_created", eventId: event.id, message: `Loaded fake event: ${event.title}`, metadata: { attendance: event.type === "high_school_event" ? 47 : 31, workflows: 4 } });
+    recordGuestActivity(state, { type: "event_created", eventId: event.id, message: `Loaded demo event: ${event.title}`, metadata: { attendance: event.type === "high_school_event" ? 47 : 31, workflows: 4 } });
   });
   seedSubmissionProofTasks(state, events.find((event) => event.id === "guest_evt_launch"));
-  state.expenses.push({ id: "guest_exp_1", eventId: "guest_evt_retreat", categoryId: "lodging", amount: 1500, description: "Fake venue deposit", timestamp: now.toISOString() });
+  state.expenses.push({ id: "guest_exp_1", eventId: "guest_evt_retreat", categoryId: "lodging", amount: 1500, description: "Modeled venue deposit", timestamp: now.toISOString() });
   return state;
 }
 
@@ -288,7 +288,7 @@ function fakeEvent(id: string, title: string, description: string, type: EventTy
     priority: type === "conference" ? "high" : "normal",
     contactOwnerId,
     autoGeneratedTimeline: [],
-    notes: "Guest sandbox: fake event, people, attendance, AI-readiness proof, and preview-only workflows.",
+    notes: "Guest sandbox: demo event, people, attendance, AI-readiness proof, and preview-only workflows.",
     createdAt: new Date().toISOString()
   };
 }

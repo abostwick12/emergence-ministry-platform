@@ -38,7 +38,11 @@ export async function middleware(request: NextRequest) {
     publicPaths.some((path) => pathname === path) ||
     publicPathPrefixes.some((path) => pathname.startsWith(path))
   ) {
-    return NextResponse.next({ request: { headers: requestHeaders } });
+    const response = NextResponse.next({ request: { headers: requestHeaders } });
+    if ((pathname === "/" || pathname === "/login") && hasGuestSessionCookie(request)) {
+      clearGuestCookie(response);
+    }
+    return response;
   }
 
   const accessTokenCookie = request.cookies.get(authCookieNames.accessToken);

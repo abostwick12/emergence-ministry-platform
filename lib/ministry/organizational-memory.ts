@@ -114,11 +114,11 @@ export function buildMinistryMemoryDemo(overview: MinistryOverview, generatedAt 
       },
       {
         label: "Google Calendar ministry cadence",
-        detail: "Stub event IDs show how repeated rhythms could be reviewed without writing to a live calendar."
+        detail: "Modeled event IDs show how repeated rhythms could be reviewed without writing to a live calendar."
       },
       {
         label: "Google Drive planning folders",
-        detail: "Fake folder IDs represent where debriefs, parent drafts, and leader docs would live after approval."
+        detail: "Modeled folder IDs represent where debriefs, parent drafts, and leader docs would live after approval."
       },
       {
         label: "ProPresenter readiness",
@@ -133,7 +133,7 @@ export function buildMinistryMemoryDemo(overview: MinistryOverview, generatedAt 
       "Compare this year's retreat plan with the last four retreats.",
       "Which ministry rhythm keeps creating last-minute pressure?",
       "What should we stop, start, or sustain before adding another event?",
-      "Which stub integrations would matter most if we connected Planning Center first?"
+      "Which integration would matter most if we connected Planning Center first?"
     ]
   };
 }
