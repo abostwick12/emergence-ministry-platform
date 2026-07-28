@@ -89,6 +89,19 @@ describe("platform website access", () => {
     await expect(resolvePageAccessForSession(guestSession(), "/budget")).resolves.toBe(false);
   });
 
+  it("keeps the competition review path public for guests even when stale settings say otherwise", async () => {
+    const result = await updatePlatformAccess(adminSession, {
+      userId: "",
+      guestPageKey: "discipleship",
+      guestPublic: false
+    });
+
+    expect(result.allowed).toBe(true);
+    if (!result.allowed) return;
+    expect(result.pages?.find((page) => page.key === "discipleship")?.guestPublic).toBe(true);
+    await expect(resolvePageAccessForSession(guestSession(), "/discipleship")).resolves.toBe(true);
+  });
+
   it("resolves guest page access from public page flags", async () => {
     await expect(resolvePageAccessForSession(guestSession(), "/dashboard")).resolves.toBe(true);
     await expect(resolvePageAccessForSession(guestSession(), "/settings")).resolves.toBe(false);
