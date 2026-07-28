@@ -17257,21 +17257,33 @@ body:has(.login-shell) h3 {
 
 .ministry-emma-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
 }
 
 .ministry-emma-thread,
 .ministry-emma-controls {
   display: grid;
+  grid-column: 1 / -1;
   align-content: start;
   gap: 12px;
   min-width: 0;
+  width: 100%;
+}
+
+.ministry-emma-thread {
+  align-items: stretch;
+  max-height: 420px;
+  overflow: auto;
+  padding-right: 4px;
 }
 
 .ministry-emma-message {
   display: grid;
+  justify-self: stretch;
   gap: 10px;
+  box-sizing: border-box;
+  width: 100%;
   border: 1px solid rgba(129, 164, 214, 0.16);
   border-radius: 12px;
   background: rgba(6, 13, 27, 0.42);
@@ -17279,6 +17291,8 @@ body:has(.login-shell) h3 {
 }
 
 .ministry-emma-message.user {
+  justify-self: end;
+  max-width: min(760px, 92%);
   border-color: rgba(245, 184, 79, 0.24);
   background: rgba(245, 184, 79, 0.08);
 }
@@ -17331,7 +17345,7 @@ body:has(.login-shell) h3 {
 }
 
 .ministry-emma-controls .button.primary {
-  justify-self: start;
+  justify-self: end;
   display: inline-flex;
   align-items: center;
   gap: 8px;

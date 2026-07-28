@@ -483,6 +483,9 @@
 }
 
 .app-shell:not(.app-shell-camp) .ministry-emma-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   max-height: 430px;
   overflow-y: auto;
   border: 1px solid rgba(129, 164, 214, 0.14);
@@ -492,12 +495,15 @@
 }
 
 .app-shell:not(.app-shell-camp) .ministry-emma-message {
-  width: min(82%, 760px);
+  align-self: stretch;
+  width: 100%;
+  max-width: none;
   border-radius: 16px 16px 16px 4px;
 }
 
 .app-shell:not(.app-shell-camp) .ministry-emma-message.user {
-  justify-self: end;
+  align-self: flex-end;
+  width: min(760px, 92%);
   border-radius: 16px 16px 4px;
 }
 

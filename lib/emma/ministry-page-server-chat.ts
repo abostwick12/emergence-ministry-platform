@@ -104,7 +104,7 @@ export function getMinistryEmmaReadiness(input: { session?: AuthSession | null; 
       model: "guest-stock-responses",
       audit: "mock",
       status: "fallback",
-      message: "Guest EMMA uses curated stock responses only. No AI provider, audit write, or external call runs."
+      message: "Guest EMMA uses read-only demo responses. No AI provider call, audit write, workflow trigger, or external ministry data change runs."
     };
   }
 

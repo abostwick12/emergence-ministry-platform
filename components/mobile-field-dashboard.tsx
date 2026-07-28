@@ -164,7 +164,7 @@ export function MobileFieldDashboard({
       <section className="mobile-ai-readiness-card" aria-label="Submission AI readiness">
         <span>EMMA</span>
         <strong>Azure AI live for signed-in production.</strong>
-        <p>Public guest mode stays safe with stock responses; AI drafts never send, write, or integrate without a leader approval step.</p>
+        <p>Public guest mode stays safe with read-only demo responses; AI drafts never send, write, or integrate without a leader approval step.</p>
       </section>
       <nav className="mobile-field-quick-actions" aria-label="Fast ministry actions">
         <Link href="/events">Events</Link>

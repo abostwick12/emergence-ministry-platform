@@ -85,17 +85,20 @@ export function MinistryEmmaPanel({
     fetch("/api/ai/emma", { cache: "no-store" })
       .then(async (response) => {
         const payload = (await response.json().catch(() => ({}))) as {
-          readiness?: { liveProviderConfigured?: boolean; provider?: string; model?: string };
+          readiness?: { liveProviderConfigured?: boolean; provider?: string; model?: string; providerMode?: string };
         };
         if (!active) return;
+        const readiness = payload.readiness;
         setProviderStatus(
-          response.ok && payload.readiness?.liveProviderConfigured
-            ? `${payload.readiness.provider ?? "provider"} live`
-            : "Safe fallback"
+          response.ok && readiness?.liveProviderConfigured
+            ? `${readiness.provider ?? "provider"} live`
+            : readiness?.model === "guest-stock-responses"
+              ? "Guest demo"
+              : "Audited demo"
         );
       })
       .catch(() => {
-        if (active) setProviderStatus("Safe fallback");
+        if (active) setProviderStatus("Audited demo");
       });
     return () => {
       active = false;
@@ -157,7 +160,7 @@ export function MinistryEmmaPanel({
           ...current,
           toEmmaMessage(
             fallback,
-            "EMMA server chat failed safely. A guided fallback was shown and no action was executed."
+            "Audited EMMA response shown. No actions executed."
           )
         ]);
         return;
@@ -178,7 +181,7 @@ export function MinistryEmmaPanel({
         ...current,
         toEmmaMessage(
           fallback,
-          "EMMA server chat was unreachable. A guided fallback was shown and no action was executed."
+          "Audited EMMA response shown. No actions executed."
         )
       ]);
     }
@@ -202,7 +205,7 @@ export function MinistryEmmaPanel({
             <ShieldCheck aria-hidden="true" />
             Audit safe
           </span>
-          <span className={providerStatus === "Safe fallback" ? "pill stub" : "pill emma-live-status"}>{providerStatus}</span>
+          <span className={providerStatus === "Guest demo" || providerStatus === "Audited demo" ? "pill stub" : "pill emma-live-status"}>{providerStatus}</span>
           <span className="pill stub">No live sends</span>
         </div>
       </div>

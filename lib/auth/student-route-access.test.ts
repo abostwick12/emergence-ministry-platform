@@ -58,6 +58,16 @@ describe("student route access", () => {
     expect(response.cookies.get(authCookieNames.guestSession)?.value).toBe("");
   });
 
+  it("clears a guest session when someone returns to login", async () => {
+    const response = await middleware(cookieRequest("/login", {
+      [authCookieNames.guestSession]: "guest-session"
+    }));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-middleware-next")).toBe("1");
+    expect(response.cookies.get(authCookieNames.guestSession)?.value).toBe("");
+  });
+
   it("allows an unexpired account token and clears stale non-account cookies", async () => {
     const response = await middleware(cookieRequest("/settings", {
       [authCookieNames.accessToken]: jwt({ exp: Math.floor(Date.now() / 1000) + 3_600 }),

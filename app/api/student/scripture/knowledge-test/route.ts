@@ -19,7 +19,7 @@ export async function POST(request: Request) {
         provider: "guest-stock-responses",
         discussionPrompt: "What does this question reveal about what students are trying to understand, and how could a leader guide the group toward Scripture with patience?",
         safetyLabel: "safe",
-        safetyNotes: "Guest simulation only. No knowledge search, save, or AI provider call ran.",
+        safetyNotes: "Guest demo only. No knowledge search, save, or AI provider call ran.",
         matches: []
       }
     });

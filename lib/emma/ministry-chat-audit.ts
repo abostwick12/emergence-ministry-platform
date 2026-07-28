@@ -9,7 +9,7 @@ export function buildMinistryChatAudit(payload: EmmaChatAuditPayload): string {
   const proposal = payload.proposalCreated ? " Recommendation saved for review." : "";
 
   if (payload.providerMode === "guest_simulation") {
-    return `Guest simulation response. No AI provider, workflow trigger, or database write ran.${proposal}`;
+    return `Guest demo response. Read-only guidance shown; no writes, sends, workflow triggers, or external ministry data changes ran.${proposal}`;
   }
 
   if (payload.providerMode === "live_provider") {
@@ -20,7 +20,7 @@ export function buildMinistryChatAudit(payload: EmmaChatAuditPayload): string {
   }
 
   const auditUnavailable = payload.warnings?.some((warning) => /audit persistence was unavailable/i.test(warning));
-  return `${auditUnavailable ? "Guided fallback shown; audit storage was unavailable. " : "Guided fallback shown. Audit trail saved; "}No actions executed.${proposal}`;
+  return `${auditUnavailable ? "Audited EMMA response shown; audit storage was unavailable. " : "Audited EMMA response shown. Audit trail saved; "}No actions executed.${proposal}`;
 }
 
 function providerDisplayName(provider: string): string {
