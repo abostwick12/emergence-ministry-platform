@@ -62,6 +62,7 @@ const localState =
   ((globalThis as LocalStudentStateGlobal)[localStudentStateKey] = new Map<string, LocalStudentState>());
 
 export function shouldUseLocalStudentState(session: AuthSession) {
+  if (session.isGuest) return true;
   if (!canUseLocalStudentState()) return false;
   return session.isMock || !session.accessToken || !isSupabaseConfigured();
 }

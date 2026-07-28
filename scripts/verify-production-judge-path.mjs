@@ -125,6 +125,7 @@ const ignoredRequestPatterns = [
   /\/_next\/static\//,
   /\/_vercel\/insights\//,
   /[?&]_rsc=/,
+  /^https:\/\/www\.bible\.com\/bible\//,
   /^https:\/\/www\.bible\.com\/api\/preferred-locale/,
   /^https:\/\/dataman\.bible\.com\/4\.0\/events/
 ];
