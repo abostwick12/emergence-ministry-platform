@@ -6,6 +6,8 @@ The platform is designed to reduce administrative load for a small ministry team
 
 **Production:** [leademergence.com](https://leademergence.com)  
 **Current functionality map:** [docs/current-functionality.md](docs/current-functionality.md)  
+**Competition ecosystem proof:** [docs/Competition_Ecosystem_Proof.md](docs/Competition_Ecosystem_Proof.md)  
+**Competition judge walkthrough:** [docs/Competition_Judge_Walkthrough.md](docs/Competition_Judge_Walkthrough.md)  
 **Platform architecture baseline:** [docs/architecture/platform-unification-baseline.md](docs/architecture/platform-unification-baseline.md)  
 **AI skill system baseline:** [docs/architecture/ai-skill-system.md](docs/architecture/ai-skill-system.md)
 
@@ -18,6 +20,32 @@ The primary vertical slice is:
 **Create event → generate baseline tasks → assign and update tasks → manage the event workspace → review communication previews → view budget and integration activity → retain an activity log.**
 
 This is not the final platform. It is the operational foundation for later Planning Center, Google Workspace, communications, volunteer, student, and AI automation features.
+
+## Competition Ecosystem Proof
+
+For the Scripture in New Frontiers submission, Lead Emergence should be evaluated as a ministry operating system that connects operations, Scripture, ministry memory, AI-assisted drafting, and human approval.
+
+Judge-visible route:
+
+```text
+/login -> Continue as guest -> /dashboard -> /ministry -> /student/scripture/resources?reference=John%203%3A16 -> /student/scripture/questions -> /discipleship -> /hackathon
+```
+
+Current proof:
+
+- `/dashboard` shows the operational rhythm: events, tasks, communications, budget/activity visibility, and the competition review path.
+- `/ministry` shows Ministry Alignment, Meridian-style organizational memory, inspectable evidence, and EMMA conversation boundaries.
+- `/student/scripture/resources` shows the YouVersion reader/reference handoff without storing licensed Bible text.
+- `/student/scripture/questions` shows the Journey Journal formation path.
+- `/discipleship` shows leader review, Gloo diagnostics, safety labels, and human approval before sharing.
+- `/hackathon` gives judges a public ecosystem overview without login.
+
+Boundaries:
+
+- Guest mode uses seeded demo data and safe stock AI responses.
+- AI drafts are candidate outputs, not pastoral authority.
+- Communication outputs remain previews unless a future approved workflow sends them.
+- Gloo AI Studio and YouVersion are visible through server-side seams and documented routes, with no secrets exposed to the browser.
 
 ## Current Functionality
 

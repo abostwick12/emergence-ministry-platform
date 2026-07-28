@@ -3,9 +3,14 @@
 import { useMemo, useState } from "react";
 
 import { UnifiedDashboardBrandArt } from "@/components/unified-dashboard-brand-art";
+import {
+  competitionBoundaryGroups,
+  competitionEcosystemProof,
+  competitionVerificationRoutes
+} from "@/lib/competition/ecosystem-proof";
 
 type DemoStep = {
-  id: "student" | "scripture" | "journey" | "leader" | "slack";
+  id: "operations" | "ministry" | "student" | "scripture" | "journey" | "leader" | "community";
   label: string;
   eyebrow: string;
   title: string;
@@ -13,6 +18,22 @@ type DemoStep = {
 };
 
 const demoSteps: DemoStep[] = [
+  {
+    id: "operations",
+    label: "Operations",
+    eyebrow: "Ministry operating rhythm",
+    title: "The week starts with one shared view of events, tasks, people, and communications.",
+    body:
+      "Lead Emergence brings the operational work into a single rhythm so leaders can spend less energy hunting for context and more energy preparing for people."
+  },
+  {
+    id: "ministry",
+    label: "Meridian",
+    eyebrow: "Ministry Hub",
+    title: "Meridian keeps decisions grounded in the ministry's own culture.",
+    body:
+      "Leaders author vision, mission, values, season focus, and Success Looks Like criteria. EMMA can compare observable evidence against that context without replacing discernment."
+  },
   {
     id: "student",
     label: "Student question",
@@ -40,18 +61,18 @@ const demoSteps: DemoStep[] = [
   {
     id: "leader",
     label: "Leader review",
-    eyebrow: "Human approval",
+    eyebrow: "Gloo AI Studio plus human approval",
     title: "A leader edits, approves, or escalates before anything posts.",
     body:
-      "Every generated discussion stays under ministry oversight, with audit history and clear escalation paths for pastoral-care concerns."
+      "Gloo-backed drafts stay inside a leader-review workflow with safety labels, diagnostics, audit history, and clear escalation paths for pastoral-care concerns."
   },
   {
-    id: "slack",
-    label: "Slack discussion",
-    eyebrow: "Community delivery",
-    title: "The approved prompt lands where students already talk.",
+    id: "community",
+    label: "Follow-through",
+    eyebrow: "Relational ministry",
+    title: "The approved next step moves back into real ministry relationships.",
     body:
-      "Slack delivery creates a private, leader-moderated conversation space where Scripture becomes communal wrestling, not broadcast content."
+      "The platform prepares the conversation, flags care needs, and preserves the decision trail so leaders can notice students, follow up, and make room for relational ministry."
   }
 ];
 
@@ -69,7 +90,7 @@ const discussionPrompts = [
 ];
 
 export function HackathonPublicDemo() {
-  const [activeStepId, setActiveStepId] = useState<DemoStep["id"]>("student");
+  const [activeStepId, setActiveStepId] = useState<DemoStep["id"]>("operations");
   const activeStep = useMemo(
     () => demoSteps.find((step) => step.id === activeStepId) ?? demoSteps[0],
     [activeStepId]
@@ -97,6 +118,9 @@ export function HackathonPublicDemo() {
           </a>
           <a className="app-nav-link" href="#demo-loop">
             Product Loop
+          </a>
+          <a className="app-nav-link" href="#ecosystem-proof">
+            Ecosystem
           </a>
           <a className="app-nav-link" href="#technical-proof">
             Technical Proof
@@ -126,12 +150,13 @@ export function HackathonPublicDemo() {
           <div className="app-header-text">
             <h1 className="app-header-title app-header-title-compact">Hackathon Demo</h1>
             <p className="app-header-welcome">
-              A public view of Lead Emergence connecting Scripture, student questions, leader review, and community discussion.
+              A public view of Lead Emergence connecting ministry operations, Meridian context, Scripture grounding, Gloo-assisted drafts, and leader review.
             </p>
           </div>
           <div className="app-header-right">
             <span className="pill blue">YouVersion</span>
-            <span className="pill green">Journey Journal</span>
+            <span className="pill green">Gloo AI Studio</span>
+            <span className="pill amber">Meridian</span>
           </div>
         </header>
 
@@ -140,11 +165,11 @@ export function HackathonPublicDemo() {
             <div>
               <p className="eyebrow">Scripture in New Frontiers</p>
               <h2 className="title" id="hackathon-title">
-                Scripture-native social discipleship for student ministry.
+                A Scripture-native ministry operating system.
               </h2>
               <p className="muted">
-                Lead Emergence turns hard student questions into leader-reviewed, Scripture-grounded community conversations
-                without pulling students away from the digital spaces where they already talk.
+                Lead Emergence connects ministry operations, Meridian memory, YouVersion Scripture grounding, Gloo-assisted
+                drafts, and leader approval so digital ministry creates more space for relational ministry.
               </p>
             </div>
             <div className="hackathon-overview-side">
@@ -152,18 +177,21 @@ export function HackathonPublicDemo() {
                 <a className="button primary" href="#demo-loop">
                   Watch the Loop
                 </a>
+                <a className="button" href="#ecosystem-proof">
+                  Ecosystem Proof
+                </a>
                 <a className="button" href="#technical-proof">
                   Technical Proof
                 </a>
               </div>
               <div className="dashboard-list compact" aria-label="Demo promise">
                 <div className="dashboard-list-item">
-                  <strong>Student question</strong>
-                  <span className="muted">Private by default, reviewed before discussion.</span>
+                  <strong>Total ministry tool</strong>
+                  <span className="muted">Operations, decisions, Scripture, and people in one reviewable system.</span>
                 </div>
                 <div className="dashboard-list-item">
-                  <strong>Leader approval</strong>
-                  <span className="muted">AI drafts stay under ministry oversight.</span>
+                  <strong>Relational payoff</strong>
+                  <span className="muted">Less coordination drag, more attention for students, volunteers, and follow-up.</span>
                 </div>
               </div>
             </div>
@@ -173,7 +201,7 @@ export function HackathonPublicDemo() {
             <div className="hackathon-section-head">
               <p className="eyebrow">Product loop</p>
               <h2 className="section-title flush" id="demo-loop-title">
-                One hard question, one guided conversation
+                One ministry week, one connected formation loop
               </h2>
             </div>
 
@@ -205,19 +233,20 @@ export function HackathonPublicDemo() {
                 <div className="hackathon-product-shot" aria-label="Sanitized product preview">
                   <div className="hackathon-phone">
                     <div className="hackathon-phone-bar" />
-                    <p className="eyebrow">Student question</p>
-                    <h4>Why does God allow suffering if he is good?</h4>
+                    <p className="eyebrow">Ministry week</p>
+                    <h4>Fall Launch Night, student questions, and leader follow-up are connected.</h4>
                     <p>
-                      Anonymous to students. Visible to approved leaders only. Pending review before discussion.
+                      Guest mode uses seeded data, but the workflow shape is real: plan the event, prepare leaders, ground
+                      Scripture, review care signals, and keep follow-through visible.
                     </p>
-                    <span className="pill amber">Pending leader review</span>
+                    <span className="pill amber">Human review required</span>
                   </div>
 
                   <div className="hackathon-review-panel">
                     <div className="toolbar split">
                       <div>
-                        <p className="eyebrow">Leader review package</p>
-                        <h4>Romans 8 and the story of restoration</h4>
+                        <p className="eyebrow">Meridian review package</p>
+                        <h4>Scripture Practice season, Romans 8, and leader-approved next steps</h4>
                       </div>
                       <span className="pill green">Safe for discussion</span>
                     </div>
@@ -234,15 +263,46 @@ export function HackathonPublicDemo() {
                   </div>
 
                   <div className="hackathon-slack-card">
-                    <p className="eyebrow">Private Slack post</p>
+                    <p className="eyebrow">Community follow-through</p>
                     <strong>#hs-scripture-questions</strong>
                     <p>
-                      Approved discussion starter posted with leader context, Scripture reference, and follow-up prompts.
+                      Approved discussion starters can move into the spaces students already use, while the ministry keeps
+                      audit history, safety boundaries, and leader ownership intact.
                     </p>
-                    <span className="pill blue">Delivery logged</span>
+                    <span className="pill blue">Preview and audit boundary</span>
                   </div>
                 </div>
               </article>
+            </div>
+          </section>
+
+          <section className="hackathon-ecosystem" id="ecosystem-proof" aria-labelledby="ecosystem-proof-title">
+            <div className="hackathon-section-head">
+              <p className="eyebrow">Ecosystem proof</p>
+              <h2 className="section-title flush" id="ecosystem-proof-title">
+                Built to be a ministry ecosystem, not another tracker or Bible app
+              </h2>
+            </div>
+
+            <div className="hackathon-ecosystem-grid">
+              {competitionEcosystemProof.map((item) => (
+                <article className="hackathon-ecosystem-card" key={item.label}>
+                  <span>{item.label}</span>
+                  <strong>{item.value}</strong>
+                  <p>{item.detail}</p>
+                </article>
+              ))}
+            </div>
+
+            <div className="hackathon-boundary-grid" aria-label="Live versus demo boundaries">
+              {competitionBoundaryGroups.map((group) => (
+                <article className="hackathon-boundary-card" key={group.label}>
+                  <h3>{group.label}</h3>
+                  <ul>
+                    {group.items.map((item) => <li key={item}>{item}</li>)}
+                  </ul>
+                </article>
+              ))}
             </div>
           </section>
 
@@ -250,7 +310,7 @@ export function HackathonPublicDemo() {
             <div className="hackathon-section-head">
               <p className="eyebrow">Technical proof</p>
               <h2 className="section-title flush" id="technical-proof-title">
-                Built as a real platform path, not a video mock
+                Follow the real app surfaces judges can verify
               </h2>
             </div>
 
@@ -272,14 +332,20 @@ export function HackathonPublicDemo() {
                 </p>
               </article>
               <article className="card dashboard-card">
-                <span className="pill amber">Slack</span>
-                <h3>Community delivery is approved, then logged</h3>
+                <span className="pill amber">Gloo plus Meridian</span>
+                <h3>AI drafts stay reviewable and culture-aware</h3>
                 <p>
-                  A fixed private demo channel receives only approved content, and each delivery records status for the
-                  dashboard and final writeup.
+                  Gloo AI Studio is the primary draft path for discussions and reading plans; Meridian context shapes the
+                  request, and leaders approve before any student-facing step.
                 </p>
               </article>
             </div>
+
+            <nav className="hackathon-demo-routes" aria-label="Judge verification routes">
+              {competitionVerificationRoutes.map((route) => (
+                <a href={route.href} key={route.href}>{route.label}</a>
+              ))}
+            </nav>
           </section>
         </div>
       </section>

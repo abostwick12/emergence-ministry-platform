@@ -13095,7 +13095,9 @@ html:has(.app-shell-camp) body {
 .hackathon-step-button,
 .hackathon-phone,
 .hackathon-review-panel,
-.hackathon-slack-card {
+.hackathon-slack-card,
+.hackathon-ecosystem-card,
+.hackathon-boundary-card {
   border: 1px solid rgba(216, 222, 232, 0.86);
   border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.90);
@@ -13124,11 +13126,14 @@ html:has(.app-shell-camp) body {
 }
 
 .hackathon-loop,
+.hackathon-ecosystem,
 .hackathon-proof {
   display: grid;
   gap: 18px;
 }
 
+.hackathon-ecosystem-card strong,
+.hackathon-boundary-card h3,
 .hackathon-proof h3,
 .hackathon-stage-copy h3,
 .hackathon-phone h4,
@@ -13137,6 +13142,8 @@ html:has(.app-shell-camp) body {
   color: #172033;
 }
 
+.hackathon-ecosystem-card p,
+.hackathon-boundary-card li,
 .hackathon-proof p,
 .hackathon-stage-copy p,
 .hackathon-phone p,
@@ -13319,6 +13326,57 @@ html:has(.app-shell-camp) body {
   color: #f7fbff;
 }
 
+.hackathon-ecosystem-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.hackathon-ecosystem-card {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-height: 176px;
+  padding: 14px;
+}
+
+.hackathon-ecosystem-card span {
+  color: #66748a;
+  font-size: var(--text-xs);
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.hackathon-ecosystem-card strong {
+  font-size: var(--text-xl);
+  line-height: 1.05;
+}
+
+.hackathon-boundary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.hackathon-boundary-card {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+}
+
+.hackathon-boundary-card h3 {
+  margin: 0;
+  font-size: var(--text-lg);
+}
+
+.hackathon-boundary-card ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 18px;
+}
+
 .hackathon-proof-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -13343,9 +13401,34 @@ html:has(.app-shell-camp) body {
   color: #526174;
 }
 
+.hackathon-demo-routes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.hackathon-demo-routes a {
+  border: 1px solid rgba(29, 78, 216, 0.22);
+  border-radius: var(--radius-pill);
+  background: rgba(239, 246, 255, 0.82);
+  color: #1d4ed8;
+  font-size: var(--text-sm);
+  font-weight: 900;
+  padding: 10px 13px;
+  text-decoration: none;
+}
+
+.hackathon-demo-routes a:focus-visible,
+.hackathon-demo-routes a:hover {
+  border-color: rgba(29, 78, 216, 0.48);
+  background: rgba(219, 234, 254, 0.96);
+}
+
 @media (max-width: 920px) {
   .hackathon-loop-grid,
   .hackathon-product-shot,
+  .hackathon-ecosystem-grid,
+  .hackathon-boundary-grid,
   .hackathon-proof-grid {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -13387,8 +13470,14 @@ html:has(.app-shell-camp) body {
   .hackathon-stage,
   .hackathon-phone,
   .hackathon-review-panel,
-  .hackathon-slack-card {
+  .hackathon-slack-card,
+  .hackathon-ecosystem-card,
+  .hackathon-boundary-card {
     padding: 14px;
+  }
+
+  .hackathon-ecosystem-card {
+    min-height: auto;
   }
 }
 
