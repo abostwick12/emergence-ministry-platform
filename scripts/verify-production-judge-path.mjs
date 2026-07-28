@@ -113,6 +113,10 @@ try {
       for (const route of routes) {
         const response = await gotoRoute(page, `${baseUrl}${route.path}`);
         const bodyText = await page.locator("body").innerText({ timeout: 15_000 });
+        const formValues = await page.locator("input, textarea").evaluateAll((fields) =>
+          fields.map((field) => field.value).filter(Boolean).join(" ")
+        );
+        const searchableText = `${bodyText} ${formValues}`;
         await page.screenshot({ path: `${outputDir}/${profile.id}-${route.screenshot}`, fullPage: true });
 
         results.push({
@@ -120,11 +124,13 @@ try {
           viewportLabel: profile.label,
           viewportSize: profile.viewport,
           path: route.path,
+          expectedUrlPath: normalizeUrlPath(route.path),
+          actualUrlPath: normalizeUrlPath(page.url()),
           status: response?.status() ?? 0,
           finalUrl: page.url(),
           title: await page.title(),
-          terms: Object.fromEntries(route.terms.map((term) => [term, includesTerm(bodyText, term)])),
-          preview: bodyText.slice(0, 240).replace(/\s+/g, " ")
+          terms: Object.fromEntries(route.terms.map((term) => [term, includesTerm(searchableText, term)])),
+          preview: searchableText.slice(0, 240).replace(/\s+/g, " ")
         });
       }
     } finally {
@@ -144,6 +150,9 @@ const failures = results.flatMap((result) => {
   if (result.status < 200 || result.status >= 400) {
     routeFailures.push(`${result.viewportLabel} ${result.path} returned HTTP ${result.status}`);
   }
+  if (result.actualUrlPath !== result.expectedUrlPath) {
+    routeFailures.push(`${result.viewportLabel} ${result.path} landed on ${result.actualUrlPath}`);
+  }
   for (const term of missingTerms) {
     routeFailures.push(`${result.viewportLabel} ${result.path} is missing "${term}"`);
   }
@@ -156,7 +165,8 @@ const ignoredRequestPatterns = [
   /[?&]_rsc=/,
   /^https:\/\/www\.bible\.com\/bible\//,
   /^https:\/\/www\.bible\.com\/api\/preferred-locale/,
-  /^https:\/\/dataman\.bible\.com\/4\.0\/events/
+  /^https:\/\/dataman\.bible\.com\/4\.0\/events/,
+  /^https:\/\/www\.googletagmanager\.com\/a\?/
 ];
 const meaningfulFailedRequests = failedRequests.filter((request) => {
   if (request.failure === "net::ERR_ABORTED") return false;
@@ -199,4 +209,9 @@ async function gotoRoute(page, url) {
 
 function includesTerm(bodyText, term) {
   return bodyText.toLocaleLowerCase().includes(term.toLocaleLowerCase());
+}
+
+function normalizeUrlPath(value) {
+  const url = value.startsWith("http") ? new URL(value) : new URL(value, baseUrl);
+  return `${url.pathname}${url.search}`;
 }
