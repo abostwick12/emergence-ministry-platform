@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { ArrowRight, CalendarCheck2, HeartHandshake, LogIn, MessageSquareText } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
 import { clearPendingGroupMeCallback, readPendingGroupMeCallback, savePendingGroupMeCallback } from "@/lib/integrations/groupme/pending-callback";
@@ -159,9 +158,9 @@ export default function LoginPage() {
 
           <div className="login-entry-alternate"><span>or</span></div>
 
-          <Link className="button login-entry-guest" href="/api/auth/guest">
+          <a className="button login-entry-guest" href="/api/auth/guest">
             Continue as guest <ArrowRight size={18} aria-hidden="true" />
-          </Link>
+          </a>
 
           <div className="login-entry-judge-path" aria-label="Competition review path">
             <p className="eyebrow">Competition review path</p>
