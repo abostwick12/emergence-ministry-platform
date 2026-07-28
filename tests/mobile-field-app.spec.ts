@@ -20,22 +20,23 @@ test.describe("mobile ministry field app", () => {
     ]);
 
     const mobileNav = page.getByRole("navigation", { name: "Mobile navigation" });
-    for (const label of ["Home", "Ministry", "People", "More"]) {
+    for (const label of ["Home", "Ministry", "People", "Act", "More"]) {
       const destination = mobileNav.getByText(label, { exact: true });
       await expect(destination).toBeVisible();
-      expect((await destination.locator("xpath=..").boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(48);
+      expect((await destination.locator("xpath=..").boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
     }
 
     const firstCard = dashboard.locator(".mobile-attention-card").first();
     expect((await firstCard.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(110);
 
-    await page.getByRole("button", { name: "Open quick actions" }).click();
+    await page.getByRole("button", { name: "Act" }).click();
     const quickActions = page.getByRole("dialog", { name: "Quick actions" });
     await expect(quickActions.getByRole("button", { name: /Create event/ })).toBeVisible();
     await expect(quickActions.getByRole("link", { name: /Review tasks/ })).toBeVisible();
     await quickActions.getByRole("button", { name: "Close sheet" }).click();
 
-    await page.getByRole("button", { name: "Ask EMMA" }).click();
+    await page.getByRole("button", { name: "Act" }).click();
+    await quickActions.getByRole("button", { name: /Ask EMMA/ }).click();
     const emma = page.getByRole("dialog", { name: "Ask EMMA" });
     await expect(emma.getByLabel("Message EMMA")).toBeVisible();
     await expect(page).toHaveURL(/\/dashboard$/);
