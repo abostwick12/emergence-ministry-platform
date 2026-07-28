@@ -18,7 +18,6 @@ import {
   PanelsTopLeft,
   Plus,
   Settings,
-  Sparkles,
   TentTree,
   Users,
   X
@@ -114,27 +113,6 @@ export function MobileFieldControls({
 
   return (
     <div className="mobile-field-controls">
-      {!activeSheet ? (
-        <div className="mobile-floating-actions" aria-label="Quick actions">
-          <button
-            className="mobile-emma-bubble"
-            type="button"
-            aria-label="Ask EMMA"
-            onClick={(event) => openSheet("emma", event.currentTarget)}
-          >
-            <Sparkles aria-hidden="true" />
-          </button>
-          <button
-            className="mobile-action-fab"
-            type="button"
-            aria-label="Open quick actions"
-            onClick={(event) => openSheet("actions", event.currentTarget)}
-          >
-            <Plus aria-hidden="true" />
-          </button>
-        </div>
-      ) : null}
-
       <nav className="mobile-bottom-nav" aria-label="Mobile navigation">
         {mobileLinks.map((link) => {
           const Icon = destinationIcons[link.href] ?? LayoutDashboard;
@@ -151,6 +129,15 @@ export function MobileFieldControls({
             </Link>
           );
         })}
+        <button
+          aria-expanded={activeSheet === "actions"}
+          className={activeSheet === "actions" ? "mobile-nav-link active" : "mobile-nav-link"}
+          type="button"
+          onClick={(event) => openSheet("actions", event.currentTarget)}
+        >
+          <Plus aria-hidden="true" />
+          <span>Act</span>
+        </button>
         <button
           aria-current={moreIsActive ? "page" : undefined}
           aria-expanded={activeSheet === "more"}

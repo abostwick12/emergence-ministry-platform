@@ -767,11 +767,11 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await expect(modal.getByLabel("Event Name")).not.toHaveValue("");
   });
 
-  test("mobile floating action button opens working quick actions", async ({ page }) => {
+  test("mobile Act navigation item opens working quick actions", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 900 });
     await login(page);
 
-    await page.getByRole("button", { name: "Open quick actions" }).click();
+    await page.getByRole("button", { name: "Act" }).click();
     const actions = page.getByRole("dialog", { name: "Quick actions" });
     await expect(actions.getByRole("button", { name: /Create event/ })).toBeVisible();
     await expect(actions.getByRole("link", { name: /Review tasks/ })).toBeVisible();
