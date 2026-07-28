@@ -30,6 +30,7 @@ The intended public path is:
 
 - Local production build passed with `npm run build`.
 - Local production guest-path verification passed with `npm run verify:judge-path`.
+- The judge-path verifier now captures and verifies both desktop and mobile viewports.
 - GitHub Full CI passed on the PR head commit.
 - Vercel preview build completed successfully, but preview URLs are protected by Vercel login and are not suitable as public judge links.
 
@@ -39,7 +40,7 @@ The intended public path is:
 - The public YouTube demo link is still required before submission.
 - The public GitHub repository link still needs to be inserted into the writeup.
 - The final MP4 should be watched end to end for stale branding, readable captions, audio, and unsupported claims before upload.
-- After production deploy, run the judge-path verifier against `https://www.leademergence.com` and inspect the generated screenshots in `test-results/production-judge-path`.
+- After production deploy, run the judge-path verifier against `https://www.leademergence.com` and inspect the generated desktop and mobile screenshots in `test-results/production-judge-path`.
 
 ## Post-Merge Release Steps
 
