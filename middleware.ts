@@ -11,6 +11,7 @@ const publicPaths = [
   "/api/auth/login",
   "/api/auth/register",
   "/api/auth/guest",
+  "/api/auth/clear-guest",
   "/api/auth/logout",
   "/api/auth/invite-session",
   "/api/daily-intelligence/brief",

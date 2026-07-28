@@ -211,7 +211,9 @@ test.describe("Unified access and competition guest mode", () => {
 
   test("returning to login clears a previous guest session instead of silently resuming it", async ({ context, page }) => {
     await enterGuestMode(page);
+    const clearGuest = page.waitForResponse((response) => response.url().endsWith("/api/auth/clear-guest") && response.request().method() === "POST");
     await page.goto("/login");
+    expect((await clearGuest).status()).toBe(200);
     await expect(page.getByRole("link", { name: "Continue as guest" })).toBeVisible();
 
     const cookies = await context.cookies();

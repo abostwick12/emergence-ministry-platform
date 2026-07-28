@@ -23,6 +23,14 @@ export default function LoginPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
+    void fetch("/api/auth/clear-guest", {
+      method: "POST",
+      cache: "no-store",
+      credentials: "same-origin"
+    }).catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
     const currentUrl = new URL(window.location.href);
     const hashParams = new URLSearchParams(currentUrl.hash.startsWith("#") ? currentUrl.hash.slice(1) : currentUrl.hash);
     const accessToken = currentUrl.searchParams.get("access_token") ?? hashParams.get("access_token");
