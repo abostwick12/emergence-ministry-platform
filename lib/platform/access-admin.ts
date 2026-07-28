@@ -19,6 +19,17 @@ export const platformRoles: Role[] = ["admin", "leader", "student", "parent"];
 export const platformDataAccessModes = ["demo", "read_only", "save"] as const;
 export type PlatformDataAccessMode = (typeof platformDataAccessModes)[number];
 
+const requiredGuestPublicPageKeys = new Set<PlatformPageKey>([
+  "dashboard",
+  "ministry_hub",
+  "discipleship",
+  "student_portal",
+  "journey_journal",
+  "scripture_resources",
+  "reading_plans",
+  "how_to_read"
+]);
+
 export type PlatformAccessMember = {
   id: string;
   email: string;
@@ -298,6 +309,7 @@ export async function visiblePlatformPagesForSession(session: AuthSession) {
 export async function isGuestPagePublic(pageKey: PlatformPageKey): Promise<boolean> {
   const pageDef = getPlatformPage(pageKey);
   if (!pageDef?.guestEligible) return false;
+  if (requiredGuestPublicPageKeys.has(pageKey)) return true;
   const previewGuestPublicPages = globalState.__leadEmergencePlatformAccessPreview?.guestPublicPages;
   if (previewGuestPublicPages) return previewGuestPublicPages.has(pageKey);
   if (!isSupabaseAdminConfigured()) return currentPreviewGuestPublicPages().has(pageKey);
@@ -592,7 +604,7 @@ function pagesFromGuestSet(guestPublicPages: Set<PlatformPageKey>): PlatformAcce
     path: pageDef.path,
     description: pageDef.description,
     guestEligible: pageDef.guestEligible,
-    guestPublic: guestPublicPages.has(pageDef.key)
+    guestPublic: requiredGuestPublicPageKeys.has(pageDef.key) || guestPublicPages.has(pageDef.key)
   }));
 }
 
@@ -618,6 +630,7 @@ function guestPageSet(rows: GuestPagePermissionRow[]) {
   const guestPublicPages = new Set(defaultGuestPublicPageKeys);
   for (const row of rows) {
     if (!isPlatformPageKey(row.page_key)) continue;
+    if (requiredGuestPublicPageKeys.has(row.page_key)) continue;
     if (row.is_public === true) guestPublicPages.add(row.page_key);
     else guestPublicPages.delete(row.page_key);
   }
