@@ -6,7 +6,7 @@ Last audited: July 28, 2026
 
 Lead Emergence has a judge-ready hardening PR open at https://github.com/Lead-Emergence/emergence-ministry-platform/pull/308.
 
-The PR is merge-clean and green on GitHub at head commit `1f0c3b88f144ebc82a08cd1acb9502151dc8d7b3`:
+The PR is merge-clean and green on GitHub. The latest code-bearing commit with the Remotion finalizer is `1f0c3b88f144ebc82a08cd1acb9502151dc8d7b3`; later commits only update readiness documentation:
 
 - `CI / Design check, typecheck, and lint`: passed.
 - `Full CI / Build and E2E`: passed.
@@ -31,7 +31,7 @@ The intended public path is:
 - Local production build passed with `npm run build`.
 - Local production guest-path verification passed with `npm run verify:judge-path` against `http://localhost:3210` after `npm run build` and `npm run start`.
 - The judge-path verifier now captures and verifies both desktop and mobile viewports, checks the final route destination to catch protected-route redirects, and includes form input values when verifying visible Scripture references.
-- GitHub Full CI passed on the PR head commit `1f0c3b88f144ebc82a08cd1acb9502151dc8d7b3`.
+- GitHub Full CI passed after the Remotion finalizer landed.
 - Vercel preview build completed successfully, but preview URLs are protected by Vercel login and are not suitable as public judge links.
 
 ## Remaining Launch Risks
