@@ -7,7 +7,7 @@ This runbook keeps the competition path visible and repeatable. It describes wha
 Production URL:
 
 ```text
-https://emergence-ministry-platform.vercel.app
+https://www.leademergence.com
 ```
 
 Recommended judge path:
@@ -18,7 +18,8 @@ Recommended judge path:
 4. Open the Ministry Hub and review Ministry Alignment.
 5. Open Student Scripture resources with a passage reference.
 6. Review the discipleship and AI readiness surfaces.
-7. Confirm restricted Camp routes redirect rather than exposing protected data.
+7. Open `/hackathon` to see the public ecosystem proof page.
+8. Confirm restricted Camp routes redirect rather than exposing protected data.
 
 ## What To Evaluate
 
@@ -28,9 +29,21 @@ Evaluate the current build for:
 
 - authenticated and guest-accessible review flows
 - clear operational surfaces for events, tasks, communications, budget, students, and ministry health
+- a visible ecosystem story that connects operations, Meridian, Scripture, Gloo AI Studio, and human approval
 - scoped preview behavior instead of live sending or unsafe automation
 - visible evidence that provider integrations have defined boundaries
 - architecture that can grow into Meridian, Meridian Web, and the Vision Platform without replacing the current MVP
+
+## Ecosystem Proof Surface
+
+The public `/hackathon` page is the fastest judge-facing orientation surface. It should show:
+
+- Lead Emergence as a Scripture-native ministry operating system
+- operational hub, Meridian context, YouVersion grounding, Gloo AI Studio, and leader approval cards
+- live-versus-demo boundaries
+- verification links into `/login`, `/dashboard`, `/ministry`, `/student/scripture/resources`, `/student/scripture/questions`, and `/discipleship`
+
+This page supports the video and writeup; it is not a replacement for the real authenticated/guest walkthrough.
 
 ## Judged Provider Flow
 
