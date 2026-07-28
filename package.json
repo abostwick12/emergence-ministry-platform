@@ -12,6 +12,7 @@
     "test:e2e": "node scripts/run-e2e.mjs",
     "perf:audit": "node scripts/performance-audit.mjs",
     "design-check": "node scripts/design-check.mjs",
+    "verify:judge-path": "node scripts/verify-production-judge-path.mjs",
     "daily-intelligence:brief": "node scripts/run-daily-intelligence-brief.mjs",
     "daily-intelligence:research-sweep": "node scripts/run-daily-intelligence-brief.mjs --research-sweep",
     "video:landing:studio": "remotion studio remotion/landing/Root.tsx",

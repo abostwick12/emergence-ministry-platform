@@ -47,6 +47,11 @@ test.describe("Unified access and competition guest mode", () => {
     await expect(sidebar.getByRole("link", { name: "Events" })).toBeVisible();
     await expect(sidebar.getByRole("link", { name: "Tasks" })).toBeVisible();
 
+    await page.goto("/discipleship");
+    await expect(page).toHaveURL(/\/discipleship$/);
+    await expect(page.getByRole("heading", { name: "Discussion Review" })).toBeVisible();
+    await expect(page.getByText("leader-approved conversations")).toBeVisible();
+
     await page.goto("/camp");
     await expect(page).toHaveURL(/\/login$/);
     await page.goto("/settings");

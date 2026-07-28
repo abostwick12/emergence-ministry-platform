@@ -20,7 +20,7 @@ export default async function DiscipleshipPage() {
     redirect(access.destination);
   }
 
-  if (access.role === "student") {
+  if (access.role === "student" && !access.session.isGuest) {
     redirect("/student");
   }
 

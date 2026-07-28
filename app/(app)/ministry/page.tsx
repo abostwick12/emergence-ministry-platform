@@ -27,7 +27,7 @@ export default async function MinistryHubPage() {
         <PageIntro
           eyebrow="Decision center"
           title="Lead with shared context"
-          description="Leadership-authored direction, EMMA conversation, observable signals, and inspectable evidence in one discernment workspace."
+          description="Leadership-authored direction, Meridian organizational memory, EMMA conversation, observable signals, and inspectable evidence in one discernment workspace."
           actions={<StatusBadge tone="info">Architecture Evolution - Phase 1-3</StatusBadge>}
         />
         <MinistryAlignmentWorkspace
