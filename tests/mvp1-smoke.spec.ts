@@ -124,7 +124,7 @@ test.describe("MVP event automation navigation smoke tests", () => {
     }
   });
 
-  test("Leader Prep page supports sermon drafting and preview-only assistant actions", async ({ page }) => {
+  test("Leader Prep page supports sermon drafting, EMMA chat, and saved AI resources", async ({ page }) => {
     await login(page);
     await page.goto("/leader-prep");
 
@@ -138,6 +138,8 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await expect(page.getByRole("textbox", { name: "Big Idea" })).toHaveValue("Jesus shows that authority becomes love when it takes the towel.");
     await page.getByLabel("Sermon body").fill("A sermon body draft for leaders to prepare from.");
     await expect(page.getByLabel("Sermon body")).toHaveValue("A sermon body draft for leaders to prepare from.");
+    await page.getByRole("button", { name: "Save sermon" }).click();
+    await expect(page.getByRole("status").filter({ hasText: "Sermon saved in this browser." })).toBeVisible();
 
     const youVersion = page.getByRole("region", { name: "YouVersion Bible reader" });
     await expect(youVersion.getByRole("link", { name: "Open" })).toHaveAttribute("href", /bible\.com\/bible\/111\/JHN\.13\.1\.NIV/);
@@ -147,22 +149,22 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await expect(emma).toBeVisible();
     await emma.getByLabel("Message EMMA").fill("Give me a leader question.");
     await emma.getByRole("button", { name: "Ask EMMA", exact: true }).click();
-    await expect(emma.getByRole("status")).toContainText("Preview response");
+    await expect(emma).toContainText("Observation:");
+    await expect(emma).toContainText("Sources:");
     await emma.getByRole("button", { name: "Close Ask EMMA" }).click();
     await expect(emma).toHaveCount(0);
 
-    await page.getByLabel("Slides in Canva").check();
-    await expect(page.getByLabel("Slides in Canva")).toBeChecked();
+    await page.getByLabel("Slide plan saved").check();
+    await expect(page.getByLabel("Slide plan saved")).toBeChecked();
 
     for (const action of [
-      ["Generate outline", "Outline preview staged"],
-      ["Generate leader guide", "Leader guide preview staged"],
-      ["Generate Canva slides", "Canva slide preview staged"],
-      ["Generate audio summary", "Audio summary preview staged"]
+      ["Generate outline", "generated and saved to Weekly Resources"],
+      ["Generate leader guide", "generated and saved to Weekly Resources"],
+      ["Generate slide plan", "generated and saved to Weekly Resources"],
+      ["Generate small group questions", "generated and saved to Weekly Resources"]
     ] as const) {
       await page.getByRole("button", { name: action[0] }).click();
       await expect(page.getByRole("status").filter({ hasText: action[1] })).toBeVisible();
-      await expect(page.getByRole("status").filter({ hasText: "No live Canva, audio, AI, or sending action was run." })).toBeVisible();
     }
   });
 

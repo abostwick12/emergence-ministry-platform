@@ -733,6 +733,7 @@ function ResourcesWorkspace({ payload, onAction }: { payload: VolunteerHubPayloa
       <article className="volunteer-hub-panel volunteer-hub-span-3">
         <SectionTitle icon={<BookOpen aria-hidden="true" />} eyebrow="Volunteer Prep" title={payload.resources.length ? "This week's leader workflow" : "No resources published yet"} />
         <p className="muted">Preparation estimate: {payload.resources.reduce((sum, resource) => sum + resource.estimatedMinutes, 0)} minutes.</p>
+        <ResourceAttachments compact parentType="weekly_leader_prep" parentId="current-week" title="Generated sermon prep documents" />
         <ResourceAttachments compact parentType="small_group_resource" parentId={payload.activeGroup.id} title="Small-group videos and resources" />
       </article>
       {payload.resources.some((resource) => resource.id === "res_leader_guide") ? <JerichoLeaderGuideCard /> : null}

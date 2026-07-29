@@ -20297,11 +20297,25 @@ body:has(.login-shell) h3 {
   font-size: 0;
 }
 
-.leader-prep-editor-header > span {
-  color: rgba(143, 164, 189, 0.82);
+.leader-prep-save-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 36px;
+  border: 1px solid rgba(56, 189, 248, 0.34);
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.1);
+  color: #7dd3fc;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 900;
+  padding: 0 14px;
   white-space: nowrap;
+}
+
+.leader-prep-save-button svg {
+  width: 15px;
+  height: 15px;
 }
 
 .leader-prep-editor-body {
@@ -20446,11 +20460,65 @@ body:has(.login-shell) h3 {
   outline: none;
 }
 
+.leader-prep-action:disabled,
+.leader-prep-save-button:disabled,
+.leader-prep-mobile-command-actions button:disabled,
+.leader-prep-emma-popover form button:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
+.leader-prep-spin {
+  animation: leader-prep-spin 0.9s linear infinite;
+}
+
+@keyframes leader-prep-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .leader-prep-status {
   grid-column: 1 / -1;
   margin: 0;
   color: #8fa4bd;
   font-size: 12px;
+  line-height: 1.4;
+}
+
+.leader-prep-generated-list {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 10px;
+}
+
+.leader-prep-generated-list details {
+  border: 1px solid rgba(129, 164, 214, 0.16);
+  border-radius: 12px;
+  background: rgba(3, 10, 24, 0.32);
+  padding: 12px;
+}
+
+.leader-prep-generated-list summary {
+  cursor: pointer;
+  color: #e8eef8;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.leader-prep-generated-list pre {
+  max-height: 280px;
+  overflow: auto;
+  white-space: pre-wrap;
+  color: #dce8f7;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.leader-prep-generated-list small {
+  color: #8fa4bd;
+  font-size: 11px;
   line-height: 1.4;
 }
 
@@ -20460,41 +20528,44 @@ body:has(.login-shell) h3 {
   min-width: 0;
 }
 
-.leader-prep-youversion header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+.leader-prep-reader-field {
+  display: grid;
+  gap: 8px;
   padding: 16px 20px;
 }
 
-.leader-prep-youversion .eyebrow {
+.leader-prep-reader-field span {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-}
-
-.leader-prep-youversion .eyebrow svg {
-  width: 15px;
-  height: 15px;
-}
-
-.leader-prep-youversion a {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border: 1px solid rgba(56, 189, 248, 0.33);
-  border-radius: 999px;
-  color: #7dd3fc;
-  font-size: 12px;
+  color: #f6d37a;
+  font-size: 10px;
   font-weight: 900;
-  padding: 7px 12px;
-  text-decoration: none;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
 }
 
-.leader-prep-youversion a svg {
-  width: 14px;
-  height: 14px;
+.leader-prep-reader-field input {
+  width: 100%;
+  border: 1px solid rgba(129, 164, 214, 0.18);
+  border-radius: 999px;
+  background: rgba(3, 10, 24, 0.36);
+  color: #e8eef8;
+  font-size: 13px;
+  font-weight: 850;
+  padding: 10px 14px;
+}
+
+.leader-prep-youversion .youversion-reader-window {
+  border: 0;
+  border-top: 1px solid rgba(129, 164, 214, 0.13);
+  border-radius: 0 0 16px 16px;
+  background: rgba(3, 10, 24, 0.18);
+  box-shadow: none;
+}
+
+.leader-prep-youversion .youversion-reader-frame-wrap {
+  height: 360px;
 }
 
 .leader-prep-bible-card {
@@ -20590,13 +20661,14 @@ body:has(.login-shell) h3 {
 }
 
 .leader-prep-emma-popover {
-  position: absolute;
-  right: 16px;
-  top: calc(100% - 8px);
+  position: fixed;
+  right: 32px;
+  bottom: 32px;
   z-index: 20;
   display: grid;
   gap: 14px;
-  width: min(330px, calc(100vw - 40px));
+  width: min(380px, calc(100vw - 40px));
+  max-height: calc(100vh - 64px);
   border: 1px solid rgba(56, 189, 248, 0.26);
   border-radius: 16px;
   background: rgba(5, 12, 27, 0.98);
@@ -20638,6 +20710,55 @@ body:has(.login-shell) h3 {
 .leader-prep-emma-popover form {
   display: grid;
   gap: 10px;
+}
+
+.leader-prep-emma-thread {
+  display: grid;
+  gap: 10px;
+  max-height: 300px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.leader-prep-emma-message {
+  display: grid;
+  gap: 5px;
+  border: 1px solid rgba(129, 164, 214, 0.14);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.045);
+  padding: 10px;
+}
+
+.leader-prep-emma-message.user {
+  border-color: rgba(56, 189, 248, 0.24);
+  background: rgba(56, 189, 248, 0.08);
+}
+
+.leader-prep-emma-message strong {
+  margin: 0;
+  color: #f8fafc;
+  font-family: inherit;
+  font-size: 12px;
+}
+
+.leader-prep-emma-message p {
+  white-space: pre-wrap;
+}
+
+.leader-prep-emma-message small,
+.leader-prep-emma-thinking {
+  color: #8fa4bd;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1.4;
+  text-transform: none;
+}
+
+.leader-prep-emma-thinking {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .leader-prep-emma-popover textarea {
@@ -20735,8 +20856,8 @@ body:has(.login-shell) h3 {
   }
 
   .leader-prep-emma-popover {
-    left: 16px;
-    right: auto;
+    left: auto;
+    right: 24px;
   }
 }
 
@@ -20844,6 +20965,12 @@ body:has(.login-shell) h3 {
   .leader-prep-body-field textarea {
     min-height: 310px;
     max-height: none;
+  }
+
+  .leader-prep-emma-popover {
+    inset: auto 14px 86px 14px;
+    width: auto;
+    max-height: calc(100vh - 112px);
   }
 }
 

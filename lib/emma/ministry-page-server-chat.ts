@@ -33,7 +33,7 @@ import { normalizeMinistryAlignmentProfile, type MinistryAlignmentProfile } from
 import { z } from "zod";
 
 const CHAT_ROLES: ReadonlyArray<Role> = ["admin", "leader"];
-const MAX_PROMPT_CHARS = 700;
+const MAX_PROMPT_CHARS = 1800;
 
 const ministryEmmaPageSchema = z.enum([
   "dashboard",
@@ -44,7 +44,8 @@ const ministryEmmaPageSchema = z.enum([
   "budget",
   "settings",
   "files",
-  "worship"
+  "worship",
+  "leader_prep"
 ]);
 
 const ministryPageChatInputSchema = z
@@ -615,6 +616,7 @@ function buildMinistryPageUserPrompt({
       "Do not create alignment scores, percentage alignment, or red/yellow/green ministry-health statuses.",
       "If the user asks a follow-up without context, answer with explicit assumptions and name what you would need to confirm.",
       "For new recurring ministry rhythms, include ministry fit, current load, volunteer/capacity estimate, missing evidence, and a pilot recommendation.",
+      "For leader_prep, answer as a direct sermon preparation collaborator. Provide usable illustrations, outlines, leader-guide language, and small-group questions when asked; do not force Socratic coaching.",
       "Use this response pattern when applicable: Leadership stated, Current observable signal, Evidence, Interpretation, Leadership question."
     ],
     leadershipAuthoredAlignment: {
