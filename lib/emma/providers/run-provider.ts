@@ -56,6 +56,14 @@ export async function runEmmaProviderForRequest<TSchema extends z.ZodTypeAny>(
       const parsed = options.outputSchema.safeParse(providerResult.output);
       if (!parsed.success) {
         const durationMs = Date.now() - started;
+        logProviderFailure({
+          provider: providerResult.provider,
+          model: providerResult.model,
+          errorCode: "invalid_output",
+          durationMs,
+          featureKey: options.featureKey,
+          skillKey: options.skillKey
+        });
         await createAiProviderAttempt(session, {
           runId: run.id,
           provider: providerResult.provider,
@@ -102,6 +110,15 @@ export async function runEmmaProviderForRequest<TSchema extends z.ZodTypeAny>(
     } catch (error) {
       const normalized = normalizeProviderError(error);
       const durationMs = Date.now() - started;
+      logProviderFailure({
+        provider: selection.providerId,
+        model: selection.model,
+        errorCode: normalized.code,
+        httpStatus: normalized.httpStatus,
+        durationMs,
+        featureKey: options.featureKey,
+        skillKey: options.skillKey
+      });
       await createAiProviderAttempt(session, {
         runId: run.id,
         provider: selection.providerId,
@@ -152,6 +169,18 @@ function providerFailureWarnings(error: ReturnType<typeof normalizeProviderError
 function providerFailureMessage(error: ReturnType<typeof normalizeProviderError>): string {
   const status = error.httpStatus ? ` (HTTP ${error.httpStatus})` : "";
   return `AI provider request failed safely. Provider error category: ${error.code}${status}.`;
+}
+
+function logProviderFailure(details: {
+  provider: string;
+  model: string;
+  errorCode: string;
+  httpStatus?: number | null;
+  durationMs: number;
+  featureKey?: string;
+  skillKey: string;
+}): void {
+  console.warn("[emma-provider] Provider attempt failed safely", details);
 }
 
 function zodValidationWarnings(error: z.ZodError): string[] {

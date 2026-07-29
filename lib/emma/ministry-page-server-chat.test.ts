@@ -138,6 +138,23 @@ describe("ministry page server-backed EMMA chat", () => {
     });
   });
 
+  it("caps verbose provider decision briefs before schema validation", () => {
+    const parsed = ministryPageChatSchema.parse({
+      summary: `Decision brief: ${"current load and volunteer readiness ".repeat(30)}`,
+      points: Array.from({ length: 8 }, (_, index) => `Point ${index + 1}: ${"evidence and interpretation ".repeat(18)}`),
+      nextActions: Array.from({ length: 8 }, (_, index) => `Action ${index + 1}: ${"review capacity with leaders ".repeat(12)}`),
+      warnings: Array.from({ length: 8 }, (_, index) => `Warning ${index + 1}: ${"data is incomplete ".repeat(18)}`)
+    });
+
+    expect(parsed.summary.length).toBeLessThanOrEqual(700);
+    expect(parsed.points).toHaveLength(6);
+    expect(parsed.points.every((point) => point.length <= 260)).toBe(true);
+    expect(parsed.nextActions).toHaveLength(6);
+    expect(parsed.nextActions.every((action) => action.length <= 180)).toBe(true);
+    expect(parsed.warnings).toHaveLength(6);
+    expect(parsed.warnings.every((warning) => warning.length <= 220)).toBe(true);
+  });
+
   it("returns an audited deterministic fallback when no live provider is configured", async () => {
     const admin = session();
     const result = await runMinistryPageServerChat({
