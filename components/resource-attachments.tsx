@@ -666,8 +666,9 @@ function ResourceCard({
 }
 
 function YouTubeResourceEmbed({ resource }: { resource: ResourceAttachment }) {
-  const embedUrl = youtubeEmbedUrl(resource.externalUrl);
-  if (!embedUrl) return null;
+  const videoId = youtubeVideoId(resource.externalUrl);
+  if (!videoId) return null;
+  const embedUrl = youtubeEmbedUrlFromId(videoId);
   return (
     <div className="resource-youtube-embed">
       <iframe
@@ -676,6 +677,7 @@ function YouTubeResourceEmbed({ resource }: { resource: ResourceAttachment }) {
         loading="lazy"
         referrerPolicy="strict-origin-when-cross-origin"
         src={embedUrl}
+        srcDoc={youtubeEmbedSrcDoc(resource.title, videoId, embedUrl)}
         title={`${resource.title} video`}
       />
     </div>
@@ -683,6 +685,11 @@ function YouTubeResourceEmbed({ resource }: { resource: ResourceAttachment }) {
 }
 
 function youtubeEmbedUrl(rawUrl?: string) {
+  const videoId = youtubeVideoId(rawUrl);
+  return videoId ? youtubeEmbedUrlFromId(videoId) : "";
+}
+
+function youtubeVideoId(rawUrl?: string) {
   if (!rawUrl) return "";
   try {
     const url = new URL(rawUrl);
@@ -696,10 +703,28 @@ function youtubeEmbedUrl(rawUrl?: string) {
       else videoId = url.searchParams.get("v") ?? "";
     }
     if (!/^[\w-]{6,}$/.test(videoId)) return "";
-    return `https://www.youtube.com/embed/${videoId}`;
+    return videoId;
   } catch {
     return "";
   }
+}
+
+function youtubeEmbedUrlFromId(videoId: string) {
+  return `https://www.youtube.com/embed/${videoId}`;
+}
+
+function youtubeEmbedSrcDoc(title: string, videoId: string, embedUrl: string) {
+  const escapedTitle = escapeHtml(title);
+  const thumbnailUrl = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+  return `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><style>*{box-sizing:border-box}html,body{margin:0;height:100%;background:#030914;color:#f8fafc;font-family:Arial,sans-serif}a{position:absolute;inset:0;display:grid;place-items:center;gap:10px;text-decoration:none;color:#f8fafc;background:linear-gradient(180deg,rgba(3,9,20,.35),rgba(3,9,20,.82)),url('${thumbnailUrl}') center/cover no-repeat}.play{display:grid;place-items:center;width:76px;height:54px;border-radius:16px;background:rgba(2,132,199,.9);box-shadow:0 18px 40px rgba(0,0,0,.35)}.play:before{content:"";border-style:solid;border-width:12px 0 12px 20px;border-color:transparent transparent transparent #fff;margin-left:4px}.title{max-width:80%;padding:8px 10px;border-radius:999px;background:rgba(3,9,20,.72);font-size:13px;font-weight:800;text-align:center}</style></head><body><a href="${embedUrl}?autoplay=1" aria-label="Play ${escapedTitle}"><span class="play"></span><span class="title">${escapedTitle}</span></a></body></html>`;
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 async function patchResource(attachmentId: string, body: Record<string, unknown>) {

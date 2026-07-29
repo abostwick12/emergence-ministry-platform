@@ -144,8 +144,8 @@ export async function listResourceAttachments(
 }
 
 export async function createResourceAttachment(session: AuthSession, input: CreateResourceAttachmentInput) {
-  assertCanManageResources(session);
   const parent = await resolveResourceParent(session, input.parentType, input.parentId, { requireWritableScope: true });
+  assertCanManageResources(session, parent.parentType);
   const notificationIntent = normalizeNotificationIntent(input.notificationIntent);
 
   if (input.file) {
@@ -181,7 +181,6 @@ async function maybeCreateGoogleDriveBackedEventResource(session: AuthSession, e
 }
 
 export async function updateResourceAttachment(session: AuthSession, attachmentId: string, input: UpdateResourceAttachmentInput) {
-  assertCanManageResources(session);
   const current = await getResourceAttachmentForManagement(session, attachmentId);
   const patch = normalizeUpdateInput(input);
   if (!Object.keys(patch).length) return current;
@@ -213,7 +212,6 @@ export async function updateResourceAttachment(session: AuthSession, attachmentI
 }
 
 export async function archiveResourceAttachment(session: AuthSession, attachmentId: string, restore = false) {
-  assertCanManageResources(session);
   const current = await getResourceAttachmentForManagement(session, attachmentId, { includeArchived: true });
   const archivedAt = restore ? undefined : new Date().toISOString();
 
@@ -240,7 +238,6 @@ export async function archiveResourceAttachment(session: AuthSession, attachment
 }
 
 export async function permanentlyDeleteResourceAttachment(session: AuthSession, attachmentId: string) {
-  assertCanManageResources(session);
   const current = await getResourceAttachmentForManagement(session, attachmentId, { includeArchived: true });
 
   if (current.source === "local") {
@@ -262,7 +259,6 @@ export async function permanentlyDeleteResourceAttachment(session: AuthSession, 
 }
 
 export async function replaceResourceAttachmentFile(session: AuthSession, attachmentId: string, file: File) {
-  assertCanManageResources(session);
   const current = await getResourceAttachmentForManagement(session, attachmentId, { includeArchived: true });
   const bytes = Buffer.from(await file.arrayBuffer());
   const validated = validateResourceFile({ bytes, filename: file.name, declaredMimeType: file.type });
@@ -360,8 +356,8 @@ export async function getResourceAttachmentOpenUrl(session: AuthSession | null, 
   return { expiresIn: 300, url: signed.data.signedUrl };
 }
 
-export function canManageResourceAttachments(session: AuthSession | null) {
-  return isResourceManager(session);
+export function canManageResourceAttachments(session: AuthSession | null, parentType?: string | null) {
+  return isResourceManager(session, parentType);
 }
 
 export function resourceStorageReady(session: AuthSession | null) {
@@ -513,7 +509,7 @@ async function getResourceAttachmentForRead(session: AuthSession | null, attachm
 async function getResourceAttachmentForManagement(session: AuthSession, attachmentId: string, options: { includeArchived?: boolean } = {}) {
   const resource = await getResourceAttachmentForRead(session, attachmentId);
   if (!options.includeArchived && resource.archivedAt) throw new ResourceAttachmentError("Resource has been archived.", 404, "archived");
-  if (!isResourceManager(session)) throw new ResourceAttachmentError("Only admins can manage resources.", 403, "not_allowed");
+  if (!isResourceManager(session, resource.parentType)) throw new ResourceAttachmentError("You do not have permission to manage these resources.", 403, "not_allowed");
   return resource;
 }
 
@@ -780,9 +776,9 @@ function shouldUseLiveResources(session: AuthSession | null) {
   return Boolean(isSupabaseAdminConfigured() && !session?.isMock);
 }
 
-function assertCanManageResources(session: AuthSession) {
-  if (!isResourceManager(session)) {
-    throw new ResourceAttachmentError("Only admins can manage resources.", 403, "not_allowed");
+function assertCanManageResources(session: AuthSession, parentType: ResourceParentType) {
+  if (!isResourceManager(session, parentType)) {
+    throw new ResourceAttachmentError("You do not have permission to manage these resources.", 403, "not_allowed");
   }
 }
 

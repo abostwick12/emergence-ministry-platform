@@ -788,6 +788,23 @@ html:has(.app-shell:not(.app-shell-camp)) body {
   color: #f8fafc;
 }
 
+.app-shell:not(.app-shell-camp) select,
+.app-shell:not(.app-shell-camp) select.input {
+  color-scheme: dark;
+  background-color: #071426;
+}
+
+.app-shell:not(.app-shell-camp) select option,
+.app-shell:not(.app-shell-camp) select optgroup {
+  background-color: #071426;
+  color: #f8fafc;
+}
+
+.app-shell:not(.app-shell-camp) select option:checked {
+  background-color: #0f2b46;
+  color: #ffffff;
+}
+
 .app-shell:not(.app-shell-camp) :is(textarea, input)::placeholder {
   color: #64748b;
 }

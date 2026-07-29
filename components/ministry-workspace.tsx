@@ -612,7 +612,7 @@ function NextOnCalendar({ events }: { events: MinistryEvent[] }) {
           events.map((event) => {
             const start = new Date(event.startTime);
             return (
-              <button className="next-cal-item" type="button" key={event.id} onClick={() => openEdit(event.id)}>
+              <button className="next-cal-item" type="button" key={event.id} onClick={() => openEdit(event.id)} style={eventAccentStyle(event.type)}>
                 <span className="next-cal-date" aria-hidden="true">
                   <span className="next-cal-month">{start.toLocaleDateString([], { month: "short" }).toUpperCase()}</span>
                   <span className="next-cal-day">{start.getDate()}</span>

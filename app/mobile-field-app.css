@@ -850,12 +850,24 @@
   .app-shell:not(.app-shell-camp) .event-row-card.event-accent-card .event-identity-section {
     gap: 12px;
     border-right: 0;
-    padding: 18px 18px 8px;
+    padding: 18px 18px 8px 24px;
+    background:
+      linear-gradient(90deg, color-mix(in srgb, var(--event-accent) 16%, transparent), transparent 82%),
+      transparent;
+  }
+
+  .app-shell:not(.app-shell-camp) .event-row-card.event-accent-card::before {
+    width: 8px;
   }
 
   .app-shell:not(.app-shell-camp) .event-row-card.event-accent-card .event-row-title .button.ghost {
     font-size: 22px;
     line-height: 1.12;
+  }
+
+  .app-shell:not(.app-shell-camp) .event-row-card.event-accent-card .event-type-tag {
+    max-width: 100%;
+    white-space: normal;
   }
 
   .app-shell:not(.app-shell-camp) .event-row-card.event-accent-card .lovable-event-meta {
