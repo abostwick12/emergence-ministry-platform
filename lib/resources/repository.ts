@@ -3,7 +3,7 @@ import { randomUUID } from "crypto";
 import { isSupabaseAdminConfigured, getSupabaseAdminClient, type AuthSession } from "@/lib/auth/server";
 import { DEFAULT_MINISTRY_ID } from "@/lib/ministry/constants";
 import { resolveMinistryScope } from "@/lib/ministry/scope";
-import { validateResourceFile } from "@/lib/resources/file-validation";
+import { getMaxResourceAttachmentBytes, validateResourceFile, validateResourceUploadFilename } from "@/lib/resources/file-validation";
 import {
   createGoogleDriveBackedEventResource,
   GoogleDemoNotConnectedError,
@@ -78,6 +78,27 @@ export type UpdateResourceAttachmentInput = {
   isDownloadable?: boolean;
   isFeatured?: boolean;
   opensInNewTab?: boolean;
+  title?: string;
+  visibility?: string;
+};
+
+export type PrepareResourceAttachmentUploadInput = {
+  fileSizeBytes?: number;
+  filename: string;
+  parentId: string;
+  parentType: string;
+};
+
+export type CompleteResourceAttachmentUploadInput = {
+  attachmentId: string;
+  description?: string;
+  filename: string;
+  isDownloadable?: boolean;
+  isFeatured?: boolean;
+  notificationIntent?: string;
+  opensInNewTab?: boolean;
+  parentId: string;
+  parentType: string;
   title?: string;
   visibility?: string;
 };
@@ -157,6 +178,113 @@ export async function createResourceAttachment(session: AuthSession, input: Crea
   }
 
   return createExternalResource(session, parent, input, notificationIntent);
+}
+
+export async function prepareResourceAttachmentUpload(session: AuthSession, input: PrepareResourceAttachmentUploadInput) {
+  const parent = await resolveResourceParent(session, input.parentType, input.parentId, { requireWritableScope: true });
+  assertCanManageResources(session, parent.parentType);
+  if (!shouldUseLiveResources(session)) {
+    throw new ResourceAttachmentError("Direct uploads require live resource storage.", 409, "storage_not_ready");
+  }
+
+  const maxBytes = getMaxResourceAttachmentBytes();
+  if (input.fileSizeBytes !== undefined && input.fileSizeBytes > maxBytes) {
+    throw new ResourceAttachmentError(`Files must be ${Math.round(maxBytes / 1024 / 1024)} MB or smaller.`, 400, "file_too_large");
+  }
+
+  const attachmentId = randomUUID();
+  const safeFilename = validateResourceUploadFilename(input.filename);
+  const storagePath = buildStoragePath({
+    attachmentId,
+    filename: safeFilename,
+    organizationId: parent.organizationId,
+    parentId: parent.parentId,
+    parentType: parent.parentType
+  });
+  const result = await getSupabaseAdminClient().storage.from(resourceBucketName).createSignedUploadUrl(storagePath, { upsert: false });
+  throwIfResourceError(result.error, "Upload slot could not be prepared.");
+  if (!result.data) throw new ResourceAttachmentError("Upload slot could not be prepared.", 500, "missing_upload_slot");
+
+  return {
+    attachmentId,
+    maxFileSizeBytes: maxBytes,
+    path: result.data.path,
+    signedUrl: result.data.signedUrl,
+    storageBucket: resourceBucketName
+  };
+}
+
+export async function completeResourceAttachmentUpload(session: AuthSession, input: CompleteResourceAttachmentUploadInput) {
+  const parent = await resolveResourceParent(session, input.parentType, input.parentId, { requireWritableScope: true });
+  assertCanManageResources(session, parent.parentType);
+  if (!shouldUseLiveResources(session)) {
+    throw new ResourceAttachmentError("Direct uploads require live resource storage.", 409, "storage_not_ready");
+  }
+  if (!isUuid(input.attachmentId)) {
+    throw new ResourceAttachmentError("Upload session is invalid.", 400, "invalid_upload_session");
+  }
+
+  const notificationIntent = normalizeNotificationIntent(input.notificationIntent);
+  const safeFilename = validateResourceUploadFilename(input.filename);
+  const storagePath = buildStoragePath({
+    attachmentId: input.attachmentId,
+    filename: safeFilename,
+    organizationId: parent.organizationId,
+    parentId: parent.parentId,
+    parentType: parent.parentType
+  });
+  const supabase = getSupabaseAdminClient();
+  const download = await supabase.storage.from(resourceBucketName).download(storagePath);
+  throwIfResourceError(download.error, "Uploaded file could not be verified.");
+  if (!download.data) throw new ResourceAttachmentError("Uploaded file could not be verified.", 400, "missing_uploaded_file");
+
+  let validated: ReturnType<typeof validateResourceFile>;
+  try {
+    validated = validateResourceFile({
+      bytes: Buffer.from(await download.data.arrayBuffer()),
+      filename: input.filename,
+      declaredMimeType: download.data.type
+    });
+  } catch (error) {
+    await supabase.storage.from(resourceBucketName).remove([storagePath]);
+    throw error;
+  }
+
+  const now = new Date().toISOString();
+  const resource: ResourceAttachment = {
+    id: input.attachmentId,
+    organizationId: parent.organizationId,
+    parentId: parent.parentId,
+    parentType: parent.parentType,
+    title: normalizedText(input.title, titleFromFilename(validated.safeFilename), 140),
+    description: normalizedText(input.description, "", 500),
+    resourceType: validated.resourceType,
+    storageBucket: resourceBucketName,
+    storagePath,
+    originalFilename: validated.originalFilename,
+    mimeType: validated.mimeType,
+    fileSizeBytes: validated.fileSizeBytes,
+    displayOrder: await nextDisplayOrder(session, parent),
+    visibility: normalizeResourceVisibility(input.visibility),
+    isFeatured: Boolean(input.isFeatured),
+    isDownloadable: input.isDownloadable ?? true,
+    opensInNewTab: input.opensInNewTab ?? true,
+    uploadedBy: session.user.id,
+    createdAt: now,
+    updatedAt: now,
+    source: "live"
+  };
+
+  const result = await supabase.from("resource_attachments").insert(toInsertRow(resource)).select("*").single<ResourceAttachmentRow>();
+  if (result.error || !result.data) {
+    await supabase.storage.from(resourceBucketName).remove([storagePath]);
+    throwIfResourceError(result.error, "File record could not be saved.");
+    throw new ResourceAttachmentError("File record was not saved.", 500, "missing_saved_resource");
+  }
+
+  const saved = toResourceAttachment(result.data, "live");
+  await insertResourceAudit(session, saved, "resource_uploaded", { notificationIntent, resource: summarizeResource(saved) });
+  return saved;
 }
 
 async function maybeCreateGoogleDriveBackedEventResource(session: AuthSession, eventId: string, input: CreateResourceAttachmentInput) {
@@ -740,6 +868,10 @@ function buildStoragePath(input: { attachmentId: string; filename: string; organ
 
 function encodePathSegment(value: string) {
   return value.replace(/[^a-z0-9_-]+/gi, "-").replace(/-+/g, "-").replace(/^-|-$/g, "") || "record";
+}
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
 function normalizedText(value: string | undefined, fallback: string, maxLength: number) {

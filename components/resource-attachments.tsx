@@ -56,6 +56,16 @@ type EditState = {
   visibility: ResourceVisibility;
 };
 
+type PreparedResourceUpload = {
+  attachmentId: string;
+  maxFileSizeBytes: number;
+  path: string;
+  signedUrl: string;
+  storageBucket: string;
+};
+
+const directUploadThresholdBytes = 4 * 1024 * 1024;
+
 export function ResourceAttachments({ compact = false, parentId, parentType, title }: ResourceAttachmentsProps) {
   const [resources, setResources] = useState<ResourceAttachment[]>([]);
   const [canManage, setCanManage] = useState(false);
@@ -141,13 +151,7 @@ export function ResourceAttachments({ compact = false, parentId, parentType, tit
           return;
         }
         for (const file of files) {
-          const formData = new FormData();
-          formData.set("file", file);
-          formData.set("title", titleInput);
-          formData.set("description", description);
-          formData.set("visibility", visibility);
-          formData.set("notificationIntent", notificationIntent);
-          await createResourceRequest(formData);
+          await createFileResource(file);
         }
       } else {
         if (mode === "youtube" && !youtubeEmbedUrl(externalUrl)) {
@@ -182,6 +186,66 @@ export function ResourceAttachments({ compact = false, parentId, parentType, tit
       ...(body instanceof FormData ? { body } : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
     });
     if (!response.ok) throw new Error(await readErrorMessage(response, "Resource could not be saved."));
+  }
+
+  async function createFileResource(file: File) {
+    if (storageReady && file.size > directUploadThresholdBytes) {
+      setMessage(`Uploading ${file.name} directly to storage...`);
+      await createDirectUploadResource(file);
+      return;
+    }
+
+    const formData = new FormData();
+    formData.set("file", file);
+    formData.set("title", titleInput);
+    formData.set("description", description);
+    formData.set("visibility", visibility);
+    formData.set("notificationIntent", notificationIntent);
+    await createResourceRequest(formData);
+  }
+
+  async function createDirectUploadResource(file: File) {
+    const prepare = await fetch(`/api/resource-attachments/parents/${parentType}/${encodeURIComponent(parentId)}/uploads/prepare`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        fileSizeBytes: file.size,
+        filename: file.name
+      })
+    });
+    const preparePayload = (await prepare.json().catch(() => ({}))) as { upload?: PreparedResourceUpload; error?: string };
+    if (!prepare.ok || !preparePayload.upload) {
+      throw new Error(preparePayload.error ?? "Upload could not be prepared.");
+    }
+
+    if (file.size > preparePayload.upload.maxFileSizeBytes) {
+      throw new Error(`Files must be ${Math.round(preparePayload.upload.maxFileSizeBytes / 1024 / 1024)} MB or smaller.`);
+    }
+
+    const uploadBody = new FormData();
+    uploadBody.set("cacheControl", "3600");
+    uploadBody.set("", file);
+    const upload = await fetch(preparePayload.upload.signedUrl, {
+      method: "PUT",
+      body: uploadBody
+    });
+    if (!upload.ok) {
+      throw new Error(await readUploadErrorMessage(upload));
+    }
+
+    const complete = await fetch(`/api/resource-attachments/parents/${parentType}/${encodeURIComponent(parentId)}/uploads/complete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        attachmentId: preparePayload.upload.attachmentId,
+        description,
+        filename: file.name,
+        notificationIntent,
+        title: titleInput,
+        visibility
+      })
+    });
+    if (!complete.ok) throw new Error(await readErrorMessage(complete, "Resource could not be saved."));
   }
 
   function startEditing(resource: ResourceAttachment) {
@@ -741,6 +805,15 @@ async function patchResource(attachmentId: string, body: Record<string, unknown>
 async function readErrorMessage(response: Response, fallback: string) {
   const payload = (await response.json().catch(() => ({}))) as { error?: string };
   return payload.error ?? fallback;
+}
+
+async function readUploadErrorMessage(response: Response) {
+  const fallback = response.clone();
+  const payload = (await response.json().catch(() => null)) as { error?: string; message?: string } | null;
+  if (payload?.error) return payload.error;
+  if (payload?.message) return payload.message;
+  const text = await fallback.text().catch(() => "");
+  return text || "File could not be uploaded.";
 }
 
 function mergeFiles(current: File[], next: File[]) {
