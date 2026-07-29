@@ -76,6 +76,10 @@ export function answerMinistryEmmaPrompt({
     return answerStaticPage(page, staticSignals);
   }
 
+  if (isVolunteerCapacityPrompt(normalizedPrompt)) {
+    return answerVolunteerCapacity(overview, profile, normalizedPrompt);
+  }
+
   if (isRecurringMinistryRhythmPrompt(normalizedPrompt)) {
     return answerRecurringMinistryRhythm(overview, profile, normalizedPrompt);
   }
@@ -185,24 +189,50 @@ function answerRecurringMinistryRhythm(overview: MinistryEmmaOverview, profile: 
   const openTasks = overview.tasks.filter((task) => task.status !== "done");
   const blocked = openTasks.filter((task) => task.status === "blocked");
   const highSchoolEvents = upcomingEvents.filter((event) => /high school/i.test(`${event.title} ${event.targetGroup ?? ""}`) || event.type === "high_school_event");
+  const visibleVolunteerSlots = totalVolunteerSlots(upcomingEvents);
+  const estimated = estimateRecurringBibleStudyVolunteers(overview, normalizedPrompt);
   const weeklyLabel = normalizedPrompt.includes("weds") || normalizedPrompt.includes("wednesday") ? "Wednesday" : "weekly";
   const ministryAudience = normalizedPrompt.includes("high school") ? "high school" : "the named audience";
   const scripturePractice = profile.successLooksLike.find((criterion) => /scripture|bible|spiritual practice/i.test(criterion)) ?? profile.currentSeason.description;
 
   return {
-    summary: `Adding a ${weeklyLabel} Bible study for ${ministryAudience} would be a recurring ministry rhythm, not just one more event. EMMA can help size the operational load against the current season, but leadership still decides whether this serves the ministry's discernment and formation priorities.`,
+    summary: `Adding a ${weeklyLabel} Bible study for ${ministryAudience} looks aligned with the Scripture Practice season, but it should be treated as a recurring discipleship rhythm with an estimated ${estimated.range} extra adult volunteer commitment for a pilot, not just as another calendar item.`,
     points: [
       `Leadership stated: ${profile.currentSeason.title}: ${profile.currentSeason.description}`,
-      `Current observable signal: ${upcomingEvents.length} upcoming events, ${openTasks.length} open tasks, ${blocked.length} blocked tasks, and ${highSchoolEvents.length} visible high school event${plural(highSchoolEvents.length)} are in the overview.`,
+      `Current observable signal: ${upcomingEvents.length} upcoming events, ${openTasks.length} open tasks, ${blocked.length} blocked tasks, ${visibleVolunteerSlots} visible volunteer slots, and ${highSchoolEvents.length} visible high school event${plural(highSchoolEvents.length)} are in the overview.`,
       `Formation fit: ${scripturePractice}`,
-      "Operational lift: a weekly study needs a named owner, room rhythm, leader coverage, communication cadence, budget boundary, recurring task template, and a follow-up path for students who respond.",
-      "Evidence limit: the current snapshot does not show attendance demand, student availability, parent constraints, leader margin, curriculum plan, or spiritual readiness."
+      `Capacity estimate: ${estimated.reason}`,
+      `Missing decision evidence: ${missingBibleStudyEvidence().join("; ")}.`
     ],
     nextActions: [
       "Run it as a four-week pilot before creating an indefinite weekly rhythm.",
-      "Assign one accountable owner and two consistent leaders before announcing it.",
+      "Confirm the accountable owner and minimum adult coverage before announcing it.",
       "Check calendar conflicts, room availability, communication readiness, and leader load against the existing event and task list.",
       "Define the Scripture practice outcome in one sentence, then review whether the pilot created more space for relational ministry."
+    ]
+  };
+}
+
+function answerVolunteerCapacity(overview: MinistryEmmaOverview, profile: MinistryAlignmentProfile, normalizedPrompt: string): MinistryEmmaResponse {
+  const upcomingEvents = upcoming(overview.events);
+  const openTasks = overview.tasks.filter((task) => task.status !== "done");
+  const blocked = openTasks.filter((task) => task.status === "blocked");
+  const estimated = estimateRecurringBibleStudyVolunteers(overview, normalizedPrompt);
+  const visibleVolunteerSlots = totalVolunteerSlots(upcomingEvents);
+  const audience = normalizedPrompt.includes("high school") ? "high-school" : "a recurring high-school Bible study";
+
+  return {
+    summary: `If the question is about ${audience}, EMMA would plan on ${estimated.range} extra committed adults for a pilot, with the estimate held loosely until attendance, room, and leader-margin data are confirmed.`,
+    points: [
+      `Leadership stated: ${profile.values.find((value) => /leader/i.test(value.title + value.description))?.description ?? "Care for leaders is part of faithful ministry operations."}`,
+      `Current observable signal: ${upcomingEvents.length} upcoming events, ${openTasks.length} open tasks, ${blocked.length} blocked tasks, and ${visibleVolunteerSlots} visible volunteer slots are already in the workspace.`,
+      `Estimate basis: ${estimated.reason}`,
+      "Evidence limit: the workspace does not yet show expected attendance, student availability, adult-to-student policy requirements, current Wednesday conflicts, or which leaders have margin."
+    ],
+    nextActions: [
+      "Ask for expected attendance and whether students will stay together or split into groups.",
+      "Check which current leaders already own events or blocked tasks.",
+      "Do not launch until the pilot has two consistent in-room adults and a named backup or follow-up owner."
     ]
   };
 }
@@ -216,6 +246,10 @@ function isRecurringMinistryRhythmPrompt(normalizedPrompt: string): boolean {
     /\b(add|adding|start|launch|create|begin|host)\b/.test(normalizedPrompt) &&
     /\b(weekly|every week|recurring|wednesday|weds|wed|bible study|small group|study)\b/.test(normalizedPrompt)
   );
+}
+
+function isVolunteerCapacityPrompt(normalizedPrompt: string): boolean {
+  return /\b(volunteer|leader|adult|coverage|capacity|staff|staffing|how many|extra help|ratio)\b/.test(normalizedPrompt);
 }
 
 function selectAlignmentCriterion(profile: MinistryAlignmentProfile, normalizedPrompt: string): string {
@@ -339,6 +373,38 @@ function answerWorship(): MinistryEmmaResponse {
     ],
     nextActions: ["Resolve students who still need confirmation.", "Review slide items marked not ready.", "Keep GroupMe and ProPresenter actions preview-only."]
   };
+}
+
+function estimateRecurringBibleStudyVolunteers(overview: MinistryEmmaOverview, normalizedPrompt: string): { range: string; reason: string } {
+  const openTasks = overview.tasks.filter((task) => task.status !== "done");
+  const blocked = openTasks.filter((task) => task.status === "blocked");
+  const mentionsHighSchool = normalizedPrompt.includes("high school") || normalizedPrompt.includes("hs");
+  const isRecurring = /\b(wednesday|weds|weekly|recurring|bible study|small group|study)\b/.test(normalizedPrompt);
+  const minimum = 2;
+  const recommended = mentionsHighSchool || isRecurring || blocked.length || openTasks.length > 20 ? 4 : 3;
+  const range = recommended === 4 ? "3-4" : "2-3";
+  return {
+    range,
+    reason:
+      recommended === 4
+        ? `2 adults are the minimum in-room baseline, but ${range} is safer because this appears to be a recurring student rhythm and the workspace already shows ${openTasks.length} open task${plural(openTasks.length)}${blocked.length ? `, including ${blocked.length} blocked` : ""}.`
+        : `2 adults are the minimum in-room baseline; add a third if one person must coordinate setup, communication, or follow-up.`
+  };
+}
+
+function totalVolunteerSlots(events: MinistryEvent[]): number {
+  return events.reduce((sum, event) => sum + Number(event.volunteersNeeded ?? 0), 0);
+}
+
+function missingBibleStudyEvidence(): string[] {
+  return [
+    "expected attendance",
+    "leader availability and current load",
+    "room and supervision needs",
+    "Wednesday calendar conflicts",
+    "curriculum or Scripture-practice plan",
+    "follow-up pathway"
+  ];
 }
 
 function answerStaticPage(page: MinistryEmmaPage, staticSignals: string[]): MinistryEmmaResponse {

@@ -602,7 +602,7 @@ function buildMinistryPageUserPrompt({
   const alignmentProfile = normalizeMinistryAlignmentProfile(input.alignmentProfile);
 
   return JSON.stringify({
-    task: "Answer the ministry user's page-level EMMA prompt with concise operational guidance. When alignment context is relevant, compare evidence against leadership-authored criteria without scoring or setting priorities.",
+    task: "Answer the ministry user's page-level EMMA prompt as a practical decision-support brief. Connect leadership priorities, observable signals, capacity constraints, and missing evidence. When alignment context is relevant, compare evidence against leadership-authored criteria without scoring or setting priorities.",
     page: input.page,
     prompt: input.prompt,
     guardrails: [
@@ -613,6 +613,8 @@ function buildMinistryPageUserPrompt({
       "Do not declare what God is telling the ministry to do.",
       "Do not rank concerns unless leadership explicitly defined that ordering.",
       "Do not create alignment scores, percentage alignment, or red/yellow/green ministry-health statuses.",
+      "If the user asks a follow-up without context, answer with explicit assumptions and name what you would need to confirm.",
+      "For new recurring ministry rhythms, include ministry fit, current load, volunteer/capacity estimate, missing evidence, and a pilot recommendation.",
       "Use this response pattern when applicable: Leadership stated, Current observable signal, Evidence, Interpretation, Leadership question."
     ],
     leadershipAuthoredAlignment: {
@@ -623,6 +625,7 @@ function buildMinistryPageUserPrompt({
       successLooksLike: alignmentProfile.successLooksLike,
       evidenceBoundary: "Spiritual maturity, love for Christ, and the work of the Holy Spirit cannot be measured directly by operational data."
     },
+    decisionSupport: buildDecisionSupportSignals(overview),
     selectedEvent: selectedEvent ? safeEvent(selectedEvent) : null,
     snapshot: {
       eventCount: overview.events.length,
@@ -666,6 +669,58 @@ function buildMinistryPageUserPrompt({
       }))
     }
   });
+}
+
+function buildDecisionSupportSignals(overview: MinistryEmmaOverview) {
+  const upcomingEvents = overview.events
+    .filter((event) => new Date(event.startTime).getTime() >= Date.now())
+    .sort((left, right) => new Date(left.startTime).getTime() - new Date(right.startTime).getTime());
+  const openTasks = overview.tasks.filter((task) => task.status !== "done");
+  const blockedTasks = openTasks.filter((task) => task.status === "blocked");
+  const visibleVolunteerSlots = upcomingEvents.reduce((sum, event) => sum + Number(event.volunteersNeeded ?? 0), 0);
+  const highSchoolEvents = upcomingEvents.filter((event) =>
+    /high school/i.test(`${event.title} ${event.targetGroup ?? ""} ${event.type}`)
+  );
+  const communicationGaps = upcomingEvents.filter((event) =>
+    [event.description, event.location, event.targetGroup, event.contactOwnerId].some((value) => !value)
+  );
+
+  return {
+    currentLoad: {
+      upcomingEventCount: upcomingEvents.length,
+      openTaskCount: openTasks.length,
+      blockedTaskCount: blockedTasks.length,
+      communicationGapCount: communicationGaps.length,
+      visibleVolunteerSlots
+    },
+    audienceSignals: {
+      highSchoolEventCount: highSchoolEvents.length,
+      nextHighSchoolEvent: highSchoolEvents[0] ? safeEvent(highSchoolEvents[0]) : null
+    },
+    recurringBibleStudyHeuristic: {
+      baseline: "For a high-school weekly Bible study, treat 2 consistent adult leaders as the minimum in-room coverage before launch.",
+      recommendedPilotCoverage: "Plan for 3-4 committed adults for a pilot: 2 in-room leaders, 1 relational follow-up or substitute leader, and 1 coordinator if no current leader can absorb weekly ownership.",
+      raiseEstimateWhen: [
+        "expected attendance is large enough to require breakouts",
+        "student transportation or parent communication adds operational load",
+        "current leaders already own blocked or overdue work",
+        "the study needs separate setup, teaching, follow-up, or safety coverage"
+      ],
+      lowerEstimateWhen: [
+        "it is a short pilot inside an existing Wednesday rhythm",
+        "a prepared curriculum and room setup already exist",
+        "current small-group leaders can rotate without increasing load"
+      ]
+    },
+    missingDecisionEvidence: [
+      "expected student attendance and grade/gender mix",
+      "leader availability and current volunteer load",
+      "calendar conflicts with school, church, family, and worship rhythms",
+      "room availability and supervision requirements",
+      "curriculum or Scripture practice plan",
+      "follow-up path for students who respond"
+    ]
+  };
 }
 
 function safeEvent(event: MinistryEmmaOverview["events"][number]) {
