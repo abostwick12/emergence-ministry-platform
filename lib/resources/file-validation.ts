@@ -63,11 +63,8 @@ export function getMaxResourceAttachmentBytes() {
 }
 
 export function validateResourceFile(input: { bytes: Buffer; filename: string; declaredMimeType?: string }): ValidatedResourceFile {
-  const safeFilename = sanitizeFilename(input.filename);
+  const safeFilename = validateResourceUploadFilename(input.filename);
   const extension = extensionFor(safeFilename);
-  if (executableExtensions.has(extension)) {
-    throw new ResourceFileValidationError("Executable and script files cannot be uploaded.", 400, "executable_file");
-  }
 
   if (input.bytes.length <= 0) {
     throw new ResourceFileValidationError("Choose a non-empty file.", 400, "empty_file");
@@ -95,6 +92,15 @@ export function validateResourceFile(input: { bytes: Buffer; filename: string; d
     resourceType,
     safeFilename
   };
+}
+
+export function validateResourceUploadFilename(filename: string) {
+  const safeFilename = sanitizeFilename(filename);
+  const extension = extensionFor(safeFilename);
+  if (executableExtensions.has(extension)) {
+    throw new ResourceFileValidationError("Executable and script files cannot be uploaded.", 400, "executable_file");
+  }
+  return safeFilename;
 }
 
 export function sanitizeFilename(filename: string) {

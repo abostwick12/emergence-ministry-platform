@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { sanitizeFilename, validateResourceFile } from "@/lib/resources/file-validation";
+import { sanitizeFilename, validateResourceFile, validateResourceUploadFilename } from "@/lib/resources/file-validation";
 
 describe("resource attachment file validation", () => {
   it("accepts PDFs by file signature", () => {
@@ -45,5 +45,10 @@ describe("resource attachment file validation", () => {
 
   it("sanitizes unsafe filenames", () => {
     expect(sanitizeFilename("../Parent Packing List!!.pdf")).toBe("Parent-Packing-List.pdf");
+  });
+
+  it("validates direct-upload filenames before signed URLs are issued", () => {
+    expect(validateResourceUploadFilename("Healthy Boundaries.pptx")).toBe("Healthy-Boundaries.pptx");
+    expect(() => validateResourceUploadFilename("volunteer-reset.ps1")).toThrow("Executable and script files cannot be uploaded.");
   });
 });
