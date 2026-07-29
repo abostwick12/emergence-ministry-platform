@@ -221,7 +221,7 @@ describe("ministry page server-backed EMMA chat", () => {
     const admin = session();
     const result = await runMinistryPageServerChat({
       overview: overview(),
-      rawInput: { page: "events", prompt: "What should I open first?", selectedEventId: "evt_1" },
+      rawInput: { page: "events", prompt: "What would it take to add a Weds Bible study for high school?", selectedEventId: "evt_1" },
       session: admin
     });
 
@@ -295,6 +295,24 @@ describe("ministry page server-backed EMMA chat", () => {
     expect(result.data.model).toBe("gloo-openai-gpt-5-nano");
     expect(result.data.response.summary).toBe("Gloo ministry guidance for the events page.");
     expect(fetchMock).toHaveBeenCalledTimes(2);
+    const chatBody = JSON.parse(String(fetchMock.mock.calls[1][1]?.body));
+    const userContent = String(chatBody.messages[1].content).replace(/\n\nReturn only JSON\.$/, "");
+    const promptPayload = JSON.parse(userContent);
+    expect(promptPayload.decisionSupport).toMatchObject({
+      currentLoad: {
+        upcomingEventCount: 1,
+        openTaskCount: 1,
+        blockedTaskCount: 1,
+        visibleVolunteerSlots: 6
+      },
+      recurringBibleStudyHeuristic: {
+        baseline: expect.stringContaining("2 consistent adult leaders"),
+        recommendedPilotCoverage: expect.stringContaining("3-4 committed adults")
+      }
+    });
+    expect(promptPayload.guardrails).toContain(
+      "For new recurring ministry rhythms, include ministry fit, current load, volunteer/capacity estimate, missing evidence, and a pilot recommendation."
+    );
 
     const trail = await getEmmaAuditTrail(admin, result.data.requestId);
     expect(trail.providerAttempts[0]).toMatchObject({

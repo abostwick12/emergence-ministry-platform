@@ -59,11 +59,24 @@ describe("ministry page EMMA assistant", () => {
       prompt: "what would it take to add a weds bible study every week for high school"
     });
 
-    expect(response.summary).toContain("recurring ministry rhythm");
     expect(response.summary).toContain("Wednesday Bible study");
-    expect(response.points).toContain("Operational lift: a weekly study needs a named owner, room rhythm, leader coverage, communication cadence, budget boundary, recurring task template, and a follow-up path for students who respond.");
-    expect(response.points.join(" ")).toContain("Evidence limit");
+    expect(response.summary).toContain("3-4 extra adult volunteer");
+    expect(response.points.join(" ")).toContain("visible volunteer slots");
+    expect(response.points.join(" ")).toContain("Missing decision evidence");
     expect(response.nextActions).toContain("Run it as a four-week pilot before creating an indefinite weekly rhythm.");
+  });
+
+  it("answers volunteer follow-ups with an explicit estimate and assumptions", () => {
+    const response = answerMinistryEmmaPrompt({
+      overview: makeOverview(),
+      page: "dashboard",
+      prompt: "how many extra volunteers might we need?"
+    });
+
+    expect(response.summary).toContain("3-4 extra committed adults");
+    expect(response.points.join(" ")).toContain("2 adults are the minimum");
+    expect(response.points.join(" ")).toContain("Evidence limit");
+    expect(response.nextActions).toContain("Do not launch until the pilot has two consistent in-room adults and a named backup or follow-up owner.");
   });
 
   it("selects the next upcoming event for audited summaries", () => {
