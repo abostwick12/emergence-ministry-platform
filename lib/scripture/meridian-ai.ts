@@ -1,4 +1,5 @@
 import { createGeminiProvider } from "@/lib/emma/providers/gemini-provider";
+import { createGlooEmmaProvider, readGlooEmmaConfig } from "@/lib/emma/providers/gloo-provider";
 import { DEFAULT_GEMINI_MODEL } from "@/lib/emma/providers/registry";
 import { createOpenAIEmmaProvider, DEFAULT_OPENAI_EMMA_MODEL } from "@/lib/emma/providers/openai-provider";
 import { normalizeProviderError } from "@/lib/emma/providers/errors";
@@ -85,6 +86,29 @@ export type MeridianReadingPlanDraftResult =
       attemptedProviders: MeridianAiProviderId[];
     };
 
+export type SermonPrepResourceKind = "outline" | "leader_guide" | "slide_plan" | "small_group_questions";
+
+export type MeridianSermonPrepResourceInput = {
+  kind: SermonPrepResourceKind;
+  title: string;
+  passage: string;
+  bigIdea: string;
+  body: string;
+};
+
+export type MeridianSermonPrepResourceResult = {
+  ok: true;
+  provider: MeridianAiProviderId | "deterministic";
+  model: string;
+  kind: SermonPrepResourceKind;
+  title: string;
+  summary: string;
+  contentMarkdown: string;
+  estimatedMinutes: number;
+  sources: string[];
+  warnings: string[];
+};
+
 type FallbackProviderConfig = {
   id: "gemini" | "openai";
   model: string;
@@ -113,6 +137,15 @@ type ParsedReadingPlanDraft = {
   guardrailNotes?: unknown;
   prayerPrompt?: unknown;
   safetyNotes?: unknown;
+};
+
+type ParsedSermonPrepResource = {
+  title?: unknown;
+  summary?: unknown;
+  contentMarkdown?: unknown;
+  estimatedMinutes?: unknown;
+  sources?: unknown;
+  warnings?: unknown;
 };
 
 export function getMeridianAiReadiness(env: Partial<NodeJS.ProcessEnv> = process.env): MeridianAiReadiness {
@@ -216,6 +249,42 @@ export async function generateMeridianReadingPlanDraft(input: MeridianReadingPla
       : "Meridian AI drafting is not configured. Configure Gloo AI Studio first, with Gemini or OpenAI as fallback.",
     attemptedProviders
   };
+}
+
+export async function generateMeridianSermonPrepResource(input: MeridianSermonPrepResourceInput): Promise<MeridianSermonPrepResourceResult> {
+  const configuredProviders: Array<{ id: MeridianAiProviderId; model: string; provider: EmmaProvider }> = [];
+  const glooConfig = readGlooEmmaConfig();
+  if (glooConfig) {
+    configuredProviders.push({
+      id: "gloo",
+      model: glooConfig.model,
+      provider: createGlooEmmaProvider({ config: glooConfig })
+    });
+  }
+  configuredProviders.push(...createFallbackProviders().filter((provider) => provider.id === "gemini"));
+
+  const warnings: string[] = [];
+  for (const candidate of configuredProviders) {
+    try {
+      const result = await candidate.provider.generate({
+        model: candidate.model,
+        systemPrompt: sermonPrepSystemPrompt(input.kind),
+        userPrompt: sermonPrepUserPrompt(input, candidate.id),
+        temperature: 0.28,
+        maxOutputTokens: 1800,
+        timeoutMs: 20_000
+      });
+      const parsed = parseSermonPrepResourceOutput(result.output, candidate.id, result.model || candidate.model, input);
+      if (parsed) return parsed;
+      warnings.push(`${candidate.id} returned an unusable sermon-prep resource.`);
+    } catch (error) {
+      const providerError = normalizeProviderError(error);
+      warnings.push(`${candidate.id} failed safely with ${providerError.code}.`);
+      logFallbackFailure("sermon_prep", candidate.id, providerError.code, providerError.httpStatus);
+    }
+  }
+
+  return deterministicSermonPrepResource(input, warnings.length ? warnings : ["No live Meridian AI provider was configured."]);
 }
 
 function createFallbackProviders(env: Partial<NodeJS.ProcessEnv> = process.env): FallbackProviderConfig[] {
@@ -419,7 +488,186 @@ function normalizeMovement(value: unknown): MetanarrativeMovement {
   return allowed.find((movement) => movement === value) ?? "Jesus / Kingdom Fulfilled";
 }
 
-function logFallbackFailure(kind: "discussion" | "reading_plan", provider: "gemini" | "openai", code: string, httpStatus: number | null) {
+function parseSermonPrepResourceOutput(
+  output: unknown,
+  provider: MeridianAiProviderId,
+  model: string,
+  input: MeridianSermonPrepResourceInput
+): MeridianSermonPrepResourceResult | undefined {
+  if (!output || typeof output !== "object") return undefined;
+  const parsed = output as ParsedSermonPrepResource;
+  const title = textValue(parsed.title, 140) || defaultSermonResourceTitle(input);
+  const summary = textValue(parsed.summary, 500);
+  const contentMarkdown = textValue(parsed.contentMarkdown, 7000);
+  if (!summary || !contentMarkdown) return undefined;
+
+  return {
+    ok: true,
+    provider,
+    model,
+    kind: input.kind,
+    title,
+    summary,
+    contentMarkdown,
+    estimatedMinutes: normalizeEstimatedMinutes(parsed.estimatedMinutes, input.kind),
+    sources: normalizeStringArray(parsed.sources, 6).length ? normalizeStringArray(parsed.sources, 6) : sermonPrepSources(input, provider),
+    warnings: normalizeStringArray(parsed.warnings, 4)
+  };
+}
+
+function deterministicSermonPrepResource(input: MeridianSermonPrepResourceInput, warnings: string[]): MeridianSermonPrepResourceResult {
+  const title = defaultSermonResourceTitle(input);
+  const passage = input.passage.trim() || "selected Scripture";
+  const bigIdea = input.bigIdea.trim() || "Jesus forms leaders through humble love.";
+  const bodyAnchor = input.body.trim().split(/\n+/).find(Boolean) ?? "Use the saved sermon draft as the starting point.";
+  const contentByKind: Record<SermonPrepResourceKind, string> = {
+    outline: [
+      `# ${title}`,
+      "",
+      `Passage: ${passage}`,
+      `Big Idea: ${bigIdea}`,
+      "",
+      "1. Start with what Jesus knows before he serves.",
+      `   - Anchor: ${bodyAnchor}`,
+      "   - Movement: identity in the Father frees Jesus to take the low place.",
+      "2. Show the towel as the shape of kingdom authority.",
+      "   - Contrast titles that protect status with love that moves toward need.",
+      "3. Invite leaders and students to receive before they perform.",
+      "   - Peter's resistance becomes the doorway into grace.",
+      "4. Land one practice for the week.",
+      "   - Name one person to serve with attention, humility, and no need for applause."
+    ].join("\n"),
+    leader_guide: [
+      `# ${title}`,
+      "",
+      `Passage: ${passage}`,
+      `Big Idea: ${bigIdea}`,
+      "",
+      "## Leader Goal",
+      "Help students see that Jesus' authority is not threatened by humble service; it is revealed through it.",
+      "",
+      "## Before Group",
+      "- Read the passage slowly and notice what Jesus knows before he kneels.",
+      "- Prepare to redirect performance language toward receiving grace from Jesus.",
+      "- Watch for students who carry shame around being served or seen.",
+      "",
+      "## Discussion Flow",
+      "1. What stands out about the timing of Jesus washing feet?",
+      "2. Why might Peter resist being served by Jesus?",
+      "3. Where do we prefer a title over a towel?",
+      "4. What is one specific towel-shaped act of love this week?",
+      "",
+      "## Close",
+      "Pray that students would receive the love of Jesus and practice humble service from security, not self-protection."
+    ].join("\n"),
+    slide_plan: [
+      `# ${title}`,
+      "",
+      "## Slide Plan",
+      `1. Title slide: ${input.title || "Sermon Prep"}`,
+      `2. Scripture slide: ${passage}`,
+      `3. Big idea slide: ${bigIdea}`,
+      "4. Contrast slide: Title vs. Towel",
+      "5. Movement slide: Jesus knows, Jesus kneels, Jesus invites.",
+      "6. Response slide: Receive, then serve.",
+      "",
+      "Keep slides simple and text-light. No Canva action was taken."
+    ].join("\n"),
+    small_group_questions: [
+      `# ${title}`,
+      "",
+      `Passage: ${passage}`,
+      "",
+      "1. Observation: What does Jesus know about himself before he washes the disciples' feet?",
+      "2. Interpretation: What does the towel show us about the kind of King Jesus is?",
+      "3. Heart: Where do you resist letting Jesus serve you?",
+      "4. Practice: Who is one person you can serve this week without needing credit?",
+      "5. Prayer: Ask Jesus to make humble love feel like freedom, not loss."
+    ].join("\n")
+  };
+
+  return {
+    ok: true,
+    provider: "deterministic",
+    model: "meridian-deterministic-local",
+    kind: input.kind,
+    title,
+    summary: summaryForSermonKind(input.kind, bigIdea),
+    contentMarkdown: contentByKind[input.kind],
+    estimatedMinutes: normalizeEstimatedMinutes(undefined, input.kind),
+    sources: sermonPrepSources(input, "deterministic"),
+    warnings
+  };
+}
+
+function sermonPrepSystemPrompt(kind: SermonPrepResourceKind) {
+  return [
+    "You are Meridian, preparing leader-reviewed sermon resources for Lead Emergence through Gloo AI Studio when configured.",
+    "Return only JSON with keys title, summary, contentMarkdown, estimatedMinutes, sources, warnings.",
+    "Do not include full Bible text. Do not send, publish externally, create Canva files, or claim a live sync.",
+    "Write direct, useful ministry content, not Socratic coaching.",
+    `Requested resource kind: ${kind}.`
+  ].join(" ");
+}
+
+function sermonPrepUserPrompt(input: MeridianSermonPrepResourceInput, provider: MeridianAiProviderId) {
+  return JSON.stringify({
+    provider,
+    task: "Generate one sermon-prep resource and make it ready for volunteer leader review.",
+    kind: input.kind,
+    sermon: {
+      title: input.title,
+      passage: input.passage,
+      bigIdea: input.bigIdea,
+      draftExcerpt: input.body.slice(0, 3200)
+    },
+    expectedShape: resourceShape(input.kind),
+    citationRequirement: "In sources, cite the supplied sermon draft, selected Scripture reference, and Meridian provider context by label."
+  });
+}
+
+function resourceShape(kind: SermonPrepResourceKind) {
+  if (kind === "outline") return "4-6 message movements with short explanations and transitions.";
+  if (kind === "leader_guide") return "leader goal, before-group prep, discussion flow, care notes, and closing prayer.";
+  if (kind === "slide_plan") return "a slide-by-slide plan only; no Canva or external design action.";
+  return "student-ready small group questions with observation, interpretation, heart, practice, and prayer prompts.";
+}
+
+function defaultSermonResourceTitle(input: MeridianSermonPrepResourceInput) {
+  const base = input.title.trim() || "Sermon Prep";
+  const suffix: Record<SermonPrepResourceKind, string> = {
+    outline: "Message Outline",
+    leader_guide: "Leader Guide",
+    slide_plan: "Slide Plan",
+    small_group_questions: "Small Group Questions"
+  };
+  return `${base} - ${suffix[input.kind]}`;
+}
+
+function summaryForSermonKind(kind: SermonPrepResourceKind, bigIdea: string) {
+  if (kind === "outline") return `Message outline shaped around: ${bigIdea}`;
+  if (kind === "leader_guide") return `Volunteer leader guide shaped around: ${bigIdea}`;
+  if (kind === "slide_plan") return `Slide plan generated without Canva connection, shaped around: ${bigIdea}`;
+  return `Small group questions shaped around: ${bigIdea}`;
+}
+
+function sermonPrepSources(input: MeridianSermonPrepResourceInput, provider: MeridianAiProviderId | "deterministic") {
+  return [
+    `Sermon draft: ${input.title.trim() || "Untitled sermon"}`,
+    `Scripture reference: ${input.passage.trim() || "Not selected"}`,
+    provider === "deterministic" ? "Meridian local fallback" : `Meridian provider: ${provider}`
+  ];
+}
+
+function normalizeEstimatedMinutes(value: unknown, kind: SermonPrepResourceKind) {
+  const parsed = typeof value === "number" && Number.isFinite(value) ? Math.round(value) : NaN;
+  if (Number.isFinite(parsed) && parsed > 0) return Math.min(parsed, 45);
+  if (kind === "leader_guide") return 10;
+  if (kind === "small_group_questions") return 8;
+  return 6;
+}
+
+function logFallbackFailure(kind: "discussion" | "reading_plan" | "sermon_prep", provider: "gloo" | "gemini" | "openai", code: string, httpStatus: number | null) {
   console.warn("[meridian-ai] fallback provider failure", {
     timestamp: new Date().toISOString(),
     kind,

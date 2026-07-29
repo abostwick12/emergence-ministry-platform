@@ -13,6 +13,7 @@ import {
   type VolunteerHubDataSource,
   type VolunteerHubPayload,
   type VolunteerHubRole,
+  type VolunteerHubResource,
   type VolunteerHubSmallGroup,
   type VolunteerHubState,
   type VolunteerHubStudent,
@@ -499,6 +500,15 @@ function createInitialState(): VolunteerHubState {
 
 const globalStore = globalThis as typeof globalThis & {
   __leadVolunteerHubState?: VolunteerHubState;
+};
+
+export type PublishWeeklyVolunteerResourceInput = {
+  detail: string;
+  estimatedMinutes: number;
+  itemKey: string;
+  shareable: boolean;
+  title: string;
+  type: VolunteerHubResource["type"];
 };
 
 function state() {
@@ -1639,6 +1649,57 @@ export function applyVolunteerHubAction(session: AuthSession, action: VolunteerH
     default:
       assertNever(action);
   }
+}
+
+export async function publishWeeklyVolunteerResource(session: AuthSession, input: PublishWeeklyVolunteerResourceInput) {
+  if (session.isGuest || session.isMock) {
+    publishLocalWeeklyVolunteerResource(session, input);
+    return { source: session.isGuest ? "guest_demo" : "mock" };
+  }
+
+  const ministryId = await resolveMinistryScope(session);
+  if (!isSupabaseAdminConfigured() || !ministryId) throw new Error(VOLUNTEER_HUB_TABLES_MISSING);
+  const actor = await ensureLiveActorLeader(session, ministryId);
+  if (!actor) throw new Error(VOLUNTEER_HUB_TABLES_MISSING);
+  const result = await getSupabaseAdminClient().from("volunteer_hub_items").upsert({
+    ministry_id: ministryId,
+    item_key: input.itemKey,
+    item_type: "resource",
+    title: input.title,
+    detail: input.detail,
+    category: input.type,
+    estimated_minutes: input.estimatedMinutes,
+    shareable: input.shareable,
+    sort_order: 90,
+    created_by_user_id: session.user.id,
+    archived_at: null
+  }, { onConflict: "ministry_id,item_key" });
+  throwIfVolunteerHubError(result.error);
+  await insertLiveAudit(ministryId, actor, "Published weekly resource", input.title);
+  return { source: "live" };
+}
+
+function publishLocalWeeklyVolunteerResource(session: AuthSession, input: PublishWeeklyVolunteerResourceInput) {
+  const current = state();
+  const actor = resolveActiveVolunteer(current, session, roleForSession(session));
+  const resource: VolunteerHubResource = {
+    id: input.itemKey,
+    title: input.title,
+    type: input.type,
+    detail: input.detail,
+    estimatedMinutes: input.estimatedMinutes,
+    completed: false,
+    shareable: input.shareable
+  };
+  current.resources = [resource, ...current.resources.filter((item) => item.id !== input.itemKey)];
+  current.notifications = [{
+    id: uid("note"),
+    label: "Resource Published",
+    detail: `${input.title} is ready in Weekly Resources.`,
+    href: "#resources",
+    unread: true
+  }, ...current.notifications];
+  audit(current, actor, "Published weekly resource", input.title);
 }
 
 function resolveActiveVolunteer(stateValue: VolunteerHubState, session: AuthSession, role: VolunteerHubRole) {

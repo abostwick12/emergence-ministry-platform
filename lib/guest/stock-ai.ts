@@ -9,7 +9,8 @@ const pageFocus: Record<MinistryEmmaPage, string> = {
   budget: "Compare budget target against actual costs before promising families or leaders a next step.",
   settings: "Admins can shape access here, but guest mode never exposes real settings.",
   files: "Organize around events first, then forms, slides, receipts, and leader resources.",
-  worship: "Line up people, songs, rehearsal notes, and presentation readiness before service day."
+  worship: "Line up people, songs, rehearsal notes, and presentation readiness before service day.",
+  leader_prep: "Use the sermon draft, selected Scripture, and leader-reviewed resource boundaries to prepare direct next-step content."
 };
 
 export function buildGuestEmmaResponse(input: {

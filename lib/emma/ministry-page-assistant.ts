@@ -11,7 +11,8 @@ export type MinistryEmmaPage =
   | "budget"
   | "settings"
   | "files"
-  | "worship";
+  | "worship"
+  | "leader_prep";
 
 export type MinistryEmmaOverview = {
   events: MinistryEvent[];
@@ -36,7 +37,8 @@ export const ministryEmmaPageLabels: Record<MinistryEmmaPage, string> = {
   budget: "Budget",
   settings: "Settings",
   files: "Files",
-  worship: "Worship"
+  worship: "Worship",
+  leader_prep: "Leader Prep"
 };
 
 export const ministryEmmaUniversalPromptTemplates = [
@@ -54,7 +56,8 @@ export const ministryEmmaPromptTemplates: Record<MinistryEmmaPage, string[]> = {
   budget: ["Where are budget risks?", "What costs need review?", "Summarize selected event"],
   settings: ["What is live or protected?", "What should stay preview-only?", "Check EMMA review posture"],
   files: ["What file areas are planned?", "What should stay preview-only?", "Where would Drive help later?"],
-  worship: ["What needs rehearsal attention?", "Which messages stay preview-only?", "What is ready for slides?"]
+  worship: ["What needs rehearsal attention?", "Which messages stay preview-only?", "What is ready for slides?"],
+  leader_prep: ["Give me a sermon illustration.", "Draft small group questions.", "Tighten this message outline."]
 };
 
 export function answerMinistryEmmaPrompt({
@@ -74,6 +77,10 @@ export function answerMinistryEmmaPrompt({
   const profile = alignmentProfile ?? defaultMinistryAlignmentProfile;
   if (!overview) {
     return answerStaticPage(page, staticSignals);
+  }
+
+  if (page === "leader_prep") {
+    return answerLeaderPrep(normalizedPrompt);
   }
 
   if (isVolunteerCapacityPrompt(normalizedPrompt)) {
@@ -372,6 +379,42 @@ function answerWorship(): MinistryEmmaResponse {
       "ProPresenter updates stay behind the stub adapter."
     ],
     nextActions: ["Resolve students who still need confirmation.", "Review slide items marked not ready.", "Keep GroupMe and ProPresenter actions preview-only."]
+  };
+}
+
+function answerLeaderPrep(normalizedPrompt: string): MinistryEmmaResponse {
+  if (/\b(illustration|story|example|object lesson)\b/.test(normalizedPrompt)) {
+    return {
+      summary: "Here is a direct sermon illustration you can adapt: a leader can hold a towel while talking about the difference between authority that needs to be seen and authority that makes love visible.",
+      points: [
+        "Set up the contrast: titles announce status, but towels reveal posture.",
+        "Move it into the room: Jesus does not use power to avoid the low place; he uses power to enter it for the good of people who will fail him.",
+        "Land the turn: Christian authority is not smaller because it serves. It is more like Jesus because it serves."
+      ],
+      nextActions: ["Tie the illustration to the selected passage.", "Name one concrete ministry setting where leaders can choose the towel.", "Trim any line that sounds like moralism instead of gospel invitation."]
+    };
+  }
+
+  if (/\b(question|questions|discussion|small group)\b/.test(normalizedPrompt)) {
+    return {
+      summary: "Here are direct small-group questions for leader use, shaped for observation, heart, practice, and prayer.",
+      points: [
+        "Observation: What does Jesus know about himself before he kneels, and why does that matter?",
+        "Heart: Where do you resist receiving love because you would rather look strong?",
+        "Practice: Who is one person you can serve this week in a way that costs attention, comfort, or status?"
+      ],
+      nextActions: ["Add a prayer prompt for leaders.", "Choose one question for middle school and one for high school.", "Review for sensitive disclosures before sharing with volunteers."]
+    };
+  }
+
+  return {
+    summary: "EMMA can help draft sermon material directly here: outline movements, illustrations, leader guides, and student-ready discussion questions.",
+    points: [
+      "Use the current title, passage, big idea, and draft body as the working sermon context.",
+      "Generated resources should remain leader-reviewed before volunteers use them.",
+      "Meridian can ground the draft in the selected Scripture reference without quoting full provider text."
+    ],
+    nextActions: ["Ask for the exact artifact you need.", "Save the sermon draft before generating leader resources.", "Review generated resources in Weekly Resources."]
   };
 }
 
