@@ -12,7 +12,7 @@ import {
 export async function GET(request: Request, { params }: { params: { parentType: string; parentId: string } }) {
   const session = await getServerSession();
   const url = new URL(request.url);
-  const includeArchived = url.searchParams.get("includeArchived") === "true" && canManageResourceAttachments(session);
+  const includeArchived = url.searchParams.get("includeArchived") === "true" && canManageResourceAttachments(session, params.parentType);
 
   try {
     const resources = await listResourceAttachments(session, {
@@ -21,7 +21,7 @@ export async function GET(request: Request, { params }: { params: { parentType: 
       includeArchived
     });
     return NextResponse.json({
-      canManage: canManageResourceAttachments(session),
+      canManage: canManageResourceAttachments(session, params.parentType),
       resources,
       storageReady: resourceStorageReady(session)
     });

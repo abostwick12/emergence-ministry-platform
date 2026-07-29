@@ -76,7 +76,20 @@ describe("resource attachment repository", () => {
     ).rejects.toThrow("valid YouTube URL");
   });
 
-  it("blocks non-admin resource management", async () => {
+  it("allows leaders to manage volunteer resources", async () => {
+    const resource = await createResourceAttachment(session("leader"), {
+      externalUrl: "https://youtube.com/watch?v=abc123",
+      parentId: "quarterly-training-center",
+      parentType: "volunteer_training",
+      resourceType: "youtube",
+      title: "Leader training video"
+    });
+
+    expect(resource.parentType).toBe("volunteer_training");
+    expect(resource.resourceType).toBe("youtube");
+  });
+
+  it("blocks leader management of student-facing resources", async () => {
     await expect(
       createResourceAttachment(session("leader"), {
         externalUrl: "https://example.com",
@@ -84,7 +97,7 @@ describe("resource attachment repository", () => {
         parentType: "how_to_read_section",
         title: "Leader link"
       })
-    ).rejects.toThrow("Only admins can manage resources.");
+    ).rejects.toThrow("permission to manage");
   });
 });
 

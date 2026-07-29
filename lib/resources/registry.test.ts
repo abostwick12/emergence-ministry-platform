@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   canReadResourceVisibility,
+  isResourceManager,
   normalizeResourceParentType,
   normalizeResourceVisibility
 } from "@/lib/resources/registry";
@@ -25,6 +26,15 @@ describe("resource attachment registry", () => {
     expect(canReadResourceVisibility(session("leader"), "volunteer_leaders", "volunteer_training")).toBe(true);
     expect(canReadResourceVisibility(session("leader"), "admin_only", "event")).toBe(false);
     expect(canReadResourceVisibility(session("admin"), "admin_only", "event")).toBe(true);
+  });
+
+  it("allows leaders to manage ministry operations resources without opening student resources", () => {
+    expect(isResourceManager(session("admin"), "how_to_read_lesson")).toBe(true);
+    expect(isResourceManager(session("leader"), "volunteer_training")).toBe(true);
+    expect(isResourceManager(session("leader"), "small_group_resource")).toBe(true);
+    expect(isResourceManager(session("leader"), "event")).toBe(true);
+    expect(isResourceManager(session("leader"), "how_to_read_lesson")).toBe(false);
+    expect(isResourceManager(session("student"), "small_group_resource")).toBe(false);
   });
 });
 

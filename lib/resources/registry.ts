@@ -17,6 +17,19 @@ const leaderRoles = new Set(["admin", "staff", "leader"]);
 const studentReaderRoles = new Set(["admin", "staff", "leader", "student"]);
 const parentReaderRoles = new Set(["admin", "staff", "parent"]);
 const authenticatedReaderRoles = new Set(["admin", "staff", "leader", "student", "parent", "volunteer"]);
+const ministryResourceManagerRoles = new Set(["admin", "staff", "leader"]);
+const ministryOperationsManagedParents = new Set<ResourceParentType>([
+  "event",
+  "event_task",
+  "volunteer_training",
+  "volunteer_training_module",
+  "weekly_leader_prep",
+  "sermon",
+  "leader_guide",
+  "small_group_resource",
+  "worship_plan",
+  "communication_draft"
+]);
 
 export const resourceBucketName = "resource-attachments";
 
@@ -160,9 +173,12 @@ export function assertKnownStaticParent(parentType: ResourceParentType, parentId
   throw new ResourceRegistryError("The linked parent record could not be found.", 404, "parent_not_found");
 }
 
-export function isResourceManager(session: AuthSession | null | undefined) {
+export function isResourceManager(session: AuthSession | null | undefined, parentType?: string | null) {
   if (!session || session.isGuest) return false;
-  return managerRoles.has(normalizeSessionRole(session));
+  const role = normalizeSessionRole(session);
+  if (managerRoles.has(role)) return true;
+  if (!parentType || !isResourceParentType(parentType)) return false;
+  return ministryOperationsManagedParents.has(parentType) && ministryResourceManagerRoles.has(role);
 }
 
 export function canReadResourceVisibility(
