@@ -89,6 +89,11 @@ export function MinistryAlignmentWorkspace({
 
   return (
     <>
+      <section className="ministry-model-primer" aria-label="Ministry Hub operating model">
+        <p>This page runs on four things working together:</p>
+        <p><strong>Alignment</strong> is what leadership has said matters. <strong>Memory</strong> is what this ministry has learned over time. <strong>Signals</strong> are what is observable right now. <strong>EMMA</strong> compares them and names where the evidence is clear, mixed, or not enough to say.</p>
+      </section>
+
       <EditorialSection
         eyebrow="Leadership-authored context"
         title="Ministry Alignment"
@@ -296,10 +301,13 @@ function MinistryAlignmentPanel({
         </div>
       </header>
 
+      <div className="ministry-alignment-statement-row" aria-label="Vision and mission">
+        <AlignmentBlock label="Vision" text={profile.vision} variant="quote" />
+        <AlignmentBlock label="Mission" text={profile.mission} variant="quote" />
+      </div>
+
       <div className="ministry-alignment-grid">
-        <AlignmentBlock label="Vision" text={profile.vision} />
-        <AlignmentBlock label="Mission" text={profile.mission} />
-        <div className="ministry-alignment-block">
+        <div className="ministry-alignment-block ministry-alignment-list-card">
           <span>Values</span>
           <ul>
             {profile.values.map((value) => (
@@ -310,7 +318,7 @@ function MinistryAlignmentPanel({
             ))}
           </ul>
         </div>
-        <div className="ministry-alignment-block">
+        <div className="ministry-alignment-block ministry-alignment-list-card ministry-alignment-success-card">
           <span>Success Looks Like</span>
           <ul>
             {profile.successLooksLike.map((criterion) => <li key={criterion}>{criterion}</li>)}
@@ -336,9 +344,9 @@ function MinistryAlignmentPanel({
   );
 }
 
-function AlignmentBlock({ label, text }: { label: string; text: string }) {
+function AlignmentBlock({ label, text, variant = "default" }: { label: string; text: string; variant?: "default" | "quote" }) {
   return (
-    <div className="ministry-alignment-block">
+    <div className={variant === "quote" ? "ministry-alignment-block ministry-alignment-quote-block" : "ministry-alignment-block"}>
       <span>{label}</span>
       <p>{text}</p>
     </div>

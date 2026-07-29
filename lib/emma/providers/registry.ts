@@ -5,6 +5,7 @@ import { emmaErrors } from "@/lib/emma/errors";
 import { canUseCampStubMode } from "@/lib/camp/runtime";
 import { createAzureOpenAIEmmaProvider, readAzureOpenAIEmmaConfig } from "./azure-openai-provider";
 import { createGeminiProvider } from "./gemini-provider";
+import { createGlooEmmaProvider, DEFAULT_GLOO_EMMA_MODEL, normalizeGlooEmmaModel, readGlooEmmaConfig } from "./gloo-provider";
 import { createMockEmmaProvider } from "./mock-provider";
 import { createOpenAIEmmaProvider, DEFAULT_OPENAI_EMMA_MODEL } from "./openai-provider";
 import type { EmmaProvider, EmmaProviderId } from "./types";
@@ -13,6 +14,7 @@ export const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash-lite";
 export const DEFAULT_MOCK_MODEL = "mock-emma-model";
 export const DEFAULT_AZURE_OPENAI_EMMA_MODEL = process.env.AZURE_OPENAI_DEPLOYMENT?.trim() || "azure-openai-deployment";
 export { DEFAULT_OPENAI_EMMA_MODEL };
+export { DEFAULT_GLOO_EMMA_MODEL };
 
 export interface ProviderSelection {
   providerId: EmmaProviderId;
@@ -24,6 +26,8 @@ export interface ProviderSelection {
 
 export function getRegisteredProvider(providerId: EmmaProviderId): EmmaProvider {
   switch (providerId) {
+    case "gloo":
+      return createGlooEmmaProvider();
     case "gemini":
       return createGeminiProvider();
     case "openai":
@@ -50,6 +54,7 @@ export async function resolveProviderSelection(
 ): Promise<ProviderSelection> {
   const mode = normalizeProviderMode(
     process.env.EMMA_PROVIDER_MODE,
+    readGlooEmmaConfig(),
     process.env.GEMINI_API_KEY,
     process.env.OPENAI_API_KEY,
     readAzureOpenAIEmmaConfig()
@@ -69,6 +74,7 @@ export async function resolveProviderSelection(
       : defaultProviderForAvailableConfig(process.env.EMMA_DEFAULT_PROVIDER, {
           azureConfig: readAzureOpenAIEmmaConfig(),
           geminiApiKey: process.env.GEMINI_API_KEY,
+          glooConfig: readGlooEmmaConfig(),
           openAiApiKey: process.env.OPENAI_API_KEY
         }) ?? mode);
 
@@ -93,14 +99,17 @@ export async function resolveProviderSelection(
 
 function normalizeProviderMode(
   value: string | undefined,
+  glooConfig: ReturnType<typeof readGlooEmmaConfig>,
   geminiApiKey: string | undefined,
   openAiApiKey: string | undefined,
   azureConfig: ReturnType<typeof readAzureOpenAIEmmaConfig>
-): "mock" | "gemini" | "openai" | "azure" {
+): "mock" | "gloo" | "gemini" | "openai" | "azure" {
   if (value === "mock") return "mock";
+  if (value === "gloo") return glooConfig ? "gloo" : "mock";
   if (value === "gemini") return geminiApiKey?.trim() ? "gemini" : "mock";
   if (value === "openai") return openAiApiKey?.trim() ? "openai" : "mock";
   if (value === "azure") return azureConfig ? "azure" : "mock";
+  if (glooConfig) return "gloo";
   if (geminiApiKey?.trim()) return "gemini";
   if (azureConfig) return "azure";
   if (openAiApiKey?.trim()) return "openai";
@@ -108,7 +117,7 @@ function normalizeProviderMode(
 }
 
 function normalizeProviderId(value: string | null | undefined): EmmaProviderId | undefined {
-  if (value === "mock" || value === "gemini" || value === "openai" || value === "azure") return value;
+  if (value === "mock" || value === "gloo" || value === "gemini" || value === "openai" || value === "azure") return value;
   return undefined;
 }
 
@@ -116,11 +125,13 @@ function defaultProviderForAvailableConfig(
   value: string | null | undefined,
   config: {
     geminiApiKey: string | undefined;
+    glooConfig: ReturnType<typeof readGlooEmmaConfig>;
     openAiApiKey: string | undefined;
     azureConfig: ReturnType<typeof readAzureOpenAIEmmaConfig>;
   }
 ): EmmaProviderId | undefined {
   const providerId = normalizeProviderId(value);
+  if (providerId === "gloo" && config.glooConfig) return "gloo";
   if (providerId === "gemini" && config.geminiApiKey?.trim()) return "gemini";
   if (providerId === "openai" && config.openAiApiKey?.trim()) return "openai";
   if (providerId === "azure" && config.azureConfig) return "azure";
@@ -129,6 +140,7 @@ function defaultProviderForAvailableConfig(
 }
 
 function defaultModelForProvider(providerId: EmmaProviderId) {
+  if (providerId === "gloo") return process.env.GLOO_AI_MODEL?.trim() || process.env.GLOO_AI_STUDIO_MODEL?.trim() || DEFAULT_GLOO_EMMA_MODEL;
   if (providerId === "gemini") return DEFAULT_GEMINI_MODEL;
   if (providerId === "openai") return process.env.OPENAI_MODEL?.trim() || DEFAULT_OPENAI_EMMA_MODEL;
   if (providerId === "azure") return process.env.AZURE_OPENAI_DEPLOYMENT?.trim() || DEFAULT_AZURE_OPENAI_EMMA_MODEL;
@@ -137,6 +149,7 @@ function defaultModelForProvider(providerId: EmmaProviderId) {
 
 export function normalizeProviderModel(providerId: EmmaProviderId, model: string): string {
   const trimmed = model.trim();
+  if (providerId === "gloo") return normalizeGlooEmmaModel(trimmed);
   if (providerId !== "gemini") return trimmed;
 
   const aliases: Record<string, string> = {

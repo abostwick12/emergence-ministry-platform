@@ -52,6 +52,20 @@ describe("ministry page EMMA assistant", () => {
     expect(response.points).toEqual(["Drive folder creation is preview-only."]);
   });
 
+  it("answers recurring Bible study prompts with concrete ministry-capacity guidance", () => {
+    const response = answerMinistryEmmaPrompt({
+      overview: makeOverview(),
+      page: "dashboard",
+      prompt: "what would it take to add a weds bible study every week for high school"
+    });
+
+    expect(response.summary).toContain("recurring ministry rhythm");
+    expect(response.summary).toContain("Wednesday Bible study");
+    expect(response.points).toContain("Operational lift: a weekly study needs a named owner, room rhythm, leader coverage, communication cadence, budget boundary, recurring task template, and a follow-up path for students who respond.");
+    expect(response.points.join(" ")).toContain("Evidence limit");
+    expect(response.nextActions).toContain("Run it as a four-week pilot before creating an indefinite weekly rhythm.");
+  });
+
   it("selects the next upcoming event for audited summaries", () => {
     const event = selectDefaultEmmaEvent(makeOverview().events);
     expect(event?.title).toBe("Winter Retreat");

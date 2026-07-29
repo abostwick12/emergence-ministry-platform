@@ -76,6 +76,10 @@ export function answerMinistryEmmaPrompt({
     return answerStaticPage(page, staticSignals);
   }
 
+  if (isRecurringMinistryRhythmPrompt(normalizedPrompt)) {
+    return answerRecurringMinistryRhythm(overview, profile, normalizedPrompt);
+  }
+
   if (page === "dashboard" || isAlignmentPrompt(normalizedPrompt)) {
     return answerAlignment(overview, profile, normalizedPrompt);
   }
@@ -176,8 +180,42 @@ function answerAlignment(overview: MinistryEmmaOverview, profile: MinistryAlignm
   };
 }
 
+function answerRecurringMinistryRhythm(overview: MinistryEmmaOverview, profile: MinistryAlignmentProfile, normalizedPrompt: string): MinistryEmmaResponse {
+  const upcomingEvents = upcoming(overview.events);
+  const openTasks = overview.tasks.filter((task) => task.status !== "done");
+  const blocked = openTasks.filter((task) => task.status === "blocked");
+  const highSchoolEvents = upcomingEvents.filter((event) => /high school/i.test(`${event.title} ${event.targetGroup ?? ""}`) || event.type === "high_school_event");
+  const weeklyLabel = normalizedPrompt.includes("weds") || normalizedPrompt.includes("wednesday") ? "Wednesday" : "weekly";
+  const ministryAudience = normalizedPrompt.includes("high school") ? "high school" : "the named audience";
+  const scripturePractice = profile.successLooksLike.find((criterion) => /scripture|bible|spiritual practice/i.test(criterion)) ?? profile.currentSeason.description;
+
+  return {
+    summary: `Adding a ${weeklyLabel} Bible study for ${ministryAudience} would be a recurring ministry rhythm, not just one more event. EMMA can help size the operational load against the current season, but leadership still decides whether this serves the ministry's discernment and formation priorities.`,
+    points: [
+      `Leadership stated: ${profile.currentSeason.title}: ${profile.currentSeason.description}`,
+      `Current observable signal: ${upcomingEvents.length} upcoming events, ${openTasks.length} open tasks, ${blocked.length} blocked tasks, and ${highSchoolEvents.length} visible high school event${plural(highSchoolEvents.length)} are in the overview.`,
+      `Formation fit: ${scripturePractice}`,
+      "Operational lift: a weekly study needs a named owner, room rhythm, leader coverage, communication cadence, budget boundary, recurring task template, and a follow-up path for students who respond.",
+      "Evidence limit: the current snapshot does not show attendance demand, student availability, parent constraints, leader margin, curriculum plan, or spiritual readiness."
+    ],
+    nextActions: [
+      "Run it as a four-week pilot before creating an indefinite weekly rhythm.",
+      "Assign one accountable owner and two consistent leaders before announcing it.",
+      "Check calendar conflicts, room availability, communication readiness, and leader load against the existing event and task list.",
+      "Define the Scripture practice outcome in one sentence, then review whether the pilot created more space for relational ministry."
+    ]
+  };
+}
+
 function isAlignmentPrompt(normalizedPrompt: string): boolean {
   return /\b(alignment|vision|mission|values|season|success|evidence|signals|consistent|priority|priorities|discernment)\b/.test(normalizedPrompt);
+}
+
+function isRecurringMinistryRhythmPrompt(normalizedPrompt: string): boolean {
+  return (
+    /\b(add|adding|start|launch|create|begin|host)\b/.test(normalizedPrompt) &&
+    /\b(weekly|every week|recurring|wednesday|weds|wed|bible study|small group|study)\b/.test(normalizedPrompt)
+  );
 }
 
 function selectAlignmentCriterion(profile: MinistryAlignmentProfile, normalizedPrompt: string): string {
