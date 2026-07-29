@@ -627,6 +627,29 @@ describe("ministry page server-backed EMMA chat", () => {
     expect(JSON.stringify(readiness)).not.toContain("secret-key");
   });
 
+  it("reports the Gloo model when a stale generic EMMA default model is configured", () => {
+    const readiness = getMinistryEmmaReadiness({
+      session: session(),
+      env: {
+        ...process.env,
+        EMMA_PROVIDER_MODE: "gloo",
+        EMMA_DEFAULT_MODEL: "gemini-3.5-flash",
+        GLOO_AI_CLIENT_ID: "client-id",
+        GLOO_AI_CLIENT_SECRET: "secret-key",
+        GLOO_AI_BASE_URL: "https://platform.ai.gloo.com",
+        GLOO_AI_MODEL: "GPT-5 Nano"
+      }
+    });
+
+    expect(readiness).toMatchObject({
+      liveProviderConfigured: true,
+      provider: "gloo",
+      model: "gloo-openai-gpt-5-nano",
+      status: "live"
+    });
+    expect(JSON.stringify(readiness)).not.toContain("secret-key");
+  });
+
   it("reports Azure readiness when Azure OpenAI is configured", () => {
     const readiness = getMinistryEmmaReadiness({
       session: session(),

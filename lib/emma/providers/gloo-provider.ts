@@ -110,9 +110,11 @@ export function createGlooEmmaProvider(options?: {
           throw providerError("invalid_output");
         }
 
+        const responseModel = normalizeGlooEmmaModel(json.model) || normalizeGlooEmmaModel(request.model) || config.model;
+
         return {
           provider: "gloo",
-          model: json.model ?? normalizeGlooEmmaModel(request.model) ?? config.model,
+          model: responseModel,
           output,
           usage: {
             promptTokens: json.usage?.prompt_tokens,
@@ -134,7 +136,10 @@ export function createGlooEmmaProvider(options?: {
 
 export function normalizeGlooEmmaModel(value: string | undefined) {
   const trimmed = value?.trim() || "";
-  return GLOO_MODEL_ALIASES[trimmed.toLowerCase()] || trimmed;
+  const alias = GLOO_MODEL_ALIASES[trimmed.toLowerCase()];
+  if (alias) return alias;
+  if (trimmed.startsWith("gloo-")) return trimmed;
+  return "";
 }
 
 async function resolveGlooAccessToken(config: GlooEmmaConfig, fetchImpl: typeof fetch, signal: AbortSignal) {

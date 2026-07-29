@@ -343,6 +343,58 @@ describe("EMMA Gloo provider", () => {
     });
     expect(JSON.stringify(chatBody)).not.toContain("secret");
   });
+
+  it("falls back to the configured Gloo model when a stale generic EMMA model is requested", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ access_token: "access-token" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            model: "gloo-openai-gpt-5-nano",
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({
+                    summary: "Gloo response",
+                    points: ["safe point"],
+                    nextActions: ["review next step"],
+                    confidence: 0.84,
+                    warnings: []
+                  })
+                }
+              }
+            ]
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        )
+      );
+    const provider = createGlooEmmaProvider({
+      config: {
+        accessToken: "",
+        clientId: "client-id",
+        clientSecret: "secret",
+        apiBaseUrl: "https://platform.ai.gloo.com",
+        model: "gloo-openai-gpt-5-nano"
+      },
+      fetchImpl: fetchMock
+    });
+
+    const result = await provider.generate({
+      systemPrompt: "system",
+      userPrompt: "user",
+      model: "gemini-3.5-flash"
+    });
+
+    const chatBody = JSON.parse(String(fetchMock.mock.calls[1][1]?.body));
+    expect(chatBody.model).toBe("gloo-openai-gpt-5-nano");
+    expect(result.model).toBe("gloo-openai-gpt-5-nano");
+  });
 });
 
 describe("EMMA OpenAI provider", () => {
@@ -572,6 +624,20 @@ describe("audited provider execution", () => {
 
   it("honors explicit Gloo provider mode when Gloo is configured", async () => {
     process.env.EMMA_PROVIDER_MODE = "gloo";
+    process.env.GLOO_AI_CLIENT_ID = "client-id";
+    process.env.GLOO_AI_CLIENT_SECRET = "configured-gloo-secret";
+    process.env.GLOO_AI_BASE_URL = "https://platform.ai.gloo.com";
+    process.env.GLOO_AI_MODEL = "GPT-5 Nano";
+
+    await expect(resolveProviderSelection(session())).resolves.toMatchObject({
+      providerId: "gloo",
+      model: "gloo-openai-gpt-5-nano"
+    });
+  });
+
+  it("keeps the Gloo model when a stale generic EMMA default model is configured", async () => {
+    process.env.EMMA_PROVIDER_MODE = "gloo";
+    process.env.EMMA_DEFAULT_MODEL = "gemini-3.5-flash";
     process.env.GLOO_AI_CLIENT_ID = "client-id";
     process.env.GLOO_AI_CLIENT_SECRET = "configured-gloo-secret";
     process.env.GLOO_AI_BASE_URL = "https://platform.ai.gloo.com";

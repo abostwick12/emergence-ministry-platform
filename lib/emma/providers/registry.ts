@@ -82,15 +82,17 @@ export async function resolveProviderSelection(
     throw emmaErrors.provider("EMMA launch mode requires a real provider configuration.");
   }
 
-  const model =
+  const requestedModel =
     input?.model ??
     featureConfig?.primaryModel ??
+    configuredModelForProvider(providerId) ??
     process.env.EMMA_DEFAULT_MODEL ??
     defaultModelForProvider(providerId);
+  const model = normalizeProviderModel(providerId, requestedModel) || defaultModelForProvider(providerId);
 
   return {
     providerId,
-    model: normalizeProviderModel(providerId, model),
+    model,
     timeoutMs: input?.timeoutMs ?? featureConfig?.timeoutMs ?? undefined,
     temperature: input?.temperature ?? featureConfig?.temperature ?? undefined,
     maxOutputTokens: input?.maxOutputTokens ?? featureConfig?.maxOutputTokens ?? undefined
@@ -139,8 +141,17 @@ function defaultProviderForAvailableConfig(
   return undefined;
 }
 
+function configuredModelForProvider(providerId: EmmaProviderId) {
+  if (providerId === "gloo") return process.env.GLOO_AI_MODEL?.trim() || process.env.GLOO_AI_STUDIO_MODEL?.trim() || undefined;
+  if (providerId === "openai") return process.env.OPENAI_MODEL?.trim() || undefined;
+  if (providerId === "azure") return process.env.AZURE_OPENAI_DEPLOYMENT?.trim() || undefined;
+  return undefined;
+}
+
 function defaultModelForProvider(providerId: EmmaProviderId) {
-  if (providerId === "gloo") return process.env.GLOO_AI_MODEL?.trim() || process.env.GLOO_AI_STUDIO_MODEL?.trim() || DEFAULT_GLOO_EMMA_MODEL;
+  if (providerId === "gloo") {
+    return normalizeGlooEmmaModel(process.env.GLOO_AI_MODEL || process.env.GLOO_AI_STUDIO_MODEL) || DEFAULT_GLOO_EMMA_MODEL || "gloo-openai-gpt-5-nano";
+  }
   if (providerId === "gemini") return DEFAULT_GEMINI_MODEL;
   if (providerId === "openai") return process.env.OPENAI_MODEL?.trim() || DEFAULT_OPENAI_EMMA_MODEL;
   if (providerId === "azure") return process.env.AZURE_OPENAI_DEPLOYMENT?.trim() || DEFAULT_AZURE_OPENAI_EMMA_MODEL;

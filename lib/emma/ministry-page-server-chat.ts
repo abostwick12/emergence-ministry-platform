@@ -11,7 +11,7 @@ import { ministryPageChatSchema, ministryPageChatSystemPrompt, type MinistryPage
 import { runEmmaProviderForRequest } from "@/lib/emma/providers/run-provider";
 import type { EmmaProviderId } from "@/lib/emma/providers/types";
 import { readAzureOpenAIEmmaConfig } from "@/lib/emma/providers/azure-openai-provider";
-import { DEFAULT_GLOO_EMMA_MODEL, readGlooEmmaConfig } from "@/lib/emma/providers/gloo-provider";
+import { DEFAULT_GLOO_EMMA_MODEL, normalizeGlooEmmaModel, readGlooEmmaConfig } from "@/lib/emma/providers/gloo-provider";
 import {
   DEFAULT_AZURE_OPENAI_EMMA_MODEL,
   DEFAULT_GEMINI_MODEL,
@@ -112,7 +112,9 @@ export function getMinistryEmmaReadiness(input: { session?: AuthSession | null; 
   const env = input.env ?? process.env;
   const providerMode = resolveMinistryEmmaProviderMode(env);
   const liveProviderConfigured = providerMode !== "mock";
-  const model = normalizeReadinessModel(providerMode, env.EMMA_DEFAULT_MODEL?.trim() || defaultMinistryEmmaModel(providerMode, env));
+  const requestedModel =
+    configuredMinistryEmmaModel(providerMode, env) || env.EMMA_DEFAULT_MODEL?.trim() || defaultMinistryEmmaModel(providerMode, env);
+  const model = normalizeReadinessModel(providerMode, requestedModel) || defaultMinistryEmmaModel(providerMode, env);
 
   return {
     serverBacked: true,
@@ -243,11 +245,20 @@ function resolveMinistryEmmaProviderMode(env: NodeJS.ProcessEnv = process.env): 
 }
 
 function defaultMinistryEmmaModel(providerMode: "gloo" | "gemini" | "openai" | "azure" | "mock", env: NodeJS.ProcessEnv) {
-  if (providerMode === "gloo") return env.GLOO_AI_MODEL?.trim() || env.GLOO_AI_STUDIO_MODEL?.trim() || DEFAULT_GLOO_EMMA_MODEL;
+  if (providerMode === "gloo") {
+    return normalizeGlooEmmaModel(env.GLOO_AI_MODEL || env.GLOO_AI_STUDIO_MODEL) || DEFAULT_GLOO_EMMA_MODEL || "gloo-openai-gpt-5-nano";
+  }
   if (providerMode === "gemini") return DEFAULT_GEMINI_MODEL;
   if (providerMode === "openai") return env.OPENAI_MODEL?.trim() || DEFAULT_OPENAI_EMMA_MODEL;
   if (providerMode === "azure") return env.AZURE_OPENAI_DEPLOYMENT?.trim() || DEFAULT_AZURE_OPENAI_EMMA_MODEL;
   return "deterministic-fallback";
+}
+
+function configuredMinistryEmmaModel(providerMode: "gloo" | "gemini" | "openai" | "azure" | "mock", env: NodeJS.ProcessEnv) {
+  if (providerMode === "gloo") return env.GLOO_AI_MODEL?.trim() || env.GLOO_AI_STUDIO_MODEL?.trim() || undefined;
+  if (providerMode === "openai") return env.OPENAI_MODEL?.trim() || undefined;
+  if (providerMode === "azure") return env.AZURE_OPENAI_DEPLOYMENT?.trim() || undefined;
+  return undefined;
 }
 
 function normalizeReadinessModel(providerMode: "gloo" | "gemini" | "openai" | "azure" | "mock", model: string) {
