@@ -67,7 +67,10 @@ const eventTabLabels: Record<EventTabKey, string> = {
 type WorkspaceView = "dashboard" | "events" | "tasks";
 
 function eventAccentStyle(type: MinistryEvent["type"]) {
-  return { "--event-accent": eventCategoryColors[type] } as CSSProperties;
+  return {
+    "--event-accent": eventCategoryColors[type],
+    "--event-row-accent": eventCategoryColors[type]
+  } as CSSProperties;
 }
 
 function usersToVolunteerLeaders(users: User[]): VolunteerLeader[] {
@@ -99,7 +102,7 @@ export default function MinistryWorkspace({
   const { openCreate, openEdit, state: cardState } = useEventCard();
   const [isLoading, setIsLoading] = useState(!initialOverview && !initialLoadError);
   const [notice, setNotice] = useState(
-    "Production AI path: Azure EMMA live, Gloo/Meridian primary, YouVersion handoff active. Human approval controls every write, send, and integration action."
+    "Production AI path: EMMA reports the provider that actually responds, Gloo/Meridian remains primary for Scripture formation drafts, and YouVersion handoff is active. Human approval controls every write, send, and integration action."
   );
   const [expandedEventIds, setExpandedEventIds] = useState<string[]>([]);
   const [eventLeaderAssignments, setEventLeaderAssignments] = useState<EventLeaderAssignments>({});
@@ -696,13 +699,13 @@ function DashboardWorkspace({
           <p className="eyebrow">Competition review path</p>
           <h2 className="section-title flush">Inspect the platform story in order.</h2>
           <p>
-            Start with Azure-backed EMMA alignment, then open the YouVersion Scripture handoff, then review the leader-side Meridian and Gloo approval flow.
+            Start with provider-verified EMMA alignment, then open the YouVersion Scripture handoff, then review the leader-side Meridian and Gloo approval flow.
           </p>
         </div>
         <div className="judge-path-links" aria-label="Suggested judge stops">
           <Link href="/ministry">
             <strong>1. Ministry Alignment</strong>
-            <span>Leadership criteria, Azure EMMA signals, visible evidence</span>
+            <span>Leadership criteria, EMMA provider status, visible evidence</span>
           </Link>
           <Link href="/student/scripture/resources?reference=John%203%3A16">
             <strong>2. YouVersion Reader</strong>
@@ -834,8 +837,8 @@ function SubmissionAiReadiness() {
   const signals = [
     {
       label: "EMMA",
-      value: "Azure AI live",
-      detail: "Ministry chat is audit-safe and server-backed."
+      value: "Provider status live",
+      detail: "The badge names the provider that actually responded."
     },
     {
       label: "Meridian",

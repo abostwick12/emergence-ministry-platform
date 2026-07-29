@@ -11,6 +11,7 @@ import { ministryPageChatSchema, ministryPageChatSystemPrompt, type MinistryPage
 import { runEmmaProviderForRequest } from "@/lib/emma/providers/run-provider";
 import type { EmmaProviderId } from "@/lib/emma/providers/types";
 import { readAzureOpenAIEmmaConfig } from "@/lib/emma/providers/azure-openai-provider";
+import { DEFAULT_GLOO_EMMA_MODEL, readGlooEmmaConfig } from "@/lib/emma/providers/gloo-provider";
 import {
   DEFAULT_AZURE_OPENAI_EMMA_MODEL,
   DEFAULT_GEMINI_MODEL,
@@ -86,8 +87,8 @@ type MinistryPageRecommendationPayload = {
 export type MinistryEmmaReadiness = {
   serverBacked: true;
   liveProviderConfigured: boolean;
-  providerMode: "gemini" | "openai" | "azure" | "mock";
-  provider: "gemini" | "openai" | "azure" | "deterministic";
+  providerMode: "gloo" | "gemini" | "openai" | "azure" | "mock";
+  provider: "gloo" | "gemini" | "openai" | "azure" | "deterministic";
   model: string;
   audit: "supabase" | "mock";
   status: "live" | "fallback";
@@ -123,7 +124,7 @@ export function getMinistryEmmaReadiness(input: { session?: AuthSession | null; 
     status: liveProviderConfigured ? "live" : "fallback",
     message: liveProviderConfigured
       ? `EMMA ministry chat is server-backed and configured for live ${providerMode} responses.`
-      : "EMMA ministry chat is server-backed but using audited deterministic fallback until GEMINI_API_KEY, AZURE_OPENAI_* vars, or OPENAI_API_KEY is configured, or EMMA_PROVIDER_MODE is changed from mock."
+      : "EMMA ministry chat is server-backed but using audited deterministic fallback until GLOO_AI_*, GEMINI_API_KEY, AZURE_OPENAI_* vars, or OPENAI_API_KEY is configured, or EMMA_PROVIDER_MODE is changed from mock."
   };
 }
 
@@ -227,26 +228,29 @@ function shouldAttemptLiveProvider(session: AuthSession): boolean {
   return resolveMinistryEmmaProviderMode() !== "mock";
 }
 
-function resolveMinistryEmmaProviderMode(env: NodeJS.ProcessEnv = process.env): "gemini" | "openai" | "azure" | "mock" {
+function resolveMinistryEmmaProviderMode(env: NodeJS.ProcessEnv = process.env): "gloo" | "gemini" | "openai" | "azure" | "mock" {
   const configuredMode = env.EMMA_PROVIDER_MODE?.trim().toLowerCase();
   if (configuredMode === "mock") return "mock";
+  if (configuredMode === "gloo") return readGlooEmmaConfig(env) ? "gloo" : "mock";
   if (configuredMode === "gemini") return env.GEMINI_API_KEY?.trim() ? "gemini" : "mock";
   if (configuredMode === "openai") return env.OPENAI_API_KEY?.trim() ? "openai" : "mock";
   if (configuredMode === "azure") return readAzureOpenAIEmmaConfig(env) ? "azure" : "mock";
+  if (readGlooEmmaConfig(env)) return "gloo";
   if (env.GEMINI_API_KEY?.trim()) return "gemini";
   if (readAzureOpenAIEmmaConfig(env)) return "azure";
   if (env.OPENAI_API_KEY?.trim()) return "openai";
   return "mock";
 }
 
-function defaultMinistryEmmaModel(providerMode: "gemini" | "openai" | "azure" | "mock", env: NodeJS.ProcessEnv) {
+function defaultMinistryEmmaModel(providerMode: "gloo" | "gemini" | "openai" | "azure" | "mock", env: NodeJS.ProcessEnv) {
+  if (providerMode === "gloo") return env.GLOO_AI_MODEL?.trim() || env.GLOO_AI_STUDIO_MODEL?.trim() || DEFAULT_GLOO_EMMA_MODEL;
   if (providerMode === "gemini") return DEFAULT_GEMINI_MODEL;
   if (providerMode === "openai") return env.OPENAI_MODEL?.trim() || DEFAULT_OPENAI_EMMA_MODEL;
   if (providerMode === "azure") return env.AZURE_OPENAI_DEPLOYMENT?.trim() || DEFAULT_AZURE_OPENAI_EMMA_MODEL;
   return "deterministic-fallback";
 }
 
-function normalizeReadinessModel(providerMode: "gemini" | "openai" | "azure" | "mock", model: string) {
+function normalizeReadinessModel(providerMode: "gloo" | "gemini" | "openai" | "azure" | "mock", model: string) {
   if (providerMode === "mock") return model;
   return normalizeProviderModel(providerMode, model);
 }
@@ -361,6 +365,16 @@ async function runMinistryChatProviderFailovers({
   const attemptedWarnings: string[] = [];
   const currentProvider = resolveMinistryEmmaProviderMode();
   const failovers: Array<{ provider: EmmaProviderId; model: string; skillKey: string; label: string }> = [
+    ...(readGlooEmmaConfig() && currentProvider !== "gloo"
+      ? [
+          {
+            provider: "gloo" as const,
+            model: process.env.GLOO_AI_MODEL?.trim() || process.env.GLOO_AI_STUDIO_MODEL?.trim() || DEFAULT_GLOO_EMMA_MODEL,
+            skillKey: "ministry_page_chat_gloo_failover",
+            label: "Gloo AI Studio"
+          }
+        ]
+      : []),
     ...(readAzureOpenAIEmmaConfig() && currentProvider !== "azure"
       ? [
           {

@@ -24,6 +24,7 @@ export function buildMinistryChatAudit(payload: EmmaChatAuditPayload): string {
 }
 
 function providerDisplayName(provider: string): string {
+  if (provider === "gloo") return "Gloo AI Studio";
   if (provider === "azure") return "Azure AI";
   if (provider === "openai") return "OpenAI";
   if (provider === "gemini") return "Gemini";

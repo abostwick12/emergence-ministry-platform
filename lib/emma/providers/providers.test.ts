@@ -12,6 +12,7 @@ import {
 } from "@/lib/emma/repository";
 import { createAzureOpenAIEmmaProvider } from "./azure-openai-provider";
 import { createGeminiProvider } from "./gemini-provider";
+import { createGlooEmmaProvider } from "./gloo-provider";
 import { createOpenAIEmmaProvider } from "./openai-provider";
 import { createMockEmmaProvider } from "./mock-provider";
 import { internalEventSummarySchema, internalEventSummarySystemPrompt } from "./internal-event-summary";
@@ -33,6 +34,13 @@ function clearProviderEnv() {
   delete process.env.EMMA_PROVIDER_MODE;
   delete process.env.EMMA_DEFAULT_PROVIDER;
   delete process.env.EMMA_DEFAULT_MODEL;
+  delete process.env.GLOO_AI_CLIENT_ID;
+  delete process.env.GLOO_AI_CLIENT_SECRET;
+  delete process.env.GLOO_AI_BASE_URL;
+  delete process.env.GLOO_AI_MODEL;
+  delete process.env.GLOO_AI_STUDIO_API_KEY;
+  delete process.env.GLOO_AI_STUDIO_API_BASE_URL;
+  delete process.env.GLOO_AI_STUDIO_MODEL;
   delete process.env.OPENAI_API_KEY;
   delete process.env.OPENAI_MODEL;
   delete process.env.AZURE_OPENAI_ENDPOINT;
@@ -231,6 +239,109 @@ describe("EMMA Gemini provider", () => {
       }
     });
     expect(requestBody).not.toHaveProperty("store");
+  });
+});
+
+describe("EMMA Gloo provider", () => {
+  it("refuses to run without Gloo configuration", async () => {
+    const provider = createGlooEmmaProvider({ config: null });
+    await expect(provider.generate({ systemPrompt: "system", userPrompt: "user", model: "gloo-openai-gpt-5-nano" })).rejects.toMatchObject({
+      code: "configuration"
+    });
+  });
+
+  it("exchanges client credentials and parses Gloo chat-completions JSON", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ access_token: "access-token", expires_in: 3600 }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            model: "gloo-openai-gpt-5-nano",
+            choices: [
+              {
+                message: {
+                  content: "```json\n" + JSON.stringify({
+                    summary: "Gloo EMMA response",
+                    points: ["safe point"],
+                    nextActions: ["review next step"],
+                    confidence: 0.89,
+                    warnings: []
+                  }) + "\n```"
+                }
+              }
+            ],
+            usage: { prompt_tokens: 10, completion_tokens: 12, total_tokens: 22 }
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        )
+      );
+    const provider = createGlooEmmaProvider({
+      config: {
+        accessToken: "",
+        clientId: "client-id",
+        clientSecret: "secret",
+        apiBaseUrl: "https://platform.ai.gloo.com",
+        model: "gloo-openai-gpt-5-nano"
+      },
+      fetchImpl: fetchMock
+    });
+
+    const result = await provider.generate({
+      systemPrompt: "system",
+      userPrompt: "user",
+      model: "GPT-5 Nano",
+      temperature: 0.2,
+      maxOutputTokens: 400
+    });
+
+    expect(result).toMatchObject({
+      provider: "gloo",
+      model: "gloo-openai-gpt-5-nano",
+      output: {
+        summary: "Gloo EMMA response",
+        points: ["safe point"],
+        nextActions: ["review next step"],
+        confidence: 0.89,
+        warnings: []
+      },
+      usage: { promptTokens: 10, completionTokens: 12, totalTokens: 22 }
+    });
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "https://platform.ai.gloo.com/oauth2/token",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          Authorization: `Basic ${Buffer.from("client-id:secret").toString("base64")}`,
+          "Content-Type": "application/x-www-form-urlencoded"
+        }),
+        body: "grant_type=client_credentials&scope=api%2Faccess"
+      })
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://platform.ai.gloo.com/ai/v2/chat/completions",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({ Authorization: "Bearer access-token" })
+      })
+    );
+    const chatBody = JSON.parse(String(fetchMock.mock.calls[1][1]?.body));
+    expect(chatBody).toMatchObject({
+      model: "gloo-openai-gpt-5-nano",
+      messages: [
+        { role: "system", content: "system" },
+        { role: "user", content: "user\n\nReturn only JSON." }
+      ],
+      max_tokens: 400
+    });
+    expect(JSON.stringify(chatBody)).not.toContain("secret");
   });
 });
 
@@ -441,6 +552,34 @@ describe("audited provider execution", () => {
     await expect(resolveProviderSelection(session())).resolves.toMatchObject({
       providerId: "gemini",
       model: "gemini-2.5-flash-lite"
+    });
+  });
+
+  it("selects Gloo first when Gloo is configured without a separate mode flag", async () => {
+    process.env.GLOO_AI_CLIENT_ID = "client-id";
+    process.env.GLOO_AI_CLIENT_SECRET = "configured-gloo-secret";
+    process.env.GLOO_AI_BASE_URL = "https://platform.ai.gloo.com";
+    process.env.GLOO_AI_MODEL = "GPT-5 Nano";
+    process.env.AZURE_OPENAI_ENDPOINT = "https://example-resource.openai.azure.com";
+    process.env.AZURE_OPENAI_API_KEY = "configured-azure-key";
+    process.env.AZURE_OPENAI_DEPLOYMENT = "emma-azure-test";
+
+    await expect(resolveProviderSelection(session())).resolves.toMatchObject({
+      providerId: "gloo",
+      model: "gloo-openai-gpt-5-nano"
+    });
+  });
+
+  it("honors explicit Gloo provider mode when Gloo is configured", async () => {
+    process.env.EMMA_PROVIDER_MODE = "gloo";
+    process.env.GLOO_AI_CLIENT_ID = "client-id";
+    process.env.GLOO_AI_CLIENT_SECRET = "configured-gloo-secret";
+    process.env.GLOO_AI_BASE_URL = "https://platform.ai.gloo.com";
+    process.env.GLOO_AI_MODEL = "GPT-5 Nano";
+
+    await expect(resolveProviderSelection(session())).resolves.toMatchObject({
+      providerId: "gloo",
+      model: "gloo-openai-gpt-5-nano"
     });
   });
 

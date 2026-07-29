@@ -154,7 +154,7 @@ export function MobileFieldDashboard({
       <section className="mobile-judge-path-card" aria-label="Competition review path">
         <p className="eyebrow">Competition review path</p>
         <h3>Inspect the platform story in order.</h3>
-        <p>Azure EMMA, YouVersion reference handoff, Meridian/Gloo review, and human approval stay visible in the demo path.</p>
+        <p>EMMA provider status, YouVersion reference handoff, Meridian/Gloo review, and human approval stay visible in the demo path.</p>
         <nav aria-label="Suggested judge stops">
           <Link href="/ministry">Ministry Alignment</Link>
           <Link href="/student/scripture/resources?reference=John%203%3A16">YouVersion Reader</Link>
@@ -163,7 +163,7 @@ export function MobileFieldDashboard({
       </section>
       <section className="mobile-ai-readiness-card" aria-label="Submission AI readiness">
         <span>EMMA</span>
-        <strong>Azure AI live for signed-in production.</strong>
+        <strong>Provider badge reflects the signed-in production responder.</strong>
         <p>Public guest mode stays safe with read-only demo responses; AI drafts never send, write, or integrate without a leader approval step.</p>
       </section>
       <nav className="mobile-field-quick-actions" aria-label="Fast ministry actions">

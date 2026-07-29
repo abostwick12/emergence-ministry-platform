@@ -175,7 +175,7 @@ export default function LoginPage() {
             <ol>
               <li>
                 <strong>Ministry Alignment</strong>
-                <span>See leadership-authored direction with Azure EMMA evidence boundaries.</span>
+                <span>See leadership-authored direction with provider-verified EMMA evidence boundaries.</span>
               </li>
               <li>
                 <strong>Student Scripture</strong>

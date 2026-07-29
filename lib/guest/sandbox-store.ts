@@ -256,7 +256,7 @@ function createInitialSandbox(): GuestSandboxState {
   const historicalEvents = buildHistoricalMemoryEvents(now, users);
   const events: MinistryEvent[] = [
     ...historicalEvents,
-    fakeEvent("guest_evt_launch", "Competition Launch Night", "A submission walkthrough event connecting Azure EMMA readiness, YouVersion Scripture handoff, Meridian review, and parent communication previews.", "high_school_event", launchNight, users[0].id, 900),
+    fakeEvent("guest_evt_launch", "Competition Launch Night", "A submission walkthrough event connecting EMMA provider readiness, YouVersion Scripture handoff, Meridian review, and parent communication previews.", "high_school_event", launchNight, users[0].id, 900),
     fakeEvent("guest_evt_serve", "City Serve Saturday", "A service day demo with task ownership, leader assignments, and preview-only family communication.", "missions_trip", serveDay, users[1].id, 1200),
     fakeEvent("guest_evt_retreat", "Fall Retreat Demo", "A retreat planning workspace with demo people, budget targets, workflow readiness, and human-approved communication boundaries.", "conference", retreat, users[0].id, 6500)
   ];
@@ -641,9 +641,9 @@ function seedSubmissionProofTasks(state: GuestSandboxState, event: MinistryEvent
   if (!event) return;
   const proofTasks: Array<{ title: string; offset: number; notes: string }> = [
     {
-      title: "Verify Azure EMMA readiness badge",
+      title: "Verify EMMA provider readiness badge",
       offset: -7,
-      notes: "Competition proof: EMMA is Azure-backed for signed-in production users; guest mode stays a stock simulation."
+      notes: "Competition proof: EMMA names the provider that actually answers for signed-in production users; guest mode stays read-only demo guidance."
     },
     {
       title: "Open YouVersion reference handoff",

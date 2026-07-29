@@ -98,6 +98,13 @@ beforeEach(() => {
   delete process.env.EMMA_PROVIDER_MODE;
   delete process.env.EMMA_DEFAULT_PROVIDER;
   delete process.env.EMMA_DEFAULT_MODEL;
+  delete process.env.GLOO_AI_CLIENT_ID;
+  delete process.env.GLOO_AI_CLIENT_SECRET;
+  delete process.env.GLOO_AI_BASE_URL;
+  delete process.env.GLOO_AI_MODEL;
+  delete process.env.GLOO_AI_STUDIO_API_KEY;
+  delete process.env.GLOO_AI_STUDIO_API_BASE_URL;
+  delete process.env.GLOO_AI_STUDIO_MODEL;
   delete process.env.GEMINI_API_KEY;
   delete process.env.OPENAI_API_KEY;
   delete process.env.OPENAI_MODEL;
@@ -232,6 +239,66 @@ describe("ministry page server-backed EMMA chat", () => {
     });
     expect(trail.providerAttempts[0]).toMatchObject({
       provider: "openai",
+      status: "success"
+    });
+  });
+
+  it("uses Gloo as the live Ministry Hub provider when Gloo mode is configured", async () => {
+    process.env.EMMA_PROVIDER_MODE = "gloo";
+    process.env.GLOO_AI_CLIENT_ID = "client-id";
+    process.env.GLOO_AI_CLIENT_SECRET = "test-gloo-secret";
+    process.env.GLOO_AI_BASE_URL = "https://platform.ai.gloo.com";
+    process.env.GLOO_AI_MODEL = "GPT-5 Nano";
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ access_token: "access-token", expires_in: 3600 }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            model: "gloo-openai-gpt-5-nano",
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({
+                    summary: "Gloo ministry guidance for the events page.",
+                    points: ["Compare the plan against the current season before adding work."],
+                    nextActions: ["Review the event workspace with leadership."],
+                    confidence: 0.86,
+                    warnings: []
+                  })
+                }
+              }
+            ],
+            usage: { total_tokens: 44 }
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        )
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const admin = session();
+    const result = await runMinistryPageServerChat({
+      overview: overview(),
+      rawInput: { page: "events", prompt: "What should I open first?", selectedEventId: "evt_1" },
+      session: admin
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.providerMode).toBe("live_provider");
+    expect(result.data.provider).toBe("gloo");
+    expect(result.data.model).toBe("gloo-openai-gpt-5-nano");
+    expect(result.data.response.summary).toBe("Gloo ministry guidance for the events page.");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    const trail = await getEmmaAuditTrail(admin, result.data.requestId);
+    expect(trail.providerAttempts[0]).toMatchObject({
+      provider: "gloo",
       status: "success"
     });
   });
@@ -533,6 +600,28 @@ describe("ministry page server-backed EMMA chat", () => {
       liveProviderConfigured: true,
       provider: "gemini",
       model: "gemini-2.5-flash-lite",
+      status: "live"
+    });
+    expect(JSON.stringify(readiness)).not.toContain("secret-key");
+  });
+
+  it("reports Gloo readiness without exposing secrets", () => {
+    const readiness = getMinistryEmmaReadiness({
+      session: session(),
+      env: {
+        ...process.env,
+        EMMA_PROVIDER_MODE: "gloo",
+        GLOO_AI_CLIENT_ID: "client-id",
+        GLOO_AI_CLIENT_SECRET: "secret-key",
+        GLOO_AI_BASE_URL: "https://platform.ai.gloo.com",
+        GLOO_AI_MODEL: "GPT-5 Nano"
+      }
+    });
+
+    expect(readiness).toMatchObject({
+      liveProviderConfigured: true,
+      provider: "gloo",
+      model: "gloo-openai-gpt-5-nano",
       status: "live"
     });
     expect(JSON.stringify(readiness)).not.toContain("secret-key");
