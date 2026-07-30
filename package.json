@@ -16,6 +16,7 @@
     "verify:judge-path": "node scripts/verify-production-judge-path.mjs",
     "daily-intelligence:brief": "node scripts/run-daily-intelligence-brief.mjs",
     "daily-intelligence:research-sweep": "node scripts/run-daily-intelligence-brief.mjs --research-sweep",
+    "daily-leader-brief:groupme": "node scripts/run-leader-daily-brief-groupme.mjs",
     "video:landing:studio": "remotion studio remotion/landing/Root.tsx",
     "video:landing:still": "remotion still remotion/landing/Root.tsx LeadEmergenceLandingVideo --frame=90 --scale=0.25 --output=test-results/landing-video-frame.png",
     "video:scripture:prepare": "node scripts/prepare-scripture-finalizer-source.mjs",
