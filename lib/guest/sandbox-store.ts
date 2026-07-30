@@ -8,6 +8,7 @@ import {
   supportTaskTitlesForNeeds,
   type EventSupportNeed
 } from "@/lib/event-planning-support";
+import { createLeadEmergenceDemoSandboxState } from "@/lib/guest/lead-emergence-demo-context";
 import type {
   ActiveTask,
   ActivityLog,
@@ -241,6 +242,10 @@ export function addGuestExpense(sessionId: string, input: { eventId: string; cat
 }
 
 function createInitialSandbox(): GuestSandboxState {
+  return createLeadEmergenceDemoSandboxState();
+}
+
+function createLegacyInitialSandbox(): GuestSandboxState {
   const now = new Date();
   const launchNight = addDays(now.toISOString(), 4);
   const serveDay = addDays(now.toISOString(), 12);
