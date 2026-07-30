@@ -1,6 +1,7 @@
 import { scripturePlans, scriptureResources } from "@/lib/scripture/mock-data";
 import { matchCuratedResourcesToPrompt, type StudentCuratedResource } from "@/lib/scripture/curated-resource-shared";
 import type { StudentKnowledgeMatch, StudentSavedQuestionRecommendation } from "@/lib/scripture/knowledge";
+import { buildMeridianSynthesisBrief, type MeridianSynthesisBrief } from "@/lib/scripture/meridian-synthesis";
 import type { StudentJourneyStudyPath } from "@/lib/scripture/student-journey-entry-shared";
 import { matchQuestionToStoryline, type StorylineQuestionMatch } from "@/lib/scripture/storyline-guide";
 import type { ScripturePlan, ScriptureResource, StudentDiscussionPrompt, StudentDiscussionStatus } from "@/lib/scripture/types";
@@ -503,6 +504,14 @@ export function buildQuestionNextStep(
   const topic = topicLabelForPrompt(prompt);
   const primaryKnowledge = knowledgeMatches[0];
   const secondaryKnowledge = knowledgeMatches[1];
+  const journeySynthesis = buildMeridianSynthesisBrief({
+    taskType: "journey_journal",
+    request: prompt.question,
+    audience: "students using Journey Journal before leader-reviewed group discussion",
+    scriptureReference: prompt.scriptureReference,
+    metanarrativeMovement: prompt.metanarrativeMovement,
+    knowledgeMatches
+  });
   const storylineMatch = matchQuestionToStoryline(prompt);
   const wrestleQuestions = wrestleQuestionsForPrompt(prompt);
   const promptDigQuestions = digQuestionsForPrompt(prompt);
@@ -517,7 +526,7 @@ export function buildQuestionNextStep(
   const readingPlan = primaryKnowledge ? knowledgeItem(primaryKnowledge, primaryKnowledge.label) : storylineItem(storylineMatch);
   const nextResource = secondaryKnowledge ? knowledgeItem(secondaryKnowledge, "Keep digging") : resourceItem(resource, "Practice this");
   const baseJourneyJournal = buildJourneyJournal(prompt, storylineMatch, primaryKnowledge);
-  const journeyJournalEntries = buildJourneyJournalEntries(prompt, storylineMatch, primaryKnowledge, baseJourneyJournal);
+  const journeyJournalEntries = buildJourneyJournalEntries(prompt, storylineMatch, primaryKnowledge, baseJourneyJournal, journeySynthesis);
   const journeyJournal = journeyJournalEntries[0] ?? baseJourneyJournal;
   const curatedResources = matchCuratedResourcesToPrompt(
     {
@@ -1073,10 +1082,11 @@ function buildJourneyJournalEntries(
   prompt: ReadingSource,
   storylineMatch: StorylineQuestionMatch,
   primaryKnowledge: StudentKnowledgeMatch | undefined,
-  baseJourney: StudentJourneyJournal
+  baseJourney: StudentJourneyJournal,
+  synthesisBrief: MeridianSynthesisBrief
 ): StudentJourneyJournal[] {
   const text = promptSearchText(prompt);
-  if (isGospelQuestion(text)) return buildGospelJourneyEntries();
+  if (isGospelQuestion(text)) return buildGospelJourneyEntries(synthesisBrief);
 
   const primaryPassage = prompt.scriptureReference || primaryKnowledge?.scriptureReferences?.[0] || storylineMatch.keyPassages[0] || "Genesis 1";
   const secondaryPassages = uniqueQuestions([...storylineMatch.keyPassages.slice(1), primaryPassage, ...storylineMatch.keyPassages], 3);
@@ -1190,13 +1200,14 @@ function buildJourneyJournalEntries(
   ];
 }
 
-function buildGospelJourneyEntries(): StudentJourneyJournal[] {
+function buildGospelJourneyEntries(synthesisBrief: MeridianSynthesisBrief): StudentJourneyJournal[] {
+  const gospelFormationFrame = synthesisBrief.formationGoals.slice(0, 5).join(" ");
   return [
     {
       id: "gospel-scripture-journey",
       title: "Gospel Scripture Journey",
-      subtitle: "Start with what Scripture announces before reducing the gospel to a slogan.",
-      openingPrompt: "Ask what good news is being announced, who Jesus is, what problem He answers, and what response the announcement invites.",
+      subtitle: "Receive Scripture first, then ask what the gospel announces before reducing it to a slogan.",
+      openingPrompt: `Begin with Mark 1:14-15. Observe what is announced, who Jesus is, what problem He answers, and what response the announcement invites. ${gospelFormationFrame}`,
       followUpQuestions: [
         {
           id: "gospel-announcement",
@@ -1253,8 +1264,8 @@ function buildGospelJourneyEntries(): StudentJourneyJournal[] {
     {
       id: "gospel-investigation-journey",
       title: "Gospel Investigation Journey",
-      subtitle: "Look underneath the word gospel and trace what it restores.",
-      openingPrompt: "Now ask how the gospel reaches guilt, shame, broken relationships, identity, mission, and creation instead of only answering one narrow question.",
+      subtitle: "Explore the larger story so the gospel becomes bigger than a formula.",
+      openingPrompt: "Now connect the gospel to the whole biblical story. Ask how the good news reaches guilt, shame, broken relationships, identity, mission, and creation without turning every passage into the same shortcut answer.",
       followUpQuestions: [
         {
           id: "gospel-scope",
@@ -1312,7 +1323,7 @@ function buildGospelJourneyEntries(): StudentJourneyJournal[] {
       id: "gospel-practice-journey",
       title: "Gospel Practice Journey",
       subtitle: "Move from definition to repentance, trust, witness, and worship.",
-      openingPrompt: "Let the gospel question become personal without making it only private. Ask what Jesus is inviting you to receive, turn from, trust, and share.",
+      openingPrompt: "Let the gospel question become personal without making it only private. Practice one concrete response tied to Scripture: receive grace, turn from false hope, trust Jesus, and witness with humility.",
       followUpQuestions: [
         {
           id: "gospel-repent",
@@ -1369,8 +1380,8 @@ function buildGospelJourneyEntries(): StudentJourneyJournal[] {
     {
       id: "gospel-storyline-journey",
       title: "Gospel Storyline Journey",
-      subtitle: "Connect the gospel to the whole Bible story instead of treating it as a detached formula.",
-      openingPrompt: "Trace the gospel from promise to Jesus to new creation: God keeps His promise, rescues through Christ, forms a people, and renews all things.",
+      subtitle: "Walk this into trusted community instead of carrying a private definition alone.",
+      openingPrompt: "Trace the gospel from promise to Jesus to new creation: God keeps His promise, rescues through Christ, forms a people, and renews all things. Then prepare one honest reflection to bring to trusted community.",
       followUpQuestions: [
         {
           id: "gospel-promise",

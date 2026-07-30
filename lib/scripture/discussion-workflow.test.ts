@@ -379,13 +379,19 @@ describe("local student discussion workflow", () => {
       discussionPrompt: "Where does Genesis 3 invite us to notice trust before failure?",
       safetyLabel: "safe"
     });
-    expect(generateMeridianDiscussionDraftMock).toHaveBeenCalledWith({
+    expect(generateMeridianDiscussionDraftMock).toHaveBeenCalledWith(expect.objectContaining({
       question: "Why did God put the tree in the garden?",
       scriptureReference: "Genesis 3",
       metanarrativeMovement: "Creation",
       retrievedContext: "Source 1: Garden trust",
-      internalGroundingContext: "Internal posture only."
-    });
+      internalGroundingContext: "Internal posture only.",
+      synthesisBrief: expect.objectContaining({
+        taskType: "discussion_prompt",
+        normalizedRequest: "Why did God put the tree in the garden?",
+        sourceIds: expect.arrayContaining(["chunk:chunk_garden"]),
+        sourceTypes: expect.arrayContaining(["meridian_knowledge"])
+      })
+    }));
     expect(getSupabaseAuthClientMock).not.toHaveBeenCalled();
   });
 
@@ -450,13 +456,19 @@ describe("leader discussion draft regeneration", () => {
       discussionPrompt: "Where does Psalm 13 help us speak honestly with God when prayer feels quiet?",
       safetyLabel: "needs_leader_care"
     });
-    expect(generateMeridianDiscussionDraftMock).toHaveBeenCalledWith({
+    expect(generateMeridianDiscussionDraftMock).toHaveBeenCalledWith(expect.objectContaining({
       question: "How do I trust God when prayer feels quiet?",
       scriptureReference: "Psalm 13",
       metanarrativeMovement: "Jesus / Kingdom Fulfilled",
       retrievedContext: "Source 1: Psalm 13 and honest prayer",
-      internalGroundingContext: ""
-    });
+      internalGroundingContext: "",
+      synthesisBrief: expect.objectContaining({
+        taskType: "discussion_prompt",
+        normalizedRequest: "How do I trust God when prayer feels quiet?",
+        sourceIds: expect.arrayContaining(["chunk:chunk_psalm_13"]),
+        sourceTypes: expect.arrayContaining(["meridian_knowledge"])
+      })
+    }));
     expect(client.updates[0]).toMatchObject({
       ai_status: "generated",
       ai_model: "GPT-5 Mini",
