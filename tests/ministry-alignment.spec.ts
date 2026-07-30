@@ -44,18 +44,21 @@ test.describe("Ministry Hub alignment workspace", () => {
     await page.goto("/ministry");
 
     const emma = page.locator(".ministry-emma-panel").first();
-    await expect(emma.getByRole("heading", { name: "Ask EMMA" })).toBeVisible();
-    await emma.getByLabel("Message EMMA").fill("Where does the evidence support our Success Looks Like criteria?");
+    await expect(emma.getByRole("button", { name: "EMMA" })).toBeVisible();
+    await emma.getByRole("button", { name: "EMMA" }).click();
+    const dialog = page.getByRole("dialog", { name: "Ask EMMA" });
+    await expect(dialog).toBeVisible();
+    await dialog.getByLabel("Message EMMA").fill("Where does the evidence support our Success Looks Like criteria?");
     const request = page.waitForRequest((item) => item.url().endsWith("/api/ai/emma") && item.method() === "POST");
     const response = page.waitForResponse((item) => item.url().endsWith("/api/ai/emma") && item.request().method() === "POST");
-    await emma.getByRole("button", { name: "Ask EMMA", exact: true }).click();
+    await dialog.getByRole("button", { name: "Ask EMMA", exact: true }).click();
 
     const postData = (await request).postDataJSON() as { alignmentProfile?: unknown };
     expect(postData.alignmentProfile).toBeTruthy();
     expect((await response).status()).toBe(200);
-    await expect(emma.locator(".ministry-emma-message").last()).toContainText("Leadership stated:");
-    await expect(emma.locator(".ministry-emma-message").last()).toContainText(/priority ranking|not a verdict/i);
-    await expect(emma.getByText(/alignment score|percentage alignment|Season score/i)).toHaveCount(0);
+    await expect(dialog.locator(".ministry-emma-message").last()).toContainText("Leadership stated:");
+    await expect(dialog.locator(".ministry-emma-message").last()).toContainText(/priority ranking|not a verdict/i);
+    await expect(dialog.getByText(/alignment score|percentage alignment|Season score/i)).toHaveCount(0);
   });
 
   test("keeps the mobile alignment layout usable", async ({ page }) => {
@@ -67,7 +70,7 @@ test.describe("Ministry Hub alignment workspace", () => {
     await expect(page.getByRole("heading", { name: "Ministry Alignment" }).first()).toBeVisible();
     await expect(page.getByRole("article", { name: "Ministry Alignment" })).toBeVisible();
     await expect(page.getByRole("region", { name: "Public demo organizational memory" })).toBeVisible();
-    await expect(page.locator(".ministry-emma-panel").first()).toBeVisible();
+    await expect(page.locator(".ministry-emma-panel").first().getByRole("button", { name: "EMMA" })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
   });
 });

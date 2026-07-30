@@ -212,7 +212,7 @@ test.describe("MVP event automation navigation smoke tests", () => {
     await expect(winterRow.locator(".event-summary-scroll")).toHaveCount(0);
     await expect(winterRow.locator(".event-identity-meta")).toContainText("Volunteers needed");
     const rowAccentRailWidth = await winterRow.evaluate((element) => getComputedStyle(element, "::before").width);
-    expect(rowAccentRailWidth).toBe("3px");
+    expect(rowAccentRailWidth).toBe("10px");
 
     await winterRow.getByRole("button", { name: "View tasks" }).click();
     await expect(winterRow.getByRole("heading", { name: "Planning details" })).toBeVisible();

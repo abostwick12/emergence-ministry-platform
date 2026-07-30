@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { Bot, CheckCircle2, FileText, Send, ShieldCheck, Sparkles } from "lucide-react";
+import { Bot, CheckCircle2, FileText, Send, ShieldCheck, Sparkles, X } from "lucide-react";
 import {
   answerMinistryEmmaPrompt,
   ministryEmmaUniversalPromptTemplates,
@@ -12,6 +12,8 @@ import {
 import { buildMinistryChatAudit } from "@/lib/emma/ministry-chat-audit";
 import { AssistantBrief, AssistantWorkspace } from "@/components/platform-ui";
 import type { MinistryAlignmentProfile } from "@/lib/ministry/alignment";
+
+type EmmaPresentation = "inline" | "floating";
 
 type EmmaChatResult = {
   ok: true;
@@ -41,6 +43,7 @@ export function MinistryEmmaPanel({
   defaultExpanded = false,
   overview,
   page,
+  presentation = "inline",
   staticSignals = [],
   title = "EMMA Ministry Assistant",
   promptTemplates = ministryEmmaUniversalPromptTemplates
@@ -49,6 +52,7 @@ export function MinistryEmmaPanel({
   defaultExpanded?: boolean;
   overview?: MinistryEmmaOverview;
   page: MinistryEmmaPage;
+  presentation?: EmmaPresentation;
   staticSignals?: string[];
   title?: string;
   promptTemplates?: readonly string[];
@@ -189,46 +193,30 @@ export function MinistryEmmaPanel({
 
   const latestEmmaMessage = [...messages].reverse().find((message) => message.author === "emma") ?? messages[0];
   const workspaceId = `ministry-emma-${page}-workspace`;
+  const titleId = `ministry-emma-${page}-title`;
 
-  return (
-    <section className="ministry-emma-panel" aria-labelledby={`ministry-emma-${page}-title`}>
-      <div className="ministry-emma-header">
-        <span className="ministry-emma-icon" aria-hidden="true">
-          <Bot />
-        </span>
-        <div>
-          <p className="eyebrow">EMMA</p>
-          <h3 id={`ministry-emma-${page}-title`}>{title}</h3>
-        </div>
-        <div className="ministry-emma-guardrails" aria-label="EMMA guardrails">
-          <span className="pill">
-            <ShieldCheck aria-hidden="true" />
-            Audit safe
-          </span>
-          <span className={providerStatus === "Guest demo" || providerStatus === "Audited demo" ? "pill stub" : "pill emma-live-status"}>{providerStatus}</span>
-          <span className="pill stub">No live sends</span>
-        </div>
+  const header = (
+    <div className="ministry-emma-header">
+      <span className="ministry-emma-icon" aria-hidden="true">
+        <Bot />
+      </span>
+      <div>
+        <p className="eyebrow">EMMA</p>
+        <h3 id={titleId}>{title}</h3>
       </div>
+      <div className="ministry-emma-guardrails" aria-label="EMMA guardrails">
+        <span className="pill">
+          <ShieldCheck aria-hidden="true" />
+          Audit safe
+        </span>
+        <span className={providerStatus === "Guest demo" || providerStatus === "Audited demo" ? "pill stub" : "pill emma-live-status"}>{providerStatus}</span>
+        <span className="pill stub">No live sends</span>
+      </div>
+    </div>
+  );
 
-      <AssistantBrief
-        summary={latestEmmaMessage.body}
-        points={latestEmmaMessage.points?.slice(0, 3) ?? []}
-        nextAction={latestEmmaMessage.nextActions?.[0]}
-        action={(
-          <button
-            aria-controls={workspaceId}
-            aria-expanded={isExpanded}
-            className="button primary"
-            type="button"
-            onClick={() => setIsExpanded((current) => !current)}
-          >
-            {isExpanded ? "Close workspace" : "Ask EMMA"}
-          </button>
-        )}
-      />
-
-      <AssistantWorkspace id={workspaceId} hidden={!isExpanded}>
-
+  const workspaceBody = (
+    <>
       <div className="ministry-emma-layout">
         <div className="ministry-emma-thread" ref={threadRef} aria-live="polite">
           {messages.map((message) => (
@@ -292,6 +280,67 @@ export function MinistryEmmaPanel({
         <FileText aria-hidden="true" />
         <span>EMMA may summarize and recommend. Application code and human review still control writes, sends, and integrations.</span>
       </div>
+    </>
+  );
+
+  if (presentation === "floating") {
+    return (
+      <aside className="ministry-emma-panel ministry-emma-floating" aria-label="EMMA ministry assistant">
+        <button
+          aria-controls={workspaceId}
+          aria-expanded={isExpanded}
+          className="ministry-emma-launcher"
+          type="button"
+          onClick={() => setIsExpanded((current) => !current)}
+        >
+          <span className="ministry-emma-launcher-mark" aria-hidden="true" />
+          <span>EMMA</span>
+        </button>
+
+        {isExpanded ? (
+          <div className="ministry-emma-popover" id={workspaceId} role="dialog" aria-modal="false" aria-labelledby={titleId}>
+            <div className="ministry-emma-popover-top">
+              {header}
+              <button className="icon-button" type="button" aria-label="Close Ask EMMA" onClick={() => setIsExpanded(false)}>
+                <X aria-hidden="true" />
+              </button>
+            </div>
+            <div className="ministry-emma-popover-brief">
+              <strong>{latestEmmaMessage.body}</strong>
+              {latestEmmaMessage.points?.length ? (
+                <ul>{latestEmmaMessage.points.slice(0, 3).map((point) => <li key={point}>{point}</li>)}</ul>
+              ) : null}
+            </div>
+            {workspaceBody}
+          </div>
+        ) : null}
+      </aside>
+    );
+  }
+
+  return (
+    <section className="ministry-emma-panel" aria-labelledby={titleId}>
+      {header}
+
+      <AssistantBrief
+        summary={latestEmmaMessage.body}
+        points={latestEmmaMessage.points?.slice(0, 3) ?? []}
+        nextAction={latestEmmaMessage.nextActions?.[0]}
+        action={(
+          <button
+            aria-controls={workspaceId}
+            aria-expanded={isExpanded}
+            className="button primary"
+            type="button"
+            onClick={() => setIsExpanded((current) => !current)}
+          >
+            {isExpanded ? "Close workspace" : "Ask EMMA"}
+          </button>
+        )}
+      />
+
+      <AssistantWorkspace id={workspaceId} hidden={!isExpanded}>
+        {workspaceBody}
       </AssistantWorkspace>
     </section>
   );
