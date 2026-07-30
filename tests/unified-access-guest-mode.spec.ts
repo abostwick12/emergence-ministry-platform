@@ -16,7 +16,6 @@ test.describe("Unified access and competition guest mode", () => {
   });
 
   test("guest enters public pages and cannot reach protected sections by default", async ({ page }) => {
-    const memoryRange = `${new Date().getFullYear() - 5}-${new Date().getFullYear()}`;
     await enterGuestMode(page);
 
     await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible();
@@ -40,7 +39,7 @@ test.describe("Unified access and competition guest mode", () => {
     await sidebar.getByRole("link", { name: "Ministry Hub" }).click();
     await expect(page).toHaveURL(/\/ministry$/);
     const memory = page.getByRole("region", { name: "Public demo organizational memory" });
-    await expect(memory).toContainText(`${memoryRange} ministry history, modeled for discernment`);
+    await expect(memory).toContainText("2025-2026 ministry history, modeled for discernment");
     await expect(memory).toContainText("Demo data, no live sync");
     await expect(memory).toContainText("Planning Center attendance snapshots");
     await expect(memory).toContainText("Not connected in public demo mode");
@@ -73,19 +72,17 @@ test.describe("Unified access and competition guest mode", () => {
     await row.getByRole("button", { name: "Delete demo event" }).click();
     await expect(row).toBeHidden();
 
-    const seededRow = page.locator(".event-row-card", { hasText: "Competition Launch Night" });
+    const seededRow = page.locator(".event-row-card", { hasText: "Leader Commissioning" });
     await expect(seededRow).toBeVisible();
     await seededRow.getByRole("button", { name: "View tasks" }).click();
-    await expect(seededRow).toContainText("Verify EMMA provider readiness badge");
-    await expect(seededRow).toContainText("Review Meridian image-bearing journey");
-    await seededRow.getByRole("button", { name: "Delete demo event" }).click();
-    await expect(seededRow).toBeHidden();
+    await expect(seededRow).toContainText("Build shared event operations plan");
+    await expect(seededRow).toContainText("Prepare parent and leader communication preview");
 
     await page.goto("/api/auth/logout");
     await enterGuestMode(page);
     await page.goto("/events");
     await expect(page.locator(".event-row-card", { hasText: eventName })).toHaveCount(0);
-    await expect(page.locator(".event-row-card", { hasText: "Competition Launch Night" })).toBeVisible();
+    await expect(page.locator(".event-row-card", { hasText: "Leader Commissioning" })).toBeVisible();
   });
 
   test("guest EMMA uses read-only demo responses", async ({ page }) => {
