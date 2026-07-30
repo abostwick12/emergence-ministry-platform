@@ -284,6 +284,10 @@ function configuredProviders(): Array<{ id: "gloo" | "gemini"; model: string; pr
   return providers;
 }
 
+export function isLeaderDailyBriefAiConfigured(env: Partial<NodeJS.ProcessEnv> = process.env) {
+  return Boolean(readGlooEmmaConfig(env) || env.GEMINI_API_KEY?.trim());
+}
+
 async function findLeaderResource(evidence: LeaderDailyBriefEvidence, fetchImpl?: typeof fetch) {
   const warnings: string[] = [];
   try {

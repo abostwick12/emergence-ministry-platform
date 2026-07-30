@@ -79,6 +79,11 @@ if (body.status === "duplicate_skipped") {
   process.exit(0);
 }
 
+if (body.status === "sent_activity_unrecorded" && body.posted === true) {
+  console.log("Lead Emergence Leader Daily Brief posted to GroupMe, but activity logging was unavailable. No retry will be attempted.");
+  process.exit(0);
+}
+
 if (body.status !== "sent") {
   fail(`Leader Daily Brief endpoint did not post to GroupMe. Response: ${summarizeBody(body)}`);
 }
