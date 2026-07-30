@@ -15,6 +15,7 @@ const publicPaths = [
   "/api/auth/logout",
   "/api/auth/invite-session",
   "/api/daily-intelligence/brief",
+  "/api/leader-daily-brief/groupme",
   "/api/integrations/groupme/callback",
   "/api/integrations/groupme/callback/complete",
   "/integrations/groupme/callback",
