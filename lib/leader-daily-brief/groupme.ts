@@ -25,6 +25,16 @@ export class LeaderBriefGroupMeDisabledError extends Error {
   }
 }
 
+export class LeaderBriefGroupMePostError extends Error {
+  constructor(
+    readonly downstreamStatus: number,
+    readonly downstreamContentType: string | null,
+    readonly downstreamBody: string | null
+  ) {
+    super(`Leader Daily Brief GroupMe post failed with HTTP ${downstreamStatus}.`);
+  }
+}
+
 export function readLeaderBriefGroupMeConfig(env: LeaderBriefGroupMeEnv = process.env): LeaderBriefGroupMeConfig {
   const enabledValue = cleanEnv(env.LEADER_DAILY_BRIEF_ENABLED);
   const enabled = enabledValue?.toLowerCase() !== "false";
@@ -56,10 +66,25 @@ export async function sendLeaderDailyBriefToGroupMe(params: {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ bot_id: config.botId, text })
   });
-  if (!response.ok) throw new Error(`Leader Daily Brief GroupMe post failed: ${response.status}`);
+  if (!response.ok) {
+    throw new LeaderBriefGroupMePostError(
+      response.status,
+      response.headers.get("content-type"),
+      await readSafeResponseBody(response)
+    );
+  }
 
   const messageId = await readMessageId(response);
   return { messageId, groupId: config.groupId };
+}
+
+async function readSafeResponseBody(response: Response) {
+  const body = await response.text().catch(() => "");
+  if (!body) return null;
+  return body
+    .replace(/(["']?(?:bot_id|authorization|api[_-]?key|token|secret)["']?\s*[:=]\s*["']?)[^\s,}"']+/gi, "$1[redacted]")
+    .replace(/Bearer\s+[^\s,}"']+/gi, "Bearer [redacted]")
+    .slice(0, 300);
 }
 
 function cleanEnv(value: string | undefined) {

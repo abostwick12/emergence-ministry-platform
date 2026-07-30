@@ -31,8 +31,17 @@ type ActivityLogRow = {
   created_at: string;
 };
 
-export async function loadLeaderDailyBriefEvidence(now = new Date()): Promise<LeaderDailyBriefEvidence> {
+export type LeaderDailyBriefCollectionStage = "collect_context" | "collect_events" | "collect_sermon_prep" | "collect_resources";
+
+export async function loadLeaderDailyBriefEvidence(
+  now = new Date(),
+  onStage?: (stage: LeaderDailyBriefCollectionStage) => void
+): Promise<LeaderDailyBriefEvidence> {
+  onStage?.("collect_context");
   const data = await getMinistryIntelligenceData();
+  onStage?.("collect_events");
+  onStage?.("collect_sermon_prep");
+  onStage?.("collect_resources");
   const [eventFileHints, publishedSermonResources, volunteerSignals] = await Promise.all([
     loadEventFileHints(data.ministryId),
     loadPublishedSermonResources(data.ministryId),
