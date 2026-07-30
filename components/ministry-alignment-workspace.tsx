@@ -244,6 +244,7 @@ function MinistrySignalsOverview({ center, overview }: { center: DecisionCenterS
   const activeEvents = overview.events.filter((event) => !event.archivedAt);
   const openTasks = overview.tasks.filter((task) => task.status !== "done");
   const blockedTasks = openTasks.filter((task) => task.status === "blocked");
+  const guestAnalytics = overview.guestAnalytics;
 
   return (
     <div className="ministry-signals-overview">
@@ -268,8 +269,10 @@ function MinistrySignalsOverview({ center, overview }: { center: DecisionCenterS
         <SignalNowCard
           icon={<Activity aria-hidden="true" />}
           label="Visible ministry life"
-          value={`${activeEvents.length} active plan${activeEvents.length === 1 ? "" : "s"}`}
-          detail={`${center.signals.length} current signal${center.signals.length === 1 ? "" : "s"} can be inspected with source evidence.`}
+          value={guestAnalytics ? `${guestAnalytics.studentCount} students` : `${activeEvents.length} active plan${activeEvents.length === 1 ? "" : "s"}`}
+          detail={guestAnalytics
+            ? `${guestAnalytics.staffCount} staff, ${guestAnalytics.volunteerCount} adult volunteers (${guestAnalytics.volunteerGenderDistribution.male} men / ${guestAnalytics.volunteerGenderDistribution.female} women), ${guestAnalytics.smallGroupCount} small groups.`
+            : `${center.signals.length} current signal${center.signals.length === 1 ? "" : "s"} can be inspected with source evidence.`}
         />
         <SignalNowCard
           icon={<AlertTriangle aria-hidden="true" />}
@@ -283,6 +286,14 @@ function MinistrySignalsOverview({ center, overview }: { center: DecisionCenterS
           value={center.direction.horizon}
           detail={`${center.direction.owner} owns the current season review posture.`}
         />
+        {guestAnalytics ? (
+          <SignalNowCard
+            icon={<TrendingUp aria-hidden="true" />}
+            label="Guest trend window"
+            value={`${guestAnalytics.historyMonths} months`}
+            detail={`Friday events are planned through ${formatDateOnly(guestAnalytics.plannedThroughDate)}; 2025 attendance records show event growth and Sunday decline.`}
+          />
+        ) : null}
       </div>
     </div>
   );
@@ -439,10 +450,14 @@ function buildSignalCategories(center: DecisionCenterState, overview: MinistryOv
     {
       title: "Volunteer Capacity Signals",
       question: "Are we caring for the people caring for students?",
-      observation: volunteersNeeded
+      observation: overview.guestAnalytics
+        ? "Guest mode separates the 3 staff members from the 20 adult volunteers so serving load can be inspected clearly."
+        : volunteersNeeded
         ? "Volunteer demand is visible on event records and can be compared against ownership and readiness."
         : "Volunteer demand fields are not yet strong enough for a serving-frequency signal.",
-      evidence: `${volunteersNeeded} visible volunteer slot${volunteersNeeded === 1 ? "" : "s"} across active plans.`,
+      evidence: overview.guestAnalytics
+        ? `${overview.guestAnalytics.volunteerCount} adult volunteers: ${overview.guestAnalytics.volunteerGenderDistribution.male} men and ${overview.guestAnalytics.volunteerGenderDistribution.female} women.`
+        : `${volunteersNeeded} visible volunteer slot${volunteersNeeded === 1 ? "" : "s"} across active plans.`,
       boundary: "Measures stewardship signals, not volunteer productivity.",
       icon: <UsersRound aria-hidden="true" />,
       tone: volunteersNeeded ? "cyan" : "neutral"
@@ -522,6 +537,7 @@ function buildPatternDetections(center: DecisionCenterState, overview: MinistryO
 function buildLoadMapRows(overview: MinistryOverview, center: DecisionCenterState): MinistryLoadMapRow[] {
   const activeEvents = overview.events.filter((event) => !event.archivedAt);
   const openTasks = overview.tasks.filter((task) => task.status !== "done");
+  const guestAnalytics = overview.guestAnalytics;
   const rows = [
     { area: "High School Ministry", matcher: /high_school_event/ },
     { area: "Middle School Ministry", matcher: /middle_school_event/ },
@@ -540,7 +556,7 @@ function buildLoadMapRows(overview: MinistryOverview, center: DecisionCenterStat
       area: row.area,
       volunteerDemand: volunteerDemand ? loadLabel(volunteerDemand, 3, 8) : "Not visible",
       staffDemand: tasks.length ? loadLabel(tasks.length, 4, 10) : "Low",
-      growthEvidence: "Attendance trend not connected",
+      growthEvidence: guestAnalytics ? guestGrowthEvidence(row.area, guestAnalytics) : "Attendance trend not connected",
       risk: highRisk ? "Increasing" : events.length ? "Stable" : "Low evidence",
       riskTone: highRisk ? "warning" : events.length ? "success" : "neutral"
     };
@@ -564,15 +580,20 @@ function buildCapacityForecasts(center: DecisionCenterState, overview: MinistryO
   const blockedTasks = openTasks.filter((task) => task.status === "blocked");
   const volunteersNeeded = activeEvents.reduce((total, event) => total + Number(event.volunteersNeeded ?? 0), 0);
   const ownershipGaps = activeEvents.filter((event) => !event.contactOwnerId).length;
+  const guestAnalytics = overview.guestAnalytics;
 
   return [
     {
       title: "Leader coverage could become the next constraint",
       horizon: "Next planning window",
-      detail: volunteersNeeded
+      detail: guestAnalytics
+        ? `${guestAnalytics.growingGroup.name} is approaching split pressure while ${guestAnalytics.volunteerWorkload.overusedVolunteerNames.join(" and ")} carry the heaviest serving rhythm.`
+        : volunteersNeeded
         ? "Visible event plans already name leader or volunteer demand, so coverage should stay part of discernment before additional activity is added."
         : "The forecast cannot assess leader coverage until volunteer demand and attendance signals are connected.",
-      evidence: `${volunteersNeeded} visible volunteer slot${volunteersNeeded === 1 ? "" : "s"} across ${activeEvents.length} active plan${activeEvents.length === 1 ? "" : "s"}.`,
+      evidence: guestAnalytics
+        ? `${guestAnalytics.studentCount} students, ${guestAnalytics.smallGroupCount} groups, ${guestAnalytics.volunteerCount} adult volunteers; ${guestAnalytics.volunteerWorkload.underusedVolunteerIds.length} volunteers are underused.`
+        : `${volunteersNeeded} visible volunteer slot${volunteersNeeded === 1 ? "" : "s"} across ${activeEvents.length} active plan${activeEvents.length === 1 ? "" : "s"}.`,
       boundary: "Does not decide whether to recruit, split groups, or change programs.",
       icon: <UsersRound aria-hidden="true" />,
       tone: volunteersNeeded ? "cyan" : "neutral"
@@ -606,6 +627,28 @@ function loadLabel(value: number, mediumAt: number, highAt: number) {
   if (value >= highAt) return "High";
   if (value >= mediumAt) return "Moderate";
   return "Low";
+}
+
+function guestGrowthEvidence(area: string, analytics: NonNullable<MinistryOverview["guestAnalytics"]>) {
+  if (area === "Small Groups") {
+    return `${analytics.growingGroup.name} grew ${analytics.growingGroup.weeklyCounts[0]} to ${analytics.growingGroup.weeklyCounts.at(-1)} students.`;
+  }
+  if (area === "Retreats and Serve Days") {
+    return `Friday event attendance rose ${Math.round(analytics.specialEventAttendanceFirstQuarter)} to ${Math.round(analytics.specialEventAttendanceLastQuarter)}.`;
+  }
+  if (area === "Middle School Ministry") {
+    return `${analytics.middleSchoolStudentCount} students; Sunday trend is declining.`;
+  }
+  if (area === "High School Ministry") {
+    return `${analytics.highSchoolStudentCount} students; Friday events remain planned through December.`;
+  }
+  return "Compared to guest attendance records";
+}
+
+function formatDateOnly(value: string) {
+  const date = new Date(`${value}T12:00:00.000Z`);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
 function MinistryMemoryDemo({ memory }: { memory: MinistryMemoryDemoState }) {
