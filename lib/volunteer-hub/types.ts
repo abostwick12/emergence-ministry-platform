@@ -176,6 +176,7 @@ export type VolunteerHubState = {
 
 export type VolunteerHubPayload = {
   dataSource: VolunteerHubDataSource;
+  canonicalVersion?: string;
   readOnlyReason?: string;
   role: VolunteerHubRole;
   activeVolunteer: VolunteerHubVolunteer;
@@ -189,6 +190,7 @@ export type VolunteerHubPayload = {
   activeGroups: VolunteerHubSmallGroup[];
   archivedGroups: VolunteerHubSmallGroup[];
   volunteers: VolunteerHubVolunteer[];
+  staff?: VolunteerHubVolunteer[];
   tasks: VolunteerHubTask[];
   resources: VolunteerHubResource[];
   trainingModules: VolunteerHubTrainingModule[];

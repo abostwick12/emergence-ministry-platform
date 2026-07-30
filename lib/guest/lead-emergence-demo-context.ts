@@ -15,6 +15,22 @@ export const LEAD_EMERGENCE_DEMO_YEAR = 2026;
 export const LEAD_EMERGENCE_DEMO_HISTORY_YEAR = 2025;
 export const LEAD_EMERGENCE_DEMO_SOURCE = "lead-emergence-demo";
 
+export const LEAD_EMERGENCE_DEMO_COUNT_CONTRACT = {
+  staff: 3,
+  volunteers: 20,
+  maleVolunteers: 13,
+  femaleVolunteers: 7,
+  students: 150,
+  smallGroups: 10,
+  users: 23,
+  occurrences: 440,
+  events: 440,
+  attendanceRecords: 21300,
+  servingAssignments: 704,
+  tasks: 152,
+  eventOutcomes: 19
+} as const;
+
 export type DemoGender = "male" | "female";
 export type DemoAgeGroup = "middle_school" | "high_school";
 export type DemoStaffRole = "nextgen_director" | "middle_school_pastor" | "high_school_pastor";
@@ -369,6 +385,17 @@ export function buildLeadEmergenceDemoContext(): LeadEmergenceDemoContext {
 export function createLeadEmergenceDemoSandboxState() {
   const context = buildLeadEmergenceDemoContext();
   return {
+    version: context.version,
+    staff: cloneArray(context.staff),
+    volunteers: cloneArray(context.volunteers),
+    students: cloneArray(context.students),
+    smallGroups: cloneArray(context.smallGroups),
+    occurrences: cloneArray(context.occurrences),
+    attendance: cloneArray(context.attendance),
+    servingAssignments: cloneArray(context.servingAssignments),
+    demoTasks: cloneArray(context.tasks),
+    eventOutcomes: cloneArray(context.eventOutcomes),
+    ministrySignals: cloneArray(context.ministrySignals),
     users: cloneArray(context.overview.users),
     events: cloneArray(context.overview.events),
     tasks: cloneArray(context.overview.tasks),

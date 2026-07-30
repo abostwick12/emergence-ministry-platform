@@ -259,10 +259,10 @@ function MasterEventCardInner({
         leaders?: VolunteerLeader[];
         eventLeaderAssignments?: EventLeaderAssignments;
       };
-      if (leadersPayload.dataSource === "live" && !leadersPayload.readOnlyReason) {
+      if ((leadersPayload.dataSource === "live" || leadersPayload.dataSource === "guest_demo") && !leadersPayload.readOnlyReason) {
         setVolunteerLeaders(leadersPayload.leaders ?? []);
         setEventLeaderAssignments(leadersPayload.eventLeaderAssignments ?? {});
-        setLiveVolunteerLeaderPersistence(true);
+        setLiveVolunteerLeaderPersistence(leadersPayload.dataSource === "live");
       }
     }
 
