@@ -42,6 +42,7 @@ vi.mock("@/lib/emma/providers/openai-provider", () => ({
 import {
   generateMeridianDiscussionDraft,
   generateMeridianReadingPlanDraft,
+  generateMeridianSermonPrepResource,
   getMeridianAiReadiness
 } from "@/lib/scripture/meridian-ai";
 
@@ -174,5 +175,51 @@ describe("Meridian AI provider routing", () => {
       weeklyRhythm: ["Day 1: Exodus 1-2"]
     });
     expect(generateGlooReadingPlanDraftMock).not.toHaveBeenCalled();
+  });
+
+  it("builds a Meridian-shaped deterministic leader guide with provenance when providers are offline", async () => {
+    const result = await generateMeridianSermonPrepResource({
+      kind: "leader_guide",
+      title: "When the King Kneels",
+      passage: "John 13:1-17",
+      bigIdea: "Real authority stoops. If Jesus is Lord, love looks like a towel, not a title.",
+      body: "Jesus knows where he comes from and where he is going, so he kneels to wash feet before the cross."
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      provider: "deterministic",
+      provenance: expect.objectContaining({
+        meridianRan: true,
+        fallbackUsed: true,
+        validationResult: "validated",
+        selectedSourceTypes: expect.arrayContaining(["current_sermon_draft", "lesson_big_idea"])
+      })
+    });
+    expect(result.contentMarkdown).toContain("## Lesson Summary");
+    expect(result.contentMarkdown).toContain("## Likely Student Misunderstandings");
+    expect(result.contentMarkdown).toContain("## Pastoral Considerations");
+    expect(result.contentMarkdown).not.toMatch(/citation|footnote|internal document/i);
+  });
+
+  it("builds student-ready small group questions through Notice, Interpret, Wrestle, Practice, and Community", async () => {
+    const result = await generateMeridianSermonPrepResource({
+      kind: "small_group_questions",
+      title: "When the King Kneels",
+      passage: "John 13:1-17",
+      bigIdea: "Real authority stoops. If Jesus is Lord, love looks like a towel, not a title.",
+      body: "Jesus washes feet and teaches his disciples the shape of kingdom love."
+    });
+
+    expect(result.contentMarkdown).toEqual(expect.stringContaining("Notice:"));
+    expect(result.contentMarkdown).toEqual(expect.stringContaining("Interpret:"));
+    expect(result.contentMarkdown).toEqual(expect.stringContaining("Wrestle:"));
+    expect(result.contentMarkdown).toEqual(expect.stringContaining("Practice:"));
+    expect(result.contentMarkdown).toEqual(expect.stringContaining("Community:"));
+    expect(result.provenance).toMatchObject({
+      meridianRan: true,
+      fallbackUsed: true,
+      validationResult: "validated"
+    });
   });
 });

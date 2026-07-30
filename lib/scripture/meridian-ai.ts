@@ -12,6 +12,15 @@ import {
   type GlooModelTier,
   type GlooReadingPlanDraftInput
 } from "@/lib/scripture/gloo";
+import {
+  buildMeridianProvenance,
+  buildMeridianSynthesisBrief,
+  formatMeridianSynthesisBriefForAi,
+  validateMeridianArtifact,
+  type MeridianGenerationProvenance,
+  type MeridianSynthesisBrief,
+  type MeridianValidationResult
+} from "@/lib/scripture/meridian-synthesis";
 import type { MetanarrativeMovement, StudentDiscussionPrompt } from "@/lib/scripture/types";
 
 export type MeridianAiProviderId = "gloo" | "gemini" | "openai";
@@ -38,6 +47,7 @@ export type MeridianDiscussionDraftResult =
       discussionPrompt: string;
       safetyLabel: Exclude<StudentDiscussionPrompt["safetyLabel"], "unreviewed">;
       safetyNotes: string;
+      provenance: MeridianGenerationProvenance;
     }
   | {
       ok: false;
@@ -78,6 +88,7 @@ export type MeridianReadingPlanDraftResult =
       guardrailNotes: string[];
       prayerPrompt: string;
       safetyNotes: string;
+      provenance: MeridianGenerationProvenance;
     }
   | {
       ok: false;
@@ -107,6 +118,11 @@ export type MeridianSermonPrepResourceResult = {
   estimatedMinutes: number;
   sources: string[];
   warnings: string[];
+  provenance: MeridianGenerationProvenance;
+};
+
+export type MeridianDiscussionDraftInput = GlooDiscussionDraftInput & {
+  synthesisBrief?: MeridianSynthesisBrief;
 };
 
 type FallbackProviderConfig = {
@@ -165,16 +181,43 @@ export function getMeridianAiReadiness(env: Partial<NodeJS.ProcessEnv> = process
   };
 }
 
-export async function generateMeridianDiscussionDraft(input: GlooDiscussionDraftInput): Promise<MeridianDiscussionDraftResult> {
+export async function generateMeridianDiscussionDraft(input: MeridianDiscussionDraftInput): Promise<MeridianDiscussionDraftResult> {
   const readiness = getMeridianAiReadiness();
   const attemptedProviders: MeridianAiProviderId[] = [];
   let lastFailure = "";
+  const synthesisBrief = input.synthesisBrief ?? buildMeridianSynthesisBrief({
+    taskType: "discussion_prompt",
+    request: input.question,
+    audience: "students in a leader-reviewed small group",
+    scriptureReference: input.scriptureReference,
+    metanarrativeMovement: input.metanarrativeMovement,
+    internalGroundingContext: input.internalGroundingContext
+  });
+  const providerInput = discussionInputWithSynthesis(input, synthesisBrief);
 
   if (readiness.gloo) {
     attemptedProviders.push("gloo");
-    const glooDraft = await generateGlooDiscussionDraft(input);
-    if (glooDraft.ok) return glooDraft;
-    lastFailure = glooDraft.message;
+    const glooDraft = await generateGlooDiscussionDraft(providerInput);
+    if (glooDraft.ok) {
+      const validation = validateMeridianArtifact({
+        taskType: "discussion_prompt",
+        content: glooDraft.discussionPrompt
+      });
+      if (validation.ok) {
+        return {
+          ...glooDraft,
+          provenance: buildMeridianProvenance({
+            brief: synthesisBrief,
+            provider: glooDraft.provider,
+            model: glooDraft.model,
+            validation
+          })
+        };
+      }
+      lastFailure = `Gloo returned a draft that failed validation: ${validation.reason}.`;
+    } else {
+      lastFailure = glooDraft.message;
+    }
   }
 
   for (const fallback of createFallbackProviders()) {
@@ -183,12 +226,12 @@ export async function generateMeridianDiscussionDraft(input: GlooDiscussionDraft
       const result = await fallback.provider.generate({
         model: fallback.model,
         systemPrompt: discussionSystemPrompt(),
-        userPrompt: discussionUserPrompt(input, fallback.id, lastFailure),
+        userPrompt: discussionUserPrompt(providerInput, fallback.id, lastFailure, synthesisBrief),
         temperature: 0.25,
         maxOutputTokens: 900,
         timeoutMs: 15_000
       });
-      const parsed = parseDiscussionOutput(result.output, fallback.id, result.model || fallback.model);
+      const parsed = parseDiscussionOutput(result.output, fallback.id, result.model || fallback.model, synthesisBrief);
       if (parsed) return parsed;
       lastFailure = `${fallback.id} returned an unusable discussion draft.`;
     } catch (error) {
@@ -212,12 +255,48 @@ export async function generateMeridianReadingPlanDraft(input: MeridianReadingPla
   const readiness = getMeridianAiReadiness();
   const attemptedProviders: MeridianAiProviderId[] = [];
   let lastFailure = "";
+  const synthesisBrief = buildMeridianSynthesisBrief({
+    taskType: "reading_plan",
+    request: `${input.title} ${input.contextNotes} ${input.observationQuestion} ${input.interpretationQuestion}`,
+    audience: input.audience,
+    scriptureReference: input.primaryScripture
+  });
+  const providerInput: MeridianReadingPlanDraftInput = {
+    ...input,
+    contextNotes: [
+      "Meridian Synthesis Brief:",
+      formatMeridianSynthesisBriefForAi(synthesisBrief),
+      "",
+      "Leader-entered context notes:",
+      input.contextNotes || "No additional notes provided."
+    ].join("\n")
+  };
 
   if (readiness.gloo) {
     attemptedProviders.push("gloo");
-    const glooDraft = await generateGlooReadingPlanDraft(toGlooReadingPlanInput(input));
-    if (glooDraft.ok) return glooDraft;
-    lastFailure = glooDraft.message;
+    const glooDraft = await generateGlooReadingPlanDraft(toGlooReadingPlanInput(providerInput));
+    if (glooDraft.ok) {
+      const validation = validateMeridianArtifact({
+        taskType: "reading_plan",
+        title: glooDraft.title,
+        summary: glooDraft.summary,
+        content: [glooDraft.contextFocus, ...glooDraft.weeklyRhythm, ...glooDraft.discussionPrompts].join("\n")
+      });
+      if (validation.ok) {
+        return {
+          ...glooDraft,
+          provenance: buildMeridianProvenance({
+            brief: synthesisBrief,
+            provider: glooDraft.provider,
+            model: glooDraft.model,
+            validation
+          })
+        };
+      }
+      lastFailure = `Gloo returned a reading plan that failed validation: ${validation.reason}.`;
+    } else {
+      lastFailure = glooDraft.message;
+    }
   }
 
   for (const fallback of createFallbackProviders()) {
@@ -226,12 +305,12 @@ export async function generateMeridianReadingPlanDraft(input: MeridianReadingPla
       const result = await fallback.provider.generate({
         model: fallback.model,
         systemPrompt: readingPlanSystemPrompt(),
-        userPrompt: readingPlanUserPrompt(input, fallback.id, lastFailure),
+        userPrompt: readingPlanUserPrompt(providerInput, fallback.id, lastFailure),
         temperature: 0.25,
         maxOutputTokens: 1400,
         timeoutMs: 18_000
       });
-      const parsed = parseReadingPlanOutput(result.output, fallback.id, result.model || fallback.model, input);
+      const parsed = parseReadingPlanOutput(result.output, fallback.id, result.model || fallback.model, input, synthesisBrief);
       if (parsed) return parsed;
       lastFailure = `${fallback.id} returned an unusable reading-plan draft.`;
     } catch (error) {
@@ -263,28 +342,42 @@ export async function generateMeridianSermonPrepResource(input: MeridianSermonPr
   }
   configuredProviders.push(...createFallbackProviders().filter((provider) => provider.id === "gemini"));
 
+  const synthesisBrief = buildMeridianSynthesisBrief({
+    taskType: input.kind,
+    request: `${input.title} ${input.passage} ${input.bigIdea}`,
+    audience: input.kind === "small_group_questions" ? "teenagers in a small group" : "volunteer small-group leaders",
+    scriptureReference: input.passage,
+    sermon: {
+      title: input.title,
+      passage: input.passage,
+      bigIdea: input.bigIdea,
+      excerpt: input.body.slice(0, 3200)
+    }
+  });
   const warnings: string[] = [];
   for (const candidate of configuredProviders) {
-    try {
-      const result = await candidate.provider.generate({
-        model: candidate.model,
-        systemPrompt: sermonPrepSystemPrompt(input.kind),
-        userPrompt: sermonPrepUserPrompt(input, candidate.id),
-        temperature: 0.28,
-        maxOutputTokens: 1800,
-        timeoutMs: 20_000
-      });
-      const parsed = parseSermonPrepResourceOutput(result.output, candidate.id, result.model || candidate.model, input);
-      if (parsed) return parsed;
-      warnings.push(`${candidate.id} returned an unusable sermon-prep resource.`);
-    } catch (error) {
-      const providerError = normalizeProviderError(error);
-      warnings.push(`${candidate.id} failed safely with ${providerError.code}.`);
-      logFallbackFailure("sermon_prep", candidate.id, providerError.code, providerError.httpStatus);
+    for (const attempt of [1, 2]) {
+      try {
+        const result = await candidate.provider.generate({
+          model: candidate.model,
+          systemPrompt: sermonPrepSystemPrompt(input.kind),
+          userPrompt: sermonPrepUserPrompt(input, candidate.id, synthesisBrief, attempt === 1 ? "" : warnings.at(-1) ?? ""),
+          temperature: attempt === 1 ? 0.28 : 0.18,
+          maxOutputTokens: 1900,
+          timeoutMs: 20_000
+        });
+        const parsed = parseSermonPrepResourceOutput(result.output, candidate.id, result.model || candidate.model, input, synthesisBrief);
+        if (parsed) return parsed;
+        warnings.push(`${candidate.id} returned an unusable sermon-prep resource on attempt ${attempt}.`);
+      } catch (error) {
+        const providerError = normalizeProviderError(error);
+        warnings.push(`${candidate.id} failed safely with ${providerError.code} on attempt ${attempt}.`);
+        logFallbackFailure("sermon_prep", candidate.id, providerError.code, providerError.httpStatus);
+      }
     }
   }
 
-  return deterministicSermonPrepResource(input, warnings.length ? warnings : ["No live Meridian AI provider was configured."]);
+  return deterministicSermonPrepResource(input, warnings.length ? warnings : ["No live Meridian AI provider was configured."], synthesisBrief);
 }
 
 function createFallbackProviders(env: Partial<NodeJS.ProcessEnv> = process.env): FallbackProviderConfig[] {
@@ -319,7 +412,12 @@ function getFallbackProviderOrder(env: Partial<NodeJS.ProcessEnv>): Array<"gemin
   return configured?.length ? Array.from(new Set(configured)) : ["gemini", "openai"];
 }
 
-function parseDiscussionOutput(output: unknown, provider: EmmaProviderId, model: string): Extract<MeridianDiscussionDraftResult, { ok: true }> | undefined {
+function parseDiscussionOutput(
+  output: unknown,
+  provider: EmmaProviderId,
+  model: string,
+  synthesisBrief: MeridianSynthesisBrief
+): Extract<MeridianDiscussionDraftResult, { ok: true }> | undefined {
   if (provider !== "gemini" && provider !== "openai") return undefined;
   if (!output || typeof output !== "object") return undefined;
   const parsed = output as ParsedDiscussionDraft;
@@ -327,6 +425,8 @@ function parseDiscussionOutput(output: unknown, provider: EmmaProviderId, model:
   const safetyLabel = normalizeSafetyLabel(parsed.safetyLabel);
   const safetyNotes = textValue(parsed.safetyNotes, 900);
   if (!discussionPrompt || !safetyLabel || !safetyNotes) return undefined;
+  const validation = validateMeridianArtifact({ taskType: "discussion_prompt", content: discussionPrompt });
+  if (!validation.ok) return undefined;
 
   return {
     ok: true,
@@ -339,7 +439,13 @@ function parseDiscussionOutput(output: unknown, provider: EmmaProviderId, model:
     confidence: normalizeConfidence(parsed.confidence),
     discussionPrompt,
     safetyLabel,
-    safetyNotes
+    safetyNotes,
+    provenance: buildMeridianProvenance({
+      brief: synthesisBrief,
+      provider,
+      model,
+      validation
+    })
   };
 }
 
@@ -347,7 +453,8 @@ function parseReadingPlanOutput(
   output: unknown,
   provider: EmmaProviderId,
   model: string,
-  input: MeridianReadingPlanDraftInput
+  input: MeridianReadingPlanDraftInput,
+  synthesisBrief: MeridianSynthesisBrief
 ): Extract<MeridianReadingPlanDraftResult, { ok: true }> | undefined {
   if (provider !== "gemini" && provider !== "openai") return undefined;
   if (!output || typeof output !== "object") return undefined;
@@ -368,6 +475,13 @@ function parseReadingPlanOutput(
   if (!title || !audience || !duration || !primaryScripture || !summary || !contextFocus || weeklyRhythm.length < 1 || discussionPrompts.length < 1) {
     return undefined;
   }
+  const validation = validateMeridianArtifact({
+    taskType: "reading_plan",
+    title,
+    summary,
+    content: [contextFocus, ...weeklyRhythm, ...discussionPrompts].join("\n")
+  });
+  if (!validation.ok) return undefined;
 
   return {
     ok: true,
@@ -385,7 +499,13 @@ function parseReadingPlanOutput(
     discussionPrompts,
     guardrailNotes,
     prayerPrompt,
-    safetyNotes
+    safetyNotes,
+    provenance: buildMeridianProvenance({
+      brief: synthesisBrief,
+      provider,
+      model,
+      validation
+    })
   };
 }
 
@@ -393,16 +513,20 @@ function discussionSystemPrompt() {
   return "You help student ministry leaders prepare careful, Scripture-grounded discussion prompts. Return only JSON with keys discussionPrompt, safetyLabel, safetyNotes, confidence, topicTags, escalationReason. safetyLabel must be safe, needs_leader_care, or pastoral_escalation. Keep the draft leader-reviewed, humble, and usable with real students. Do not include full Bible text or crisis counseling.";
 }
 
-function discussionUserPrompt(input: GlooDiscussionDraftInput, provider: "gemini" | "openai", previousFailure: string) {
+function discussionUserPrompt(
+  input: MeridianDiscussionDraftInput,
+  provider: "gemini" | "openai",
+  previousFailure: string,
+  synthesisBrief: MeridianSynthesisBrief
+) {
   return (
     `Fallback provider: ${provider}\n` +
     `Previous Gloo result: ${previousFailure || "Gloo was not configured or was skipped."}\n` +
     `Student question: ${input.question}\n` +
     `Scripture reference: ${input.scriptureReference || "not selected"}\n` +
     `Story-lens hint: ${input.metanarrativeMovement ?? "infer from the question and passage"}\n\n` +
-    `Student-visible ministry context:\n${input.retrievedContext || "No retrieved context available."}\n\n` +
-    `Internal grounding for posture only. Do not quote, summarize, cite, reveal, or assign this material to students:\n${input.internalGroundingContext || "No internal grounding context available."}\n\n` +
-    "Draft one Socratic small-group discussion prompt for leader review."
+    `Meridian Synthesis Brief:\n${formatMeridianSynthesisBriefForAi(synthesisBrief)}\n\n` +
+    "Draft one Socratic small-group discussion prompt for leader review. Synthesize the brief naturally; do not cite internal documents or sources."
   );
 }
 
@@ -492,7 +616,8 @@ function parseSermonPrepResourceOutput(
   output: unknown,
   provider: MeridianAiProviderId,
   model: string,
-  input: MeridianSermonPrepResourceInput
+  input: MeridianSermonPrepResourceInput,
+  synthesisBrief: MeridianSynthesisBrief
 ): MeridianSermonPrepResourceResult | undefined {
   if (!output || typeof output !== "object") return undefined;
   const parsed = output as ParsedSermonPrepResource;
@@ -500,6 +625,14 @@ function parseSermonPrepResourceOutput(
   const summary = textValue(parsed.summary, 500);
   const contentMarkdown = textValue(parsed.contentMarkdown, 7000);
   if (!summary || !contentMarkdown) return undefined;
+  const validation = validateMeridianArtifact({
+    taskType: input.kind,
+    title,
+    summary,
+    content: contentMarkdown,
+    requiredMarkers: requiredMarkersForKind(input.kind)
+  });
+  if (!validation.ok) return undefined;
 
   return {
     ok: true,
@@ -511,11 +644,21 @@ function parseSermonPrepResourceOutput(
     contentMarkdown,
     estimatedMinutes: normalizeEstimatedMinutes(parsed.estimatedMinutes, input.kind),
     sources: normalizeStringArray(parsed.sources, 6).length ? normalizeStringArray(parsed.sources, 6) : sermonPrepSources(input, provider),
-    warnings: normalizeStringArray(parsed.warnings, 4)
+    warnings: normalizeStringArray(parsed.warnings, 4),
+    provenance: buildMeridianProvenance({
+      brief: synthesisBrief,
+      provider,
+      model,
+      validation
+    })
   };
 }
 
-function deterministicSermonPrepResource(input: MeridianSermonPrepResourceInput, warnings: string[]): MeridianSermonPrepResourceResult {
+function deterministicSermonPrepResource(
+  input: MeridianSermonPrepResourceInput,
+  warnings: string[],
+  synthesisBrief: MeridianSynthesisBrief
+): MeridianSermonPrepResourceResult {
   const title = defaultSermonResourceTitle(input);
   const passage = input.passage.trim() || "selected Scripture";
   const bigIdea = input.bigIdea.trim() || "Jesus forms leaders through humble love.";
@@ -543,22 +686,32 @@ function deterministicSermonPrepResource(input: MeridianSermonPrepResourceInput,
       `Passage: ${passage}`,
       `Big Idea: ${bigIdea}`,
       "",
-      "## Leader Goal",
-      "Help students see that Jesus' authority is not threatened by humble service; it is revealed through it.",
+      "## Lesson Summary",
+      `This lesson helps students see ${bigIdea} The passage should move the group from observing Jesus' action, to interpreting His kingdom authority, to practicing love from received grace.`,
       "",
-      "## Before Group",
+      "## Likely Student Misunderstandings",
+      "- Some students may hear humble service as pressure to perform for God instead of a response to Jesus' love.",
+      "- Some may treat the towel as a generic kindness example and miss that Jesus serves from secure identity with the Father.",
+      "- Some may resist being served because receiving grace can feel more vulnerable than doing religious work.",
+      "",
+      "## Leader Guidance",
       "- Read the passage slowly and notice what Jesus knows before he kneels.",
-      "- Prepare to redirect performance language toward receiving grace from Jesus.",
-      "- Watch for students who carry shame around being served or seen.",
+      "- Keep returning to receive before serve. Lead students away from self-improvement language and toward grace-shaped response.",
+      "- Use concise follow-up questions. Do not rescue every silence too quickly.",
       "",
-      "## Discussion Flow",
-      "1. What stands out about the timing of Jesus washing feet?",
-      "2. Why might Peter resist being served by Jesus?",
-      "3. Where do we prefer a title over a towel?",
-      "4. What is one specific towel-shaped act of love this week?",
+      "## Discussion Strategy",
+      "1. Notice: What does Jesus know, and what does He do next?",
+      "2. Interpret: What does this reveal about authority in Jesus' kingdom?",
+      "3. Wrestle: Why might Peter resist receiving from Jesus?",
+      "4. Practice: What is one towel-shaped act of love that fits this week?",
+      "5. Community: Who can help you practice this without turning it into a performance?",
       "",
-      "## Close",
-      "Pray that students would receive the love of Jesus and practice humble service from security, not self-protection."
+      "## Pastoral Considerations",
+      "- Watch for students carrying shame, comparison, or pressure to prove usefulness.",
+      "- If a student names a serious care concern, move toward trusted leader follow-up instead of public troubleshooting.",
+      "",
+      "## Practical Application",
+      "Invite each student to name one concrete way to receive Jesus' love and one quiet way to serve from security, not applause."
     ].join("\n"),
     slide_plan: [
       `# ${title}`,
@@ -578,13 +731,23 @@ function deterministicSermonPrepResource(input: MeridianSermonPrepResourceInput,
       "",
       `Passage: ${passage}`,
       "",
-      "1. Observation: What does Jesus know about himself before he washes the disciples' feet?",
-      "2. Interpretation: What does the towel show us about the kind of King Jesus is?",
-      "3. Heart: Where do you resist letting Jesus serve you?",
-      "4. Practice: Who is one person you can serve this week without needing credit?",
-      "5. Prayer: Ask Jesus to make humble love feel like freedom, not loss."
+      "1. Notice: What does Jesus know about Himself before He washes the disciples' feet?",
+      "2. Notice: What words or actions in the passage show that this is more than a random act of kindness?",
+      "3. Interpret: What does the towel reveal about the kind of King Jesus is?",
+      "4. Wrestle: Why do you think Peter pushes back against being served by Jesus?",
+      "5. Wrestle: Where do people our age prefer a title, image, or reputation over humble love?",
+      "6. Practice: What is one specific way to receive Jesus' grace before trying to serve this week?",
+      "7. Practice: Who is one person you can serve quietly without needing credit?",
+      "8. Community: How could this group help each other practice humble love without turning it into a performance?"
     ].join("\n")
   };
+  const validation: MeridianValidationResult = validateMeridianArtifact({
+    taskType: input.kind,
+    title,
+    summary: summaryForSermonKind(input.kind, bigIdea),
+    content: contentByKind[input.kind],
+    requiredMarkers: requiredMarkersForKind(input.kind)
+  });
 
   return {
     ok: true,
@@ -596,7 +759,15 @@ function deterministicSermonPrepResource(input: MeridianSermonPrepResourceInput,
     contentMarkdown: contentByKind[input.kind],
     estimatedMinutes: normalizeEstimatedMinutes(undefined, input.kind),
     sources: sermonPrepSources(input, "deterministic"),
-    warnings
+    warnings: validation.ok ? warnings : [...warnings, `Local fallback validation warning: ${validation.reason}`],
+    provenance: buildMeridianProvenance({
+      brief: synthesisBrief,
+      provider: "deterministic",
+      model: "meridian-deterministic-local",
+      fallbackUsed: true,
+      fallbackReason: warnings.join(" ") || "No live Meridian AI provider was configured.",
+      validation
+    })
   };
 }
 
@@ -605,16 +776,23 @@ function sermonPrepSystemPrompt(kind: SermonPrepResourceKind) {
     "You are Meridian, preparing leader-reviewed sermon resources for Lead Emergence through Gloo AI Studio when configured.",
     "Return only JSON with keys title, summary, contentMarkdown, estimatedMinutes, sources, warnings.",
     "Do not include full Bible text. Do not send, publish externally, create Canva files, or claim a live sync.",
-    "Write direct, useful ministry content, not Socratic coaching.",
+    "Write direct, useful ministry content, not Socratic coaching. The model should not cite internal documents; synthesize them.",
     `Requested resource kind: ${kind}.`
   ].join(" ");
 }
 
-function sermonPrepUserPrompt(input: MeridianSermonPrepResourceInput, provider: MeridianAiProviderId) {
+function sermonPrepUserPrompt(
+  input: MeridianSermonPrepResourceInput,
+  provider: MeridianAiProviderId,
+  synthesisBrief: MeridianSynthesisBrief,
+  previousFailure: string
+) {
   return JSON.stringify({
     provider,
+    previousFailure,
     task: "Generate one sermon-prep resource and make it ready for volunteer leader review.",
     kind: input.kind,
+    meridianSynthesisBrief: synthesisBrief,
     sermon: {
       title: input.title,
       passage: input.passage,
@@ -622,7 +800,7 @@ function sermonPrepUserPrompt(input: MeridianSermonPrepResourceInput, provider: 
       draftExcerpt: input.body.slice(0, 3200)
     },
     expectedShape: resourceShape(input.kind),
-    citationRequirement: "In sources, cite the supplied sermon draft, selected Scripture reference, and Meridian provider context by label."
+    citationRequirement: "Do not cite internal ministry documents. sources is internal diagnostic metadata only; visible prose must read naturally."
   });
 }
 
@@ -653,10 +831,38 @@ function summaryForSermonKind(kind: SermonPrepResourceKind, bigIdea: string) {
 
 function sermonPrepSources(input: MeridianSermonPrepResourceInput, provider: MeridianAiProviderId | "deterministic") {
   return [
-    `Sermon draft: ${input.title.trim() || "Untitled sermon"}`,
-    `Scripture reference: ${input.passage.trim() || "Not selected"}`,
+    `Current sermon draft: ${input.title.trim() || "Untitled sermon"}`,
+    `Selected Scripture reference: ${input.passage.trim() || "Not selected"}`,
     provider === "deterministic" ? "Meridian local fallback" : `Meridian provider: ${provider}`
   ];
+}
+
+function discussionInputWithSynthesis(
+  input: MeridianDiscussionDraftInput,
+  synthesisBrief: MeridianSynthesisBrief
+): GlooDiscussionDraftInput {
+  return {
+    question: input.question,
+    scriptureReference: input.scriptureReference,
+    metanarrativeMovement: input.metanarrativeMovement,
+    retrievedContext: [
+      "Meridian Synthesis Brief:",
+      formatMeridianSynthesisBriefForAi(synthesisBrief),
+      "",
+      "Legacy retrieved context for comparison only; synthesize the brief above instead of citing snippets:",
+      input.retrievedContext || "No legacy retrieved context supplied."
+    ].join("\n"),
+    internalGroundingContext: "Internal grounding has already been synthesized into the Meridian Synthesis Brief. Do not quote, cite, reveal, or assign internal ministry documents."
+  };
+}
+
+function requiredMarkersForKind(kind: SermonPrepResourceKind) {
+  if (kind === "leader_guide") {
+    return ["Lesson Summary", "Likely Student Misunderstandings", "Leader Guidance", "Discussion Strategy", "Pastoral Considerations", "Practical Application"];
+  }
+  if (kind === "small_group_questions") return ["Notice", "Interpret", "Wrestle", "Practice", "Community"];
+  if (kind === "slide_plan") return ["Slide Plan"];
+  return [];
 }
 
 function normalizeEstimatedMinutes(value: unknown, kind: SermonPrepResourceKind) {

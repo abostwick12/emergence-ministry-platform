@@ -5,6 +5,7 @@ import { getSupabaseAdminClient, getSupabaseAuthClient, isSupabaseAdminConfigure
 import { resolveMinistryScope } from "@/lib/ministry/scope";
 import { measureServerOperation } from "@/lib/performance/timing";
 import { generateMeridianDiscussionDraft, getMeridianAiReadiness, type MeridianDiscussionDraftResult } from "@/lib/scripture/meridian-ai";
+import { buildMeridianSynthesisBrief } from "@/lib/scripture/meridian-synthesis";
 import { formatStudentKnowledgeContextForGloo, getInternalGroundingContext, getStudentKnowledgeMatches, getStudentKnowledgeMatchesBatch } from "@/lib/scripture/knowledge";
 import { buildLocalDiscussionDraft, buildLocalDiscussionDraftForPrompt } from "@/lib/scripture/local-discussion-draft";
 import { deliverDiscussionPromptToSlack, isSlackDiscussionDeliveryConfigured } from "@/lib/scripture/slack";
@@ -307,13 +308,23 @@ export async function createStudentDiscussionPrompt(session: AuthSession, input:
           scriptureReference: scripture.reference
         }).catch(() => "")
       : "";
+    const synthesisBrief = buildMeridianSynthesisBrief({
+      taskType: "discussion_prompt",
+      request: question,
+      audience: "students in a leader-reviewed small group",
+      scriptureReference: scripture.reference,
+      metanarrativeMovement,
+      knowledgeMatches: knowledgeContext,
+      internalGroundingContext: groundingContext
+    });
     const aiDraft = ai.configured
       ? await generateMeridianDiscussionDraft({
           question,
           scriptureReference: scripture.reference,
           metanarrativeMovement,
           retrievedContext: formatStudentKnowledgeContextForGloo(knowledgeContext),
-          internalGroundingContext: groundingContext
+          internalGroundingContext: groundingContext,
+          synthesisBrief
         })
       : {
           ok: false as const,
@@ -374,13 +385,23 @@ export async function createStudentDiscussionPrompt(session: AuthSession, input:
       }).catch(() => "")
     : "";
   const retrievedContext = formatStudentKnowledgeContextForGloo(knowledgeContext);
+  const synthesisBrief = buildMeridianSynthesisBrief({
+    taskType: "discussion_prompt",
+    request: question,
+    audience: "students in a leader-reviewed small group",
+    scriptureReference: scripture.reference,
+    metanarrativeMovement,
+    knowledgeMatches: knowledgeContext,
+    internalGroundingContext: groundingContext
+  });
   const draft = ai.configured
     ? await generateMeridianDiscussionDraft({
         question,
         scriptureReference: scripture.reference,
         metanarrativeMovement,
         retrievedContext,
-        internalGroundingContext: groundingContext
+        internalGroundingContext: groundingContext,
+        synthesisBrief
       })
     : {
         ok: false as const,
@@ -427,7 +448,21 @@ export async function createStudentDiscussionPrompt(session: AuthSession, input:
   throwIfSupabaseError(result.error);
   if (!result.data) throw new DiscussionWorkflowError("The discussion prompt was not saved.", 500, "missing_saved_prompt");
 
-  await logPromptEventBestEffort(session, result.data.id, "submitted", { aiStatus: row.ai_status });
+  await logPromptEventBestEffort(session, result.data.id, "submitted", {
+    aiStatus: row.ai_status,
+    meridianProvenance: draft.ok
+      ? draft.provenance
+      : {
+          aiProvider: attemptedProviderLabel(draft),
+          meridianRan: true,
+          retrievalQuery: synthesisBrief.normalizedRequest,
+          selectedSourceIds: synthesisBrief.sourceIds,
+          selectedSourceTypes: synthesisBrief.sourceTypes,
+          fallbackUsed: true,
+          fallbackReason: draft.message,
+          validationResult: "fallback"
+        }
+  });
   return {
     ...toPrompt(result.data),
     knowledgeContext
@@ -550,12 +585,22 @@ async function regenerateDiscussionDraft(session: AuthSession, prompt: StudentDi
 
   const knowledgeContext = prompt.knowledgeContext?.length ? prompt.knowledgeContext : await getStudentKnowledgeMatches(session, prompt);
   const groundingContext = await getInternalGroundingContext(session, prompt);
+  const synthesisBrief = buildMeridianSynthesisBrief({
+    taskType: "discussion_prompt",
+    request: prompt.question,
+    audience: "students in a leader-reviewed small group",
+    scriptureReference: prompt.scriptureReference,
+    metanarrativeMovement: prompt.metanarrativeMovement ?? inferMetanarrativeMovement(prompt.question, prompt.scriptureReference),
+    knowledgeMatches: knowledgeContext,
+    internalGroundingContext: groundingContext
+  });
   const draft = await generateMeridianDiscussionDraft({
     question: prompt.question,
     scriptureReference: prompt.scriptureReference,
     metanarrativeMovement: prompt.metanarrativeMovement ?? inferMetanarrativeMovement(prompt.question, prompt.scriptureReference),
     retrievedContext: formatStudentKnowledgeContextForGloo(knowledgeContext),
-    internalGroundingContext: groundingContext
+    internalGroundingContext: groundingContext,
+    synthesisBrief
   });
   const localDraft = buildLocalDiscussionDraftForPrompt({ ...prompt, knowledgeContext });
 
@@ -580,7 +625,19 @@ async function regenerateDiscussionDraft(session: AuthSession, prompt: StudentDi
 
   await logPromptEvent(session, prompt.id, draft.ok ? "draft_regenerated" : "draft_regeneration_failed", {
     aiStatus: update.ai_status,
-    model: update.ai_model
+    model: update.ai_model,
+    meridianProvenance: draft.ok
+      ? draft.provenance
+      : {
+          aiProvider: attemptedProviderLabel(draft),
+          meridianRan: true,
+          retrievalQuery: synthesisBrief.normalizedRequest,
+          selectedSourceIds: synthesisBrief.sourceIds,
+          selectedSourceTypes: synthesisBrief.sourceTypes,
+          fallbackUsed: true,
+          fallbackReason: draft.message,
+          validationResult: "fallback"
+        }
   });
 
   return withKnowledgeContext(session, toPrompt(result.data));
@@ -980,6 +1037,10 @@ function fallbackReason(reason: string) {
 
 function providerForDraft(draft: MeridianDiscussionDraftResult, fallback: StudentDiscussionPrompt["aiProvider"] = "gloo"): StudentDiscussionPrompt["aiProvider"] {
   return draft.ok ? draft.provider : draft.attemptedProviders?.[0] ?? fallback;
+}
+
+function attemptedProviderLabel(draft: Extract<MeridianDiscussionDraftResult, { ok: false }>) {
+  return draft.attemptedProviders?.[0] ?? "none";
 }
 
 function ministryScopeColumns(ministryId: string | undefined): { ministry_id?: string } {
