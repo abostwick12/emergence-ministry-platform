@@ -16332,6 +16332,300 @@ body:has(.login-shell) h3 {
   gap: 22px;
 }
 
+.ministry-signals-overview {
+  display: grid;
+  gap: 16px;
+}
+
+.ministry-signals-hero-card,
+.ministry-signal-now-card,
+.ministry-signal-category-card,
+.ministry-pattern-card,
+.ministry-load-map,
+.ministry-forecast-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(129, 164, 214, 0.17);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent 96px),
+    rgba(8, 20, 37, 0.72);
+  box-shadow: var(--platform-shadow);
+}
+
+.ministry-signals-hero-card::before,
+.ministry-signal-category-card::before,
+.ministry-pattern-card::before,
+.ministry-load-map::before,
+.ministry-forecast-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(22, 217, 245, 0.38), transparent);
+  pointer-events: none;
+}
+
+.ministry-signals-hero-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 0.44fr);
+  gap: 18px;
+  align-items: end;
+  border-color: rgba(22, 217, 245, 0.28);
+  background:
+    linear-gradient(135deg, rgba(22, 217, 245, 0.14), rgba(245, 184, 79, 0.055) 58%, transparent),
+    rgba(8, 20, 37, 0.8);
+  padding: 18px;
+}
+
+.ministry-signals-hero-card h3,
+.ministry-signal-category-card h3,
+.ministry-pattern-card h3,
+.ministry-load-map h3,
+.ministry-forecast-card h3 {
+  margin: 4px 0 8px;
+  color: #f7fbff;
+  font-family: var(--font-platform-serif), Georgia, serif;
+  font-size: clamp(22px, 2.4vw, 32px);
+  font-weight: 500;
+  line-height: 1.05;
+}
+
+.ministry-signals-hero-card p,
+.ministry-signal-now-card p,
+.ministry-signal-category-card p,
+.ministry-pattern-card p,
+.ministry-forecast-card p,
+.ministry-signal-category-card dd,
+.ministry-forecast-card dd {
+  margin: 0;
+  color: var(--platform-muted);
+  line-height: 1.5;
+}
+
+.ministry-signals-hero-facts {
+  display: grid;
+  gap: 8px;
+}
+
+.ministry-signals-hero-facts span {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid rgba(22, 217, 245, 0.18);
+  border-radius: 8px;
+  background: rgba(6, 13, 27, 0.48);
+  color: #e5f6ff;
+  font-weight: 850;
+  padding: 11px 12px;
+}
+
+.ministry-signals-hero-facts svg,
+.ministry-signal-now-card > span svg,
+.ministry-signal-category-icon svg,
+.ministry-forecast-top svg {
+  width: 18px;
+  height: 18px;
+  color: var(--platform-cyan);
+}
+
+.ministry-signals-now-grid,
+.ministry-signal-category-grid,
+.ministry-pattern-grid,
+.ministry-forecast-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.ministry-signals-now-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.ministry-signal-now-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  min-height: 126px;
+  padding: 15px;
+}
+
+.ministry-signal-now-card > span,
+.ministry-signal-category-icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(22, 217, 245, 0.22);
+  border-radius: 8px;
+  background: rgba(22, 217, 245, 0.09);
+}
+
+.ministry-signal-now-card strong {
+  display: block;
+  margin: 3px 0 7px;
+  color: #f7fbff;
+  font-family: var(--font-platform-serif), Georgia, serif;
+  font-size: 24px;
+  font-weight: 500;
+  line-height: 1.08;
+}
+
+.ministry-signal-category-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.ministry-signal-category-card {
+  display: grid;
+  gap: 14px;
+  min-height: 320px;
+  padding: 16px;
+}
+
+.ministry-signal-category-card.tone-gold,
+.ministry-forecast-card.tone-gold,
+.ministry-pattern-card.status-watch {
+  border-color: rgba(245, 184, 79, 0.3);
+}
+
+.ministry-signal-category-card.tone-green,
+.ministry-forecast-card.tone-green,
+.ministry-pattern-card.status-healthy {
+  border-color: rgba(74, 222, 128, 0.26);
+}
+
+.ministry-signal-category-card dl,
+.ministry-forecast-card dl {
+  display: grid;
+  gap: 8px;
+  margin: auto 0 0;
+}
+
+.ministry-signal-category-card dl > div,
+.ministry-forecast-card dl > div {
+  border: 1px solid rgba(129, 164, 214, 0.13);
+  border-radius: 8px;
+  background: rgba(6, 13, 27, 0.34);
+  padding: 10px;
+}
+
+.ministry-signal-category-card dt,
+.ministry-forecast-card dt,
+.ministry-load-map-head span {
+  color: var(--platform-cyan);
+  font-family: var(--font-platform-mono), ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.ministry-pattern-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 0.92fr) minmax(380px, 1.08fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.ministry-pattern-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ministry-pattern-card {
+  display: grid;
+  gap: 8px;
+  min-height: 176px;
+  padding: 15px;
+}
+
+.ministry-pattern-card.status-review {
+  border-color: rgba(251, 113, 133, 0.3);
+}
+
+.ministry-pattern-card > span,
+.ministry-forecast-top span {
+  justify-self: start;
+  border: 1px solid rgba(129, 164, 214, 0.16);
+  border-radius: 999px;
+  background: rgba(6, 13, 27, 0.34);
+  color: var(--platform-gold);
+  font-family: var(--font-platform-mono), ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  padding: 5px 8px;
+  text-transform: uppercase;
+}
+
+.ministry-pattern-card.status-healthy > span {
+  color: #86efac;
+}
+
+.ministry-pattern-card small {
+  margin-top: auto;
+  color: #b9c8da;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.ministry-load-map {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+
+.ministry-load-map header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.ministry-load-map-table {
+  display: grid;
+  gap: 8px;
+  overflow-x: auto;
+}
+
+.ministry-load-map-head,
+.ministry-load-map-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.2fr) repeat(4, minmax(126px, 1fr));
+  gap: 8px;
+  align-items: center;
+  min-width: 760px;
+}
+
+.ministry-load-map-row {
+  border: 1px solid rgba(129, 164, 214, 0.13);
+  border-radius: 8px;
+  background: rgba(6, 13, 27, 0.38);
+  color: var(--platform-muted);
+  padding: 10px;
+}
+
+.ministry-load-map-row strong {
+  color: #f7fbff;
+}
+
+.ministry-forecast-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.ministry-forecast-card {
+  display: grid;
+  gap: 12px;
+  min-height: 310px;
+  padding: 16px;
+}
+
+.ministry-forecast-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .ministry-memory-demo {
   display: grid;
   gap: 16px;
@@ -17377,6 +17671,145 @@ body:has(.login-shell) h3 {
   flex: none;
 }
 
+.ministry-emma-floating {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 80;
+  display: block;
+  overflow: visible;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
+.ministry-emma-floating::before {
+  display: none;
+}
+
+.ministry-emma-launcher {
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+  width: 62px;
+  min-height: 70px;
+  border: 1px solid rgba(22, 217, 245, 0.54);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1), transparent 70%),
+    linear-gradient(145deg, rgba(22, 217, 245, 0.24), rgba(245, 184, 79, 0.11)),
+    #071323;
+  color: #f7fbff;
+  box-shadow: 0 0 0 1px rgba(22, 217, 245, 0.12), 0 24px 70px rgba(0, 0, 0, 0.42), 0 0 34px rgba(22, 217, 245, 0.2);
+  cursor: pointer;
+  font-family: var(--font-platform-mono), ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 950;
+  letter-spacing: 0.12em;
+  padding: 7px 6px 6px;
+  text-transform: uppercase;
+}
+
+.ministry-emma-launcher:hover,
+.ministry-emma-launcher:focus-visible {
+  border-color: rgba(245, 184, 79, 0.68);
+  box-shadow: 0 0 0 3px rgba(22, 217, 245, 0.16), 0 28px 80px rgba(0, 0, 0, 0.46), 0 0 42px rgba(245, 184, 79, 0.2);
+}
+
+.ministry-emma-launcher-mark {
+  display: block;
+  width: 44px;
+  height: 38px;
+  border: 1px solid rgba(245, 184, 79, 0.26);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(5, 10, 22, 0.2), rgba(5, 10, 22, 0.34)),
+    url("/lead-emergence-announcement-transparent.png") center top / 94px auto no-repeat,
+    rgba(2, 6, 23, 0.76);
+}
+
+.ministry-emma-popover {
+  position: absolute;
+  right: 0;
+  bottom: 96px;
+  display: grid;
+  gap: 14px;
+  width: min(620px, calc(100vw - 42px));
+  max-height: min(760px, calc(100vh - 138px));
+  overflow: auto;
+  border: 1px solid rgba(22, 217, 245, 0.52);
+  border-radius: 18px;
+  background:
+    radial-gradient(80% 70% at 14% 0%, rgba(22, 217, 245, 0.18), transparent 60%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.075), transparent 132px),
+    #06111f;
+  box-shadow: 0 0 0 1px rgba(245, 184, 79, 0.12), 0 32px 96px rgba(0, 0, 0, 0.58), 0 0 54px rgba(22, 217, 245, 0.18);
+  padding: 16px;
+}
+
+.ministry-emma-popover::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(245, 184, 79, 0.54), rgba(22, 217, 245, 0.5), transparent);
+  pointer-events: none;
+}
+
+.ministry-emma-popover-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+}
+
+.ministry-emma-popover .ministry-emma-header {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.ministry-emma-popover .ministry-emma-guardrails {
+  grid-column: 1 / -1;
+}
+
+.ministry-emma-popover .icon-button {
+  width: 36px;
+  height: 36px;
+  border-color: rgba(129, 164, 214, 0.2);
+  background: rgba(6, 13, 27, 0.52);
+  color: #f7fbff;
+}
+
+.ministry-emma-popover .icon-button svg {
+  width: 17px;
+  height: 17px;
+}
+
+.ministry-emma-popover-brief {
+  display: grid;
+  gap: 8px;
+  border: 1px solid rgba(245, 184, 79, 0.18);
+  border-radius: 10px;
+  background: rgba(245, 184, 79, 0.07);
+  padding: 12px;
+}
+
+.ministry-emma-popover-brief strong {
+  color: #f7fbff;
+  line-height: 1.35;
+}
+
+.ministry-emma-popover-brief ul {
+  margin: 0;
+  color: var(--platform-muted);
+  line-height: 1.42;
+  padding-left: 18px;
+}
+
+.ministry-emma-popover .ministry-emma-thread {
+  max-height: 250px;
+}
+
 @media (max-width: 1000px) {
   .ministry-launch-grid,
   .ministry-launch-setting-grid,
@@ -17386,6 +17819,18 @@ body:has(.login-shell) h3 {
 
   .ministry-memory-stats,
   .ministry-memory-insights {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ministry-signals-hero-card,
+  .ministry-pattern-layout,
+  .ministry-forecast-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ministry-signal-category-grid,
+  .ministry-signals-now-grid,
+  .ministry-pattern-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -17502,9 +17947,46 @@ body:has(.login-shell) h3 {
   .ministry-launch-setting-grid,
   .ministry-memory-stats,
   .ministry-memory-insights,
+  .ministry-signals-now-grid,
+  .ministry-signal-category-grid,
+  .ministry-pattern-grid,
   .ministry-memory-prompt-bank > div,
   .ministry-emma-layout {
     grid-template-columns: 1fr;
+  }
+
+  .ministry-signals-hero-card,
+  .ministry-signal-category-card,
+  .ministry-pattern-card,
+  .ministry-load-map,
+  .ministry-forecast-card {
+    padding: 14px;
+  }
+
+  .ministry-emma-floating {
+    right: 14px;
+    bottom: 14px;
+  }
+
+  .ministry-emma-launcher {
+    width: 58px;
+    min-height: 66px;
+    border-radius: 15px;
+    font-size: 10px;
+  }
+
+  .ministry-emma-launcher-mark {
+    width: 40px;
+    height: 34px;
+    background-size: 86px auto;
+  }
+
+  .ministry-emma-popover {
+    right: 0;
+    bottom: 86px;
+    width: calc(100vw - 28px);
+    max-height: calc(100vh - 112px);
+    padding: 14px;
   }
 
   .google-demo-status-grid {
@@ -20243,6 +20725,10 @@ body:has(.login-shell) h3 {
   .app-shell:not(.app-shell-camp) .app-main-shell-leader-prep .app-content {
     padding-top: 28px;
   }
+
+  .app-shell:not(.app-shell-camp) .app-main-shell-leader-prep .leader-prep-emma-popover {
+    top: 196px;
+  }
 }
 
 .leader-prep-page {
@@ -20662,13 +21148,14 @@ body:has(.login-shell) h3 {
 
 .leader-prep-emma-popover {
   position: fixed;
+  top: calc(var(--app-header-height, 140px) + 18px);
   right: 32px;
   bottom: 32px;
-  z-index: 20;
+  z-index: 90;
   display: grid;
   gap: 14px;
   width: min(380px, calc(100vw - 40px));
-  max-height: calc(100vh - 64px);
+  overflow-y: auto;
   border: 1px solid rgba(56, 189, 248, 0.26);
   border-radius: 16px;
   background: rgba(5, 12, 27, 0.98);
@@ -20856,6 +21343,7 @@ body:has(.login-shell) h3 {
   }
 
   .leader-prep-emma-popover {
+    top: calc(var(--app-header-height, 140px) + 14px);
     left: auto;
     right: 24px;
   }

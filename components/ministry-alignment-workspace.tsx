@@ -1,7 +1,28 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Database, Edit3, History, Link2, MessageSquareQuote, RotateCcw, Save, X } from "lucide-react";
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import {
+  Activity,
+  AlertTriangle,
+  BarChart3,
+  Brain,
+  CalendarClock,
+  Database,
+  Edit3,
+  Gauge,
+  HeartPulse,
+  History,
+  Link2,
+  MessageSquareQuote,
+  Network,
+  Radar,
+  RotateCcw,
+  Save,
+  ShieldCheck,
+  TrendingUp,
+  UsersRound,
+  X
+} from "lucide-react";
 
 import {
   DecisionMetricGrid,
@@ -12,8 +33,9 @@ import {
   ResponsibilityVisibilityList
 } from "@/components/decision-center";
 import { MinistryEmmaPanel } from "@/components/ministry-emma-panel";
-import { EditorialSection, QuietState, StatusBadge } from "@/components/platform-ui";
+import { EditorialSection, QuietState, StatusBadge, type PlatformTone } from "@/components/platform-ui";
 import { buildMinistryDecisionCenterState } from "@/lib/decision-center/ministry";
+import type { DecisionCenterState } from "@/lib/decision-center/types";
 import type { MinistryOverview } from "@/lib/data/ministry-repository";
 import {
   buildAlignmentContextSummary,
@@ -35,6 +57,15 @@ const ministryHubPrompts = [
   "How would adding another event affect our current season focus?",
   "Which signals are not currently visible enough to assess?"
 ] as const;
+
+type MinistryLoadMapRow = {
+  area: string;
+  volunteerDemand: string;
+  staffDemand: string;
+  growthEvidence: string;
+  risk: string;
+  riskTone: PlatformTone;
+};
 
 export function MinistryAlignmentWorkspace({
   generatedAt,
@@ -102,40 +133,49 @@ export function MinistryAlignmentWorkspace({
         <MinistryAlignmentPanel profile={profile} onEdit={() => setEditOpen(true)} onReset={resetProfile} />
       </EditorialSection>
 
-      <EditorialSection
-        eyebrow="Public demo memory"
-        title="Organizational memory at your fingertips"
-        description="Guest mode uses seeded public demo history to model what Planning Center, calendars, files, decks, budgets, and debriefs could surface after real integrations are connected."
-        accent="gold"
-      >
-        <MinistryMemoryDemo memory={memory} />
-      </EditorialSection>
-
-      <EditorialSection
-        eyebrow="Decision conversation"
+      <MinistryEmmaPanel
+        alignmentProfile={profile}
+        overview={overview}
+        page="dashboard"
+        presentation="floating"
         title="Ask EMMA"
-        description="EMMA can compare current evidence with leadership-authored criteria, but it does not set priorities or issue ministry verdicts."
-      >
-        <MinistryEmmaPanel
-          defaultExpanded
-          alignmentProfile={profile}
-          overview={overview}
-          page="dashboard"
-          title="Ask EMMA"
-          promptTemplates={ministryHubPrompts}
-          staticSignals={[
-            ...buildAlignmentContextSummary(profile),
-            ...center.signals.map((signal) => `${signal.title}: ${signal.summary}`)
-          ]}
-        />
-      </EditorialSection>
+        promptTemplates={ministryHubPrompts}
+        staticSignals={[
+          ...buildAlignmentContextSummary(profile),
+          ...center.signals.map((signal) => `${signal.title}: ${signal.summary}`)
+        ]}
+      />
 
       <EditorialSection
         eyebrow="Current Ministry Signals"
-        title={`Signals foregrounded for ${center.direction.emphasis}`}
-        description="Signals are factual observations with definitions, evidence boundaries, and no verdict labels."
+        title="What is changing that leadership may not have noticed?"
+        description={`Signals are factual observations for ${center.direction.emphasis}. They surface evidence, boundaries, and patterns without telling leaders what decision to make.`}
       >
-        <DecisionSignalList signals={center.signals} />
+        <MinistrySignalsOverview center={center} overview={overview} />
+      </EditorialSection>
+
+      <EditorialSection
+        eyebrow="Organizational health"
+        title="Signal categories"
+        description="The engine groups visible ministry life into health, staff capacity, volunteer capacity, alignment, and sustainability signals."
+      >
+        <MinistrySignalCategoryGrid center={center} overview={overview} />
+      </EditorialSection>
+
+      <EditorialSection
+        eyebrow="Organizational pattern detection"
+        title="Patterns worth noticing"
+        description="Patterns are observations about ministry shape over time. They are not verdicts about people, faithfulness, or calling."
+      >
+        <MinistryPatternDetection center={center} overview={overview} />
+      </EditorialSection>
+
+      <EditorialSection
+        eyebrow="Capacity forecasting"
+        title="Likely future pressure"
+        description="Forecasts describe where the current visible trajectory could create pressure if nothing changes."
+      >
+        <MinistryCapacityForecasts center={center} overview={overview} />
       </EditorialSection>
 
       <EditorialSection
@@ -143,6 +183,7 @@ export function MinistryAlignmentWorkspace({
         title="What EMMA is allowed to consider"
         description="Evidence stays visible by default so leadership can inspect sources before acting."
       >
+        <DecisionSignalList signals={center.signals} />
         <EvidenceStack signals={center.signals} />
         <details className="provider-path-disclosure">
           <summary>Provider path and judged Scripture flow</summary>
@@ -172,9 +213,18 @@ export function MinistryAlignmentWorkspace({
           {MINISTRY_ALIGNMENT_CHAIN.map((item) => <li key={item}>{item}</li>)}
         </ol>
         <QuietState title="Scoring intentionally deferred">
-          No mission score, weighted alignment status, or autonomous ministry priority engine has been approved for this phase.
+          No weighted rubric, percentage status, or autonomous ministry priority engine has been approved for this phase.
         </QuietState>
       </details>
+
+      <EditorialSection
+        eyebrow="Public demo memory"
+        title="Organizational memory at your fingertips"
+        description="Guest mode uses seeded public demo history to model what Planning Center, calendars, files, decks, budgets, and debriefs could surface after real integrations are connected."
+        accent="gold"
+      >
+        <MinistryMemoryDemo memory={memory} />
+      </EditorialSection>
 
       {editOpen ? (
         <AlignmentEditorDialog
@@ -188,6 +238,374 @@ export function MinistryAlignmentWorkspace({
       ) : null}
     </>
   );
+}
+
+function MinistrySignalsOverview({ center, overview }: { center: DecisionCenterState; overview: MinistryOverview }) {
+  const activeEvents = overview.events.filter((event) => !event.archivedAt);
+  const openTasks = overview.tasks.filter((task) => task.status !== "done");
+  const blockedTasks = openTasks.filter((task) => task.status === "blocked");
+
+  return (
+    <div className="ministry-signals-overview">
+      <article className="ministry-signals-hero-card">
+        <div>
+          <p className="eyebrow">Signal engine</p>
+          <h3>Helping leaders notice drift before it becomes crisis.</h3>
+          <p>
+            Ministry Signals are observations, not recommendations. They connect visible ministry records to leadership-authored context so leaders can ask better questions before pressure becomes obvious.
+          </p>
+        </div>
+        <div className="ministry-signals-hero-facts" aria-label="Ministry signal posture">
+          <span><Radar aria-hidden="true" /> Observable evidence</span>
+          <span><ShieldCheck aria-hidden="true" /> No spiritual verdicts</span>
+          <span><Brain aria-hidden="true" /> Discernment support</span>
+        </div>
+      </article>
+
+      <DecisionMetricGrid metrics={center.metrics} />
+
+      <div className="ministry-signals-now-grid" aria-label="Current signal snapshot">
+        <SignalNowCard
+          icon={<Activity aria-hidden="true" />}
+          label="Visible ministry life"
+          value={`${activeEvents.length} active plan${activeEvents.length === 1 ? "" : "s"}`}
+          detail={`${center.signals.length} current signal${center.signals.length === 1 ? "" : "s"} can be inspected with source evidence.`}
+        />
+        <SignalNowCard
+          icon={<AlertTriangle aria-hidden="true" />}
+          label="Pressure markers"
+          value={blockedTasks.length ? `${blockedTasks.length} blocked` : "No blocked tasks"}
+          detail={blockedTasks.length ? "Blocked work is treated as an observable constraint, not a judgment on a person." : "Open work exists, but no task is currently marked blocked."}
+        />
+        <SignalNowCard
+          icon={<CalendarClock aria-hidden="true" />}
+          label="Decision horizon"
+          value={center.direction.horizon}
+          detail={`${center.direction.owner} owns the current season review posture.`}
+        />
+      </div>
+    </div>
+  );
+}
+
+function MinistrySignalCategoryGrid({ center, overview }: { center: DecisionCenterState; overview: MinistryOverview }) {
+  const categories = buildSignalCategories(center, overview);
+
+  return (
+    <div className="ministry-signal-category-grid">
+      {categories.map((category) => (
+        <article className={`ministry-signal-category-card tone-${category.tone}`} key={category.title}>
+          <div className="ministry-signal-category-icon" aria-hidden="true">{category.icon}</div>
+          <div>
+            <p className="eyebrow">{category.question}</p>
+            <h3>{category.title}</h3>
+            <p>{category.observation}</p>
+          </div>
+          <dl>
+            <div>
+              <dt>Visible evidence</dt>
+              <dd>{category.evidence}</dd>
+            </div>
+            <div>
+              <dt>Boundary</dt>
+              <dd>{category.boundary}</dd>
+            </div>
+          </dl>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function MinistryPatternDetection({ center, overview }: { center: DecisionCenterState; overview: MinistryOverview }) {
+  const patterns = buildPatternDetections(center, overview);
+  const loadRows = buildLoadMapRows(overview, center);
+
+  return (
+    <div className="ministry-pattern-layout">
+      <div className="ministry-pattern-grid">
+        {patterns.map((pattern) => (
+          <article className={`ministry-pattern-card status-${pattern.status}`} key={pattern.title}>
+            <span>{pattern.statusLabel}</span>
+            <h3>{pattern.title}</h3>
+            <p>{pattern.detail}</p>
+            <small>{pattern.evidence}</small>
+          </article>
+        ))}
+      </div>
+
+      <article className="ministry-load-map" aria-label="Ministry load mapping">
+        <header>
+          <p className="eyebrow">Ministry load mapping</p>
+          <h3>Where effort is concentrating</h3>
+        </header>
+        <div className="ministry-load-map-table">
+          <div className="ministry-load-map-head">
+            <span>Area</span>
+            <span>Volunteer demand</span>
+            <span>Staff demand</span>
+            <span>Growth evidence</span>
+            <span>Risk</span>
+          </div>
+          {loadRows.map((row) => (
+            <div className="ministry-load-map-row" key={row.area}>
+              <strong>{row.area}</strong>
+              <span>{row.volunteerDemand}</span>
+              <span>{row.staffDemand}</span>
+              <span>{row.growthEvidence}</span>
+              <StatusBadge tone={row.riskTone}>{row.risk}</StatusBadge>
+            </div>
+          ))}
+        </div>
+      </article>
+    </div>
+  );
+}
+
+function MinistryCapacityForecasts({ center, overview }: { center: DecisionCenterState; overview: MinistryOverview }) {
+  const forecasts = buildCapacityForecasts(center, overview);
+
+  return (
+    <div className="ministry-forecast-grid">
+      {forecasts.map((forecast) => (
+        <article className={`ministry-forecast-card tone-${forecast.tone}`} key={forecast.title}>
+          <div className="ministry-forecast-top">
+            <span>{forecast.horizon}</span>
+            {forecast.icon}
+          </div>
+          <h3>{forecast.title}</h3>
+          <p>{forecast.detail}</p>
+          <dl>
+            <div>
+              <dt>Evidence</dt>
+              <dd>{forecast.evidence}</dd>
+            </div>
+            <div>
+              <dt>Interpretation limit</dt>
+              <dd>{forecast.boundary}</dd>
+            </div>
+          </dl>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function SignalNowCard({ detail, icon, label, value }: { detail: string; icon: ReactNode; label: string; value: string }) {
+  return (
+    <article className="ministry-signal-now-card">
+      <span aria-hidden="true">{icon}</span>
+      <div>
+        <p className="eyebrow">{label}</p>
+        <strong>{value}</strong>
+        <p>{detail}</p>
+      </div>
+    </article>
+  );
+}
+
+function buildSignalCategories(center: DecisionCenterState, overview: MinistryOverview) {
+  const activeEvents = overview.events.filter((event) => !event.archivedAt);
+  const openTasks = overview.tasks.filter((task) => task.status !== "done");
+  const blockedTasks = openTasks.filter((task) => task.status === "blocked");
+  const ownerGaps = activeEvents.filter((event) => !event.contactOwnerId).length;
+  const volunteersNeeded = activeEvents.reduce((total, event) => total + Number(event.volunteersNeeded ?? 0), 0);
+  const concentratedAreas = center.responsibility.filter((item) => item.status === "concentrated ownership").length;
+  const sharedAreas = center.responsibility.filter((item) => item.status === "shared ownership").length;
+
+  return [
+    {
+      title: "Ministry Health Signals",
+      question: "Is our ministry becoming healthier?",
+      observation: center.signals.length
+        ? "Momentum can be reviewed through the current event, task, budget, and Scripture-path signals."
+        : "The engine is waiting for enough current ministry records to make health observations visible.",
+      evidence: `${activeEvents.length} active event records and ${center.signals.length} inspected signal definitions.`,
+      boundary: "Does not declare spiritual health or faithfulness.",
+      icon: <HeartPulse aria-hidden="true" />,
+      tone: "cyan"
+    },
+    {
+      title: "Staff Capacity Signals",
+      question: "Are we building a sustainable ministry staff?",
+      observation: concentratedAreas || ownerGaps
+        ? "Responsibility concentration and ownership gaps are visible enough to review."
+        : "Visible responsibility is currently distributed or assigned in the available records.",
+      evidence: `${concentratedAreas} concentrated area${concentratedAreas === 1 ? "" : "s"}; ${ownerGaps} active ownership gap${ownerGaps === 1 ? "" : "s"}.`,
+      boundary: "Does not diagnose burnout, effort, motivation, or performance.",
+      icon: <Gauge aria-hidden="true" />,
+      tone: concentratedAreas || ownerGaps ? "gold" : "green"
+    },
+    {
+      title: "Volunteer Capacity Signals",
+      question: "Are we caring for the people caring for students?",
+      observation: volunteersNeeded
+        ? "Volunteer demand is visible on event records and can be compared against ownership and readiness."
+        : "Volunteer demand fields are not yet strong enough for a serving-frequency signal.",
+      evidence: `${volunteersNeeded} visible volunteer slot${volunteersNeeded === 1 ? "" : "s"} across active plans.`,
+      boundary: "Measures stewardship signals, not volunteer productivity.",
+      icon: <UsersRound aria-hidden="true" />,
+      tone: volunteersNeeded ? "cyan" : "neutral"
+    },
+    {
+      title: "Alignment Signals",
+      question: "Are daily practices reflecting stated priorities?",
+      observation: `Current observations are compared against "${center.direction.emphasis}" before EMMA answers.`,
+      evidence: `${center.alignmentProfile.successLooksLike.length} Success Looks Like criteria and ${center.signals.length} current signal${center.signals.length === 1 ? "" : "s"}.`,
+      boundary: "No weighted verdict, percentage status, or automatic priority ranking is produced.",
+      icon: <Network aria-hidden="true" />,
+      tone: "cyan"
+    },
+    {
+      title: "Sustainability Signals",
+      question: "Can this ministry continue operating this way?",
+      observation: blockedTasks.length || sharedAreas === 0
+        ? "The current snapshot has sustainability markers worth reviewing before adding more activity."
+        : "Shared ownership and task flow currently provide a healthier operating signal.",
+      evidence: `${blockedTasks.length} blocked task${blockedTasks.length === 1 ? "" : "s"}; ${sharedAreas} shared ownership area${sharedAreas === 1 ? "" : "s"}.`,
+      boundary: "Surfaces resilience evidence without recommending hiring, firing, or discipline.",
+      icon: <BarChart3 aria-hidden="true" />,
+      tone: blockedTasks.length ? "gold" : "green"
+    }
+  ] as const;
+}
+
+function buildPatternDetections(center: DecisionCenterState, overview: MinistryOverview) {
+  const openTasks = overview.tasks.filter((task) => task.status !== "done");
+  const blockedTasks = openTasks.filter((task) => task.status === "blocked");
+  const activeEvents = overview.events.filter((event) => !event.archivedAt);
+  const ownerGaps = activeEvents.filter((event) => !event.contactOwnerId).length;
+  const readinessSignals = center.signals.filter((signal) => /readiness|communication|owner/i.test(signal.id));
+  const concentratedAreas = center.responsibility.filter((item) => item.status === "concentrated ownership");
+  const sharedAreas = center.responsibility.filter((item) => item.status === "shared ownership");
+
+  return [
+    {
+      title: "Decision bottlenecks",
+      detail: blockedTasks.length || ownerGaps
+        ? "Some work cannot move cleanly until an owner or blocker is resolved."
+        : "No explicit blocker is visible in current task and event records.",
+      evidence: `${blockedTasks.length} blocked task${blockedTasks.length === 1 ? "" : "s"}; ${ownerGaps} communication ownership gap${ownerGaps === 1 ? "" : "s"}.`,
+      status: blockedTasks.length || ownerGaps ? "watch" : "monitor",
+      statusLabel: blockedTasks.length || ownerGaps ? "Watch" : "Monitor"
+    },
+    {
+      title: "Increasing centralization",
+      detail: concentratedAreas.length
+        ? "Responsibility appears concentrated in at least one visible ministry area."
+        : "The available responsibility view does not show a single-person concentration pattern.",
+      evidence: concentratedAreas.length ? concentratedAreas.map((item) => item.area).join(", ") : "No concentrated ownership status in the current snapshot.",
+      status: concentratedAreas.length ? "review" : "monitor",
+      statusLabel: concentratedAreas.length ? "Review" : "Monitor"
+    },
+    {
+      title: "Reactive planning",
+      detail: readinessSignals.length
+        ? "Readiness and ownership gaps are appearing close enough to current planning that they deserve attention."
+        : "No readiness signal is foregrounded right now.",
+      evidence: `${readinessSignals.length} readiness-related signal${readinessSignals.length === 1 ? "" : "s"} in the current decision center.`,
+      status: readinessSignals.length ? "watch" : "monitor",
+      statusLabel: readinessSignals.length ? "Watch" : "Monitor"
+    },
+    {
+      title: "Distributed leadership",
+      detail: sharedAreas.length
+        ? "Multiple ministry areas show shared ownership in visible records."
+        : "Shared ownership is not yet visible enough to treat as a healthy pattern.",
+      evidence: sharedAreas.length ? sharedAreas.map((item) => item.area).join(", ") : "No shared ownership area in the current snapshot.",
+      status: sharedAreas.length ? "healthy" : "monitor",
+      statusLabel: sharedAreas.length ? "Healthy signal" : "Monitor"
+    }
+  ] as const;
+}
+
+function buildLoadMapRows(overview: MinistryOverview, center: DecisionCenterState): MinistryLoadMapRow[] {
+  const activeEvents = overview.events.filter((event) => !event.archivedAt);
+  const openTasks = overview.tasks.filter((task) => task.status !== "done");
+  const rows = [
+    { area: "High School Ministry", matcher: /high_school_event/ },
+    { area: "Middle School Ministry", matcher: /middle_school_event/ },
+    { area: "Small Groups", matcher: /small_group_gathering/ },
+    { area: "Retreats and Serve Days", matcher: /conference|missions_trip/ }
+  ];
+
+  const mappedRows: MinistryLoadMapRow[] = rows.map((row) => {
+    const events = activeEvents.filter((event) => row.matcher.test(event.type));
+    const eventIds = new Set(events.map((event) => event.id));
+    const tasks = openTasks.filter((task) => eventIds.has(task.eventId));
+    const volunteerDemand = events.reduce((total, event) => total + Number(event.volunteersNeeded ?? 0), 0);
+    const highRisk = tasks.some((task) => task.status === "blocked") || events.some((event) => !event.contactOwnerId);
+
+    return {
+      area: row.area,
+      volunteerDemand: volunteerDemand ? loadLabel(volunteerDemand, 3, 8) : "Not visible",
+      staffDemand: tasks.length ? loadLabel(tasks.length, 4, 10) : "Low",
+      growthEvidence: "Attendance trend not connected",
+      risk: highRisk ? "Increasing" : events.length ? "Stable" : "Low evidence",
+      riskTone: highRisk ? "warning" : events.length ? "success" : "neutral"
+    };
+  });
+
+  const seasonRow: MinistryLoadMapRow = {
+    area: center.direction.emphasis,
+    volunteerDemand: "Contextual",
+    staffDemand: center.responsibility.some((item) => item.status === "concentrated ownership") ? "Concentrated" : "Distributed",
+    growthEvidence: "Compared to current season",
+    risk: center.signals.some((signal) => signal.tone === "critical" || signal.tone === "warning") ? "Watch" : "Monitor",
+    riskTone: center.signals.some((signal) => signal.tone === "critical" || signal.tone === "warning") ? "gold" : "info"
+  };
+
+  return [...mappedRows, seasonRow];
+}
+
+function buildCapacityForecasts(center: DecisionCenterState, overview: MinistryOverview) {
+  const activeEvents = overview.events.filter((event) => !event.archivedAt);
+  const openTasks = overview.tasks.filter((task) => task.status !== "done");
+  const blockedTasks = openTasks.filter((task) => task.status === "blocked");
+  const volunteersNeeded = activeEvents.reduce((total, event) => total + Number(event.volunteersNeeded ?? 0), 0);
+  const ownershipGaps = activeEvents.filter((event) => !event.contactOwnerId).length;
+
+  return [
+    {
+      title: "Leader coverage could become the next constraint",
+      horizon: "Next planning window",
+      detail: volunteersNeeded
+        ? "Visible event plans already name leader or volunteer demand, so coverage should stay part of discernment before additional activity is added."
+        : "The forecast cannot assess leader coverage until volunteer demand and attendance signals are connected.",
+      evidence: `${volunteersNeeded} visible volunteer slot${volunteersNeeded === 1 ? "" : "s"} across ${activeEvents.length} active plan${activeEvents.length === 1 ? "" : "s"}.`,
+      boundary: "Does not decide whether to recruit, split groups, or change programs.",
+      icon: <UsersRound aria-hidden="true" />,
+      tone: volunteersNeeded ? "cyan" : "neutral"
+    },
+    {
+      title: "Blocked work may compound if the queue keeps growing",
+      horizon: center.direction.horizon,
+      detail: blockedTasks.length
+        ? "Blocked tasks are a near-term operational signal because unfinished work can compress review, communication, and follow-up time."
+        : "The task queue has no explicit blocked status, but open work still remains part of sustainability review.",
+      evidence: `${openTasks.length} open task${openTasks.length === 1 ? "" : "s"}; ${blockedTasks.length} blocked.`,
+      boundary: "Does not infer effort, capacity, or emotional state from task count.",
+      icon: <TrendingUp aria-hidden="true" />,
+      tone: blockedTasks.length ? "gold" : "green"
+    },
+    {
+      title: "Ownership gaps can turn plans into single points of failure",
+      horizon: "Before public communication",
+      detail: ownershipGaps
+        ? "Events without communication ownership are early signals of potential dependency or late decision pressure."
+        : "Current active plans have communication ownership visible.",
+      evidence: `${ownershipGaps} active event${ownershipGaps === 1 ? "" : "s"} without communication ownership.`,
+      boundary: "Surfaces field-level gaps only; it does not evaluate a leader.",
+      icon: <Network aria-hidden="true" />,
+      tone: ownershipGaps ? "gold" : "green"
+    }
+  ] as const;
+}
+
+function loadLabel(value: number, mediumAt: number, highAt: number) {
+  if (value >= highAt) return "High";
+  if (value >= mediumAt) return "Moderate";
+  return "Low";
 }
 
 function MinistryMemoryDemo({ memory }: { memory: MinistryMemoryDemoState }) {
