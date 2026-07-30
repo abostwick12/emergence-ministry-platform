@@ -1,4 +1,5 @@
 const DEFAULT_GROUPME_API_BASE_URL = "https://api.groupme.com/v3";
+const GROUPME_BOT_POST_URL = "https://api.groupme.com/v3/bots/post";
 
 type LeaderBriefGroupMeEnv = Record<string, string | undefined>;
 
@@ -61,12 +62,12 @@ export async function sendLeaderDailyBriefToGroupMe(params: {
   if (!text) throw new Error("Leader Daily Brief message body is required.");
   if (text.length > 1000) throw new Error("GroupMe bot messages must be 1,000 characters or fewer.");
 
-  const response = await (params.fetchImpl ?? fetch)(`${config.apiBaseUrl.replace(/\/+$/, "")}/bots/post`, {
+  const response = await (params.fetchImpl ?? fetch)(GROUPME_BOT_POST_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ bot_id: config.botId, text })
   });
-  if (!response.ok) {
+  if (response.status !== 200 && response.status !== 201) {
     throw new LeaderBriefGroupMePostError(
       response.status,
       response.headers.get("content-type"),
