@@ -275,6 +275,7 @@ function internalGroundingSources(value: string | undefined): MeridianSynthesisS
   if (!value?.trim()) return [];
   return value
     .split(/\n{2,}/)
+    .filter((chunk) => !containsSensitiveInternalSignal(chunk))
     .map((chunk, index) => normalizeText(chunk, 520))
     .filter(Boolean)
     .slice(0, 3)
@@ -287,6 +288,10 @@ function internalGroundingSources(value: string | undefined): MeridianSynthesisS
       scriptureReferences: [],
       topicTags: ["internal_grounding", "ministry_voice"]
     }));
+}
+
+function containsSensitiveInternalSignal(value: string) {
+  return /(api[_ -]?key|service[_ -]?role|access token|bearer token|client secret|password|private note|student record|stack trace|provider diagnostics)/i.test(value);
 }
 
 function diversifySources(sources: MeridianSynthesisSource[]) {

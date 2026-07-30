@@ -3,12 +3,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const {
   generateGlooDiscussionDraftMock,
   generateGlooReadingPlanDraftMock,
+  glooEmmaGenerateMock,
   geminiGenerateMock,
   isGlooConfiguredMock,
   openAiGenerateMock
 } = vi.hoisted(() => ({
   generateGlooDiscussionDraftMock: vi.fn(),
   generateGlooReadingPlanDraftMock: vi.fn(),
+  glooEmmaGenerateMock: vi.fn(),
   geminiGenerateMock: vi.fn(),
   isGlooConfiguredMock: vi.fn(),
   openAiGenerateMock: vi.fn()
@@ -28,6 +30,23 @@ vi.mock("@/lib/emma/providers/gemini-provider", () => ({
   createGeminiProvider: () => ({
     id: "gemini",
     generate: geminiGenerateMock
+  })
+}));
+
+vi.mock("@/lib/emma/providers/gloo-provider", () => ({
+  readGlooEmmaConfig: (env: Partial<NodeJS.ProcessEnv> = process.env) =>
+    env.GLOO_AI_STUDIO_API_KEY?.trim()
+      ? {
+          accessToken: env.GLOO_AI_STUDIO_API_KEY.trim(),
+          clientId: "",
+          clientSecret: "",
+          apiBaseUrl: "https://gloo.test",
+          model: "gloo-openai-gpt-5-nano"
+        }
+      : null,
+  createGlooEmmaProvider: () => ({
+    id: "gloo",
+    generate: glooEmmaGenerateMock
   })
 }));
 
@@ -221,5 +240,127 @@ describe("Meridian AI provider routing", () => {
       fallbackUsed: true,
       validationResult: "validated"
     });
+  });
+
+  it("does not replace successful AI sermon prep output with deterministic fallback", async () => {
+    vi.stubEnv("GEMINI_API_KEY", "configured-gemini-key");
+    const contentMarkdown = [
+      "# When the King Kneels - Small Group Questions",
+      "",
+      "1. Notice: What does Jesus know before He kneels to wash feet?",
+      "2. Interpret: What does the towel show about kingdom authority?",
+      "3. Wrestle: Why might receiving grace feel harder than serving?",
+      "4. Practice: What is one quiet act of love you can do this week?",
+      "5. Community: Who can help you serve from security instead of applause?"
+    ].join("\n");
+    geminiGenerateMock.mockResolvedValue({
+      provider: "gemini",
+      model: "gemini-default",
+      output: {
+        title: "When the King Kneels - Small Group Questions",
+        summary: "Student-ready questions shaped by John 13 and humble love.",
+        contentMarkdown,
+        estimatedMinutes: 8,
+        sources: ["Current sermon draft", "Meridian synthesis brief"],
+        warnings: []
+      }
+    });
+
+    const result = await generateMeridianSermonPrepResource({
+      kind: "small_group_questions",
+      title: "When the King Kneels",
+      passage: "John 13:1-17",
+      bigIdea: "Real authority stoops. If Jesus is Lord, love looks like a towel, not a title.",
+      body: "Jesus washes feet and teaches his disciples the shape of kingdom love.",
+      knowledgeMatches: [
+        {
+          id: "knowledge-john-13",
+          sourceChunkId: "chunk_john_13",
+          label: "Because this lesson echoes prior teaching",
+          title: "Receive before you serve",
+          description: "Prior teaching emphasizes that students practice service as a response to received grace, not as performance.",
+          href: "/student/scripture/resources",
+          digQuestions: ["Where does Jesus serve before asking disciples to imitate him?"],
+          topicTags: ["grace", "service", "discipleship"],
+          scriptureReferences: ["John 13:1-17"]
+        }
+      ]
+    });
+
+    expect(result).toMatchObject({
+      provider: "gemini",
+      contentMarkdown,
+      provenance: expect.objectContaining({
+        fallbackUsed: false,
+        validationResult: "validated",
+        selectedSourceIds: expect.arrayContaining(["chunk:chunk_john_13"]),
+        selectedSourceTypes: expect.arrayContaining(["meridian_knowledge"])
+      })
+    });
+    expect(geminiGenerateMock).toHaveBeenCalledWith(expect.objectContaining({
+      userPrompt: expect.stringContaining("Receive before you serve")
+    }));
+  });
+
+  it("uses only one sermon-prep repair attempt across configured providers", async () => {
+    vi.stubEnv("GLOO_AI_STUDIO_API_KEY", "configured-gloo-key");
+    vi.stubEnv("GEMINI_API_KEY", "configured-gemini-key");
+    glooEmmaGenerateMock.mockResolvedValue({
+      provider: "gloo",
+      model: "gloo-openai-gpt-5-nano",
+      output: {
+        title: "Broken Guide",
+        summary: "Too thin.",
+        contentMarkdown: "Missing required shape.",
+        estimatedMinutes: 2,
+        sources: [],
+        warnings: []
+      }
+    });
+    geminiGenerateMock.mockResolvedValue({
+      provider: "gemini",
+      model: "gemini-default",
+      output: {
+        title: "When the King Kneels - Leader Guide",
+        summary: "A volunteer guide shaped around receiving grace before serving.",
+        contentMarkdown: [
+          "# When the King Kneels - Leader Guide",
+          "",
+          "## Lesson Summary",
+          "This lesson moves students from observing Jesus' secure identity to practicing humble love from received grace rather than performance. Leaders should keep the passage anchored in John 13 and the cross-shaped kingdom.",
+          "",
+          "## Likely Student Misunderstandings",
+          "- Students may hear service as earning approval instead of responding to Jesus.",
+          "- Students may miss that Peter needs to receive before he can imitate.",
+          "",
+          "## Leader Guidance",
+          "Read slowly, name what Jesus knows, and keep the group from rushing into generic kindness advice.",
+          "",
+          "## Discussion Strategy",
+          "Move from Notice to Interpret to Wrestle to Practice to Community with concise questions.",
+          "",
+          "## Pastoral Considerations",
+          "Watch for shame, pressure to prove usefulness, or care concerns that need trusted follow-up.",
+          "",
+          "## Practical Application",
+          "Ask each student to name one ordinary act of love and one way to receive Jesus' grace this week."
+        ].join("\n"),
+        estimatedMinutes: 10,
+        sources: ["Current sermon draft", "Meridian synthesis brief"],
+        warnings: []
+      }
+    });
+
+    const result = await generateMeridianSermonPrepResource({
+      kind: "leader_guide",
+      title: "When the King Kneels",
+      passage: "John 13:1-17",
+      bigIdea: "Real authority stoops. If Jesus is Lord, love looks like a towel, not a title.",
+      body: "Jesus knows where he comes from and where he is going, so he kneels to wash feet before the cross."
+    });
+
+    expect(result.provider).toBe("gemini");
+    expect(glooEmmaGenerateMock).toHaveBeenCalledTimes(2);
+    expect(geminiGenerateMock).toHaveBeenCalledTimes(1);
   });
 });
