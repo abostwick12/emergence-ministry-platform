@@ -154,6 +154,7 @@ describe("leader daily brief route", () => {
     expect(body.activityRecorded).toBe(true);
     expect(body.requestId).toBeTruthy();
     expect(mocks.sendLeaderDailyBriefToGroupMe).toHaveBeenCalledWith({ text: expect.stringContaining("# LEADER DAILY BRIEF") });
+    expect(mocks.recordLeaderDailyBriefPosted).toHaveBeenCalledWith(expect.any(Object), expect.objectContaining({ messageId: "msg_123" }));
   });
 
   it("returns a safe staged failure when generation fails before posting", async () => {
