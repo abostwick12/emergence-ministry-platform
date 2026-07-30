@@ -140,6 +140,13 @@ describe("student route access", () => {
     expect(response.headers.get("x-middleware-next")).toBe("1");
   });
 
+  it("lets the leader daily brief endpoint handle its own cron secret", async () => {
+    const response = await middleware(new NextRequest("http://localhost/api/leader-daily-brief/groupme"));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-middleware-next")).toBe("1");
+  });
+
   it("lets the GroupMe callback page handle OAuth returns before app auth redirects", async () => {
     const response = await middleware(new NextRequest("http://localhost/integrations/groupme/callback?access_token=token"));
 
