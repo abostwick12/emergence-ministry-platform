@@ -22,6 +22,7 @@ import {
   type MeridianValidationResult
 } from "@/lib/scripture/meridian-synthesis";
 import type { MetanarrativeMovement, StudentDiscussionPrompt } from "@/lib/scripture/types";
+import type { StudentDiscussionKnowledgeContext } from "@/lib/scripture/types";
 
 export type MeridianAiProviderId = "gloo" | "gemini" | "openai";
 
@@ -105,6 +106,7 @@ export type MeridianSermonPrepResourceInput = {
   passage: string;
   bigIdea: string;
   body: string;
+  knowledgeMatches?: StudentDiscussionKnowledgeContext[];
 };
 
 export type MeridianSermonPrepResourceResult = {
@@ -347,6 +349,7 @@ export async function generateMeridianSermonPrepResource(input: MeridianSermonPr
     request: `${input.title} ${input.passage} ${input.bigIdea}`,
     audience: input.kind === "small_group_questions" ? "teenagers in a small group" : "volunteer small-group leaders",
     scriptureReference: input.passage,
+    knowledgeMatches: input.knowledgeMatches,
     sermon: {
       title: input.title,
       passage: input.passage,
@@ -355,8 +358,11 @@ export async function generateMeridianSermonPrepResource(input: MeridianSermonPr
     }
   });
   const warnings: string[] = [];
+  let repairAttemptUsed = false;
   for (const candidate of configuredProviders) {
-    for (const attempt of [1, 2]) {
+    const attempts = repairAttemptUsed ? [1] : [1, 2];
+    for (const attempt of attempts) {
+      if (attempt === 2) repairAttemptUsed = true;
       try {
         const result = await candidate.provider.generate({
           model: candidate.model,
