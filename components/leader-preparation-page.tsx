@@ -30,6 +30,17 @@ const initialChecklist = [
 type GeneratedResource = {
   contentMarkdown: string;
   provider: string;
+  model: string;
+  provenance?: {
+    meridianRan: boolean;
+    aiProvider: string;
+    model: string;
+    selectedSourceIds: string[];
+    selectedSourceTypes: string[];
+    fallbackUsed: boolean;
+    fallbackReason: string;
+    validationResult: string;
+  };
   sources: string[];
   summary: string;
   title: string;
@@ -285,7 +296,7 @@ export function LeaderPreparationPage() {
                     <summary>{resource.title}</summary>
                     <p>{resource.summary}</p>
                     <pre>{resource.contentMarkdown}</pre>
-                    <small>Sources: {resource.sources.join("; ")}</small>
+                    <small>{formatMeridianDiagnostics(resource)}</small>
                   </details>
                 ))}
               </div>
@@ -372,4 +383,19 @@ function formatEmmaResponse(response: { summary: string; points: string[]; nextA
     ...response.points.map((point) => `- ${point}`),
     ...response.nextActions.map((action) => `Next: ${action}`)
   ].join("\n");
+}
+
+function formatMeridianDiagnostics(resource: GeneratedResource) {
+  const provenance = resource.provenance;
+  if (!provenance) return `Diagnostics: provider ${resource.provider}; sources ${resource.sources.join("; ")}`;
+  const sourceCount = provenance.selectedSourceIds.length;
+  return [
+    `Diagnostics: Meridian ${provenance.meridianRan ? "used" : "skipped"}`,
+    `provider ${provenance.aiProvider || resource.provider}`,
+    `model ${provenance.model || resource.model || "unknown"}`,
+    `${sourceCount} selected source${sourceCount === 1 ? "" : "s"}`,
+    `types ${provenance.selectedSourceTypes.join(", ") || "none"}`,
+    `fallback ${provenance.fallbackUsed ? "yes" : "no"}`,
+    `validation ${provenance.validationResult}`
+  ].join("; ");
 }
