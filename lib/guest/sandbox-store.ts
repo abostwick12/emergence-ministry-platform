@@ -9,6 +9,7 @@ import {
   type EventSupportNeed
 } from "@/lib/event-planning-support";
 import { createLeadEmergenceDemoSandboxState } from "@/lib/guest/lead-emergence-demo-context";
+import type { GuestMinistryAnalytics } from "@/lib/guest/lead-emergence-demo-context";
 import type {
   ActiveTask,
   ActivityLog,
@@ -31,6 +32,7 @@ type GuestSandboxState = {
   integrationLogs: IntegrationSyncLog[];
   expenses: EventExpense[];
   activity: ActivityLog[];
+  guestAnalytics?: GuestMinistryAnalytics;
 };
 
 const globalGuestState = globalThis as typeof globalThis & {
@@ -55,7 +57,8 @@ export function getGuestOverview(sessionId: string) {
     tasks: state.tasks,
     users: state.users,
     expenses: state.expenses,
-    activity: state.activity
+    activity: state.activity,
+    guestAnalytics: state.guestAnalytics
   };
 }
 

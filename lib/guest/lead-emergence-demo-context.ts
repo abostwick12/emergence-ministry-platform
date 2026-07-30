@@ -10,8 +10,9 @@ import type {
   User
 } from "@/lib/types";
 
-export const LEAD_EMERGENCE_DEMO_CONTEXT_VERSION = "lead-emergence-demo-2026-v1";
+export const LEAD_EMERGENCE_DEMO_CONTEXT_VERSION = "lead-emergence-demo-2026-v2";
 export const LEAD_EMERGENCE_DEMO_YEAR = 2026;
+export const LEAD_EMERGENCE_DEMO_HISTORY_YEAR = 2025;
 export const LEAD_EMERGENCE_DEMO_SOURCE = "lead-emergence-demo";
 
 export type DemoGender = "male" | "female";
@@ -20,6 +21,7 @@ export type DemoStaffRole = "nextgen_director" | "middle_school_pastor" | "high_
 export type DemoAttendanceStatus = "attended" | "absent";
 export type DemoRosterStatus = "regular" | "first_time" | "returning";
 export type DemoOccurrenceKind = "sunday_service" | "small_group" | "special_event";
+export type DemoWeekday = "Sunday" | "Friday";
 export type DemoSideEffectAction =
   | "send_email"
   | "send_text"
@@ -74,7 +76,7 @@ export type DemoOccurrence = {
   eventId: string;
   kind: DemoOccurrenceKind;
   date: string;
-  dayOfWeek: "Sunday";
+  dayOfWeek: DemoWeekday;
   localStartTime: string;
   localEndTime: string;
   ministryArea: string;
@@ -194,8 +196,39 @@ export type GuestDemoDerivedSignals = {
   signalsDerivedFromRecordIds: string[];
 };
 
+export type GuestMinistryAnalytics = {
+  guestMode: true;
+  synthetic: true;
+  dataSource: typeof LEAD_EMERGENCE_DEMO_SOURCE;
+  studentCount: number;
+  middleSchoolStudentCount: number;
+  highSchoolStudentCount: number;
+  staffCount: number;
+  volunteerCount: number;
+  volunteerGenderDistribution: { male: number; female: number };
+  smallGroupCount: number;
+  leaderAssignmentsPerGroup: number;
+  historyYear: number;
+  historyMonths: number;
+  plannedThroughDate: string;
+  fridayEventCount: number;
+  plannedFridayEventCount: number;
+  sundayServiceOccurrenceCount: number;
+  sundayBibleStudyOccurrenceCount: number;
+  actualAttendanceRecordCount: number;
+  specialEventAttendanceFirstQuarter: number;
+  specialEventAttendanceLastQuarter: number;
+  sundayAttendanceFirstQuarterAverage: number;
+  sundayAttendanceLastQuarterAverage: number;
+  growingGroup: { groupId: string; name: string; weeklyCounts: number[]; exceedsThreshold: boolean };
+  flatOrDecliningGroup: { groupId: string; name: string; weeklyCounts: number[] };
+  staffWorkload: { primaryOwnerId: string; primaryOwnerName: string; primaryOwnerHours: number; nextHighestHours: number };
+  volunteerWorkload: { overusedVolunteerIds: string[]; underusedVolunteerIds: string[]; overusedVolunteerNames: string[] };
+  sourceRecordCount: number;
+  canTriggerExternalSideEffects: false;
+};
+
 const fixedNow = "2026-07-30T12:00:00.000Z";
-const yearStart = "2026-01-01T12:00:00.000Z";
 const disabledSideEffects: DemoSideEffectAction[] = [
   "send_email",
   "send_text",
@@ -260,18 +293,18 @@ const smallGroupSeed: DemoSmallGroup[] = [
 }));
 
 const specialEventSeed = [
-  { id: "demo_evt_special_jan", title: "Winter Welcome Night", month: 1, day: 18, type: "combined_event" as EventType, ownerId: "guest_staff_ms", effort: 42, engagement: 63 },
-  { id: "demo_evt_special_feb", title: "Serve Prep Lab", month: 2, day: 15, type: "missions_trip" as EventType, ownerId: "guest_staff_ms", effort: 38, engagement: 58 },
-  { id: "demo_evt_special_mar", title: "Spring Rally", month: 3, day: 22, type: "combined_event" as EventType, ownerId: "guest_staff_ms", effort: 72, engagement: 46 },
-  { id: "demo_evt_special_apr", title: "City Serve Saturday", month: 4, day: 18, type: "missions_trip" as EventType, ownerId: "guest_staff_ms", effort: 44, engagement: 71 },
-  { id: "demo_evt_special_may", title: "Promotion Preview", month: 5, day: 17, type: "middle_school_event" as EventType, ownerId: "guest_staff_ms", effort: 36, engagement: 76 },
-  { id: "demo_evt_special_jun", title: "Summer Kickoff", month: 6, day: 14, type: "combined_event" as EventType, ownerId: "guest_staff_hs", effort: 39, engagement: 74 },
-  { id: "demo_evt_special_jul", title: "Neighborhood Cookout", month: 7, day: 19, type: "combined_event" as EventType, ownerId: "guest_staff_ms", effort: 26, engagement: 85 },
-  { id: "demo_evt_special_aug", title: "Leader Commissioning", month: 8, day: 16, type: "conference" as EventType, ownerId: "guest_staff_nextgen", effort: 40, engagement: 79 },
-  { id: "demo_evt_special_sep", title: "Fall Launch Night", month: 9, day: 13, type: "combined_event" as EventType, ownerId: "guest_staff_ms", effort: 54, engagement: 82 },
-  { id: "demo_evt_special_oct", title: "Middle School Retreat", month: 10, day: 11, type: "conference" as EventType, ownerId: "guest_staff_ms", effort: 68, engagement: 80 },
-  { id: "demo_evt_special_nov", title: "Friendsgiving Tables", month: 11, day: 15, type: "combined_event" as EventType, ownerId: "guest_staff_hs", effort: 28, engagement: 90 },
-  { id: "demo_evt_special_dec", title: "Christmas Serve Celebration", month: 12, day: 13, type: "combined_event" as EventType, ownerId: "guest_staff_ms", effort: 48, engagement: 88 }
+  { suffix: "jan", title: "Winter Welcome Night", dates: { 2025: "2025-01-17", 2026: "2026-01-16" }, type: "combined_event" as EventType, ownerId: "guest_staff_ms", effort: 42, engagement: 63 },
+  { suffix: "feb", title: "Serve Prep Lab", dates: { 2025: "2025-02-14", 2026: "2026-02-13" }, type: "missions_trip" as EventType, ownerId: "guest_staff_ms", effort: 38, engagement: 58 },
+  { suffix: "mar", title: "Spring Rally", dates: { 2025: "2025-03-14", 2026: "2026-03-13" }, type: "combined_event" as EventType, ownerId: "guest_staff_ms", effort: 72, engagement: 46 },
+  { suffix: "apr", title: "City Serve Friday", dates: { 2025: "2025-04-18", 2026: "2026-04-17" }, type: "missions_trip" as EventType, ownerId: "guest_staff_ms", effort: 44, engagement: 71 },
+  { suffix: "may", title: "Promotion Preview", dates: { 2025: "2025-05-16", 2026: "2026-05-15" }, type: "middle_school_event" as EventType, ownerId: "guest_staff_ms", effort: 36, engagement: 76 },
+  { suffix: "jun", title: "Summer Kickoff", dates: { 2025: "2025-06-13", 2026: "2026-06-12" }, type: "combined_event" as EventType, ownerId: "guest_staff_hs", effort: 39, engagement: 74 },
+  { suffix: "jul", title: "Neighborhood Cookout", dates: { 2025: "2025-07-18", 2026: "2026-07-17" }, type: "combined_event" as EventType, ownerId: "guest_staff_ms", effort: 26, engagement: 85 },
+  { suffix: "aug", title: "Leader Commissioning", dates: { 2025: "2025-08-15", 2026: "2026-08-14" }, type: "conference" as EventType, ownerId: "guest_staff_nextgen", effort: 40, engagement: 79 },
+  { suffix: "sep", title: "Fall Launch Night", dates: { 2025: "2025-09-12", 2026: "2026-09-11" }, type: "combined_event" as EventType, ownerId: "guest_staff_ms", effort: 54, engagement: 82 },
+  { suffix: "oct", title: "Middle School Retreat", dates: { 2025: "2025-10-10", 2026: "2026-10-09" }, type: "conference" as EventType, ownerId: "guest_staff_ms", effort: 68, engagement: 80 },
+  { suffix: "nov", title: "Friendsgiving Tables", dates: { 2025: "2025-11-14", 2026: "2026-11-13" }, type: "combined_event" as EventType, ownerId: "guest_staff_hs", effort: 28, engagement: 90 },
+  { suffix: "dec", title: "Christmas Serve Celebration", dates: { 2025: "2025-12-12", 2026: "2026-12-11" }, type: "combined_event" as EventType, ownerId: "guest_staff_ms", effort: 48, engagement: 88 }
 ];
 
 export function buildLeadEmergenceDemoContext(): LeadEmergenceDemoContext {
@@ -288,8 +321,10 @@ export function buildLeadEmergenceDemoContext(): LeadEmergenceDemoContext {
   const integrationLogs: IntegrationSyncLog[] = [];
   const activity: ActivityLog[] = [];
 
-  buildSundayRhythms(students, occurrences, events, attendance, servingAssignments);
-  buildSpecialEvents(students, occurrences, events, attendance, servingAssignments, tasks, expenses, communications, integrationLogs, activity);
+  buildSundayRhythms(LEAD_EMERGENCE_DEMO_HISTORY_YEAR, students, occurrences, events, attendance, servingAssignments);
+  buildSundayRhythms(LEAD_EMERGENCE_DEMO_YEAR, students, occurrences, events, attendance, servingAssignments);
+  buildSpecialEvents(LEAD_EMERGENCE_DEMO_HISTORY_YEAR, students, occurrences, events, attendance, servingAssignments, tasks, expenses, communications, integrationLogs, activity);
+  buildSpecialEvents(LEAD_EMERGENCE_DEMO_YEAR, students, occurrences, events, attendance, servingAssignments, tasks, expenses, communications, integrationLogs, activity);
   buildRecurringOperationalTasks(tasks, events, activity);
 
   const eventOutcomes = buildEventOutcomes(occurrences, attendance, tasks, servingAssignments);
@@ -340,7 +375,8 @@ export function createLeadEmergenceDemoSandboxState() {
     communications: cloneArray(context.overview.communications),
     integrationLogs: cloneArray(context.overview.integrationLogs),
     expenses: cloneArray(context.overview.expenses),
-    activity: cloneArray(context.overview.activity)
+    activity: cloneArray(context.overview.activity),
+    guestAnalytics: buildGuestMinistryAnalytics(context)
   };
 }
 
@@ -349,10 +385,77 @@ export function canGuestDemoTriggerExternalSideEffects(action: DemoSideEffectAct
   return false;
 }
 
+export function buildGuestMinistryAnalytics(context = buildLeadEmergenceDemoContext()): GuestMinistryAnalytics {
+  const signals = deriveGuestDemoSignals(context);
+  const plannedFridayEvents = context.occurrences.filter((occurrence) => occurrence.kind === "special_event" && occurrence.date.startsWith(`${LEAD_EMERGENCE_DEMO_YEAR}-`));
+  const staffHours = Object.entries(signals.staffEffortHours).sort((left, right) => right[1] - left[1]);
+  const primaryOwnerId = signals.primaryStaffWorkloadOwnerId;
+  const primaryOwner = context.staff.find((staff) => staff.userId === primaryOwnerId);
+
+  return {
+    guestMode: true,
+    synthetic: true,
+    dataSource: LEAD_EMERGENCE_DEMO_SOURCE,
+    studentCount: context.students.length,
+    middleSchoolStudentCount: context.students.filter((student) => student.ageGroup === "middle_school").length,
+    highSchoolStudentCount: context.students.filter((student) => student.ageGroup === "high_school").length,
+    staffCount: context.staff.length,
+    volunteerCount: context.volunteers.length,
+    volunteerGenderDistribution: {
+      male: context.volunteers.filter((volunteer) => volunteer.gender === "male").length,
+      female: context.volunteers.filter((volunteer) => volunteer.gender === "female").length
+    },
+    smallGroupCount: context.smallGroups.length,
+    leaderAssignmentsPerGroup: Math.min(...context.smallGroups.map((group) => group.leaderIds.length)),
+    historyYear: LEAD_EMERGENCE_DEMO_HISTORY_YEAR,
+    historyMonths: new Set(context.occurrences.filter((occurrence) => occurrence.date.startsWith(`${LEAD_EMERGENCE_DEMO_HISTORY_YEAR}-`)).map((occurrence) => occurrence.date.slice(5, 7))).size,
+    plannedThroughDate: plannedFridayEvents.map((occurrence) => occurrence.date).sort().at(-1) ?? `${LEAD_EMERGENCE_DEMO_YEAR}-12-31`,
+    fridayEventCount: context.occurrences.filter((occurrence) => occurrence.kind === "special_event" && occurrence.dayOfWeek === "Friday").length,
+    plannedFridayEventCount: plannedFridayEvents.length,
+    sundayServiceOccurrenceCount: context.occurrences.filter((occurrence) => occurrence.kind === "sunday_service" && occurrence.dayOfWeek === "Sunday").length,
+    sundayBibleStudyOccurrenceCount: context.occurrences.filter((occurrence) => occurrence.kind === "small_group" && occurrence.dayOfWeek === "Sunday").length,
+    actualAttendanceRecordCount: context.attendance.length,
+    specialEventAttendanceFirstQuarter: signals.specialEventAttendanceFirstQuarter,
+    specialEventAttendanceLastQuarter: signals.specialEventAttendanceLastQuarter,
+    sundayAttendanceFirstQuarterAverage: signals.sundayAttendanceFirstQuarterAverage,
+    sundayAttendanceLastQuarterAverage: signals.sundayAttendanceLastQuarterAverage,
+    growingGroup: {
+      ...signals.growingMiddleSchoolGroup,
+      name: context.smallGroups.find((group) => group.id === signals.growingMiddleSchoolGroup.groupId)?.name ?? signals.growingMiddleSchoolGroup.groupId
+    },
+    flatOrDecliningGroup: {
+      ...signals.flatOrDecliningGroup,
+      name: context.smallGroups.find((group) => group.id === signals.flatOrDecliningGroup.groupId)?.name ?? signals.flatOrDecliningGroup.groupId
+    },
+    staffWorkload: {
+      primaryOwnerId,
+      primaryOwnerName: primaryOwner ? `${primaryOwner.firstName} ${primaryOwner.lastName}` : primaryOwnerId,
+      primaryOwnerHours: signals.staffEffortHours[primaryOwnerId] ?? 0,
+      nextHighestHours: staffHours.find(([ownerId]) => ownerId !== primaryOwnerId)?.[1] ?? 0
+    },
+    volunteerWorkload: {
+      overusedVolunteerIds: signals.overusedVolunteerIds,
+      underusedVolunteerIds: signals.underusedVolunteerIds,
+      overusedVolunteerNames: signals.overusedVolunteerIds.map((volunteerId) => {
+        const volunteer = context.volunteers.find((item) => item.id === volunteerId);
+        return volunteer ? `${volunteer.firstName} ${volunteer.lastName}` : volunteerId;
+      })
+    },
+    sourceRecordCount: context.attendance.length + context.servingAssignments.length + context.tasks.length + context.eventOutcomes.length,
+    canTriggerExternalSideEffects: false
+  };
+}
+
 export function deriveGuestDemoSignals(context: LeadEmergenceDemoContext): GuestDemoDerivedSignals {
-  const specialOutcomes = context.eventOutcomes.filter((outcome) => context.occurrences.find((item) => item.eventId === outcome.eventId)?.kind === "special_event");
+  const historicalOccurrences = context.occurrences.filter((occurrence) => occurrence.date.startsWith(`${LEAD_EMERGENCE_DEMO_HISTORY_YEAR}-`));
+  const historicalOccurrenceIds = new Set(historicalOccurrences.map((occurrence) => occurrence.id));
+  const historicalEventIds = new Set(historicalOccurrences.map((occurrence) => occurrence.eventId));
+  const specialOutcomes = context.eventOutcomes.filter((outcome) => {
+    const occurrence = historicalOccurrences.find((item) => item.eventId === outcome.eventId);
+    return occurrence?.kind === "special_event";
+  });
   const sundayServiceTotals = context.occurrences
-    .filter((occurrence) => occurrence.kind === "sunday_service")
+    .filter((occurrence) => occurrence.kind === "sunday_service" && historicalOccurrenceIds.has(occurrence.id))
     .map((occurrence) => context.attendance.filter((record) => record.occurrenceId === occurrence.id && record.attended).length);
   const staffEffortHours = context.tasks.reduce<Record<string, number>>((totals, task) => {
     const owner = task.completedById ?? task.assignedOwnerId;
@@ -364,6 +467,7 @@ export function deriveGuestDemoSignals(context: LeadEmergenceDemoContext): Guest
     return counts;
   }, {});
   const servingMedian = median(Object.values(volunteerServingCounts));
+  const overusedServingThreshold = Math.max(90, servingMedian * 2.5);
 
   return {
     specialEventAttendanceFirstQuarter: average(specialOutcomes.slice(0, 3).map((outcome) => outcome.attendanceCount)),
@@ -372,17 +476,17 @@ export function deriveGuestDemoSignals(context: LeadEmergenceDemoContext): Guest
     sundayAttendanceLastQuarterAverage: average(sundayServiceTotals.slice(-39)),
     growingMiddleSchoolGroup: {
       groupId: "demo_sg_ms_01",
-      weeklyCounts: weeklySmallGroupCounts(context, "demo_sg_ms_01").slice(12, 19),
-      exceedsThreshold: Math.max(...weeklySmallGroupCounts(context, "demo_sg_ms_01")) >= 16
+      weeklyCounts: weeklySmallGroupCounts(context, "demo_sg_ms_01", LEAD_EMERGENCE_DEMO_HISTORY_YEAR).slice(12, 19),
+      exceedsThreshold: Math.max(...weeklySmallGroupCounts(context, "demo_sg_ms_01", LEAD_EMERGENCE_DEMO_HISTORY_YEAR)) >= 16
     },
-    flatOrDecliningGroup: { groupId: "demo_sg_ms_05", weeklyCounts: weeklySmallGroupCounts(context, "demo_sg_ms_05").slice(12, 19) },
+    flatOrDecliningGroup: { groupId: "demo_sg_ms_05", weeklyCounts: weeklySmallGroupCounts(context, "demo_sg_ms_05", LEAD_EMERGENCE_DEMO_HISTORY_YEAR).slice(12, 19) },
     staffEffortHours,
     primaryStaffWorkloadOwnerId: Object.entries(staffEffortHours).sort((left, right) => right[1] - left[1])[0]?.[0] ?? "",
     volunteerServingCounts,
-    overusedVolunteerIds: Object.entries(volunteerServingCounts).filter(([, count]) => count >= Math.max(24, servingMedian * 1.8)).map(([volunteerId]) => volunteerId),
+    overusedVolunteerIds: Object.entries(volunteerServingCounts).filter(([, count]) => count >= overusedServingThreshold).map(([volunteerId]) => volunteerId),
     underusedVolunteerIds: context.volunteers.filter((volunteer) => (volunteerServingCounts[volunteer.id] ?? 0) <= 6).map((volunteer) => volunteer.id),
-    highEffortWeakOutcomeEventIds: context.eventOutcomes.filter((outcome) => outcome.preparationEffortHours >= 60 && outcome.relationalEngagementScore < 55).map((outcome) => outcome.eventId),
-    lowEffortStrongOutcomeEventIds: context.eventOutcomes.filter((outcome) => outcome.preparationEffortHours <= 30 && outcome.relationalEngagementScore >= 84).map((outcome) => outcome.eventId),
+    highEffortWeakOutcomeEventIds: context.eventOutcomes.filter((outcome) => historicalEventIds.has(outcome.eventId) && outcome.preparationEffortHours >= 60 && outcome.relationalEngagementScore < 55).map((outcome) => outcome.eventId),
+    lowEffortStrongOutcomeEventIds: context.eventOutcomes.filter((outcome) => historicalEventIds.has(outcome.eventId) && outcome.preparationEffortHours <= 30 && outcome.relationalEngagementScore >= 84).map((outcome) => outcome.eventId),
     signalsDerivedFromRecordIds: context.ministrySignals.flatMap((signal) => signal.sourceRecordIds)
   };
 }
@@ -431,44 +535,69 @@ function buildUsers(volunteers: DemoVolunteer[]): User[] {
   ];
 }
 
-function buildSundayRhythms(students: DemoStudent[], occurrences: DemoOccurrence[], events: MinistryEvent[], attendance: DemoAttendanceRecord[], servingAssignments: DemoServingAssignment[]) {
+function buildSundayRhythms(year: number, students: DemoStudent[], occurrences: DemoOccurrence[], events: MinistryEvent[], attendance: DemoAttendanceRecord[], servingAssignments: DemoServingAssignment[]) {
   const middleSchoolStudents = students.filter((student) => student.ageGroup === "middle_school");
   const highSchoolStudents = students.filter((student) => student.ageGroup === "high_school");
   const msEarly = middleSchoolStudents.slice(0, 38);
   const msLate = middleSchoolStudents.slice(38);
-  sundaysInDemoYear().forEach((date, weekIndex) => {
+  sundaysInYear(year).forEach((date, weekIndex) => {
     const dateId = compactDate(date);
+    const trendWeekIndex = weekIndex + (year - LEAD_EMERGENCE_DEMO_HISTORY_YEAR) * 52;
+    const hasActualAttendance = isActualDate(date);
     const ms9 = addOccurrenceEvent(occurrences, events, baseOccurrence(`demo_occ_ms_0900_${dateId}`, `demo_evt_ms_0900_${dateId}`, "Middle School 9:00 AM Service", "09:00", "10:15", "Middle School", "middle_school", "sunday_morning_service", "guest_staff_ms", date, "sunday_service", 4));
-    addAttendance(attendance, ms9, msEarly, Math.max(20, Math.round(31 - weekIndex * 0.16 + serviceWave(weekIndex))), weekIndex);
+    if (hasActualAttendance) addAttendance(attendance, ms9, msEarly, Math.max(20, Math.round(31 - trendWeekIndex * 0.12 + serviceWave(trendWeekIndex))), trendWeekIndex);
     addCoreServing(servingAssignments, ms9, weekIndex);
 
     const ms1045 = addOccurrenceEvent(occurrences, events, baseOccurrence(`demo_occ_ms_1045_${dateId}`, `demo_evt_ms_1045_${dateId}`, "Middle School 10:45 AM Service", "10:45", "12:00", "Middle School", "middle_school", "sunday_morning_service", "guest_staff_ms", date, "sunday_service", 4));
-    addAttendance(attendance, ms1045, msLate, Math.max(19, Math.round(29 - weekIndex * 0.15 + serviceWave(weekIndex + 1))), weekIndex);
+    if (hasActualAttendance) addAttendance(attendance, ms1045, msLate, Math.max(19, Math.round(29 - trendWeekIndex * 0.11 + serviceWave(trendWeekIndex + 1))), trendWeekIndex);
     addRotatingServing(servingAssignments, ms1045, weekIndex);
 
-    const msGroups = addOccurrenceEvent(occurrences, events, baseOccurrence(`demo_occ_ms_groups_${dateId}`, `demo_evt_ms_groups_${dateId}`, "Middle School Small Groups", "18:00", "20:00", "Middle School Small Groups", "middle_school", "small_group_gathering", "guest_staff_ms", date, "small_group", 10));
+    const msGroups = addOccurrenceEvent(occurrences, events, baseOccurrence(`demo_occ_ms_bible_study_${dateId}`, `demo_evt_ms_bible_study_${dateId}`, "Middle School Bible Study", "18:00", "20:00", "Middle School Bible Study", "middle_school", "small_group_gathering", "guest_staff_ms", date, "small_group", 10));
     smallGroupSeed.filter((group) => group.ageGroup === "middle_school").forEach((group) => {
       const groupStudents = middleSchoolStudents.filter((student) => student.smallGroupId === group.id);
-      addAttendance(attendance, msGroups, groupStudents, middleSchoolGroupCount(group.id, weekIndex, groupStudents.length), weekIndex, group.id);
+      if (hasActualAttendance) addAttendance(attendance, msGroups, groupStudents, middleSchoolGroupCount(group.id, trendWeekIndex, groupStudents.length), trendWeekIndex, group.id);
     });
 
     const hs = addOccurrenceEvent(occurrences, events, baseOccurrence(`demo_occ_hs_1800_${dateId}`, `demo_evt_hs_1800_${dateId}`, "High School Sunday Night Service", "18:00", "20:00", "High School", "high_school", "sunday_evening_service", "guest_staff_hs", date, "sunday_service", 5));
-    addAttendance(attendance, hs, highSchoolStudents, Math.max(38, Math.round(55 - weekIndex * 0.29 + serviceWave(weekIndex + 2))), weekIndex);
+    if (hasActualAttendance) addAttendance(attendance, hs, highSchoolStudents, Math.max(34, Math.round(55 - trendWeekIndex * 0.22 + serviceWave(trendWeekIndex + 2))), trendWeekIndex);
     addHighSchoolServing(servingAssignments, hs, weekIndex);
   });
 }
 
-function buildSpecialEvents(students: DemoStudent[], occurrences: DemoOccurrence[], events: MinistryEvent[], attendance: DemoAttendanceRecord[], servingAssignments: DemoServingAssignment[], tasks: DemoTask[], expenses: EventExpense[], communications: CommunicationPackage[], integrationLogs: IntegrationSyncLog[], activity: ActivityLog[]) {
+function buildSpecialEvents(year: number, students: DemoStudent[], occurrences: DemoOccurrence[], events: MinistryEvent[], attendance: DemoAttendanceRecord[], servingAssignments: DemoServingAssignment[], tasks: DemoTask[], expenses: EventExpense[], communications: CommunicationPackage[], integrationLogs: IntegrationSyncLog[], activity: ActivityLog[]) {
   specialEventSeed.forEach((eventSeed, index) => {
-    const date = dateOnly(eventSeed.month, eventSeed.day);
-    const occurrence = addOccurrenceEvent(occurrences, events, baseOccurrence(`demo_occ_special_${pad(index + 1, 2)}`, eventSeed.id, eventSeed.title, eventSeed.type === "conference" ? "18:00" : "17:00", eventSeed.type === "conference" ? "20:00" : "19:30", "NextGen Shared Event", "combined", eventSeed.type, eventSeed.ownerId, date, "special_event", eventSeed.type === "conference" ? 12 : 8, eventSeed.type === "conference" ? 6800 : 1250, eventSeed.type === "conference" ? 6425 + index * 80 : 900 + index * 45));
-    addAttendance(attendance, occurrence, students, 42 + index * 4 + (index >= 8 ? 4 : 0), index + 4);
+    const date = year === LEAD_EMERGENCE_DEMO_HISTORY_YEAR ? eventSeed.dates[2025] : eventSeed.dates[2026];
+    const eventId = year === LEAD_EMERGENCE_DEMO_YEAR ? `demo_evt_special_${eventSeed.suffix}` : `demo_evt_past_special_${eventSeed.suffix}`;
+    const occurrence = addOccurrenceEvent(
+      occurrences,
+      events,
+      baseOccurrence(
+        `demo_occ_special_${year}_${eventSeed.suffix}`,
+        eventId,
+        eventSeed.title,
+        eventSeed.type === "conference" ? "18:00" : "19:00",
+        eventSeed.type === "conference" ? "21:00" : "21:00",
+        "NextGen Shared Event",
+        "combined",
+        eventSeed.type,
+        eventSeed.ownerId,
+        date,
+        "special_event",
+        eventSeed.type === "conference" ? 12 : 8,
+        eventSeed.type === "conference" ? 6800 : 1250,
+        eventSeed.type === "conference" ? 6425 + index * 80 : 900 + index * 45
+      )
+    );
+    if (isActualDate(date)) {
+      const historicalAttendanceLift = year === LEAD_EMERGENCE_DEMO_HISTORY_YEAR ? 0 : 8;
+      addAttendance(attendance, occurrence, students, 42 + index * 4 + (index >= 8 ? 4 : 0) + historicalAttendanceLift, index + 4);
+    }
     addSpecialServing(servingAssignments, occurrence, index);
-    addSpecialEventTasks(tasks, eventSeed.id, eventSeed.ownerId, date, index, eventSeed.effort);
-    expenses.push({ id: `demo_exp_${eventSeed.id}`, eventId: eventSeed.id, categoryId: eventSeed.type === "conference" ? "retreat_lodging" : "supplies", amount: eventSeed.type === "conference" ? 1900 + index * 95 : 260 + index * 35, description: `Synthetic demo actual for ${eventSeed.title}`, timestamp: isoForLocal(date, 12, 0) });
-    communications.push({ id: `demo_comm_${eventSeed.id}_leader_preview`, eventId: eventSeed.id, type: "leader_brief", payload: { subject: `Preview only: ${eventSeed.title} leader brief`, body: `Preview only - not sent. Synthetic guest context for ${eventSeed.title}; no email, text, GroupMe, or Planning Center write is allowed.` }, status: "preview", createdAt: isoForLocal(date, 12, 0) });
-    integrationLogs.push({ id: `demo_sync_${eventSeed.id}_planning_center`, integrationType: "planning_center", eventId: eventSeed.id, status: "stub_mode", details: { action: "synthetic attendance snapshot", message: "Guest demo source only. No Planning Center account was read or written." }, timestamp: isoForLocal(date, 12, 15) });
-    activity.push({ id: `demo_act_${eventSeed.id}_loaded`, type: "integration_stub_action", eventId: eventSeed.id, actorId: eventSeed.ownerId, message: `Loaded synthetic guest context: ${eventSeed.title}`, metadata: { synthetic: true, externalSync: false }, timestamp: isoForLocal(date, 12, 30) });
+    addSpecialEventTasks(tasks, eventId, eventSeed.ownerId, date, index, eventSeed.effort);
+    expenses.push({ id: `demo_exp_${eventId}`, eventId, categoryId: eventSeed.type === "conference" ? "retreat_lodging" : "supplies", amount: eventSeed.type === "conference" ? 1900 + index * 95 : 260 + index * 35, description: `Synthetic demo ${isActualDate(date) ? "actual" : "planned"} for ${eventSeed.title}`, timestamp: isoForLocal(date, 12, 0) });
+    communications.push({ id: `demo_comm_${eventId}_leader_preview`, eventId, type: "leader_brief", payload: { subject: `Preview only: ${eventSeed.title} leader brief`, body: `Preview only - not sent. Synthetic guest context for ${eventSeed.title}; no email, text, GroupMe, or Planning Center write is allowed.` }, status: "preview", createdAt: isoForLocal(date, 12, 0) });
+    integrationLogs.push({ id: `demo_sync_${eventId}_planning_center`, integrationType: "planning_center", eventId, status: "stub_mode", details: { action: "synthetic attendance snapshot", message: "Guest demo source only. No Planning Center account was read or written." }, timestamp: isoForLocal(date, 12, 15) });
+    activity.push({ id: `demo_act_${eventId}_loaded`, type: "integration_stub_action", eventId, actorId: eventSeed.ownerId, message: `Loaded synthetic guest context: ${eventSeed.title}`, metadata: { synthetic: true, externalSync: false, planned: !isActualDate(date) }, timestamp: isoForLocal(date, 12, 30) });
   });
 }
 
@@ -499,7 +628,7 @@ function demoTask(eventId: string, suffix: string, title: string, assignedOwnerI
 }
 
 function baseOccurrence(id: string, eventId: string, title: string, localStartTime: string, localEndTime: string, ministryArea: string, ageGroup: DemoOccurrence["ageGroup"], type: EventType, ownerId: string, date: string, kind: DemoOccurrenceKind, volunteersNeeded: number, budgetTarget?: number, budgetActual?: number) {
-  return { id, eventId, kind, date, dayOfWeek: "Sunday" as const, localStartTime, localEndTime, ministryArea, ageGroup, title, type, ownerId, volunteersNeeded, budgetTarget, budgetActual };
+  return { id, eventId, kind, date, dayOfWeek: kind === "special_event" ? "Friday" as const : "Sunday" as const, localStartTime, localEndTime, ministryArea, ageGroup, title, type, ownerId, volunteersNeeded, budgetTarget, budgetActual };
 }
 
 function addOccurrenceEvent(occurrences: DemoOccurrence[], events: MinistryEvent[], input: ReturnType<typeof baseOccurrence>): DemoOccurrence {
@@ -533,7 +662,7 @@ function addOccurrenceEvent(occurrences: DemoOccurrence[], events: MinistryEvent
     archivedAt: completed ? isoForLocal(input.date, 23, 0) : undefined,
     archivedByUserId: completed ? input.ownerId : undefined,
     archiveReason: completed ? "Synthetic completed occurrence retained for public demo signals." : undefined,
-    createdAt: yearStart
+    createdAt: `${input.date.slice(0, 4)}-01-01T12:00:00.000Z`
   });
   const occurrence = { id: input.id, eventId: input.eventId, kind: input.kind, date: input.date, dayOfWeek: input.dayOfWeek, localStartTime: input.localStartTime, localEndTime: input.localEndTime, ministryArea: input.ministryArea, ageGroup: input.ageGroup, title: input.title };
   occurrences.push(occurrence);
@@ -577,8 +706,8 @@ function serving(occurrence: DemoOccurrence, volunteerId: string, role: string):
 }
 
 function buildEventOutcomes(occurrences: DemoOccurrence[], attendance: DemoAttendanceRecord[], tasks: DemoTask[], servingAssignments: DemoServingAssignment[]): DemoEventOutcome[] {
-  return occurrences.filter((occurrence) => occurrence.kind === "special_event").map((occurrence, index) => {
-    const seed = specialEventSeed[index];
+  return occurrences.filter((occurrence) => occurrence.kind === "special_event" && attendance.some((record) => record.occurrenceId === occurrence.id)).map((occurrence, index) => {
+    const seed = specialEventSeed[index % specialEventSeed.length];
     const attendanceRecords = attendance.filter((record) => record.occurrenceId === occurrence.id);
     return { id: `demo_outcome_${occurrence.eventId}`, eventId: occurrence.eventId, attendanceCount: attendanceRecords.filter((record) => record.attended).length, firstTimeCount: attendanceRecords.filter((record) => record.attended && record.rosterStatus === "first_time").length, relationalEngagementScore: seed?.engagement ?? 70, preparationEffortHours: tasks.filter((task) => task.eventId === occurrence.eventId).reduce((total, task) => total + task.actualEffortHours, 0), volunteerSlots: servingAssignments.filter((assignment) => assignment.eventId === occurrence.eventId).length, summary: "Synthetic event outcome derived from attendance, serving, and task effort records." };
   });
@@ -606,20 +735,28 @@ function middleSchoolGroupCount(groupId: string, weekIndex: number, groupSize: n
   return Math.min(groupSize, 9 + ((weekIndex + groupId.charCodeAt(groupId.length - 1)) % 3));
 }
 
-function weeklySmallGroupCounts(context: LeadEmergenceDemoContext, groupId: string): number[] {
-  return context.occurrences.filter((occurrence) => occurrence.kind === "small_group").map((occurrence) => context.attendance.filter((record) => record.occurrenceId === occurrence.id && record.groupId === groupId && record.attended).length);
+function weeklySmallGroupCounts(context: LeadEmergenceDemoContext, groupId: string, year?: number): number[] {
+  return context.occurrences
+    .filter((occurrence) => occurrence.kind === "small_group" && (!year || occurrence.date.startsWith(`${year}-`)))
+    .map((occurrence) => context.attendance.filter((record) => record.occurrenceId === occurrence.id && record.groupId === groupId && record.attended).length);
 }
 
 function serviceWave(weekIndex: number) {
   return (weekIndex % 5) - 2;
 }
 
-function sundaysInDemoYear() {
-  return Array.from({ length: 52 }, (_, index) => addDaysToDateOnly("2026-01-04", index * 7));
+function sundaysInYear(year: number) {
+  return Array.from({ length: 52 }, (_, index) => addDaysToDateOnly(firstSundayOfYear(year), index * 7));
 }
 
-function dateOnly(month: number, day: number) {
-  return `${LEAD_EMERGENCE_DEMO_YEAR}-${pad(month, 2)}-${pad(day, 2)}`;
+function firstSundayOfYear(year: number) {
+  const value = new Date(`${year}-01-01T00:00:00.000Z`);
+  while (value.getUTCDay() !== 0) value.setUTCDate(value.getUTCDate() + 1);
+  return value.toISOString().slice(0, 10);
+}
+
+function isActualDate(date: string) {
+  return new Date(`${date}T23:59:59.000Z`).getTime() < new Date(fixedNow).getTime();
 }
 
 function addDaysToDateOnly(date: string, days: number) {

@@ -22,6 +22,7 @@ import type {
   TaskStatus,
   User
 } from "@/lib/types";
+import type { GuestMinistryAnalytics } from "@/lib/guest/lead-emergence-demo-context";
 import { addDays, uid } from "@/lib/utils";
 import type { AuthSession } from "@/lib/auth/server";
 import { resolvePersonName } from "@/lib/auth/display-name";
@@ -61,6 +62,7 @@ export type MinistryOverview = {
   users: User[];
   expenses: EventExpense[];
   activity: ActivityLog[];
+  guestAnalytics?: GuestMinistryAnalytics;
 };
 
 type SupabaseProfileRow = {

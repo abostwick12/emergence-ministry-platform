@@ -61,6 +61,20 @@ test.describe("Ministry Hub alignment workspace", () => {
     await expect(dialog.getByText(/alignment score|percentage alignment|Season score/i)).toHaveCount(0);
   });
 
+  test("guest mode shows the full seeded roster and trend window", async ({ page }) => {
+    await page.goto("/login");
+    await page.getByRole("link", { name: /Continue as guest/ }).click();
+    await expect(page).toHaveURL(/\/dashboard$/);
+
+    await page.goto("/ministry");
+
+    await expect(page.getByText("150 students", { exact: true })).toBeVisible();
+    await expect(page.getByText("3 staff, 20 adult volunteers (13 men / 7 women), 10 small groups.")).toBeVisible();
+    await expect(page.getByText("12 months", { exact: true })).toBeVisible();
+    await expect(page.getByText(/Friday events are planned through Dec 11, 2026/)).toBeVisible();
+    await expect(page.getByText(/Attendance trend not connected/)).toHaveCount(0);
+  });
+
   test("keeps the mobile alignment layout usable", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await login(page);

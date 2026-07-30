@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildLeadEmergenceDemoContext,
+  buildGuestMinistryAnalytics,
   canGuestDemoTriggerExternalSideEffects,
   deriveGuestDemoSignals,
+  LEAD_EMERGENCE_DEMO_HISTORY_YEAR,
   LEAD_EMERGENCE_DEMO_SOURCE,
   LEAD_EMERGENCE_DEMO_YEAR
 } from "@/lib/guest/lead-emergence-demo-context";
@@ -18,6 +20,7 @@ describe("Lead Emergence guest demo context", () => {
     expect(context.dataSource).toBe(LEAD_EMERGENCE_DEMO_SOURCE);
     expect(context.staff.map((staff) => staff.role).sort()).toEqual(["high_school_pastor", "middle_school_pastor", "nextgen_director"]);
     expect(unique(context.students.map((student) => student.id))).toHaveLength(150);
+    expect(context.staff).toHaveLength(3);
     expect(unique(context.volunteers.map((volunteer) => volunteer.id))).toHaveLength(20);
     expect(context.volunteers.filter((volunteer) => volunteer.gender === "male")).toHaveLength(13);
     expect(context.volunteers.filter((volunteer) => volunteer.gender === "female")).toHaveLength(7);
@@ -33,31 +36,43 @@ describe("Lead Emergence guest demo context", () => {
     const context = buildLeadEmergenceDemoContext();
     const ms9 = context.occurrences.filter((occurrence) => occurrence.title === "Middle School 9:00 AM Service");
     const ms1045 = context.occurrences.filter((occurrence) => occurrence.title === "Middle School 10:45 AM Service");
-    const msGroups = context.occurrences.filter((occurrence) => occurrence.title === "Middle School Small Groups");
+    const msGroups = context.occurrences.filter((occurrence) => occurrence.title === "Middle School Bible Study");
     const hs = context.occurrences.filter((occurrence) => occurrence.title === "High School Sunday Night Service");
+    const fridayEvents = context.occurrences.filter((occurrence) => occurrence.kind === "special_event");
 
-    expect(ms9).toHaveLength(52);
-    expect(ms1045).toHaveLength(52);
-    expect(msGroups).toHaveLength(52);
-    expect(hs).toHaveLength(52);
+    expect(ms9).toHaveLength(104);
+    expect(ms1045).toHaveLength(104);
+    expect(msGroups).toHaveLength(104);
+    expect(hs).toHaveLength(104);
+    expect(ms9.filter((occurrence) => occurrence.date.startsWith(`${LEAD_EMERGENCE_DEMO_HISTORY_YEAR}-`))).toHaveLength(52);
+    expect(ms9.filter((occurrence) => occurrence.date.startsWith(`${LEAD_EMERGENCE_DEMO_YEAR}-`))).toHaveLength(52);
     expect(ms9.every((occurrence) => occurrence.dayOfWeek === "Sunday" && occurrence.localStartTime === "09:00")).toBe(true);
     expect(ms1045.every((occurrence) => occurrence.dayOfWeek === "Sunday" && occurrence.localStartTime === "10:45")).toBe(true);
     expect(msGroups.every((occurrence) => occurrence.dayOfWeek === "Sunday" && occurrence.localStartTime === "18:00" && occurrence.localEndTime === "20:00")).toBe(true);
     expect(hs.every((occurrence) => occurrence.dayOfWeek === "Sunday" && occurrence.localStartTime === "18:00" && occurrence.localEndTime === "20:00")).toBe(true);
+    expect(fridayEvents).toHaveLength(24);
+    expect(fridayEvents.every((occurrence) => occurrence.dayOfWeek === "Friday")).toBe(true);
+    expect(fridayEvents.filter((occurrence) => occurrence.date.startsWith(`${LEAD_EMERGENCE_DEMO_YEAR}-`))).toHaveLength(12);
+    expect(fridayEvents.some((occurrence) => occurrence.date === `${LEAD_EMERGENCE_DEMO_YEAR}-12-11`)).toBe(true);
+    expect(fridayEvents.every((occurrence) => occurrence.localStartTime !== "09:00" && occurrence.localStartTime !== "10:45")).toBe(true);
   });
 
-  it("keeps references valid and dates inside the demonstration year", () => {
+  it("keeps references valid and dates inside the demonstration and history years", () => {
     const context = buildLeadEmergenceDemoContext();
     const studentIds = new Set(context.students.map((student) => student.id));
     const eventIds = new Set(context.overview.events.map((event) => event.id));
     const occurrenceIds = new Set(context.occurrences.map((occurrence) => occurrence.id));
     const volunteerIds = new Set(context.volunteers.map((volunteer) => volunteer.id));
     const userIds = new Set(context.overview.users.map((user) => user.id));
+    const validYears = new Set([String(LEAD_EMERGENCE_DEMO_HISTORY_YEAR), String(LEAD_EMERGENCE_DEMO_YEAR)]);
 
     expect(context.attendance.every((record) => studentIds.has(record.studentId) && eventIds.has(record.eventId) && occurrenceIds.has(record.occurrenceId))).toBe(true);
     expect(context.servingAssignments.every((assignment) => volunteerIds.has(assignment.volunteerId) && eventIds.has(assignment.eventId) && occurrenceIds.has(assignment.occurrenceId))).toBe(true);
     expect(context.tasks.every((task) => userIds.has(task.assignedOwnerId) && (!task.completedById || userIds.has(task.completedById)) && eventIds.has(task.eventId))).toBe(true);
-    expect(allDates(context).every((date) => date.startsWith(`${LEAD_EMERGENCE_DEMO_YEAR}-`))).toBe(true);
+    expect(allDates(context).every((date) => validYears.has(date.slice(0, 4)))).toBe(true);
+    expect(new Set(context.occurrences.filter((occurrence) => occurrence.date.startsWith(`${LEAD_EMERGENCE_DEMO_HISTORY_YEAR}-`)).map((occurrence) => occurrence.date.slice(5, 7))).size).toBe(12);
+    expect(context.occurrences.filter((occurrence) => occurrence.kind === "sunday_service" && occurrence.date.startsWith(`${LEAD_EMERGENCE_DEMO_HISTORY_YEAR}-`))).toHaveLength(156);
+    expect(context.occurrences.filter((occurrence) => occurrence.kind === "sunday_service" && occurrence.date.startsWith(`${LEAD_EMERGENCE_DEMO_HISTORY_YEAR}-`)).every((occurrence) => context.attendance.some((record) => record.occurrenceId === occurrence.id))).toBe(true);
   });
 
   it("derives the intended attendance and workload signals from records", () => {
@@ -74,10 +89,28 @@ describe("Lead Emergence guest demo context", () => {
     expect(signals.overusedVolunteerIds).toEqual(expect.arrayContaining(["demo_vol_01", "demo_vol_02"]));
     expect(signals.overusedVolunteerIds.length).toBeLessThanOrEqual(3);
     expect(signals.underusedVolunteerIds.length).toBeGreaterThanOrEqual(4);
-    expect(signals.highEffortWeakOutcomeEventIds).toContain("demo_evt_special_mar");
-    expect(signals.lowEffortStrongOutcomeEventIds).toContain("demo_evt_special_jul");
+    expect(signals.highEffortWeakOutcomeEventIds).toContain("demo_evt_past_special_mar");
+    expect(signals.lowEffortStrongOutcomeEventIds).toContain("demo_evt_past_special_jul");
     expect(signals.signalsDerivedFromRecordIds.length).toBeGreaterThan(0);
     expect(signals.signalsDerivedFromRecordIds.every((id) => hasRecord(context, id))).toBe(true);
+  });
+
+  it("exposes guest analytics for Ministry Hub without hiding the full roster", () => {
+    const context = buildLeadEmergenceDemoContext();
+    const analytics = buildGuestMinistryAnalytics(context);
+    const overview = getGuestOverview("guest-demo-analytics-test");
+
+    expect(analytics.studentCount).toBe(150);
+    expect(analytics.staffCount).toBe(3);
+    expect(analytics.volunteerCount).toBe(20);
+    expect(analytics.volunteerGenderDistribution).toEqual({ male: 13, female: 7 });
+    expect(analytics.historyMonths).toBe(12);
+    expect(analytics.plannedThroughDate).toBe(`${LEAD_EMERGENCE_DEMO_YEAR}-12-11`);
+    expect(analytics.canTriggerExternalSideEffects).toBe(false);
+    expect(overview.users).toHaveLength(23);
+    expect(overview.guestAnalytics?.studentCount).toBe(150);
+    expect(overview.guestAnalytics?.staffCount).toBe(3);
+    expect(overview.guestAnalytics?.volunteerCount).toBe(20);
   });
 
   it("keeps guest data isolated from external side effects and production loaders", () => {
