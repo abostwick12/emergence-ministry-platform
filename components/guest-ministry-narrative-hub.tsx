@@ -23,19 +23,52 @@ export function GuestMinistryNarrativeHub({
   return (
     <section className="guest-ministry-hub" aria-label="Guest Ministry Hub narrative review">
       <header className="guest-ministry-intro">
-        <p className="eyebrow">What leadership may not have noticed</p>
-        <h2>Ministry records can return attention to people.</h2>
+        <p className="eyebrow">Leadership context</p>
+        <h2>Shared direction before shared discernment.</h2>
         <p>
-          Four patterns surfaced from the same synthetic ministry history. Each one begins with what changed,
-          shows the records behind it, names what remains unknown, and leaves the judgment with ministry leaders.
+          This guest view connects leadership-authored direction to observable ministry signals, inspectable evidence,
+          and questions for prayerful discussion.
         </p>
       </header>
 
-      <section className="guest-ministry-method" aria-label="Ministry alignment">
-        <div className="guest-ministry-method-body">
-          <div><h3>Vision</h3><p>Students becoming rooted in Scripture, formed through meaningful relationships, and equipped to recognize where God is already at work.</p></div>
-          <div><h3>Current season: Scripture Engagement</h3><p>Students learn to read Scripture within its larger story, ask thoughtful questions, and live what they discover.</p></div>
-          <div><h3>Success looks like</h3><p>Sermons, leader resources, Journey Journals, events, and student questions reinforce one Scripture-engagement pathway.</p></div>
+      <section className="ministry-alignment-panel guest-ministry-alignment" aria-label="Ministry Alignment">
+        <header className="ministry-alignment-header">
+          <div>
+            <p className="eyebrow">Current Season</p>
+            <h3>Scripture Engagement</h3>
+          </div>
+          <span className="guest-ministry-readonly">Guest view · Read only</span>
+        </header>
+
+        <div className="ministry-alignment-statement-row" aria-label="Vision and mission">
+          <div className="ministry-alignment-block ministry-alignment-quote-block">
+            <span>Vision</span>
+            <p>Students become lifelong disciples of Jesus who love Scripture, live in community, and serve with courage.</p>
+          </div>
+          <div className="ministry-alignment-block ministry-alignment-quote-block">
+            <span>Mission</span>
+            <p>Reduce administrative friction so ministry leaders can spend more time forming students as disciples.</p>
+          </div>
+        </div>
+
+        <div className="ministry-alignment-grid">
+          <div className="ministry-alignment-block ministry-alignment-list-card">
+            <span>Values</span>
+            <ul>
+              <li><strong>Scripture First</strong></li>
+              <li><strong>Formation Over Activity</strong></li>
+              <li><strong>Care for Leaders</strong></li>
+            </ul>
+          </div>
+          <div className="ministry-alignment-block ministry-alignment-list-card ministry-alignment-success-card">
+            <span>Success Looks Like</span>
+            <ul>
+              <li>Students engage Scripture outside scheduled programs.</li>
+              <li>Small groups move from discussion into spiritual practice.</li>
+              <li>Leaders report deeper and more consistent discipleship conversations.</li>
+              <li>Families reinforce spiritual rhythms at home.</li>
+            </ul>
+          </div>
         </div>
       </section>
 
@@ -143,27 +176,11 @@ function NarrativeStory({
         <header className="guest-ministry-story-header">
           <p className="eyebrow">{narrative.eyebrow}</p>
           <h2 id={`guest-story-title-${narrative.id}`}>{narrative.headline}</h2>
-          <p className="guest-ministry-change">{narrative.whatChanged}</p>
-          <dl className="guest-ministry-context">
-            <div>
-              <dt>Where</dt>
-              <dd>{narrative.ministryArea}</dd>
-            </div>
-            <div>
-              <dt>Who</dt>
-              <dd>{narrative.people.join(", ")}</dd>
-            </div>
-            <div>
-              <dt>When</dt>
-              <dd>{narrative.timeframe}</dd>
-            </div>
-          </dl>
+          <div className="guest-ministry-change">
+            <span>What changed</span>
+            <p>{narrative.whatChanged}</p>
+          </div>
         </header>
-
-        <section className="guest-ministry-meaning" aria-labelledby={`meaning-${narrative.id}`}>
-          <h3 id={`meaning-${narrative.id}`}>Why it may deserve attention</h3>
-          {narrative.whyItMayMatter.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
-        </section>
 
         <section className="guest-ministry-evidence-summary" aria-labelledby={`evidence-summary-${narrative.id}`}>
           <h3 id={`evidence-summary-${narrative.id}`}>What the records show</h3>
@@ -199,6 +216,34 @@ function NarrativeStory({
             {emmaOpen ? "Close EMMA" : "Discuss with EMMA"}
           </button>
         </div>
+
+        <section className="guest-ministry-meaning" aria-labelledby={`meaning-${narrative.id}`}>
+          <h3 id={`meaning-${narrative.id}`}>Why it deserves attention</h3>
+          {narrative.whyItMayMatter.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
+        </section>
+
+        <dl className="guest-ministry-context">
+          <div>
+            <dt>Where</dt>
+            <dd>{narrative.ministryArea}</dd>
+          </div>
+          <div>
+            <dt>Who</dt>
+            <dd>{narrative.people.join(", ")}</dd>
+          </div>
+          <div>
+            <dt>When</dt>
+            <dd>{narrative.timeframe}</dd>
+          </div>
+        </dl>
+
+        <aside className="guest-ministry-boundary" aria-labelledby={`boundary-${narrative.id}`}>
+          <ShieldCheck aria-hidden="true" />
+          <div>
+            <h3 id={`boundary-${narrative.id}`}>What the records cannot conclude</h3>
+            <p>{narrative.unknowns[0]}</p>
+          </div>
+        </aside>
 
         {emmaOpen ? (
           <div className="guest-ministry-emma-handoff">
