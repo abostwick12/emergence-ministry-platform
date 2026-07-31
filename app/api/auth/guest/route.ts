@@ -10,9 +10,11 @@ const cookieOptions = {
   maxAge: 60 * 60 * 6
 };
 
-export async function GET(request: Request) {
-  const target = new URL("/dashboard", request.url);
-  const response = NextResponse.redirect(target);
+export async function GET() {
+  const response = new NextResponse(null, {
+    status: 307,
+    headers: { Location: "/dashboard" }
+  });
   response.cookies.set(authCookieNames.guestSession, crypto.randomUUID(), cookieOptions);
   return response;
 }

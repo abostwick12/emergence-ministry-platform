@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowRight, CalendarCheck2, HeartHandshake, LogIn, MessageSquareText } from "lucide-react";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, MouseEvent, useCallback, useEffect, useRef, useState } from "react";
 import { clearPendingGroupMeCallback, readPendingGroupMeCallback, savePendingGroupMeCallback } from "@/lib/integrations/groupme/pending-callback";
 
 type LoginResponse = {
@@ -21,14 +21,20 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const guestClearPromise = useRef<Promise<void> | null>(null);
 
-  useEffect(() => {
-    void fetch("/api/auth/clear-guest", {
+  const clearGuestSession = useCallback(() => {
+    guestClearPromise.current ??= fetch("/api/auth/clear-guest", {
       method: "POST",
       cache: "no-store",
       credentials: "same-origin"
-    }).catch(() => undefined);
+    }).then(() => undefined, () => undefined);
+    return guestClearPromise.current;
   }, []);
+
+  useEffect(() => {
+    void clearGuestSession();
+  }, [clearGuestSession]);
 
   useEffect(() => {
     const currentUrl = new URL(window.location.href);
@@ -115,6 +121,12 @@ export default function LoginPage() {
     window.location.assign(nextPath);
   }
 
+  async function continueAsGuest(event: MouseEvent<HTMLAnchorElement>) {
+    event.preventDefault();
+    await clearGuestSession();
+    window.location.assign("/api/auth/guest");
+  }
+
   return (
     <main className="login-shell login-entry-shell">
       <div className="login-entry-frame">
@@ -166,7 +178,7 @@ export default function LoginPage() {
 
           <div className="login-entry-alternate"><span>or</span></div>
 
-          <a className="button login-entry-guest" href="/api/auth/guest">
+          <a className="button login-entry-guest" href="/api/auth/guest" onClick={continueAsGuest}>
             Continue as guest <ArrowRight size={18} aria-hidden="true" />
           </a>
 
