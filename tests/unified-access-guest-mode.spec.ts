@@ -210,7 +210,21 @@ test.describe("Unified access and competition guest mode", () => {
 
 async function enterGuestMode(page: Page) {
   await page.goto("/");
+  const authSequence: string[] = [];
+  page.on("response", (response) => {
+    if (response.url().endsWith("/api/auth/clear-guest")) authSequence.push("guest-clear-complete");
+  });
+  page.on("request", (request) => {
+    if (request.url().endsWith("/api/auth/guest")) authSequence.push("guest-session-start");
+  });
+  const dashboardRequestPromise = page.waitForRequest(
+    (request) => new URL(request.url()).pathname === "/dashboard"
+  );
   await page.getByRole("link", { name: "Continue as guest" }).click();
+  await dashboardRequestPromise;
+  expect(authSequence.slice(0, 2)).toEqual(["guest-clear-complete", "guest-session-start"]);
+  const guestCookie = (await page.context().cookies()).find((cookie) => cookie.name === "lead_guest_session");
+  expect(guestCookie?.value).toBeTruthy();
   await expect(page).toHaveURL(/\/dashboard$/);
   await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible();
 }
