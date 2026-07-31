@@ -5,11 +5,13 @@ import {
   buildGuestMinistryAnalytics,
   canGuestDemoTriggerExternalSideEffects,
   deriveGuestDemoSignals,
+  LEAD_EMERGENCE_DEMO_CONTEXT_VERSION,
+  LEAD_EMERGENCE_DEMO_COUNT_CONTRACT,
   LEAD_EMERGENCE_DEMO_HISTORY_YEAR,
   LEAD_EMERGENCE_DEMO_SOURCE,
   LEAD_EMERGENCE_DEMO_YEAR
 } from "@/lib/guest/lead-emergence-demo-context";
-import { getGuestOverview, runGuestIntegrationStub } from "@/lib/guest/sandbox-store";
+import { getGuestCanonicalRecords, getGuestOverview, resetGuestSandboxesForTests, runGuestIntegrationStub, setGuestSandboxVersionForTests } from "@/lib/guest/sandbox-store";
 
 describe("Lead Emergence guest demo context", () => {
   it("seeds the required synthetic people and group assignments", () => {
@@ -19,17 +21,33 @@ describe("Lead Emergence guest demo context", () => {
     expect(context.synthetic).toBe(true);
     expect(context.dataSource).toBe(LEAD_EMERGENCE_DEMO_SOURCE);
     expect(context.staff.map((staff) => staff.role).sort()).toEqual(["high_school_pastor", "middle_school_pastor", "nextgen_director"]);
-    expect(unique(context.students.map((student) => student.id))).toHaveLength(150);
-    expect(context.staff).toHaveLength(3);
-    expect(unique(context.volunteers.map((volunteer) => volunteer.id))).toHaveLength(20);
-    expect(context.volunteers.filter((volunteer) => volunteer.gender === "male")).toHaveLength(13);
-    expect(context.volunteers.filter((volunteer) => volunteer.gender === "female")).toHaveLength(7);
+    expect(unique(context.students.map((student) => student.id))).toHaveLength(LEAD_EMERGENCE_DEMO_COUNT_CONTRACT.students);
+    expect(context.staff).toHaveLength(LEAD_EMERGENCE_DEMO_COUNT_CONTRACT.staff);
+    expect(unique(context.volunteers.map((volunteer) => volunteer.id))).toHaveLength(LEAD_EMERGENCE_DEMO_COUNT_CONTRACT.volunteers);
+    expect(context.volunteers.filter((volunteer) => volunteer.gender === "male")).toHaveLength(LEAD_EMERGENCE_DEMO_COUNT_CONTRACT.maleVolunteers);
+    expect(context.volunteers.filter((volunteer) => volunteer.gender === "female")).toHaveLength(LEAD_EMERGENCE_DEMO_COUNT_CONTRACT.femaleVolunteers);
 
     const groupIds = new Set(context.smallGroups.map((group) => group.id));
     expect(context.students.every((student) => groupIds.has(student.smallGroupId))).toBe(true);
     expect(context.students.every((student) => context.students.filter((item) => item.id === student.id).length === 1)).toBe(true);
     expect(context.smallGroups.every((group) => group.leaderIds.length === 2)).toBe(true);
     expect(context.smallGroups.every((group) => group.leaderIds.every((leaderId) => context.volunteers.some((volunteer) => volunteer.id === leaderId)))).toBe(true);
+  });
+
+  it("documents the canonical generated count contract", () => {
+    const context = buildLeadEmergenceDemoContext();
+
+    expect(context.staff).toHaveLength(LEAD_EMERGENCE_DEMO_COUNT_CONTRACT.staff);
+    expect(context.volunteers).toHaveLength(LEAD_EMERGENCE_DEMO_COUNT_CONTRACT.volunteers);
+    expect(context.students).toHaveLength(LEAD_EMERGENCE_DEMO_COUNT_CONTRACT.students);
+    expect(context.smallGroups).toHaveLength(LEAD_EMERGENCE_DEMO_COUNT_CONTRACT.smallGroups);
+    expect(context.overview.users).toHaveLength(LEAD_EMERGENCE_DEMO_COUNT_CONTRACT.users);
+    expect(context.occurrences).toHaveLength(LEAD_EMERGENCE_DEMO_COUNT_CONTRACT.occurrences);
+    expect(context.overview.events).toHaveLength(LEAD_EMERGENCE_DEMO_COUNT_CONTRACT.events);
+    expect(context.attendance).toHaveLength(LEAD_EMERGENCE_DEMO_COUNT_CONTRACT.attendanceRecords);
+    expect(context.servingAssignments).toHaveLength(LEAD_EMERGENCE_DEMO_COUNT_CONTRACT.servingAssignments);
+    expect(context.tasks).toHaveLength(LEAD_EMERGENCE_DEMO_COUNT_CONTRACT.tasks);
+    expect(context.eventOutcomes).toHaveLength(LEAD_EMERGENCE_DEMO_COUNT_CONTRACT.eventOutcomes);
   });
 
   it("keeps Sunday service and small-group schedules on the required rhythm", () => {
@@ -99,18 +117,38 @@ describe("Lead Emergence guest demo context", () => {
     const context = buildLeadEmergenceDemoContext();
     const analytics = buildGuestMinistryAnalytics(context);
     const overview = getGuestOverview("guest-demo-analytics-test");
+    const rawRecords = getGuestCanonicalRecords("guest-demo-analytics-test");
 
-    expect(analytics.studentCount).toBe(150);
-    expect(analytics.staffCount).toBe(3);
-    expect(analytics.volunteerCount).toBe(20);
-    expect(analytics.volunteerGenderDistribution).toEqual({ male: 13, female: 7 });
+    expect(analytics.studentCount).toBe(LEAD_EMERGENCE_DEMO_COUNT_CONTRACT.students);
+    expect(analytics.staffCount).toBe(LEAD_EMERGENCE_DEMO_COUNT_CONTRACT.staff);
+    expect(analytics.volunteerCount).toBe(LEAD_EMERGENCE_DEMO_COUNT_CONTRACT.volunteers);
+    expect(analytics.volunteerGenderDistribution).toEqual({ male: LEAD_EMERGENCE_DEMO_COUNT_CONTRACT.maleVolunteers, female: LEAD_EMERGENCE_DEMO_COUNT_CONTRACT.femaleVolunteers });
     expect(analytics.historyMonths).toBe(12);
     expect(analytics.plannedThroughDate).toBe(`${LEAD_EMERGENCE_DEMO_YEAR}-12-11`);
     expect(analytics.canTriggerExternalSideEffects).toBe(false);
-    expect(overview.users).toHaveLength(23);
-    expect(overview.guestAnalytics?.studentCount).toBe(150);
-    expect(overview.guestAnalytics?.staffCount).toBe(3);
-    expect(overview.guestAnalytics?.volunteerCount).toBe(20);
+    expect(overview.users).toHaveLength(LEAD_EMERGENCE_DEMO_COUNT_CONTRACT.users);
+    expect(rawRecords.students).toHaveLength(LEAD_EMERGENCE_DEMO_COUNT_CONTRACT.students);
+    expect(rawRecords.volunteers).toHaveLength(LEAD_EMERGENCE_DEMO_COUNT_CONTRACT.volunteers);
+    expect(rawRecords.staff).toHaveLength(LEAD_EMERGENCE_DEMO_COUNT_CONTRACT.staff);
+    expect(rawRecords.smallGroups).toHaveLength(LEAD_EMERGENCE_DEMO_COUNT_CONTRACT.smallGroups);
+    expect(rawRecords.attendance).toHaveLength(LEAD_EMERGENCE_DEMO_COUNT_CONTRACT.attendanceRecords);
+    expect(overview.guestAnalytics?.studentCount).toBe(LEAD_EMERGENCE_DEMO_COUNT_CONTRACT.students);
+    expect(overview.guestAnalytics?.staffCount).toBe(LEAD_EMERGENCE_DEMO_COUNT_CONTRACT.staff);
+    expect(overview.guestAnalytics?.volunteerCount).toBe(LEAD_EMERGENCE_DEMO_COUNT_CONTRACT.volunteers);
+  });
+
+  it("reseeds an existing synthetic sandbox when the canonical version changes", () => {
+    const sessionId = "guest-version-reseed-test";
+    resetGuestSandboxesForTests();
+    const stale = getGuestCanonicalRecords(sessionId);
+    stale.students.pop();
+    setGuestSandboxVersionForTests(sessionId, "stale-demo-version");
+
+    const reseeded = getGuestCanonicalRecords(sessionId);
+
+    expect(reseeded.version).toBe(LEAD_EMERGENCE_DEMO_CONTEXT_VERSION);
+    expect(reseeded.students).toHaveLength(LEAD_EMERGENCE_DEMO_COUNT_CONTRACT.students);
+    expect(reseeded).not.toBe(stale);
   });
 
   it("keeps guest data isolated from external side effects and production loaders", () => {

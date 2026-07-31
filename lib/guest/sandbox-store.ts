@@ -8,8 +8,20 @@ import {
   supportTaskTitlesForNeeds,
   type EventSupportNeed
 } from "@/lib/event-planning-support";
-import { createLeadEmergenceDemoSandboxState } from "@/lib/guest/lead-emergence-demo-context";
-import type { GuestMinistryAnalytics } from "@/lib/guest/lead-emergence-demo-context";
+import { createLeadEmergenceDemoSandboxState, LEAD_EMERGENCE_DEMO_CONTEXT_VERSION } from "@/lib/guest/lead-emergence-demo-context";
+import type {
+  DemoAttendanceRecord,
+  DemoEventOutcome,
+  DemoOccurrence,
+  DemoServingAssignment,
+  DemoSignalSummary,
+  DemoSmallGroup,
+  DemoStaff,
+  DemoStudent,
+  DemoTask,
+  DemoVolunteer,
+  GuestMinistryAnalytics
+} from "@/lib/guest/lead-emergence-demo-context";
 import type {
   ActiveTask,
   ActivityLog,
@@ -25,6 +37,17 @@ import type {
 import { addDays, uid } from "@/lib/utils";
 
 type GuestSandboxState = {
+  version: string;
+  staff: DemoStaff[];
+  volunteers: DemoVolunteer[];
+  students: DemoStudent[];
+  smallGroups: DemoSmallGroup[];
+  occurrences: DemoOccurrence[];
+  attendance: DemoAttendanceRecord[];
+  servingAssignments: DemoServingAssignment[];
+  demoTasks: DemoTask[];
+  eventOutcomes: DemoEventOutcome[];
+  ministrySignals: DemoSignalSummary[];
   users: User[];
   events: MinistryEvent[];
   tasks: ActiveTask[];
@@ -44,10 +67,23 @@ globalGuestState.__leadEmergenceGuestSandboxes = sandboxes;
 
 export function getGuestSandbox(sessionId: string) {
   const existing = sandboxes.get(sessionId);
-  if (existing) return existing;
+  if (existing?.version === LEAD_EMERGENCE_DEMO_CONTEXT_VERSION) return existing;
   const next = createInitialSandbox();
   sandboxes.set(sessionId, next);
   return next;
+}
+
+export function getGuestCanonicalRecords(sessionId: string) {
+  return getGuestSandbox(sessionId);
+}
+
+export function resetGuestSandboxesForTests() {
+  sandboxes.clear();
+}
+
+export function setGuestSandboxVersionForTests(sessionId: string, version: string) {
+  const existing = getGuestSandbox(sessionId);
+  sandboxes.set(sessionId, { ...existing, version });
 }
 
 export function getGuestOverview(sessionId: string) {
@@ -268,7 +304,26 @@ function createLegacyInitialSandbox(): GuestSandboxState {
     fakeEvent("guest_evt_serve", "City Serve Saturday", "A service day demo with task ownership, leader assignments, and preview-only family communication.", "missions_trip", serveDay, users[1].id, 1200),
     fakeEvent("guest_evt_retreat", "Fall Retreat Demo", "A retreat planning workspace with demo people, budget targets, workflow readiness, and human-approved communication boundaries.", "conference", retreat, users[0].id, 6500)
   ];
-  const state: GuestSandboxState = { users, events, tasks: [], communications: [], integrationLogs: [], expenses: [], activity: [] };
+  const state: GuestSandboxState = {
+    version: "legacy-guest-sandbox-v1",
+    staff: [],
+    volunteers: [],
+    students: [],
+    smallGroups: [],
+    occurrences: [],
+    attendance: [],
+    servingAssignments: [],
+    demoTasks: [],
+    eventOutcomes: [],
+    ministrySignals: [],
+    users,
+    events,
+    tasks: [],
+    communications: [],
+    integrationLogs: [],
+    expenses: [],
+    activity: []
+  };
   historicalEvents.forEach((event, index) => seedHistoricalMemoryRecord(state, event, index));
   events.filter((event) => !event.archivedAt).forEach((event) => {
     generateGuestTasks(state, event);

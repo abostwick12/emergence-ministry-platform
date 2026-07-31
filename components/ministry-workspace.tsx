@@ -189,7 +189,7 @@ export default function MinistryWorkspace({
           leaders?: VolunteerLeader[];
           eventLeaderAssignments?: EventLeaderAssignments;
         };
-        if (payload.dataSource === "live" && !payload.readOnlyReason) {
+        if ((payload.dataSource === "live" || payload.dataSource === "guest_demo") && !payload.readOnlyReason) {
           setCustomVolunteerLeaders(payload.leaders ?? []);
           setDeletedVolunteerLeaderIds(usersToVolunteerLeaders((overview?.users ?? []).filter((user) => user.role === "admin" || user.role === "leader")).map((leader) => leader.id));
           setEventLeaderAssignments(payload.eventLeaderAssignments ?? {});

@@ -1,11 +1,18 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { applyVolunteerHubAction, getVolunteerHubPayload, resetVolunteerHubStateForTests } from "@/lib/volunteer-hub/data";
+import { LEAD_EMERGENCE_DEMO_CONTEXT_VERSION } from "@/lib/guest/lead-emergence-demo-context";
 import type { AuthSession } from "@/lib/auth/server";
 import type { VolunteerHubIntegrationStatus } from "@/lib/volunteer-hub/types";
 
 const session: AuthSession = {
   isMock: true,
   user: { id: "usr_leader", email: "leader@example.test", fullName: "Andrew Walker", role: "leader" }
+};
+const guestSession: AuthSession = {
+  isMock: false,
+  isGuest: true,
+  guestSessionId: "guest-volunteer-hub-canonical-test",
+  user: { id: "guest_guest-volunteer-hub-canonical-test", email: "guest@lead-emergence.local", fullName: "Guest", role: "guest" }
 };
 
 const integrations: VolunteerHubIntegrationStatus = {
@@ -50,6 +57,21 @@ describe("Volunteer Hub data", () => {
       "Grant Miller"
     ]);
     expect(payload.volunteers.map((volunteer) => volunteer.role)).not.toContain("director");
+  });
+
+  it("derives guest Volunteer Hub people and groups from the canonical guest context", async () => {
+    const payload = await getVolunteerHubPayload(guestSession, integrations);
+    const names = payload.volunteers.map((volunteer) => volunteer.name);
+
+    expect(payload.dataSource).toBe("guest_demo");
+    expect(payload.canonicalVersion).toBe(LEAD_EMERGENCE_DEMO_CONTEXT_VERSION);
+    expect(payload.studentRoster).toHaveLength(150);
+    expect(payload.volunteers).toHaveLength(20);
+    expect(payload.staff).toHaveLength(3);
+    expect(payload.activeGroups).toHaveLength(10);
+    expect(payload.activeGroups.every((group) => Boolean(group.leaderId && group.coLeaderId))).toBe(true);
+    expect(names).toEqual(expect.arrayContaining(["Eli Fable", "Marcus Bright", "Maya Haven"]));
+    expect(names).not.toEqual(expect.arrayContaining(["Andrew Walker", "Patrick Reed", "Maya Chen"]));
   });
 
   it("archives and restores small groups without deleting audit history", async () => {

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireEmergeOperationsAccess, requireEmergeOperationsWriteAccess } from "@/lib/app-area-access";
 import { getSupabaseAdminClient, isSupabaseAdminConfigured } from "@/lib/auth/server";
+import { getGuestEventLeaderAssignments } from "@/lib/guest/volunteer-hub-adapter";
 import { getGroupMeStatus } from "@/lib/integrations/groupme/repository";
 import { getPlanningCenterStatus } from "@/lib/integrations/planning-center/repository";
 import { resolveMinistryScope } from "@/lib/ministry/scope";
@@ -15,9 +16,11 @@ export async function GET() {
   if (!access.allowed) return access.response;
 
   const payload = await getVolunteerHubPayload(access.session, await integrationStatus(access.session), access.context);
-  const eventLeaderAssignments = access.session.isGuest || access.session.isMock || payload.readOnlyReason
-    ? {}
-    : await loadEventLeaderAssignments(access.session);
+  const eventLeaderAssignments = access.session.isGuest
+    ? getGuestEventLeaderAssignments(access.session.guestSessionId ?? access.session.user.id)
+    : access.session.isMock || payload.readOnlyReason
+      ? {}
+      : await loadEventLeaderAssignments(access.session);
 
   return NextResponse.json({
     dataSource: payload.dataSource,

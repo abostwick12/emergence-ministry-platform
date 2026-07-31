@@ -4,6 +4,7 @@ import type { CampAccessContext } from "@/lib/camp/permissions";
 import { getCampOverview } from "@/lib/camp/repository";
 import { getEmergencyRosterStudents } from "@/lib/camp/transportation-roster";
 import type { CampVisibleStudent } from "@/lib/camp/types";
+import { getGuestVolunteerHubState, resetGuestVolunteerHubStateForTests } from "@/lib/guest/volunteer-hub-adapter";
 import { resolveMinistryScope } from "@/lib/ministry/scope";
 import { uid } from "@/lib/utils";
 import {
@@ -520,6 +521,7 @@ function state() {
 
 export function resetVolunteerHubStateForTests() {
   globalStore.__leadVolunteerHubState = createInitialState();
+  resetGuestVolunteerHubStateForTests();
 }
 
 export async function getVolunteerHubPayload(
@@ -528,6 +530,13 @@ export async function getVolunteerHubPayload(
   campContext?: CampAccessContext
 ): Promise<VolunteerHubPayload> {
   const source = dataSourceForSession(session);
+  if (source === "guest_demo") {
+    const guest = getGuestVolunteerHubState(guestVolunteerHubSessionId(session));
+    return buildVolunteerHubPayload(guest.current, session, integrations, source, undefined, {
+      canonicalVersion: guest.version,
+      staff: guest.staff
+    });
+  }
   const live = source === "live" ? await createLiveState(session, campContext) : undefined;
   const current = live?.current ?? state();
   return buildVolunteerHubPayload(current, session, integrations, source, live?.readOnlyReason);
@@ -538,7 +547,8 @@ function buildVolunteerHubPayload(
   session: AuthSession,
   integrations: VolunteerHubPayload["integrations"],
   dataSource: VolunteerHubDataSource,
-  readOnlyReason?: string
+  readOnlyReason?: string,
+  metadata: Partial<Pick<VolunteerHubPayload, "canonicalVersion" | "staff">> = {}
 ): VolunteerHubPayload {
   const role = roleForSession(session);
   const activeVolunteer = resolveActiveVolunteer(current, session, role);
@@ -549,6 +559,7 @@ function buildVolunteerHubPayload(
 
   return {
     dataSource,
+    ...(metadata.canonicalVersion ? { canonicalVersion: metadata.canonicalVersion } : {}),
     readOnlyReason,
     role,
     activeVolunteer,
@@ -562,6 +573,7 @@ function buildVolunteerHubPayload(
     activeGroups: sortSmallGroupsByGradeGender(visibleActiveGroups),
     archivedGroups: role === "admin" || role === "leader" ? current.smallGroups.filter((group) => group.archivedAt) : [],
     volunteers: current.volunteers,
+    ...(metadata.staff ? { staff: metadata.staff } : {}),
     tasks: current.tasks,
     resources: current.resources,
     trainingModules: current.trainingModules,
@@ -579,6 +591,10 @@ function dataSourceForSession(session: AuthSession): VolunteerHubDataSource {
   if (session.isGuest) return "guest_demo";
   if (session.isMock) return "mock";
   return "live";
+}
+
+function guestVolunteerHubSessionId(session: AuthSession) {
+  return session.guestSessionId ?? session.user.id;
 }
 
 async function createLiveState(session: AuthSession, campContext?: CampAccessContext): Promise<LiveStateResult> {
@@ -1473,7 +1489,7 @@ async function insertLiveAudit(ministryId: string, actor: VolunteerHubVolunteer,
 }
 
 export function applyVolunteerHubAction(session: AuthSession, action: VolunteerHubAction) {
-  const current = state();
+  const current = localVolunteerHubStateForSession(session);
   const actor = resolveActiveVolunteer(current, session, roleForSession(session));
 
   switch (action.type) {
@@ -1638,8 +1654,9 @@ export function applyVolunteerHubAction(session: AuthSession, action: VolunteerH
       const leader = current.volunteers.find((item) => item.id === action.volunteerId);
       if (!leader) throw new Error("Volunteer leader not found.");
       if (leader.role === "admin") throw new Error("Administrator leaders cannot be removed here.");
+      const replacementLeaderId = current.volunteers.find((item) => item.id !== leader.id)?.id ?? actor.id;
       current.smallGroups.forEach((group) => {
-        if (group.leaderId === leader.id) group.leaderId = "vol_maya";
+        if (group.leaderId === leader.id) group.leaderId = replacementLeaderId;
         if (group.coLeaderId === leader.id) group.coLeaderId = undefined;
       });
       current.volunteers = current.volunteers.filter((item) => item.id !== leader.id);
@@ -1680,7 +1697,7 @@ export async function publishWeeklyVolunteerResource(session: AuthSession, input
 }
 
 function publishLocalWeeklyVolunteerResource(session: AuthSession, input: PublishWeeklyVolunteerResourceInput) {
-  const current = state();
+  const current = localVolunteerHubStateForSession(session);
   const actor = resolveActiveVolunteer(current, session, roleForSession(session));
   const resource: VolunteerHubResource = {
     id: input.itemKey,
@@ -1700,6 +1717,10 @@ function publishLocalWeeklyVolunteerResource(session: AuthSession, input: Publis
     unread: true
   }, ...current.notifications];
   audit(current, actor, "Published weekly resource", input.title);
+}
+
+function localVolunteerHubStateForSession(session: AuthSession) {
+  return session.isGuest ? getGuestVolunteerHubState(guestVolunteerHubSessionId(session)).current : state();
 }
 
 function resolveActiveVolunteer(stateValue: VolunteerHubState, session: AuthSession, role: VolunteerHubRole) {

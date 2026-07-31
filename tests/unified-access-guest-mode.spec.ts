@@ -15,7 +15,8 @@ test.describe("Unified access and competition guest mode", () => {
     await expect(page.getByLabel("Competition review path")).toContainText("Gloo AI Studio readiness");
   });
 
-  test("guest enters public pages and cannot reach protected sections by default", async ({ page }) => {
+  test("guest sees required pages while optional and protected pages fail closed without remote permission", async ({ page }) => {
+    await configureRequiredOnlyGuestPreview(page);
     await enterGuestMode(page);
 
     await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible();
@@ -31,7 +32,8 @@ test.describe("Unified access and competition guest mode", () => {
     const sidebar = page.getByRole("navigation", { name: "Desktop navigation" });
     await expect(sidebar.getByRole("link", { name: "Ministry Hub" })).toBeVisible();
     await expect(sidebar.getByRole("link", { name: "Student Portal" })).toBeVisible();
-    await expect(sidebar.getByRole("link", { name: "Volunteer Hub" })).toBeVisible();
+    await expect(sidebar.getByRole("link", { name: "Volunteer Hub" })).toHaveCount(0);
+    await expect(sidebar.getByRole("link", { name: "Leader Hub" })).toHaveCount(0);
     await expect(sidebar.getByRole("link", { name: "Camp" })).toHaveCount(0);
     await expect(sidebar.getByRole("link", { name: "Settings" })).toHaveCount(0);
     await expect(sidebar.getByRole("link", { name: "Command Center" })).toHaveCount(0);
@@ -43,63 +45,43 @@ test.describe("Unified access and competition guest mode", () => {
     await expect(memory).toContainText("Demo data, no live sync");
     await expect(memory).toContainText("Planning Center attendance snapshots");
     await expect(memory).toContainText("Not connected in public demo mode");
-    await expect(sidebar.getByRole("link", { name: "Events" })).toBeVisible();
-    await expect(sidebar.getByRole("link", { name: "Tasks" })).toBeVisible();
+    await expect(sidebar.getByRole("link", { name: "Events" })).toHaveCount(0);
+    await expect(sidebar.getByRole("link", { name: "Tasks" })).toHaveCount(0);
 
     await page.goto("/discipleship");
     await expect(page).toHaveURL(/\/discipleship$/);
     await expect(page.getByRole("heading", { name: "Discussion Review" })).toBeVisible();
     await expect(page.getByText("leader-approved conversations")).toBeVisible();
 
+    for (const optionalPath of ["/people", "/directors/volunteers", "/events"]) {
+      await expectGuestRouteToRedirectSafely(page, optionalPath);
+    }
+
     await page.goto("/camp");
     await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
+    await enterGuestMode(page);
     await page.goto("/settings");
-    await expect(page).toHaveURL(/\/login\?next=%2Fsettings$/);
+    await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
+    await enterGuestMode(page);
     await page.goto("/command-center");
-    await expect(page).toHaveURL(/\/login\?next=%2Fcommand-center$/);
+    await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
   });
 
-  test("guest sandbox supports in-memory add/delete and resets with a new guest session", async ({ page }) => {
+  test("guest cannot open the optional event sandbox without remote public permission", async ({ page }) => {
     await enterGuestMode(page);
     await page.goto("/events");
 
-    const eventName = `Guest Sandbox Event ${Date.now()}`;
-    await createEvent(page, eventName);
-    await expect(page.locator(".event-row-card", { hasText: eventName })).toBeVisible({ timeout: 15000 });
-
-    const row = page.locator(".event-row-card", { hasText: eventName });
-    await row.getByRole("button", { name: "View tasks" }).click();
-    await row.getByRole("button", { name: "Delete demo event" }).click();
-    await expect(row).toBeHidden();
-
-    const seededRow = page.locator(".event-row-card", { hasText: "Leader Commissioning" });
-    await expect(seededRow).toBeVisible();
-    await seededRow.getByRole("button", { name: "View tasks" }).click();
-    await expect(seededRow).toContainText("Build shared event operations plan");
-    await expect(seededRow).toContainText("Prepare parent and leader communication preview");
-
-    await page.goto("/api/auth/logout");
-    await enterGuestMode(page);
-    await page.goto("/events");
-    await expect(page.locator(".event-row-card", { hasText: eventName })).toHaveCount(0);
-    await expect(page.locator(".event-row-card", { hasText: "Leader Commissioning" })).toBeVisible();
+    await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
+    await expect(page.getByRole("button", { name: /Create New Event/ })).toHaveCount(0);
+    await expect(page.locator(".event-row-card")).toHaveCount(0);
   });
 
-  test("guest EMMA uses read-only demo responses", async ({ page }) => {
+  test("guest cannot open optional event EMMA through registry defaults", async ({ page }) => {
     await enterGuestMode(page);
     await page.goto("/events");
 
-    const emma = page.locator(".ministry-emma-panel").first();
-    await emma.getByRole("button", { name: "Ask EMMA" }).click();
-    await emma.getByLabel("Message EMMA").fill("What should I inspect first?");
-    const response = page.waitForResponse((item) => item.url().endsWith("/api/ai/emma") && item.request().method() === "POST");
-    await emma.getByRole("button", { name: /Ask EMMA/ }).click();
-    expect((await response).status()).toBe(200);
-
-    await expect(emma.getByText("Guest EMMA demo", { exact: false }).first()).toBeVisible();
-    await expect(emma.getByText("Public guest mode keeps EMMA read-only", { exact: false }).first()).toBeVisible();
-    await expect(emma.getByText("Guest demo response. Read-only guidance shown", { exact: false }).first()).toBeVisible();
-    await expect(emma.getByText(/Fake events|stock guidance|Guided fallback shown|failed safely/i)).toHaveCount(0);
+    await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
+    await expect(page.locator(".ministry-emma-panel")).toHaveCount(0);
   });
 
   test("admin can manage user page access and public guest pages from settings", async ({ page }) => {
@@ -167,8 +149,13 @@ test.describe("Unified access and competition guest mode", () => {
     await expect(page).toHaveURL(/\/login$/);
 
     await login(page);
-    await page.getByRole("navigation", { name: "Mobile navigation" }).getByText("More", { exact: true }).click();
-    await expect(page.getByRole("link", { name: "Settings" })).toBeVisible();
+    const moreButton = page.getByRole("navigation", { name: "Mobile navigation" }).getByRole("button", { name: "More", exact: true });
+    await expect(async () => {
+      await moreButton.click();
+      await expect(moreButton).toHaveAttribute("aria-expanded", "true");
+    }).toPass();
+    const moreNavigation = page.getByRole("dialog", { name: "More navigation" });
+    await expect(moreNavigation.getByRole("link", { name: "Settings" })).toBeVisible();
     await page.goto("/settings");
     await expect(page.getByRole("heading", { name: "Guarded access center" })).toBeVisible();
 
@@ -225,7 +212,7 @@ async function enterGuestMode(page: Page) {
   await page.goto("/");
   await page.getByRole("link", { name: "Continue as guest" }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
-  await page.waitForLoadState("networkidle");
+  await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible();
 }
 
 async function login(page: Page) {
@@ -234,35 +221,46 @@ async function login(page: Page) {
   await page.getByLabel("Password").fill(process.env.E2E_TEST_PASSWORD ?? "password");
   await page.getByRole("button", { name: "Log in" }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
-  await page.waitForLoadState("networkidle");
+  await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible();
 }
 
-async function createEvent(page: Page, eventName: string) {
-  await page.getByRole("button", { name: /Create New Event/ }).click();
-  const modal = page.getByRole("dialog", { name: "Create New Event" });
-  await expect(modal).toBeVisible();
-  const start = new Date();
-  start.setDate(start.getDate() + 9);
-  start.setHours(18, 0, 0, 0);
+async function configureRequiredOnlyGuestPreview(page: Page) {
+  await login(page);
+  const accessResponse = await page.request.get("/api/settings/access");
+  expect(accessResponse.ok()).toBe(true);
+  const access = await accessResponse.json() as {
+    pages?: Array<{ key: string; guestEligible: boolean; guestPublic: boolean }>;
+  };
+  const requiredPageKeys = new Set([
+    "dashboard",
+    "ministry_hub",
+    "discipleship",
+    "student_portal",
+    "journey_journal",
+    "scripture_resources",
+    "reading_plans",
+    "how_to_read"
+  ]);
 
-  const eventNameInput = modal.getByLabel("Event Name");
-  await eventNameInput.fill(eventName);
-  await expect(eventNameInput).toHaveValue(eventName);
-  await modal.getByLabel(/Start Date/).fill(toDateTimeLocalInput(start));
-  await modal.getByRole("button", { name: /Next: Tasks/ }).click();
+  for (const platformPage of access.pages ?? []) {
+    if (!platformPage.guestEligible || !platformPage.guestPublic || requiredPageKeys.has(platformPage.key)) continue;
+    const updateResponse = await page.request.patch("/api/settings/access", {
+      data: {
+        guestPageKey: platformPage.key,
+        guestPublic: false
+      }
+    });
+    expect(updateResponse.ok()).toBe(true);
+  }
 
-  const createResponse = page.waitForResponse(
-    (response) => response.url().endsWith("/api/events") && response.request().method() === "POST"
-  );
-  await modal.getByRole("button", { name: /Save & Create Event/ }).click();
-  expect((await createResponse).status()).toBe(201);
-  await expect(modal.getByRole("status")).toContainText("Created");
-  await modal.getByRole("button", { name: "Close modal" }).click();
+  await page.goto("/api/auth/logout");
+  await expect(page).toHaveURL(/\/login$/);
 }
 
-function toDateTimeLocalInput(date: Date) {
-  const offset = date.getTimezoneOffset() * 60000;
-  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+async function expectGuestRouteToRedirectSafely(page: Page, pathname: string) {
+  await enterGuestMode(page);
+  await page.goto(pathname);
+  await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
 }
 
 function jwt(payload: Record<string, unknown>) {
