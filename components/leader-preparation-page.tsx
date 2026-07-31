@@ -56,7 +56,7 @@ type EmmaChatMessage = {
 
 const draftStorageKey = "lead-emergence.sermon-prep.current";
 
-export function LeaderPreparationPage() {
+export function LeaderPreparationPage({ readOnly = false }: { readOnly?: boolean }) {
   const [title, setTitle] = useState("When the King Kneels");
   const [passage, setPassage] = useState("John 13:1-17");
   const [bigIdea, setBigIdea] = useState("Real authority stoops. If Jesus is Lord, then love looks like a towel, not a title.");
@@ -68,8 +68,8 @@ export function LeaderPreparationPage() {
       "Where in your week are you refusing the towel - either to receive it or to pick it up?"
   );
   const [checklist, setChecklist] = useState(initialChecklist);
-  const [draftStatus, setDraftStatus] = useState("Draft loaded from starter content.");
-  const [actionStatus, setActionStatus] = useState("Save the sermon, then generate resources for Weekly Resources.");
+  const [draftStatus, setDraftStatus] = useState(readOnly ? "Guest contest access is read-only." : "Draft loaded from starter content.");
+  const [actionStatus, setActionStatus] = useState(readOnly ? "Resource generation is disabled in guest mode." : "Save the sermon, then generate resources for Weekly Resources.");
   const [generating, setGenerating] = useState<PrepAction["id"] | null>(null);
   const [generatedResources, setGeneratedResources] = useState<GeneratedResource[]>([]);
   const [emmaOpen, setEmmaOpen] = useState(false);
@@ -91,6 +91,7 @@ export function LeaderPreparationPage() {
   const questionsAction: PrepAction = prepActions.find((action) => action.id === "small_group_questions") ?? { id: "small_group_questions", label: "Generate small group questions", tone: "gold" };
 
   useEffect(() => {
+    if (readOnly) return;
     try {
       const saved = window.localStorage.getItem(draftStorageKey);
       if (!saved) return;
@@ -103,19 +104,22 @@ export function LeaderPreparationPage() {
     } catch {
       setDraftStatus("Starter sermon loaded. Saved draft could not be read.");
     }
-  }, []);
+  }, [readOnly]);
 
   function markDraftChanged(setter: (value: string) => void, value: string) {
+    if (readOnly) return;
     setter(value);
     setDraftStatus("Unsaved sermon changes.");
   }
 
   function saveDraft() {
+    if (readOnly) return;
     window.localStorage.setItem(draftStorageKey, JSON.stringify({ title, passage, bigIdea, body, savedAt: new Date().toISOString() }));
     setDraftStatus("Sermon saved in this browser.");
   }
 
   async function runGenerateAction(action: PrepAction) {
+    if (readOnly) return;
     setGenerating(action.id);
     setActionStatus(`${action.label.replace("Generate ", "")} is generating through Meridian...`);
     try {
@@ -148,6 +152,7 @@ export function LeaderPreparationPage() {
   }
 
   function toggleChecklist(id: string) {
+    if (readOnly) return;
     setChecklist((current) => current.map((item) => (item.id === id ? { ...item, complete: !item.complete } : item)));
   }
 
@@ -230,11 +235,11 @@ export function LeaderPreparationPage() {
           <span>{readerLink.ok ? `${readerLink.displayReference} is ready in YouVersion.` : readerLink.message}</span>
         </div>
         <div className="leader-prep-mobile-command-actions">
-          <button type="button" onClick={() => runGenerateAction(guideAction)} disabled={generating !== null}>
+          <button type="button" onClick={() => runGenerateAction(guideAction)} disabled={readOnly || generating !== null}>
             <FileText aria-hidden="true" />
             Guide
           </button>
-          <button type="button" onClick={() => runGenerateAction(questionsAction)} disabled={generating !== null}>
+          <button type="button" onClick={() => runGenerateAction(questionsAction)} disabled={readOnly || generating !== null}>
             <MessageSquareText aria-hidden="true" />
             Questions
           </button>
@@ -254,7 +259,7 @@ export function LeaderPreparationPage() {
               <p className="eyebrow">Sermon Draft</p>
               <h2 id="leader-prep-editor-title">Draft workspace</h2>
             </div>
-            <button className="leader-prep-save-button" type="button" onClick={saveDraft}>
+            <button className="leader-prep-save-button" type="button" onClick={saveDraft} disabled={readOnly}>
               <Save aria-hidden="true" />
               Save sermon
             </button>
@@ -262,28 +267,28 @@ export function LeaderPreparationPage() {
 
           <div className="leader-prep-editor-body">
             <div className="leader-prep-title-field">
-              <input aria-label="Sermon title" value={title} onChange={(event) => markDraftChanged(setTitle, event.target.value)} />
+              <input aria-label="Sermon title" value={title} readOnly={readOnly} onChange={(event) => markDraftChanged(setTitle, event.target.value)} />
             </div>
 
             <div className="leader-prep-meta-row">
-              <input aria-label="Scripture passage" value={passage} onChange={(event) => markDraftChanged(setPassage, event.target.value)} />
+              <input aria-label="Scripture passage" value={passage} readOnly={readOnly} onChange={(event) => markDraftChanged(setPassage, event.target.value)} />
               <span>{bigIdea.split(".")[0]}</span>
             </div>
 
             <label className="leader-prep-big-idea">
               <span>Big Idea</span>
-              <textarea value={bigIdea} onChange={(event) => markDraftChanged(setBigIdea, event.target.value)} rows={2} />
+              <textarea value={bigIdea} readOnly={readOnly} onChange={(event) => markDraftChanged(setBigIdea, event.target.value)} rows={2} />
             </label>
 
             <div className="leader-prep-body-field">
-              <textarea aria-label="Sermon body" value={body} onChange={(event) => markDraftChanged(setBody, event.target.value)} />
+              <textarea aria-label="Sermon body" value={body} readOnly={readOnly} onChange={(event) => markDraftChanged(setBody, event.target.value)} />
             </div>
           </div>
 
           <footer className="leader-prep-actions">
             <p className="leader-prep-status" role="status">{draftStatus}</p>
             {prepActions.map((action) => (
-              <button className={`leader-prep-action ${action.tone}`} key={action.id} type="button" disabled={generating !== null} onClick={() => runGenerateAction(action)}>
+              <button className={`leader-prep-action ${action.tone}`} key={action.id} type="button" disabled={readOnly || generating !== null} onClick={() => runGenerateAction(action)}>
                 {generating === action.id ? <LoaderCircle className="leader-prep-spin" aria-hidden="true" /> : action.id === "outline" ? <ListChecks aria-hidden="true" /> : action.id === "small_group_questions" ? <MessageSquareText aria-hidden="true" /> : <FileText aria-hidden="true" />}
                 {generating === action.id ? "Generating..." : action.label}
               </button>
@@ -308,7 +313,7 @@ export function LeaderPreparationPage() {
           <section className="leader-prep-youversion" aria-label="Scripture reference tools">
             <label className="leader-prep-reader-field">
               <span><BookOpen aria-hidden="true" /> Reader scripture</span>
-              <input value={passage} onChange={(event) => markDraftChanged(setPassage, event.target.value)} />
+              <input value={passage} readOnly={readOnly} onChange={(event) => markDraftChanged(setPassage, event.target.value)} />
             </label>
             <YouVersionReaderWindow link={readerLink.ok ? readerLink : undefined} title={passage || "Enter a passage"} />
           </section>
@@ -363,7 +368,7 @@ export function LeaderPreparationPage() {
             <div className="leader-prep-checklist-items">
               {checklist.map((item) => (
                 <label className={item.complete ? "complete" : ""} key={item.id}>
-                  <input type="checkbox" checked={item.complete} onChange={() => toggleChecklist(item.id)} />
+                  <input type="checkbox" checked={item.complete} disabled={readOnly} onChange={() => toggleChecklist(item.id)} />
                   <span aria-hidden="true">{item.complete ? <Check /> : null}</span>
                   {item.label}
                 </label>

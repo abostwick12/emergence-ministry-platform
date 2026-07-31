@@ -47,6 +47,10 @@ export function isSupabaseAdminConfigured() {
   return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
 }
 
+export function isSupabaseGuestPermissionConfigured() {
+  return isSupabaseConfigured();
+}
+
 export function getSupabaseAdminClient() {
   if (!isSupabaseAdminConfigured()) {
     throw new Error("Supabase Admin environment variables are not configured.");

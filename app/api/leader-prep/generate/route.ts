@@ -29,7 +29,8 @@ export async function POST(request: Request) {
   }).catch(() => []);
   const generated = await generateMeridianSermonPrepResource({
     ...input,
-    knowledgeMatches
+    knowledgeMatches,
+    allowLiveProviders: !access.session.isGuest && !access.session.isMock
   });
   const attachmentWarnings: string[] = [];
   const filename = `${slugify(generated.title)}.txt`;

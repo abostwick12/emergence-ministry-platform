@@ -133,6 +133,42 @@ describe("student route access", () => {
     expectClearedAuthCookies(response);
   });
 
+  it("blocks guest sessions from live integration API routes before handlers run", async () => {
+    const response = await middleware(cookieRequest("/api/integrations/planning-center/sync", {
+      [authCookieNames.guestSession]: "guest-session"
+    }));
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({ error: "Guest access is not available for this page." });
+  });
+
+  it("keeps guest demo APIs available outside live integration routes", async () => {
+    const response = await middleware(cookieRequest("/api/events", {
+      [authCookieNames.guestSession]: "guest-session"
+    }));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-middleware-next")).toBe("1");
+  });
+
+  it("blocks guest mutations across demo APIs while keeping reads available", async () => {
+    const response = await middleware(cookieRequest("/api/events", {
+      [authCookieNames.guestSession]: "guest-session"
+    }, "POST"));
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({ error: "Guest contest access is read-only." });
+  });
+
+  it("allows deterministic guest EMMA requests because they do not persist or send", async () => {
+    const response = await middleware(cookieRequest("/api/ai/emma", {
+      [authCookieNames.guestSession]: "guest-session"
+    }, "POST"));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-middleware-next")).toBe("1");
+  });
+
   it("lets the daily intelligence endpoint handle its own cron secret", async () => {
     const response = await middleware(new NextRequest("http://localhost/api/daily-intelligence/brief"));
 
@@ -177,9 +213,13 @@ function mockSessionRequest(pathname: string, extraCookie = "") {
   });
 }
 
-function cookieRequest(pathname: string, values: Partial<Record<(typeof authCookieNames)[keyof typeof authCookieNames], string>>) {
+function cookieRequest(
+  pathname: string,
+  values: Partial<Record<(typeof authCookieNames)[keyof typeof authCookieNames], string>>,
+  method = "GET"
+) {
   const cookie = Object.entries(values).map(([name, value]) => `${name}=${value}`).join("; ");
-  return new NextRequest(`http://localhost${pathname}`, { headers: { cookie } });
+  return new NextRequest(`http://localhost${pathname}`, { method, headers: { cookie } });
 }
 
 function expectClearedAuthCookies(response: Awaited<ReturnType<typeof middleware>>) {

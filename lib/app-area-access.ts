@@ -49,7 +49,13 @@ export async function requireEmergeOperationsWriteAccess(): Promise<EmergeOperat
 export async function resolveEmergeOperationsWriteAccess(session: AuthSession): Promise<EmergeOperationsAccess> {
   const access = await resolveEmergeOperationsAccess(session);
   if (!access.allowed) return access;
-  if (!access.session.isGuest && !(await canPlatformUserSaveChanges(access.session))) {
+  if (access.session.isGuest) {
+    return {
+      allowed: false,
+      response: NextResponse.json({ error: "Guest contest access is read-only." }, { status: 403 })
+    };
+  }
+  if (!(await canPlatformUserSaveChanges(access.session))) {
     return {
       allowed: false,
       response: NextResponse.json({ error: "This account can view real ministry data, but save rights are disabled." }, { status: 403 })

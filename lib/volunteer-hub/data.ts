@@ -532,7 +532,7 @@ export async function getVolunteerHubPayload(
   const source = dataSourceForSession(session);
   if (source === "guest_demo") {
     const guest = getGuestVolunteerHubState(guestVolunteerHubSessionId(session));
-    return buildVolunteerHubPayload(guest.current, session, integrations, source, undefined, {
+    return buildVolunteerHubPayload(guest.current, session, integrations, source, "Guest contest access is read-only.", {
       canonicalVersion: guest.version,
       staff: guest.staff
     });

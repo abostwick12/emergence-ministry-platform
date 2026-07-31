@@ -22,7 +22,21 @@ const publicPaths = [
   "/api/student/join"
 ];
 const publicPathPrefixes = ["/join/", "/register/"];
-const guestBlockedPathPrefixes = ["/camp", "/settings", "/command-center", "/api/camp", "/api/settings", "/api/command-center"];
+const guestBlockedPathPrefixes = [
+  "/camp",
+  "/settings",
+  "/command-center",
+  "/api/camp",
+  "/api/settings",
+  "/api/command-center",
+  "/api/integrations"
+];
+const guestNonMutatingPostPaths = new Set([
+  "/api/ai/emma",
+  "/api/auth/clear-guest",
+  "/api/auth/login",
+  "/api/auth/logout"
+]);
 
 function hasGuestSessionCookie(request: NextRequest) {
   return Boolean(request.cookies.get(authCookieNames.guestSession)?.value);
@@ -32,6 +46,16 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-lead-emergence-pathname", pathname);
+  const hasGuestSession = hasGuestSessionCookie(request);
+
+  if (
+    hasGuestSession
+    && pathname.startsWith("/api/")
+    && !["GET", "HEAD", "OPTIONS"].includes(request.method)
+    && !guestNonMutatingPostPaths.has(pathname)
+  ) {
+    return NextResponse.json({ error: "Guest contest access is read-only." }, { status: 403 });
+  }
 
   if (
     pathname.startsWith("/_next") ||
@@ -41,7 +65,7 @@ export async function middleware(request: NextRequest) {
     publicPathPrefixes.some((path) => pathname.startsWith(path))
   ) {
     const response = NextResponse.next({ request: { headers: requestHeaders } });
-    if ((pathname === "/" || pathname === "/login") && hasGuestSessionCookie(request)) {
+    if ((pathname === "/" || pathname === "/login") && hasGuestSession) {
       clearGuestCookie(response);
     }
     return response;
@@ -79,7 +103,7 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  if (!hasGuestSessionCookie(request)) {
+  if (!hasGuestSession) {
     return unauthenticatedResponse(request, pathname);
   }
 

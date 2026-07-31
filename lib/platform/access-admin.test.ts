@@ -11,9 +11,16 @@ import {
   type PlatformAccessMember
 } from "@/lib/platform/access-admin";
 
-const { getSupabaseAdminClientMock, isSupabaseAdminConfiguredMock } = vi.hoisted(() => ({
+const {
+  getSupabaseAdminClientMock,
+  getSupabaseAuthClientMock,
+  isSupabaseAdminConfiguredMock,
+  isSupabaseGuestPermissionConfiguredMock
+} = vi.hoisted(() => ({
   getSupabaseAdminClientMock: vi.fn(),
-  isSupabaseAdminConfiguredMock: vi.fn(() => false)
+  getSupabaseAuthClientMock: vi.fn(),
+  isSupabaseAdminConfiguredMock: vi.fn(() => false),
+  isSupabaseGuestPermissionConfiguredMock: vi.fn(() => false)
 }));
 
 vi.mock("@/lib/auth/server", async () => {
@@ -21,7 +28,9 @@ vi.mock("@/lib/auth/server", async () => {
   return {
     ...actual,
     getSupabaseAdminClient: getSupabaseAdminClientMock,
-    isSupabaseAdminConfigured: isSupabaseAdminConfiguredMock
+    getSupabaseAuthClient: getSupabaseAuthClientMock,
+    isSupabaseAdminConfigured: isSupabaseAdminConfiguredMock,
+    isSupabaseGuestPermissionConfigured: isSupabaseGuestPermissionConfiguredMock
   };
 });
 
@@ -76,7 +85,10 @@ describe("platform website access", () => {
     delete globalState.__leadEmergenceGuestPublicPageCache;
     isSupabaseAdminConfiguredMock.mockReset();
     isSupabaseAdminConfiguredMock.mockReturnValue(false);
+    isSupabaseGuestPermissionConfiguredMock.mockReset();
+    isSupabaseGuestPermissionConfiguredMock.mockReturnValue(false);
     getSupabaseAdminClientMock.mockReset();
+    getSupabaseAuthClientMock.mockReset();
   });
 
   afterEach(() => {
@@ -157,16 +169,20 @@ describe("platform website access", () => {
 
   it("resolves guest page access from public page flags", async () => {
     await expect(resolvePageAccessForSession(guestSession(), "/dashboard")).resolves.toBe(true);
+    await expect(resolvePageAccessForSession(guestSession(), "/budget")).resolves.toBe(false);
     await expect(resolvePageAccessForSession(guestSession(), "/settings")).resolves.toBe(false);
   });
 
-  it("fails closed without blocking when a cold-cache Supabase lookup never responds", async () => {
+  it("fails closed after a bounded wait when a cold-cache Supabase lookup never responds", async () => {
+    vi.useFakeTimers();
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    isSupabaseAdminConfiguredMock.mockReturnValue(true);
+    isSupabaseGuestPermissionConfiguredMock.mockReturnValue(true);
     const pending = nonResponsiveGuestPermissionClient();
-    getSupabaseAdminClientMock.mockReturnValue(pending.client);
+    getSupabaseAuthClientMock.mockReturnValue(pending.client);
 
-    const result = await withDeadline(visiblePlatformPagesForSession(guestSession()), 50);
+    const resultPromise = visiblePlatformPagesForSession(guestSession());
+    await vi.advanceTimersByTimeAsync(2_001);
+    const result = await resultPromise;
 
     expect(new Set(result)).toEqual(new Set(requiredGuestPages));
     expect(result).toContain("dashboard");
@@ -175,9 +191,7 @@ describe("platform website access", () => {
     expect(result).not.toContain("settings");
     expect(result).not.toContain("camp");
     expect(result).not.toContain("command_center");
-    expect(getSupabaseAdminClientMock).toHaveBeenCalledTimes(1);
-
-    await wait(800);
+    expect(getSupabaseAuthClientMock).toHaveBeenCalledTimes(1);
     expect(pending.abortSignal).toHaveBeenCalledTimes(1);
     expect(pending.abortSignal.mock.calls[0]?.[0].aborted).toBe(true);
     expect(warn).toHaveBeenCalledTimes(1);
@@ -186,9 +200,9 @@ describe("platform website access", () => {
 
   it("keeps an administrator-disabled optional page private during stale refresh and failure", async () => {
     vi.useFakeTimers();
-    isSupabaseAdminConfiguredMock.mockReturnValue(true);
+    isSupabaseGuestPermissionConfiguredMock.mockReturnValue(true);
     const pending = nonResponsiveGuestPermissionClient();
-    getSupabaseAdminClientMock
+    getSupabaseAuthClientMock
       .mockReturnValueOnce(guestPermissionClient([{ page_key: "people", is_public: false }]))
       .mockReturnValue(pending.client);
 
@@ -196,8 +210,8 @@ describe("platform website access", () => {
     await expect(resolvePageAccessForSession(guestSession(), "/people")).resolves.toBe(false);
     await vi.advanceTimersByTimeAsync(60_001);
     await expect(resolvePageAccessForSession(guestSession(), "/people")).resolves.toBe(false);
-    expect(getSupabaseAdminClientMock).toHaveBeenCalledTimes(2);
-    await vi.advanceTimersByTimeAsync(751);
+    expect(getSupabaseAuthClientMock).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(2_001);
     await expect(resolvePageAccessForSession(guestSession(), "/people")).resolves.toBe(false);
     expect(pending.abortSignal.mock.calls[0]?.[0].aborted).toBe(true);
   });
@@ -205,9 +219,9 @@ describe("platform website access", () => {
   it("retains an administrator-enabled optional page only inside the bounded stale window", async () => {
     vi.useFakeTimers();
     vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    isSupabaseAdminConfiguredMock.mockReturnValue(true);
+    isSupabaseGuestPermissionConfiguredMock.mockReturnValue(true);
     const pending = nonResponsiveGuestPermissionClient();
-    getSupabaseAdminClientMock
+    getSupabaseAuthClientMock
       .mockReturnValueOnce(guestPermissionClient([{ page_key: "people", is_public: true }]))
       .mockReturnValue(pending.client);
 
@@ -215,16 +229,17 @@ describe("platform website access", () => {
     await expect(resolvePageAccessForSession(guestSession(), "/people")).resolves.toBe(true);
     await vi.advanceTimersByTimeAsync(60_001);
     await expect(resolvePageAccessForSession(guestSession(), "/people")).resolves.toBe(true);
-    await vi.advanceTimersByTimeAsync(751);
+    await vi.advanceTimersByTimeAsync(2_001);
     await expect(resolvePageAccessForSession(guestSession(), "/people")).resolves.toBe(true);
     await vi.advanceTimersByTimeAsync(240_000);
-    await expect(resolvePageAccessForSession(guestSession(), "/people")).resolves.toBe(false);
-    await vi.advanceTimersByTimeAsync(751);
+    const expiredResult = resolvePageAccessForSession(guestSession(), "/people");
+    await vi.advanceTimersByTimeAsync(2_001);
+    await expect(expiredResult).resolves.toBe(false);
   });
 
   it("does not expose an optional page when a successful remote result omits its permission row", async () => {
-    isSupabaseAdminConfiguredMock.mockReturnValue(true);
-    getSupabaseAdminClientMock.mockReturnValue(guestPermissionClient([
+    isSupabaseGuestPermissionConfiguredMock.mockReturnValue(true);
+    getSupabaseAuthClientMock.mockReturnValue(guestPermissionClient([
       { page_key: "budget", is_public: true }
     ]));
 
@@ -237,14 +252,14 @@ describe("platform website access", () => {
   it("does not let a timed-out older lookup overwrite a newer successful result", async () => {
     vi.useFakeTimers();
     vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    isSupabaseAdminConfiguredMock.mockReturnValue(true);
+    isSupabaseGuestPermissionConfiguredMock.mockReturnValue(true);
     const older = deferredGuestPermissionClient();
-    getSupabaseAdminClientMock
+    getSupabaseAuthClientMock
       .mockReturnValueOnce(older.client)
       .mockReturnValueOnce(guestPermissionClient([{ page_key: "people", is_public: false }]));
 
     const olderRefresh = refreshGuestPublicPagePermissionsForAdmin();
-    await vi.advanceTimersByTimeAsync(751);
+    await vi.advanceTimersByTimeAsync(2_001);
     await olderRefresh;
     await refreshGuestPublicPagePermissionsForAdmin();
     older.resolve([{ page_key: "people", is_public: true }]);
@@ -256,19 +271,33 @@ describe("platform website access", () => {
   it("deduplicates simultaneous guest refreshes while Supabase is non-responsive", async () => {
     vi.useFakeTimers();
     vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    isSupabaseAdminConfiguredMock.mockReturnValue(true);
+    isSupabaseGuestPermissionConfiguredMock.mockReturnValue(true);
     const pending = nonResponsiveGuestPermissionClient();
-    getSupabaseAdminClientMock.mockReturnValue(pending.client);
+    getSupabaseAuthClientMock.mockReturnValue(pending.client);
 
-    const results = await Promise.all([
+    const resultsPromise = Promise.all([
       visiblePlatformPagesForSession(guestSession()),
       visiblePlatformPagesForSession(guestSession()),
       visiblePlatformPagesForSession(guestSession())
     ]);
 
+    await vi.advanceTimersByTimeAsync(2_001);
+    const results = await resultsPromise;
     expect(results.every((pages) => new Set(pages).size === requiredGuestPages.length)).toBe(true);
-    expect(getSupabaseAdminClientMock).toHaveBeenCalledTimes(1);
-    await vi.advanceTimersByTimeAsync(751);
+    expect(getSupabaseAuthClientMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses the successful anonymous remote allowlist for first-request navigation and direct access", async () => {
+    isSupabaseGuestPermissionConfiguredMock.mockReturnValue(true);
+    getSupabaseAuthClientMock.mockReturnValue(guestPermissionClient([
+      { page_key: "people", is_public: true },
+      { page_key: "budget", is_public: false }
+    ]));
+
+    await expect(visiblePlatformPagesForSession(guestSession())).resolves.toContain("people");
+    await expect(resolvePageAccessForSession(guestSession(), "/people")).resolves.toBe(true);
+    await expect(resolvePageAccessForSession(guestSession(), "/budget")).resolves.toBe(false);
+    expect(getSupabaseAuthClientMock).toHaveBeenCalledTimes(1);
   });
 
   it("keeps authenticated access resolution on the Supabase-backed path when configured", async () => {
@@ -322,17 +351,6 @@ function authenticatedLeaderSession(): AuthSession {
     accessToken: "leader-token",
     user: { id: "leader-user", email: "leader@example.test", fullName: "Leader User", role: "leader" }
   };
-}
-
-async function withDeadline<T>(promise: Promise<T>, timeoutMs: number) {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`Timed out after ${timeoutMs}ms`)), timeoutMs))
-  ]);
-}
-
-function wait(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function guestPermissionClient(rows: Array<{ page_key: string; is_public: boolean | null }>) {
