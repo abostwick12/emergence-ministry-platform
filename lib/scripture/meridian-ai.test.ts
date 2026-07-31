@@ -242,6 +242,23 @@ describe("Meridian AI provider routing", () => {
     });
   });
 
+  it("does not call configured live providers when sermon prep generation disables them", async () => {
+    vi.stubEnv("GEMINI_API_KEY", "configured-gemini-key");
+
+    const result = await generateMeridianSermonPrepResource({
+      kind: "leader_guide",
+      title: "When the King Kneels",
+      passage: "John 13:1-17",
+      bigIdea: "Real authority stoops.",
+      body: "Jesus kneels.",
+      allowLiveProviders: false
+    });
+
+    expect(result.provider).toBe("deterministic");
+    expect(geminiGenerateMock).not.toHaveBeenCalled();
+    expect(glooEmmaGenerateMock).not.toHaveBeenCalled();
+  });
+
   it("does not replace successful AI sermon prep output with deterministic fallback", async () => {
     vi.stubEnv("GEMINI_API_KEY", "configured-gemini-key");
     const contentMarkdown = [

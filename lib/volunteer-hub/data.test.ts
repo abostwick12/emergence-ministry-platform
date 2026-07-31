@@ -64,6 +64,7 @@ describe("Volunteer Hub data", () => {
     const names = payload.volunteers.map((volunteer) => volunteer.name);
 
     expect(payload.dataSource).toBe("guest_demo");
+    expect(payload.readOnlyReason).toBe("Guest contest access is read-only.");
     expect(payload.canonicalVersion).toBe(LEAD_EMERGENCE_DEMO_CONTEXT_VERSION);
     expect(payload.studentRoster).toHaveLength(150);
     expect(payload.volunteers).toHaveLength(20);

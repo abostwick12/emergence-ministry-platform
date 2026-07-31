@@ -107,6 +107,7 @@ export type MeridianSermonPrepResourceInput = {
   bigIdea: string;
   body: string;
   knowledgeMatches?: StudentDiscussionKnowledgeContext[];
+  allowLiveProviders?: boolean;
 };
 
 export type MeridianSermonPrepResourceResult = {
@@ -334,15 +335,17 @@ export async function generateMeridianReadingPlanDraft(input: MeridianReadingPla
 
 export async function generateMeridianSermonPrepResource(input: MeridianSermonPrepResourceInput): Promise<MeridianSermonPrepResourceResult> {
   const configuredProviders: Array<{ id: MeridianAiProviderId; model: string; provider: EmmaProvider }> = [];
-  const glooConfig = readGlooEmmaConfig();
-  if (glooConfig) {
-    configuredProviders.push({
-      id: "gloo",
-      model: glooConfig.model,
-      provider: createGlooEmmaProvider({ config: glooConfig })
-    });
+  if (input.allowLiveProviders !== false) {
+    const glooConfig = readGlooEmmaConfig();
+    if (glooConfig) {
+      configuredProviders.push({
+        id: "gloo",
+        model: glooConfig.model,
+        provider: createGlooEmmaProvider({ config: glooConfig })
+      });
+    }
+    configuredProviders.push(...createFallbackProviders().filter((provider) => provider.id === "gemini"));
   }
-  configuredProviders.push(...createFallbackProviders().filter((provider) => provider.id === "gemini"));
 
   const synthesisBrief = buildMeridianSynthesisBrief({
     taskType: input.kind,

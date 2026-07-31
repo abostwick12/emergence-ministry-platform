@@ -153,7 +153,42 @@ describe("leader prep generation route", () => {
 
     expect(response.status).toBe(200);
     expect(generateMeridianSermonPrepResourceMock).toHaveBeenCalledWith(expect.objectContaining({
+      allowLiveProviders: true,
       knowledgeMatches: []
+    }));
+  });
+
+  it("forces deterministic generation for guest sessions", async () => {
+    requireEmergeOperationsWriteAccessMock.mockResolvedValue({
+      allowed: true,
+      session: {
+        ...session(),
+        isGuest: true,
+        guestSessionId: "guest-test",
+        accessToken: undefined,
+        user: {
+          id: "guest_guest-test",
+          email: "guest@example.test",
+          fullName: "Guest",
+          role: "guest"
+        }
+      }
+    });
+
+    const response = await POST(new Request("https://platform.test/api/leader-prep/generate", {
+      method: "POST",
+      body: JSON.stringify({
+        kind: "leader_guide",
+        title: "When the King Kneels",
+        passage: "John 13:1-17",
+        bigIdea: "Real authority stoops.",
+        body: "Jesus kneels."
+      })
+    }));
+
+    expect(response.status).toBe(200);
+    expect(generateMeridianSermonPrepResourceMock).toHaveBeenCalledWith(expect.objectContaining({
+      allowLiveProviders: false
     }));
   });
 

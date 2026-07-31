@@ -21,7 +21,7 @@ export default async function StudentLayout({ children }: { children: React.Reac
     const visiblePageKeys = await visiblePlatformPagesForSession(session);
     return (
       <RoleProvider initialRole="student">
-        <EventCardProvider>
+        <EventCardProvider canSaveChanges={false}>
           <AppShell
             canManageEvents={false}
             devAuth={devAuth}
@@ -47,7 +47,7 @@ export default async function StudentLayout({ children }: { children: React.Reac
   }
 
   const isStudentSession = access.role === "student";
-  const canSaveChanges = access.session.isGuest || await canPlatformUserSaveChanges(access.session);
+  const canSaveChanges = !access.session.isGuest && await canPlatformUserSaveChanges(access.session);
   const canManageEvents = canSaveChanges && (access.role === "admin" || access.role === "leader");
   const shellAccess = { kind: "full" as const };
   const visiblePageKeys = await visiblePlatformPagesForSession(access.session);

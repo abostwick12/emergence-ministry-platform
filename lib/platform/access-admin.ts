@@ -1,5 +1,10 @@
 import type { AuthSession } from "@/lib/auth/server";
-import { getSupabaseAdminClient, isSupabaseAdminConfigured } from "@/lib/auth/server";
+import {
+  getSupabaseAdminClient,
+  getSupabaseAuthClient,
+  isSupabaseAdminConfigured,
+  isSupabaseGuestPermissionConfigured
+} from "@/lib/auth/server";
 import { resolvePersonName } from "@/lib/auth/display-name";
 import { defaultAiAccessForRole, getAiAccessForUsers, updateAiAccessForUser, type PlatformAiAccess } from "@/lib/platform/ai-access";
 import * as mockStore from "@/lib/store";
@@ -117,7 +122,7 @@ const globalState = globalThis as typeof globalThis & {
   };
 };
 
-const GUEST_PUBLIC_PAGE_LOOKUP_TIMEOUT_MS = 750;
+const GUEST_PUBLIC_PAGE_LOOKUP_TIMEOUT_MS = 2_000;
 const GUEST_PUBLIC_PAGE_FRESH_TTL_MS = 60_000;
 const GUEST_PUBLIC_PAGE_STALE_TTL_MS = 5 * 60_000;
 const GUEST_PUBLIC_PAGE_RETRY_DELAY_MS = 60_000;
@@ -311,18 +316,23 @@ export async function getPlatformDataAccessModeForSession(session: AuthSession):
 export async function resolvePageAccessForSession(session: AuthSession, pathname: string): Promise<boolean> {
   const pageDef = findPlatformPageByPath(pathname);
   if (!pageDef) return true;
-  if (session.isGuest) return isGuestPagePublicSync(pageDef.key);
+  if (session.isGuest) return isGuestPagePublic(pageDef.key);
   if (session.user.role === "admin") return true;
   if (!(await isPlatformUserActiveById(session.user.id))) return false;
   return getUserPageAccess(session, pageDef.key);
 }
 
 export async function visiblePlatformPagesForSession(session: AuthSession) {
+  if (session.isGuest) {
+    const guestPublicPages = await guestPublicPagesForRequest();
+    return platformPages
+      .filter((pageDef) => pageDef.guestEligible && guestPublicPages.has(pageDef.key))
+      .map((pageDef) => pageDef.key);
+  }
+
   const allowed: PlatformPageKey[] = [];
   for (const pageDef of platformPages) {
-    if (session.isGuest) {
-      if (isGuestPagePublicSync(pageDef.key)) allowed.push(pageDef.key);
-    } else if (session.user.role === "admin" || await getUserPageAccess(session, pageDef.key)) {
+    if (session.user.role === "admin" || await getUserPageAccess(session, pageDef.key)) {
       allowed.push(pageDef.key);
     }
   }
@@ -330,21 +340,16 @@ export async function visiblePlatformPagesForSession(session: AuthSession) {
 }
 
 export async function isGuestPagePublic(pageKey: PlatformPageKey): Promise<boolean> {
-  return isGuestPagePublicSync(pageKey);
-}
-
-function isGuestPagePublicSync(pageKey: PlatformPageKey): boolean {
   const pageDef = getPlatformPage(pageKey);
   if (!pageDef?.guestEligible) return false;
   if (requiredGuestPublicPageKeys.has(pageKey)) return true;
-  const previewGuestPublicPages = globalState.__leadEmergencePlatformAccessPreview?.guestPublicPages;
-  if (previewGuestPublicPages) return previewGuestPublicPages.has(pageKey);
-  if (!isSupabaseAdminConfigured()) return currentPreviewGuestPublicPages().has(pageKey);
-  return currentGuestPublicPagesForConfiguredAdmin().has(pageKey);
+  return (await guestPublicPagesForRequest()).has(pageKey);
 }
 
 export async function refreshGuestPublicPagePermissionsForAdmin(): Promise<Set<PlatformPageKey>> {
-  if (!isSupabaseAdminConfigured()) return currentPreviewGuestPublicPages();
+  const previewGuestPublicPages = globalState.__leadEmergencePlatformAccessPreview?.guestPublicPages;
+  if (previewGuestPublicPages) return new Set(previewGuestPublicPages);
+  if (!isSupabaseGuestPermissionConfigured()) return requiredGuestPublicPages();
   return startGuestPublicPagePermissionRefresh();
 }
 
@@ -621,6 +626,26 @@ function currentGuestPublicPagesForConfiguredAdmin(now = Date.now()) {
   return requiredGuestPublicPages();
 }
 
+async function guestPublicPagesForRequest(now = Date.now()) {
+  const previewGuestPublicPages = globalState.__leadEmergencePlatformAccessPreview?.guestPublicPages;
+  if (previewGuestPublicPages) {
+    const pages = new Set<PlatformPageKey>();
+    for (const pageKey of Array.from(previewGuestPublicPages)) {
+      if (isPlatformPageKey(pageKey) && getPlatformPage(pageKey)?.guestEligible) pages.add(pageKey);
+    }
+    for (const pageKey of Array.from(requiredGuestPublicPageKeys)) pages.add(pageKey);
+    return pages;
+  }
+  if (!isSupabaseGuestPermissionConfigured()) return requiredGuestPublicPages();
+
+  const cache = guestPublicPageCache();
+  if (cache.remote && now <= cache.remote.staleUntil) {
+    return currentGuestPublicPagesForConfiguredAdmin(now);
+  }
+  if (now < cache.retryAfter) return requiredGuestPublicPages();
+  return startGuestPublicPagePermissionRefresh();
+}
+
 function cacheGuestPublicPages(pages: Set<PlatformPageKey>, generation?: number) {
   const cache = guestPublicPageCache();
   if (generation !== undefined && generation !== cache.generation) {
@@ -696,7 +721,7 @@ function startGuestPublicPagePermissionRefresh() {
 
 async function loadGuestPublicPagePermissions(generation: number, controller: AbortController) {
   try {
-    const supabase = getSupabaseAdminClient();
+    const supabase = getSupabaseAuthClient();
     const query = supabase
       .from("guest_public_page_permissions")
       .select("page_key,is_public")

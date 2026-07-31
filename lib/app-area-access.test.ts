@@ -39,6 +39,20 @@ function session(role = "admin", isMock = true): AuthSession {
   };
 }
 
+function guestSession(): AuthSession {
+  return {
+    isGuest: true,
+    isMock: false,
+    guestSessionId: "guest-test",
+    user: {
+      id: "guest_guest-test",
+      email: "guest@example.test",
+      fullName: "Guest",
+      role: "guest"
+    }
+  };
+}
+
 function jsonRequest(url: string, body: unknown) {
   return new Request(url, {
     method: "POST",
@@ -115,6 +129,21 @@ describe("EMERGE app-area API access", () => {
     expect(writeAccess.response.status).toBe(403);
     await expect(writeAccess.response.json()).resolves.toMatchObject({
       error: expect.stringMatching(/save rights/i)
+    });
+  });
+
+  it("keeps guest contest sessions read-only", async () => {
+    getServerSessionMock.mockResolvedValue(guestSession());
+
+    await expect(requireEmergeOperationsAccess()).resolves.toMatchObject({ allowed: true });
+
+    const writeAccess = await requireEmergeOperationsWriteAccess();
+
+    expect(writeAccess.allowed).toBe(false);
+    if (writeAccess.allowed) return;
+    expect(writeAccess.response.status).toBe(403);
+    await expect(writeAccess.response.json()).resolves.toEqual({
+      error: "Guest contest access is read-only."
     });
   });
 

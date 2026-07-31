@@ -151,7 +151,7 @@ export function MinistryPeoplePage() {
   );
 }
 
-export function MinistryBudgetPage() {
+export function MinistryBudgetPage({ readOnly = false }: { readOnly?: boolean }) {
   return (
     <LaunchDataPage
       eyebrow="Budget"
@@ -160,7 +160,7 @@ export function MinistryBudgetPage() {
       emmaPage="budget"
       showHero={false}
     >
-      {(overview, refresh) => <BudgetWorkspace overview={overview} refresh={refresh} />}
+      {(overview, refresh) => <BudgetWorkspace overview={overview} readOnly={readOnly} refresh={refresh} />}
     </LaunchDataPage>
   );
 }
@@ -941,7 +941,7 @@ function slugify(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "item";
 }
 
-function BudgetWorkspace({ overview, refresh }: { overview: MinistryOverview; refresh: () => Promise<void> }) {
+function BudgetWorkspace({ overview, readOnly, refresh }: { overview: MinistryOverview; readOnly: boolean; refresh: () => Promise<void> }) {
   const [eventId, setEventId] = useState(overview.events[0]?.id ?? "");
   const [categoryId, setCategoryId] = useState<(typeof expenseCategories)[number][0]>("general");
   const [amount, setAmount] = useState("");
@@ -978,6 +978,10 @@ function BudgetWorkspace({ overview, refresh }: { overview: MinistryOverview; re
 
   async function submitExpense(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (readOnly) {
+      setError("Guest contest access is read-only.");
+      return;
+    }
     setSaving(true);
     setError("");
     setMessage("");
@@ -1010,7 +1014,7 @@ function BudgetWorkspace({ overview, refresh }: { overview: MinistryOverview; re
           <ReceiptText aria-hidden="true" />
           Capture receipt
         </button>
-        <button className="button" type="button" onClick={() => expenseFormRef.current?.scrollIntoView({ behavior: "smooth", block: "center" })}>
+        <button className="button" type="button" disabled={readOnly} onClick={() => expenseFormRef.current?.scrollIntoView({ behavior: "smooth", block: "center" })}>
           + New expense
         </button>
         <button className="button budget-filter-chip" type="button" disabled aria-label="Budget period filter locked to this quarter">
@@ -1080,7 +1084,7 @@ function BudgetWorkspace({ overview, refresh }: { overview: MinistryOverview; re
         <form className="ministry-launch-form" ref={expenseFormRef} onSubmit={(submitEvent) => void submitExpense(submitEvent)}>
           <label className="field">
             <span>Event</span>
-            <select className="input" value={eventId} onChange={(changeEvent) => setEventId(changeEvent.target.value)} required>
+            <select className="input" value={eventId} disabled={readOnly} onChange={(changeEvent) => setEventId(changeEvent.target.value)} required>
               {overview.events.map((event) => (
                 <option key={event.id} value={event.id}>
                   {event.title}
@@ -1090,7 +1094,7 @@ function BudgetWorkspace({ overview, refresh }: { overview: MinistryOverview; re
           </label>
           <label className="field">
             <span>Category</span>
-            <select className="input" value={categoryId} onChange={(changeEvent) => setCategoryId(changeEvent.target.value as typeof categoryId)}>
+            <select className="input" value={categoryId} disabled={readOnly} onChange={(changeEvent) => setCategoryId(changeEvent.target.value as typeof categoryId)}>
               {expenseCategories.map(([value, label]) => (
                 <option key={value} value={value}>
                   {label}
@@ -1100,15 +1104,15 @@ function BudgetWorkspace({ overview, refresh }: { overview: MinistryOverview; re
           </label>
           <label className="field">
             <span>Amount</span>
-            <input className="input" type="number" min="1" step="1" value={amount} onChange={(changeEvent) => setAmount(changeEvent.target.value)} required />
+            <input className="input" type="number" min="1" step="1" value={amount} disabled={readOnly} onChange={(changeEvent) => setAmount(changeEvent.target.value)} required />
           </label>
           <label className="field">
             <span>Description</span>
-            <textarea className="input" rows={3} value={description} onChange={(changeEvent) => setDescription(changeEvent.target.value)} required />
+            <textarea className="input" rows={3} value={description} disabled={readOnly} onChange={(changeEvent) => setDescription(changeEvent.target.value)} required />
           </label>
           {error ? <p className="ministry-launch-error">{error}</p> : null}
           {message ? <p className="ministry-launch-success">{message}</p> : null}
-          <button className="button primary" type="submit" disabled={saving || !eventId}>
+          <button className="button primary" type="submit" disabled={readOnly || saving || !eventId}>
             {saving ? "Saving..." : "Save budget item"}
           </button>
         </form>
