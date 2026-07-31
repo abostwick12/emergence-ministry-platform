@@ -43,6 +43,7 @@ export type VolunteerHubResource = {
   title: string;
   type: "leader_guide" | "audio" | "discussion" | "notes" | "parent" | "student" | "slides";
   detail: string;
+  href?: string;
   estimatedMinutes: number;
   completed: boolean;
   shareable: boolean;

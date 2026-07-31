@@ -120,7 +120,10 @@ export function LeaderPreparationPage({ readOnly = false, guestSeed = false }: {
   }
 
   async function runGenerateAction(action: PrepAction) {
-    if (readOnly) return;
+    if (readOnly) {
+      setActionStatus("AI generation is disabled in guest mode. Available after sign-in.");
+      return;
+    }
     setGenerating(action.id);
     setActionStatus(`${action.label.replace("Generate ", "")} is generating through Meridian...`);
     try {
@@ -163,6 +166,10 @@ export function LeaderPreparationPage({ readOnly = false, guestSeed = false }: {
 
   async function askEmma(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (readOnly) {
+      setActionStatus("AI generation is disabled in guest mode. Available after sign-in.");
+      return;
+    }
     const prompt = emmaPrompt.trim();
     if (!prompt) return;
     const userMessage: EmmaChatMessage = { id: `user-${Date.now()}`, role: "user", content: prompt };
@@ -236,11 +243,11 @@ export function LeaderPreparationPage({ readOnly = false, guestSeed = false }: {
           <span>{readerLink.ok ? `${readerLink.displayReference} is ready in YouVersion.` : readerLink.message}</span>
         </div>
         <div className="leader-prep-mobile-command-actions">
-          <button type="button" onClick={() => runGenerateAction(guideAction)} disabled={readOnly || generating !== null}>
+          <button type="button" onClick={() => runGenerateAction(guideAction)} disabled={generating !== null}>
             <FileText aria-hidden="true" />
             Guide
           </button>
-          <button type="button" onClick={() => runGenerateAction(questionsAction)} disabled={readOnly || generating !== null}>
+          <button type="button" onClick={() => runGenerateAction(questionsAction)} disabled={generating !== null}>
             <MessageSquareText aria-hidden="true" />
             Questions
           </button>
@@ -281,6 +288,11 @@ export function LeaderPreparationPage({ readOnly = false, guestSeed = false }: {
               <textarea value={bigIdea} readOnly={readOnly} onChange={(event) => markDraftChanged(setBigIdea, event.target.value)} rows={2} />
             </label>
 
+            {guestSeed ? <label className="leader-prep-big-idea">
+              <span>Theological guardrail</span>
+              <textarea value={competitionGuestSermon.theologicalGuardrail} readOnly rows={2} />
+            </label> : null}
+
             <div className="leader-prep-body-field">
               <textarea aria-label="Sermon body" value={body} readOnly={readOnly} onChange={(event) => markDraftChanged(setBody, event.target.value)} />
             </div>
@@ -289,7 +301,7 @@ export function LeaderPreparationPage({ readOnly = false, guestSeed = false }: {
           <footer className="leader-prep-actions">
             <p className="leader-prep-status" role="status">{draftStatus}</p>
             {prepActions.map((action) => (
-              <button className={`leader-prep-action ${action.tone}`} key={action.id} type="button" disabled={readOnly || generating !== null} onClick={() => runGenerateAction(action)}>
+              <button className={`leader-prep-action ${action.tone}`} key={action.id} type="button" disabled={generating !== null} onClick={() => runGenerateAction(action)}>
                 {generating === action.id ? <LoaderCircle className="leader-prep-spin" aria-hidden="true" /> : action.id === "outline" ? <ListChecks aria-hidden="true" /> : action.id === "small_group_questions" ? <MessageSquareText aria-hidden="true" /> : <FileText aria-hidden="true" />}
                 {generating === action.id ? "Generating..." : action.label}
               </button>
@@ -307,9 +319,21 @@ export function LeaderPreparationPage({ readOnly = false, guestSeed = false }: {
                 ))}
               </div>
             ) : null}
-            {guestSeed ? <div className="leader-prep-generated-list" aria-label="Seeded leader resources">
+            {guestSeed ? <div className="leader-prep-generated-list" aria-label="Connected leader resources">
               <strong>Connected leader resources</strong>
-              {competitionLeaderResources.map((resource) => <div key={resource.title}><b>{resource.title}</b>: {resource.href ? <a href={resource.href}>Open supplied slide plan</a> : resource.detail}</div>)}
+              <div className="resource-list">
+                {competitionLeaderResources.map((resource) => <article className="resource-card" key={resource.title}>
+                  <div className="resource-card-main">
+                    <div className="resource-card-title-row"><strong>{resource.title}</strong></div>
+                    <p>{resource.detail}</p>
+                  </div>
+                  <div className="resource-card-actions">
+                    {resource.href ? <a className="button compact-button" href={resource.href} target="_blank" rel="noreferrer" download={resource.title === "Sermon Slides" ? true : undefined}>
+                      {resource.title === "Sermon Slides" ? "Open or download" : "Open audio"}
+                    </a> : <span className="pill">Included in sermon prep</span>}
+                  </div>
+                </article>)}
+              </div>
             </div> : null}
           </footer>
         </article>
@@ -324,7 +348,7 @@ export function LeaderPreparationPage({ readOnly = false, guestSeed = false }: {
           </section>
 
           <section className="leader-prep-emma-card" aria-label="Ask EMMA preparation assistant">
-            <button type="button" aria-expanded={emmaOpen} aria-controls="leader-prep-emma-popover" onClick={() => setEmmaOpen(true)}>
+            <button type="button" aria-expanded={emmaOpen} aria-controls="leader-prep-emma-popover" onClick={() => readOnly ? setActionStatus("AI generation is disabled in guest mode. Available after sign-in.") : setEmmaOpen(true)}>
               <span aria-hidden="true"><Sparkles /></span>
               <span>
                 <small>Ask EMMA</small>
