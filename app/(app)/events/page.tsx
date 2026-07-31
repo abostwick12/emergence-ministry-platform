@@ -8,5 +8,5 @@ export default async function EventsPage() {
   if (!access.allowed) {
     return <MinistryWorkspace view="events" initialLoadError="Ministry workspace access could not be verified." />;
   }
-  return <MinistryWorkspace view="events" initialOverview={await getOverview(access.session)} canSaveChanges={!access.session.isGuest && await canPlatformUserSaveChanges(access.session)} />;
+  return <MinistryWorkspace view="events" initialOverview={await getOverview(access.session)} canSaveChanges={await canPlatformUserSaveChanges(access.session)} />;
 }

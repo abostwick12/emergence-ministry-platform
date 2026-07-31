@@ -27,8 +27,9 @@ test.describe("Unified access and competition guest mode", () => {
     await expect(judgePath.getByRole("link", { name: /YouVersion Reader/ })).toHaveAttribute("href", "/student/scripture/resources?reference=John%203%3A16");
     await expect(judgePath.getByRole("link", { name: /Discipleship Review/ })).toHaveAttribute("href", "/discipleship");
     const aiReadiness = page.locator('[aria-label="Submission AI readiness"]:visible');
-    await expect(aiReadiness).toContainText("Provider status live");
-    await expect(aiReadiness).toContainText("Public guest mode uses read-only demo responses");
+    await expect(aiReadiness).toContainText("Provider-aware, guarded actions");
+    await expect(aiReadiness).toContainText("Guest AI generation and guest sandbox edits are independent server-side controls");
+    await expect(aiReadiness).toContainText("Human approval required");
     const sidebar = page.getByRole("navigation", { name: "Desktop navigation" });
     await expect(sidebar.getByRole("link", { name: "Ministry Hub" })).toBeVisible();
     await expect(sidebar.getByRole("link", { name: "Student Portal" })).toBeVisible();

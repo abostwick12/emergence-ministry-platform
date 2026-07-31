@@ -13,13 +13,17 @@ https://www.leademergence.com
 Recommended judge path:
 
 1. Open `/login`.
-2. Choose the competition review or guest path.
+2. Select **Continue as guest**.
 3. Confirm the dashboard loads with the Lead Emergence shell.
 4. Open the Ministry Hub and review Ministry Alignment.
 5. Open Student Scripture resources with a passage reference.
-6. Review the discipleship and AI readiness surfaces.
-7. Open `/hackathon` to see the public ecosystem proof page.
-8. Confirm restricted Camp routes redirect rather than exposing protected data.
+6. Open `/student/scripture/plans/new`, add a Scripture reference and context, and select **Generate with Meridian**.
+7. Confirm the result identifies the provider/model that actually answered; `guest-stock-responses` means no external AI call ran.
+8. Review `/student/scripture/questions` and `/discipleship` for the human-review path.
+9. Open `/hackathon` to see the public ecosystem proof page.
+10. Confirm restricted Camp routes redirect rather than exposing protected data.
+
+Production must have `GUEST_AI_GENERATION_ENABLED=true` plus valid Gloo credentials for step 6 to call Gloo. `GUEST_SANDBOX_WRITES_ENABLED=true` is optional and affects only isolated guest edits; it is not required for an unsaved AI draft.
 
 ## What To Evaluate
 
@@ -57,11 +61,12 @@ Current visible surfaces:
 
 - `/student/scripture/resources`
 - `/student/scripture/questions`
+- `/student/scripture/plans/new`
 - `POST /api/student/scripture/lookup`
 
 Expected behavior:
 
-- Bible references can resolve to reader links and approved Scripture metadata.
+- The visible lookup sends the reference through the server-side passage route and displays the returned passage when the API is configured.
 - The app can direct users to Bible.com surfaces.
 - Lead Emergence stores references and relationships, not licensed Bible text as permanent Meridian memory.
 
@@ -73,11 +78,13 @@ Current visible surfaces:
 
 - `POST /api/student/scripture/discussion`
 - `POST /api/student/scripture/reading-plan`
+- `POST /api/student/scripture/gloo-diagnostics`
 - discipleship and AI readiness indicators
 
 Expected behavior:
 
-- Gloo AI Studio is the intended primary ministry intelligence provider for ministry-specific synthesis, student-question discussion drafts, and reading-plan drafts.
+- Gloo AI Studio is the primary ministry intelligence provider for configured student-question and reading-plan drafts.
+- Guest requests call Gloo only when `GUEST_AI_GENERATION_ENABLED=true`; otherwise the response is explicitly labeled stock output.
 - Generated outputs remain candidate outputs until reviewed or approved by a human leader.
 - No AI provider receives direct operational database access.
 
@@ -91,7 +98,7 @@ The production build currently demonstrates:
 - Ministry Alignment decision surface
 - Student Scripture resource and question surfaces
 - YouVersion reader/reference seams
-- Gloo AI Studio generation seams and readiness boundaries
+- Gloo AI Studio generation, model provenance, diagnostics, and readiness boundaries
 - protected Camp route behavior
 
 ## Structurally Enabled
@@ -100,7 +107,6 @@ These capabilities are intentionally architectural in this phase:
 
 - Meridian governed retrieval
 - Meridian publishing
-- full Gloo AI Studio production orchestration
 - YouVersion reading-plan integration beyond current reference and reader-link seams
 - Meridian Web
 - Vision Platform
@@ -112,3 +118,5 @@ These capabilities are intentionally architectural in this phase:
 - Human leaders remain responsible for teaching, theology, pastoral care, staffing, and ministry direction.
 - Volunteer Hub remains the volunteer-facing workspace at `/volunteer`.
 - Leadership-level volunteer health intelligence belongs under the Leader Hub.
+
+See [Competition API Usage](competition-api-usage.md) and [Competition Runtime Architecture](architecture/competition-runtime.md) for request examples, feature-gate behavior, and trust boundaries.

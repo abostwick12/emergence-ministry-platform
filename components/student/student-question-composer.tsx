@@ -16,6 +16,7 @@ type CreateResponse = {
   error?: string;
   prompt?: StudentDiscussionPrompt;
   nextStep?: StudentQuestionNextStep;
+  persistence?: "guest_session" | "ministry" | "none";
 };
 
 export function StudentQuestionComposer({ readiness, onCreated }: StudentQuestionComposerProps) {
@@ -31,7 +32,7 @@ export function StudentQuestionComposer({ readiness, onCreated }: StudentQuestio
   async function submitQuestion(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSubmitting(true);
-    setStatus("Saving your question and asking Meridian to shape leader-review next steps...");
+    setStatus("Asking Meridian to shape leader-review next steps...");
 
     try {
       const response = await fetch("/api/student/scripture/discussion", {
@@ -48,6 +49,18 @@ export function StudentQuestionComposer({ readiness, onCreated }: StudentQuestio
       onCreated?.(payload.prompt, payload.nextStep);
       setQuestion("");
       setScriptureReference("");
+      if (payload.persistence === "none") {
+        setStatus("Preview generated for leader review. Nothing was saved, published, or shared.");
+        return;
+      }
+      if (payload.persistence === "guest_session") {
+        setStatus(
+          payload.prompt.aiStatus === "generated"
+            ? "Saved in this guest sandbox session. Meridian generated a leader-review draft."
+            : "Saved in this guest sandbox session with a knowledge-guided leader-review draft."
+        );
+        return;
+      }
       setStatus(
         payload.prompt.aiStatus === "generated"
           ? "Saved. Meridian drafted a leader-review conversation while you keep wrestling below."

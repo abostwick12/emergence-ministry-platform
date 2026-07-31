@@ -116,7 +116,7 @@ export function saveLocalStudentDiscussionPrompt(session: AuthSession, input: Sa
     scriptureReference: input.scriptureReference,
     scripturePassageId: input.scripturePassageId,
     metanarrativeMovement: input.metanarrativeMovement,
-    aiProvider: input.ai?.provider ?? "gloo",
+    aiProvider: input.ai?.provider ?? (session.isGuest ? "guest-stock-responses" : "gloo"),
     aiStatus: input.ai?.status ?? "not_configured",
     aiModel: input.ai?.model ?? "",
     aiModelTier: input.ai?.modelTier ?? "default",
@@ -272,7 +272,11 @@ export function resetLocalStudentStateForTests() {
 }
 
 function stateFor(session: AuthSession) {
-  const key = shouldUseLocalStudentState(session) ? "local-dev-ministry" : session.user.id;
+  const key = session.isGuest
+    ? `guest:${session.guestSessionId ?? session.user.id}`
+    : shouldUseLocalStudentState(session)
+      ? "local-dev-ministry"
+      : session.user.id;
   const existing = localState.get(key);
   if (existing) return existing;
 

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getServerSession, unauthorizedResponse } from "@/lib/auth/server";
+import { isGuestAiGenerationEnabled } from "@/lib/competition/guest-runtime";
 import { KnowledgeTestBenchError, runKnowledgeTestBench } from "@/lib/scripture/knowledge-test-bench";
 import { resolveStudentHubAccess } from "@/lib/student/access";
 
@@ -12,7 +13,7 @@ type KnowledgeTestRequestBody = {
 export async function POST(request: Request) {
   const access = resolveStudentHubAccess(await getServerSession());
   if (!access.allowed) return unauthorizedResponse();
-  if (access.session.isGuest) {
+  if (access.session.isGuest && !isGuestAiGenerationEnabled()) {
     return NextResponse.json({
       ok: true,
       result: {

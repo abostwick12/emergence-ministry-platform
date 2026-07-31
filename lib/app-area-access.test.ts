@@ -134,6 +134,7 @@ describe("EMERGE app-area API access", () => {
 
   it("keeps guest contest sessions read-only", async () => {
     getServerSessionMock.mockResolvedValue(guestSession());
+    canPlatformUserSaveChangesMock.mockResolvedValue(false);
 
     await expect(requireEmergeOperationsAccess()).resolves.toMatchObject({ allowed: true });
 
@@ -144,6 +145,16 @@ describe("EMERGE app-area API access", () => {
     expect(writeAccess.response.status).toBe(403);
     await expect(writeAccess.response.json()).resolves.toEqual({
       error: "Guest contest access is read-only."
+    });
+  });
+
+  it("allows guest sandbox writes only when the centralized runtime gate grants them", async () => {
+    getServerSessionMock.mockResolvedValue(guestSession());
+    canPlatformUserSaveChangesMock.mockResolvedValue(true);
+
+    await expect(requireEmergeOperationsWriteAccess()).resolves.toMatchObject({
+      allowed: true,
+      session: expect.objectContaining({ isGuest: true })
     });
   });
 

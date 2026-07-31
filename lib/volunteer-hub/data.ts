@@ -1,4 +1,5 @@
 import type { AuthSession } from "@/lib/auth/server";
+import { isGuestSandboxWritesEnabled } from "@/lib/competition/guest-runtime";
 import { getSupabaseAdminClient, isSupabaseAdminConfigured } from "@/lib/auth/server";
 import type { CampAccessContext } from "@/lib/camp/permissions";
 import { getCampOverview } from "@/lib/camp/repository";
@@ -532,7 +533,8 @@ export async function getVolunteerHubPayload(
   const source = dataSourceForSession(session);
   if (source === "guest_demo") {
     const guest = getGuestVolunteerHubState(guestVolunteerHubSessionId(session));
-    return buildVolunteerHubPayload(guest.current, session, integrations, source, "Guest contest access is read-only.", {
+    const readOnlyReason = isGuestSandboxWritesEnabled() ? undefined : "Guest contest access is read-only.";
+    return buildVolunteerHubPayload(guest.current, session, integrations, source, readOnlyReason, {
       canonicalVersion: guest.version,
       staff: guest.staff
     });

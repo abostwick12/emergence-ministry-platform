@@ -1,341 +1,170 @@
 # Lead Emergence Automated Platform
 
-Lead Emergence is a ministry-operations web application for event planning, task automation, communication preparation, budget visibility, and future ministry integrations.
+Lead Emergence is a Scripture-native ministry operating system. It connects the operational work ministry leaders already do with Scripture grounding, church-specific organizational memory, AI-assisted drafting, and explicit human review.
 
-The platform is designed to reduce administrative load for a small ministry team while maintaining clear accountability, repeatable workflows, and a usable experience for non-technical staff.
+The central design question is not only, “How can a church manage ministry?” It is, “What would a shepherd want to notice?” Existing administration tools solve necessary stewardship problems. Lead Emergence adds a different layer: it helps leaders notice people, patterns, and questions that could otherwise remain invisible, without treating software or AI as pastoral authority.
 
-**Production:** [leademergence.com](https://leademergence.com)  
-**Current functionality map:** [docs/current-functionality.md](docs/current-functionality.md)  
-**Competition ecosystem proof:** [docs/Competition_Ecosystem_Proof.md](docs/Competition_Ecosystem_Proof.md)  
-**Competition judge walkthrough:** [docs/Competition_Judge_Walkthrough.md](docs/Competition_Judge_Walkthrough.md)  
-**Platform architecture baseline:** [docs/architecture/platform-unification-baseline.md](docs/architecture/platform-unification-baseline.md)  
-**AI skill system baseline:** [docs/architecture/ai-skill-system.md](docs/architecture/ai-skill-system.md)
+- Production: [leademergence.com](https://www.leademergence.com)
+- Judge walkthrough: [docs/Competition_Judge_Walkthrough.md](docs/Competition_Judge_Walkthrough.md)
+- API usage and evidence: [docs/competition-api-usage.md](docs/competition-api-usage.md)
+- Competition architecture: [docs/architecture/competition-runtime.md](docs/architecture/competition-runtime.md)
+- Ecosystem proof: [docs/Competition_Ecosystem_Proof.md](docs/Competition_Ecosystem_Proof.md)
+- Current functionality: [docs/current-functionality.md](docs/current-functionality.md)
 
-## Current Product Scope
+## Competition Review Path
 
-The current release is a production-oriented Next.js App Router application with a working Admin/Leader event-management workflow.
+1. Open `/login` and select **Continue as guest**.
+2. Open `/dashboard` for the operational ministry rhythm.
+3. Open `/ministry` for Scripture-shaped ministry narratives, inspectable evidence, and Meridian context.
+4. Open `/student/scripture/resources?reference=John%203%3A16` and select **Open Reader** to exercise the YouVersion passage lookup and Bible.com reader handoff.
+5. Open `/student/scripture/plans/new` to generate a leader-review reading-plan draft. When guest AI is enabled and Gloo credentials are configured, this is a live Gloo AI Studio call.
+6. Open `/student/scripture/questions` and `/discipleship` to inspect the student-question, safety, and leader-approval workflow.
+7. Open `/hackathon` for a public summary of the ecosystem and its boundaries.
 
-The primary vertical slice is:
+Every provider result names the provider/model that actually answered. Stock guest output remains labeled as stock output. No AI draft is automatically approved, published, sent, or written to an external ministry system.
 
-**Create event → generate baseline tasks → assign and update tasks → manage the event workspace → review communication previews → view budget and integration activity → retain an activity log.**
+## What the Platform Demonstrates
 
-This is not the final platform. It is the operational foundation for later Planning Center, Google Workspace, communications, volunteer, student, and AI automation features.
+| Layer | Current implementation | Boundary |
+| --- | --- | --- |
+| Ministry operations | Events, generated tasks, assignments, budget visibility, communication previews, activity records, and a guest sandbox | Communication remains preview-only; external provider writes are not implied. |
+| Meridian | Church mission, values, theology, history, rhythms, and current season shape the context presented to AI and leaders | Meridian provides context; it does not make pastoral decisions. |
+| YouVersion Platform | Server-side passage lookup plus Bible.com reader links | Lead Emergence stores approved references and relationships, not fetched Bible text as permanent Meridian memory. |
+| Gloo AI Studio | Gloo-first discussion and reading-plan drafting with model/safety metadata | Output is evidence and candidate material for leader review, not a verdict. |
+| Human leadership | Review queues, safety labels, approval states, and audit language | Leaders retain responsibility for theology, care, teaching, and action. |
 
-## Competition Ecosystem Proof
+## Guest Runtime Controls
 
-For the Scripture in New Frontiers submission, Lead Emergence should be evaluated as a ministry operating system that connects operations, Scripture, ministry memory, AI-assisted drafting, and human approval.
+Guest access fails closed. These server-only variables enable the two judge-facing capabilities independently:
 
-Judge-visible route:
-
-```text
-/login -> Continue as guest -> /dashboard -> /ministry -> /student/scripture/resources?reference=John%203%3A16 -> /student/scripture/questions -> /discipleship -> /hackathon
+```dotenv
+GUEST_AI_GENERATION_ENABLED=true
+GUEST_SANDBOX_WRITES_ENABLED=true
 ```
 
-Current proof:
+| Variable | When `false` or absent | When `true` |
+| --- | --- | --- |
+| `GUEST_AI_GENERATION_ENABLED` | Guest generation routes return clearly labeled stock previews. | Guest Scripture routes may call the configured Meridian provider chain, with Gloo first. Drafts still cannot publish, send, or trigger external integrations. |
+| `GUEST_SANDBOX_WRITES_ENABLED` | Guest mutation requests are rejected and editing controls remain disabled. | Events, tasks, budget items, Volunteer Hub actions, and selected formation records can change inside the visitor’s isolated guest sandbox. |
 
-- `/dashboard` shows the operational rhythm: events, tasks, communications, budget/activity visibility, and the competition review path.
-- `/ministry` shows Ministry Alignment, Meridian-style organizational memory, inspectable evidence, and EMMA conversation boundaries.
-- `/student/scripture/resources` shows the YouVersion reader/reference handoff without storing licensed Bible text.
-- `/student/scripture/questions` shows the Journey Journal formation path.
-- `/discipleship` shows leader review, Gloo diagnostics, safety labels, and human approval before sharing.
-- `/hackathon` gives judges a public ecosystem overview without login.
+Important persistence boundary: the guest sandbox is session-scoped demo state, not canonical ministry storage. It is isolated by the guest session and may reset when the guest cookie, deployment, or server runtime resets. To permanently change what every judge sees by default, edit the canonical synthetic seed in `lib/guest/lead-emergence-demo-context.ts`, review the synthetic-data labels, and redeploy through the normal pull-request process.
 
-Boundaries:
+Do not prefix either guest variable with `NEXT_PUBLIC_`. Provider credentials and runtime controls must remain server-only.
 
-- Guest mode uses seeded demo data and safe stock AI responses.
-- AI drafts are candidate outputs, not pastoral authority.
-- Communication outputs remain previews unless a future approved workflow sends them.
-- Gloo AI Studio and YouVersion are visible through server-side seams and documented routes, with no secrets exposed to the browser.
+## Provider Configuration
 
-## Current Functionality
+Copy `.env.example` to `.env.local` and populate only the services needed for the environment. Never commit `.env*` files or credentials.
 
-### Dashboard
+### YouVersion Platform
 
-- Fixed Lead Emergence navigation and dashboard header
-- Upcoming events, tasks due soon, stuck tasks, completion, and communication-review metrics
-- Ministry Calendar
-- Ministry Pulse
-- Next on the Calendar
-- Admin and Leader role switching for MVP workflows
-- Responsive desktop and mobile layouts
-
-### Events
-
-- Admin/Leader users can create events
-- Event records support core details, dates, location, ministry area, target group, vision, notes, and communication ownership
-- Event type selection can generate baseline tasks with relative due dates
-- Events can be opened and edited through the Master Event Card modal
-- Production event data can use Supabase when configured
-- Local development and Playwright can use deterministic mock data
-
-### Tasks
-
-- Tasks can be assigned, edited, and moved through workflow statuses
-- Task views reflect current local/mock state
-- Generated baseline tasks provide a repeatable starting point for event planning
-- Activity changes are recorded for operational visibility
-
-### Event Workspace
-
-Event details can display:
-
-- event information
-- timeline tasks
-- communication previews
-- budget shell
-- integration activity
-- missing information
-- activity log
-
-### Communications
-
-- Communication outputs are previews only
-- No communication is automatically sent
-- Email, text, and GroupMe delivery remain future integration work
-- Communication previews and review states are visible in the interface
-
-### Integrations
-
-Current external integrations use deterministic **Stub Mode** adapters.
-
-Stub actions:
-
-- create visible activity or sync records
-- preserve the intended workflow shape
-- do not call external provider APIs
-
-Student and Parent roles currently exist in the authorization model as inactive placeholders only.
-
-## Current Integration Strategy
-
-All integrations must be implemented behind adapter interfaces. Application features should call adapter contracts rather than provider APIs directly.
-
-Current adapters:
-
-- `PlanningCenterAdapter` — Stub Mode
-- `GoogleCalendarAdapter` — Stub Mode
-- `GoogleDriveAdapter` — Stub Mode
-- `ProPresenterAdapter` — Stub Mode
-- `AiAssistantAdapter` — Stub Mode
-
-This allows live integrations to be added later without rewriting the event-planning workflow.
-
-## Not Yet Implemented
-
-The current release does not yet include:
-
-- live Planning Center OAuth or synchronization
-- live Google Calendar synchronization
-- live Google Drive folder creation
-- live ProPresenter playlist creation
-- live AI/OpenAI/Gemini generation
-- real email, text, or GroupMe sending
-- parent portal
-- student portal
-- QR check-in
-- attendance system
-- full workflow-template builder
-- payment reminders
-- advanced analytics
-
-## Technology Stack
-
-- Next.js App Router
-- React
-- TypeScript
-- Tailwind CSS and shared global design tokens
-- Supabase Auth and Postgres
-- Vercel
-- Playwright end-to-end testing
-- GitHub Actions
-
-Active application architecture:
-This repository is the current Lead Emergence Automated Platform web application. The active stack is Next.js App Router, React, TypeScript, Tailwind CSS, Supabase Auth, Supabase Postgres, Vercel, and Playwright.
-
-Legacy prototype note:
-Google Sheets, Google Apps Script, Apps Script HTML/CSS/JS, clasp, Power Apps, Power Automate, SharePoint, and Dataverse materials describe obsolete prototypes or earlier planning artifacts. They are not authoritative for current implementation decisions unless explicitly marked as historical context.
-
-## Local Development
-
-### Requirements
-
-- Node.js
-- npm
-- Git
-
-### Commands
-
-```bash
-npm install
-npm run dev
-npm run typecheck
-npm run lint
-npm run build
-npm run test:e2e
+```dotenv
+YOUVERSION_APP_KEY=
+YOUVERSION_API_BASE_URL=https://api.youversion.com
 ```
 
-## Authentication and Database
+The server sends the app key in `X-YVP-App-Key` and requests BSB Bible ID `3034`. The visible reader handoff uses Bible.com. See [the API guide](docs/competition-api-usage.md#youversion-platform-api) for the exact route and data boundary.
 
-The application supports invite-only Supabase email/password authentication. There is no public sign-up page. Users are created manually in the Supabase dashboard.
+### Gloo AI Studio
 
-Required variables for real Supabase mode:
+```dotenv
+GLOO_AI_CLIENT_ID=
+GLOO_AI_CLIENT_SECRET=
+GLOO_AI_BASE_URL=https://platform.ai.gloo.com/ai/v2
+GLOO_AI_MODEL=gloo-openai-gpt-5-nano
+GLOO_AI_ESCALATION_MODEL=gloo-openai-gpt-5-mini
+GLOO_AI_LONG_CONTEXT_MODEL=gloo-google-gemini-2.5-flash-lite
+```
 
-```bash
+Lead Emergence exchanges the client credentials for a short-lived bearer token, caches it server-side, and calls the Gloo chat-completions endpoint. Gemini or OpenAI can be configured as audited fallbacks, but Gloo remains the primary competition provider when its credentials are available.
+
+### Supabase
+
+```dotenv
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
 ```
 
-Never place service-role keys, database passwords, provider OAuth secrets, AI provider keys, or other server/admin secrets in client-side code or committed files.
+Supabase Auth and Postgres are live production capabilities when configured. The service-role key is server-only. New projects use `supabase/schema.sql`; existing projects apply additive migrations from `supabase/migrations/` in order. Verify the target environment before any migration.
 
-### Development Auth (server-only)
+## Local Setup
 
-On non-production environments (local dev and approved Vercel Preview deployments), reviewers can sign in without Supabase credentials using dev auth over Stub Mode mock data. It is controlled by **server-only** variables. Never prefix these with `NEXT_PUBLIC_`, which would inline their values into the browser bundle:
+Requirements: Node.js, npm, and Git.
 
 ```bash
-ENABLE_DEV_AUTH=true            # enables dev/mock login; ignored in production
-DEV_AUTH_ROLE=Administrator     # Administrator | Leader | Student | Parent
+git clone <repository-url>
+cd emergence-ministry-platform-repo
+copy .env.example .env.local
+npm ci
+npm run dev
 ```
 
-Dev auth is **never** active when `VERCEL_ENV=production`; production always uses real Supabase Auth, regardless of these flags. When dev auth is active, the app shell shows a `DEV AUTH` badge. A server component passes only a non-sensitive boolean to the client; the controlling variable is never exposed.
+Open `http://localhost:3000/login`. With no provider credentials, the application remains usable through deterministic local/guest fallbacks.
 
-The deprecated public variants `NEXT_PUBLIC_ENABLE_DEV_AUTH` and `NEXT_PUBLIC_DEV_AUTH_ROLE` are still honored on the server temporarily for preview compatibility, with a development-time deprecation warning. They should be removed after Preview is verified with the server-only variables.
+For non-production development auth:
 
-### Playwright Auth
+```dotenv
+ENABLE_DEV_AUTH=true
+DEV_AUTH_ROLE=Administrator
+```
 
-`E2E_MOCK_AUTH=true` is the deterministic Playwright/local test harness. It makes `/api/auth/login` accept the test login form and set a mock session cookie backed by Stub Mode data.
+`ENABLE_DEV_AUTH` is ignored when `VERCEL_ENV=production`. `E2E_MOCK_AUTH=true` is reserved for deterministic local/CI tests and must never be enabled in production.
+
+## Required Validation
+
+Run the repository checks before opening a pull request:
 
 ```bash
-E2E_MOCK_AUTH=true
-```
-
-Use `E2E_MOCK_AUTH` only for local automated tests and CI. It must never be enabled in Production. The unauthenticated redirect test runs before login and does not need a session cookie; subsequent tests log in through the same `/login` form using the deterministic mock path.
-
-`E2E_MOCK_AUTH` and `ENABLE_DEV_AUTH` use the same server-side mock-auth implementation, but they serve different purposes:
-
-- `E2E_MOCK_AUTH`: Playwright/local test harness for deterministic automated tests.
-- `ENABLE_DEV_AUTH` / `DEV_AUTH_ROLE`: server-only runtime development authentication harness for local development and approved Vercel Preview deployments.
-
-### Database Setup
-
-`supabase/schema.sql` is the current schema snapshot/reference for creating a new Supabase project. It is executable bootstrap SQL and includes the active core tables, triggers, RLS policies, and optional MVP seed data.
-
-Run the schema snapshot in the Supabase SQL Editor after creating at least one Auth user:
-
-```text
-supabase/schema.sql
-```
-
-The schema creates the core tables:
-
-- `profiles`
-- `events`
-- `tasks`
-- `activity_logs`
-
-It enables Row Level Security and authenticated staff-wide CRUD policies. Fine-grained role permissions are intentionally deferred; `profiles.role` is retained for later expansion.
-
-For an existing Supabase project, apply additive migrations in order from:
-
-```text
-supabase/migrations/
-```
-
-Current migrations are historical/update files that preserve already-applied changes. Do not edit old migration files to make future schema changes. Add a new idempotent migration instead, prefer `ADD COLUMN IF NOT EXISTS` where appropriate, preserve RLS and existing data, and verify the target environment before applying.
-
-Archived SQL under `supabase/archive/legacy/` is historical prototype context only and is not part of the active schema path.
-
-### First User
-
-In Supabase:
-
-1. Open **Authentication → Users**.
-2. Create a user with an email and password.
-3. Run `supabase/schema.sql` for a new project.
-4. For an existing project, apply any needed migrations from `supabase/migrations/` in filename order.
-5. Confirm a matching `profiles` row exists.
-
-## Local Login Testing
-
-With real Supabase variables configured, start the app and sign in at `/login` with a manually created Supabase user.
-
-For Playwright/local test runs, set the mock-auth variable:
-
-```bash
-E2E_MOCK_AUTH=true
-```
-
-The test suite submits these deterministic form values, but the important control is `E2E_MOCK_AUTH=true`:
-
-```text
-staff@example.com
-password
-```
-
-For Playwright against an isolated Supabase test project instead of mock auth, leave `E2E_MOCK_AUTH` unset and set:
-
-```bash
-E2E_TEST_EMAIL=
-E2E_TEST_PASSWORD=
-```
-
-Do not point destructive or write-enabled automated tests at live ministry data.
-
-## Continuous Integration
-
-GitHub Actions runs the MVP verification workflow on pull requests and pushes to `main` or `master`:
-
-```bash
-npm install
+npm run design-check
 npm run typecheck
 npm run lint
 npm run build
 npm run test:e2e
 ```
 
-## Development Rules
+Run `npm run test:unit` when changing provider, security, persistence, or business logic. Use `npm run verify:judge-path` against the final public deployment before submitting the competition entry.
 
-- Do not commit API keys, OAuth secrets, service-role keys, or `.env` files.
-- Keep UI components separate from service and repository layers.
-- Use adapter interfaces for external providers.
-- Every visible control must work, open an intentional placeholder, or be clearly disabled and labeled for future work.
-- Do not add fake buttons.
-- Preserve Stub Mode for local development and deterministic testing.
-- Run typecheck, lint, build, and the full end-to-end suite before marking a pull request ready.
-- Do not merge or deploy around failed checks.
-- Do not automatically send ministry communications.
+## Architecture and Safety Rules
 
-## MVP Acceptance Criteria
+- External providers are called from server routes or adapter layers, never directly from browser components.
+- Secrets and feature gates are server-only.
+- Guest AI and guest writes are independent, opt-in controls.
+- Guest writes are isolated from canonical ministry records.
+- AI surfaces drafts, patterns, and evidence; it does not diagnose spiritual condition or decide pastoral action.
+- Communication outputs remain drafts/previews unless a separate, approved human action sends them.
+- Planning Center is the intended source of truth for future student and attendance data; Lead Emergence does not create a competing manually maintained roster.
+- Stub or preview output must never be presented as a completed live sync or send.
 
-The current MVP is considered operational when:
+## Current Scope
 
-1. The app runs locally without live provider credentials.
-2. The dashboard opens directly into the ministry workspace.
-3. Admin/Leader users can create and edit an event.
-4. Event type selection generates baseline timeline tasks.
-5. Tasks can be assigned, edited, and moved through statuses.
-6. Event details show tasks, communication previews, budget, missing information, integration activity, and activity history.
-7. Task views reflect current local/mock state.
-8. Communication outputs are clearly marked as previews and are not sent.
-9. Stub integration actions create visible activity records.
-10. Student and Parent roles remain inactive placeholders.
-11. TypeScript, lint, production build, and end-to-end checks pass.
-12. The interface remains usable on desktop and mobile widths.
+The operational vertical slice is:
 
-## Production and Deployment
+**Create event -> generate baseline tasks -> assign and update tasks -> manage the event workspace -> preview communications -> view budget and integration activity -> retain an activity log.**
 
-The production project is deployed through Vercel from the repository's `main` branch.
+The competition layer adds Ministry Alignment, Meridian organizational context, YouVersion Scripture grounding, Gloo-assisted formation drafts, Journey Journal experiences, and leader review.
 
-Normal release workflow:
+The repository does not claim that all planned integrations are live. Planning Center, Google Calendar, Google Drive, ProPresenter, and outbound communication behavior must be judged by the status shown in the application and the adapter documentation. A preview or stub is not a successful provider write.
 
-1. Create a focused feature branch.
-2. Run all required checks.
+## Repository Map
+
+- `app/` - Next.js App Router pages and server routes
+- `components/` - shared React UI
+- `lib/` - auth, repositories, provider adapters, Meridian, and guest sandbox logic
+- `supabase/` - schema snapshot and additive migrations
+- `tests/` - Playwright end-to-end coverage
+- `docs/` - competition, operations, and architecture documentation
+- `archive/` - historical prototypes; not active application code
+
+## Deployment
+
+Vercel deploys production from `main`.
+
+1. Start from the latest `main` and create a focused branch.
+2. Run all required validation.
 3. Open a pull request into `main`.
-4. Review the Vercel preview deployment.
-5. Merge only after approval.
-6. Confirm the resulting production deployment is **Ready** and tied to the expected `main` commit.
+4. Review the Vercel preview and the guest path.
+5. Merge only with explicit approval.
+6. Add or confirm server-only production variables in the existing Vercel project.
+7. Verify the deployed commit, provider badges, live guest generation, sandbox isolation, and `npm run verify:judge-path`.
 
-Do not create a second Vercel project or change production domains, environment variables, or team scopes as part of a normal feature deployment.
-
-## Project Direction
-
-Future phases will connect event planning, student relationship tracking, volunteer management, leadership communication, and invisible background automation. Planning Center will remain the intended source of truth for student and attendance data, while live Google and AI integrations will be added behind the existing adapter architecture.
+Do not create a second Vercel project, expose secrets to the browser, run destructive tests against ministry data, or claim deployment verification without confirming the deployed commit.

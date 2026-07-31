@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getServerSession, unauthorizedResponse, type AuthSession } from "@/lib/auth/server";
+import { isGuestAiGenerationEnabled, isGuestSandboxWritesEnabled } from "@/lib/competition/guest-runtime";
 import {
   createStudentDiscussionPrompt,
   DiscussionWorkflowError,
@@ -8,6 +9,7 @@ import {
 } from "@/lib/scripture/discussion-workflow";
 import { listStudentCuratedResources } from "@/lib/scripture/curated-resources";
 import { getStudentKnowledgeMatches, saveStudentQuestionRecommendations } from "@/lib/scripture/knowledge";
+import { generateMeridianDiscussionDraft } from "@/lib/scripture/meridian-ai";
 import { buildQuestionNextStep } from "@/lib/scripture/student-home";
 import type { StudentDiscussionPrompt } from "@/lib/scripture/types";
 import { resolveStudentHubAccess } from "@/lib/student/access";
@@ -25,14 +27,16 @@ export async function GET() {
   }
 
   try {
-    if (access.session.isGuest) {
+    if (access.session.isGuest && !isGuestSandboxWritesEnabled()) {
       return NextResponse.json({
         ok: true,
         prompts: [],
         resources: [],
         nextSteps: [],
         guest: true,
-        message: "Guest mode uses stock Meridian discussion examples only."
+        message: isGuestAiGenerationEnabled()
+          ? "Guest mode can generate a live Meridian preview. Drafts are not saved because guest sandbox writes are disabled."
+          : "Guest mode uses stock Meridian discussion examples only."
       });
     }
     const state = await getStudentDiscussionWorkflowState(access.session);
@@ -64,29 +68,28 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, code: "invalid_reference", error: "Scripture reference must be text." }, { status: 400 });
   }
 
+  if (!body.question.trim()) {
+    return NextResponse.json({ ok: false, code: "invalid_request", error: "Question is required." }, { status: 400 });
+  }
+
   if (access.session.isGuest) {
-    const now = new Date().toISOString();
-    const prompt = {
-      id: `guest-discussion-${Date.now()}`,
-      question: body.question.trim(),
-      scriptureReference: body.scriptureReference?.trim() ?? "",
-      status: "submitted",
-      safetyLabel: "safe",
-      safetyNotes: "Guest stock response. No question, recommendation, or AI audit was saved.",
-      aiProvider: "guest-stock-responses",
-      discussionPrompt: "Where does this passage invite honest attention, patient trust, and a next step with Jesus in community?",
-      createdAt: now,
-      updatedAt: now
-    };
-    return NextResponse.json({
-      ok: true,
-      prompt,
-      nextStep: {
-        label: "Guest Meridian preview",
-        message: "A leader would see recommended Scripture-grounded discussion next steps here. This sandbox does not save anything.",
-        resources: []
+    if (isGuestSandboxWritesEnabled()) {
+      try {
+        const prompt = await createStudentDiscussionPrompt(access.session, {
+          question: body.question,
+          scriptureReference: body.scriptureReference
+        });
+        const nextStep = buildQuestionNextStep(prompt, [], { curatedResources: [] });
+        return NextResponse.json({ ok: true, prompt, nextStep, persistence: "guest_session" }, { status: 201 });
+      } catch (error) {
+        return discussionErrorResponse(error);
       }
-    }, { status: 201 });
+    }
+
+    return createGuestDiscussionPreview(access.session, {
+      question: body.question,
+      scriptureReference: body.scriptureReference
+    });
   }
 
   try {
@@ -95,10 +98,57 @@ export async function POST(request: Request) {
       scriptureReference: body.scriptureReference
     });
     const nextStep = await buildResilientQuestionNextStep(access.session, prompt);
-    return NextResponse.json({ ok: true, prompt, nextStep }, { status: 201 });
+    return NextResponse.json({ ok: true, prompt, nextStep, persistence: "ministry" }, { status: 201 });
   } catch (error) {
     return discussionErrorResponse(error);
   }
+}
+
+async function createGuestDiscussionPreview(session: AuthSession, body: { question: string; scriptureReference?: string }) {
+  const question = body.question.normalize("NFKC").replace(/\s+/g, " ").trim().slice(0, 1200);
+  const scriptureReference = body.scriptureReference?.normalize("NFKC").replace(/\s+/g, " ").trim().slice(0, 160) ?? "";
+  const now = new Date().toISOString();
+  const liveDraft = isGuestAiGenerationEnabled()
+    ? await generateMeridianDiscussionDraft({ question, scriptureReference })
+    : undefined;
+
+  if (liveDraft && !liveDraft.ok) {
+    return NextResponse.json({
+      ok: false,
+      code: liveDraft.code,
+      error: liveDraft.message,
+      attemptedProviders: liveDraft.attemptedProviders
+    }, { status: liveDraft.code === "not_configured" ? 503 : 502 });
+  }
+
+  const prompt: StudentDiscussionPrompt = {
+    id: `guest-discussion-${Date.now()}`,
+    submittedByUserId: session.user.id,
+    submittedByName: session.user.fullName,
+    submittedByEmail: session.user.email,
+    question,
+    scriptureReference,
+    aiProvider: liveDraft?.provider ?? "guest-stock-responses",
+    aiStatus: liveDraft ? "generated" : "not_configured",
+    aiModel: liveDraft?.model ?? "guest-stock-responses",
+    aiModelTier: liveDraft?.modelTier ?? "default",
+    aiModelReason: liveDraft?.modelReason ?? "Guest mode used a curated stock response because live guest AI is disabled.",
+    aiConfidence: liveDraft?.confidence ?? null,
+    topicTags: liveDraft?.topicTags ?? [],
+    escalationReason: liveDraft?.escalationReason ?? "",
+    safetyLabel: liveDraft?.safetyLabel ?? "safe",
+    safetyNotes: liveDraft?.safetyNotes ?? "Guest stock response. No question, recommendation, or AI audit was saved.",
+    discussionPrompt: liveDraft?.discussionPrompt ?? "Where does this passage invite honest attention, patient trust, and a next step with Jesus in community?",
+    leaderNotes: "",
+    status: "pending_review",
+    knowledgeContext: [],
+    deliveryStatus: "not_requested",
+    deliveryMessage: "",
+    createdAt: now,
+    updatedAt: now
+  };
+  const nextStep = buildQuestionNextStep(prompt, [], { curatedResources: [] });
+  return NextResponse.json({ ok: true, prompt, nextStep, persistence: "none" }, { status: 201 });
 }
 
 async function buildResilientQuestionNextStep(session: AuthSession, prompt: StudentDiscussionPrompt) {

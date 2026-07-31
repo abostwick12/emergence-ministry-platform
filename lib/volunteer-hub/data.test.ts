@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { applyVolunteerHubAction, getVolunteerHubPayload, resetVolunteerHubStateForTests } from "@/lib/volunteer-hub/data";
 import { LEAD_EMERGENCE_DEMO_CONTEXT_VERSION } from "@/lib/guest/lead-emergence-demo-context";
 import type { AuthSession } from "@/lib/auth/server";
@@ -19,10 +19,16 @@ const integrations: VolunteerHubIntegrationStatus = {
   planningCenter: { displayStatus: "connected", peopleCount: 4, attendanceCount: 3 },
   groupMe: { configured: true, displayStatus: "disconnected", connectedGroupCount: 0, message: "Not connected." }
 };
+const originalGuestSandboxWrites = process.env.GUEST_SANDBOX_WRITES_ENABLED;
 
 describe("Volunteer Hub data", () => {
   beforeEach(() => {
+    process.env.GUEST_SANDBOX_WRITES_ENABLED = "false";
     resetVolunteerHubStateForTests();
+  });
+
+  afterEach(() => {
+    process.env.GUEST_SANDBOX_WRITES_ENABLED = originalGuestSandboxWrites;
   });
 
   it("filters archived small groups out of active volunteer payloads", async () => {
@@ -73,6 +79,15 @@ describe("Volunteer Hub data", () => {
     expect(payload.activeGroups.every((group) => Boolean(group.leaderId && group.coLeaderId))).toBe(true);
     expect(names).toEqual(expect.arrayContaining(["Eli Fable", "Marcus Bright", "Maya Haven"]));
     expect(names).not.toEqual(expect.arrayContaining(["Andrew Walker", "Patrick Reed", "Maya Chen"]));
+  });
+
+  it("unlocks only the isolated guest Volunteer Hub sandbox when writes are enabled", async () => {
+    process.env.GUEST_SANDBOX_WRITES_ENABLED = "true";
+
+    const payload = await getVolunteerHubPayload(guestSession, integrations);
+
+    expect(payload.dataSource).toBe("guest_demo");
+    expect(payload.readOnlyReason).toBeUndefined();
   });
 
   it("archives and restores small groups without deleting audit history", async () => {

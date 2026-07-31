@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getServerSession, unauthorizedResponse } from "@/lib/auth/server";
+import { isGuestAiGenerationEnabled } from "@/lib/competition/guest-runtime";
 import {
   generateMeridianReadingPlanDraft,
   getMeridianAiReadiness,
@@ -17,7 +18,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Student Scripture Hub access is not available for this account." }, { status: 403 });
   }
 
-  if (access.session.isGuest) {
+  if (access.session.isGuest && !isGuestAiGenerationEnabled()) {
     return NextResponse.json({
       ok: true,
       draft: {

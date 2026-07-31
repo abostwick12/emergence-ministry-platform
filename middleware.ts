@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { isAccessTokenUnexpired } from "./lib/auth/access-token";
 import { authCookieNames, isMockAuthEnabled, isSupabaseConfigured } from "./lib/auth/config";
 import { clearAuthCookies, clearGuestCookie, clearNonAccountCookies, setAuthCookies } from "./lib/auth/cookies";
+import { isGuestSandboxWritesEnabled } from "./lib/competition/guest-runtime";
 
 const publicPaths = [
   "/",
@@ -37,6 +38,28 @@ const guestNonMutatingPostPaths = new Set([
   "/api/auth/login",
   "/api/auth/logout"
 ]);
+const guestAiGenerationPostPaths = new Set([
+  "/api/student/scripture/discussion",
+  "/api/student/scripture/gloo-diagnostics",
+  "/api/student/scripture/knowledge-test",
+  "/api/student/scripture/reading-plan"
+]);
+const guestSandboxMutationPaths = new Set([
+  "/api/budget/expense",
+  "/api/events",
+  "/api/tasks",
+  "/api/volunteer-hub",
+  "/api/student/scripture/discussion",
+  "/api/student/scripture/how-to-read-progress",
+  "/api/student/scripture/journey-entries",
+  "/api/student/scripture/reflections"
+]);
+const guestSandboxMutationPatterns = [
+  /^\/api\/events\/[^/]+$/,
+  /^\/api\/events\/[^/]+\/(?:generate-communications|generate-drive-folder|generate-propresenter|sync-calendar)$/,
+  /^\/api\/tasks\/[^/]+$/,
+  /^\/api\/student\/scripture\/discussion\/[^/]+$/
+];
 
 function hasGuestSessionCookie(request: NextRequest) {
   return Boolean(request.cookies.get(authCookieNames.guestSession)?.value);
@@ -52,7 +75,7 @@ export async function middleware(request: NextRequest) {
     hasGuestSession
     && pathname.startsWith("/api/")
     && !["GET", "HEAD", "OPTIONS"].includes(request.method)
-    && !guestNonMutatingPostPaths.has(pathname)
+    && !isAllowedGuestMutation(pathname)
   ) {
     return NextResponse.json({ error: "Guest contest access is read-only." }, { status: 403 });
   }
@@ -117,6 +140,13 @@ export async function middleware(request: NextRequest) {
   }
 
   return NextResponse.next({ request: { headers: requestHeaders } });
+}
+
+function isAllowedGuestMutation(pathname: string) {
+  if (guestNonMutatingPostPaths.has(pathname)) return true;
+  if (guestAiGenerationPostPaths.has(pathname)) return true;
+  return isGuestSandboxWritesEnabled()
+    && (guestSandboxMutationPaths.has(pathname) || guestSandboxMutationPatterns.some((pattern) => pattern.test(pathname)));
 }
 
 async function refreshAccountCookies(request: NextRequest) {

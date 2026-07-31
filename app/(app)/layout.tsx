@@ -23,7 +23,7 @@ export default async function AuthenticatedLayout({ children }: { children: Reac
   const shellAccess = { kind: "full" as const };
   const sessionRole = session.user.role === "leader" || session.user.role === "student" || session.user.role === "parent" ? session.user.role : session.isGuest ? "leader" : "admin";
   const visiblePageKeys = await visiblePlatformPagesForSession(session);
-  const canSaveChanges = !session.isGuest && await canPlatformUserSaveChanges(session);
+  const canSaveChanges = await canPlatformUserSaveChanges(session);
 
   return (
     <RoleProvider initialRole={sessionRole}>

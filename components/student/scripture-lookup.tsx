@@ -8,8 +8,17 @@ import { buildYouVersionReaderLink, type YouVersionReaderLink } from "@/lib/scri
 
 type LookupState =
   | { status: "idle"; message: string }
-  | { status: "success"; message: string; reader: YouVersionReaderLink }
+  | {
+      status: "success";
+      message: string;
+      reader: YouVersionReaderLink;
+      passage?: { content: string; reference: string };
+    }
   | { status: "error"; message: string };
+
+type LookupResponse =
+  | { ok: true; passage: { content: string; reference: string }; passageId: string }
+  | { ok: false; code?: string; error?: string };
 
 const initialState: LookupState = {
   status: "idle",
@@ -22,29 +31,54 @@ export function ScriptureLookup({ initialReference = "" }: { initialReference?: 
   const [reference, setReference] = useState(normalizedInitialReference);
   const [state, setState] = useState<LookupState>(initialState);
 
-  const runLookup = useCallback((requestedReference: string) => {
+  const runLookup = useCallback(async (requestedReference: string) => {
     const reader = buildYouVersionReaderLink(requestedReference);
-    if (reader.ok) {
-      setState({
-        status: "success",
-        message: "Bible App reader opened.",
-        reader
-      });
+    if (!reader.ok) {
+      setState({ status: "error", message: reader.message });
       return;
     }
 
-    setState({ status: "error", message: reader.message });
+    setState({ status: "idle", message: "Resolving the passage through YouVersion Platform..." });
+    try {
+      const response = await fetch("/api/student/scripture/lookup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reference: requestedReference })
+      });
+      const payload = (await response.json()) as LookupResponse;
+      if (response.ok && payload.ok) {
+        setState({
+          status: "success",
+          message: "Bible App reader opened. YouVersion Platform returned the passage text.",
+          reader,
+          passage: payload.passage
+        });
+        return;
+      }
+
+      setState({
+        status: "success",
+        message: `Bible App reader opened. ${payload.ok ? "" : payload.error ?? "Live passage text is unavailable."}`.trim(),
+        reader
+      });
+    } catch {
+      setState({
+        status: "success",
+        message: "Bible App reader opened. Live passage text is temporarily unavailable.",
+        reader
+      });
+    }
   }, []);
 
   useEffect(() => {
     if (!normalizedInitialReference || hasRunInitialLookup.current) return;
     hasRunInitialLookup.current = true;
-    runLookup(normalizedInitialReference);
+    void runLookup(normalizedInitialReference);
   }, [normalizedInitialReference, runLookup]);
 
   function submitLookup(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    runLookup(reference.trim());
+    void runLookup(reference.trim());
   }
 
   return (
@@ -84,6 +118,15 @@ export function ScriptureLookup({ initialReference = "" }: { initialReference?: 
       >
         <p>{state.message}</p>
       </div>
+
+      {state.status === "success" && state.passage ? (
+        <article className="scripture-builder-preview-card" aria-label="YouVersion passage result">
+          <p className="eyebrow">YouVersion Platform API</p>
+          <h3>{state.passage.reference}</h3>
+          <p>{state.passage.content}</p>
+          <small>Scripture text supplied at request time by YouVersion Platform (BSB, Bible 3034). Lead Emergence does not add it to Meridian memory.</small>
+        </article>
+      ) : null}
 
       <YouVersionReaderWindow link={state.status === "success" ? state.reader : undefined} />
     </section>

@@ -706,7 +706,7 @@ function seedSubmissionProofTasks(state: GuestSandboxState, event: MinistryEvent
     {
       title: "Verify EMMA provider readiness badge",
       offset: -7,
-      notes: "Competition proof: EMMA names the provider that actually answers for signed-in production users; guest mode stays read-only demo guidance."
+      notes: "Competition proof: EMMA names the provider that actually answers; guest responses remain advisory and cannot trigger sends or integration writes."
     },
     {
       title: "Open YouVersion reference handoff",
