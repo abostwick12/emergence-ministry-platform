@@ -676,7 +676,7 @@ function addOccurrenceEvent(occurrences: DemoOccurrence[], events: MinistryEvent
   events.push({
     id: input.eventId,
     title: input.title,
-    description: `${input.title} in the fixed ${LEAD_EMERGENCE_DEMO_YEAR} synthetic guest ministry context.`,
+    description: input.kind === "sunday_service" ? "Create an engaging environment where students encounter Scripture more deeply and worship God with authenticity and vulnerability—where every student feels seen, known, and loved by God and by our church community." : `${input.title} in the fixed ${LEAD_EMERGENCE_DEMO_YEAR} synthetic guest ministry context.`,
     type: input.type,
     startTime,
     endTime,

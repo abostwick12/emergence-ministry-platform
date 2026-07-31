@@ -18578,6 +18578,32 @@ body:has(.login-shell) h3 {
   justify-content: center;
 }
 
+.event-vision-panel {
+  display: grid;
+  gap: 6px;
+  margin-top: auto;
+  border-top: 1px solid color-mix(in srgb, var(--event-accent) 20%, rgba(129, 164, 214, 0.14));
+  padding-top: 12px;
+}
+
+.event-vision-panel span {
+  color: #f0ad32;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.event-vision-panel p {
+  max-width: 78ch;
+  margin: 0;
+  color: #ffe4a8;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 16px;
+  font-style: italic;
+  line-height: 1.48;
+}
+
 .event-detail-strip {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
