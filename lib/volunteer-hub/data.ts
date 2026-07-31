@@ -466,7 +466,7 @@ function createInitialState(): VolunteerHubState {
     ],
     resources: [
       { id: "res_leader_guide", title: "Why God Chooses Jericho's Notorious Outcasts", type: "leader_guide", detail: "Leader guide connecting Rahab, Zacchaeus, public trust, and restored belonging.", estimatedMinutes: 10, completed: false, shareable: true },
-      { id: "res_audio", title: "Jericho Sermon Overview", type: "audio", detail: "Five-minute source overview prepared for volunteer leaders.", estimatedMinutes: 5, completed: true, shareable: true },
+      { id: "res_audio", title: "Sermon Audio Overview: The Unlikely House", type: "audio", detail: "Supplied audio overview for volunteer leaders; it reinforces the Luke 19 sermon and the Rahab/Zacchaeus guardrail.", estimatedMinutes: 5, completed: true, shareable: true },
       { id: "res_questions", title: "Jericho Small Group Questions", type: "discussion", detail: "Eight student-ready questions with observation, heart, practice, and prayer prompts.", estimatedMinutes: 8, completed: false, shareable: true },
       { id: "res_notes", title: "Jericho Leader Care Notes", type: "notes", detail: "Conversation guardrails for labels, repentance, disclosure, and student safety.", estimatedMinutes: 4, completed: false, shareable: false },
       { id: "res_parent", title: "Parent Resource", type: "parent", detail: "Preview-only family follow-up summary.", estimatedMinutes: 3, completed: false, shareable: true }

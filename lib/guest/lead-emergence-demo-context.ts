@@ -10,7 +10,7 @@ import type {
   User
 } from "@/lib/types";
 
-export const LEAD_EMERGENCE_DEMO_CONTEXT_VERSION = "lead-emergence-demo-2026-v2";
+export const LEAD_EMERGENCE_DEMO_CONTEXT_VERSION = "lead-emergence-demo-2026-v3";
 export const LEAD_EMERGENCE_DEMO_YEAR = 2026;
 export const LEAD_EMERGENCE_DEMO_HISTORY_YEAR = 2025;
 export const LEAD_EMERGENCE_DEMO_SOURCE = "lead-emergence-demo";
@@ -316,9 +316,9 @@ const specialEventSeed = [
   { suffix: "may", title: "Promotion Preview", dates: { 2025: "2025-05-16", 2026: "2026-05-15" }, type: "middle_school_event" as EventType, ownerId: "guest_staff_ms", effort: 36, engagement: 76 },
   { suffix: "jun", title: "Summer Kickoff", dates: { 2025: "2025-06-13", 2026: "2026-06-12" }, type: "combined_event" as EventType, ownerId: "guest_staff_hs", effort: 39, engagement: 74 },
   { suffix: "jul", title: "Neighborhood Cookout", dates: { 2025: "2025-07-18", 2026: "2026-07-17" }, type: "combined_event" as EventType, ownerId: "guest_staff_ms", effort: 26, engagement: 85 },
-  { suffix: "aug", title: "Leader Commissioning", dates: { 2025: "2025-08-15", 2026: "2026-08-14" }, type: "conference" as EventType, ownerId: "guest_staff_nextgen", effort: 40, engagement: 79 },
-  { suffix: "sep", title: "Fall Launch Night", dates: { 2025: "2025-09-12", 2026: "2026-09-11" }, type: "combined_event" as EventType, ownerId: "guest_staff_ms", effort: 54, engagement: 82 },
-  { suffix: "oct", title: "Middle School Retreat", dates: { 2025: "2025-10-10", 2026: "2026-10-09" }, type: "conference" as EventType, ownerId: "guest_staff_ms", effort: 68, engagement: 80 },
+  { suffix: "aug", title: "Leader Training", dates: { 2025: "2025-08-15", 2026: "2026-08-14" }, type: "conference" as EventType, ownerId: "guest_staff_nextgen", effort: 40, engagement: 79 },
+  { suffix: "sep", title: "Journey Journal Launch", dates: { 2025: "2025-09-12", 2026: "2026-09-11" }, type: "combined_event" as EventType, ownerId: "guest_staff_ms", effort: 54, engagement: 82 },
+  { suffix: "oct", title: "High School Gathering", dates: { 2025: "2025-10-10", 2026: "2026-10-09" }, type: "conference" as EventType, ownerId: "guest_staff_ms", effort: 68, engagement: 80 },
   { suffix: "nov", title: "Friendsgiving Tables", dates: { 2025: "2025-11-14", 2026: "2026-11-13" }, type: "combined_event" as EventType, ownerId: "guest_staff_hs", effort: 28, engagement: 90 },
   { suffix: "dec", title: "Christmas Serve Celebration", dates: { 2025: "2025-12-12", 2026: "2026-12-11" }, type: "combined_event" as EventType, ownerId: "guest_staff_ms", effort: 48, engagement: 88 }
 ];
@@ -623,6 +623,15 @@ function buildSpecialEvents(year: number, students: DemoStudent[], occurrences: 
     addSpecialEventTasks(tasks, eventId, eventSeed.ownerId, date, index, eventSeed.effort);
     expenses.push({ id: `demo_exp_${eventId}`, eventId, categoryId: eventSeed.type === "conference" ? "retreat_lodging" : "supplies", amount: eventSeed.type === "conference" ? 1900 + index * 95 : 260 + index * 35, description: `Synthetic demo ${isActualDate(date) ? "actual" : "planned"} for ${eventSeed.title}`, timestamp: isoForLocal(date, 12, 0) });
     communications.push({ id: `demo_comm_${eventId}_leader_preview`, eventId, type: "leader_brief", payload: { subject: `Preview only: ${eventSeed.title} leader brief`, body: `Preview only - not sent. Synthetic guest context for ${eventSeed.title}; no email, text, GroupMe, or Planning Center write is allowed.` }, status: "preview", createdAt: isoForLocal(date, 12, 0) });
+    if (year === LEAD_EMERGENCE_DEMO_YEAR && eventSeed.suffix === "aug") {
+      communications.push({ id: `demo_comm_${eventId}_parent_email`, eventId, type: "parent_email", payload: { subject: "Leader Training: preparing students to engage Scripture", body: "Review-ready parent email. This Leader Training equips volunteers to guide students with biblical clarity, relational wisdom, and confidence. Context: ministry vision, Scripture Engagement season, The Unlikely House sermon, and Journey Journal launch. Not sent." }, status: "preview", createdAt: isoForLocal(date, 12, 5) });
+    }
+    if (year === LEAD_EMERGENCE_DEMO_YEAR && eventSeed.suffix === "sep") {
+      communications.push({ id: `demo_comm_${eventId}_groupme`, eventId, type: "leader_brief", payload: { subject: "Leader GroupMe: Journey Journal Launch", body: "Review-ready Leader GroupMe draft. Help students continue engaging Scripture throughout the week: The Unlikely House Journey moves from Receive to Explore, Practice, Walk, and See. Not posted or sent." }, status: "preview", createdAt: isoForLocal(date, 12, 5) });
+    }
+    if (year === LEAD_EMERGENCE_DEMO_YEAR && eventSeed.suffix === "oct") {
+      communications.push({ id: `demo_comm_${eventId}_student_announcement`, eventId, type: "student_announcement", payload: { subject: "Student Announcement: High School Gathering", body: "Review-ready student announcement. Come ready to connect, open Scripture, and ask honest questions as we explore The Unlikely House together. Not sent." }, status: "preview", createdAt: isoForLocal(date, 12, 5) });
+    }
     integrationLogs.push({ id: `demo_sync_${eventId}_planning_center`, integrationType: "planning_center", eventId, status: "stub_mode", details: { action: "synthetic attendance snapshot", message: "Guest demo source only. No Planning Center account was read or written." }, timestamp: isoForLocal(date, 12, 15) });
     activity.push({ id: `demo_act_${eventId}_loaded`, type: "integration_stub_action", eventId, actorId: eventSeed.ownerId, message: `Loaded synthetic guest context: ${eventSeed.title}`, metadata: { synthetic: true, externalSync: false, planned: !isActualDate(date) }, timestamp: isoForLocal(date, 12, 30) });
   });

@@ -31,6 +31,14 @@ export function GuestMinistryNarrativeHub({
         </p>
       </header>
 
+      <section className="guest-ministry-method" aria-label="Ministry alignment">
+        <div className="guest-ministry-method-body">
+          <div><h3>Vision</h3><p>Students becoming rooted in Scripture, formed through meaningful relationships, and equipped to recognize where God is already at work.</p></div>
+          <div><h3>Current season: Scripture Engagement</h3><p>Students learn to read Scripture within its larger story, ask thoughtful questions, and live what they discover.</p></div>
+          <div><h3>Success looks like</h3><p>Sermons, leader resources, Journey Journals, events, and student questions reinforce one Scripture-engagement pathway.</p></div>
+        </div>
+      </section>
+
       <NarrativeStory
         narrative={primary}
         primary
