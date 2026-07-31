@@ -733,8 +733,10 @@ function ResourcesWorkspace({ payload, onAction }: { payload: VolunteerHubPayloa
       <article className="volunteer-hub-panel volunteer-hub-span-3">
         <SectionTitle icon={<BookOpen aria-hidden="true" />} eyebrow="Volunteer Prep" title={payload.resources.length ? "This week's leader workflow" : "No resources published yet"} />
         <p className="muted">Preparation estimate: {payload.resources.reduce((sum, resource) => sum + resource.estimatedMinutes, 0)} minutes.</p>
-        <ResourceAttachments compact parentType="weekly_leader_prep" parentId="current-week" title="Generated sermon prep documents" />
-        <ResourceAttachments compact parentType="small_group_resource" parentId={payload.activeGroup.id} title="Small-group videos and resources" />
+        {payload.dataSource !== "guest_demo" ? <>
+          <ResourceAttachments compact parentType="weekly_leader_prep" parentId="current-week" title="Generated sermon prep documents" />
+          <ResourceAttachments compact parentType="small_group_resource" parentId={payload.activeGroup.id} title="Small-group videos and resources" />
+        </> : null}
       </article>
       {payload.resources.some((resource) => resource.id === "res_leader_guide") ? <JerichoLeaderGuideCard /> : null}
       {payload.resources.length ? payload.resources.map((resource) => (
@@ -814,7 +816,9 @@ function ResourceCard({ resource, groupId, onAction }: { resource: VolunteerHubR
         <StatusBadge tone={resource.completed ? "success" : "info"}>{resource.completed ? "Completed" : "Ready"}</StatusBadge>
       </div>
       <div className="volunteer-card-actions">
-        {resource.id === "res_audio" ? <a className="button compact-button" href="/competition-demo/the-unlikely-house-audio-overview.m4a">Open audio overview</a> : null}
+        {resource.href ? <a className="button compact-button" href={resource.href} target="_blank" rel="noreferrer" download={resource.type === "slides" ? true : undefined}>
+          {resource.type === "slides" ? "Open or download slides" : "Open audio overview"}
+        </a> : null}
         <button className="button compact-button" type="button" onClick={() => onAction({ type: "complete_resource", resourceId: resource.id, completed: !resource.completed }, resource.completed ? "Resource reopened." : "Resource completed.")}>
           {resource.completed ? "Reopen" : "Mark complete"}
         </button>

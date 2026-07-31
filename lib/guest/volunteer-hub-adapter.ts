@@ -1,4 +1,5 @@
 import { getGuestCanonicalRecords } from "@/lib/guest/sandbox-store";
+import { competitionLeaderResources } from "@/lib/guest/competition-demo-content";
 import type {
   DemoAttendanceRecord,
   DemoSmallGroup,
@@ -78,7 +79,7 @@ function createGuestVolunteerHubState(canonical: ReturnType<typeof getGuestCanon
       students,
       smallGroups,
       tasks,
-      resources: resourcesFromCanonical(canonical.demoTasks),
+      resources: resourcesFromCanonical(),
       trainingModules: trainingModulesFromCanonical(canonical.staff),
       onboardingItems: onboardingItemsFromCanonical(),
       notifications: notificationsFromCanonical(canonical.eventOutcomes.length, canonical.guestAnalytics?.volunteerWorkload.overusedVolunteerNames ?? []),
@@ -198,13 +199,25 @@ function birthdayForIndex(index: number) {
   return `${months[index % months.length]} ${String((index % 27) + 1)}`;
 }
 
-function resourcesFromCanonical(tasks: DemoTask[]): VolunteerHubResource[] {
-  const blocked = tasks.filter((task) => task.status === "blocked").length;
-  return [
-    { id: "demo_resource_split_watch", title: "MS 6th Grade North Split Watch", type: "leader_guide", detail: "Canonical guest context shows this group crossing the split threshold.", estimatedMinutes: 10, completed: false, shareable: true },
-    { id: "demo_resource_workload_review", title: "Volunteer Workload Review", type: "notes", detail: "Synthetic serving records surface two overused volunteers and several underused leaders.", estimatedMinutes: 8, completed: false, shareable: false },
-    { id: "demo_resource_blocked_tasks", title: "Blocked Task Review", type: "discussion", detail: `${blocked} canonical guest tasks remain blocked or need owner follow-up.`, estimatedMinutes: 6, completed: false, shareable: true }
-  ];
+function resourcesFromCanonical(): VolunteerHubResource[] {
+  return competitionLeaderResources.map((resource, index) => ({
+    id: `competition_sermon_resource_${index + 1}`,
+    title: resource.title,
+    type: resourceTypeForCompetitionResource(resource.title),
+    detail: resource.detail,
+    href: resource.href,
+    estimatedMinutes: resource.title === "Sermon Audio Overview" ? 5 : 4,
+    completed: false,
+    shareable: true
+  }));
+}
+
+function resourceTypeForCompetitionResource(title: string): VolunteerHubResource["type"] {
+  if (title === "Sermon Slides") return "slides";
+  if (title === "Sermon Audio Overview") return "audio";
+  if (title === "Discussion Questions") return "discussion";
+  if (title === "Leader Overview" || title === "Small Group Guide") return "leader_guide";
+  return "notes";
 }
 
 function trainingModulesFromCanonical(staff: DemoStaff[]): VolunteerHubTrainingModule[] {
