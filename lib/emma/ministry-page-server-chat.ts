@@ -20,6 +20,11 @@ import {
 } from "@/lib/emma/providers/registry";
 import { buildGuestEmmaResponse, guestAuditLabel } from "@/lib/guest/stock-ai";
 import {
+  buildGuestMinistryNarrativeById,
+  buildGuestNarrativeEmmaResponse,
+  guestMinistryNarrativeIds
+} from "@/lib/guest/ministry-narratives";
+import {
   completeAiRun,
   createActionProposal,
   createAiRequest,
@@ -53,6 +58,7 @@ const ministryPageChatInputSchema = z
     alignmentProfile: z.unknown().optional(),
     page: ministryEmmaPageSchema,
     prompt: z.string().trim().min(1).max(MAX_PROMPT_CHARS),
+    selectedGuestNarrativeId: z.enum(guestMinistryNarrativeIds).optional(),
     selectedEventId: z.string().trim().min(1).optional(),
     createProposal: z.boolean().optional()
   })
@@ -145,8 +151,13 @@ export async function runMinistryPageServerChat({
     if (!session) throw emmaErrors.unauthorized();
     input = parseInput(rawInput);
     if (session.isGuest) {
+      const selectedNarrative = input.selectedGuestNarrativeId
+        ? buildGuestMinistryNarrativeById(input.selectedGuestNarrativeId)
+        : null;
       return emmaOk({
-        response: buildGuestEmmaResponse({ overview, page: input.page, prompt: input.prompt }),
+        response: selectedNarrative
+          ? buildGuestNarrativeEmmaResponse(selectedNarrative, input.prompt)
+          : buildGuestEmmaResponse({ overview, page: input.page, prompt: input.prompt }),
         requestId: "guest-stock-request",
         runId: "guest-stock-run",
         providerMode: "guest_simulation",

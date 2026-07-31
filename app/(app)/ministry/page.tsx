@@ -1,7 +1,9 @@
+import { GuestMinistryNarrativeHub } from "@/components/guest-ministry-narrative-hub";
 import { MinistryAlignmentWorkspace } from "@/components/ministry-alignment-workspace";
 import { PageIntro, QuietState, StatusBadge } from "@/components/platform-ui";
 import { requireEmergeOperationsAccess } from "@/lib/app-area-access";
 import { getOverview } from "@/lib/data/ministry-repository";
+import { buildGuestMinistryNarratives } from "@/lib/guest/ministry-narratives";
 import { defaultMinistryAlignmentProfile } from "@/lib/ministry/alignment";
 
 export default async function MinistryHubPage() {
@@ -17,6 +19,10 @@ export default async function MinistryHubPage() {
         />
       </section>
     );
+  }
+
+  if (access.session.isGuest) {
+    return <GuestMinistryNarrativeHub narratives={buildGuestMinistryNarratives()} />;
   }
 
   try {

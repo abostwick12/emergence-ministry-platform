@@ -12,6 +12,7 @@ import {
 import { buildMinistryChatAudit } from "@/lib/emma/ministry-chat-audit";
 import { AssistantBrief, AssistantWorkspace } from "@/components/platform-ui";
 import type { MinistryAlignmentProfile } from "@/lib/ministry/alignment";
+import type { GuestMinistryNarrativeId } from "@/lib/guest/ministry-narratives";
 
 type EmmaPresentation = "inline" | "floating";
 
@@ -39,15 +40,18 @@ type EmmaMessage = {
 };
 
 export function MinistryEmmaPanel({
+  allowProposal = true,
   alignmentProfile,
   defaultExpanded = false,
   overview,
   page,
   presentation = "inline",
+  selectedGuestNarrativeId,
   staticSignals = [],
   title = "EMMA Ministry Assistant",
   promptTemplates = ministryEmmaUniversalPromptTemplates
 }: {
+  allowProposal?: boolean;
   alignmentProfile?: MinistryAlignmentProfile;
   defaultExpanded?: boolean;
   overview?: MinistryEmmaOverview;
@@ -56,6 +60,7 @@ export function MinistryEmmaPanel({
   staticSignals?: string[];
   title?: string;
   promptTemplates?: readonly string[];
+  selectedGuestNarrativeId?: GuestMinistryNarrativeId;
 }) {
   const staticSignalKey = staticSignals.join("\n");
   const stableStaticSignals = useMemo(() => (staticSignalKey ? staticSignalKey.split("\n") : []), [staticSignalKey]);
@@ -153,7 +158,8 @@ export function MinistryEmmaPanel({
           alignmentProfile,
           page,
           prompt: trimmedPrompt,
-          createProposal
+          createProposal: allowProposal && createProposal,
+          selectedGuestNarrativeId
         })
       });
       const payload = (await response.json().catch(() => ({}))) as Partial<EmmaChatResult> & { ok?: boolean; error?: string };
@@ -257,13 +263,15 @@ export function MinistryEmmaPanel({
             ))}
           </div>
 
-          <details className="ministry-emma-options">
-            <summary>Recommendation options</summary>
-            <label className="toggle-row ministry-emma-toggle">
-              <input type="checkbox" checked={createProposal} disabled={isRunning} onChange={(event) => setCreateProposal(event.target.checked)} />
-              <span>Save an inert recommendation proposal for review</span>
-            </label>
-          </details>
+          {allowProposal ? (
+            <details className="ministry-emma-options">
+              <summary>Recommendation options</summary>
+              <label className="toggle-row ministry-emma-toggle">
+                <input type="checkbox" checked={createProposal} disabled={isRunning} onChange={(event) => setCreateProposal(event.target.checked)} />
+                <span>Save an inert recommendation proposal for review</span>
+              </label>
+            </details>
+          ) : null}
           <label className="field ministry-emma-field">
             <span className="sr-only">Message EMMA</span>
             <textarea className="input" rows={4} value={prompt} placeholder="Ask about ministry planning, people, priorities, Scripture, or a decision..." onChange={(event) => setPrompt(event.target.value)} />

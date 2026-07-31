@@ -54,4 +54,35 @@ describe("guest EMMA demo responses", () => {
     expect(result.data.model).toBe("guest-stock-responses");
     expect(result.data.warnings.join(" ")).toMatch(/no external AI call/i);
   });
+
+  it("resolves only the selected canonical narrative without creating a proposal or write", async () => {
+    const result = await runMinistryPageServerChat({
+      session: guestSession,
+      rawInput: {
+        page: "dashboard",
+        prompt: "What should leadership discuss?",
+        selectedGuestNarrativeId: "small-group-growth",
+        createProposal: true
+      },
+      overview: {
+        events: [],
+        tasks: [],
+        users: [],
+        expenses: [],
+        activity: []
+      }
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.response.summary).toContain("MS 6th Grade North grew from 10 to 16 students");
+    expect(JSON.stringify(result.data.response)).toContain("10 → 11 → 12 → 13 → 14 → 15 → 16");
+    expect(JSON.stringify(result.data.response)).not.toContain("Mason Bridge");
+    expect(JSON.stringify(result.data.response)).not.toContain("Sunday participation fell");
+    expect(result.data.proposalCreated).toBe(false);
+    expect(result.data.proposalId).toBeNull();
+    expect(result.data.executed).toBe(false);
+    expect(result.data.provider).toBe("deterministic");
+    expect(result.data.warnings.join(" ")).toMatch(/no external AI call|no writes/i);
+  });
 });
