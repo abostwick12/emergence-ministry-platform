@@ -40,11 +40,10 @@ test.describe("Unified access and competition guest mode", () => {
 
     await sidebar.getByRole("link", { name: "Ministry Hub" }).click();
     await expect(page).toHaveURL(/\/ministry$/);
-    const memory = page.getByRole("region", { name: "Public demo organizational memory" });
-    await expect(memory).toContainText("2025-2026 ministry history, modeled for discernment");
-    await expect(memory).toContainText("Demo data, no live sync");
-    await expect(memory).toContainText("Planning Center attendance snapshots");
-    await expect(memory).toContainText("Not connected in public demo mode");
+    const ministryNarratives = page.getByRole("region", { name: "Guest Ministry Hub narrative review" });
+    await expect(ministryNarratives).toContainText("Sunday participation fell while Friday event attendance grew.");
+    await expect(ministryNarratives).toContainText("Shared ministry work is concentrated with Mason Bridge.");
+    await expect(ministryNarratives).toContainText("Synthetic guest history only.");
     await expect(sidebar.getByRole("link", { name: "Events" })).toHaveCount(0);
     await expect(sidebar.getByRole("link", { name: "Tasks" })).toHaveCount(0);
 
