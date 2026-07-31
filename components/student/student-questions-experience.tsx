@@ -248,6 +248,7 @@ export function StudentQuestionsExperience({ initialJourneyEntries, initialRefle
       ) : null}
       {selectedPrompt && selectedNextStep ? (
         <StudentLovableJournalEntry
+          key={selectedPrompt.id}
           accountEntry={journeyEntries[studentJourneyEntryKey(selectedPrompt.id, activeEntrySequence)]}
           entrySequence={activeEntrySequence}
           journalId={selectedPrompt.id}

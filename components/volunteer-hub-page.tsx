@@ -814,6 +814,7 @@ function ResourceCard({ resource, groupId, onAction }: { resource: VolunteerHubR
         <StatusBadge tone={resource.completed ? "success" : "info"}>{resource.completed ? "Completed" : "Ready"}</StatusBadge>
       </div>
       <div className="volunteer-card-actions">
+        {resource.id === "res_audio" ? <a className="button compact-button" href="/competition-demo/the-unlikely-house-audio-overview.m4a">Open audio overview</a> : null}
         <button className="button compact-button" type="button" onClick={() => onAction({ type: "complete_resource", resourceId: resource.id, completed: !resource.completed }, resource.completed ? "Resource reopened." : "Resource completed.")}>
           {resource.completed ? "Reopen" : "Mark complete"}
         </button>

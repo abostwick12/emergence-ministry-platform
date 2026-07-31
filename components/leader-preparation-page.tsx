@@ -5,6 +5,7 @@ import { BookOpen, Check, FileText, ListChecks, LoaderCircle, MessageSquareText,
 
 import { YouVersionReaderWindow } from "@/components/student/youversion-reader-window";
 import { buildYouVersionReaderLink } from "@/lib/scripture/youversion";
+import { competitionGuestSermon, competitionLeaderResources } from "@/lib/guest/competition-demo-content";
 
 type PrepAction = {
   id: "outline" | "leader_guide" | "slide_plan" | "small_group_questions";
@@ -56,17 +57,17 @@ type EmmaChatMessage = {
 
 const draftStorageKey = "lead-emergence.sermon-prep.current";
 
-export function LeaderPreparationPage({ readOnly = false }: { readOnly?: boolean }) {
-  const [title, setTitle] = useState("When the King Kneels");
-  const [passage, setPassage] = useState("John 13:1-17");
-  const [bigIdea, setBigIdea] = useState("Real authority stoops. If Jesus is Lord, then love looks like a towel, not a title.");
-  const [body, setBody] = useState(
+export function LeaderPreparationPage({ readOnly = false, guestSeed = false }: { readOnly?: boolean; guestSeed?: boolean }) {
+  const [title, setTitle] = useState(guestSeed ? competitionGuestSermon.title : "When the King Kneels");
+  const [passage, setPassage] = useState(guestSeed ? competitionGuestSermon.passage : "John 13:1-17");
+  const [bigIdea, setBigIdea] = useState(guestSeed ? competitionGuestSermon.bigIdea : "Real authority stoops. If Jesus is Lord, then love looks like a towel, not a title.");
+  const [body, setBody] = useState(guestSeed ? competitionGuestSermon.body : (
     "Jesus knew where he came from and where he was going, and out of that grounded identity he picked up a towel.\n\n" +
       "We usually think power protects us from the low place. In the upper room, love takes Jesus toward it.\n\n" +
       "Notice the timing: this happens right before betrayal, denial, and the cross. Jesus isn't rewarding the disciples. He is showing them what the whole kingdom looks like from the inside.\n\n" +
       "Peter's response - \"You shall never wash my feet\" - sounds humble, but it's actually resistance. To follow Jesus is to receive from him before you serve like him.\n\n" +
       "Where in your week are you refusing the towel - either to receive it or to pick it up?"
-  );
+  ));
   const [checklist, setChecklist] = useState(initialChecklist);
   const [draftStatus, setDraftStatus] = useState(readOnly ? "Guest contest access is read-only." : "Draft loaded from starter content.");
   const [actionStatus, setActionStatus] = useState(readOnly ? "Resource generation is disabled in guest mode." : "Save the sermon, then generate resources for Weekly Resources.");
@@ -306,6 +307,10 @@ export function LeaderPreparationPage({ readOnly = false }: { readOnly?: boolean
                 ))}
               </div>
             ) : null}
+            {guestSeed ? <div className="leader-prep-generated-list" aria-label="Seeded leader resources">
+              <strong>Connected leader resources</strong>
+              {competitionLeaderResources.map((resource) => <div key={resource.title}><b>{resource.title}</b>: {resource.href ? <a href={resource.href}>Open supplied slide plan</a> : resource.detail}</div>)}
+            </div> : null}
           </footer>
         </article>
 

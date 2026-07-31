@@ -8,6 +8,7 @@ import type { StudentGroupDiscussionItem } from "@/lib/scripture/student-home";
 import type { StudentDiscussionKnowledgeContext, StudentDiscussionPrompt, StudentDiscussionStatus } from "@/lib/scripture/types";
 import type { StudentHowToReadProgress } from "@/lib/scripture/how-to-read-progress";
 import type { SaveStudentJourneyEntryInput, StudentJourneyEntry } from "@/lib/scripture/student-journey-entry-shared";
+import { competitionGuestQuestions } from "@/lib/guest/competition-demo-content";
 
 type LocalStudentState = {
   prompts: StudentDiscussionPrompt[];
@@ -281,7 +282,15 @@ function stateFor(session: AuthSession) {
   if (existing) return existing;
 
   const state: LocalStudentState = {
-    prompts: [],
+    prompts: session.isGuest
+      ? competitionGuestQuestions.map((prompt) => ({
+          ...prompt,
+          submittedByUserId: session.user.id,
+          submittedByName: session.user.fullName,
+          submittedByEmail: session.user.email,
+          topicTags: [...prompt.topicTags]
+        }))
+      : [],
     reflections: {},
     journeyEntries: {},
     progress: {
