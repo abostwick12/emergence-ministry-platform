@@ -24,6 +24,7 @@ import {
   type VolunteerLeader
 } from "@/lib/volunteer-leaders";
 import { formatDate, formatDateTime, money } from "@/lib/utils";
+import { getEventsForTab, groupEventsByTimeframe, type EventTabKey } from "@/lib/event-timeframes";
 import type {
   ActiveTask,
   ActivityLog,
@@ -43,16 +44,6 @@ const statusLabels: Record<TaskStatus, string> = {
   in_progress: "In progress",
   blocked: "Blocked",
   done: "Done"
-};
-
-type EventGroupKey = "thisWeek" | "thisMonth" | "longRange" | "past";
-type EventTabKey = "upcoming" | EventGroupKey | "archived";
-
-const eventGroupLabels: Record<EventGroupKey, string> = {
-  thisWeek: "This Week",
-  thisMonth: "This Month",
-  longRange: "Long Range Planning",
-  past: "Past Events"
 };
 
 const eventTabLabels: Record<EventTabKey, string> = {
@@ -1536,6 +1527,17 @@ function EventRowCard({
   );
 }
 
+function EventVision({ event }: { event: MinistryEvent }) {
+  const vision = event.description.trim();
+
+  return (
+    <section className="event-vision-panel" aria-label={`${event.title} event vision`}>
+      <span>Event vision</span>
+      <p>{vision || "Add a ministry vision for this event"}</p>
+    </section>
+  );
+}
+
 type EventReadiness = {
   label: string;
   detail: string;
@@ -1850,6 +1852,7 @@ function EventReadinessPanel({
           {isExpanded ? "Hide details" : "View tasks"}
         </button>
       </div>
+      <EventVision event={event} />
     </section>
   );
 }
@@ -2397,47 +2400,6 @@ function formatVolunteersNeeded(event: MinistryEvent) {
     return `${count} volunteer${count === 1 ? "" : "s"} needed`;
   }
   return "Volunteers needed";
-}
-
-function groupEventsByTimeframe(events: MinistryEvent[]) {
-  const now = new Date();
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const endOfWeek = new Date(startOfToday);
-  endOfWeek.setDate(startOfToday.getDate() + 7);
-  const endOfMonth = new Date(startOfToday.getFullYear(), startOfToday.getMonth() + 1, 1);
-
-  const groups: Record<EventGroupKey, MinistryEvent[]> = {
-    thisWeek: [],
-    thisMonth: [],
-    longRange: [],
-    past: []
-  };
-
-  events
-    .filter((event) => !event.archivedAt)
-    .sort((first, second) => new Date(first.startTime).getTime() - new Date(second.startTime).getTime())
-    .forEach((event) => {
-      const start = new Date(event.startTime);
-      if (start < startOfToday) {
-        groups.past.push(event);
-      } else if (start < endOfWeek) {
-        groups.thisWeek.push(event);
-      } else if (start < endOfMonth) {
-        groups.thisMonth.push(event);
-      } else {
-        groups.longRange.push(event);
-      }
-    });
-
-  return groups;
-}
-
-function getEventsForTab(activeTab: EventTabKey, groupedEvents: Record<EventGroupKey, MinistryEvent[]>) {
-  if (activeTab === "archived") return [];
-  if (activeTab === "upcoming") {
-    return [...groupedEvents.thisWeek, ...groupedEvents.thisMonth, ...groupedEvents.longRange];
-  }
-  return groupedEvents[activeTab];
 }
 
 function getArchivedEvents(events: MinistryEvent[]) {

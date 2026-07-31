@@ -75,6 +75,14 @@ describe("Lead Emergence guest demo context", () => {
     expect(fridayEvents.every((occurrence) => occurrence.localStartTime !== "09:00" && occurrence.localStartTime !== "10:45")).toBe(true);
   });
 
+  it("seeds the ministry vision on guest Sunday-service event cards", () => {
+    const context = buildLeadEmergenceDemoContext();
+    const sundayServiceEvents = context.overview.events.filter((event) => event.type === "sunday_morning_service" || event.type === "sunday_evening_service");
+
+    expect(sundayServiceEvents).not.toHaveLength(0);
+    expect(sundayServiceEvents.every((event) => event.description === "Create an engaging environment where students encounter Scripture more deeply and worship God with authenticity and vulnerability—where every student feels seen, known, and loved by God and by our church community.")).toBe(true);
+  });
+
   it("keeps references valid and dates inside the demonstration and history years", () => {
     const context = buildLeadEmergenceDemoContext();
     const studentIds = new Set(context.students.map((student) => student.id));
