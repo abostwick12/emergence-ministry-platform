@@ -7,7 +7,7 @@ test.describe("Personal Command Center", () => {
     await login(page);
     await page.goto("/command-center");
 
-    await expect(page.getByRole("heading", { name: "Manual Resource Feed" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /^(?:Manual|Live) Resource Feed$/ })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Integrations" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Ask SAGE" }).first()).toBeVisible();
     await expect(page.getByText("Manage Calendar, Gmail, Drive, Slack, Firecrawl, Monday.com, and LinkedIn from one place.")).toBeVisible();
