@@ -98,7 +98,29 @@ const globalState = globalThis as typeof globalThis & {
     members: Map<string, PlatformAccessMember>;
     guestPublicPages: Set<PlatformPageKey>;
   };
+  __leadEmergenceGuestPublicPageCache?: {
+    source: "fresh_remote" | "stale_remote" | "local_required_fallback" | "unresolved";
+    remote?: {
+      pages: Set<PlatformPageKey>;
+      fetchedAt: number;
+      expiresAt: number;
+      staleUntil: number;
+    };
+    retryAfter: number;
+    generation: number;
+    warningLogged: boolean;
+    refresh?: {
+      generation: number;
+      controller: AbortController;
+      promise: Promise<Set<PlatformPageKey>>;
+    };
+  };
 };
+
+const GUEST_PUBLIC_PAGE_LOOKUP_TIMEOUT_MS = 750;
+const GUEST_PUBLIC_PAGE_FRESH_TTL_MS = 60_000;
+const GUEST_PUBLIC_PAGE_STALE_TTL_MS = 5 * 60_000;
+const GUEST_PUBLIC_PAGE_RETRY_DELAY_MS = 60_000;
 
 export async function listPlatformAccess(session: AuthSession): Promise<PlatformAccessDenied | PlatformAccessList> {
   const denied = requirePlatformAdmin(session);
@@ -128,6 +150,7 @@ export async function listPlatformAccess(session: AuthSession): Promise<Platform
     const accessByUser = mapUserAccess(accessRows.data ?? []);
     const pageAccessByUser = mapUserPageAccess(pageRows.data ?? []);
     const guestPublicPages = guestPageSet(guestRows.data ?? []);
+    cacheGuestPublicPages(guestPublicPages);
     const members = (profiles.data ?? []).map((profile) => toMember(profile, session, accessByUser, pageAccessByUser)).sort(compareMembers);
     const aiAccessByUser = await getAiAccessForUsers(members.map((member) => ({ id: member.id, role: member.role })));
 
@@ -288,7 +311,7 @@ export async function getPlatformDataAccessModeForSession(session: AuthSession):
 export async function resolvePageAccessForSession(session: AuthSession, pathname: string): Promise<boolean> {
   const pageDef = findPlatformPageByPath(pathname);
   if (!pageDef) return true;
-  if (session.isGuest) return isGuestPagePublic(pageDef.key);
+  if (session.isGuest) return isGuestPagePublicSync(pageDef.key);
   if (session.user.role === "admin") return true;
   if (!(await isPlatformUserActiveById(session.user.id))) return false;
   return getUserPageAccess(session, pageDef.key);
@@ -298,7 +321,7 @@ export async function visiblePlatformPagesForSession(session: AuthSession) {
   const allowed: PlatformPageKey[] = [];
   for (const pageDef of platformPages) {
     if (session.isGuest) {
-      if (await isGuestPagePublic(pageDef.key)) allowed.push(pageDef.key);
+      if (isGuestPagePublicSync(pageDef.key)) allowed.push(pageDef.key);
     } else if (session.user.role === "admin" || await getUserPageAccess(session, pageDef.key)) {
       allowed.push(pageDef.key);
     }
@@ -307,25 +330,22 @@ export async function visiblePlatformPagesForSession(session: AuthSession) {
 }
 
 export async function isGuestPagePublic(pageKey: PlatformPageKey): Promise<boolean> {
+  return isGuestPagePublicSync(pageKey);
+}
+
+function isGuestPagePublicSync(pageKey: PlatformPageKey): boolean {
   const pageDef = getPlatformPage(pageKey);
   if (!pageDef?.guestEligible) return false;
   if (requiredGuestPublicPageKeys.has(pageKey)) return true;
   const previewGuestPublicPages = globalState.__leadEmergencePlatformAccessPreview?.guestPublicPages;
   if (previewGuestPublicPages) return previewGuestPublicPages.has(pageKey);
   if (!isSupabaseAdminConfigured()) return currentPreviewGuestPublicPages().has(pageKey);
+  return currentGuestPublicPagesForConfiguredAdmin().has(pageKey);
+}
 
-  try {
-    const supabase = getSupabaseAdminClient();
-    const result = await supabase
-      .from("guest_public_page_permissions")
-      .select("is_public")
-      .eq("page_key", pageKey)
-      .maybeSingle<{ is_public: boolean | null }>();
-    if (result.error || !result.data) return defaultGuestPublicPageKeys.includes(pageKey);
-    return result.data.is_public === true;
-  } catch {
-    return defaultGuestPublicPageKeys.includes(pageKey);
-  }
+export async function refreshGuestPublicPagePermissionsForAdmin(): Promise<Set<PlatformPageKey>> {
+  if (!isSupabaseAdminConfigured()) return currentPreviewGuestPublicPages();
+  return startGuestPublicPagePermissionRefresh();
 }
 
 async function updatePlatformUserRole(
@@ -568,6 +588,150 @@ function currentPreviewGuestPublicPages() {
   return globalState.__leadEmergencePlatformAccessPreview?.guestPublicPages ?? new Set(defaultGuestPublicPageKeys);
 }
 
+function requiredGuestPublicPages() {
+  return new Set(requiredGuestPublicPageKeys);
+}
+
+function guestPublicPageCache() {
+  globalState.__leadEmergenceGuestPublicPageCache ??= {
+    source: "unresolved",
+    retryAfter: 0,
+    generation: 0,
+    warningLogged: false
+  };
+  return globalState.__leadEmergenceGuestPublicPageCache;
+}
+
+function currentGuestPublicPagesForConfiguredAdmin(now = Date.now()) {
+  const cache = guestPublicPageCache();
+  const remote = cache.remote;
+  if (remote && now <= remote.expiresAt) {
+    cache.source = "fresh_remote";
+    return remote.pages;
+  }
+  if (remote && now <= remote.staleUntil) {
+    cache.source = "stale_remote";
+    scheduleGuestPublicPagePermissionRefresh(now);
+    return remote.pages;
+  }
+
+  cache.source = "local_required_fallback";
+  cache.remote = undefined;
+  scheduleGuestPublicPagePermissionRefresh(now);
+  return requiredGuestPublicPages();
+}
+
+function cacheGuestPublicPages(pages: Set<PlatformPageKey>, generation?: number) {
+  const cache = guestPublicPageCache();
+  if (generation !== undefined && generation !== cache.generation) {
+    return currentGuestPublicPagesForConfiguredAdmin();
+  }
+  if (generation === undefined) {
+    cache.generation += 1;
+    cache.refresh?.controller.abort();
+    cache.refresh = undefined;
+  }
+  const nextPages = new Set<PlatformPageKey>();
+  for (const pageKey of Array.from(pages)) {
+    if (!isPlatformPageKey(pageKey)) continue;
+    const pageDef = getPlatformPage(pageKey);
+    if (pageDef?.guestEligible) nextPages.add(pageKey);
+  }
+  for (const pageKey of Array.from(requiredGuestPublicPageKeys)) nextPages.add(pageKey);
+  const fetchedAt = Date.now();
+  cache.source = "fresh_remote";
+  cache.remote = {
+    pages: nextPages,
+    fetchedAt,
+    expiresAt: fetchedAt + GUEST_PUBLIC_PAGE_FRESH_TTL_MS,
+    staleUntil: fetchedAt + GUEST_PUBLIC_PAGE_STALE_TTL_MS
+  };
+  cache.retryAfter = 0;
+  cache.warningLogged = false;
+  return nextPages;
+}
+
+function fallbackGuestPublicPageCache(reason: string, generation: number) {
+  const cache = guestPublicPageCache();
+  if (generation !== cache.generation) return currentGuestPublicPagesForConfiguredAdmin();
+  if (!cache.warningLogged) {
+    console.warn("[platform-access] Falling back to required-only guest page visibility.", {
+      reason,
+      timeoutMs: GUEST_PUBLIC_PAGE_LOOKUP_TIMEOUT_MS
+    });
+  }
+  cache.warningLogged = true;
+  cache.retryAfter = Date.now() + GUEST_PUBLIC_PAGE_RETRY_DELAY_MS;
+  const remote = cache.remote;
+  if (remote && Date.now() <= remote.staleUntil) {
+    cache.source = "stale_remote";
+    return remote.pages;
+  }
+  cache.source = "local_required_fallback";
+  cache.remote = undefined;
+  return requiredGuestPublicPages();
+}
+
+function scheduleGuestPublicPagePermissionRefresh(now = Date.now()) {
+  const cache = guestPublicPageCache();
+  if (cache.refresh || now < cache.retryAfter) return;
+  void startGuestPublicPagePermissionRefresh();
+}
+
+function startGuestPublicPagePermissionRefresh() {
+  const cache = guestPublicPageCache();
+  if (cache.refresh) return cache.refresh.promise;
+
+  const generation = cache.generation + 1;
+  cache.generation = generation;
+  const controller = new AbortController();
+  const promise = loadGuestPublicPagePermissions(generation, controller)
+    .finally(() => {
+      const current = guestPublicPageCache();
+      if (current.refresh?.generation === generation) current.refresh = undefined;
+    });
+  cache.refresh = { generation, controller, promise };
+  return promise;
+}
+
+async function loadGuestPublicPagePermissions(generation: number, controller: AbortController) {
+  try {
+    const supabase = getSupabaseAdminClient();
+    const query = supabase
+      .from("guest_public_page_permissions")
+      .select("page_key,is_public")
+      .returns<GuestPagePermissionRow[]>()
+      .abortSignal(controller.signal);
+    const result = await withGuestPermissionTimeout(query, controller);
+    if (result.error || !result.data) {
+      return fallbackGuestPublicPageCache("Guest public page permissions were unavailable.", generation);
+    }
+    return cacheGuestPublicPages(guestPageSet(result.data), generation);
+  } catch {
+    return fallbackGuestPublicPageCache("Guest public page permissions could not be loaded.", generation);
+  }
+}
+
+async function withGuestPermissionTimeout<T>(
+  query: PromiseLike<{ data: T | null; error: { message?: string; code?: string } | null }>,
+  controller: AbortController
+) {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      Promise.resolve(query),
+      new Promise<{ data: T | null; error: { message: string; code: string } }>((resolve) => {
+        timeout = setTimeout(() => {
+          controller.abort();
+          resolve({ data: null, error: { message: "Guest page permission lookup timed out.", code: "LE_GUEST_PERMISSION_TIMEOUT" } });
+        }, GUEST_PUBLIC_PAGE_LOOKUP_TIMEOUT_MS);
+      })
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
+
 function toMember(
   profile: ProfileRow,
   session: AuthSession,
@@ -627,12 +791,11 @@ function mapUserPageAccess(rows: UserPagePermissionRow[]) {
 }
 
 function guestPageSet(rows: GuestPagePermissionRow[]) {
-  const guestPublicPages = new Set(defaultGuestPublicPageKeys);
+  const guestPublicPages = requiredGuestPublicPages();
   for (const row of rows) {
     if (!isPlatformPageKey(row.page_key)) continue;
     if (requiredGuestPublicPageKeys.has(row.page_key)) continue;
     if (row.is_public === true) guestPublicPages.add(row.page_key);
-    else guestPublicPages.delete(row.page_key);
   }
   return guestPublicPages;
 }
