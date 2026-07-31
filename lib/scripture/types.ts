@@ -89,7 +89,7 @@ export type StudentDiscussionPrompt = {
   scriptureReference: string;
   scripturePassageId?: string;
   metanarrativeMovement?: MetanarrativeMovement;
-  aiProvider: "gloo" | "gemini" | "openai";
+  aiProvider: "gloo" | "gemini" | "openai" | "guest-stock-responses";
   aiStatus: "not_configured" | "pending" | "generated" | "failed";
   aiModel: string;
   aiModelTier: "default" | "escalation" | "long_context";

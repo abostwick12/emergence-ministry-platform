@@ -164,7 +164,7 @@ export function MobileFieldDashboard({
       <section className="mobile-ai-readiness-card" aria-label="Submission AI readiness">
         <span>EMMA</span>
         <strong>Provider badge reflects the signed-in production responder.</strong>
-        <p>Public guest mode stays safe with read-only demo responses; AI drafts never send, write, or integrate without a leader approval step.</p>
+        <p>Guest AI and sandbox editing are separately gated; AI drafts never send, publish, or change external systems without a leader-controlled action.</p>
       </section>
       <nav className="mobile-field-quick-actions" aria-label="Fast ministry actions">
         <Link href="/events">Events</Link>

@@ -1,4 +1,5 @@
 import type { AuthSession } from "@/lib/auth/server";
+import { isGuestSandboxWritesEnabled } from "@/lib/competition/guest-runtime";
 import {
   getSupabaseAdminClient,
   getSupabaseAuthClient,
@@ -285,6 +286,7 @@ export async function isPlatformUserActiveById(userId: string): Promise<boolean>
 }
 
 export async function canPlatformUserSaveChanges(session: AuthSession): Promise<boolean> {
+  if (session.isGuest) return isGuestSandboxWritesEnabled();
   return (await getPlatformDataAccessModeForSession(session)) === "save";
 }
 

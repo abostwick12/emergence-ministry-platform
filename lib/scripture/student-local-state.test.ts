@@ -109,6 +109,26 @@ describe("local student state", () => {
       deliveryMessage: "Local preview only. No Slack message was sent."
     });
   });
+
+  it("isolates saved discussion drafts between guest sessions", () => {
+    const prompt = saveLocalStudentDiscussionPrompt(guestSession("guest-one"), {
+      question: "What should our group notice?",
+      scriptureReference: "Luke 15",
+      metanarrativeMovement: "Jesus / Kingdom Fulfilled",
+      draft: {
+        discussionPrompt: "What does Jesus reveal about welcome?",
+        escalationReason: "",
+        safetyLabel: "safe",
+        safetyNotes: "Leader review required.",
+        topicTags: ["welcome"]
+      },
+      knowledgeContext: []
+    });
+
+    expect(prompt.aiProvider).toBe("guest-stock-responses");
+    expect(listLocalStudentDiscussionPrompts(guestSession("guest-one"))).toHaveLength(1);
+    expect(listLocalStudentDiscussionPrompts(guestSession("guest-two"))).toHaveLength(0);
+  });
 });
 
 function session(): AuthSession {
@@ -133,6 +153,20 @@ function leaderSession(): AuthSession {
       email: "leader@example.test",
       fullName: "Leader User",
       role: "leader"
+    }
+  };
+}
+
+function guestSession(guestSessionId: string): AuthSession {
+  return {
+    isGuest: true,
+    isMock: false,
+    guestSessionId,
+    user: {
+      id: `guest_${guestSessionId}`,
+      email: "guest@lead-emergence.local",
+      fullName: "Guest",
+      role: "guest"
     }
   };
 }

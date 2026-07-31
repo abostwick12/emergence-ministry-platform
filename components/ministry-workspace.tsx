@@ -837,7 +837,7 @@ function SubmissionAiReadiness() {
   const signals = [
     {
       label: "EMMA",
-      value: "Provider status live",
+      value: "Provider disclosed",
       detail: "The badge names the provider that actually responded."
     },
     {
@@ -861,8 +861,8 @@ function SubmissionAiReadiness() {
     <section className="panel submission-ai-readiness" aria-label="Submission AI readiness">
       <div className="submission-ai-readiness-copy">
         <p className="eyebrow">Submission AI Readiness</p>
-        <h2 className="section-title flush">Live providers, guarded actions.</h2>
-        <p>Public guest mode uses read-only demo responses, while the signed-in production path demonstrates the configured AI integrations.</p>
+        <h2 className="section-title flush">Provider-aware, guarded actions.</h2>
+        <p>Guest AI generation and guest sandbox edits are independent server-side controls. Drafts never send, publish, or change external systems without a leader-controlled action.</p>
       </div>
       <div className="submission-ai-readiness-grid">
         {signals.map((signal) => (

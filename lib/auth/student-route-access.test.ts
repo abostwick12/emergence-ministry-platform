@@ -7,6 +7,8 @@ import { authCookieNames } from "@/lib/auth/config";
 const originalEnv = {
   DEV_AUTH_ROLE: process.env.DEV_AUTH_ROLE,
   E2E_MOCK_AUTH: process.env.E2E_MOCK_AUTH,
+  GUEST_AI_GENERATION_ENABLED: process.env.GUEST_AI_GENERATION_ENABLED,
+  GUEST_SANDBOX_WRITES_ENABLED: process.env.GUEST_SANDBOX_WRITES_ENABLED,
   VERCEL_ENV: process.env.VERCEL_ENV
 };
 
@@ -14,6 +16,8 @@ describe("student route access", () => {
   afterEach(() => {
     process.env.DEV_AUTH_ROLE = originalEnv.DEV_AUTH_ROLE;
     process.env.E2E_MOCK_AUTH = originalEnv.E2E_MOCK_AUTH;
+    process.env.GUEST_AI_GENERATION_ENABLED = originalEnv.GUEST_AI_GENERATION_ENABLED;
+    process.env.GUEST_SANDBOX_WRITES_ENABLED = originalEnv.GUEST_SANDBOX_WRITES_ENABLED;
     process.env.VERCEL_ENV = originalEnv.VERCEL_ENV;
   });
 
@@ -152,12 +156,44 @@ describe("student route access", () => {
   });
 
   it("blocks guest mutations across demo APIs while keeping reads available", async () => {
+    process.env.GUEST_SANDBOX_WRITES_ENABLED = "false";
     const response = await middleware(cookieRequest("/api/events", {
       [authCookieNames.guestSession]: "guest-session"
     }, "POST"));
 
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toEqual({ error: "Guest contest access is read-only." });
+  });
+
+  it("allows only isolated demo mutations when guest sandbox writes are explicitly enabled", async () => {
+    process.env.GUEST_SANDBOX_WRITES_ENABLED = "true";
+
+    const eventResponse = await middleware(cookieRequest("/api/events", {
+      [authCookieNames.guestSession]: "guest-session"
+    }, "POST"));
+    const integrationResponse = await middleware(cookieRequest("/api/integrations/planning-center/sync", {
+      [authCookieNames.guestSession]: "guest-session"
+    }, "POST"));
+
+    expect(eventResponse.status).toBe(200);
+    expect(eventResponse.headers.get("x-middleware-next")).toBe("1");
+    expect(integrationResponse.status).toBe(403);
+  });
+
+  it("lets guest Scripture generation routes return stock or live drafts without granting write access", async () => {
+    process.env.GUEST_AI_GENERATION_ENABLED = "true";
+    process.env.GUEST_SANDBOX_WRITES_ENABLED = "false";
+
+    const generationResponse = await middleware(cookieRequest("/api/student/scripture/reading-plan", {
+      [authCookieNames.guestSession]: "guest-session"
+    }, "POST"));
+    const eventResponse = await middleware(cookieRequest("/api/events", {
+      [authCookieNames.guestSession]: "guest-session"
+    }, "POST"));
+
+    expect(generationResponse.status).toBe(200);
+    expect(generationResponse.headers.get("x-middleware-next")).toBe("1");
+    expect(eventResponse.status).toBe(403);
   });
 
   it("allows deterministic guest EMMA requests because they do not persist or send", async () => {

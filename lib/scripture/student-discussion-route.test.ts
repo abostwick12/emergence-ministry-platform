@@ -1,14 +1,20 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AuthSession } from "@/lib/auth/server";
 import type { StudentDiscussionPrompt } from "@/lib/scripture/types";
 
-const { createStudentDiscussionPromptMock, getServerSessionMock, getStudentKnowledgeMatchesMock, saveStudentQuestionRecommendationsMock } = vi.hoisted(() => ({
+const { createStudentDiscussionPromptMock, generateMeridianDiscussionDraftMock, getServerSessionMock, getStudentKnowledgeMatchesMock, saveStudentQuestionRecommendationsMock } = vi.hoisted(() => ({
   createStudentDiscussionPromptMock: vi.fn(),
+  generateMeridianDiscussionDraftMock: vi.fn(),
   getStudentKnowledgeMatchesMock: vi.fn(),
   saveStudentQuestionRecommendationsMock: vi.fn(),
   getServerSessionMock: vi.fn<() => Promise<AuthSession | null>>()
 }));
+
+const originalGuestEnv = {
+  GUEST_AI_GENERATION_ENABLED: process.env.GUEST_AI_GENERATION_ENABLED,
+  GUEST_SANDBOX_WRITES_ENABLED: process.env.GUEST_SANDBOX_WRITES_ENABLED
+};
 
 vi.mock("@/lib/auth/server", async () => {
   const actual = await vi.importActual<typeof import("@/lib/auth/server")>("@/lib/auth/server");
@@ -33,6 +39,14 @@ vi.mock("@/lib/scripture/knowledge", async () => {
     ...actual,
     getStudentKnowledgeMatches: getStudentKnowledgeMatchesMock,
     saveStudentQuestionRecommendations: saveStudentQuestionRecommendationsMock
+  };
+});
+
+vi.mock("@/lib/scripture/meridian-ai", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/scripture/meridian-ai")>("@/lib/scripture/meridian-ai");
+  return {
+    ...actual,
+    generateMeridianDiscussionDraft: generateMeridianDiscussionDraftMock
   };
 });
 
@@ -61,11 +75,19 @@ function jsonRequest(body: unknown) {
 
 beforeEach(() => {
   createStudentDiscussionPromptMock.mockReset();
+  generateMeridianDiscussionDraftMock.mockReset();
   getStudentKnowledgeMatchesMock.mockReset();
   getServerSessionMock.mockReset();
   saveStudentQuestionRecommendationsMock.mockReset();
   getStudentKnowledgeMatchesMock.mockResolvedValue([]);
   saveStudentQuestionRecommendationsMock.mockResolvedValue(undefined);
+  process.env.GUEST_AI_GENERATION_ENABLED = "false";
+  process.env.GUEST_SANDBOX_WRITES_ENABLED = "false";
+});
+
+afterEach(() => {
+  process.env.GUEST_AI_GENERATION_ENABLED = originalGuestEnv.GUEST_AI_GENERATION_ENABLED;
+  process.env.GUEST_SANDBOX_WRITES_ENABLED = originalGuestEnv.GUEST_SANDBOX_WRITES_ENABLED;
 });
 
 describe("student discussion route", () => {
@@ -138,7 +160,61 @@ describe("student discussion route", () => {
     expect(payload.ok).toBe(true);
     expect(payload.prompt.id).toBe("prompt_1");
   });
+
+  it("returns an unsaved live guest preview when guest AI is enabled without sandbox writes", async () => {
+    process.env.GUEST_AI_GENERATION_ENABLED = "true";
+    getServerSessionMock.mockResolvedValue(guestSession());
+    generateMeridianDiscussionDraftMock.mockResolvedValue({
+      ok: true,
+      provider: "gloo",
+      model: "gloo-openai-gpt-5-nano",
+      modelTier: "default",
+      modelReason: "Default Gloo model.",
+      escalationReason: "",
+      topicTags: ["welcome"],
+      confidence: 0.91,
+      discussionPrompt: "What does Luke 15 reveal about God's welcome?",
+      safetyLabel: "safe",
+      safetyNotes: "Leader review required.",
+      provenance: {}
+    });
+
+    const response = await discussionPOST(jsonRequest({ question: "What does welcome look like?", scriptureReference: "Luke 15" }));
+    const payload = (await response.json()) as { persistence: string; prompt: StudentDiscussionPrompt };
+
+    expect(response.status).toBe(201);
+    expect(payload.persistence).toBe("none");
+    expect(payload.prompt).toMatchObject({ aiProvider: "gloo", aiStatus: "generated", aiModel: "gloo-openai-gpt-5-nano" });
+    expect(createStudentDiscussionPromptMock).not.toHaveBeenCalled();
+  });
+
+  it("uses isolated local persistence when guest sandbox writes are enabled", async () => {
+    process.env.GUEST_SANDBOX_WRITES_ENABLED = "true";
+    getServerSessionMock.mockResolvedValue(guestSession());
+    createStudentDiscussionPromptMock.mockResolvedValue(prompt());
+
+    const response = await discussionPOST(jsonRequest({ question: "What should we notice?", scriptureReference: "John 15" }));
+    const payload = (await response.json()) as { persistence: string };
+
+    expect(response.status).toBe(201);
+    expect(payload.persistence).toBe("guest_session");
+    expect(createStudentDiscussionPromptMock).toHaveBeenCalled();
+  });
 });
+
+function guestSession(): AuthSession {
+  return {
+    isGuest: true,
+    isMock: false,
+    guestSessionId: "guest-route-test",
+    user: {
+      id: "guest_guest-route-test",
+      email: "guest@lead-emergence.local",
+      fullName: "Guest",
+      role: "guest"
+    }
+  };
+}
 
 function prompt(): StudentDiscussionPrompt {
   return {

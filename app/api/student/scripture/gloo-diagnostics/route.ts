@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getServerSession, unauthorizedResponse } from "@/lib/auth/server";
+import { isGuestAiGenerationEnabled } from "@/lib/competition/guest-runtime";
 import { runGlooDiscussionDiagnostic } from "@/lib/scripture/gloo";
 import { resolveStudentHubAccess } from "@/lib/student/access";
 
@@ -11,7 +12,7 @@ export async function POST() {
     return NextResponse.json({ ok: false, error: "Student Scripture Hub access is not available for this account." }, { status: 403 });
   }
 
-  if (access.session.isGuest) {
+  if (access.session.isGuest && !isGuestAiGenerationEnabled()) {
     return NextResponse.json({
       ok: true,
       diagnostic: {

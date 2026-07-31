@@ -9,5 +9,5 @@ export default async function DashboardPage() {
     return <MinistryWorkspace view="dashboard" initialLoadError="Ministry workspace access could not be verified." />;
   }
   const payload = await getDashboardPayload(access.session);
-  return <MinistryWorkspace view="dashboard" initialOverview={payload.overview} initialAttention={payload.attention} canSaveChanges={access.session.isGuest || await canPlatformUserSaveChanges(access.session)} />;
+  return <MinistryWorkspace view="dashboard" initialOverview={payload.overview} initialAttention={payload.attention} canSaveChanges={await canPlatformUserSaveChanges(access.session)} />;
 }

@@ -3,6 +3,7 @@ import { isSupabaseConfigured } from "@/lib/auth/config";
 import type { DashboardCareDiscussion } from "@/lib/dashboard-attention";
 import { getSupabaseAdminClient, getSupabaseAuthClient, isSupabaseAdminConfigured } from "@/lib/auth/server";
 import { resolveMinistryScope } from "@/lib/ministry/scope";
+import { isGuestAiGenerationEnabled, isGuestSandboxWritesEnabled } from "@/lib/competition/guest-runtime";
 import { measureServerOperation } from "@/lib/performance/timing";
 import { generateMeridianDiscussionDraft, getMeridianAiReadiness, type MeridianDiscussionDraftResult } from "@/lib/scripture/meridian-ai";
 import { buildMeridianSynthesisBrief } from "@/lib/scripture/meridian-synthesis";
@@ -146,6 +147,18 @@ const STUDENT_DISCUSSION_SELECT = "id,ministry_id,group_id,submitted_by_user_id,
 
 export function getStudentDiscussionReadiness(session: AuthSession): DiscussionReadiness {
   const ai = getMeridianAiReadiness();
+  if (session.isGuest) {
+    const aiEnabled = isGuestAiGenerationEnabled();
+    const sandboxWritesEnabled = isGuestSandboxWritesEnabled();
+    return {
+      liveStorage: false,
+      localStorage: sandboxWritesEnabled,
+      canSubmit: true,
+      gloo: aiEnabled && ai.gloo,
+      slack: false,
+      message: guestDiscussionReadinessMessage({ aiEnabled, sandboxWritesEnabled, glooConfigured: ai.gloo })
+    };
+  }
   if (shouldUseLocalStudentState(session)) {
     return {
       liveStorage: false,
@@ -298,11 +311,12 @@ export async function createStudentDiscussionPrompt(session: AuthSession, input:
 
   if (!readiness.liveStorage) {
     const ai = getMeridianAiReadiness();
+    const allowAiProvider = !session.isGuest || isGuestAiGenerationEnabled();
     const knowledgeContext = await getStudentKnowledgeMatches(session, {
       question,
       scriptureReference: scripture.reference
     });
-    const groundingContext = ai.configured
+    const groundingContext = ai.configured && allowAiProvider
       ? await getInternalGroundingContext(session, {
           question,
           scriptureReference: scripture.reference
@@ -317,7 +331,7 @@ export async function createStudentDiscussionPrompt(session: AuthSession, input:
       knowledgeMatches: knowledgeContext,
       internalGroundingContext: groundingContext
     });
-    const aiDraft = ai.configured
+    const aiDraft = ai.configured && allowAiProvider
       ? await generateMeridianDiscussionDraft({
           question,
           scriptureReference: scripture.reference,
@@ -467,6 +481,23 @@ export async function createStudentDiscussionPrompt(session: AuthSession, input:
     ...toPrompt(result.data),
     knowledgeContext
   };
+}
+
+function guestDiscussionReadinessMessage(input: { aiEnabled: boolean; sandboxWritesEnabled: boolean; glooConfigured: boolean }) {
+  if (input.aiEnabled && input.sandboxWritesEnabled) {
+    return input.glooConfigured
+      ? "Guest mode can call Gloo for leader-review drafts and keep edits in this isolated sandbox session."
+      : "Guest AI is enabled, but Gloo credentials are not configured. Session-scoped sandbox edits remain available.";
+  }
+  if (input.aiEnabled) {
+    return input.glooConfigured
+      ? "Guest mode can call Gloo for a leader-review preview. The generated preview is not saved."
+      : "Guest AI is enabled, but Gloo credentials are not configured. Stock review previews remain available.";
+  }
+  if (input.sandboxWritesEnabled) {
+    return "Guest mode can save edits inside this isolated sandbox session. External AI provider calls remain disabled.";
+  }
+  return "Guest mode uses curated stock previews. External AI calls and sandbox writes are disabled.";
 }
 
 export async function decideStudentDiscussionPrompt(session: AuthSession, id: string, input: DecideStudentDiscussionInput) {

@@ -23,18 +23,19 @@ Use this order when reviewing or filming:
 3. `/dashboard`
 4. `/ministry`
 5. `/student/scripture/resources?reference=John%203%3A16`
-6. `/student/scripture/questions`
-7. `/discipleship`
-8. `/hackathon`
+6. `/student/scripture/plans/new`
+7. `/student/scripture/questions`
+8. `/discipleship`
+9. `/hackathon`
 
 ## Ecosystem Layer
 
 | Layer | Current proof | Boundary |
 | --- | --- | --- |
-| Operations | Dashboard, Events, Tasks, Communications, Budget, activity logs, guest sandbox | Communication outputs remain previews unless a future approved workflow sends them. |
+| Operations | Dashboard, Events, Tasks, Communications, Budget, activity logs, isolated guest sandbox | Guest writes require an explicit server flag and never become canonical ministry records. Communication outputs remain previews. |
 | Meridian | Ministry Alignment, organizational memory demo, evidence stack, EMMA prompts | Meridian does not create autonomous ministry verdicts or pastoral decisions. |
-| YouVersion | Reader links, reference parsing, `/api/student/scripture/lookup` | Lead Emergence stores references and relationships, not licensed Bible text as permanent memory. |
-| Gloo AI Studio | Discussion and reading-plan draft routes, diagnostics, Gloo-first provider wrapper | Provider output is candidate material for leader review. |
+| YouVersion | Visible server-side passage lookup, reader links, reference parsing, `/api/student/scripture/lookup` | Lead Emergence stores references and relationships, not fetched Bible text as permanent Meridian memory. |
+| Gloo AI Studio | Discussion and reading-plan generation, diagnostics, OAuth token exchange, Gloo-first provider wrapper | Guest live generation requires `GUEST_AI_GENERATION_ENABLED=true`; provider output is candidate material for leader review. |
 | Human approval | Discipleship review, safety labels, promote/review actions, audit language | AI cannot approve, publish, send, or decide pastoral follow-up alone. |
 
 ## What Is Built
@@ -47,6 +48,8 @@ Use this order when reviewing or filming:
 - Leader Discipleship Review with Gloo diagnostics and safety labeling
 - Server-side YouVersion and Gloo integration seams
 - Tests covering public demo, guest mode, ministry alignment, Scripture surfaces, and end-to-end core workflows
+- Server-only controls that independently enable guest AI generation and isolated guest sandbox edits
+- [API usage evidence](competition-api-usage.md) and a [runtime architecture diagram](architecture/competition-runtime.md)
 
 ## What Is Intentionally Not Claimed
 
