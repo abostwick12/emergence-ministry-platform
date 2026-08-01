@@ -19,4 +19,5 @@ artifacts/*.png
 artifacts/*.log
 .vercel
 .env*
+.env.test
 public/scripture-frontiers/source.mp4
