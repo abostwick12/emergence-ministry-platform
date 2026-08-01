@@ -1,5 +1,7 @@
 # Meridian
 
+> Architecture update: governed primitive Sources, Fragments, Claims, Contexts, Relationships, and Guardrails are defined in [the primitive knowledge architecture](architecture/meridian-primitive-knowledge.md). Legacy visibility-based source/chunk retrieval remains a compatibility fallback and must not be treated as the approval model.
+
 ## Purpose
 
 Meridian is the church's evolving ministry memory. It preserves approved ministry knowledge, resources, decisions, lessons, outcomes, and context so future AI responses can be more ministry-specific without mixing unsafe or unrelated content.
@@ -19,6 +21,7 @@ Leader-level analytics must not leak into the Volunteer Hub. Volunteer-facing pe
 ## What Meridian May Store
 
 - approved sermons
+- approved academic papers and curriculum materials
 - leader guides
 - reading plans
 - Journey Journal frameworks and approved content
@@ -70,3 +73,7 @@ Lead Emergence record
 ```
 
 Two-way Obsidian sync is intentionally deferred.
+
+## Authored Corpus Direction
+
+Andrew's academic papers, curriculum materials, and sermons form one reviewed authored corpus with preserved subtypes. Meridian uses that corpus to ground theology, ministry culture, and reliable formation journeys. It does not attempt to recreate Andrew's artistic or preaching style. Academic papers normally carry the strongest nuance signal; curriculum contributes tested formation structure; sermons contribute local teaching history rather than permanent doctrine.

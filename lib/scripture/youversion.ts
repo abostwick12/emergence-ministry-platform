@@ -2,11 +2,12 @@ import { measureServerOperation } from "@/lib/performance/timing";
 
 const DEFAULT_YOUVERSION_API_BASE_URL = "https://api.youversion.com";
 const DEFAULT_BIBLE_ID = 3034;
+const DEFAULT_BIBLE_NAME = "Berean Standard Bible (BSB)";
 const DEFAULT_BIBLE_COM_VERSION_ID = 111;
 const DEFAULT_BIBLE_COM_VERSION_CODE = "NIV";
 const MISSING_CONFIG_MESSAGE = "Scripture lookup is offline. You can still use the reading resources and starter passages.";
 const MAX_REFERENCE_LENGTH = 80;
-const PASSAGE_ID_PATTERN = /^(?:[1-3])?[A-Z]{3}\.(?:INTRO\d*|\d{1,3})(?:\.\d{1,3})?$/;
+const PASSAGE_ID_PATTERN = /^(?:[1-3])?[A-Z]{3}\.(?:INTRO\d*|\d{1,3})(?:\.\d{1,3}(?:-\d{1,3})?)?$/;
 const PROVIDER_TIMEOUT_MS = 12_000;
 
 export type YouVersionConfig =
@@ -28,6 +29,13 @@ export type YouVersionPassage = {
   id: string;
   content: string;
   reference: string;
+  provenance: {
+    provider: "YouVersion";
+    passageId: string;
+    bibleId: number;
+    translationName: string;
+    retrievedAt: string;
+  };
 };
 
 export type YouVersionLookupResult =
@@ -210,7 +218,14 @@ export async function lookupYouVersionPassage(input: { reference: unknown; signa
     passage: {
       id: payload.id,
       content: payload.content,
-      reference: payload.reference
+      reference: payload.reference,
+      provenance: {
+        provider: "YouVersion",
+        passageId: sanitized.passageId,
+        bibleId: config.bibleId,
+        translationName: DEFAULT_BIBLE_NAME,
+        retrievedAt: new Date().toISOString()
+      }
     }
   };
 }
@@ -272,14 +287,15 @@ function toPassageId(reference: string) {
   const compact = reference.toUpperCase().replace(/\s+/g, "");
   if (PASSAGE_ID_PATTERN.test(compact)) return compact;
 
-  const naturalMatch = reference.match(/^(.+?)\s+(\d{1,3})(?::(\d{1,3}))?$/);
+  const naturalMatch = reference.match(/^(.+?)\s+(\d{1,3})(?::(\d{1,3})(?:\s*-\s*(\d{1,3}))?)?$/);
   if (!naturalMatch) return undefined;
 
-  const [, rawBook, rawChapter, rawVerse] = naturalMatch;
+  const [, rawBook, rawChapter, rawVerse, rawVerseEnd] = naturalMatch;
   const book = booksByName.get(normalizeBookName(rawBook));
   if (!book) return undefined;
+  if (rawVerseEnd && Number(rawVerseEnd) < Number(rawVerse)) return undefined;
 
-  return [book, rawChapter, rawVerse].filter(Boolean).join(".");
+  return [book, rawChapter, rawVerse ? `${rawVerse}${rawVerseEnd ? `-${rawVerseEnd}` : ""}` : undefined].filter(Boolean).join(".");
 }
 
 function normalizeReaderReference(input: string) {

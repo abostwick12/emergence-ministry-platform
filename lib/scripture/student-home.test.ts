@@ -418,6 +418,22 @@ describe("student home feed personalization", () => {
     expect(nextStep.wrestleTogetherPrompt).toContain("Scripture define the gospel");
   });
 
+  it("keeps a supplied Scripture passage as the primary anchor for a gospel-related question", () => {
+    const nextStep = buildQuestionNextStep(
+      prompt({
+        id: "question_grace_faith_works",
+        question: "How are Christians saved by grace through faith, and how does that relate to works?",
+        scriptureReference: "Ephesians 2:8-10",
+        metanarrativeMovement: undefined,
+        topicTags: ["grace", "faith", "works"]
+      })
+    );
+
+    expect(nextStep.journeyJournal.title).not.toBe("Gospel Scripture Journey");
+    expect(nextStep.journeyJournal.readingPath[0]).toMatchObject({ reference: "Ephesians 2:8-10" });
+    expect(nextStep.journeyJournalEntries.every((entry) => entry.readingPath[0]?.reference === "Ephesians 2:8-10")).toBe(true);
+  });
+
   it("keeps YouVersion practice media display-only and rotating", () => {
     expect(youVersionPracticeMediaRotation).toEqual(
       expect.arrayContaining([

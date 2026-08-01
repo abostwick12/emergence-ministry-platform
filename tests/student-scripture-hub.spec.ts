@@ -278,8 +278,8 @@ test.describe("Student Scripture Hub shell", () => {
     );
     const passageGuide = journey.locator('dl[aria-label="Passage-specific study guide"]');
     await expect(passageGuide).toContainText("Passage focus");
-    await expect(passageGuide).toContainText("Genesis 1:26-31");
-    await expect(passageGuide).toContainText("God speaks");
+    await expect(passageGuide).toContainText("Genesis 3");
+    await expect(passageGuide).toContainText("Start with your passage");
     await expect(passageGuide).toContainText("Study habit");
     await expect(journey.getByRole("region", { name: "YouVersion guided prayer media" })).toContainText("Open in YouVersion");
     await expect(journey).toContainText("Genesis 1:26-31");
