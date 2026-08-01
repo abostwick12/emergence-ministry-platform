@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import type { AuthSession } from "@/lib/auth/server";
+import { competitionGuestQuestions } from "@/lib/guest/competition-demo-content";
 import {
   decideLocalStudentDiscussionPrompt,
   listLocalApprovedStudentDiscussionPrompts,
@@ -126,8 +127,15 @@ describe("local student state", () => {
     });
 
     expect(prompt.aiProvider).toBe("guest-stock-responses");
-    expect(listLocalStudentDiscussionPrompts(guestSession("guest-one"))).toHaveLength(1);
-    expect(listLocalStudentDiscussionPrompts(guestSession("guest-two"))).toHaveLength(0);
+    const guestOnePrompts = listLocalStudentDiscussionPrompts(guestSession("guest-one"));
+    expect(guestOnePrompts).toHaveLength(competitionGuestQuestions.length + 1);
+    expect(guestOnePrompts.map((item) => item.id)).toEqual(expect.arrayContaining([prompt.id, ...competitionGuestQuestions.map((item) => item.id)]));
+    expect(listLocalStudentDiscussionPrompts(guestSession("guest-two"))).toHaveLength(competitionGuestQuestions.length);
+
+    resetLocalStudentStateForTests();
+    expect(listLocalStudentDiscussionPrompts(guestSession("guest-one")).map((item) => item.id)).toEqual(
+      [...competitionGuestQuestions].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map((item) => item.id)
+    );
   });
 });
 

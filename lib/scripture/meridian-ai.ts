@@ -46,6 +46,7 @@ export type MeridianDiscussionDraftResult =
       topicTags: string[];
       confidence: number;
       discussionPrompt: string;
+      scriptureReference?: string;
       safetyLabel: Exclude<StudentDiscussionPrompt["safetyLabel"], "unreviewed">;
       safetyNotes: string;
       provenance: MeridianGenerationProvenance;
@@ -136,6 +137,7 @@ type FallbackProviderConfig = {
 
 type ParsedDiscussionDraft = {
   discussionPrompt?: unknown;
+  scriptureReference?: unknown;
   safetyLabel?: unknown;
   safetyNotes?: unknown;
   confidence?: unknown;
@@ -431,6 +433,7 @@ function parseDiscussionOutput(
   if (!output || typeof output !== "object") return undefined;
   const parsed = output as ParsedDiscussionDraft;
   const discussionPrompt = textValue(parsed.discussionPrompt, 1800);
+  const scriptureReference = textValue(parsed.scriptureReference, 160);
   const safetyLabel = normalizeSafetyLabel(parsed.safetyLabel);
   const safetyNotes = textValue(parsed.safetyNotes, 900);
   if (!discussionPrompt || !safetyLabel || !safetyNotes) return undefined;
@@ -447,6 +450,7 @@ function parseDiscussionOutput(
     topicTags: normalizeStringArray(parsed.topicTags, 8),
     confidence: normalizeConfidence(parsed.confidence),
     discussionPrompt,
+    ...(scriptureReference ? { scriptureReference } : {}),
     safetyLabel,
     safetyNotes,
     provenance: buildMeridianProvenance({
@@ -519,7 +523,7 @@ function parseReadingPlanOutput(
 }
 
 function discussionSystemPrompt() {
-  return "You help student ministry leaders prepare careful, Scripture-grounded discussion prompts. Return only JSON with keys discussionPrompt, safetyLabel, safetyNotes, confidence, topicTags, escalationReason. safetyLabel must be safe, needs_leader_care, or pastoral_escalation. Keep the draft leader-reviewed, humble, and usable with real students. Do not include full Bible text or crisis counseling.";
+  return "You help student ministry leaders prepare careful, Scripture-grounded discussion prompts. Return only JSON with keys discussionPrompt, scriptureReference, safetyLabel, safetyNotes, confidence, topicTags, escalationReason. scriptureReference must be one concise Bible reference that directly grounds the response; retain a user-supplied reference when present. safetyLabel must be safe, needs_leader_care, or pastoral_escalation. Keep the draft leader-reviewed, humble, and usable with real students. Do not include full Bible text or crisis counseling.";
 }
 
 function discussionUserPrompt(

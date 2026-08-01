@@ -108,18 +108,11 @@ async function createGuestDiscussionPreview(session: AuthSession, body: { questi
   const question = body.question.normalize("NFKC").replace(/\s+/g, " ").trim().slice(0, 1200);
   const scriptureReference = body.scriptureReference?.normalize("NFKC").replace(/\s+/g, " ").trim().slice(0, 160) ?? "";
   const now = new Date().toISOString();
-  const liveDraft = isGuestAiGenerationEnabled()
+  const liveDraftResult = isGuestAiGenerationEnabled()
     ? await generateMeridianDiscussionDraft({ question, scriptureReference })
     : undefined;
-
-  if (liveDraft && !liveDraft.ok) {
-    return NextResponse.json({
-      ok: false,
-      code: liveDraft.code,
-      error: liveDraft.message,
-      attemptedProviders: liveDraft.attemptedProviders
-    }, { status: liveDraft.code === "not_configured" ? 503 : 502 });
-  }
+  const liveDraft = liveDraftResult?.ok ? liveDraftResult : undefined;
+  const failedDraft = liveDraftResult && !liveDraftResult.ok ? liveDraftResult : undefined;
 
   const prompt: StudentDiscussionPrompt = {
     id: `guest-discussion-${Date.now()}`,
@@ -127,17 +120,17 @@ async function createGuestDiscussionPreview(session: AuthSession, body: { questi
     submittedByName: session.user.fullName,
     submittedByEmail: session.user.email,
     question,
-    scriptureReference,
+    scriptureReference: liveDraft?.scriptureReference || scriptureReference,
     aiProvider: liveDraft?.provider ?? "guest-stock-responses",
-    aiStatus: liveDraft ? "generated" : "not_configured",
+    aiStatus: liveDraft ? "generated" : failedDraft?.code === "provider_error" ? "failed" : "not_configured",
     aiModel: liveDraft?.model ?? "guest-stock-responses",
     aiModelTier: liveDraft?.modelTier ?? "default",
-    aiModelReason: liveDraft?.modelReason ?? "Guest mode used a curated stock response because live guest AI is disabled.",
+    aiModelReason: liveDraft?.modelReason ?? (failedDraft?.message || "Guest mode used a curated stock response because live guest AI is disabled."),
     aiConfidence: liveDraft?.confidence ?? null,
     topicTags: liveDraft?.topicTags ?? [],
     escalationReason: liveDraft?.escalationReason ?? "",
     safetyLabel: liveDraft?.safetyLabel ?? "safe",
-    safetyNotes: liveDraft?.safetyNotes ?? "Guest stock response. No question, recommendation, or AI audit was saved.",
+    safetyNotes: liveDraft?.safetyNotes ?? "Deterministic fallback. No question, recommendation, or AI audit was saved.",
     discussionPrompt: liveDraft?.discussionPrompt ?? "Where does this passage invite honest attention, patient trust, and a next step with Jesus in community?",
     leaderNotes: "",
     status: "pending_review",

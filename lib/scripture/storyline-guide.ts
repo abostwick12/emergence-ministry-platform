@@ -524,6 +524,27 @@ const storylineQuestionRules: Array<{
     }
   },
   {
+    id: "jericho-unlikely-house",
+    pattern: /\b(jericho|zacchaeus|rahab)\b/,
+    match: {
+      label: "This connects to Jericho and welcome",
+      title: "Jericho, welcome, and changed belonging",
+      startsHere: "Joshua 2 and Joshua 6",
+      developsThrough: "Rahab's inclusion, Israel's calling, and Jesus' welcome to Zacchaeus in Jericho",
+      fulfilledInChrist: "Jesus seeks the lost, welcomes unlikely people, and forms changed belonging without minimizing repentance.",
+      studentSummary:
+        "Jericho helps you notice God's mercy toward people others overlook, while keeping grace and a changed response together.",
+      leaderFrame:
+        "Treat Rahab and Zacchaeus as a biblical echo, not a direct prophetic fulfillment. Let each passage speak in its own context.",
+      keyPassages: ["Luke 19:1-10", "Joshua 2", "Joshua 6:22-25", "Matthew 1:5-6"],
+      studentQuestions: [
+        "What does each passage actually say about welcome, mercy, and response?",
+        "What can we notice about Jericho without forcing the stories into a direct prediction?",
+        "How does Jesus' welcome change the way people are seen and invited into belonging?"
+      ]
+    }
+  },
+  {
     id: "kingdom-messiah",
     pattern: /\b(king|kingdom|david|messiah|christ|son of david|rule|reign|justice|throne|samuel|kings)\b/,
     match: {

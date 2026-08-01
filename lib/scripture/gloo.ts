@@ -71,6 +71,7 @@ export type GlooDiscussionDraftResult =
       topicTags: string[];
       confidence: number;
       discussionPrompt: string;
+      scriptureReference?: string;
       safetyLabel: "safe" | "needs_leader_care" | "pastoral_escalation";
       safetyNotes: string;
     }
@@ -163,6 +164,7 @@ type GlooChatResponse = {
 
 type ParsedDraft = {
   discussionPrompt?: unknown;
+  scriptureReference?: unknown;
   safetyLabel?: unknown;
   safetyNotes?: unknown;
   confidence?: unknown;
@@ -643,7 +645,7 @@ function createGlooDraftRequestBody(input: GlooDiscussionDraftInput, selection: 
       {
         role: "system",
         content:
-          "You help student ministry leaders prepare careful, Scripture-grounded discussion prompts. Use retrieved student-visible ministry context as background, not as an authority to quote. Use internal grounding only for theological posture, ministry voice, question shape, culture, and artistic texture. Never quote, summarize, cite, reveal, or assign internal grounding material to students. Return only JSON with keys discussionPrompt, safetyLabel, safetyNotes, confidence, topicTags, escalationRecommended, escalationReason. The safetyLabel must be one of safe, needs_leader_care, pastoral_escalation. confidence must be a number from 0 to 1. topicTags must be short lowercase strings. Do not claim pastoral authority, do not give crisis counseling, and do not include full Bible text."
+          "You help student ministry leaders prepare careful, Scripture-grounded discussion prompts. Use retrieved student-visible ministry context as background, not as an authority to quote. Use internal grounding only for theological posture, ministry voice, question shape, culture, and artistic texture. Never quote, summarize, cite, reveal, or assign internal grounding material to students. Return only JSON with keys discussionPrompt, scriptureReference, safetyLabel, safetyNotes, confidence, topicTags, escalationRecommended, escalationReason. scriptureReference must be one concise Bible reference that directly grounds the response; retain a user-supplied reference when present. The safetyLabel must be one of safe, needs_leader_care, pastoral_escalation. confidence must be a number from 0 to 1. topicTags must be short lowercase strings. Do not claim pastoral authority, do not give crisis counseling, and do not include full Bible text."
       },
       {
         role: "user",
@@ -749,6 +751,7 @@ function parseDraftContent(content: string, selection: GlooModelSelection): Gloo
   }
 
   const discussionPrompt = typeof parsed.discussionPrompt === "string" ? parsed.discussionPrompt.trim() : "";
+  const scriptureReference = normalizeText(parsed.scriptureReference, 160);
   const safetyLabel = normalizeSafetyLabel(parsed.safetyLabel);
   const safetyNotes = typeof parsed.safetyNotes === "string" ? parsed.safetyNotes.trim() : "";
   const confidence = normalizeConfidence(parsed.confidence);
@@ -773,6 +776,7 @@ function parseDraftContent(content: string, selection: GlooModelSelection): Gloo
     topicTags,
     confidence,
     discussionPrompt: limitText(discussionPrompt, 1800),
+    ...(scriptureReference ? { scriptureReference } : {}),
     safetyLabel,
     safetyNotes: limitText(safetyNotes, 900)
   };

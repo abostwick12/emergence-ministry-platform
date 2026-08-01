@@ -171,20 +171,29 @@ describe("student discussion route", () => {
       modelTier: "default",
       modelReason: "Default Gloo model.",
       escalationReason: "",
-      topicTags: ["welcome"],
+      topicTags: ["gospel", "kingdom"],
       confidence: 0.91,
-      discussionPrompt: "What does Luke 15 reveal about God's welcome?",
+      discussionPrompt: "What does Jesus reveal about welcome and changed belonging in Jericho?",
+      scriptureReference: "Luke 19:1-10",
       safetyLabel: "safe",
       safetyNotes: "Leader review required.",
       provenance: {}
     });
 
-    const response = await discussionPOST(jsonRequest({ question: "What does welcome look like?", scriptureReference: "Luke 15" }));
-    const payload = (await response.json()) as { persistence: string; prompt: StudentDiscussionPrompt };
+    const response = await discussionPOST(jsonRequest({ question: "Why does Jericho matter?" }));
+    const payload = (await response.json()) as { persistence: string; prompt: StudentDiscussionPrompt; nextStep: { generationSource: string; journeyJournalEntries: Array<{ readingPath: Array<{ reference: string }>; openingPrompt: string }> } };
 
     expect(response.status).toBe(201);
     expect(payload.persistence).toBe("none");
-    expect(payload.prompt).toMatchObject({ aiProvider: "gloo", aiStatus: "generated", aiModel: "gloo-openai-gpt-5-nano" });
+    expect(payload.prompt).toMatchObject({ aiProvider: "gloo", aiStatus: "generated", aiModel: "gloo-openai-gpt-5-nano", scriptureReference: "Luke 19:1-10" });
+    expect(payload.prompt.id).toMatch(/^guest-discussion-/);
+    expect(payload.prompt.id).not.toBe("guest_question_zacchaeus_grace");
+    expect(payload.nextStep.generationSource).toBe("gloo");
+    expect(payload.nextStep.journeyJournalEntries).toHaveLength(4);
+    for (const entry of payload.nextStep.journeyJournalEntries) {
+      expect(entry.readingPath[0]?.reference).toBe("Luke 19:1-10");
+      expect(entry.openingPrompt).toContain("Jericho");
+    }
     expect(createStudentDiscussionPromptMock).not.toHaveBeenCalled();
   });
 
@@ -199,6 +208,34 @@ describe("student discussion route", () => {
     expect(response.status).toBe(201);
     expect(payload.persistence).toBe("guest_session");
     expect(createStudentDiscussionPromptMock).toHaveBeenCalled();
+  });
+
+  it("uses the deterministic fallback only when live guest generation fails or is disabled", async () => {
+    process.env.GUEST_AI_GENERATION_ENABLED = "true";
+    getServerSessionMock.mockResolvedValue(guestSession());
+    generateMeridianDiscussionDraftMock.mockResolvedValue({
+      ok: false,
+      code: "provider_error",
+      message: "Gloo did not return a usable draft.",
+      attemptedProviders: ["gloo"]
+    });
+
+    const failedResponse = await discussionPOST(jsonRequest({ question: "Why does Jericho matter?" }));
+    const failedPayload = (await failedResponse.json()) as { prompt: StudentDiscussionPrompt; nextStep: { generationSource: string } };
+
+    expect(failedResponse.status).toBe(201);
+    expect(failedPayload.prompt).toMatchObject({ aiProvider: "guest-stock-responses", aiStatus: "failed" });
+    expect(failedPayload.nextStep.generationSource).toBe("deterministic-fallback");
+
+    process.env.GUEST_AI_GENERATION_ENABLED = "false";
+    generateMeridianDiscussionDraftMock.mockClear();
+    const disabledResponse = await discussionPOST(jsonRequest({ question: "Why does Jericho matter?" }));
+    const disabledPayload = (await disabledResponse.json()) as { prompt: StudentDiscussionPrompt; nextStep: { generationSource: string } };
+
+    expect(disabledResponse.status).toBe(201);
+    expect(disabledPayload.prompt).toMatchObject({ aiProvider: "guest-stock-responses", aiStatus: "not_configured" });
+    expect(disabledPayload.nextStep.generationSource).toBe("deterministic-fallback");
+    expect(generateMeridianDiscussionDraftMock).not.toHaveBeenCalled();
   });
 });
 

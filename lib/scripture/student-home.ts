@@ -132,6 +132,7 @@ export type StudentJourneyJournal = {
 
 export type StudentQuestionNextStep = {
   promptId: string;
+  generationSource: "gloo" | "gemini" | "openai" | "deterministic-fallback" | "seeded";
   label: string;
   title: string;
   summary: string;
@@ -456,7 +457,9 @@ type ReadingSource = {
   scriptureReference: string;
   metanarrativeMovement?: StudentDiscussionPrompt["metanarrativeMovement"];
   topicTags?: string[];
+  aiProvider?: StudentDiscussionPrompt["aiProvider"];
   aiStatus?: StudentDiscussionPrompt["aiStatus"];
+  aiModelReason?: string;
   discussionPrompt?: string;
   safetyLabel?: StudentDiscussionPrompt["safetyLabel"];
 };
@@ -565,6 +568,7 @@ export function buildQuestionNextStep(
 
   return {
     promptId: prompt.id ?? "current-question",
+    generationSource: generationSourceForPrompt(prompt),
     label: primaryKnowledge?.label ?? (topic ? `Because you asked about ${topic}` : storylineMatch.label),
     title: "Wrestle with your question",
     summary:
@@ -691,6 +695,7 @@ function savedRecommendationsToNextStep(
 
   return {
     promptId: prompt.id,
+    generationSource: fallback.generationSource,
     label: firstRecommendation?.label || fallback.label,
     title: "Keep digging before group",
     summary:
@@ -1085,7 +1090,7 @@ function buildJourneyJournal(
     id: `journey-${storylineMatch.id}`,
     title: `${storylineMatch.title} Journey`,
     subtitle: "A guided way to read, ask better questions, pray, and bring something thoughtful to group.",
-    openingPrompt: `Do not rush to an answer. Start with Scripture, then notice what this question reveals about ${topic}, God's character, people, brokenness, and hope.`,
+    openingPrompt: `For your question, “${prompt.question},” do not rush to an answer. Start with ${primaryPassage}, then notice what this question reveals about ${topic}, God's character, people, brokenness, and hope.`,
     followUpQuestions: followUpQuestions.map((question, index) => ({
       id: `follow-up-${index + 1}`,
       label: index === 0 ? "What are you really asking?" : index === 1 ? "What feels unresolved?" : "What should you look for?",
@@ -1113,12 +1118,13 @@ function buildJourneyJournalEntries(
   synthesisBrief: MeridianSynthesisBrief
 ): StudentJourneyJournal[] {
   const text = promptSearchText(prompt);
-  if (isGospelQuestion(text)) return buildGospelJourneyEntries(synthesisBrief);
+  if (isExplicitGospelQuestion(prompt)) return buildGospelJourneyEntries(synthesisBrief);
 
   const primaryPassage = prompt.scriptureReference || primaryKnowledge?.scriptureReferences?.[0] || storylineMatch.keyPassages[0] || "Genesis 1";
-  const secondaryPassages = uniqueQuestions([...storylineMatch.keyPassages.slice(1), primaryPassage, ...storylineMatch.keyPassages], 3);
-  const practicePassages = uniqueQuestions([...storylineMatch.keyPassages.slice(2), primaryPassage, ...storylineMatch.keyPassages], 3);
+  const secondaryPassages = uniqueQuestions([primaryPassage, ...storylineMatch.keyPassages], 3);
+  const practicePassages = uniqueQuestions([primaryPassage, ...storylineMatch.keyPassages.slice(1)], 3);
   const topic = topicLabelForPrompt(prompt) || storylineMatch.title.toLowerCase();
+  const questionFocus = prompt.question.trim();
 
   return [
     baseJourney,
@@ -1127,7 +1133,7 @@ function buildJourneyJournalEntries(
       id: `${baseJourney.id}-investigate`,
       title: `${storylineMatch.title} Investigation`,
       subtitle: "A second pass that looks underneath the first answer and checks context before application.",
-      openingPrompt: `Now investigate the question more carefully. Ask what the passage actually says about ${topic}, what it does not say, and what needs more context.`,
+      openingPrompt: `For your question, “${questionFocus},” investigate ${primaryPassage} carefully. Ask what the passage actually says about ${topic}, what it does not say, and what needs more context.`,
       followUpQuestions: toJourneyQuestions(
         uniqueQuestions([...digQuestionsForPrompt(prompt), ...storylineMatch.studentQuestions], 3),
         "investigate",
@@ -1168,7 +1174,7 @@ function buildJourneyJournalEntries(
       id: `${baseJourney.id}-practice`,
       title: `${storylineMatch.title} Practice`,
       subtitle: "A third pass that turns careful reading into one embodied response this week.",
-      openingPrompt: `Do not leave the question as an idea only. Ask what faithful response fits this passage and this season of your life.`,
+      openingPrompt: `Do not leave “${questionFocus}” as an idea only. Ask what faithful response fits ${primaryPassage} and this season of your life.`,
       followUpQuestions: toJourneyQuestions(
         uniqueQuestions([...journalPromptsForPrompt(prompt), ...wrestleQuestionsForPrompt(prompt)], 3),
         "practice",
@@ -1188,14 +1194,14 @@ function buildJourneyJournalEntries(
       id: `${baseJourney.id}-community`,
       title: `${storylineMatch.title} Community Path`,
       subtitle: "A fourth pass that prepares one thoughtful contribution for group discussion.",
-      openingPrompt: "Prepare to bring something honest and useful to group: one observation, one question, and one response you are willing to practice.",
+      openingPrompt: `Prepare to bring something honest and useful about “${questionFocus}” to group: one observation from ${primaryPassage}, one question, and one response you are willing to practice.`,
       followUpQuestions: toJourneyQuestions(
         uniqueQuestions([stripBringToGroupPrefix(wrestleTogetherPromptForPrompt(prompt, primaryKnowledge)), ...digQuestionsForPrompt(prompt)], 3),
         "community",
         ["What will you bring?", "What help do you need?", "What could we practice together?"],
         ["I can bring...", "I need help with...", "Our group could..."]
       ),
-      readingPath: buildReadingPathFromReferences(uniqueQuestions([primaryPassage, ...storylineMatch.keyPassages].reverse(), 3), storylineMatch, [
+      readingPath: buildReadingPathFromReferences(uniqueQuestions([primaryPassage, ...storylineMatch.keyPassages], 3), storylineMatch, [
         "Re-read the anchor passage",
         "Listen for the group question",
         "Name one shared practice"
@@ -2325,6 +2331,18 @@ function careNoteForPrompt(prompt: ReadingSource) {
 
 function promptSearchText(prompt: ReadingSource) {
   return `${prompt.question} ${prompt.scriptureReference} ${(prompt.topicTags ?? []).join(" ")}`.toLowerCase();
+}
+
+function generationSourceForPrompt(prompt: ReadingSource): StudentQuestionNextStep["generationSource"] {
+  if (prompt.aiProvider === "gloo") return "gloo";
+  if (prompt.aiProvider === "gemini") return "gemini";
+  if (prompt.aiProvider === "openai") return "openai";
+  if (prompt.aiProvider === "guest-stock-responses" && /seed/i.test(prompt.aiModelReason ?? "")) return "seeded";
+  return "deterministic-fallback";
+}
+
+function isExplicitGospelQuestion(prompt: ReadingSource) {
+  return isGospelQuestion(`${prompt.question} ${prompt.scriptureReference}`.toLowerCase());
 }
 
 function isGospelQuestion(text: string) {

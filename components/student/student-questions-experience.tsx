@@ -178,6 +178,7 @@ export function StudentQuestionsExperience({ initialJourneyEntries, initialRefle
                 <span>{isFormationJourneySelected
                   ? `${studentLeaderFormationJourney.durationLabel} / ${studentLeaderFormationJourney.availableLabel}`
                   : `${selectedPrompt ? passageLabelForPrompt(selectedPrompt, selectedNextStep) : "Open question"} / ${visibleSelectedEntries.length} ${visibleSelectedEntries.length === 1 ? "entry" : "entries"}`}</span>
+                {!isFormationJourneySelected && selectedNextStep ? <span>Journey source: {generationSourceLabel(selectedNextStep.generationSource)}</span> : null}
               </div>
               <ChevronDown aria-hidden="true" size={18} />
             </summary>
@@ -317,6 +318,14 @@ export function StudentQuestionsExperience({ initialJourneyEntries, initialRefle
       ) : null}
     </div>
   );
+}
+
+function generationSourceLabel(source: StudentQuestionNextStep["generationSource"]) {
+  if (source === "gloo") return "Gloo";
+  if (source === "gemini") return "Gemini";
+  if (source === "openai") return "OpenAI";
+  if (source === "seeded") return "Seeded demo";
+  return "Deterministic fallback";
 }
 
 function StudentLovableJournalEntry({
