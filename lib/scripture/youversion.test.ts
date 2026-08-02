@@ -75,6 +75,9 @@ describe("YouVersion config and reference normalization", () => {
     expect(sanitizeScriptureReference("John 3:16")).toEqual({ ok: true, reference: "John 3:16", passageId: "JHN.3.16" });
     expect(sanitizeScriptureReference("1 John 4:7")).toEqual({ ok: true, reference: "1 John 4:7", passageId: "1JN.4.7" });
     expect(sanitizeScriptureReference("JHN.3.16")).toEqual({ ok: true, reference: "JHN.3.16", passageId: "JHN.3.16" });
+    expect(sanitizeScriptureReference("Ephesians 2:8-10")).toEqual({ ok: true, reference: "Ephesians 2:8-10", passageId: "EPH.2.8-10" });
+    expect(sanitizeScriptureReference("EPH.2.8-10")).toEqual({ ok: true, reference: "EPH.2.8-10", passageId: "EPH.2.8-10" });
+    expect(sanitizeScriptureReference("Ephesians 2:10-8")).toMatchObject({ ok: false });
   });
 
   it("rejects empty, broad, and suspicious references", () => {
@@ -133,7 +136,14 @@ describe("YouVersion passage lookup adapter", () => {
       passage: {
         id: "JHN.3.16",
         content: "For God so loved the world.",
-        reference: "John 3:16"
+        reference: "John 3:16",
+        provenance: {
+          provider: "YouVersion",
+          passageId: "JHN.3.16",
+          bibleId: 3034,
+          translationName: "Berean Standard Bible (BSB)",
+          retrievedAt: expect.any(String)
+        }
       }
     });
     expect(fetchMock).toHaveBeenCalledWith(
@@ -202,7 +212,14 @@ describe("Student Scripture lookup route", () => {
       passage: {
         id: "JHN.3.16",
         reference: "John 3:16",
-        content: "For God so loved the world."
+        content: "For God so loved the world.",
+        provenance: {
+          provider: "YouVersion",
+          passageId: "JHN.3.16",
+          bibleId: 3034,
+          translationName: "Berean Standard Bible (BSB)",
+          retrievedAt: expect.any(String)
+        }
       }
     });
   });

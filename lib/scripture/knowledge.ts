@@ -6,6 +6,8 @@ import { measureServerOperation } from "@/lib/performance/timing";
 import { studentLeaderFormationMeridianContext } from "@/lib/scripture/student-formation-journeys";
 import type { StudentQuestionNextStep } from "@/lib/scripture/student-home";
 import type { StudentDiscussionKnowledgeContext } from "@/lib/scripture/types";
+import { SupabaseMeridianKnowledgeRepository } from "@/lib/meridian/knowledge/repository";
+import { prepareMeridianGeneration } from "@/lib/meridian/knowledge/service";
 
 export type StudentKnowledgeMatch = StudentDiscussionKnowledgeContext;
 
@@ -361,30 +363,27 @@ export function formatStudentKnowledgeContextForGloo(matches: StudentKnowledgeMa
 }
 
 export async function getInternalGroundingContext(session: AuthSession, input: KnowledgeSearchInput): Promise<string> {
-  if (!isSupabaseAdminConfigured()) return "";
+  // Compatibility adapter: legacy `internal_grounding` chunks are intentionally
+  // no longer sent to providers. Only approved, claim-first primitive evidence
+  // can cross this boundary, and students/guests never retrieve it directly.
+  if (!session.accessToken || !["admin", "leader", "staff"].includes(session.user.role)) return "";
 
   try {
     const ministryId = await resolveMinistryScope(session);
     if (!ministryId) return "";
-
-    const supabase = getSupabaseAdminClient();
-    const result = await measureServerOperation("supabase.knowledge.internal_grounding", async () => supabase
-        .from("knowledge_chunks")
-        .select("id,title,student_summary,topic_tags,concepts,scripture_references")
-        .eq("ministry_id", ministryId)
-        .eq("visibility", "internal_grounding")
-        .order("updated_at", { ascending: false })
-        .limit(80)
-        .returns<InternalGroundingChunkRow[]>());
-
-    if (result.error) {
-      console.warn("[scripture] internal grounding query failed", { message: result.error.message });
-      return "";
-    }
-
-    return formatInternalGroundingContext(rankInternalGrounding(result.data ?? [], input).slice(0, MAX_GROUNDING_MATCHES));
+    const prepared = await measureServerOperation("supabase.meridian.approved_evidence", () =>
+      prepareMeridianGeneration(new SupabaseMeridianKnowledgeRepository(), session, {
+        ministryId,
+        audience: "students in a leader-reviewed small group",
+        taskType: "discussion_prompt",
+        sensitivity: "internal",
+        at: new Date().toISOString(),
+        externalCommunication: false
+      })
+    );
+    return prepared.providerContext ?? "";
   } catch (error) {
-    console.warn("[scripture] internal grounding query unavailable", {
+    console.warn("[scripture] approved Meridian evidence unavailable", {
       reason: error instanceof Error ? error.message : "unknown"
     });
     return "";

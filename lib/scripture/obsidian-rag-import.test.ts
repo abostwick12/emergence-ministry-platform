@@ -7,8 +7,8 @@ import { describe, expect, it } from "vitest";
 const scriptPath = join(process.cwd(), "scripts", "obsidian-rag-import.mjs");
 const fixtureRoot = join(process.cwd(), "tmp", "obsidian-rag-import-test");
 
-describe("Obsidian RAG launch importer", () => {
-  it("builds a dry-run launch pack from safe own-voice source notes only", () => {
+describe("Obsidian Meridian candidate importer", () => {
+  it("builds private discovery-only candidates and never infers approval from visibility", () => {
     rmSync(fixtureRoot, { recursive: true, force: true });
     const ownDir = join(fixtureRoot, "01 Source Notes", "01 Own Voice", "Generated");
     const scholarDir = join(fixtureRoot, "01 Source Notes", "02 Scholar Hemisphere", "Generated");
@@ -31,21 +31,30 @@ describe("Obsidian RAG launch importer", () => {
 
     expect(summary.counts).toMatchObject({
       scanned: 5,
-      sources: 1,
-      chunks: 1,
+      candidates: 1,
       skipped: 4
     });
-    expect(preview.sources[0]).toMatchObject({
+    expect(preview.candidates[0]).toMatchObject({
       title: "Student Questions as Curriculum",
-      sourceKind: "own_voice",
-      hemisphere: "own_voice",
-      visibility: "student_visible"
+      sourceKind: "obsidian_note",
+      authorityClass: "none",
+      approvalStatus: "unreviewed",
+      quotePolicy: "never",
+      generationPolicy: "discovery_only",
+      externalVisibility: "private",
+      permissions: {
+        quote: false,
+        paraphrase: false,
+        cite: false,
+        finalAnswer: false,
+        externalCommunication: false
+      }
     });
-    expect(preview.sources[0].chunks[0]).toMatchObject({
-      visibility: "student_visible",
+    expect(preview.candidates[0].metadata).toMatchObject({
       scriptureReferences: ["Genesis 3", "Romans 8:18"]
     });
-    expect(preview.sources[0].chunks[0].body).toContain("Honest student questions can become the starting point");
+    expect(preview.candidates[0].rawText).toContain("Honest student questions can become the starting point");
+    expect(preview.candidates[0].contentHash).toMatch(/^[a-f0-9]{64}$/);
     expect(preview.skipped.map((item: { reason: string }) => item.reason)).toEqual(
       expect.arrayContaining(["duplicate_source", "risk_filter:\\bmedical\\b", "visibility:internal_grounding", "visibility:scholar-citation-only"])
     );
@@ -59,6 +68,7 @@ hemisphere: "Own Voice"
 source_category: "Youth Ministry"
 source_type: "lesson-study"
 visibility: "contest-candidate"
+meridian_ingest: "candidate"
 source_path: "C:\\\\vault\\\\safe.docx"
 tags:
   - "source-note"
@@ -100,6 +110,7 @@ hemisphere: "Own Voice"
 source_category: "Pastoral Care"
 source_type: "care-note"
 visibility: "contest-candidate"
+meridian_ingest: "candidate"
 source_path: "C:\\\\vault\\\\medical.docx"
 ---
 

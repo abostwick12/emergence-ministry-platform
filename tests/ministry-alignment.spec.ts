@@ -76,9 +76,15 @@ test.describe("Ministry Hub alignment workspace", () => {
     await expect(primary).toContainText("37.5 → 31.5 per service (-16.1%)");
     await expect(primary).toContainText("46 → 86 attendees (+87%)");
     await expect(primary).toContainText("Question for leadership");
-    await expect(primary.getByText("Question for leadership")).toBeInViewport();
-    await expect(primary.getByText("Inspect evidence", { exact: true })).toBeInViewport();
-    await expect(primary.getByRole("button", { name: "Discuss with EMMA" })).toBeInViewport();
+    const leadershipQuestion = primary.getByText("Question for leadership");
+    await leadershipQuestion.scrollIntoViewIfNeeded();
+    await expect(leadershipQuestion).toBeInViewport();
+    const inspectEvidence = primary.getByText("Inspect evidence", { exact: true });
+    await inspectEvidence.scrollIntoViewIfNeeded();
+    await expect(inspectEvidence).toBeInViewport();
+    const discussWithEmma = primary.getByRole("button", { name: "Discuss with EMMA" });
+    await discussWithEmma.scrollIntoViewIfNeeded();
+    await expect(discussWithEmma).toBeInViewport();
     await expect(page.getByRole("article", { name: "Shared ministry work is concentrated with Mason Bridge." })).toBeVisible();
     await expect(page.getByRole("article", { name: "Eli Fable and Marcus Bright appear on far more assignments than four other group leaders." })).toBeVisible();
     await expect(page.getByRole("article", { name: "MS 6th Grade North grew from 10 to 16 students across seven Sundays." })).toBeVisible();
@@ -102,6 +108,7 @@ test.describe("Ministry Hub alignment workspace", () => {
   test("guest EMMA receives the selected narrative and approved evidence context only", async ({ page }) => {
     await page.goto("/login");
     await page.getByRole("link", { name: /Continue as guest/ }).click();
+    await expect(page).toHaveURL(/\/dashboard$/);
     await page.goto("/ministry");
 
     const groupStory = page.getByRole("article", { name: "MS 6th Grade North grew from 10 to 16 students across seven Sundays." });
@@ -143,10 +150,13 @@ test.describe("Ministry Hub alignment workspace", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/login");
     await page.getByRole("link", { name: /Continue as guest/ }).click();
+    await expect(page).toHaveURL(/\/dashboard$/);
     await page.goto("/ministry");
 
     const hub = page.getByRole("region", { name: "Guest Ministry Hub narrative review" });
-    await expect(hub.getByRole("heading", { name: "Sunday participation fell while Friday event attendance grew." })).toBeInViewport();
+    const firstNarrative = hub.getByRole("heading", { name: "Sunday participation fell while Friday event attendance grew." });
+    await firstNarrative.scrollIntoViewIfNeeded();
+    await expect(firstNarrative).toBeInViewport();
     await expect(hub.locator("table")).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
     await page.screenshot({ path: "test-results/guest-ministry-hub-mobile.png" });

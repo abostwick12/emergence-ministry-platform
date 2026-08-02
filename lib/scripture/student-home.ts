@@ -1,4 +1,5 @@
 import { scripturePlans, scriptureResources } from "@/lib/scripture/mock-data";
+import { validateJourneyScriptureAnchor } from "@/lib/meridian/journey/grounding";
 import { matchCuratedResourcesToPrompt, type StudentCuratedResource } from "@/lib/scripture/curated-resource-shared";
 import type { StudentKnowledgeMatch, StudentSavedQuestionRecommendation } from "@/lib/scripture/knowledge";
 import {
@@ -536,7 +537,12 @@ export function buildQuestionNextStep(
   const readingPlan = primaryKnowledge ? knowledgeItem(primaryKnowledge, primaryKnowledge.label) : storylineItem(storylineMatch);
   const nextResource = secondaryKnowledge ? knowledgeItem(secondaryKnowledge, "Keep digging") : resourceItem(resource, "Practice this");
   const baseJourneyJournal = buildJourneyJournal(prompt, storylineMatch, primaryKnowledge);
-  const journeyJournalEntries = buildJourneyJournalEntries(prompt, storylineMatch, primaryKnowledge, baseJourneyJournal, journeySynthesis);
+  const proposedJourneyJournalEntries = buildJourneyJournalEntries(prompt, storylineMatch, primaryKnowledge, baseJourneyJournal, journeySynthesis);
+  const journeyJournalEntries = proposedJourneyJournalEntries.every((entry) =>
+    validateJourneyScriptureAnchor(prompt.scriptureReference, entry.readingPath).ok
+  )
+    ? proposedJourneyJournalEntries
+    : [baseJourneyJournal];
   const journeyJournal = journeyJournalEntries[0] ?? baseJourneyJournal;
   const journeyValidation = validateMeridianArtifact({
     taskType: "journey_journal",
@@ -893,7 +899,7 @@ function buildJourneyJournal(
           placeholder: "Image of God, food, blessing, work, keeping the garden..."
         }
       ],
-      readingPath: [
+      readingPath: withRequestedReadingAnchor(prompt.scriptureReference, [
         {
           id: "genesis-1-image",
           reference: "Genesis 1:26-31",
@@ -926,7 +932,7 @@ function buildJourneyJournal(
           guidance: "Look for both real consequences and signs that God has not abandoned the story.",
           practice: "Write one question you still want to bring to your leader or group."
         }
-      ],
+      ]),
       keyWords: [
         {
           term: "work / serve",
@@ -1004,7 +1010,7 @@ function buildJourneyJournal(
           placeholder: "Jesus shows..."
         }
       ],
-      readingPath: [
+      readingPath: withRequestedReadingAnchor(prompt.scriptureReference, [
         {
           id: "genesis-1-image-bearing",
           reference: "Genesis 1:26-31",
@@ -1029,7 +1035,7 @@ function buildJourneyJournal(
           guidance: "Notice renewal, community, compassion, forgiveness, peace, and love as the shape of restored humanity.",
           practice: "Choose one concrete practice that reflects Jesus' renewed image this week."
         }
-      ],
+      ]),
       keyWords: [
         {
           term: "image",
@@ -1118,7 +1124,9 @@ function buildJourneyJournalEntries(
   synthesisBrief: MeridianSynthesisBrief
 ): StudentJourneyJournal[] {
   const text = promptSearchText(prompt);
-  if (isExplicitGospelQuestion(prompt)) return buildGospelJourneyEntries(synthesisBrief);
+  // A student-supplied passage is a hard retrieval constraint. Specialized topic
+  // journeys may enrich an open question, but must never replace its anchor.
+  if (isExplicitGospelQuestion(prompt) && !prompt.scriptureReference.trim()) return buildGospelJourneyEntries(synthesisBrief);
 
   const primaryPassage = prompt.scriptureReference || primaryKnowledge?.scriptureReferences?.[0] || storylineMatch.keyPassages[0] || "Genesis 1";
   const secondaryPassages = uniqueQuestions([primaryPassage, ...storylineMatch.keyPassages], 3);
@@ -1230,6 +1238,22 @@ function buildJourneyJournalEntries(
         }
       }
     }
+  ];
+}
+
+function withRequestedReadingAnchor(requestedReference: string | undefined, readings: StudentJourneyReading[]) {
+  const reference = requestedReference?.trim();
+  if (!reference || validateJourneyScriptureAnchor(reference, readings).ok) return readings;
+  return [
+    {
+      id: "student-requested-anchor",
+      reference,
+      lookupReference: lookupReferenceFor(reference),
+      title: "Start with your passage",
+      guidance: "Read the passage you brought in its immediate context before following the wider journey connections.",
+      practice: "Write one observation from this passage that the rest of the journey must preserve."
+    },
+    ...readings
   ];
 }
 

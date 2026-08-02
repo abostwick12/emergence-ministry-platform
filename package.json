@@ -27,6 +27,7 @@
     "brain:apple-notes:report": "node scripts/apple-notes-brain-review-report.mjs"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@supabase/supabase-js": "^2.45.4",
     "@vercel/speed-insights": "^2.0.0",
     "exceljs": "^4.4.0",
@@ -52,5 +53,8 @@
     "tailwindcss": "^3.4.4",
     "typescript": "^5.5.3",
     "vitest": "^4.1.9"
+  },
+  "overrides": {
+    "fast-uri": "3.1.4"
   }
 }

@@ -1,8 +1,9 @@
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 
-const STUDENT_VISIBLE_INPUT_VISIBILITIES = new Set(["contest-candidate", "student_visible"]);
+const CANDIDATE_OPT_IN = "candidate";
 const PRIVATE_VISIBILITIES = new Set([
   "private-review",
   "private_review",
@@ -43,6 +44,7 @@ if (args.help) {
 const vaultPath = path.resolve(args.vault ?? process.env.OBSIDIAN_RAG_VAULT ?? DEFAULT_VAULT);
 const outPath = path.resolve(args.out ?? DEFAULT_OUT);
 const ministryId = args.ministryId ?? process.env.SUPABASE_MINISTRY_ID;
+const createdByUserId = args.createdByUserId ?? process.env.SUPABASE_CREATED_BY_USER_ID;
 
 const plan = await buildLaunchPackPlan(vaultPath);
 await writePreview(outPath, plan);
@@ -56,7 +58,10 @@ if (args.apply) {
   if (!ministryId) {
     throw new Error("Set SUPABASE_MINISTRY_ID or pass --ministry-id before applying.");
   }
-  await applyPlan(plan, { ministryId });
+  if (!createdByUserId) {
+    throw new Error("Set SUPABASE_CREATED_BY_USER_ID or pass --created-by-user-id before applying.");
+  }
+  await applyPlan(plan, { ministryId, createdByUserId });
 }
 
 export async function buildLaunchPackPlan(vaultRoot) {
@@ -67,7 +72,7 @@ export async function buildLaunchPackPlan(vaultRoot) {
     ...(await listMarkdownFiles(scholarDir, "scholar"))
   ];
 
-  const sources = [];
+  const candidates = [];
   const skipped = [];
   const seenSourceKeys = new Set();
   const seenTitleKeys = new Set();
@@ -86,8 +91,8 @@ export async function buildLaunchPackPlan(vaultRoot) {
       continue;
     }
 
-    const source = toKnowledgeSource(note, vaultRoot);
-    if (seenSourceKeys.has(source.sourceKey)) {
+    const candidate = toCandidate(note, raw, vaultRoot);
+    if (seenSourceKeys.has(candidate.sourceKey)) {
       skipped.push({
         title: note.title,
         file: path.relative(vaultRoot, file.fullPath),
@@ -96,8 +101,8 @@ export async function buildLaunchPackPlan(vaultRoot) {
       continue;
     }
 
-    seenSourceKeys.add(source.sourceKey);
-    const titleKey = canonicalTitleKey(source.title);
+    seenSourceKeys.add(candidate.sourceKey);
+    const titleKey = canonicalTitleKey(candidate.title);
     if (seenTitleKeys.has(titleKey)) {
       skipped.push({
         title: note.title,
@@ -108,17 +113,17 @@ export async function buildLaunchPackPlan(vaultRoot) {
     }
 
     seenTitleKeys.add(titleKey);
-    sources.push(source);
+    candidates.push(candidate);
   }
 
-  sources.sort((a, b) => b.launchScore - a.launchScore || a.title.localeCompare(b.title));
+  candidates.sort((a, b) => b.discoveryScore - a.discoveryScore || a.title.localeCompare(b.title));
   const maxSources = args.maxSources;
-  const cappedSources = maxSources === "all" ? sources : sources.slice(0, maxSources);
-  const cappedOut = maxSources === "all" ? [] : sources.slice(maxSources);
-  for (const source of cappedOut) {
+  const cappedCandidates = maxSources === "all" ? candidates : candidates.slice(0, maxSources);
+  const cappedOut = maxSources === "all" ? [] : candidates.slice(maxSources);
+  for (const candidate of cappedOut) {
     skipped.push({
-      title: source.title,
-      file: source.sourceUri,
+      title: candidate.title,
+      file: candidate.sourceUri,
       reason: "launch_pack_cap"
     });
   }
@@ -127,14 +132,12 @@ export async function buildLaunchPackPlan(vaultRoot) {
     generatedAt: new Date().toISOString(),
     vaultRoot,
     mode: args.apply ? "apply" : "dry-run",
-    sources: cappedSources,
-    chunks: cappedSources.flatMap((source) => source.chunks.map((chunk) => ({ ...chunk, sourceKey: source.sourceKey }))),
+    candidates: cappedCandidates,
     skipped,
     counts: {
       scanned: files.length,
-      eligibleSources: sources.length,
-      sources: cappedSources.length,
-      chunks: cappedSources.reduce((total, source) => total + source.chunks.length, 0),
+      eligibleCandidates: candidates.length,
+      candidates: cappedCandidates.length,
       skipped: skipped.length
     }
   };
@@ -144,6 +147,7 @@ function parseSourceNote(raw, file) {
   const { frontmatter, body } = splitFrontmatter(raw);
   const sourceTitle = frontmatter.source_title ?? titleFromHeading(body) ?? path.basename(file.fullPath, ".md");
   const visibility = normalizeVisibility(frontmatter.visibility ?? "");
+  const meridianIngest = normalizeVisibility(frontmatter.meridian_ingest ?? "");
   const hemisphere = frontmatter.hemisphere ?? (file.kind === "scholar" ? "Scholar Hemisphere" : "Own Voice");
   const sourceCategory = frontmatter.source_category ?? "";
   const sourceType = frontmatter.source_type ?? "";
@@ -160,6 +164,7 @@ function parseSourceNote(raw, file) {
     file,
     frontmatter,
     visibility,
+    meridianIngest,
     hemisphere,
     sourceCategory,
     sourceType,
@@ -177,8 +182,8 @@ function decideSourceVisibility(note) {
     return { include: false, reason: `visibility:${note.visibility}` };
   }
 
-  if (!STUDENT_VISIBLE_INPUT_VISIBILITIES.has(note.visibility)) {
-    return { include: false, reason: note.visibility ? `visibility:${note.visibility}` : "missing_visibility" };
+  if (note.meridianIngest !== CANDIDATE_OPT_IN) {
+    return { include: false, reason: note.meridianIngest ? `meridian_ingest:${note.meridianIngest}` : "missing_meridian_ingest_candidate" };
   }
 
   if (normalizeHemisphere(note.hemisphere) === "scholar") {
@@ -207,7 +212,7 @@ function decideSourceVisibility(note) {
   return { include: true };
 }
 
-function toKnowledgeSource(note, vaultRoot) {
+function toCandidate(note, raw, vaultRoot) {
   const concepts = unique(note.concepts.map(toConceptSlug));
   const topicTags = unique([...concepts, ...tagsFromText(note.title), ...tagsFromText(note.sourceCategory)]).slice(0, 12);
   const title = limitText(note.title, MAX_TITLE_LENGTH);
@@ -217,26 +222,25 @@ function toKnowledgeSource(note, vaultRoot) {
   return {
     sourceKey: stableSourceKey(note),
     title,
-    sourceKind: "own_voice",
-    hemisphere: "own_voice",
-    visibility: "student_visible",
+    sourceKind: "obsidian_note",
+    authorityClass: "none",
+    approvalStatus: "unreviewed",
+    quotePolicy: "never",
+    generationPolicy: "discovery_only",
+    externalVisibility: "private",
+    permissions: {
+      quote: false,
+      paraphrase: false,
+      cite: false,
+      finalAnswer: false,
+      externalCommunication: false
+    },
     sourceUri: path.relative(vaultRoot, note.file.fullPath).replace(/\\/g, "/"),
-    citation: "",
-    summary: studentSummary,
-    tags: topicTags,
-    launchScore: scoreLaunchSource(note, concepts, topicTags),
-    chunks: [
-      {
-        chunkIndex: 0,
-        title,
-        body,
-        studentSummary,
-        topicTags,
-        concepts,
-        scriptureReferences: note.scriptureReferences,
-        visibility: "student_visible"
-      }
-    ]
+    rawText: raw,
+    contentHash: createHash("sha256").update(raw, "utf8").digest("hex"),
+    sensitivity: "internal",
+    metadata: { studentSummary, topicTags, concepts, scriptureReferences: note.scriptureReferences },
+    discoveryScore: scoreLaunchSource(note, concepts, topicTags)
   };
 }
 
@@ -264,7 +268,7 @@ function chunkBodyFor(note) {
   return limitText(lines.join("\n\n").replace(/\s+/g, " ").trim(), MAX_BODY_LENGTH);
 }
 
-async function applyPlan(plan, { ministryId }) {
+async function applyPlan(plan, { ministryId, createdByUserId }) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -272,79 +276,33 @@ async function applyPlan(plan, { ministryId }) {
     throw new Error("Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY before applying.");
   }
 
-  let insertedSources = 0;
-  let updatedSources = 0;
-  let insertedChunks = 0;
+  let submittedCandidates = 0;
 
-  for (const source of plan.sources) {
-    const existing = await supabaseFetch(url, key, `/rest/v1/knowledge_sources?ministry_id=eq.${ministryId}&source_uri=eq.${encodeURIComponent(source.sourceUri)}&select=id`);
-    let sourceId = existing[0]?.id;
-
-    const sourceRow = {
+  for (const candidate of plan.candidates) {
+    const candidateRow = {
       ministry_id: ministryId,
-      title: source.title,
-      source_kind: source.sourceKind,
-      hemisphere: source.hemisphere,
-      visibility: source.visibility,
-      source_uri: source.sourceUri,
-      citation: source.citation,
-      summary: source.summary,
-      tags: source.tags
+      title: candidate.title,
+      source_uri: candidate.sourceUri,
+      raw_text: candidate.rawText,
+      content_hash: candidate.contentHash,
+      sensitivity: candidate.sensitivity,
+      metadata: candidate.metadata,
+      created_by_user_id: createdByUserId
     };
-
-    if (sourceId) {
-      await supabaseFetch(url, key, `/rest/v1/knowledge_sources?id=eq.${sourceId}`, {
-        method: "PATCH",
-        body: JSON.stringify(sourceRow),
-        headers: { Prefer: "return=minimal" }
-      });
-      await supabaseFetch(url, key, `/rest/v1/knowledge_chunks?source_id=eq.${sourceId}`, {
-        method: "DELETE",
-        headers: { Prefer: "return=minimal" }
-      });
-      updatedSources += 1;
-    } else {
-      const inserted = await supabaseFetch(url, key, "/rest/v1/knowledge_sources", {
-        method: "POST",
-        body: JSON.stringify(sourceRow),
-        headers: { Prefer: "return=representation" }
-      });
-      sourceId = inserted[0]?.id;
-      insertedSources += 1;
-    }
-
-    if (!sourceId) throw new Error(`Supabase did not return a source id for ${source.title}.`);
-
-    const chunkRows = source.chunks.map((chunk) => ({
-      ministry_id: ministryId,
-      source_id: sourceId,
-      chunk_index: chunk.chunkIndex,
-      title: chunk.title,
-      body: chunk.body,
-      student_summary: chunk.studentSummary,
-      topic_tags: chunk.topicTags,
-      concepts: chunk.concepts,
-      scripture_references: chunk.scriptureReferences,
-      visibility: chunk.visibility
-    }));
-
-    if (chunkRows.length) {
-      await supabaseFetch(url, key, "/rest/v1/knowledge_chunks", {
-        method: "POST",
-        body: JSON.stringify(chunkRows),
-        headers: { Prefer: "return=minimal" }
-      });
-      insertedChunks += chunkRows.length;
-    }
+    await supabaseFetch(url, key, "/rest/v1/meridian_candidates?on_conflict=ministry_id,content_hash", {
+      method: "POST",
+      body: JSON.stringify(candidateRow),
+      headers: { Prefer: "resolution=ignore-duplicates,return=minimal" }
+    });
+    submittedCandidates += 1;
   }
 
   console.log(
     JSON.stringify(
       {
         applied: true,
-        insertedSources,
-        updatedSources,
-        insertedChunks
+        submittedCandidates,
+        status: "private_discovery_candidates_only"
       },
       null,
       2
@@ -524,12 +482,13 @@ function printSummary(plan, outputPath) {
         vaultRoot: plan.vaultRoot,
         outputPath,
         counts: plan.counts,
-        firstSources: plan.sources.slice(0, 8).map((source) => ({
-          title: source.title,
-          sourceUri: source.sourceUri,
-        chunks: source.chunks.length,
-        launchScore: source.launchScore,
-        tags: source.tags.slice(0, 5)
+        firstCandidates: plan.candidates.slice(0, 8).map((candidate) => ({
+          title: candidate.title,
+          sourceUri: candidate.sourceUri,
+          approvalStatus: candidate.approvalStatus,
+          generationPolicy: candidate.generationPolicy,
+          discoveryScore: candidate.discoveryScore,
+          tags: candidate.metadata.topicTags.slice(0, 5)
       })),
         skippedReasons: summarizeSkipped(plan.skipped)
       },
@@ -553,6 +512,7 @@ function parseArgs(argv) {
     help: false,
     maxSources: DEFAULT_MAX_SOURCES,
     ministryId: undefined,
+    createdByUserId: undefined,
     out: undefined,
     vault: undefined
   };
@@ -571,6 +531,8 @@ function parseArgs(argv) {
       parsed.help = true;
     } else if (arg === "--ministry-id") {
       parsed.ministryId = argv[++index];
+    } else if (arg === "--created-by-user-id") {
+      parsed.createdByUserId = argv[++index];
     } else if (arg === "--max-sources") {
       const value = argv[++index];
       parsed.maxSources = value === "all" ? "all" : Number.parseInt(value, 10);
@@ -599,7 +561,8 @@ Options:
   --max-sources <number|all>      Limit launch pack size. Defaults to ${DEFAULT_MAX_SOURCES}.
   --apply                         Write eligible sources/chunks to Supabase.
   --confirm-production-write      Required with --apply.
-  --ministry-id <uuid>            Ministry id for Supabase rows. Or set SUPABASE_MINISTRY_ID.
+  --ministry-id <uuid>            Ministry id for candidate rows. Or set SUPABASE_MINISTRY_ID.
+  --created-by-user-id <uuid>     Admin reviewer id. Or set SUPABASE_CREATED_BY_USER_ID.
   --help                          Show this help.
 
 Apply also requires NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.

@@ -100,7 +100,7 @@ export async function refreshServerAccountSession(): Promise<{
     const nextRefreshToken = typeof body.refresh_token === "string" ? body.refresh_token.trim() : refreshToken;
     if (!accessToken) return null;
 
-    const session = await loadAccountSession(accessToken);
+    const session = await getAccountSessionFromAccessToken(accessToken);
     if (!session) return null;
 
     return { session, accessToken, refreshToken: nextRefreshToken };
@@ -118,7 +118,7 @@ async function loadServerSession(cookieStore: ReturnType<typeof cookies>): Promi
 
   if (hasRealAccountCookies) {
     if (!accessToken || !isSupabaseConfigured()) return null;
-    return loadAccountSession(accessToken);
+    return getAccountSessionFromAccessToken(accessToken);
   }
 
   if (mockSessionCookie !== undefined) {
@@ -130,7 +130,7 @@ async function loadServerSession(cookieStore: ReturnType<typeof cookies>): Promi
   return loadGuestSession(cookieStore);
 }
 
-async function loadAccountSession(accessToken: string): Promise<AuthSession | null> {
+export async function getAccountSessionFromAccessToken(accessToken: string): Promise<AuthSession | null> {
   let userResult: Awaited<ReturnType<ReturnType<typeof getSupabaseAuthClient>["auth"]["getUser"]>>;
   try {
     const supabase = getSupabaseAuthClient();

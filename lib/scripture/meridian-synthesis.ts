@@ -1,4 +1,5 @@
 import type { MetanarrativeMovement, StudentDiscussionKnowledgeContext } from "@/lib/scripture/types";
+import { detectProhibitedInference } from "@/lib/meridian/knowledge/policy";
 
 export type MeridianSynthesisTaskType =
   | "discussion_prompt"
@@ -74,7 +75,7 @@ const DEFAULT_AUDIENCE = "students and volunteer leaders";
 
 const ministryIdentity = [
   "Lead Emergence forms students and leaders through Scripture-shaped ministry, leader review, and practical discipleship.",
-  "The platform should sound like a thoughtful ministry leader who knows the team's accumulated wisdom, not a generic content engine.",
+  "Ground resources and journeys in approved Lead Emergence theology and ministry culture; do not imitate an individual's preaching or writing style.",
   "Student-facing artifacts should invite attention, humility, community, and faithful next steps."
 ];
 
@@ -112,7 +113,8 @@ const teachingPhilosophy = [
   "Lead with observation, then connect to the Bible's storyline, then invite embodied practice.",
   "Use original-language notes only when they clarify the passage; avoid decorative word studies.",
   "Prefer concise, conversational language teenagers can actually use in small group.",
-  "The output should synthesize Meridian context naturally, never read like citations or a research paper."
+  "Use reviewed academic papers, curriculum, and sermons for theological grounding and ministry alignment, not for stylistic imitation.",
+  "Keep inspectable provenance in the generation trace even when the student-facing journey uses concise source labels."
 ];
 
 export function buildMeridianSynthesisBrief(input: BuildSynthesisInput): MeridianSynthesisBrief {
@@ -197,6 +199,8 @@ export function validateMeridianArtifact(input: {
   if (/(api[_ -]?key|service[_ -]?role|access token|bearer token|stack trace|provider diagnostics)/i.test(content)) {
     return { ok: false, reason: "sensitive_or_diagnostic_text" };
   }
+  const prohibitedInference = detectProhibitedInference([title, summary, content].join("\n"));
+  if (prohibitedInference.prohibited) return { ok: false, reason: `prohibited_inference:${prohibitedInference.code}` };
   const missingMarker = input.requiredMarkers?.find((marker) => !content.toLowerCase().includes(marker.toLowerCase()));
   if (missingMarker) return { ok: false, reason: `missing_required_marker:${missingMarker}` };
   return { ok: true, reason: "validated" };
@@ -284,7 +288,7 @@ function internalGroundingSources(value: string | undefined): MeridianSynthesisS
       sourceType: "internal_grounding",
       title: `Internal grounding signal ${index + 1}`,
       summary,
-      influence: "Shape posture, theological texture, and ministry voice without exposing internal material.",
+      influence: "Apply reviewed theological and ministry constraints without exposing internal material or imitating a personal style.",
       scriptureReferences: [],
       topicTags: ["internal_grounding", "ministry_voice"]
     }));

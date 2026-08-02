@@ -1,5 +1,7 @@
 # Obsidian Knowledge Model
 
+> Safety update: Obsidian material is private, unreviewed, authority-none, never-quote, discovery-only candidate knowledge by default. Only `meridian_ingest: candidate` opts a synthetic/reviewed note into the candidate queue; it does not approve it. The explicit admin promotion workflow is documented in [Meridian Primitive Knowledge Architecture](architecture/meridian-primitive-knowledge.md).
+
 ## Purpose
 
 Obsidian is the first practical container for Meridian artifacts. It gives approved ministry memory a readable folder hierarchy, stable Markdown files, and front matter that future retrieval can filter before semantic matching.
