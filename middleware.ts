@@ -20,7 +20,9 @@ const publicPaths = [
   "/api/integrations/groupme/callback",
   "/api/integrations/groupme/callback/complete",
   "/integrations/groupme/callback",
-  "/api/student/join"
+  "/api/student/join",
+  "/mcp",
+  "/.well-known/oauth-protected-resource"
 ];
 const publicPathPrefixes = ["/join/", "/register/"];
 const guestBlockedPathPrefixes = [
@@ -180,7 +182,7 @@ function unauthenticatedResponse(request: NextRequest, pathname: string, clearCo
     response = NextResponse.json({ error: "Authentication required" }, { status: 401 });
   } else {
     const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("next", pathname);
+    loginUrl.searchParams.set("next", `${pathname}${request.nextUrl.search}`);
     response = NextResponse.redirect(loginUrl);
   }
 

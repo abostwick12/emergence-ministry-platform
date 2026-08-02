@@ -1899,6 +1899,65 @@
   flex: none;
 }
 
+.app-shell:not(.app-shell-camp) .meridian-personal-ai-panel {
+  color: #f7fbff;
+}
+
+.app-shell:not(.app-shell-camp) .meridian-personal-ai-heading h2 {
+  color: #f7fbff;
+  font-family: var(--font-platform-serif), Georgia, serif;
+  font-size: clamp(25px, 3vw, 34px);
+  font-weight: 500;
+}
+
+.app-shell:not(.app-shell-camp) .meridian-personal-ai-heading p,
+.app-shell:not(.app-shell-camp) .meridian-personal-ai-step p {
+  color: var(--platform-muted);
+}
+
+.app-shell:not(.app-shell-camp) .meridian-personal-ai-step {
+  border-color: rgba(129, 164, 214, 0.14);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.app-shell:not(.app-shell-camp) .meridian-personal-ai-step > span {
+  border: 1px solid rgba(22, 217, 245, 0.34);
+  background: rgba(22, 217, 245, 0.08);
+  color: var(--platform-cyan);
+  font-family: var(--font-platform-mono), ui-monospace, monospace;
+}
+
+.app-shell:not(.app-shell-camp) .meridian-personal-ai-step strong,
+.app-shell:not(.app-shell-camp) .meridian-personal-ai-connections h3,
+.app-shell:not(.app-shell-camp) .meridian-personal-ai-connections strong {
+  color: #f7fbff;
+}
+
+.app-shell:not(.app-shell-camp) .meridian-personal-ai-actions label,
+.app-shell:not(.app-shell-camp) .meridian-personal-ai-boundary,
+.app-shell:not(.app-shell-camp) .meridian-personal-ai-connections small {
+  color: var(--platform-muted);
+}
+
+.app-shell:not(.app-shell-camp) .meridian-personal-ai-endpoint {
+  border-color: rgba(129, 164, 214, 0.18);
+  background: rgba(3, 12, 25, 0.64);
+}
+
+.app-shell:not(.app-shell-camp) .meridian-personal-ai-endpoint code {
+  color: #dbeafe;
+}
+
+.app-shell:not(.app-shell-camp) .meridian-personal-ai-endpoint button {
+  background: rgba(22, 217, 245, 0.1);
+  color: var(--platform-cyan);
+}
+
+.app-shell:not(.app-shell-camp) .meridian-personal-ai-connections > div {
+  border-color: rgba(129, 164, 214, 0.14);
+  background: rgba(255, 255, 255, 0.025);
+}
+
 .app-shell:not(.app-shell-camp) .website-role-summary {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

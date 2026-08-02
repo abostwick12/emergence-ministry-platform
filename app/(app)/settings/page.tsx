@@ -1,6 +1,7 @@
 import { EmmaAdminTestPanel } from "@/components/emma-admin-test-panel";
 import { EmmaProposalReviewPanel } from "@/components/emma-proposal-review-panel";
 import { MinistrySettingsPage } from "@/components/ministry-launch-pages";
+import { MeridianPersonalAiPanel } from "@/components/meridian-personal-ai-panel";
 import { WebsiteAccessPanel } from "@/components/website-access-panel";
 import { getServerSession } from "@/lib/auth/server";
 
@@ -21,6 +22,7 @@ export default async function SettingsPage() {
             : null
         }
       />
+      <MeridianPersonalAiPanel canManage={isAdmin} />
       <WebsiteAccessPanel canManagePlatformAccess={isAdmin} />
       {isAdmin ? (
         <details className="settings-admin-diagnostics">

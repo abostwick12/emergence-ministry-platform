@@ -8333,6 +8333,314 @@ html:has(.app-shell-camp) body {
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
 }
 
+/* Meridian personal AI OAuth */
+.oauth-consent-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px 20px;
+  background:
+    radial-gradient(circle at 18% 12%, rgba(14, 165, 233, 0.16), transparent 38%),
+    linear-gradient(145deg, #071829, #0b2943 58%, #123d5d);
+}
+
+.oauth-consent-card,
+.meridian-personal-ai-panel {
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.96);
+  color: #0f172a;
+  box-shadow: 0 24px 70px rgba(2, 8, 23, 0.28);
+}
+
+.oauth-consent-card {
+  width: min(680px, 100%);
+  padding: clamp(24px, 5vw, 44px);
+  display: grid;
+  gap: 24px;
+}
+
+.oauth-consent-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.oauth-consent-brand > span:last-child {
+  display: grid;
+  gap: 1px;
+}
+
+.oauth-consent-brand small {
+  color: #64748b;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.oauth-consent-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.oauth-consent-heading h1 {
+  margin: 5px 0 8px;
+  font-size: clamp(26px, 5vw, 38px);
+  line-height: 1.08;
+}
+
+.oauth-consent-heading p,
+.oauth-consent-client,
+.oauth-consent-permissions li {
+  color: #475569;
+}
+
+.oauth-consent-icon {
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 15px;
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.oauth-consent-permissions {
+  padding: 20px;
+  border: 1px solid #dbeafe;
+  border-radius: 18px;
+  background: #f8fbff;
+}
+
+.oauth-consent-permissions h2 {
+  margin: 0 0 10px;
+  font-size: 15px;
+}
+
+.oauth-consent-permissions h2:not(:first-child) {
+  margin-top: 20px;
+}
+
+.oauth-consent-permissions ul {
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+  list-style: none;
+}
+
+.oauth-consent-permissions li {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  line-height: 1.45;
+}
+
+.oauth-consent-permissions li svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  margin-top: 2px;
+  color: #0369a1;
+}
+
+.oauth-consent-client {
+  margin: 0;
+  font-size: 14px;
+}
+
+.oauth-consent-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.meridian-personal-ai-panel {
+  padding: clamp(20px, 3vw, 30px);
+  display: grid;
+  gap: 22px;
+}
+
+.meridian-personal-ai-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 18px;
+}
+
+.meridian-personal-ai-heading h2 {
+  margin: 4px 0 7px;
+  font-size: 25px;
+}
+
+.meridian-personal-ai-heading p,
+.meridian-personal-ai-step p {
+  margin: 0;
+  color: #64748b;
+}
+
+.meridian-personal-ai-panel .status-badge {
+  white-space: nowrap;
+}
+
+.meridian-personal-ai-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.meridian-personal-ai-step {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) minmax(220px, auto);
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 17px;
+  background: #f8fafc;
+}
+
+.meridian-personal-ai-step > span {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #0c4a6e;
+  color: #fff;
+  font-weight: 800;
+}
+
+.meridian-personal-ai-step strong {
+  display: block;
+  margin-bottom: 3px;
+}
+
+.meridian-personal-ai-actions {
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+}
+
+.meridian-personal-ai-actions label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #334155;
+  font-size: 13px;
+}
+
+.meridian-personal-ai-endpoint {
+  max-width: 360px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 6px 6px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.meridian-personal-ai-endpoint code {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #0f172a;
+  font-size: 12px;
+}
+
+.meridian-personal-ai-endpoint button {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 9px;
+  background: #e0f2fe;
+  color: #0369a1;
+  cursor: pointer;
+}
+
+.meridian-personal-ai-endpoint svg,
+.meridian-personal-ai-boundary svg,
+.meridian-personal-ai-connections svg {
+  width: 16px;
+  height: 16px;
+}
+
+.meridian-personal-ai-boundary {
+  max-width: 360px;
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  font-size: 13px;
+}
+
+.meridian-personal-ai-connections {
+  display: grid;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.meridian-personal-ai-connections h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.meridian-personal-ai-connections > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+}
+
+.meridian-personal-ai-connections > div > span {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 2px 8px;
+}
+
+.meridian-personal-ai-connections small {
+  grid-column: 2;
+  color: #64748b;
+}
+
+@media (max-width: 760px) {
+  .oauth-consent-heading,
+  .meridian-personal-ai-heading {
+    flex-direction: column;
+  }
+
+  .oauth-consent-actions,
+  .meridian-personal-ai-connections > div {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .oauth-consent-actions .button {
+    justify-content: center;
+  }
+
+  .meridian-personal-ai-step {
+    grid-template-columns: 36px minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .meridian-personal-ai-step > :nth-child(3) {
+    grid-column: 2;
+    width: 100%;
+    max-width: none;
+    justify-items: start;
+  }
+}
+
 @media (max-width: 720px) {
   .camp-dialog-backdrop {
     align-items: stretch;

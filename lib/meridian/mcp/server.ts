@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import type { AuthSession } from "@/lib/auth/server";
+import { meridianToolSecuritySchemes } from "@/lib/meridian/mcp/oauth";
 import { MeridianMcpService } from "@/lib/meridian/mcp/service";
 import { MeridianMcpError, meridianResourceTypes, type MeridianMcpRepository } from "@/lib/meridian/mcp/types";
 
@@ -25,7 +26,8 @@ export function createMeridianMcpServer(input: {
       title: "Search approved Meridian knowledge",
       description: "Use this when the user needs approved Lead Emergence theology, curriculum, teaching history, policy, or ministry context for developing a resource.",
       inputSchema: { query: z.string().trim().min(1).max(500) },
-      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      _meta: { securitySchemes: meridianToolSecuritySchemes }
     },
     async ({ query }) => mcpToolResult(async () => JSON.stringify(await service.search(input.session, query)))
   );
@@ -36,7 +38,8 @@ export function createMeridianMcpServer(input: {
       title: "Fetch an approved Meridian item",
       description: "Use this after search when the user needs the approved claim, attribution, source names, and permitted quotation material for one Meridian result.",
       inputSchema: { id: z.string().trim().min(1).max(100) },
-      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      _meta: { securitySchemes: meridianToolSecuritySchemes }
     },
     async ({ id }) => mcpToolResult(async () => JSON.stringify(await service.fetch(input.session, id)))
   );
@@ -55,7 +58,8 @@ export function createMeridianMcpServer(input: {
         claimIds: z.array(z.string().trim().min(1).max(100)).min(1).max(32),
         idempotencyKey: z.string().trim().min(8).max(120).regex(/^[a-zA-Z0-9._:-]+$/)
       },
-      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      _meta: { securitySchemes: meridianToolSecuritySchemes }
     },
     async (draft) => mcpToolResult(async () => JSON.stringify(await service.submitDraft(input.session, draft, input.clientName)))
   );
