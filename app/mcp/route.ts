@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 async function handleMeridianMcp(request: Request) {
   const authenticated = await authenticateMeridianMcpRequest(request);
-  if (!authenticated) return meridianMcpUnauthorizedResponse();
+  if (!authenticated) return meridianMcpUnauthorizedResponse(request);
 
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
@@ -25,8 +25,8 @@ async function handleMeridianMcp(request: Request) {
   const response = await transport.handleRequest(request, {
     authInfo: {
       token: authenticated.token,
-      clientId: clientName.slice(0, 120),
-      scopes: ["meridian:mcp"],
+      clientId: authenticated.clientId ?? clientName.slice(0, 120),
+      scopes: authenticated.scopes,
       extra: {
         userId: authenticated.session.user.id,
         role: authenticated.session.user.role

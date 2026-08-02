@@ -40,9 +40,30 @@ The AI client is untrusted. Tool descriptions and annotations help client behavi
 
 Volunteers cannot self-approve, publish, communicate externally, access raw Obsidian material, or elevate their own grant.
 
-## Authentication maturity
+## OAuth connection
 
-The implemented endpoint accepts a validated Lead Emergence Supabase access token and is suitable for internal development and transport validation. Before a volunteer pilot, add the complete OAuth 2.1 authorization-code flow and protected-resource discovery required by ChatGPT/Codex so users can connect without handling tokens manually. OAuth must issue narrow scopes and support revocation; it must not expose or store a user's Codex credentials.
+The application implements the Supabase Auth OAuth 2.1 authorization-code flow with PKCE for Streamable HTTP MCP clients:
+
+- `/.well-known/oauth-protected-resource` identifies `/mcp` as the protected resource and points clients to the project's Supabase authorization server.
+- Unauthenticated `/mcp` requests return a `401` bearer challenge containing the protected-resource metadata URL. Middleware never converts MCP authentication into an HTML login redirect.
+- `/oauth/consent` is the application-owned consent screen. It retrieves the registered client details from Supabase, explains Meridian's enforced boundaries, and lets the user approve or deny the request.
+- Supabase issues, refreshes, validates, and revokes OAuth tokens. Lead Emergence never receives or stores the user's Codex or ChatGPT credentials.
+- `/settings#meridian-personal-ai` lets a user copy the MCP address and revoke authorized AI clients. An admin can separately enable or disable their own Meridian tool grant.
+
+OAuth consent and Meridian authorization are deliberately separate. Successful OAuth proves the user's Lead Emergence identity, but every search, fetch, or draft submission still requires an active `meridian_mcp_access_grants` capability. OAuth identity scopes (`openid email profile`) do not grant database access.
+
+### Supabase dashboard setup
+
+Before deploying the connection flow to an environment:
+
+1. In Supabase Auth, enable the OAuth 2.1 server.
+2. Set the authorization/consent path to `https://<application-host>/oauth/consent`.
+3. Enable Dynamic Client Registration for Codex clients, or register the supported client explicitly.
+4. Ensure the application's production URL is configured as `NEXT_PUBLIC_APP_URL`; discovery does not trust arbitrary request hosts.
+5. Confirm the authorization server metadata endpoint and its JWKS are public.
+6. Test sign-in, approval, tool access, token refresh, disconnect, and revoked Meridian grants in the sandbox before enabling a volunteer pilot.
+
+Codex desktop setup is: **Settings → MCP servers → Add server → Streamable HTTP**, enter `https://www.leademergence.com/mcp`, save, restart if prompted, and choose **Authenticate**. The equivalent CLI setup is `codex mcp add lead-emergence --url https://www.leademergence.com/mcp`, followed by `codex mcp login lead-emergence`.
 
 ## Data model
 
@@ -53,14 +74,13 @@ The implemented endpoint accepts a validated Lead Emergence Supabase access toke
 - `meridian_resource_draft_claims`: grounded links to approved Meridian claims.
 - `submit_meridian_resource_draft(...)`: an idempotent, security-invoker transaction for grounded draft submission.
 
-The migration is additive and has not been applied to production. It must first run on an isolated Supabase branch.
+The additive Meridian migrations are installed in production. Access remains fail-closed because no user receives an MCP grant merely from deployment, OAuth consent, or platform role.
 
 ## Deferred work
 
-- OAuth 2.1 discovery, authorization, refresh, and revocation.
-- Admin UI for grants and the resource review queue.
+- Admin UI for managing other users' grants and the resource review queue. This slice provides self-management for an administrator and read-only status for other users.
 - Leader review actions and immutable revision history.
-- Hosted MCP observability, rate limits, domain verification, and client compatibility testing.
+- Hosted MCP observability, rate limits, domain verification, and production Codex compatibility testing.
 - Optional deterministic private-memory leakage detection on submitted volunteer text.
 - External-client golden evaluations after the database branch is available.
 
