@@ -432,6 +432,7 @@ describe("leader discussion draft regeneration", () => {
       }
     ]);
     formatStudentKnowledgeContextForGlooMock.mockReturnValue("Source 1: Psalm 13 and honest prayer");
+    getInternalGroundingContextMock.mockResolvedValue("Approved Meridian evidence for Psalm 13.");
     generateMeridianDiscussionDraftMock.mockResolvedValue({
       ok: true,
       provider: "gloo",
@@ -461,7 +462,7 @@ describe("leader discussion draft regeneration", () => {
       scriptureReference: "Psalm 13",
       metanarrativeMovement: "Jesus / Kingdom Fulfilled",
       retrievedContext: "Source 1: Psalm 13 and honest prayer",
-      internalGroundingContext: "",
+      internalGroundingContext: "Approved Meridian evidence for Psalm 13.",
       synthesisBrief: expect.objectContaining({
         taskType: "discussion_prompt",
         normalizedRequest: "How do I trust God when prayer feels quiet?",
@@ -477,6 +478,29 @@ describe("leader discussion draft regeneration", () => {
     expect(client.events[0]).toMatchObject({
       prompt_id: "prompt_regen",
       action: "draft_regenerated"
+    });
+  });
+
+  it("blocks leader provider regeneration when governed evidence coverage is incomplete", async () => {
+    const existingRow = discussionRow({
+      id: "prompt_blocked_regen",
+      question: "How are we saved by grace, and how should we understand faith and works?",
+      scripture_reference: "Ephesians 2:8-10",
+      discussion_prompt: "Old draft"
+    });
+    const client = regenerationClient(existingRow);
+    getSupabaseAuthClientMock.mockReturnValue(client.client);
+    getInternalGroundingContextMock.mockResolvedValue("");
+
+    await decideStudentDiscussionPrompt(leaderSession(), "prompt_blocked_regen", { action: "regenerate" });
+
+    expect(generateMeridianDiscussionDraftMock).not.toHaveBeenCalled();
+    expect(client.updates[0]).toMatchObject({
+      ai_model_reason: expect.stringContaining("provider regeneration was blocked")
+    });
+    expect(client.events[0]).toMatchObject({
+      prompt_id: "prompt_blocked_regen",
+      action: "local_draft_saved"
     });
   });
 
@@ -524,6 +548,7 @@ describe("leader discussion draft regeneration", () => {
       })
     );
     getSupabaseAuthClientMock.mockReturnValue(client.client);
+    getInternalGroundingContextMock.mockResolvedValue("Approved Meridian evidence for suffering and hope.");
     generateMeridianDiscussionDraftMock.mockResolvedValue({
       ok: false,
       code: "provider_error",

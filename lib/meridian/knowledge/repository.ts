@@ -1,9 +1,20 @@
 import type { AuthSession } from "@/lib/auth/server";
 import { getSupabaseAuthClient } from "@/lib/auth/server";
 import { resolveMinistryScope } from "@/lib/ministry/scope";
-import type { MeridianClaim, MeridianFragment, MeridianRelationship, MeridianSource, MeridianTaskContext } from "@/lib/meridian/knowledge/types";
+import { buildMeridianQuestionPlan, meridianSearchText } from "@/lib/meridian/knowledge/question-plan";
+import type {
+  MeridianClaim,
+  MeridianFacetCoverage,
+  MeridianFragment,
+  MeridianQuestionPlan,
+  MeridianRelationship,
+  MeridianSource,
+  MeridianTaskContext
+} from "@/lib/meridian/knowledge/types";
 
 export type MeridianApprovedEvidence = {
+  questionPlan: MeridianQuestionPlan;
+  facetCoverage: MeridianFacetCoverage[];
   claims: MeridianClaim[];
   fragments: MeridianFragment[];
   relationships: MeridianRelationship[];
@@ -112,17 +123,29 @@ export class SupabaseMeridianKnowledgeRepository implements MeridianGenerationRe
     assertGenerationRole(session);
     const ministryId = await requireStrictMinistry(session, task.ministryId);
     const supabase = getSupabaseAuthClient(session.accessToken);
+    const questionPlan = buildMeridianQuestionPlan(task);
+    if (questionPlan.ambiguous || !questionPlan.facets.length) return emptyApprovedEvidence(questionPlan);
 
-    const claimResult = await supabase.rpc("search_meridian_approved_claims", {
-        p_ministry_id: ministryId,
-        p_query_text: (task.query ?? "").slice(0, 2000),
-        p_task_type: task.taskType,
-        p_audience: task.audience,
-        p_match_count: 32
-      }) as unknown as { data: ClaimRow[] | null; error: { message: string } | null };
-    throwIfError(claimResult.error);
-    const claimRows = claimResult.data ?? [];
-    if (!claimRows.length) return { claims: [], fragments: [], relationships: [], sources: [] };
+    const matchCount = Math.max(6, Math.floor(32 / questionPlan.facets.length));
+    const claimResults = await Promise.all(questionPlan.facets.map(async (facet) => {
+      const result = await supabase.rpc("search_meridian_approved_claims", {
+          p_ministry_id: ministryId,
+          p_query_text: meridianSearchText(facet.query, questionPlan.scriptureReferences),
+          p_task_type: task.taskType,
+          p_audience: task.audience,
+          p_match_count: matchCount
+        }) as unknown as { data: ClaimRow[] | null; error: { message: string } | null };
+      throwIfError(result.error);
+      return { facet, rows: result.data ?? [] };
+    }));
+    const claimRows = Array.from(new Map(claimResults.flatMap(({ rows }) => rows).map((row) => [row.id, row])).values());
+    const facetCoverage = claimResults.map(({ facet, rows }) => ({
+      facetId: facet.id,
+      query: facet.query,
+      required: facet.required,
+      claimIds: Array.from(new Set(rows.map((row) => row.id)))
+    }));
+    if (!claimRows.length) return { ...emptyApprovedEvidence(questionPlan), facetCoverage };
 
     const claimIds = claimRows.map((claim) => claim.id);
     const supportResult = await supabase
@@ -135,7 +158,7 @@ export class SupabaseMeridianKnowledgeRepository implements MeridianGenerationRe
     const supportRows = supportResult.data ?? [];
     const fragmentIds = Array.from(new Set(supportRows.map((support) => support.fragment_id)));
 
-    const [fragmentResult, relationshipResult, sourceResult] = await Promise.all([
+    const [fragmentResult, fromRelationshipResult, toRelationshipResult] = await Promise.all([
       fragmentIds.length
         ? supabase.rpc("fetch_meridian_generation_fragments", {
             p_ministry_id: ministryId,
@@ -147,18 +170,32 @@ export class SupabaseMeridianKnowledgeRepository implements MeridianGenerationRe
         .select("id,ministry_id,relationship_kind,from_object_id,to_object_id,rationale")
         .eq("ministry_id", ministryId)
         .in("relationship_kind", ["contradicts", "qualifies", "supersedes", "not_applicable_to"])
+        .in("from_object_id", claimIds)
         .returns<RelationshipRow[]>(),
       supabase
-        .from("meridian_sources")
-        .select("id,ministry_id,source_kind,corpus_family,title,source_uri,attribution,authority_class,approval_status,external_visibility,quote_policy,generation_policy,sensitivity,origin_mode,approved_by_user_id,approved_at")
+        .from("meridian_relationships")
+        .select("id,ministry_id,relationship_kind,from_object_id,to_object_id,rationale")
         .eq("ministry_id", ministryId)
-        .eq("approval_status", "approved")
-        .eq("generation_policy", "approved_generation")
-        .limit(80)
-        .returns<SourceRow[]>()
+        .in("relationship_kind", ["contradicts", "qualifies", "supersedes", "not_applicable_to"])
+        .in("to_object_id", claimIds)
+        .returns<RelationshipRow[]>()
     ]);
     throwIfError(fragmentResult.error);
-    throwIfError(relationshipResult.error);
+    throwIfError(fromRelationshipResult.error);
+    throwIfError(toRelationshipResult.error);
+
+    const fragmentRows = fragmentResult.data ?? [];
+    const sourceIds = Array.from(new Set(fragmentRows.map((fragment) => fragment.source_id)));
+    const sourceResult = sourceIds.length
+      ? await supabase
+          .from("meridian_sources")
+          .select("id,ministry_id,source_kind,corpus_family,title,source_uri,attribution,authority_class,approval_status,external_visibility,quote_policy,generation_policy,sensitivity,origin_mode,approved_by_user_id,approved_at")
+          .eq("ministry_id", ministryId)
+          .eq("approval_status", "approved")
+          .eq("generation_policy", "approved_generation")
+          .in("id", sourceIds)
+          .returns<SourceRow[]>()
+      : { data: [] as SourceRow[], error: null };
     throwIfError(sourceResult.error);
 
     const supportByClaim = new Map<string, string[]>();
@@ -167,6 +204,8 @@ export class SupabaseMeridianKnowledgeRepository implements MeridianGenerationRe
     }
 
     return {
+      questionPlan,
+      facetCoverage,
       claims: claimRows.map((row) => ({
         id: row.id,
         ministryId: row.ministry_id,
@@ -180,9 +219,12 @@ export class SupabaseMeridianKnowledgeRepository implements MeridianGenerationRe
         supportingFragmentIds: supportByClaim.get(row.id) ?? [],
         derivedArtifact: row.derived_artifact
       })),
-      fragments: (fragmentResult.data ?? []).map(toFragment),
+      fragments: fragmentRows.map(toFragment),
       sources: (sourceResult.data ?? []).map(toSource),
-      relationships: (relationshipResult.data ?? []).map((row) => ({
+      relationships: Array.from(new Map([
+        ...(fromRelationshipResult.data ?? []),
+        ...(toRelationshipResult.data ?? [])
+      ].map((row) => [row.id, row])).values()).map((row) => ({
         id: row.id,
         ministryId: row.ministry_id,
         kind: row.relationship_kind,
@@ -227,6 +269,22 @@ export class SupabaseMeridianKnowledgeRepository implements MeridianGenerationRe
     }
     return { sourceId: data.sourceId, fragmentId: data.fragmentId, claimId: data.claimId };
   }
+}
+
+function emptyApprovedEvidence(questionPlan: MeridianQuestionPlan): MeridianApprovedEvidence {
+  return {
+    questionPlan,
+    facetCoverage: questionPlan.facets.map((facet) => ({
+      facetId: facet.id,
+      query: facet.query,
+      required: facet.required,
+      claimIds: []
+    })),
+    claims: [],
+    fragments: [],
+    relationships: [],
+    sources: []
+  };
 }
 
 function toSource(row: SourceRow): MeridianSource {

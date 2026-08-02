@@ -374,8 +374,10 @@ export async function getInternalGroundingContext(session: AuthSession, input: K
     const prepared = await measureServerOperation("supabase.meridian.approved_evidence", () =>
       prepareMeridianGeneration(new SupabaseMeridianKnowledgeRepository(), session, {
         ministryId,
-        audience: "students in a leader-reviewed small group",
+        audience: "students",
         taskType: "discussion_prompt",
+        query: input.question,
+        scriptureReferences: input.scriptureReference ? [input.scriptureReference] : [],
         sensitivity: "internal",
         at: new Date().toISOString(),
         externalCommunication: false

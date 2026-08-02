@@ -4,6 +4,10 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const migration = readFileSync(join(process.cwd(), "supabase/migrations/20260801120000_meridian_primitive_knowledge.sql"), "utf8");
+const relevanceFloorMigration = readFileSync(
+  join(process.cwd(), "supabase/migrations/20260802185307_meridian_retrieval_relevance_floor.sql"),
+  "utf8"
+);
 
 describe("Meridian primitive knowledge migration", () => {
   it("creates every primitive plus audited promotion and answer provenance", () => {
@@ -55,5 +59,23 @@ describe("Meridian primitive knowledge migration", () => {
     expect(migration).toContain("revoke all on function public.promote_meridian_candidate");
     expect(migration).toContain("Only a ministry admin may promote Meridian knowledge");
     expect(migration).toContain("YouVersion Scripture text must remain transient");
+  });
+});
+
+describe("Meridian retrieval relevance-floor migration", () => {
+  it("requires a lexical match and ranks relevance before authority", () => {
+    expect(relevanceFloorMigration).toContain("and claim.search_vector @@ search.query");
+    expect(relevanceFloorMigration).toContain("and search.query is not null");
+    expect(relevanceFloorMigration.indexOf("ts_rank_cd(claim.search_vector, search.query) desc")).toBeLessThan(
+      relevanceFloorMigration.indexOf("case claim.authority_class")
+    );
+  });
+
+  it("keeps the RPC tenant-scoped, invoker-secured, and authenticated-only", () => {
+    expect(relevanceFloorMigration).toContain("where claim.ministry_id = p_ministry_id");
+    expect(relevanceFloorMigration).toContain("security invoker");
+    expect(relevanceFloorMigration).toContain("set search_path = ''");
+    expect(relevanceFloorMigration).toContain("revoke all on function public.search_meridian_approved_claims");
+    expect(relevanceFloorMigration).toContain("grant execute on function public.search_meridian_approved_claims");
   });
 });
