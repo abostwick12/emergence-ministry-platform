@@ -10,6 +10,7 @@ import { meridianMcpUnauthorizedResponse } from "@/lib/meridian/mcp/auth";
 const originalAppUrl = process.env.NEXT_PUBLIC_APP_URL;
 const originalVercelUrl = process.env.VERCEL_URL;
 const originalProductionUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+const originalVercelEnvironment = process.env.VERCEL_ENV;
 const originalSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
 describe("Meridian OAuth metadata", () => {
@@ -17,6 +18,7 @@ describe("Meridian OAuth metadata", () => {
     restore("NEXT_PUBLIC_APP_URL", originalAppUrl);
     restore("VERCEL_URL", originalVercelUrl);
     restore("VERCEL_PROJECT_PRODUCTION_URL", originalProductionUrl);
+    restore("VERCEL_ENV", originalVercelEnvironment);
     restore("NEXT_PUBLIC_SUPABASE_URL", originalSupabaseUrl);
   });
 
@@ -41,6 +43,15 @@ describe("Meridian OAuth metadata", () => {
 
     expect(getMeridianPublicOrigin(new Request("https://attacker.example/mcp"))).toBe("https://www.leademergence.com");
     expect(getMeridianPublicOrigin(new Request("http://localhost:3100/mcp"))).toBe("http://localhost:3100");
+  });
+
+  it("keeps the canonical production domain ahead of Vercel deployment URLs", () => {
+    delete process.env.NEXT_PUBLIC_APP_URL;
+    process.env.VERCEL_ENV = "production";
+    process.env.VERCEL_URL = "lead-emergence-random-hash.vercel.app";
+    process.env.VERCEL_PROJECT_PRODUCTION_URL = "lead-emergence.vercel.app";
+
+    expect(getMeridianPublicOrigin()).toBe("https://www.leademergence.com");
   });
 
   it("advertises discovery metadata in the bearer challenge", () => {

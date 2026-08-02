@@ -3,12 +3,16 @@ export const meridianOAuthScopes = ["openid", "email", "profile"] as const;
 const productionOrigin = "https://www.leademergence.com";
 
 export function getMeridianPublicOrigin(request?: Request) {
-  const configured = firstValue(
-    process.env.NEXT_PUBLIC_APP_URL,
-    process.env.VERCEL_URL,
-    process.env.VERCEL_PROJECT_PRODUCTION_URL
-  );
-  if (configured) return normalizeOrigin(configured);
+  const configuredAppUrl = firstValue(process.env.NEXT_PUBLIC_APP_URL);
+  if (configuredAppUrl) return normalizeOrigin(configuredAppUrl);
+
+  // VERCEL_URL is a unique deployment hostname. It is useful in previews but
+  // must never become the OAuth resource identifier for the production custom
+  // domain, otherwise tokens and discovery describe different resources.
+  if (process.env.VERCEL_ENV === "production") return productionOrigin;
+
+  const vercelOrigin = firstValue(process.env.VERCEL_URL, process.env.VERCEL_PROJECT_PRODUCTION_URL);
+  if (vercelOrigin) return normalizeOrigin(vercelOrigin);
 
   if (request) {
     const origin = new URL(request.url).origin;
