@@ -1,9 +1,12 @@
 import { claimAppliesToTask, fragmentCanBeUsed, meridianAuthorityRank } from "@/lib/meridian/knowledge/policy";
+import { buildMeridianQuestionPlan, meridianLexicalTokens, normalizeMeridianReference } from "@/lib/meridian/knowledge/question-plan";
 import type {
   MeridianClaim,
   MeridianEvidenceIssue,
   MeridianEvidencePack,
+  MeridianFacetCoverage,
   MeridianFragment,
+  MeridianQuestionPlan,
   MeridianRelationship,
   MeridianSource,
   MeridianTaskContext
@@ -11,6 +14,8 @@ import type {
 
 export type BuildMeridianEvidencePackInput = {
   task: MeridianTaskContext;
+  questionPlan?: MeridianQuestionPlan;
+  facetCoverage?: MeridianFacetCoverage[];
   claims: MeridianClaim[];
   fragments: MeridianFragment[];
   relationships: MeridianRelationship[];
@@ -21,6 +26,19 @@ export function buildMeridianEvidencePack(input: BuildMeridianEvidencePackInput)
   const issues: MeridianEvidenceIssue[] = [];
   const excluded = new Set<string>();
   const claimsById = new Map(input.claims.map((claim) => [claim.id, claim]));
+  const questionPlan = input.questionPlan ?? buildMeridianQuestionPlan(input.task);
+  const enforceCoverage = Boolean(input.questionPlan || input.facetCoverage);
+
+  if (enforceCoverage && questionPlan.ambiguous) {
+    issues.push({
+      kind: "ambiguous_question",
+      claimIds: [],
+      detail: questionPlan.ambiguityReason === "missing_question"
+        ? "A concrete question is required before evidence retrieval."
+        : "The question contains too many required facets for one governed answer.",
+      resolution: "abstain"
+    });
+  }
 
   for (const claim of input.claims) {
     if (claim.approvalStatus === "superseded") addIssue(issues, "superseded", [claim.id], "Claim is marked superseded.", "exclude", excluded);
@@ -42,6 +60,16 @@ export function buildMeridianEvidencePack(input: BuildMeridianEvidencePackInput)
       const resolution = meridianAuthorityRank[from.authorityClass] === meridianAuthorityRank[to.authorityClass] ? "abstain" : "require_review";
       addIssue(issues, "contradiction", [from.id, to.id], "Approved evidence contains an unresolved contradiction.", resolution, excluded);
     }
+    if (relationship.kind === "qualifies" && from.approvalStatus === "approved" && to.approvalStatus === "approved") {
+      addIssue(
+        issues,
+        "qualification",
+        [from.id, to.id],
+        relationship.rationale || "An approved claim qualifies another approved claim.",
+        "require_review",
+        excluded
+      );
+    }
     if (relationship.kind === "not_applicable_to" && from.approvalStatus === "approved") {
       addIssue(issues, "out_of_scope", [from.id], relationship.rationale || "Claim is explicitly not applicable.", "exclude", excluded);
     }
@@ -50,10 +78,10 @@ export function buildMeridianEvidencePack(input: BuildMeridianEvidencePackInput)
   const approvedClaims = input.claims
     .filter((claim) => !excluded.has(claim.id) && claim.approvalStatus === "approved" && claimAppliesToTask(claim, input.task))
     .sort((left, right) => {
-      const authority = meridianAuthorityRank[left.authorityClass] - meridianAuthorityRank[right.authorityClass];
       const relevance = claimRelevance(right, input) - claimRelevance(left, input);
+      const authority = meridianAuthorityRank[left.authorityClass] - meridianAuthorityRank[right.authorityClass];
       const authoredPriority = claimAuthoredPriority(right, input) - claimAuthoredPriority(left, input);
-      return authority || relevance || authoredPriority || right.confidence - left.confidence || left.id.localeCompare(right.id);
+      return relevance || authority || authoredPriority || right.confidence - left.confidence || left.id.localeCompare(right.id);
     });
 
   const fragmentsById = new Map(input.fragments.map((fragment) => [fragment.id, fragment]));
@@ -80,6 +108,31 @@ export function buildMeridianEvidencePack(input: BuildMeridianEvidencePackInput)
 
   const supportIds = new Set(supportingFragments.map((fragment) => fragment.id));
   const supportedClaims = approvedClaims.filter((claim) => claim.supportingFragmentIds.some((id) => supportIds.has(id)));
+  const supportedClaimIds = new Set(supportedClaims.map((claim) => claim.id));
+  const supportedClaimsById = new Map(supportedClaims.map((claim) => [claim.id, claim]));
+  const facetCoverage = (input.facetCoverage ?? questionPlan.facets.map((facet) => ({
+    facetId: facet.id,
+    query: facet.query,
+    required: facet.required,
+    claimIds: supportedClaims.filter((claim) => claimCoversFacet(claim, facet.query, input)).map((claim) => claim.id)
+  }))).map((coverage) => ({
+    ...coverage,
+    claimIds: coverage.claimIds.filter((claimId) => {
+      const claim = supportedClaimsById.get(claimId);
+      if (!claim || !supportedClaimIds.has(claimId)) return false;
+      return claimCoversFacet(claim, coverage.query, input);
+    })
+  }));
+  if (enforceCoverage) {
+    for (const facet of facetCoverage.filter((coverage) => coverage.required && coverage.claimIds.length === 0)) {
+      issues.push({
+        kind: "missing_coverage",
+        claimIds: [],
+        detail: `No approved, generation-permitted evidence covers required facet: ${facet.query}`,
+        resolution: "abstain"
+      });
+    }
+  }
   const uniqueFragments = Array.from(new Map(supportingFragments.map((fragment) => [fragment.id, fragment])).values());
   const scriptureFragments = uniqueFragments.filter((fragment) => fragment.scripture?.provider === "YouVersion");
   const usedSourceIds = new Set(uniqueFragments.map((fragment) => fragment.sourceId));
@@ -90,6 +143,8 @@ export function buildMeridianEvidencePack(input: BuildMeridianEvidencePackInput)
 
   return {
     task: input.task,
+    questionPlan,
+    facetCoverage,
     sources,
     approvedClaims: supportedClaims,
     supportingFragments: uniqueFragments.filter((fragment) => !fragment.scripture),
@@ -100,7 +155,9 @@ export function buildMeridianEvidencePack(input: BuildMeridianEvidencePackInput)
     abstain,
     abstentionReason: abstain
       ? hasAbstentionIssue
-        ? "Conflicting approved evidence requires a leader decision before generation."
+        ? issues.some((issue) => issue.kind === "missing_coverage" || issue.kind === "ambiguous_question")
+          ? "The approved evidence does not safely cover every required part of the question."
+          : "Conflicting approved evidence requires a leader decision before generation."
         : "No approved, in-scope claim has generation-permitted support."
       : undefined
   };
@@ -125,6 +182,8 @@ export function formatApprovedEvidencePackForGeneration(pack: MeridianEvidencePa
     {
       decision: pack.requiresReview ? "generate_for_review" : "generate",
       task: pack.task,
+      questionPlan: pack.questionPlan,
+      facetCoverage: pack.facetCoverage,
       sources: pack.sources.map((source) => ({
         id: source.id,
         kind: source.kind,
@@ -164,12 +223,15 @@ export function formatApprovedEvidencePackForGeneration(pack: MeridianEvidencePa
 }
 
 function claimRelevance(claim: MeridianClaim, input: BuildMeridianEvidencePackInput) {
-  const queryTokens = searchableTokens(input.task.query ?? "");
-  if (!queryTokens.size) return 0;
+  return claimRelevanceForQuery(claim, input.task.query ?? "", input);
+}
+
+function claimRelevanceForQuery(claim: MeridianClaim, query: string, input: BuildMeridianEvidencePackInput) {
+  const queryTokens = meridianLexicalTokens(query);
   const fragmentsById = new Map(input.fragments.map((fragment) => [fragment.id, fragment]));
   const sourcesById = new Map((input.sources ?? []).map((source) => [source.id, source]));
   const supporting = claim.supportingFragmentIds.map((id) => fragmentsById.get(id)).filter((item): item is MeridianFragment => Boolean(item));
-  const searchable = searchableTokens([
+  const searchable = meridianLexicalTokens([
     claim.proposition,
     claim.attribution ?? "",
     ...(claim.scope.topics ?? []),
@@ -178,10 +240,16 @@ function claimRelevance(claim: MeridianClaim, input: BuildMeridianEvidencePackIn
     ...supporting.map((fragment) => sourcesById.get(fragment.sourceId)?.title ?? "")
   ].join(" "));
   const lexical = Array.from(queryTokens).filter((token) => searchable.has(token)).length;
-  const requestedReferences = new Set((input.task.scriptureReferences ?? []).map(normalizeReference));
-  const sourceReferences = (claim.scope.scriptureReferences ?? []).map(normalizeReference);
-  const scriptureMatch = sourceReferences.some((reference) => requestedReferences.has(reference)) ? 5 : 0;
+  const requestedReferences = new Set((input.task.scriptureReferences ?? []).map(normalizeMeridianReference));
+  const sourceReferences = (claim.scope.scriptureReferences ?? []).map(normalizeMeridianReference);
+  const scriptureMatch = queryTokens.size === 0 && sourceReferences.some((reference) => requestedReferences.has(reference)) ? 5 : 0;
   return lexical + scriptureMatch;
+}
+
+function claimCoversFacet(claim: MeridianClaim, query: string, input: BuildMeridianEvidencePackInput) {
+  const queryTokens = meridianLexicalTokens(query);
+  const relevance = claimRelevanceForQuery(claim, query, input);
+  return queryTokens.size === 0 ? relevance > 0 : relevance >= Math.min(2, queryTokens.size);
 }
 
 function claimAuthoredPriority(claim: MeridianClaim, input: BuildMeridianEvidencePackInput) {
@@ -196,12 +264,4 @@ function claimAuthoredPriority(claim: MeridianClaim, input: BuildMeridianEvidenc
     const source = sourcesById.get(fragmentsById.get(id)?.sourceId ?? "");
     return source?.corpusFamily === "andrew_authored_ministry" ? priorities[source.kind] ?? 0 : 0;
   }));
-}
-
-function searchableTokens(value: string) {
-  return new Set(value.normalize("NFKC").toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter((token) => token.length > 2));
-}
-
-function normalizeReference(value: string) {
-  return value.normalize("NFKC").toLowerCase().replace(/\s+/g, "").replace(/[–—]/g, "-");
 }

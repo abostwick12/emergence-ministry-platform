@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { buildMeridianEvidencePack, formatApprovedEvidencePackForGeneration } from "@/lib/meridian/knowledge/evidence-pack";
 import { obsidianCandidateDefaults } from "@/lib/meridian/knowledge/policy";
+import { buildMeridianQuestionPlan } from "@/lib/meridian/knowledge/question-plan";
 import type { MeridianClaim, MeridianFragment, MeridianRelationship, MeridianSource, MeridianTaskContext } from "@/lib/meridian/knowledge/types";
 
 const task: MeridianTaskContext = {
@@ -112,7 +113,7 @@ describe("Meridian governed evidence packs", () => {
     });
   });
 
-  it("uses task relevance and authored subtype priority without crossing authority levels", () => {
+  it("ranks task relevance before authority and uses authored subtype priority as a later tie-breaker", () => {
     const academic = claim("academic", "approved_teaching", "fragment-academic", { proposition: "Grace is God's gift received through faith." });
     const curriculum = claim("curriculum", "approved_teaching", "fragment-curriculum", { proposition: "Grace forms a life of faithful action." });
     const doctrine = claim("doctrine-first", "adopted_doctrine", "fragment-doctrine-first", { proposition: "The church receives salvation as God's grace." });
@@ -128,8 +129,54 @@ describe("Meridian governed evidence packs", () => {
       relationships: []
     });
 
-    expect(pack.approvedClaims.map((item) => item.id)).toEqual(["doctrine-first", "academic", "curriculum"]);
+    expect(pack.approvedClaims.map((item) => item.id)).toEqual(["academic", "curriculum", "doctrine-first"]);
     expect(pack.sources.map((source) => source.kind)).toEqual(expect.arrayContaining(["academic_paper", "curriculum_material"]));
+  });
+
+  it("abstains when any required facet lacks supported evidence", () => {
+    const compoundTask = {
+      ...task,
+      query: "How are we saved by grace, and how should we understand faith and works?"
+    };
+    const questionPlan = buildMeridianQuestionPlan(compoundTask);
+    const graceClaim = claim("grace", "adopted_doctrine", "fragment-grace", {
+      proposition: "People are saved by grace."
+    });
+    const pack = buildMeridianEvidencePack({
+      task: compoundTask,
+      questionPlan,
+      facetCoverage: [
+        { facetId: "facet-1", query: questionPlan.facets[0].query, required: true, claimIds: [graceClaim.id] },
+        { facetId: "facet-2", query: questionPlan.facets[1].query, required: true, claimIds: [graceClaim.id] }
+      ],
+      claims: [graceClaim],
+      fragments: [fragment("fragment-grace")],
+      relationships: []
+    });
+
+    expect(pack.abstain).toBe(true);
+    expect(pack.facetCoverage.map((facet) => facet.claimIds)).toEqual([["grace"], []]);
+    expect(pack.issues).toContainEqual(expect.objectContaining({ kind: "missing_coverage", resolution: "abstain" }));
+    expect(pack.abstentionReason).toContain("every required part");
+  });
+
+  it("retains qualifying evidence and requires leader review", () => {
+    const broad = claim("broad", "approved_teaching", "fragment-broad");
+    const qualifier = claim("qualifier", "approved_teaching", "fragment-qualifier");
+    const pack = buildMeridianEvidencePack({
+      task,
+      claims: [broad, qualifier],
+      fragments: [fragment("fragment-broad"), fragment("fragment-qualifier")],
+      relationships: [{
+        ...relationship("qualifies", "qualifier", "broad"),
+        rationale: "The broader statement needs this stated limit."
+      }]
+    });
+
+    expect(pack.abstain).toBe(false);
+    expect(pack.requiresReview).toBe(true);
+    expect(pack.approvedClaims.map((item) => item.id)).toEqual(expect.arrayContaining(["broad", "qualifier"]));
+    expect(pack.issues).toContainEqual(expect.objectContaining({ kind: "qualification", resolution: "require_review" }));
   });
 });
 

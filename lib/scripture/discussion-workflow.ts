@@ -616,6 +616,13 @@ async function regenerateDiscussionDraft(session: AuthSession, prompt: StudentDi
 
   const knowledgeContext = prompt.knowledgeContext?.length ? prompt.knowledgeContext : await getStudentKnowledgeMatches(session, prompt);
   const groundingContext = await getInternalGroundingContext(session, prompt);
+  if (requiresApprovedMeridianGrounding(session) && !groundingContext.trim()) {
+    return saveLocalDiscussionDraft(
+      session,
+      prompt,
+      "Approved Meridian evidence did not cover every required part of the question, so provider regeneration was blocked."
+    );
+  }
   const synthesisBrief = buildMeridianSynthesisBrief({
     taskType: "discussion_prompt",
     request: prompt.question,
@@ -672,6 +679,10 @@ async function regenerateDiscussionDraft(session: AuthSession, prompt: StudentDi
   });
 
   return withKnowledgeContext(session, toPrompt(result.data));
+}
+
+function requiresApprovedMeridianGrounding(session: AuthSession) {
+  return ["admin", "leader", "staff"].includes(session.user.role);
 }
 
 async function saveLocalDiscussionDraft(session: AuthSession, prompt: StudentDiscussionPrompt, reason = "Knowledge-guided fallback draft saved for leader review.") {

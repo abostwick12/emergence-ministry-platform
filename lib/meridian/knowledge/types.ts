@@ -194,8 +194,29 @@ export type MeridianTaskContext = {
   externalCommunication: boolean;
 };
 
+export type MeridianQuestionFacet = {
+  id: string;
+  query: string;
+  required: boolean;
+};
+
+export type MeridianQuestionPlan = {
+  question: string;
+  scriptureReferences: string[];
+  facets: MeridianQuestionFacet[];
+  ambiguous: boolean;
+  ambiguityReason?: "missing_question" | "too_many_facets";
+};
+
+export type MeridianFacetCoverage = {
+  facetId: string;
+  query: string;
+  required: boolean;
+  claimIds: string[];
+};
+
 export type MeridianEvidenceIssue = {
-  kind: "contradiction" | "stale" | "superseded" | "disputed" | "out_of_scope" | "permission" | "missing_support";
+  kind: "contradiction" | "qualification" | "stale" | "superseded" | "disputed" | "out_of_scope" | "permission" | "missing_support" | "missing_coverage" | "ambiguous_question";
   claimIds: string[];
   detail: string;
   resolution: "exclude" | "abstain" | "require_review";
@@ -203,6 +224,8 @@ export type MeridianEvidenceIssue = {
 
 export type MeridianEvidencePack = {
   task: MeridianTaskContext;
+  questionPlan: MeridianQuestionPlan;
+  facetCoverage: MeridianFacetCoverage[];
   sources: MeridianSource[];
   approvedClaims: MeridianClaim[];
   supportingFragments: MeridianFragment[];
