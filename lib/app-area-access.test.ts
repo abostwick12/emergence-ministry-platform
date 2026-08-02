@@ -100,6 +100,7 @@ describe("EMERGE app-area API access", () => {
 
     getServerSessionMock.mockResolvedValue(session("admin"));
     await expect(requireEmergeOperationsAccess()).resolves.toMatchObject({ allowed: true });
+    expect(isPlatformUserActiveByIdMock).not.toHaveBeenCalled();
   });
 
   it("keeps authenticated admin users able to create management records", async () => {
@@ -186,7 +187,7 @@ describe("EMERGE app-area API access", () => {
   });
 
   it("returns a typed inactive-account response from the centralized active-user check", async () => {
-    getServerSessionMock.mockResolvedValue(session("admin"));
+    getServerSessionMock.mockResolvedValue(session("admin", false));
     isPlatformUserActiveByIdMock.mockResolvedValue(false);
 
     const access = await requireEmergeOperationsAccess();

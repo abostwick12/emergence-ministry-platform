@@ -48,11 +48,21 @@ test.describe("event color system and volunteer leaders", () => {
     await form.getByLabel("Role label").fill("Small Group Coach");
     await form.getByLabel("Email").fill("taylor@example.test");
     await form.getByLabel("Source church").fill("Lead Emergence");
+    const addLeaderResponsePromise = page.waitForResponse(
+      (response) => response.url().endsWith("/api/volunteer-hub") && response.request().method() === "POST"
+    );
     await form.getByRole("button", { name: "Save Leader" }).click();
+    const addLeaderResponse = await addLeaderResponsePromise;
+    expect(addLeaderResponse.ok()).toBeTruthy();
 
     const leaderRow = page.locator(".ministry-people-leader-row").filter({ hasText: "Taylor Morgan" });
     await expect(leaderRow).toBeVisible();
+    const deleteLeaderResponsePromise = page.waitForResponse(
+      (response) => response.url().endsWith("/api/volunteer-hub") && response.request().method() === "POST"
+    );
     await page.getByRole("button", { name: "Delete leader Taylor Morgan" }).click();
+    const deleteLeaderResponse = await deleteLeaderResponsePromise;
+    expect(deleteLeaderResponse.ok()).toBeTruthy();
     await expect(leaderRow).toHaveCount(0);
   });
 
