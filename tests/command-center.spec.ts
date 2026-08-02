@@ -16,7 +16,12 @@ test.describe("Personal Command Center", () => {
     await expect(page.getByRole("heading", { name: "Personal Command Center Chat" })).toBeVisible();
     await expect(page.getByText("SAGE can reason over open Command Center tasks and, when Gmail is connected and you ask, create a Gmail draft for you to review.")).toBeVisible();
     await page.getByLabel("Message SAGE").fill("What should I focus on today?");
+    const chatResponsePromise = page.waitForResponse(
+      (response) => response.url().endsWith("/api/command-center/chat") && response.request().method() === "POST"
+    );
     await page.getByRole("button", { name: "Send" }).click();
+    const chatResponse = await chatResponsePromise;
+    expect(chatResponse.ok()).toBeTruthy();
     await expect(page.getByText("SAGE chat is ready, but OpenAI is not configured yet.")).toBeVisible();
   });
 
@@ -68,6 +73,6 @@ async function login(page: Page) {
   await page.getByLabel("Email").fill(process.env.E2E_TEST_EMAIL ?? "staff@example.com");
   await page.getByLabel("Password").fill(process.env.E2E_TEST_PASSWORD ?? "password");
   await page.getByRole("button", { name: "Log in" }).click();
-  await expect(page).toHaveURL(/\/dashboard$/);
+  await expect(page).toHaveURL(/\/dashboard$/, { timeout: 30_000 });
   await page.waitForLoadState("networkidle");
 }

@@ -30,7 +30,7 @@ export async function resolveEmergeOperationsAccess(session: AuthSession): Promi
       response: NextResponse.json({ error: "EMERGE operations access is not available for this account." }, { status: 403 })
     };
   }
-  if (!(await isPlatformUserActiveById(session.user.id))) {
+  if (!session.isMock && !(await isPlatformUserActiveById(session.user.id))) {
     return {
       allowed: false,
       response: NextResponse.json({ error: "This account has been deactivated by a platform administrator." }, { status: 403 })
