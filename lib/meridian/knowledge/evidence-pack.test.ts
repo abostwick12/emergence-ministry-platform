@@ -71,6 +71,31 @@ describe("Meridian governed evidence packs", () => {
     expect(pack.abstentionReason).toContain("Conflicting approved evidence");
   });
 
+  it("withholds the weaker side of an explicit cross-authority contradiction", () => {
+    const doctrine = claim("doctrine", "adopted_doctrine", "fragment-doctrine", {
+      proposition: "Salvation is received by grace through faith and is not earned by works."
+    });
+    const contradictoryTeaching = claim("contradictory-teaching", "approved_teaching", "fragment-contradictory", {
+      proposition: "Human works earn salvation."
+    });
+    const pack = buildMeridianEvidencePack({
+      task,
+      claims: [doctrine, contradictoryTeaching],
+      fragments: [fragment("fragment-doctrine"), fragment("fragment-contradictory")],
+      relationships: [relationship("contradicts", "contradictory-teaching", "doctrine")]
+    });
+
+    expect(pack.abstain).toBe(false);
+    expect(pack.requiresReview).toBe(true);
+    expect(pack.approvedClaims.map((item) => item.id)).toEqual(["doctrine"]);
+    expect(pack.excludedClaimIds).toContain("contradictory-teaching");
+    expect(pack.issues).toContainEqual(expect.objectContaining({
+      kind: "contradiction",
+      resolution: "require_review",
+      detail: expect.stringContaining("withheld from generation")
+    }));
+  });
+
   it("serializes only approved-generation fragments and keeps YouVersion Scripture structurally separate", () => {
     const scripture = fragment("scripture-fragment", {
       exactText: "Synthetic test passage text.",

@@ -37,7 +37,7 @@ The governed path now treats answer relevance as an infrastructure rule rather t
 - leader-triggered provider regeneration is blocked when governed evidence coverage is incomplete
 - relationships and sources are hydrated only for the retrieved evidence graph
 
-The relevance-floor SQL is an additive migration and remains unapplied until review and release approval.
+The relevance-floor SQL is additive. It was applied and calibrated only in the isolated Meridian sandbox on 2026-08-02; production remains unchanged pending a separate release approval.
 
 ## Initial locked scenarios
 
