@@ -57,8 +57,22 @@ export function buildMeridianEvidencePack(input: BuildMeridianEvidencePackInput)
       addIssue(issues, "superseded", [to.id, from.id], `Superseded by approved claim ${from.id}.`, "exclude", excluded, to.id);
     }
     if (relationship.kind === "contradicts" && from.approvalStatus === "approved" && to.approvalStatus === "approved") {
-      const resolution = meridianAuthorityRank[from.authorityClass] === meridianAuthorityRank[to.authorityClass] ? "abstain" : "require_review";
-      addIssue(issues, "contradiction", [from.id, to.id], "Approved evidence contains an unresolved contradiction.", resolution, excluded);
+      const fromRank = meridianAuthorityRank[from.authorityClass];
+      const toRank = meridianAuthorityRank[to.authorityClass];
+      if (fromRank === toRank) {
+        addIssue(issues, "contradiction", [from.id, to.id], "Approved evidence contains an unresolved contradiction.", "abstain", excluded);
+      } else {
+        const weakerClaim = fromRank > toRank ? from : to;
+        excluded.add(weakerClaim.id);
+        addIssue(
+          issues,
+          "contradiction",
+          [from.id, to.id],
+          `Lower-authority contradictory claim ${weakerClaim.id} was withheld from generation.`,
+          "require_review",
+          excluded
+        );
+      }
     }
     if (relationship.kind === "qualifies" && from.approvalStatus === "approved" && to.approvalStatus === "approved") {
       addIssue(
