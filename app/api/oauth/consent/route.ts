@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
-import { getServerSession, getSupabaseAuthClient, unauthorizedResponse } from "@/lib/auth/server";
+import { getServerSession, unauthorizedResponse } from "@/lib/auth/server";
+import { decideOAuthAuthorization, getOAuthAuthorizationDetails } from "@/lib/auth/supabase-oauth-server";
 
 export async function GET(request: Request) {
   const session = await getServerSession();
@@ -11,7 +12,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "This authorization request is missing or invalid." }, { status: 400 });
   }
 
-  const { data, error } = await getSupabaseAuthClient(session.accessToken).auth.oauth.getAuthorizationDetails(authorizationId);
+  const { data, error } = await getOAuthAuthorizationDetails(session.accessToken, authorizationId);
   if (error || !data) {
     return NextResponse.json({ error: "This connection request expired or could not be verified." }, { status: 400 });
   }
@@ -50,10 +51,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "This connection decision is invalid." }, { status: 400 });
   }
 
-  const oauth = getSupabaseAuthClient(session.accessToken).auth.oauth;
-  const result = decision === "approve"
-    ? await oauth.approveAuthorization(authorizationId, { skipBrowserRedirect: true })
-    : await oauth.denyAuthorization(authorizationId, { skipBrowserRedirect: true });
+  const result = await decideOAuthAuthorization(session.accessToken, authorizationId, decision);
 
   if (result.error || !result.data?.redirect_url) {
     return NextResponse.json({ error: "The connection decision could not be completed. Please start again from Codex." }, { status: 400 });
