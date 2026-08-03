@@ -5,20 +5,20 @@ import type { AuthSession } from "@/lib/auth/server";
 const {
   formatStudentKnowledgeContextForGlooMock,
   generateGlooDiscussionDraftMock,
-  getInternalGroundingContextMock,
+  getApprovedMeridianGroundingMock,
   getStudentKnowledgeMatchesMock,
   isGlooConfiguredMock
 } = vi.hoisted(() => ({
   formatStudentKnowledgeContextForGlooMock: vi.fn(),
   generateGlooDiscussionDraftMock: vi.fn(),
-  getInternalGroundingContextMock: vi.fn(),
+  getApprovedMeridianGroundingMock: vi.fn(),
   getStudentKnowledgeMatchesMock: vi.fn(),
   isGlooConfiguredMock: vi.fn()
 }));
 
 vi.mock("@/lib/scripture/knowledge", () => ({
   formatStudentKnowledgeContextForGloo: formatStudentKnowledgeContextForGlooMock,
-  getInternalGroundingContext: getInternalGroundingContextMock,
+  getApprovedMeridianGrounding: getApprovedMeridianGroundingMock,
   getStudentKnowledgeMatches: getStudentKnowledgeMatchesMock
 }));
 
@@ -34,7 +34,17 @@ describe("Meridian test bench", () => {
     vi.clearAllMocks();
     isGlooConfiguredMock.mockReturnValue(false);
     formatStudentKnowledgeContextForGlooMock.mockReturnValue("Source 1: Romans 8 and patient hope");
-    getInternalGroundingContextMock.mockResolvedValue("Internal posture only.");
+    getApprovedMeridianGroundingMock.mockResolvedValue({
+      status: "grounded",
+      decision: "generate",
+      providerContext: "Approved evidence pack.",
+      approvedClaimCount: 2,
+      approvedSourceCount: 1,
+      supportedFacetCount: 1,
+      requiredFacetCount: 1,
+      missingFacets: [],
+      message: "Approved evidence covers 1 of 1 required question parts."
+    });
     generateGlooDiscussionDraftMock.mockResolvedValue({
       ok: true,
       provider: "gloo",
@@ -91,6 +101,11 @@ describe("Meridian test bench", () => {
       })
     );
     expect(result.matches[0].title).toBe("Romans 8 and patient hope");
+    expect(result.grounding).toMatchObject({
+      status: "grounded",
+      studentResourceMatchCount: 1
+    });
+    expect(result.grounding).not.toHaveProperty("providerContext");
     expect(result.nextStep.readingPlan.title).toBe("Romans 8 and patient hope");
     expect(result.aiDraft).toMatchObject({
       ok: false,
@@ -109,9 +124,10 @@ describe("Meridian test bench", () => {
     });
 
     expect(formatStudentKnowledgeContextForGlooMock).toHaveBeenCalledWith(result.matches);
-    expect(getInternalGroundingContextMock).toHaveBeenCalledWith(
+    expect(getApprovedMeridianGroundingMock).toHaveBeenCalledWith(
       expect.objectContaining({ user: expect.objectContaining({ role: "leader" }) }),
       {
+        id: "knowledge-test-bench",
         question: "How do I trust God when suffering feels pointless?",
         scriptureReference: "Romans 8:18"
       }
@@ -119,8 +135,10 @@ describe("Meridian test bench", () => {
     expect(generateGlooDiscussionDraftMock).toHaveBeenCalledWith({
       question: "How do I trust God when suffering feels pointless?",
       scriptureReference: "Romans 8:18",
-      retrievedContext: "Source 1: Romans 8 and patient hope",
-      internalGroundingContext: "Internal posture only."
+      studentJourneyContext: "Source 1: Romans 8 and patient hope",
+      approvedEvidenceContext: "Approved evidence pack.",
+      groundingStatus: "grounded",
+      requireStructuredAnswer: true
     });
     expect(result.aiDraft).toMatchObject({
       ok: true,

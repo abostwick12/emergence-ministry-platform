@@ -33,8 +33,19 @@ export type GlooDiscussionDraftInput = {
   question: string;
   scriptureReference: string;
   metanarrativeMovement?: MetanarrativeMovement;
+  /** @deprecated Use studentJourneyContext for related resources that are not answer evidence. */
   retrievedContext?: string;
+  studentJourneyContext?: string;
+  approvedEvidenceContext?: string;
+  groundingStatus?: "grounded" | "partially_grounded" | "ungrounded" | "unavailable";
+  requireStructuredAnswer?: boolean;
   internalGroundingContext?: string;
+};
+
+type GlooAnswerRequirements = {
+  requireStructuredAnswer: boolean;
+  requirePastoralCare: boolean;
+  requireUncertainty: boolean;
 };
 
 export type GlooReadingPlanDraftInput = {
@@ -89,7 +100,7 @@ export type GlooDiscussionDraftResult =
     }
   | {
       ok: false;
-      code: "not_configured" | "provider_error";
+      code: "not_configured" | "provider_error" | "provider_invalid";
       message: string;
     };
 
@@ -137,7 +148,7 @@ export type GlooDiscussionPreview =
   | {
       ok: false;
       configured: boolean;
-      code: "not_configured" | "provider_error";
+      code: "not_configured" | "provider_error" | "provider_invalid";
       message: string;
     };
 
@@ -228,7 +239,7 @@ export function selectGlooModelPolicy(
   const escalationModel = normalizeGlooModelId(env.GLOO_AI_ESCALATION_MODEL);
   const longContextModel = normalizeGlooModelId(env.GLOO_AI_LONG_CONTEXT_MODEL);
   const topicFlags = findSensitiveTopicFlags(input.question);
-  const contextSize = `${input.question}\n${input.scriptureReference}\n${input.retrievedContext ?? ""}\n${input.internalGroundingContext ?? ""}`.length;
+  const contextSize = `${input.question}\n${input.scriptureReference}\n${input.studentJourneyContext ?? input.retrievedContext ?? ""}\n${input.approvedEvidenceContext ?? ""}\n${input.internalGroundingContext ?? ""}`.length;
 
   if (longContextModel && contextSize > 12000) {
     return {
@@ -604,8 +615,15 @@ async function requestGlooDiscussionDraft(
       return { ok: false, code: "provider_error", message: failure.message };
     }
 
-    const parsed = parseDraftContent(content, selection);
+    const parsed = parseDraftContent(content, selection, answerRequirements(input));
     if (!parsed) {
+      if (input.requireStructuredAnswer) {
+        const repaired = await requestGlooStructuredRepair(input, selection, url, accessToken, content);
+        if (repaired) return repaired;
+        const failure = { message: "Gloo AI Studio returned an invalid structured answer after one constrained repair attempt.", url: redactGlooUrl(url) };
+        logGlooProviderFailure(failure);
+        return { ok: false, code: "provider_invalid", message: failure.message };
+      }
       const failure = { message: "Gloo AI Studio returned a draft that could not be parsed.", url: redactGlooUrl(url) };
       logGlooProviderFailure(failure);
       return { ok: false, code: "provider_error", message: failure.message };
@@ -616,6 +634,39 @@ async function requestGlooDiscussionDraft(
 
   if (lastFailure) logGlooProviderFailure(lastFailure);
   return { ok: false, code: "provider_error", message: lastFailure?.message ?? "Gloo AI Studio did not return a usable draft." };
+}
+
+async function requestGlooStructuredRepair(
+  input: GlooDiscussionDraftInput,
+  selection: GlooModelSelection,
+  url: string,
+  accessToken: string,
+  originalOutput: string
+): Promise<Extract<GlooDiscussionDraftResult, { ok: true }> | undefined> {
+  let response: Response;
+  try {
+    response = await timedGlooFetch("provider.gloo.generate", url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json"
+      },
+      body: createGlooStructuredRepairBody(input, selection, originalOutput)
+    });
+  } catch {
+    return undefined;
+  }
+  if (!response.ok) return undefined;
+
+  try {
+    const payload = (await response.json()) as GlooChatResponse;
+    const content = extractGlooTextContent(payload);
+    if (typeof content !== "string") return undefined;
+    const repaired = parseDraftContent(content, selection, answerRequirements(input));
+    return repaired?.ok ? repaired : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function timedGlooFetch(
@@ -651,6 +702,7 @@ function extractGlooTextContent(payload: GlooChatResponse): string | undefined {
 }
 
 function createGlooDraftRequestBody(input: GlooDiscussionDraftInput, selection: GlooModelSelection) {
+  const requirements = answerRequirements(input);
   return JSON.stringify({
     model: selection.model,
     temperature: 0.2,
@@ -659,7 +711,7 @@ function createGlooDraftRequestBody(input: GlooDiscussionDraftInput, selection: 
       {
         role: "system",
         content:
-          "You help student ministry leaders prepare careful, Scripture-grounded answers and discussion prompts. Use retrieved student-visible ministry context as evidence and internal grounding only for theological posture, ministry voice, question shape, culture, and artistic texture. Never quote, summarize, cite, reveal, or assign internal grounding material to students. Return only JSON with keys discussionPrompt, answerDraft, scriptureReference, safetyLabel, safetyNotes, confidence, topicTags, escalationRecommended, escalationReason. answerDraft must contain directAnswer, keyDistinctions, scriptureReferences, uncertainty, pastoralCare, questionsForLeader, and requiresHumanReview. requiresHumanReview must be true. Address the student's actual question directly, distinguish major interpretations when needed, and say when retrieved evidence is insufficient. Do not invent Lead Emergence doctrine or unsupported certainty. scriptureReference must be one concise Bible reference that directly grounds the response; retain a user-supplied reference when present. The safetyLabel must be one of safe, needs_leader_care, pastoral_escalation. confidence must be a number from 0 to 1. topicTags must be short lowercase strings. Do not claim pastoral authority, infer God's private intent in suffering, give crisis counseling, or include full Bible text."
+          "You help student ministry leaders prepare careful theological answers and discussion prompts. Only the approved answer-evidence section may count as Meridian grounding. Related student resources may shape reading recommendations and discussion questions, but they are not evidence for theological claims and must not be cited as if they answered the question. Internal ministry context may shape posture, voice, and formation goals only; never quote, summarize, cite, reveal, or assign it to students. Return only JSON with keys discussionPrompt, answerDraft, scriptureReference, safetyLabel, safetyNotes, confidence, topicTags, escalationRecommended, escalationReason. answerDraft must contain directAnswer, keyDistinctions, scriptureReferences, uncertainty, pastoralCare, questionsForLeader, and requiresHumanReview. requiresHumanReview must be true. Address the student's actual question directly, distinguish major interpretations when needed, and state when approved evidence is insufficient. Do not invent Lead Emergence doctrine or unsupported certainty. scriptureReference must be one concise Bible reference that directly grounds the response; retain a user-supplied reference when present. The safetyLabel must be one of safe, needs_leader_care, pastoral_escalation. confidence must be a number from 0 to 1. topicTags must be short lowercase strings. Do not claim pastoral authority, infer God's private intent in suffering, give crisis counseling, or include full Bible text."
       },
       {
         role: "user",
@@ -667,10 +719,15 @@ function createGlooDraftRequestBody(input: GlooDiscussionDraftInput, selection: 
           `Student question: ${input.question}\n` +
           `Scripture reference: ${input.scriptureReference || "not selected"}\n` +
           `Quiet story-lens hint: ${input.metanarrativeMovement ?? "infer from the question and passage"}\n\n` +
-          `Student-visible ministry context:\n${input.retrievedContext || "No retrieved student-visible context available."}\n\n` +
-          `Internal grounding for posture only:\n${input.internalGroundingContext || "No internal grounding context available."}\n\n` +
+          `Grounding status: ${input.groundingStatus ?? "not evaluated"}\n` +
+          `Approved answer evidence:\n${input.approvedEvidenceContext || "No approved answer evidence available."}\n\n` +
+          `Related student resources (not answer evidence):\n${input.studentJourneyContext ?? input.retrievedContext ?? "No related student resources available."}\n\n` +
+          `Internal ministry context for posture only:\n${input.internalGroundingContext || "No internal ministry context available."}\n\n` +
+          `Structured answer required: ${requirements.requireStructuredAnswer ? "yes" : "no"}. ` +
+          `Pastoral care required: ${requirements.requirePastoralCare ? "yes; pastoralCare must contain at least one concrete leader-facing safeguard" : "no; use an empty array when none is needed"}. ` +
+          `Interpretive uncertainty required: ${requirements.requireUncertainty ? "yes; uncertainty must name at least one real limit or faithful disagreement" : "no; use an empty array only when the evidence warrants clarity"}.\n\n` +
           `Model routing: ${selection.reason}${selection.escalationReason ? ` Escalation reason: ${selection.escalationReason}` : ""}\n\n` +
-          "Draft a direct but humble answer for leader review and one Socratic small-group discussion prompt. Ground both in the supplied context and Scripture references without quoting full passages. If the supplied evidence does not support a confident theological conclusion, identify that limit explicitly for the leader instead of filling the gap from speculation."
+          "Draft a direct but humble answer for leader review and one Socratic small-group discussion prompt. Ground theological claims only in approved answer evidence and Scripture references. Use related resources only for student next steps. If approved evidence does not support a confident theological conclusion, identify that limit explicitly for the leader instead of filling the gap from speculation."
       }
     ]
   });
@@ -756,7 +813,11 @@ function logGlooProviderFailure(failure: GlooProviderFailure) {
   });
 }
 
-function parseDraftContent(content: string, selection: GlooModelSelection): GlooDiscussionDraftResult | undefined {
+function parseDraftContent(
+  content: string,
+  selection: GlooModelSelection,
+  requirements: GlooAnswerRequirements = { requireStructuredAnswer: false, requirePastoralCare: false, requireUncertainty: false }
+): GlooDiscussionDraftResult | undefined {
   let parsed: ParsedDraft;
   try {
     parsed = JSON.parse(extractJsonObjectText(content)) as ParsedDraft;
@@ -780,6 +841,9 @@ function parseDraftContent(content: string, selection: GlooModelSelection): Gloo
       : selection.escalationReason || (escalationRecommended ? "default model requested escalation" : "");
 
   if (!discussionPrompt || !safetyLabel || !safetyNotes) return undefined;
+  if (requirements.requireStructuredAnswer && !answerDraft) return undefined;
+  if (requirements.requirePastoralCare && !answerDraft?.pastoralCare.length) return undefined;
+  if (requirements.requireUncertainty && !answerDraft?.uncertainty.length) return undefined;
 
   return {
     ok: true,
@@ -798,9 +862,46 @@ function parseDraftContent(content: string, selection: GlooModelSelection): Gloo
   };
 }
 
+function createGlooStructuredRepairBody(
+  input: GlooDiscussionDraftInput,
+  selection: GlooModelSelection,
+  originalOutput: string
+) {
+  const requirements = answerRequirements(input);
+  return JSON.stringify({
+    model: selection.model,
+    temperature: 0,
+    max_tokens: GLOO_DISCUSSION_MAX_OUTPUT_TOKENS,
+    messages: [
+      {
+        role: "system",
+        content:
+          "Repair one provider draft into valid JSON. Preserve the answer's meaning; do not add new factual claims, citations, certainty, or doctrinal conclusions. Return only JSON with keys discussionPrompt, answerDraft, scriptureReference, safetyLabel, safetyNotes, confidence, topicTags, escalationRecommended, escalationReason. answerDraft must contain directAnswer, keyDistinctions, scriptureReferences, uncertainty, pastoralCare, questionsForLeader, and requiresHumanReview=true."
+      },
+      {
+        role: "user",
+        content:
+          `Original question: ${input.question}\n` +
+          `Original Scripture reference: ${input.scriptureReference || "not selected"}\n` +
+          `Pastoral care array must be non-empty: ${requirements.requirePastoralCare ? "yes" : "no"}\n` +
+          `Uncertainty array must be non-empty: ${requirements.requireUncertainty ? "yes" : "no"}\n` +
+          `Grounding status: ${input.groundingStatus ?? "not evaluated"}\n\n` +
+          `Provider output to repair:\n${originalOutput.slice(0, 12_000)}`
+      }
+    ]
+  });
+}
+
 function parseTheologicalAnswerDraft(value: unknown): GlooTheologicalAnswerDraft | undefined {
   if (!value || typeof value !== "object") return undefined;
   const parsed = value as Record<string, unknown>;
+  if (
+    !Array.isArray(parsed.keyDistinctions) ||
+    !Array.isArray(parsed.scriptureReferences) ||
+    !Array.isArray(parsed.uncertainty) ||
+    !Array.isArray(parsed.pastoralCare) ||
+    !Array.isArray(parsed.questionsForLeader)
+  ) return undefined;
   const directAnswer = normalizeText(parsed.directAnswer, 4000);
   const keyDistinctions = normalizeStringArray(parsed.keyDistinctions, 8).map((item) => limitText(item, 500));
   const scriptureReferences = normalizeStringArray(parsed.scriptureReferences, 8).map((item) => limitText(item, 120));
@@ -920,7 +1021,7 @@ function normalizeGlooModelId(value: string | undefined) {
 
 async function resolveGlooAccessTokenSafely(credentials: GlooCredentials): Promise<
   | { ok: true; token: string }
-  | { ok: false; result: Extract<GlooDiscussionDraftResult, { ok: false }> }
+  | { ok: false; result: { ok: false; code: "provider_error"; message: string } }
 > {
   try {
     return { ok: true, token: await resolveGlooAccessToken(credentials) };
@@ -1096,4 +1197,18 @@ function findSensitiveTopicFlags(question: string) {
   ];
 
   return checks.filter(([, pattern]) => pattern.test(normalized)).map(([label]) => label);
+}
+
+function answerRequirements(input: GlooDiscussionDraftInput): GlooAnswerRequirements {
+  const normalized = input.question.toLowerCase();
+  const topicFlags = findSensitiveTopicFlags(input.question);
+  return {
+    requireStructuredAnswer: input.requireStructuredAnswer === true,
+    requirePastoralCare: input.requireStructuredAnswer === true && (
+      topicFlags.length > 0 ||
+      /\b(bab(?:y|ies)|child(?:ren)?|unanswered prayer|salvation|saved|lose my faith|lose my salvation)\b/.test(normalized)
+    ),
+    requireUncertainty: input.requireStructuredAnswer === true &&
+      /\b(why|how could|what happens|what happened|literal|symbolic|future|free will|recognize|rapture|doubt|three persons|angel of the lord|never heard)\b/.test(normalized)
+  };
 }

@@ -1,6 +1,11 @@
 import type { AuthSession } from "@/lib/auth/server";
 import { generateGlooDiscussionDraft, isGlooConfigured, type GlooDiscussionPreview } from "@/lib/scripture/gloo";
-import { formatStudentKnowledgeContextForGloo, getInternalGroundingContext, getStudentKnowledgeMatches } from "@/lib/scripture/knowledge";
+import {
+  formatStudentKnowledgeContextForGloo,
+  getApprovedMeridianGrounding,
+  getStudentKnowledgeMatches,
+  type ApprovedMeridianGrounding
+} from "@/lib/scripture/knowledge";
 import { buildQuestionNextStep, type StudentQuestionNextStep } from "@/lib/scripture/student-home";
 import type { StudentKnowledgeMatch } from "@/lib/scripture/knowledge";
 
@@ -13,6 +18,7 @@ export type KnowledgeTestBenchResult = {
   question: string;
   scriptureReference: string;
   matches: StudentKnowledgeMatch[];
+  grounding: Omit<ApprovedMeridianGrounding, "providerContext"> & { studentResourceMatchCount: number };
   nextStep: StudentQuestionNextStep;
   aiDraft: GlooDiscussionPreview;
   visibilityNote: string;
@@ -35,17 +41,22 @@ export async function runKnowledgeTestBench(
     scriptureReference
   };
   const matches = await getStudentKnowledgeMatches(session, prompt);
+  const approvedGrounding = await getApprovedMeridianGrounding(session, prompt);
+  const { providerContext: _providerContext, ...groundingSummary } = approvedGrounding;
+  const grounding = { ...groundingSummary, studentResourceMatchCount: matches.length };
   const nextStep = buildQuestionNextStep(prompt, matches);
-  const aiDraft = await previewGlooDraft(session, {
+  const aiDraft = await previewGlooDraft({
     question,
     scriptureReference,
-    matches
+    matches,
+    grounding: approvedGrounding
   });
 
   return {
     question,
     scriptureReference,
     matches,
+    grounding,
     nextStep,
     aiDraft,
     visibilityNote:
@@ -54,8 +65,12 @@ export async function runKnowledgeTestBench(
 }
 
 async function previewGlooDraft(
-  session: AuthSession,
-  input: { question: string; scriptureReference: string; matches: StudentKnowledgeMatch[] }
+  input: {
+    question: string;
+    scriptureReference: string;
+    matches: StudentKnowledgeMatch[];
+    grounding: ApprovedMeridianGrounding;
+  }
 ): Promise<GlooDiscussionPreview> {
   if (!isGlooConfigured()) {
     return {
@@ -71,11 +86,10 @@ async function previewGlooDraft(
     draft = await generateGlooDiscussionDraft({
       question: input.question,
       scriptureReference: input.scriptureReference,
-      retrievedContext: formatStudentKnowledgeContextForGloo(input.matches),
-      internalGroundingContext: await getInternalGroundingContext(session, {
-        question: input.question,
-        scriptureReference: input.scriptureReference
-      })
+      studentJourneyContext: formatStudentKnowledgeContextForGloo(input.matches),
+      approvedEvidenceContext: input.grounding.providerContext,
+      groundingStatus: input.grounding.status,
+      requireStructuredAnswer: true
     });
   } catch (error) {
     return {
