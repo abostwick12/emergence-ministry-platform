@@ -50,6 +50,7 @@ const MAX_PROMPT_CHARS = 1800;
 
 const ministryEmmaPageSchema = z.enum([
   "dashboard",
+  "ministry",
   "events",
   "tasks",
   "communications",
@@ -594,6 +595,30 @@ function buildMinistryPageContextManifest(
   alignmentProfile?: MinistryAlignmentProfile,
   selectedNarrative?: AuthenticatedMinistryNarrative
 ): ContextManifest {
+  if (selectedNarrative) {
+    return {
+      entries: [
+        ...(alignmentProfile ? [{
+          recordId: "ministry_alignment_profile",
+          recordType: "leadership_authored_alignment_context",
+          category: "voice_profile" as const,
+          sourceTable: "application_alignment_context"
+        }] : []),
+        {
+          recordId: selectedNarrative.id,
+          recordType: "ministry_narrative",
+          category: "activity_log" as const,
+          sourceTable: "application_derived_narratives"
+        },
+        ...selectedNarrative.evidence.flatMap((evidence) => evidence.sourceRecords).map((record) => ({
+          recordId: record.id,
+          recordType: record.type,
+          category: narrativeManifestCategory(record.type),
+          sourceTable: narrativeSourceTable(record.type)
+        }))
+      ]
+    };
+  }
   const selectedEvent = selectedEventId ? overview.events.find((event) => event.id === selectedEventId) : undefined;
   const events = selectedEvent ? [selectedEvent] : overview.events.slice(0, 8);
 
@@ -605,18 +630,6 @@ function buildMinistryPageContextManifest(
         category: "voice_profile" as const,
         sourceTable: "application_alignment_context"
       }] : []),
-      ...(selectedNarrative ? [{
-        recordId: selectedNarrative.id,
-        recordType: "ministry_narrative",
-        category: "activity_log" as const,
-        sourceTable: "application_derived_narratives"
-      }] : []),
-      ...(selectedNarrative?.evidence.flatMap((evidence) => evidence.sourceRecords).map((record) => ({
-        recordId: record.id,
-        recordType: record.type,
-        category: narrativeManifestCategory(record.type),
-        sourceTable: narrativeSourceTable(record.type)
-      })) ?? []),
       ...events.map((event) => ({
         recordId: event.id,
         recordType: "event",
@@ -656,6 +669,31 @@ function buildMinistryPageUserPrompt({
 }): string {
   const selectedEvent = input.selectedEventId ? overview.events.find((event) => event.id === input.selectedEventId) : null;
   const alignmentProfile = normalizeMinistryAlignmentProfile(input.alignmentProfile);
+
+  if (selectedNarrative) {
+    return JSON.stringify({
+      task: "Help ministry leadership inspect one selected record-backed signal. Stay inside the selected signal, its sanitized aggregates, its evidence boundaries, and leadership-authored alignment. Do not infer a ministry conclusion.",
+      page: "ministry",
+      prompt: input.prompt,
+      guardrails: [
+        "No writes, sends, syncs, proposals, or external promises.",
+        "Use only the selected narrative context below.",
+        "Do not request or infer student names, parent details, pastoral notes, medical data, or raw attendance histories.",
+        "Do not determine spiritual health, calling, priorities, theology, or what God is telling the ministry to do.",
+        "Treat counts as operational observations, not judgments about people.",
+        "Name counter-explanations and missing evidence before suggesting a leadership question."
+      ],
+      leadershipAuthoredAlignment: {
+        vision: alignmentProfile.vision,
+        mission: alignmentProfile.mission,
+        values: alignmentProfile.values.map((value) => ({ title: value.title, description: value.description })),
+        currentSeason: alignmentProfile.currentSeason,
+        successLooksLike: alignmentProfile.successLooksLike,
+        evidenceBoundary: "Spiritual maturity, love for Christ, and the work of the Holy Spirit cannot be measured directly by operational data."
+      },
+      selectedNarrative: buildAuthenticatedNarrativeEmmaContext(selectedNarrative)
+    });
+  }
 
   return JSON.stringify({
     task: "Answer the ministry user's page-level EMMA prompt as a practical decision-support brief. Connect leadership priorities, observable signals, capacity constraints, and missing evidence. When alignment context is relevant, compare evidence against leadership-authored criteria without scoring or setting priorities.",
@@ -740,6 +778,9 @@ function narrativeSourceTable(type: AuthenticatedMinistryNarrative["evidence"][n
   if (type === "serving_assignment") return "volunteer_hub_event_leader_assignments";
   if (type === "small_group") return "volunteer_hub_small_groups";
   if (type === "volunteer") return "volunteer_hub_leaders";
+  if (type === "volunteer_readiness") return "volunteer_hub_items";
+  if (type === "follow_up") return "volunteer_hub_follow_ups";
+  if (type === "people_snapshot") return "planning_center_people_refs";
   if (type === "task") return "tasks";
   return "events";
 }

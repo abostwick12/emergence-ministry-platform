@@ -4,6 +4,7 @@ import { money } from "@/lib/utils";
 
 export type MinistryEmmaPage =
   | "dashboard"
+  | "ministry"
   | "events"
   | "tasks"
   | "communications"
@@ -30,6 +31,7 @@ export type MinistryEmmaResponse = {
 
 export const ministryEmmaPageLabels: Record<MinistryEmmaPage, string> = {
   dashboard: "Dashboard",
+  ministry: "Ministry Hub",
   events: "Events",
   tasks: "Tasks",
   communications: "Communications",
@@ -49,6 +51,7 @@ export const ministryEmmaUniversalPromptTemplates = [
 
 export const ministryEmmaPromptTemplates: Record<MinistryEmmaPage, string[]> = {
   dashboard: ["What needs attention today?", "Summarize selected event", "Where are the workflow gaps?"],
+  ministry: ["Help us discern this signal.", "What evidence boundary matters most?", "What leadership question should we ask next?"],
   events: ["Summarize selected event", "What event information is missing?", "What should I open first?"],
   tasks: ["Which tasks need follow-up?", "Where is work blocked?", "Summarize selected event"],
   communications: ["Which drafts need review?", "What cannot be sent yet?", "Summarize selected event"],

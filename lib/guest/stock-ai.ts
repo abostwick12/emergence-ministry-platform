@@ -2,6 +2,7 @@ import type { MinistryEmmaOverview, MinistryEmmaPage, MinistryEmmaResponse } fro
 
 const pageFocus: Record<MinistryEmmaPage, string> = {
   dashboard: "Start with the blocked work, then use the calendar pressure to decide what needs a human today.",
+  ministry: "Stay with the selected signal, its evidence boundary, and the leadership question before suggesting a response.",
   events: "Treat the event card as the source of truth: vision, owner, budget, tasks, and communication readiness should agree.",
   tasks: "Move the stuck and due-this-week tasks first, then assign clear owners before adding more work.",
   communications: "Keep every message in preview until a leader reviews audience, timing, and missing details.",

@@ -44,6 +44,7 @@ export function MinistryEmmaPanel({
   allowProposal = true,
   alignmentProfile,
   defaultExpanded = false,
+  initialResponse,
   overview,
   page,
   presentation = "inline",
@@ -56,6 +57,7 @@ export function MinistryEmmaPanel({
   allowProposal?: boolean;
   alignmentProfile?: MinistryAlignmentProfile;
   defaultExpanded?: boolean;
+  initialResponse?: MinistryEmmaResponse;
   overview?: MinistryEmmaOverview;
   page: MinistryEmmaPage;
   presentation?: EmmaPresentation;
@@ -81,7 +83,7 @@ export function MinistryEmmaPanel({
   const threadRef = useRef<HTMLDivElement>(null);
   const [messages, setMessages] = useState<EmmaMessage[]>(() => [
     toEmmaMessage(
-      answerMinistryEmmaPrompt({
+      initialResponse ?? answerMinistryEmmaPrompt({
         overview,
         alignmentProfile,
         page,
@@ -119,7 +121,7 @@ export function MinistryEmmaPanel({
   useEffect(() => {
     setMessages([
       toEmmaMessage(
-        answerMinistryEmmaPrompt({
+        initialResponse ?? answerMinistryEmmaPrompt({
           overview,
           page,
           prompt: initialPrompt,
@@ -128,7 +130,7 @@ export function MinistryEmmaPanel({
         "EMMA is ready."
       )
     ]);
-  }, [overview, alignmentProfile, page, initialPrompt, stableStaticSignals]);
+  }, [overview, alignmentProfile, page, initialPrompt, initialResponse, stableStaticSignals]);
 
   useEffect(() => {
     const thread = threadRef.current;

@@ -28,8 +28,9 @@ test.describe("Ministry Hub alignment workspace", () => {
     const hub = page.getByRole("region", { name: "Authenticated Ministry Hub narrative review" });
     await expect(hub).toBeVisible();
     await expect(hub.getByRole("heading", { name: "What deserves leadership attention?" })).toBeVisible();
-    await expect(hub.getByRole("article")).toHaveCount(5);
-    await expect(hub.getByRole("heading", { name: "Participation patterns need more current attendance evidence." })).toBeVisible();
+    await expect(hub.getByRole("article")).toHaveCount(9);
+    await expect(hub.getByRole("heading", { name: "Participation rhythm needs eight recent complete weeks." })).toBeVisible();
+    await expect(hub.getByText("Evidence coverage", { exact: true }).first()).toBeVisible();
     await expect(hub.getByText("No sample values or guest records have been substituted for this missing ministry evidence.").first()).toBeVisible();
     await expect(page.getByRole("region", { name: "Public demo organizational memory" })).toHaveCount(0);
     await expect(page.getByText("Current Ministry Signals", { exact: true })).toHaveCount(0);
@@ -37,7 +38,7 @@ test.describe("Ministry Hub alignment workspace", () => {
     await expect(page.getByText(/alignment score|percentage alignment|Season score|Mission: Strong/i)).toHaveCount(0);
     await expect(page.getByText(/Mason Bridge|Eli Fable|Marcus Bright|MS 6th Grade North/)).toHaveCount(0);
     await page.screenshot({ path: "test-results/authenticated-ministry-hub-desktop.png", fullPage: true });
-    const firstNarrative = hub.getByRole("article", { name: "Participation patterns need more current attendance evidence." });
+    const firstNarrative = hub.getByRole("article", { name: "Participation rhythm needs eight recent complete weeks." });
     await firstNarrative.scrollIntoViewIfNeeded();
     await page.screenshot({ path: "test-results/authenticated-ministry-hub-narratives-desktop.png" });
   });
@@ -47,7 +48,7 @@ test.describe("Ministry Hub alignment workspace", () => {
     await clearAlignmentStorage(page);
     await page.goto("/ministry");
 
-    const participation = page.getByRole("article", { name: "Participation patterns need more current attendance evidence." });
+    const participation = page.getByRole("article", { name: "Participation rhythm needs eight recent complete weeks." });
     await participation.getByRole("button", { name: "Discuss with EMMA" }).click();
     await participation.getByLabel("Message EMMA").fill("What should we review before interpreting participation?");
     const request = page.waitForRequest((item) => item.url().endsWith("/api/ai/emma") && item.method() === "POST");
@@ -123,7 +124,7 @@ test.describe("Ministry Hub alignment workspace", () => {
     const payload = (await request).postDataJSON() as Record<string, unknown>;
 
     expect(payload).toEqual({
-      page: "dashboard",
+      page: "ministry",
       prompt: "What should leadership discuss before changing the group?",
       createProposal: false,
       selectedGuestNarrativeId: "small-group-growth"

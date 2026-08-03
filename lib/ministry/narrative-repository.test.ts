@@ -32,6 +32,7 @@ describe("authenticated ministry narrative repository", () => {
     expect(context.planningCenter).toMatchObject({ available: true, connectionStatus: "connected" });
     expect(context.volunteerHub).toMatchObject({ available: true });
     expect(context.volunteerHub.leaders[0]?.name).toBe("Jordan Leader");
+    expect(queries.planning_center_attendance_refs.order).toHaveBeenCalledWith("checked_in_at", { ascending: false });
     for (const query of Object.values(queries)) {
       expect(query.eq).toHaveBeenCalledWith("ministry_id", "ministry-one");
       expect("insert" in query).toBe(false);
@@ -51,7 +52,11 @@ describe("authenticated ministry narrative repository", () => {
       available: false,
       connectionStatus: "unavailable",
       lastSyncAt: undefined,
-      attendance: []
+      attendance: [],
+      peopleAvailable: false,
+      syncHistoryAvailable: false,
+      people: [],
+      syncRuns: []
     });
     expect(context.volunteerHub.available).toBe(true);
   });
@@ -91,8 +96,16 @@ function querySet(options: { planningCenterError?: boolean; volunteerError?: boo
       }],
       error: options.planningCenterError ? { message: "missing" } : null
     }),
+    planning_center_people_refs: query({
+      data: options.planningCenterError ? null : [{ external_person_id: "person-one", grade: "7", age_band: "middle_school", last_synced_at: "2026-08-01T00:00:00.000Z" }],
+      error: options.planningCenterError ? { message: "missing" } : null
+    }),
+    planning_center_sync_runs: query({
+      data: options.planningCenterError ? null : [{ status: "succeeded", people_count: 1, attendance_count: 1, started_at: "2026-08-01T00:00:00.000Z", completed_at: "2026-08-01T00:01:00.000Z" }],
+      error: options.planningCenterError ? { message: "missing" } : null
+    }),
     volunteer_hub_leaders: query({
-      data: options.volunteerError ? null : [{ id: "leader-one", name: "Jordan Leader", role_label: "Leader" }],
+      data: options.volunteerError ? null : [{ id: "leader-one", profile_user_id: "user-one", name: "Jordan Leader", role_label: "Leader", serving_areas: ["Students"], availability: "Sunday", skills: ["Groups"], background_check_expires: null }],
       error: options.volunteerError ? { message: "missing" } : null
     }),
     volunteer_hub_small_groups: query({
@@ -100,11 +113,23 @@ function querySet(options: { planningCenterError?: boolean; volunteerError?: boo
       error: options.volunteerError ? { message: "missing" } : null
     }),
     volunteer_hub_small_group_members: query({
-      data: options.volunteerError ? null : [{ group_id: "group-one" }],
+      data: options.volunteerError ? null : [{ group_id: "group-one", student_source: "planning_center", student_ref_id: "person-one", created_at: "2026-07-01" }],
       error: options.volunteerError ? { message: "missing" } : null
     }),
     volunteer_hub_event_leader_assignments: query({
       data: options.volunteerError ? null : [{ event_id: "event-one", leader_id: "leader-one", created_at: "2026-07-01" }],
+      error: options.volunteerError ? { message: "missing" } : null
+    }),
+    volunteer_hub_items: query({
+      data: options.volunteerError ? null : [{ id: "item-one", item_type: "training", title: "Training", due_date: null, required: true, blocks_student_contact: false }],
+      error: options.volunteerError ? { message: "missing" } : null
+    }),
+    volunteer_hub_item_progress: query({
+      data: options.volunteerError ? null : [{ item_id: "item-one", user_id: "user-one", completed: true, completed_at: "2026-07-01" }],
+      error: options.volunteerError ? { message: "missing" } : null
+    }),
+    volunteer_hub_follow_ups: query({
+      data: options.volunteerError ? null : [{ id: "follow-one", volunteer_leader_id: "leader-one", status: "assigned", created_at: "2026-07-01", updated_at: "2026-07-01" }],
       error: options.volunteerError ? { message: "missing" } : null
     })
   };

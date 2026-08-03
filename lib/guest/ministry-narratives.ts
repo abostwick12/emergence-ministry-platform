@@ -4,6 +4,7 @@ import type {
   MinistryNarrativeEvidence,
   MinistryNarrativeSourceRecord
 } from "@/lib/ministry/narrative-types";
+import { defaultNarrativeSignal } from "@/lib/ministry/narrative-ranking";
 import {
   buildLeadEmergenceDemoContext,
   LEAD_EMERGENCE_DEMO_HISTORY_YEAR,
@@ -32,7 +33,17 @@ export function buildGuestMinistryNarratives(
     buildStaffNarrative(context),
     buildVolunteerNarrative(context),
     buildGroupNarrative(context)
-  ];
+  ].map(withGuestSignal);
+}
+
+function withGuestSignal(narrative: GuestMinistryNarrative): GuestMinistryNarrative {
+  const settings = {
+    "sunday-friday-shift": { attention: "high" as const, confidence: "high" as const, coverage: "One complete synthetic year across Sunday and Friday occurrences", freshness: "Synthetic 2025 history", whySurfaced: "Opposing participation movements across ministry settings can be hidden by a single attendance total.", alignmentTags: ["participation", "students", "formation"] },
+    "staff-responsibility-concentration": { attention: "high" as const, confidence: "high" as const, coverage: "All canonical guest tasks and event ownership records", freshness: "Synthetic 2025–2026 plan", whySurfaced: "Cross-domain ownership and recorded task effort are concentrated with one staff leader.", alignmentTags: ["leaders", "capacity", "care"] },
+    "volunteer-serving-pattern": { attention: "watch" as const, confidence: "high" as const, coverage: "All canonical guest serving assignments", freshness: "Synthetic 2025 history", whySurfaced: "The full volunteer distribution reveals repeated service and unused rotation capacity.", alignmentTags: ["volunteers", "serve", "leaders", "care"] },
+    "small-group-growth": { attention: "watch" as const, confidence: "high" as const, coverage: "Canonical guest group snapshots and membership outcomes", freshness: "Synthetic 2025 history", whySurfaced: "Group change becomes meaningful when membership and leader structure are examined together.", alignmentTags: ["groups", "belonging", "relationships"] }
+  }[narrative.id];
+  return { ...narrative, signal: defaultNarrativeSignal(narrative, settings) };
 }
 
 export function buildGuestMinistryNarrativeById(

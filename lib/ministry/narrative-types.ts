@@ -1,8 +1,17 @@
 export type MinistryNarrativeStatus = "supported" | "insufficient_evidence";
 
+export type MinistryNarrativeSignal = {
+  attention: "high" | "watch" | "context";
+  confidence: "high" | "medium" | "low";
+  coverage: string;
+  freshness: string;
+  whySurfaced: string;
+  alignmentTags: string[];
+};
+
 export type MinistryNarrativeSourceRecord = {
   id: string;
-  type: "attendance_session" | "event" | "event_outcome" | "task" | "serving_assignment" | "small_group" | "volunteer";
+  type: "attendance_session" | "event" | "event_outcome" | "task" | "serving_assignment" | "small_group" | "volunteer" | "volunteer_readiness" | "follow_up" | "people_snapshot";
   label: string;
   date?: string;
 };
@@ -37,4 +46,5 @@ export type MinistryNarrative<Id extends string = string> = {
   unknowns: string[];
   discernmentQuestion: string;
   action?: MinistryNarrativeAction;
+  signal?: MinistryNarrativeSignal;
 };
