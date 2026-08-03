@@ -105,7 +105,13 @@ function pack(overrides: Partial<MeridianEvidencePack> = {}): MeridianEvidencePa
   };
   return {
     task: { ministryId: "ministry-a", audience: "leaders", taskType: "brief", sensitivity: "internal", at: new Date().toISOString(), externalCommunication: false },
-    questionPlan: { question: "What does the policy require?", scriptureReferences: [], facets: [{ id: "facet-1", query: "What does the policy require?", required: true }], ambiguous: false },
+    questionPlan: {
+      question: "What does the policy require?",
+      scriptureReferences: [],
+      intentRoute: "doctrine",
+      facets: [{ id: "facet-1", query: "What does the policy require?", required: true, route: "doctrine" }],
+      ambiguous: false
+    },
     facetCoverage: [{ facetId: "facet-1", query: "What does the policy require?", required: true, claimIds: [claim.id] }],
     sources: [],
     approvedClaims: [claim],

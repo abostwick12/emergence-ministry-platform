@@ -8,6 +8,8 @@ import {
 } from "@/lib/scripture/knowledge";
 import { buildQuestionNextStep, type StudentQuestionNextStep } from "@/lib/scripture/student-home";
 import type { StudentKnowledgeMatch } from "@/lib/scripture/knowledge";
+import { evaluateMeridianShadowOutput } from "@/lib/meridian/knowledge/evidence-map";
+import type { MeridianShadowEvaluation } from "@/lib/meridian/knowledge/types";
 
 export type KnowledgeTestBenchInput = {
   question: string;
@@ -18,7 +20,8 @@ export type KnowledgeTestBenchResult = {
   question: string;
   scriptureReference: string;
   matches: StudentKnowledgeMatch[];
-  grounding: Omit<ApprovedMeridianGrounding, "providerContext"> & { studentResourceMatchCount: number };
+  grounding: Omit<ApprovedMeridianGrounding, "providerContext" | "evidenceMap"> & { studentResourceMatchCount: number };
+  shadowEvaluation: MeridianShadowEvaluation;
   nextStep: StudentQuestionNextStep;
   aiDraft: GlooDiscussionPreview;
   visibilityNote: string;
@@ -42,7 +45,7 @@ export async function runKnowledgeTestBench(
   };
   const matches = await getStudentKnowledgeMatches(session, prompt);
   const approvedGrounding = await getApprovedMeridianGrounding(session, prompt);
-  const { providerContext: _providerContext, ...groundingSummary } = approvedGrounding;
+  const { providerContext: _providerContext, evidenceMap: _evidenceMap, ...groundingSummary } = approvedGrounding;
   const grounding = { ...groundingSummary, studentResourceMatchCount: matches.length };
   const nextStep = buildQuestionNextStep(prompt, matches);
   const aiDraft = await previewGlooDraft({
@@ -51,12 +54,24 @@ export async function runKnowledgeTestBench(
     matches,
     grounding: approvedGrounding
   });
+  const shadowEvaluation = evaluateMeridianShadowOutput(
+    approvedGrounding.evidenceMap,
+    aiDraft.ok ? {
+      structuredAnswer: Boolean(aiDraft.answerDraft),
+      scriptureReferences: [aiDraft.scriptureReference, ...(aiDraft.answerDraft?.scriptureReferences ?? [])]
+        .filter((reference): reference is string => Boolean(reference)),
+      pastoralCareCount: aiDraft.answerDraft?.pastoralCare.length ?? 0,
+      uncertaintyCount: aiDraft.answerDraft?.uncertainty.length ?? 0,
+      requiresHumanReview: aiDraft.answerDraft?.requiresHumanReview === true
+    } : undefined
+  );
 
   return {
     question,
     scriptureReference,
     matches,
     grounding,
+    shadowEvaluation,
     nextStep,
     aiDraft,
     visibilityNote:
@@ -117,6 +132,7 @@ async function previewGlooDraft(
     confidence: draft.confidence,
     discussionPrompt: draft.discussionPrompt,
     ...(draft.answerDraft ? { answerDraft: draft.answerDraft } : {}),
+    ...(draft.scriptureReference ? { scriptureReference: draft.scriptureReference } : {}),
     safetyLabel: draft.safetyLabel,
     safetyNotes: draft.safetyNotes,
     message: "Gloo AI Studio returned a leader-review draft. This preview was not saved or shown to students."

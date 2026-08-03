@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { buildMeridianQuestionPlan, meridianSearchText } from "@/lib/meridian/knowledge/question-plan";
+import {
+  buildMeridianQuestionPlan,
+  deriveMeridianResponseRequirements,
+  meridianSearchText
+} from "@/lib/meridian/knowledge/question-plan";
 import type { MeridianTaskContext } from "@/lib/meridian/knowledge/types";
 
 describe("Meridian question planning", () => {
@@ -13,8 +17,9 @@ describe("Meridian question planning", () => {
     expect(plan).toMatchObject({
       question: "What does grace mean in Ephesians?",
       scriptureReferences: ["Ephesians 2:8-10"],
+      intentRoute: "mixed",
       ambiguous: false,
-      facets: [{ id: "facet-1", query: "What does grace mean in Ephesians?", required: true }]
+      facets: [{ id: "facet-1", query: "What does grace mean in Ephesians?", required: true, route: "passage" }]
     });
     expect(meridianSearchText(plan.facets[0].query, plan.scriptureReferences)).toContain("Ephesians 2:8-10");
   });
@@ -36,6 +41,31 @@ describe("Meridian question planning", () => {
       facets: [],
       ambiguous: true,
       ambiguityReason: "missing_question"
+    });
+  });
+
+  it("routes explicit question parts without inventing hidden facets", () => {
+    const plan = buildMeridianQuestionPlan(task({
+      query: "What does the Trinity mean, and how should I respond when I doubt?"
+    }));
+
+    expect(plan.intentRoute).toBe("mixed");
+    expect(plan.facets).toEqual([
+      expect.objectContaining({ query: "What does the Trinity mean", route: "doctrine" }),
+      expect.objectContaining({ query: "how should I respond when I doubt?", route: "formation" })
+    ]);
+  });
+
+  it("derives pastoral and uncertainty requirements from the live question", () => {
+    expect(deriveMeridianResponseRequirements("Why did God let Job suffer just to prove a point to Satan?")).toEqual({
+      humanReview: true,
+      pastoralCare: true,
+      uncertainty: true
+    });
+    expect(deriveMeridianResponseRequirements("What is an angel?")).toEqual({
+      humanReview: true,
+      pastoralCare: false,
+      uncertainty: false
     });
   });
 });

@@ -1,5 +1,6 @@
 import type { AuthSession } from "@/lib/auth/server";
 import { buildMeridianEvidencePack, formatApprovedEvidencePackForGeneration } from "@/lib/meridian/knowledge/evidence-pack";
+import { compileMeridianEvidenceMap } from "@/lib/meridian/knowledge/evidence-map";
 import { inspectPrivateFragmentLeakage, type PrivateDiscoveryFragment } from "@/lib/meridian/knowledge/leakage-firewall";
 import type { MeridianGenerationRepository } from "@/lib/meridian/knowledge/repository";
 import { abstainingResponse, validateMeridianResponseContract } from "@/lib/meridian/knowledge/response-contract";
@@ -12,8 +13,10 @@ export async function prepareMeridianGeneration(
 ) {
   const evidence = await repository.loadApprovedEvidence(session, task);
   const pack = buildMeridianEvidencePack({ task, ...evidence });
+  const evidenceMap = compileMeridianEvidenceMap({ pack, relationships: evidence.relationships });
   return {
     pack,
+    evidenceMap,
     decision: pack.abstain ? "abstain" as const : pack.requiresReview ? "generate_for_review" as const : "generate" as const,
     providerContext: pack.abstain ? undefined : formatApprovedEvidencePackForGeneration(pack),
     response: pack.abstain ? abstainingResponse(pack) : undefined
