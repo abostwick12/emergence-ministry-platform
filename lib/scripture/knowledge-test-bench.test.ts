@@ -45,6 +45,15 @@ describe("Meridian test bench", () => {
       topicTags: ["hope"],
       confidence: 0.88,
       discussionPrompt: "Where does Romans 8 make room for honest pain and hope?",
+      answerDraft: {
+        directAnswer: "Romans 8 does not call suffering good, but it places suffering inside Christian hope.",
+        keyDistinctions: ["Hope is not denial of pain."],
+        scriptureReferences: ["Romans 8:18-39"],
+        uncertainty: ["The passage does not explain every specific cause of suffering."],
+        pastoralCare: ["Do not rush a hurting student toward a tidy explanation."],
+        questionsForLeader: ["What is the student's lived context?"],
+        requiresHumanReview: true
+      },
       safetyLabel: "safe",
       safetyNotes: "Leader can review before use."
     });
@@ -117,7 +126,11 @@ describe("Meridian test bench", () => {
       ok: true,
       provider: "gloo",
       model: "GPT-5 Nano",
-      discussionPrompt: "Where does Romans 8 make room for honest pain and hope?"
+      discussionPrompt: "Where does Romans 8 make room for honest pain and hope?",
+      answerDraft: {
+        directAnswer: "Romans 8 does not call suffering good, but it places suffering inside Christian hope.",
+        requiresHumanReview: true
+      }
     });
   });
 

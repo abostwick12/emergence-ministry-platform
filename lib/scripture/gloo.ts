@@ -3,6 +3,7 @@ import { measureServerOperation } from "@/lib/performance/timing";
 
 const PROVIDER_TIMEOUT_MS = 45_000;
 const PROVIDER_MAX_OUTPUT_TOKENS = 1_200;
+const GLOO_DISCUSSION_MAX_OUTPUT_TOKENS = 1_800;
 const GLOO_TOKEN_URL = "https://platform.ai.gloo.com/oauth2/token";
 const GLOO_DEFAULT_API_BASE_URL = "https://platform.ai.gloo.com/ai/v2";
 const GLOO_TOKEN_REFRESH_BUFFER_MS = 60_000;
@@ -52,6 +53,16 @@ export type GlooReadingPlanDraftInput = {
 
 export type GlooModelTier = "default" | "escalation" | "long_context";
 
+export type GlooTheologicalAnswerDraft = {
+  directAnswer: string;
+  keyDistinctions: string[];
+  scriptureReferences: string[];
+  uncertainty: string[];
+  pastoralCare: string[];
+  questionsForLeader: string[];
+  requiresHumanReview: true;
+};
+
 export type GlooModelSelection = {
   model: string;
   tier: GlooModelTier;
@@ -71,6 +82,7 @@ export type GlooDiscussionDraftResult =
       topicTags: string[];
       confidence: number;
       discussionPrompt: string;
+      answerDraft?: GlooTheologicalAnswerDraft;
       scriptureReference?: string;
       safetyLabel: "safe" | "needs_leader_care" | "pastoral_escalation";
       safetyNotes: string;
@@ -117,6 +129,7 @@ export type GlooDiscussionPreview =
       modelTier: GlooModelTier;
       confidence: number;
       discussionPrompt: string;
+      answerDraft?: GlooTheologicalAnswerDraft;
       safetyLabel: "safe" | "needs_leader_care" | "pastoral_escalation";
       safetyNotes: string;
       message: string;
@@ -164,6 +177,7 @@ type GlooChatResponse = {
 
 type ParsedDraft = {
   discussionPrompt?: unknown;
+  answerDraft?: unknown;
   scriptureReference?: unknown;
   safetyLabel?: unknown;
   safetyNotes?: unknown;
@@ -639,13 +653,13 @@ function extractGlooTextContent(payload: GlooChatResponse): string | undefined {
 function createGlooDraftRequestBody(input: GlooDiscussionDraftInput, selection: GlooModelSelection) {
   return JSON.stringify({
     model: selection.model,
-    temperature: 0.3,
-    max_tokens: PROVIDER_MAX_OUTPUT_TOKENS,
+    temperature: 0.2,
+    max_tokens: GLOO_DISCUSSION_MAX_OUTPUT_TOKENS,
     messages: [
       {
         role: "system",
         content:
-          "You help student ministry leaders prepare careful, Scripture-grounded discussion prompts. Use retrieved student-visible ministry context as background, not as an authority to quote. Use internal grounding only for theological posture, ministry voice, question shape, culture, and artistic texture. Never quote, summarize, cite, reveal, or assign internal grounding material to students. Return only JSON with keys discussionPrompt, scriptureReference, safetyLabel, safetyNotes, confidence, topicTags, escalationRecommended, escalationReason. scriptureReference must be one concise Bible reference that directly grounds the response; retain a user-supplied reference when present. The safetyLabel must be one of safe, needs_leader_care, pastoral_escalation. confidence must be a number from 0 to 1. topicTags must be short lowercase strings. Do not claim pastoral authority, do not give crisis counseling, and do not include full Bible text."
+          "You help student ministry leaders prepare careful, Scripture-grounded answers and discussion prompts. Use retrieved student-visible ministry context as evidence and internal grounding only for theological posture, ministry voice, question shape, culture, and artistic texture. Never quote, summarize, cite, reveal, or assign internal grounding material to students. Return only JSON with keys discussionPrompt, answerDraft, scriptureReference, safetyLabel, safetyNotes, confidence, topicTags, escalationRecommended, escalationReason. answerDraft must contain directAnswer, keyDistinctions, scriptureReferences, uncertainty, pastoralCare, questionsForLeader, and requiresHumanReview. requiresHumanReview must be true. Address the student's actual question directly, distinguish major interpretations when needed, and say when retrieved evidence is insufficient. Do not invent Lead Emergence doctrine or unsupported certainty. scriptureReference must be one concise Bible reference that directly grounds the response; retain a user-supplied reference when present. The safetyLabel must be one of safe, needs_leader_care, pastoral_escalation. confidence must be a number from 0 to 1. topicTags must be short lowercase strings. Do not claim pastoral authority, infer God's private intent in suffering, give crisis counseling, or include full Bible text."
       },
       {
         role: "user",
@@ -656,7 +670,7 @@ function createGlooDraftRequestBody(input: GlooDiscussionDraftInput, selection: 
           `Student-visible ministry context:\n${input.retrievedContext || "No retrieved student-visible context available."}\n\n` +
           `Internal grounding for posture only:\n${input.internalGroundingContext || "No internal grounding context available."}\n\n` +
           `Model routing: ${selection.reason}${selection.escalationReason ? ` Escalation reason: ${selection.escalationReason}` : ""}\n\n` +
-          "Draft one Socratic small-group discussion prompt for leader review. Keep it humble, conversational, and grounded in the reference without quoting the passage. Drive toward engagement, attention, and relationship with Jesus and community rather than certainty, trivia, or content-farm answers."
+          "Draft a direct but humble answer for leader review and one Socratic small-group discussion prompt. Ground both in the supplied context and Scripture references without quoting full passages. If the supplied evidence does not support a confident theological conclusion, identify that limit explicitly for the leader instead of filling the gap from speculation."
       }
     ]
   });
@@ -751,6 +765,7 @@ function parseDraftContent(content: string, selection: GlooModelSelection): Gloo
   }
 
   const discussionPrompt = typeof parsed.discussionPrompt === "string" ? parsed.discussionPrompt.trim() : "";
+  const answerDraft = parseTheologicalAnswerDraft(parsed.answerDraft);
   const scriptureReference = normalizeText(parsed.scriptureReference, 160);
   const safetyLabel = normalizeSafetyLabel(parsed.safetyLabel);
   const safetyNotes = typeof parsed.safetyNotes === "string" ? parsed.safetyNotes.trim() : "";
@@ -776,9 +791,32 @@ function parseDraftContent(content: string, selection: GlooModelSelection): Gloo
     topicTags,
     confidence,
     discussionPrompt: limitText(discussionPrompt, 1800),
+    ...(answerDraft ? { answerDraft } : {}),
     ...(scriptureReference ? { scriptureReference } : {}),
     safetyLabel,
     safetyNotes: limitText(safetyNotes, 900)
+  };
+}
+
+function parseTheologicalAnswerDraft(value: unknown): GlooTheologicalAnswerDraft | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const parsed = value as Record<string, unknown>;
+  const directAnswer = normalizeText(parsed.directAnswer, 4000);
+  const keyDistinctions = normalizeStringArray(parsed.keyDistinctions, 8).map((item) => limitText(item, 500));
+  const scriptureReferences = normalizeStringArray(parsed.scriptureReferences, 8).map((item) => limitText(item, 120));
+  const uncertainty = normalizeStringArray(parsed.uncertainty, 8).map((item) => limitText(item, 500));
+  const pastoralCare = normalizeStringArray(parsed.pastoralCare, 8).map((item) => limitText(item, 500));
+  const questionsForLeader = normalizeStringArray(parsed.questionsForLeader, 8).map((item) => limitText(item, 500));
+
+  if (!directAnswer || !questionsForLeader.length || parsed.requiresHumanReview !== true) return undefined;
+  return {
+    directAnswer,
+    keyDistinctions,
+    scriptureReferences,
+    uncertainty,
+    pastoralCare,
+    questionsForLeader,
+    requiresHumanReview: true
   };
 }
 

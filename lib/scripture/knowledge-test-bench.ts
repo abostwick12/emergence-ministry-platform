@@ -102,6 +102,7 @@ async function previewGlooDraft(
     modelTier: draft.modelTier,
     confidence: draft.confidence,
     discussionPrompt: draft.discussionPrompt,
+    ...(draft.answerDraft ? { answerDraft: draft.answerDraft } : {}),
     safetyLabel: draft.safetyLabel,
     safetyNotes: draft.safetyNotes,
     message: "Gloo AI Studio returned a leader-review draft. This preview was not saved or shown to students."
