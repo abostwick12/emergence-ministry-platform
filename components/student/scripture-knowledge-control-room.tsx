@@ -427,7 +427,32 @@ function TestBenchPreview({ result }: { result: KnowledgeTestBenchResult | null 
       <p>{result.nextStep.summary}</p>
 
       <div className="knowledge-test-section">
-        <span>Grounded answer draft</span>
+        <span>Grounding integrity</span>
+        <strong>
+          <span className={`status-badge ${groundingStatusTone(result.grounding.status)}`}>
+            {groundingStatusLabel(result.grounding.status)}
+          </span>
+        </strong>
+        <p>{result.grounding.message}</p>
+        <p>
+          {result.grounding.approvedClaimCount} approved claims across {result.grounding.approvedSourceCount} approved sources; {result.grounding.supportedFacetCount} of {result.grounding.requiredFacetCount} required question parts supported.
+        </p>
+        <p>{result.grounding.studentResourceMatchCount} related student resources found. These shape next steps, not the theological grounding label.</p>
+        {result.grounding.missingFacets.length ? (
+          <>
+            <strong>Missing answer support</strong>
+            <ul>
+              {result.grounding.missingFacets.map((facet) => <li key={facet}>{facet}</li>)}
+            </ul>
+          </>
+        ) : null}
+      </div>
+
+      <div className="knowledge-test-section">
+        <span>Theological answer draft</span>
+        {result.grounding.status !== "grounded" ? (
+          <p>This provider prose is available for evaluation, but it must not be treated as a grounded Meridian answer.</p>
+        ) : null}
         {result.aiDraft.ok && result.aiDraft.answerDraft ? (
           <>
             <strong>Direct response</strong>
@@ -475,7 +500,13 @@ function TestBenchPreview({ result }: { result: KnowledgeTestBenchResult | null 
           </>
         ) : (
           <>
-            <strong>{result.aiDraft.configured ? "Provider returned no usable draft" : "Provider not configured"}</strong>
+            <strong>
+              {result.aiDraft.code === "provider_invalid"
+                ? "Provider contract invalid"
+                : result.aiDraft.configured
+                  ? "Provider returned no usable draft"
+                  : "Provider not configured"}
+            </strong>
             <p>{result.aiDraft.message}</p>
           </>
         )}
@@ -497,7 +528,7 @@ function TestBenchPreview({ result }: { result: KnowledgeTestBenchResult | null 
       </div>
 
       <div className="knowledge-test-section">
-        <span>Matched sources</span>
+        <span>Related student resources</span>
         {result.matches.length ? (
           result.matches.map((match) => (
             <article className="knowledge-test-match" key={match.id}>
@@ -514,6 +545,20 @@ function TestBenchPreview({ result }: { result: KnowledgeTestBenchResult | null 
       <p className="knowledge-test-note">{result.visibilityNote}</p>
     </aside>
   );
+}
+
+function groundingStatusLabel(status: KnowledgeTestBenchResult["grounding"]["status"]) {
+  if (status === "grounded") return "Grounded";
+  if (status === "partially_grounded") return "Partially grounded";
+  if (status === "ungrounded") return "Ungrounded";
+  return "Evidence unavailable";
+}
+
+function groundingStatusTone(status: KnowledgeTestBenchResult["grounding"]["status"]) {
+  if (status === "grounded") return "tone-success";
+  if (status === "partially_grounded") return "tone-warning";
+  if (status === "ungrounded") return "tone-critical";
+  return "tone-info";
 }
 
 function ResourceVideoPackagePanel({

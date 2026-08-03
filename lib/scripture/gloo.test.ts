@@ -172,7 +172,7 @@ describe("Gloo model policy", () => {
     expect(completionBody.messages[1].content).not.toContain("requiredFacets");
   });
 
-  it("sends internal grounding as posture-only context, not student-facing content", async () => {
+  it("separates approved answer evidence, related student resources, and posture-only context", async () => {
     process.env.GLOO_AI_CLIENT_SECRET = "secret";
     process.env.GLOO_AI_BASE_URL = "https://platform.ai.gloo.com";
     process.env.GLOO_AI_MODEL = "GPT-5 Nano";
@@ -192,15 +192,120 @@ describe("Gloo model policy", () => {
 
     await generateGlooDiscussionDraft({
       ...baseInput,
+      studentJourneyContext: "A related resource about prayer habits.",
+      approvedEvidenceContext: "Approved claim 1: Prayer is honest dependence on God.",
+      groundingStatus: "grounded",
       internalGroundingContext: "Grounding signal 1:\nSynthesis: Ask abstract questions that deepen attention."
     });
 
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-    expect(body.messages[0].content).toContain("Never quote, summarize, cite, reveal, or assign internal grounding material to students.");
-    expect(body.messages[1].content).toContain("Internal grounding for posture only:");
+    expect(body.messages[0].content).toContain("Only the approved answer-evidence section may count as Meridian grounding.");
+    expect(body.messages[1].content).toContain("Approved answer evidence:");
+    expect(body.messages[1].content).toContain("Prayer is honest dependence on God.");
+    expect(body.messages[1].content).toContain("Related student resources (not answer evidence):");
+    expect(body.messages[1].content).toContain("Internal ministry context for posture only:");
     expect(body.messages[1].content).toContain("Ask abstract questions that deepen attention.");
     expect(body.messages[1].content).toContain("Draft a direct but humble answer for leader review");
     expect(body.max_tokens).toBe(1800);
+  });
+
+  it("makes one constrained repair attempt when a required theological answer is incomplete", async () => {
+    process.env.GLOO_AI_STUDIO_API_KEY = "key";
+    process.env.GLOO_AI_STUDIO_API_BASE_URL = "https://example.test";
+    process.env.GLOO_AI_MODEL = "GPT-5 Nano";
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({
+        discussionPrompt: "Where does Job resist a tidy explanation for suffering?",
+        answerDraft: {
+          directAnswer: "Job does not present suffering as a simple proof point.",
+          keyDistinctions: [],
+          scriptureReferences: ["Job 1-2", "Job 38-42"],
+          uncertainty: [],
+          pastoralCare: [],
+          questionsForLeader: ["Is this student asking from a current loss?"],
+          requiresHumanReview: true
+        },
+        safetyLabel: "needs_leader_care",
+        safetyNotes: "Review with care.",
+        confidence: 0.82,
+        topicTags: ["suffering"]
+      }))
+      .mockResolvedValueOnce(jsonResponse({
+        discussionPrompt: "Where does Job resist a tidy explanation for suffering?",
+        answerDraft: {
+          directAnswer: "Job does not present suffering as a simple proof point.",
+          keyDistinctions: [],
+          scriptureReferences: ["Job 1-2", "Job 38-42"],
+          uncertainty: ["The book does not disclose a complete reason for every instance of suffering."],
+          pastoralCare: ["Ask whether the student is carrying a current loss before continuing the discussion."],
+          questionsForLeader: ["Is this student asking from a current loss?"],
+          requiresHumanReview: true
+        },
+        safetyLabel: "needs_leader_care",
+        safetyNotes: "Review with care.",
+        confidence: 0.82,
+        topicTags: ["suffering"]
+      }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await generateGlooDiscussionDraft({
+      question: "Why did God let Job suffer just to prove a point to Satan?",
+      scriptureReference: "Job 1-2",
+      groundingStatus: "grounded",
+      approvedEvidenceContext: "Approved evidence pack.",
+      requireStructuredAnswer: true
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      answerDraft: {
+        uncertainty: [expect.stringContaining("does not disclose")],
+        pastoralCare: [expect.stringContaining("current loss")]
+      }
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const repairBody = JSON.parse(fetchMock.mock.calls[1][1].body);
+    expect(repairBody.temperature).toBe(0);
+    expect(repairBody.messages[0].content).toContain("Preserve the answer's meaning");
+    expect(repairBody.messages[1].content).toContain("Pastoral care array must be non-empty: yes");
+    expect(repairBody.messages[1].content).toContain("Uncertainty array must be non-empty: yes");
+  });
+
+  it("marks a required answer provider-invalid after exactly one failed repair", async () => {
+    process.env.GLOO_AI_STUDIO_API_KEY = "key";
+    process.env.GLOO_AI_STUDIO_API_BASE_URL = "https://example.test";
+    process.env.GLOO_AI_MODEL = "GPT-5 Nano";
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({
+        discussionPrompt: "What makes this question difficult?",
+        safetyLabel: "safe",
+        safetyNotes: "Leader review required.",
+        confidence: 0.7
+      }))
+      .mockResolvedValueOnce(jsonResponse({
+        discussionPrompt: "Still missing the required answer.",
+        safetyLabel: "safe",
+        safetyNotes: "Leader review required.",
+        confidence: 0.7
+      }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await generateGlooDiscussionDraft({
+      ...baseInput,
+      requireStructuredAnswer: true
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      code: "provider_invalid",
+      message: "Gloo AI Studio returned an invalid structured answer after one constrained repair attempt."
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(warn).toHaveBeenCalledTimes(1);
   });
 
   it("normalizes the Gloo platform origin to the official v2 chat endpoint", async () => {

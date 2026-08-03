@@ -72,6 +72,17 @@ test.describe("Student Scripture Hub shell", () => {
             description: "Hold suffering and hope together without rushing the conversation.",
             scriptureReferences: ["Romans 8:18-39"]
           }],
+          grounding: {
+            status: "grounded",
+            decision: "generate",
+            approvedClaimCount: 3,
+            approvedSourceCount: 2,
+            supportedFacetCount: 1,
+            requiredFacetCount: 1,
+            missingFacets: [],
+            message: "Approved evidence covers 1 of 1 required question parts.",
+            studentResourceMatchCount: 1
+          },
           nextStep: {
             label: "Keep wrestling with hope",
             summary: "Review a grounded response before guiding the student.",
@@ -109,7 +120,9 @@ test.describe("Student Scripture Hub shell", () => {
     const meridianPreview = page.getByRole("complementary", { name: "Meridian preview" });
     await expect(meridianPreview).toContainText("Questions to dig into");
     await expect(meridianPreview).toContainText("Keep Reading");
-    await expect(meridianPreview).toContainText("Grounded answer draft");
+    await expect(meridianPreview).toContainText("Grounding integrity");
+    await expect(meridianPreview).toContainText("1 related student resources found");
+    await expect(meridianPreview).toContainText("Theological answer draft");
     await expect(meridianPreview).toContainText("Romans 8 does not call suffering good");
     await expect(meridianPreview).toContainText("Leader review required");
     await meridianPreview.screenshot({ path: "test-results/meridian-grounded-answer-preview.png" });

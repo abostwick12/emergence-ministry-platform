@@ -1,5 +1,7 @@
 # Meridian evolution plan
 
+> Architecture decision: the accepted production direction is the [Meridian Evidence Compiler](./meridian-evidence-compiler.md). It makes governed evidence compilation, validation, explicit grounding labels, and the Obsidian approval boundary mandatory before broader semantic retrieval work.
+
 ## Sandbox status (2026-08-01)
 
 Two isolated Supabase sandbox cycles and one production schema cycle are complete. Four additive Meridian migrations are installed in production; the new tables remain empty and no MCP access grants exist. Ten of ten sandbox tests passed, and the five-check production cycle found and closed one default anonymous-grant gap. Application/OAuth launch remains gated as documented in `docs/benchmarks/meridian-production-rollout-2026-08-01.md`.

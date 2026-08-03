@@ -11,6 +11,20 @@ import { prepareMeridianGeneration } from "@/lib/meridian/knowledge/service";
 
 export type StudentKnowledgeMatch = StudentDiscussionKnowledgeContext;
 
+export type MeridianGroundingStatus = "grounded" | "partially_grounded" | "ungrounded" | "unavailable";
+
+export type ApprovedMeridianGrounding = {
+  status: MeridianGroundingStatus;
+  decision: "generate" | "generate_for_review" | "abstain" | "unavailable";
+  providerContext: string;
+  approvedClaimCount: number;
+  approvedSourceCount: number;
+  supportedFacetCount: number;
+  requiredFacetCount: number;
+  missingFacets: string[];
+  message: string;
+};
+
 export type StudentQuestionRecommendationKind =
   | "wrestle_question"
   | "dig_question"
@@ -366,11 +380,20 @@ export async function getInternalGroundingContext(session: AuthSession, input: K
   // Compatibility adapter: legacy `internal_grounding` chunks are intentionally
   // no longer sent to providers. Only approved, claim-first primitive evidence
   // can cross this boundary, and students/guests never retrieve it directly.
-  if (!session.accessToken || !["admin", "leader", "staff"].includes(session.user.role)) return "";
+  return (await getApprovedMeridianGrounding(session, input)).providerContext;
+}
+
+export async function getApprovedMeridianGrounding(
+  session: AuthSession,
+  input: KnowledgeSearchInput
+): Promise<ApprovedMeridianGrounding> {
+  if (!session.accessToken || !["admin", "leader", "staff"].includes(session.user.role.trim().toLowerCase())) {
+    return unavailableGrounding("Approved Meridian evidence is unavailable for this session.");
+  }
 
   try {
     const ministryId = await resolveMinistryScope(session);
-    if (!ministryId) return "";
+    if (!ministryId) return unavailableGrounding("No ministry scope is available for approved Meridian evidence.");
     const prepared = await measureServerOperation("supabase.meridian.approved_evidence", () =>
       prepareMeridianGeneration(new SupabaseMeridianKnowledgeRepository(), session, {
         ministryId,
@@ -383,13 +406,63 @@ export async function getInternalGroundingContext(session: AuthSession, input: K
         externalCommunication: false
       })
     );
-    return prepared.providerContext ?? "";
+    const requiredFacets = prepared.pack.facetCoverage.filter((facet) => facet.required);
+    const supportedFacets = requiredFacets.filter((facet) => facet.claimIds.length > 0);
+    const missingFacets = requiredFacets
+      .filter((facet) => facet.claimIds.length === 0)
+      .map((facet) => facet.query);
+    const status: MeridianGroundingStatus = prepared.decision === "abstain"
+      ? supportedFacets.length > 0
+        ? "partially_grounded"
+        : "ungrounded"
+      : "grounded";
+
+    return {
+      status,
+      decision: prepared.decision,
+      providerContext: status === "grounded" ? prepared.providerContext ?? "" : "",
+      approvedClaimCount: prepared.pack.approvedClaims.length,
+      approvedSourceCount: prepared.pack.sources.length,
+      supportedFacetCount: supportedFacets.length,
+      requiredFacetCount: requiredFacets.length,
+      missingFacets,
+      message: groundingMessage(status, supportedFacets.length, requiredFacets.length, prepared.pack.abstentionReason)
+    };
   } catch (error) {
     console.warn("[scripture] approved Meridian evidence unavailable", {
       reason: error instanceof Error ? error.message : "unknown"
     });
-    return "";
+    return unavailableGrounding("Approved Meridian evidence could not be loaded. Related resources are not being counted as answer evidence.");
   }
+}
+
+function unavailableGrounding(message: string): ApprovedMeridianGrounding {
+  return {
+    status: "unavailable",
+    decision: "unavailable",
+    providerContext: "",
+    approvedClaimCount: 0,
+    approvedSourceCount: 0,
+    supportedFacetCount: 0,
+    requiredFacetCount: 0,
+    missingFacets: [],
+    message
+  };
+}
+
+function groundingMessage(
+  status: MeridianGroundingStatus,
+  supportedFacetCount: number,
+  requiredFacetCount: number,
+  abstentionReason?: string
+) {
+  if (status === "grounded") {
+    return `Approved evidence covers ${supportedFacetCount} of ${requiredFacetCount} required question parts.`;
+  }
+  if (status === "partially_grounded") {
+    return `Approved evidence covers ${supportedFacetCount} of ${requiredFacetCount} required question parts. Meridian withheld it from generation because coverage is incomplete.`;
+  }
+  return abstentionReason || "No approved, generation-permitted evidence covers the required question parts.";
 }
 
 export async function saveStudentQuestionRecommendations(
