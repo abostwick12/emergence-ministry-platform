@@ -1,6 +1,7 @@
 import type { MetanarrativeMovement } from "@/lib/scripture/types";
 import { measureServerOperation } from "@/lib/performance/timing";
 import { deriveMeridianResponseRequirements } from "@/lib/meridian/knowledge/question-plan";
+import type { MeridianProviderClaimAttribution } from "@/lib/meridian/knowledge/types";
 
 const PROVIDER_TIMEOUT_MS = 45_000;
 const PROVIDER_MAX_OUTPUT_TOKENS = 1_200;
@@ -40,6 +41,7 @@ export type GlooDiscussionDraftInput = {
   approvedEvidenceContext?: string;
   groundingStatus?: "grounded" | "partially_grounded" | "ungrounded" | "unavailable";
   requireStructuredAnswer?: boolean;
+  requireClaimAttribution?: boolean;
   internalGroundingContext?: string;
 };
 
@@ -47,6 +49,7 @@ type GlooAnswerRequirements = {
   requireStructuredAnswer: boolean;
   requirePastoralCare: boolean;
   requireUncertainty: boolean;
+  requireClaimAttribution: boolean;
 };
 
 export type GlooReadingPlanDraftInput = {
@@ -72,6 +75,7 @@ export type GlooTheologicalAnswerDraft = {
   uncertainty: string[];
   pastoralCare: string[];
   questionsForLeader: string[];
+  materialClaims?: MeridianProviderClaimAttribution[];
   requiresHumanReview: true;
 };
 
@@ -713,7 +717,7 @@ function createGlooDraftRequestBody(input: GlooDiscussionDraftInput, selection: 
       {
         role: "system",
         content:
-          "You help student ministry leaders prepare careful theological answers and discussion prompts. Only the approved answer-evidence section may count as Meridian grounding. Related student resources may shape reading recommendations and discussion questions, but they are not evidence for theological claims and must not be cited as if they answered the question. Internal ministry context may shape posture, voice, and formation goals only; never quote, summarize, cite, reveal, or assign it to students. Return only JSON with keys discussionPrompt, answerDraft, scriptureReference, safetyLabel, safetyNotes, confidence, topicTags, escalationRecommended, escalationReason. answerDraft must contain directAnswer, keyDistinctions, scriptureReferences, uncertainty, pastoralCare, questionsForLeader, and requiresHumanReview. requiresHumanReview must be true. Address the student's actual question directly, distinguish major interpretations when needed, and state when approved evidence is insufficient. Do not invent Lead Emergence doctrine or unsupported certainty. scriptureReference must be one concise Bible reference that directly grounds the response; retain a user-supplied reference when present. The safetyLabel must be one of safe, needs_leader_care, pastoral_escalation. confidence must be a number from 0 to 1. topicTags must be short lowercase strings. Do not claim pastoral authority, infer God's private intent in suffering, give crisis counseling, or include full Bible text."
+          "You help student ministry leaders prepare careful theological answers and discussion prompts. Only the approved answer-evidence section may count as Meridian grounding. Related student resources may shape reading recommendations and discussion questions, but they are not evidence for theological claims and must not be cited as if they answered the question. Internal ministry context may shape posture, voice, and formation goals only; never quote, summarize, cite, reveal, or assign it to students. Return only JSON with keys discussionPrompt, answerDraft, scriptureReference, safetyLabel, safetyNotes, confidence, topicTags, escalationRecommended, escalationReason. answerDraft must contain directAnswer, keyDistinctions, scriptureReferences, uncertainty, pastoralCare, questionsForLeader, materialClaims, and requiresHumanReview. materialClaims is an array of objects with statement, facetHandle, claimHandle, and fragmentHandles. It must enumerate every sentence in directAnswer and every keyDistinction using only request-scoped evidence handles; statement must repeat the cited sentence or distinction exactly. requiresHumanReview must be true. Address the student's actual question directly, distinguish major interpretations when needed, and state when approved evidence is insufficient. Do not invent Lead Emergence doctrine or unsupported certainty. scriptureReference must be one concise Bible reference that directly grounds the response; retain a user-supplied reference when present. The safetyLabel must be one of safe, needs_leader_care, pastoral_escalation. confidence must be a number from 0 to 1. topicTags must be short lowercase strings. Do not claim pastoral authority, infer God's private intent in suffering, give crisis counseling, or include full Bible text."
       },
       {
         role: "user",
@@ -726,6 +730,7 @@ function createGlooDraftRequestBody(input: GlooDiscussionDraftInput, selection: 
           `Related student resources (not answer evidence):\n${input.studentJourneyContext ?? input.retrievedContext ?? "No related student resources available."}\n\n` +
           `Internal ministry context for posture only:\n${input.internalGroundingContext || "No internal ministry context available."}\n\n` +
           `Structured answer required: ${requirements.requireStructuredAnswer ? "yes" : "no"}. ` +
+          `Claim attribution required: ${requirements.requireClaimAttribution ? "yes; materialClaims must cite only the Q/C/F handles in approved answer evidence" : "no; use an empty array when no evidence-handle ledger is supplied"}. ` +
           `Pastoral care required: ${requirements.requirePastoralCare ? "yes; pastoralCare must contain at least one concrete leader-facing safeguard" : "no; use an empty array when none is needed"}. ` +
           `Interpretive uncertainty required: ${requirements.requireUncertainty ? "yes; uncertainty must name at least one real limit or faithful disagreement" : "no; use an empty array only when the evidence warrants clarity"}.\n\n` +
           `Model routing: ${selection.reason}${selection.escalationReason ? ` Escalation reason: ${selection.escalationReason}` : ""}\n\n` +
@@ -818,7 +823,12 @@ function logGlooProviderFailure(failure: GlooProviderFailure) {
 function parseDraftContent(
   content: string,
   selection: GlooModelSelection,
-  requirements: GlooAnswerRequirements = { requireStructuredAnswer: false, requirePastoralCare: false, requireUncertainty: false }
+  requirements: GlooAnswerRequirements = {
+    requireStructuredAnswer: false,
+    requirePastoralCare: false,
+    requireUncertainty: false,
+    requireClaimAttribution: false
+  }
 ): GlooDiscussionDraftResult | undefined {
   let parsed: ParsedDraft;
   try {
@@ -828,7 +838,7 @@ function parseDraftContent(
   }
 
   const discussionPrompt = typeof parsed.discussionPrompt === "string" ? parsed.discussionPrompt.trim() : "";
-  const answerDraft = parseTheologicalAnswerDraft(parsed.answerDraft);
+  const answerDraft = parseTheologicalAnswerDraft(parsed.answerDraft, requirements.requireClaimAttribution);
   const scriptureReference = normalizeText(parsed.scriptureReference, 160);
   const safetyLabel = normalizeSafetyLabel(parsed.safetyLabel);
   const safetyNotes = typeof parsed.safetyNotes === "string" ? parsed.safetyNotes.trim() : "";
@@ -878,7 +888,7 @@ function createGlooStructuredRepairBody(
       {
         role: "system",
         content:
-          "Repair one provider draft into valid JSON. Preserve the answer's meaning; do not add new factual claims, citations, certainty, or doctrinal conclusions. Return only JSON with keys discussionPrompt, answerDraft, scriptureReference, safetyLabel, safetyNotes, confidence, topicTags, escalationRecommended, escalationReason. answerDraft must contain directAnswer, keyDistinctions, scriptureReferences, uncertainty, pastoralCare, questionsForLeader, and requiresHumanReview=true."
+          "Repair one provider draft into valid JSON. Preserve the answer's meaning; do not add new factual claims, certainty, or doctrinal conclusions. You may attach only the evidence handles present in the approved evidence context. Return only JSON with keys discussionPrompt, answerDraft, scriptureReference, safetyLabel, safetyNotes, confidence, topicTags, escalationRecommended, escalationReason. answerDraft must contain directAnswer, keyDistinctions, scriptureReferences, uncertainty, pastoralCare, questionsForLeader, materialClaims, and requiresHumanReview=true."
       },
       {
         role: "user",
@@ -887,14 +897,16 @@ function createGlooStructuredRepairBody(
           `Original Scripture reference: ${input.scriptureReference || "not selected"}\n` +
           `Pastoral care array must be non-empty: ${requirements.requirePastoralCare ? "yes" : "no"}\n` +
           `Uncertainty array must be non-empty: ${requirements.requireUncertainty ? "yes" : "no"}\n` +
+          `Claim attribution must be non-empty: ${requirements.requireClaimAttribution ? "yes" : "no"}\n` +
           `Grounding status: ${input.groundingStatus ?? "not evaluated"}\n\n` +
+          `Approved evidence handles:\n${input.approvedEvidenceContext || "No approved evidence handles available."}\n\n` +
           `Provider output to repair:\n${originalOutput.slice(0, 12_000)}`
       }
     ]
   });
 }
 
-function parseTheologicalAnswerDraft(value: unknown): GlooTheologicalAnswerDraft | undefined {
+function parseTheologicalAnswerDraft(value: unknown, requireClaimAttribution = false): GlooTheologicalAnswerDraft | undefined {
   if (!value || typeof value !== "object") return undefined;
   const parsed = value as Record<string, unknown>;
   if (
@@ -910,8 +922,10 @@ function parseTheologicalAnswerDraft(value: unknown): GlooTheologicalAnswerDraft
   const uncertainty = normalizeStringArray(parsed.uncertainty, 8).map((item) => limitText(item, 500));
   const pastoralCare = normalizeStringArray(parsed.pastoralCare, 8).map((item) => limitText(item, 500));
   const questionsForLeader = normalizeStringArray(parsed.questionsForLeader, 8).map((item) => limitText(item, 500));
+  const materialClaims = parseMaterialClaimAttributions(parsed.materialClaims);
 
   if (!directAnswer || !questionsForLeader.length || parsed.requiresHumanReview !== true) return undefined;
+  if (requireClaimAttribution && !materialClaims.length) return undefined;
   return {
     directAnswer,
     keyDistinctions,
@@ -919,8 +933,31 @@ function parseTheologicalAnswerDraft(value: unknown): GlooTheologicalAnswerDraft
     uncertainty,
     pastoralCare,
     questionsForLeader,
+    ...(materialClaims.length ? { materialClaims } : {}),
     requiresHumanReview: true
   };
+}
+
+function parseMaterialClaimAttributions(value: unknown): MeridianProviderClaimAttribution[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const parsed = item as Record<string, unknown>;
+    const statement = normalizeText(parsed.statement, 1200);
+    const facetHandle = normalizeEvidenceHandle(parsed.facetHandle, "Q");
+    const claimHandle = normalizeEvidenceHandle(parsed.claimHandle, "C");
+    const fragmentHandles = Array.isArray(parsed.fragmentHandles)
+      ? Array.from(new Set(parsed.fragmentHandles.map((handle) => normalizeEvidenceHandle(handle, "F")).filter(Boolean)))
+      : [];
+    if (!statement || !facetHandle || !claimHandle || !fragmentHandles.length) return [];
+    return [{ statement, facetHandle, claimHandle, fragmentHandles }];
+  }).slice(0, 16);
+}
+
+function normalizeEvidenceHandle(value: unknown, prefix: "Q" | "C" | "F") {
+  if (typeof value !== "string") return "";
+  const normalized = value.trim().toUpperCase();
+  return new RegExp(`^${prefix}[1-9]\\d{0,2}$`).test(normalized) ? normalized : "";
 }
 
 function parseReadingPlanContent(
@@ -1206,6 +1243,7 @@ function answerRequirements(input: GlooDiscussionDraftInput): GlooAnswerRequirem
   return {
     requireStructuredAnswer: input.requireStructuredAnswer === true,
     requirePastoralCare: input.requireStructuredAnswer === true && requirements.pastoralCare,
-    requireUncertainty: input.requireStructuredAnswer === true && requirements.uncertainty
+    requireUncertainty: input.requireStructuredAnswer === true && requirements.uncertainty,
+    requireClaimAttribution: input.requireStructuredAnswer === true && input.requireClaimAttribution === true
   };
 }

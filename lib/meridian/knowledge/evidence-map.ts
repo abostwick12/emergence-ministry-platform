@@ -3,11 +3,14 @@ import {
   deriveMeridianResponseRequirements,
   normalizeMeridianReference
 } from "@/lib/meridian/knowledge/question-plan";
+import { validateMeridianClaimAttributions } from "@/lib/meridian/knowledge/claim-attribution";
 import type {
+  MeridianEvidenceHandleLedger,
   MeridianEvidenceMap,
   MeridianEvidenceMapDecision,
   MeridianEvidenceMapSummary,
   MeridianEvidencePack,
+  MeridianProviderClaimAttribution,
   MeridianRelationship,
   MeridianRelationshipKind,
   MeridianShadowEvaluation,
@@ -20,6 +23,8 @@ export type MeridianShadowArtifact = {
   pastoralCareCount: number;
   uncertaintyCount: number;
   requiresHumanReview: boolean;
+  claimAttributions?: MeridianProviderClaimAttribution[];
+  answerStatements?: string[];
 };
 
 export function compileMeridianEvidenceMap(input: {
@@ -153,7 +158,8 @@ export function unavailableMeridianEvidenceMapSummary(input: {
 
 export function evaluateMeridianShadowOutput(
   map: MeridianEvidenceMap | undefined,
-  artifact?: MeridianShadowArtifact
+  artifact?: MeridianShadowArtifact,
+  attributionLedger?: MeridianEvidenceHandleLedger
 ): MeridianShadowEvaluation {
   if (!map) {
     return {
@@ -173,18 +179,16 @@ export function evaluateMeridianShadowOutput(
     requirementGate("pastoral_care", "Pastoral care", map.requirements.pastoralCare, artifact, (value) => value.pastoralCareCount > 0, "Required pastoral care is missing."),
     requirementGate("uncertainty", "Interpretive uncertainty", map.requirements.uncertainty, artifact, (value) => value.uncertaintyCount > 0, "Required uncertainty or faithful disagreement is missing."),
     artifactGate("human_review", "Human review", artifact, (value) => value.requiresHumanReview, "The output did not preserve mandatory human review."),
-    {
-      id: "claim_attribution",
-      label: "Claim attribution",
-      status: "not_measured",
-      detail: "The compatibility provider contract does not yet return claim-to-fragment citations."
-    }
+    claimAttributionGate(map, artifact, attributionLedger)
   ];
   const measured = gates.filter((gate) => gate.status === "pass" || gate.status === "fail");
   const failed = measured.filter((gate) => gate.status === "fail");
   const activationBlockers = [
     ...failed.map((gate) => gate.detail),
-    "Claim-to-fragment attribution must be measurable before the shadow compiler can become authoritative."
+    ...(gates.some((gate) => gate.id === "claim_attribution" && gate.status === "not_measured")
+      ? ["Claim-to-fragment attribution must be measurable before the shadow compiler can become authoritative."]
+      : []),
+    "Production evaluation and explicit release approval are still required before the shadow compiler can become authoritative."
   ];
   return {
     mode: "shadow",
@@ -193,6 +197,33 @@ export function evaluateMeridianShadowOutput(
     measuredGateCount: measured.length,
     gates,
     activationBlockers
+  };
+}
+
+function claimAttributionGate(
+  map: MeridianEvidenceMap,
+  artifact: MeridianShadowArtifact | undefined,
+  ledger: MeridianEvidenceHandleLedger | undefined
+): MeridianShadowGate {
+  if (!artifact) {
+    return {
+      id: "claim_attribution",
+      label: "Claim attribution",
+      status: "not_measured",
+      detail: "No provider output was available for claim-attribution validation."
+    };
+  }
+  const validation = validateMeridianClaimAttributions({
+    map,
+    ledger,
+    attributions: artifact.claimAttributions,
+    answerStatements: artifact.answerStatements
+  });
+  return {
+    id: "claim_attribution",
+    label: "Claim attribution",
+    status: validation.status,
+    detail: validation.detail
   };
 }
 

@@ -209,6 +209,114 @@ describe("Gloo model policy", () => {
     expect(body.max_tokens).toBe(1800);
   });
 
+  it("requires and parses request-scoped evidence handles in the attribution shadow contract", async () => {
+    process.env.GLOO_AI_STUDIO_API_KEY = "key";
+    process.env.GLOO_AI_STUDIO_API_BASE_URL = "https://example.test";
+    process.env.GLOO_AI_MODEL = "GPT-5 Nano";
+    const opaqueContext = JSON.stringify({
+      version: "1",
+      facets: [{ handle: "Q1", claims: [{ handle: "C1", fragments: [{ handle: "F1" }] }] }]
+    });
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({
+      discussionPrompt: "Where does the passage make room for honest pain and hope?",
+      answerDraft: {
+        directAnswer: "Christian hope does not require denying present pain.",
+        keyDistinctions: ["Hope is not denial."],
+        scriptureReferences: ["Romans 8:18-39"],
+        uncertainty: ["The passage does not explain every cause of suffering."],
+        pastoralCare: ["Do not rush a hurting student."],
+        questionsForLeader: ["What is the student's lived context?"],
+        materialClaims: [{
+          statement: "Christian hope does not require denying present pain.",
+          facetHandle: "q1",
+          claimHandle: "c1",
+          fragmentHandles: ["f1", "F1"]
+        }],
+        requiresHumanReview: true
+      },
+      scriptureReference: "Romans 8:18",
+      safetyLabel: "needs_leader_care",
+      safetyNotes: "Leader review required.",
+      confidence: 0.9,
+      topicTags: ["suffering", "hope"]
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await generateGlooDiscussionDraft({
+      question: "Why does God allow suffering?",
+      scriptureReference: "Romans 8:18",
+      approvedEvidenceContext: opaqueContext,
+      groundingStatus: "grounded",
+      requireStructuredAnswer: true,
+      requireClaimAttribution: true
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      answerDraft: {
+        materialClaims: [{ facetHandle: "Q1", claimHandle: "C1", fragmentHandles: ["F1"] }]
+      }
+    });
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.messages[0].content).toContain("materialClaims");
+    expect(body.messages[1].content).toContain("Claim attribution required: yes");
+    expect(body.messages[1].content).toContain(opaqueContext);
+  });
+
+  it("uses the constrained repair once when required claim attributions are missing", async () => {
+    process.env.GLOO_AI_STUDIO_API_KEY = "key";
+    process.env.GLOO_AI_STUDIO_API_BASE_URL = "https://example.test";
+    process.env.GLOO_AI_MODEL = "GPT-5 Nano";
+    const answerDraft = {
+      directAnswer: "Christian hope does not require denying present pain.",
+      keyDistinctions: [],
+      scriptureReferences: ["Romans 8:18-39"],
+      uncertainty: ["The passage does not explain every cause of suffering."],
+      pastoralCare: ["Do not rush a hurting student."],
+      questionsForLeader: ["What is the student's lived context?"],
+      requiresHumanReview: true
+    };
+    const baseResponse = {
+      discussionPrompt: "Where does the passage make room for honest pain and hope?",
+      answerDraft,
+      safetyLabel: "needs_leader_care",
+      safetyNotes: "Leader review required.",
+      confidence: 0.9
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(baseResponse))
+      .mockResolvedValueOnce(jsonResponse({
+        ...baseResponse,
+        answerDraft: {
+          ...answerDraft,
+          materialClaims: [{
+            statement: answerDraft.directAnswer,
+            facetHandle: "Q1",
+            claimHandle: "C1",
+            fragmentHandles: ["F1"]
+          }]
+        }
+      }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await generateGlooDiscussionDraft({
+      question: "Why does God allow suffering?",
+      scriptureReference: "Romans 8:18",
+      approvedEvidenceContext: '{"facets":[{"handle":"Q1"}]}',
+      groundingStatus: "grounded",
+      requireStructuredAnswer: true,
+      requireClaimAttribution: true
+    });
+
+    expect(result).toMatchObject({ ok: true, answerDraft: { materialClaims: [expect.objectContaining({ claimHandle: "C1" })] } });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const repairBody = JSON.parse(fetchMock.mock.calls[1][1].body);
+    expect(repairBody.messages[0].content).toContain("only the evidence handles");
+    expect(repairBody.messages[1].content).toContain("Claim attribution must be non-empty: yes");
+    expect(repairBody.messages[1].content).toContain("Approved evidence handles:");
+  });
+
   it("makes one constrained repair attempt when a required theological answer is incomplete", async () => {
     process.env.GLOO_AI_STUDIO_API_KEY = "key";
     process.env.GLOO_AI_STUDIO_API_BASE_URL = "https://example.test";

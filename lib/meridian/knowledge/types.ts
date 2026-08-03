@@ -308,6 +308,42 @@ export type MeridianEvidenceMapSummary = {
   decisionReasons: string[];
 };
 
+export type MeridianEvidenceHandleLedger = {
+  version: "1";
+  mode: "shadow";
+  facets: Array<{
+    handle: string;
+    facetId: string;
+    required: boolean;
+    claimHandles: string[];
+  }>;
+  claims: Array<{
+    handle: string;
+    claimId: string;
+    facetHandles: string[];
+    fragmentHandles: string[];
+  }>;
+  fragments: Array<{
+    handle: string;
+    fragmentId: string;
+    sourceId: string;
+  }>;
+};
+
+export type MeridianClaimAttributionBridge = {
+  version: "1";
+  mode: "shadow";
+  providerContext: string;
+  ledger: MeridianEvidenceHandleLedger;
+};
+
+export type MeridianProviderClaimAttribution = {
+  statement: string;
+  facetHandle: string;
+  claimHandle: string;
+  fragmentHandles: string[];
+};
+
 export type MeridianShadowGate = {
   id: "evidence_coverage" | "supplied_anchor" | "structured_answer" | "pastoral_care" | "uncertainty" | "human_review" | "claim_attribution";
   label: string;

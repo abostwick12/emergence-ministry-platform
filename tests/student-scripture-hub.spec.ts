@@ -107,8 +107,8 @@ test.describe("Student Scripture Hub shell", () => {
           shadowEvaluation: {
             mode: "shadow",
             status: "pass",
-            passedGateCount: 6,
-            measuredGateCount: 6,
+            passedGateCount: 7,
+            measuredGateCount: 7,
             gates: [
               { id: "evidence_coverage", label: "Required-facet evidence", status: "pass", detail: "Every required question part has approved support." },
               { id: "supplied_anchor", label: "Supplied Scripture anchor", status: "pass", detail: "The provider output retained every supplied Scripture anchor." },
@@ -116,9 +116,9 @@ test.describe("Student Scripture Hub shell", () => {
               { id: "pastoral_care", label: "Pastoral care", status: "pass", detail: "Pastoral care requirement passed." },
               { id: "uncertainty", label: "Interpretive uncertainty", status: "pass", detail: "Interpretive uncertainty requirement passed." },
               { id: "human_review", label: "Human review", status: "pass", detail: "Human review requirement passed." },
-              { id: "claim_attribution", label: "Claim attribution", status: "not_measured", detail: "The compatibility provider contract does not yet return claim-to-fragment citations." }
+              { id: "claim_attribution", label: "Claim attribution", status: "pass", detail: "1 material claim cited permitted evidence across every supported required question part." }
             ],
-            activationBlockers: ["Claim-to-fragment attribution must be measurable before the shadow compiler can become authoritative."]
+            activationBlockers: ["Production evaluation and explicit release approval are still required before the shadow compiler can become authoritative."]
           },
           nextStep: {
             label: "Keep wrestling with hope",
@@ -161,9 +161,9 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(meridianPreview).toContainText("1 related student resources found");
     await expect(meridianPreview).toContainText("Evidence Compiler shadow");
     await expect(meridianPreview).toContainText("mixed intent / generate decision / supported anchor status");
-    await expect(meridianPreview).toContainText("Shadow gates: 6 of 6 passed");
+    await expect(meridianPreview).toContainText("Shadow gates: 7 of 7 passed");
     await meridianPreview.getByText("Inspect 7 shadow gates", { exact: true }).click();
-    await expect(meridianPreview).toContainText("Claim attribution: not measured");
+    await expect(meridianPreview).toContainText("Claim attribution: pass");
     await expect(meridianPreview).toContainText("Activation blockers");
     await meridianPreview.getByText("Inspect 7 shadow gates", { exact: true }).click();
     await expect(meridianPreview).toContainText("Theological answer draft");
