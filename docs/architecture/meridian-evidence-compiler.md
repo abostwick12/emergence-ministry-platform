@@ -55,6 +55,20 @@ The compiler should produce a provider-independent structure containing:
 
 The provider may write inside this map. It may not invent new evidence links or silently promote discovery material.
 
+### Shadow implementation contract
+
+Evidence Map version `1` runs beside the compatibility provider path before it can become authoritative. It records:
+
+- dynamic overall intent and a passage, doctrine, or formation route for each explicit facet;
+- supplied Scripture anchors and whether approved Scripture fragments support them;
+- approved claim, fragment, and source identifiers for every facet;
+- reviewed typed relationships and their rationale;
+- uncertainty, pastoral-care, and human-review requirements derived from the live question;
+- evidence issues, prohibited conclusions, and a deterministic generation decision;
+- safe leader-facing counts that exclude raw claim IDs, fragment IDs, relationship rationale, and provider context.
+
+The shadow scorer measures required-facet evidence, supplied-anchor retention, structured output, pastoral care, uncertainty, and mandatory human review. Claim-to-fragment attribution remains explicitly `not_measured` because the compatibility provider contract does not yet return citations. Shadow results cannot authorize student-facing output, and the compiler cannot become authoritative until attribution is measurable.
+
 ## Grounding labels
 
 - **Grounded:** every required facet has relevant, permitted support and the answer's material claims remain inside that support.

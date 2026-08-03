@@ -38,6 +38,52 @@ describe("Meridian test bench", () => {
       status: "grounded",
       decision: "generate",
       providerContext: "Approved evidence pack.",
+      evidenceMap: {
+        version: "1",
+        mode: "shadow",
+        question: "How do I trust God when suffering feels pointless?",
+        intentRoute: "mixed",
+        suppliedScriptureAnchors: ["Romans 8:18"],
+        anchorStatus: "supported",
+        supportedScriptureAnchors: ["Romans 8:18"],
+        facets: [{
+          id: "facet-1",
+          query: "How do I trust God when suffering feels pointless?",
+          route: "formation",
+          required: true,
+          status: "supported",
+          claimIds: ["claim-1", "claim-2"],
+          fragmentIds: ["fragment-1"],
+          sourceIds: ["source-1"]
+        }],
+        relationships: [],
+        requirements: { humanReview: true, pastoralCare: true, uncertainty: true },
+        issueKinds: [],
+        prohibitedConclusions: [],
+        decision: "generate",
+        decisionReasons: ["Every required facet has approved, permitted support."]
+      },
+      shadowTrace: {
+        version: "1",
+        mode: "shadow",
+        intentRoute: "mixed",
+        decision: "generate",
+        anchorStatus: "supported",
+        suppliedScriptureAnchors: ["Romans 8:18"],
+        facets: [{
+          id: "facet-1",
+          route: "formation",
+          required: true,
+          status: "supported",
+          approvedClaimCount: 2,
+          supportingFragmentCount: 1,
+          approvedSourceCount: 1
+        }],
+        relationshipCounts: {},
+        requirements: { humanReview: true, pastoralCare: true, uncertainty: true },
+        issueKinds: [],
+        decisionReasons: ["Every required facet has approved, permitted support."]
+      },
       approvedClaimCount: 2,
       approvedSourceCount: 1,
       supportedFacetCount: 1,
@@ -106,6 +152,8 @@ describe("Meridian test bench", () => {
       studentResourceMatchCount: 1
     });
     expect(result.grounding).not.toHaveProperty("providerContext");
+    expect(result.grounding).not.toHaveProperty("evidenceMap");
+    expect(result.grounding.shadowTrace).toMatchObject({ mode: "shadow", intentRoute: "mixed" });
     expect(result.nextStep.readingPlan.title).toBe("Romans 8 and patient hope");
     expect(result.aiDraft).toMatchObject({
       ok: false,
@@ -150,6 +198,11 @@ describe("Meridian test bench", () => {
         requiresHumanReview: true
       }
     });
+    expect(result.shadowEvaluation).toMatchObject({
+      mode: "shadow",
+      status: "pass"
+    });
+    expect(result.shadowEvaluation.gates).toContainEqual(expect.objectContaining({ id: "claim_attribution", status: "not_measured" }));
   });
 
   it("blocks student accounts from the leader preview", async () => {

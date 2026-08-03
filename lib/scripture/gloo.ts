@@ -1,5 +1,6 @@
 import type { MetanarrativeMovement } from "@/lib/scripture/types";
 import { measureServerOperation } from "@/lib/performance/timing";
+import { deriveMeridianResponseRequirements } from "@/lib/meridian/knowledge/question-plan";
 
 const PROVIDER_TIMEOUT_MS = 45_000;
 const PROVIDER_MAX_OUTPUT_TOKENS = 1_200;
@@ -141,6 +142,7 @@ export type GlooDiscussionPreview =
       confidence: number;
       discussionPrompt: string;
       answerDraft?: GlooTheologicalAnswerDraft;
+      scriptureReference?: string;
       safetyLabel: "safe" | "needs_leader_care" | "pastoral_escalation";
       safetyNotes: string;
       message: string;
@@ -1200,15 +1202,10 @@ function findSensitiveTopicFlags(question: string) {
 }
 
 function answerRequirements(input: GlooDiscussionDraftInput): GlooAnswerRequirements {
-  const normalized = input.question.toLowerCase();
-  const topicFlags = findSensitiveTopicFlags(input.question);
+  const requirements = deriveMeridianResponseRequirements(input.question);
   return {
     requireStructuredAnswer: input.requireStructuredAnswer === true,
-    requirePastoralCare: input.requireStructuredAnswer === true && (
-      topicFlags.length > 0 ||
-      /\b(bab(?:y|ies)|child(?:ren)?|unanswered prayer|salvation|saved|lose my faith|lose my salvation)\b/.test(normalized)
-    ),
-    requireUncertainty: input.requireStructuredAnswer === true &&
-      /\b(why|how could|what happens|what happened|literal|symbolic|future|free will|recognize|rapture|doubt|three persons|angel of the lord|never heard)\b/.test(normalized)
+    requirePastoralCare: input.requireStructuredAnswer === true && requirements.pastoralCare,
+    requireUncertainty: input.requireStructuredAnswer === true && requirements.uncertainty
   };
 }

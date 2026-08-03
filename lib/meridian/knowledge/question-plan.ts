@@ -1,4 +1,9 @@
-import type { MeridianQuestionPlan, MeridianTaskContext } from "@/lib/meridian/knowledge/types";
+import type {
+  MeridianFacetRoute,
+  MeridianIntentRoute,
+  MeridianQuestionPlan,
+  MeridianTaskContext
+} from "@/lib/meridian/knowledge/types";
 
 const MAX_REQUIRED_FACETS = 4;
 const explicitCompoundBoundary = /(?:[;?]\s*|,?\s+\b(?:and|but)\s+)(?=(?:how|why|what|when|where|who|which|should|does|do|is|are|can|could|would|will)\b)/gi;
@@ -8,6 +13,10 @@ const genericQuestionTokens = new Set([
   "that", "their", "them", "then", "the", "this", "understand", "was", "were", "what", "when", "where", "which",
   "who", "why", "will", "with", "would"
 ]);
+const passageIntentPattern = /\b(this|that|the)\s+(passage|verse|text|chapter|story)\b|\bwhy does .{0,80}\bsay\b|\baccording to\b/i;
+const doctrineIntentPattern = /\b(god|trinity|jesus|christ|holy spirit|angel|evil|sin|salvation|saved|grace|faith|works|forgiveness|atonement|cross|resurrection|heaven|hell|rapture|second coming|free will|predestination|scripture|bible|gospel|doctrine|creation|judgment|judgement)\b/i;
+const formationIntentPattern = /\b(how do i|should i|what should i|why do i feel|pray|prayer|suffer|suffering|grief|grieving|doubt|identity|gender|sexuality|family|pastoral|care|trust|anxiety|depression|practice|live|respond|apply)\b/i;
+const formationLeadPattern = /\b(how do i|should i|what should i|why do i feel|how should we|what response)\b/i;
 
 export function buildMeridianQuestionPlan(task: MeridianTaskContext): MeridianQuestionPlan {
   const question = normalizeText(task.query ?? "");
@@ -17,6 +26,7 @@ export function buildMeridianQuestionPlan(task: MeridianTaskContext): MeridianQu
     return {
       question,
       scriptureReferences,
+      intentRoute: scriptureReferences.length ? "passage" : "doctrine",
       facets: [],
       ambiguous: true,
       ambiguityReason: "missing_question"
@@ -31,18 +41,48 @@ export function buildMeridianQuestionPlan(task: MeridianTaskContext): MeridianQu
   );
   const facetQueries = candidates.length ? candidates : [question];
   const tooManyFacets = facetQueries.length > MAX_REQUIRED_FACETS;
+  const intentRoute = classifyMeridianIntent(question, scriptureReferences);
 
   return {
     question,
     scriptureReferences,
+    intentRoute,
     facets: facetQueries.slice(0, MAX_REQUIRED_FACETS).map((query, index) => ({
       id: `facet-${index + 1}`,
       query,
-      required: true
+      required: true,
+      route: classifyMeridianFacetRoute(query, scriptureReferences)
     })),
     ambiguous: tooManyFacets,
     ambiguityReason: tooManyFacets ? "too_many_facets" : undefined
   };
+}
+
+export function classifyMeridianIntent(question: string, scriptureReferences: string[] = []): MeridianIntentRoute {
+  const normalized = normalizeText(question);
+  const signals = new Set<Exclude<MeridianIntentRoute, "mixed">>();
+  if (scriptureReferences.length || passageIntentPattern.test(normalized)) signals.add("passage");
+  if (doctrineIntentPattern.test(normalized)) signals.add("doctrine");
+  if (formationIntentPattern.test(normalized)) signals.add("formation");
+  if (signals.size > 1) return "mixed";
+  return signals.values().next().value ?? "doctrine";
+}
+
+export function classifyMeridianFacetRoute(question: string, scriptureReferences: string[] = []): MeridianFacetRoute {
+  const normalized = normalizeText(question);
+  if (passageIntentPattern.test(normalized)) return "passage";
+  if (formationLeadPattern.test(normalized)) return "formation";
+  if (scriptureReferences.length) return "passage";
+  if (doctrineIntentPattern.test(normalized)) return "doctrine";
+  if (formationIntentPattern.test(normalized)) return "formation";
+  return "doctrine";
+}
+
+export function deriveMeridianResponseRequirements(question: string) {
+  const normalized = normalizeText(question).toLowerCase();
+  const pastoralCare = /\b(suffer|suffering|pain|grief|grieving|death|trauma|tragedy|loss|sexuality|gender|identity|lgbt|gay|lesbian|trans|same-sex|same sex|hell|judgment|judgement|wrath|condemn|damnation|doubt\w*|deconstruct\w*|unbelief|faith crisis|walk away|abuse|assault|self-harm|suicide|family crisis|divorce|neglect|violence|genocide|slavery|conquest|canaan|war|kill|killing|bab(?:y|ies)|child(?:ren)?|unanswered prayer|salvation|saved)\b/.test(normalized);
+  const uncertainty = /\b(why|how could|what happens|what happened|literal|symbolic|future|free will|recognize|rapture|doubt|three persons|angel of the lord|never heard)\b/.test(normalized);
+  return { humanReview: true as const, pastoralCare, uncertainty };
 }
 
 export function meridianSearchText(facetQuery: string, scriptureReferences: string[]) {

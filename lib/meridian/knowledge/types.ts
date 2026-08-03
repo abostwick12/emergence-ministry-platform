@@ -194,15 +194,20 @@ export type MeridianTaskContext = {
   externalCommunication: boolean;
 };
 
+export type MeridianIntentRoute = "passage" | "doctrine" | "formation" | "mixed";
+export type MeridianFacetRoute = Exclude<MeridianIntentRoute, "mixed">;
+
 export type MeridianQuestionFacet = {
   id: string;
   query: string;
   required: boolean;
+  route: MeridianFacetRoute;
 };
 
 export type MeridianQuestionPlan = {
   question: string;
   scriptureReferences: string[];
+  intentRoute: MeridianIntentRoute;
   facets: MeridianQuestionFacet[];
   ambiguous: boolean;
   ambiguityReason?: "missing_question" | "too_many_facets";
@@ -235,6 +240,88 @@ export type MeridianEvidencePack = {
   requiresReview: boolean;
   abstain: boolean;
   abstentionReason?: string;
+};
+
+export type MeridianEvidenceMapDecision = "generate" | "generate_for_review" | "partially_grounded" | "abstain";
+
+export type MeridianEvidenceMapFacet = {
+  id: string;
+  query: string;
+  route: MeridianFacetRoute;
+  required: boolean;
+  status: "supported" | "missing";
+  claimIds: string[];
+  fragmentIds: string[];
+  sourceIds: string[];
+};
+
+export type MeridianEvidenceMapRelationship = {
+  id: string;
+  kind: MeridianRelationshipKind;
+  fromType: MeridianRelationship["fromType"];
+  fromId: string;
+  toType: MeridianRelationship["toType"];
+  toId: string;
+  rationale?: string;
+};
+
+export type MeridianEvidenceMap = {
+  version: "1";
+  mode: "shadow";
+  question: string;
+  intentRoute: MeridianIntentRoute;
+  suppliedScriptureAnchors: string[];
+  anchorStatus: "not_supplied" | "supported" | "partially_supported" | "missing";
+  supportedScriptureAnchors: string[];
+  facets: MeridianEvidenceMapFacet[];
+  relationships: MeridianEvidenceMapRelationship[];
+  requirements: {
+    humanReview: true;
+    pastoralCare: boolean;
+    uncertainty: boolean;
+  };
+  issueKinds: MeridianEvidenceIssue["kind"][];
+  prohibitedConclusions: string[];
+  decision: MeridianEvidenceMapDecision;
+  decisionReasons: string[];
+};
+
+export type MeridianEvidenceMapSummary = {
+  version: "1";
+  mode: "shadow";
+  intentRoute: MeridianIntentRoute;
+  decision: MeridianEvidenceMapDecision | "unavailable";
+  anchorStatus: MeridianEvidenceMap["anchorStatus"] | "unavailable";
+  suppliedScriptureAnchors: string[];
+  facets: Array<{
+    id: string;
+    route: MeridianFacetRoute;
+    required: boolean;
+    status: MeridianEvidenceMapFacet["status"];
+    approvedClaimCount: number;
+    supportingFragmentCount: number;
+    approvedSourceCount: number;
+  }>;
+  relationshipCounts: Partial<Record<MeridianRelationshipKind, number>>;
+  requirements: MeridianEvidenceMap["requirements"];
+  issueKinds: MeridianEvidenceIssue["kind"][];
+  decisionReasons: string[];
+};
+
+export type MeridianShadowGate = {
+  id: "evidence_coverage" | "supplied_anchor" | "structured_answer" | "pastoral_care" | "uncertainty" | "human_review" | "claim_attribution";
+  label: string;
+  status: "pass" | "fail" | "not_applicable" | "not_measured";
+  detail: string;
+};
+
+export type MeridianShadowEvaluation = {
+  mode: "shadow";
+  status: "pass" | "fail" | "provider_unavailable";
+  passedGateCount: number;
+  measuredGateCount: number;
+  gates: MeridianShadowGate[];
+  activationBlockers: string[];
 };
 
 export type MeridianAnswerContract = {

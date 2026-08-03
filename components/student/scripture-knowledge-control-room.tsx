@@ -446,6 +446,41 @@ function TestBenchPreview({ result }: { result: KnowledgeTestBenchResult | null 
             </ul>
           </>
         ) : null}
+        <strong>Evidence Compiler shadow</strong>
+        <p>
+          {formatShadowValue(result.grounding.shadowTrace.intentRoute)} intent / {formatShadowValue(result.grounding.shadowTrace.decision)} decision / {formatShadowValue(result.grounding.shadowTrace.anchorStatus)} anchor status.
+        </p>
+        {result.grounding.shadowTrace.facets.length ? (
+          <ul>
+            {result.grounding.shadowTrace.facets.map((facet) => (
+              <li key={facet.id}>
+                {formatShadowValue(facet.route)}: {facet.status}; {facet.approvedClaimCount} claims, {facet.supportingFragmentCount} fragments, {facet.approvedSourceCount} sources.
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p>No safe compiler trace was available.</p>
+        )}
+        <strong>
+          Shadow gates: {result.shadowEvaluation.passedGateCount} of {result.shadowEvaluation.measuredGateCount} passed
+        </strong>
+        <details>
+          <summary>Inspect {result.shadowEvaluation.gates.length} shadow gates</summary>
+          <ul>
+            {result.shadowEvaluation.gates.map((gate) => (
+              <li key={gate.id}>{gate.label}: {formatShadowValue(gate.status)}. {gate.detail}</li>
+            ))}
+          </ul>
+          {result.shadowEvaluation.activationBlockers.length ? (
+            <>
+              <strong>Activation blockers</strong>
+              <ul>
+                {result.shadowEvaluation.activationBlockers.map((blocker) => <li key={blocker}>{blocker}</li>)}
+              </ul>
+            </>
+          ) : null}
+        </details>
+        <p>Shadow only. These gates are measured beside the current provider path and do not authorize student-facing output.</p>
       </div>
 
       <div className="knowledge-test-section">
@@ -559,6 +594,10 @@ function groundingStatusTone(status: KnowledgeTestBenchResult["grounding"]["stat
   if (status === "partially_grounded") return "tone-warning";
   if (status === "ungrounded") return "tone-critical";
   return "tone-info";
+}
+
+function formatShadowValue(value: string) {
+  return value.replace(/_/g, " ");
 }
 
 function ResourceVideoPackagePanel({

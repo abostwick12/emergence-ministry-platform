@@ -8,6 +8,9 @@ import type { StudentQuestionNextStep } from "@/lib/scripture/student-home";
 import type { StudentDiscussionKnowledgeContext } from "@/lib/scripture/types";
 import { SupabaseMeridianKnowledgeRepository } from "@/lib/meridian/knowledge/repository";
 import { prepareMeridianGeneration } from "@/lib/meridian/knowledge/service";
+import { summarizeMeridianEvidenceMap, unavailableMeridianEvidenceMapSummary } from "@/lib/meridian/knowledge/evidence-map";
+import { classifyMeridianIntent, deriveMeridianResponseRequirements } from "@/lib/meridian/knowledge/question-plan";
+import type { MeridianEvidenceMap, MeridianEvidenceMapSummary } from "@/lib/meridian/knowledge/types";
 
 export type StudentKnowledgeMatch = StudentDiscussionKnowledgeContext;
 
@@ -17,6 +20,8 @@ export type ApprovedMeridianGrounding = {
   status: MeridianGroundingStatus;
   decision: "generate" | "generate_for_review" | "abstain" | "unavailable";
   providerContext: string;
+  evidenceMap?: MeridianEvidenceMap;
+  shadowTrace: MeridianEvidenceMapSummary;
   approvedClaimCount: number;
   approvedSourceCount: number;
   supportedFacetCount: number;
@@ -388,12 +393,12 @@ export async function getApprovedMeridianGrounding(
   input: KnowledgeSearchInput
 ): Promise<ApprovedMeridianGrounding> {
   if (!session.accessToken || !["admin", "leader", "staff"].includes(session.user.role.trim().toLowerCase())) {
-    return unavailableGrounding("Approved Meridian evidence is unavailable for this session.");
+    return unavailableGrounding(input, "Approved Meridian evidence is unavailable for this session.");
   }
 
   try {
     const ministryId = await resolveMinistryScope(session);
-    if (!ministryId) return unavailableGrounding("No ministry scope is available for approved Meridian evidence.");
+    if (!ministryId) return unavailableGrounding(input, "No ministry scope is available for approved Meridian evidence.");
     const prepared = await measureServerOperation("supabase.meridian.approved_evidence", () =>
       prepareMeridianGeneration(new SupabaseMeridianKnowledgeRepository(), session, {
         ministryId,
@@ -421,6 +426,8 @@ export async function getApprovedMeridianGrounding(
       status,
       decision: prepared.decision,
       providerContext: status === "grounded" ? prepared.providerContext ?? "" : "",
+      evidenceMap: prepared.evidenceMap,
+      shadowTrace: summarizeMeridianEvidenceMap(prepared.evidenceMap),
       approvedClaimCount: prepared.pack.approvedClaims.length,
       approvedSourceCount: prepared.pack.sources.length,
       supportedFacetCount: supportedFacets.length,
@@ -432,15 +439,22 @@ export async function getApprovedMeridianGrounding(
     console.warn("[scripture] approved Meridian evidence unavailable", {
       reason: error instanceof Error ? error.message : "unknown"
     });
-    return unavailableGrounding("Approved Meridian evidence could not be loaded. Related resources are not being counted as answer evidence.");
+    return unavailableGrounding(input, "Approved Meridian evidence could not be loaded. Related resources are not being counted as answer evidence.");
   }
 }
 
-function unavailableGrounding(message: string): ApprovedMeridianGrounding {
+function unavailableGrounding(input: KnowledgeSearchInput, message: string): ApprovedMeridianGrounding {
+  const scriptureReferences = input.scriptureReference ? [input.scriptureReference] : [];
   return {
     status: "unavailable",
     decision: "unavailable",
     providerContext: "",
+    shadowTrace: unavailableMeridianEvidenceMapSummary({
+      intentRoute: classifyMeridianIntent(input.question, scriptureReferences),
+      suppliedScriptureAnchors: scriptureReferences,
+      requirements: deriveMeridianResponseRequirements(input.question),
+      reason: message
+    }),
     approvedClaimCount: 0,
     approvedSourceCount: 0,
     supportedFacetCount: 0,
