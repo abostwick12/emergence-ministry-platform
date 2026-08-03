@@ -116,6 +116,15 @@ describe("Gloo model policy", () => {
       .mockResolvedValueOnce(
         jsonResponse({
           discussionPrompt: "Ask a careful question for the group.",
+          answerDraft: {
+            directAnswer: "Prayer is an honest response to God, not a technique for controlling outcomes.",
+            keyDistinctions: ["Prayer includes asking, listening, lament, and trust."],
+            scriptureReferences: ["Psalm 13", "Matthew 6:9-13"],
+            uncertainty: ["A model cannot know why a specific prayer appears unanswered."],
+            pastoralCare: ["Make room for disappointment without blaming the student."],
+            questionsForLeader: ["Does this answer fit the student's situation and the retrieved sources?"],
+            requiresHumanReview: true
+          },
           safetyLabel: "safe",
           safetyNotes: "Leader can review before use.",
           confidence: 0.88,
@@ -131,7 +140,11 @@ describe("Gloo model policy", () => {
     expect(result).toMatchObject({
       ok: true,
       model: "gloo-openai-gpt-5-nano",
-      discussionPrompt: "Ask a careful question for the group."
+      discussionPrompt: "Ask a careful question for the group.",
+      answerDraft: {
+        directAnswer: "Prayer is an honest response to God, not a technique for controlling outcomes.",
+        requiresHumanReview: true
+      }
     });
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
@@ -153,6 +166,10 @@ describe("Gloo model policy", () => {
         })
       })
     );
+    const completionBody = JSON.parse(String(fetchMock.mock.calls[1][1]?.body));
+    expect(completionBody.max_tokens).toBe(1800);
+    expect(completionBody.messages[0].content).toContain("answerDraft");
+    expect(completionBody.messages[1].content).not.toContain("requiredFacets");
   });
 
   it("sends internal grounding as posture-only context, not student-facing content", async () => {
@@ -182,8 +199,8 @@ describe("Gloo model policy", () => {
     expect(body.messages[0].content).toContain("Never quote, summarize, cite, reveal, or assign internal grounding material to students.");
     expect(body.messages[1].content).toContain("Internal grounding for posture only:");
     expect(body.messages[1].content).toContain("Ask abstract questions that deepen attention.");
-    expect(body.messages[1].content).toContain("Drive toward engagement");
-    expect(body.max_tokens).toBe(1200);
+    expect(body.messages[1].content).toContain("Draft a direct but humble answer for leader review");
+    expect(body.max_tokens).toBe(1800);
   });
 
   it("normalizes the Gloo platform origin to the official v2 chat endpoint", async () => {
@@ -411,7 +428,7 @@ describe("Gloo model policy", () => {
         }
       ]
     });
-    expect(JSON.parse(fetchMock.mock.calls[0][1].body).max_tokens).toBe(1200);
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).max_tokens).toBe(1800);
   });
 
   it("parses fenced JSON draft content from Gloo-compatible providers", async () => {

@@ -265,7 +265,7 @@ export function ScriptureKnowledgeControlRoom({ initialDiscussionState, initialS
           <div>
             <p className="eyebrow">Test bench</p>
             <h2>Test the Meridian before students receive guidance</h2>
-            <p>Preview the source matches, digging questions, and reading path a student would receive. Nothing is saved or shared.</p>
+            <p>Preview the grounded answer, source matches, digging questions, and reading path a student would receive. Nothing is saved or shared.</p>
           </div>
 
           <label className="leader-review-field">
@@ -427,7 +427,44 @@ function TestBenchPreview({ result }: { result: KnowledgeTestBenchResult | null 
       <p>{result.nextStep.summary}</p>
 
       <div className="knowledge-test-section">
-        <span>Gloo draft</span>
+        <span>Grounded answer draft</span>
+        {result.aiDraft.ok && result.aiDraft.answerDraft ? (
+          <>
+            <strong>Direct response</strong>
+            <p>{result.aiDraft.answerDraft.directAnswer}</p>
+            {result.aiDraft.answerDraft.keyDistinctions.length ? (
+              <>
+                <strong>Important distinctions</strong>
+                <ul>
+                  {result.aiDraft.answerDraft.keyDistinctions.map((distinction) => <li key={distinction}>{distinction}</li>)}
+                </ul>
+              </>
+            ) : null}
+            {result.aiDraft.answerDraft.scriptureReferences.length ? (
+              <p>Scripture to review: {result.aiDraft.answerDraft.scriptureReferences.join(", ")}</p>
+            ) : null}
+            {result.aiDraft.answerDraft.uncertainty.length ? (
+              <p>Interpretive limits: {result.aiDraft.answerDraft.uncertainty.join(" ")}</p>
+            ) : null}
+            {result.aiDraft.answerDraft.pastoralCare.length ? (
+              <p>Pastoral care: {result.aiDraft.answerDraft.pastoralCare.join(" ")}</p>
+            ) : null}
+            <strong>Questions for leader review</strong>
+            <ul>
+              {result.aiDraft.answerDraft.questionsForLeader.map((question) => <li key={question}>{question}</li>)}
+            </ul>
+            <p>Leader review required before this answer is shared.</p>
+          </>
+        ) : (
+          <>
+            <strong>No structured answer was returned.</strong>
+            <p>The provider result cannot count as a theological-answer evaluation until this section is complete.</p>
+          </>
+        )}
+      </div>
+
+      <div className="knowledge-test-section">
+        <span>Discussion prompt</span>
         {result.aiDraft.ok ? (
           <>
             <strong>{result.aiDraft.discussionPrompt}</strong>

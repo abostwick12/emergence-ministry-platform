@@ -58,12 +58,61 @@ test.describe("Student Scripture Hub shell", () => {
     await expect(page.getByLabel("Resource format")).toBeVisible();
     await expect(page.getByRole("button", { name: "Save for Review" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Test the Meridian before students receive guidance" })).toBeVisible();
+    await page.route("**/api/student/scripture/knowledge-test", async (route) => route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        result: {
+          question: "How do I trust God when suffering feels pointless?",
+          scriptureReference: "Romans 8:18",
+          matches: [{
+            id: "match-romans-8",
+            title: "Romans 8 and patient hope",
+            description: "Hold suffering and hope together without rushing the conversation.",
+            scriptureReferences: ["Romans 8:18-39"]
+          }],
+          nextStep: {
+            label: "Keep wrestling with hope",
+            summary: "Review a grounded response before guiding the student.",
+            digQuestions: ["Where does Romans 8 make room for honest grief?"],
+            readingPlan: { title: "Romans 8 and patient hope", description: "Read the whole argument in context." }
+          },
+          aiDraft: {
+            ok: true,
+            provider: "gloo",
+            model: "gloo-openai-gpt-5-nano",
+            modelTier: "default",
+            confidence: 0.86,
+            discussionPrompt: "Where does Romans 8 make room for both honest suffering and durable hope?",
+            answerDraft: {
+              directAnswer: "Romans 8 does not call suffering good, but it places suffering inside Christian hope without denying present pain.",
+              keyDistinctions: ["Hope is not denial of pain."],
+              scriptureReferences: ["Romans 8:18-39"],
+              uncertainty: ["The passage does not explain every specific cause of suffering."],
+              pastoralCare: ["Do not rush a hurting student toward a tidy explanation."],
+              questionsForLeader: ["What is the student's lived context?"],
+              requiresHumanReview: true
+            },
+            safetyLabel: "needs_leader_care",
+            safetyNotes: "Review the student's context before sharing.",
+            message: "Production-shaped leader-review preview."
+          },
+          visibilityNote: "Preview only. Nothing is saved, posted, or shown to students."
+        }
+      })
+    }));
     await page.getByLabel("Student-style question").fill("How do I trust God when suffering feels pointless?");
     await page.getByLabel("Passage, if there is one").fill("Romans 8:18");
     await page.getByRole("button", { name: "Run Meridian Test" }).click();
     await expect(page.getByText("Preview ready. This did not save a student question or publish anything.")).toBeVisible();
-    await expect(page.getByRole("complementary", { name: "Meridian preview" })).toContainText("Questions to dig into");
-    await expect(page.getByRole("complementary", { name: "Meridian preview" })).toContainText("Keep Reading");
+    const meridianPreview = page.getByRole("complementary", { name: "Meridian preview" });
+    await expect(meridianPreview).toContainText("Questions to dig into");
+    await expect(meridianPreview).toContainText("Keep Reading");
+    await expect(meridianPreview).toContainText("Grounded answer draft");
+    await expect(meridianPreview).toContainText("Romans 8 does not call suffering good");
+    await expect(meridianPreview).toContainText("Leader review required");
+    await meridianPreview.screenshot({ path: "test-results/meridian-grounded-answer-preview.png" });
     await page.getByText("Prep, student access, and diagnostics", { exact: true }).click();
     await expect(page.getByRole("heading", { name: "Invite students to your group" })).toBeVisible();
     await expect(page.getByText("Create one launch link")).toBeVisible();

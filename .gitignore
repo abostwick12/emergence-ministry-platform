@@ -17,6 +17,7 @@ tmp/
 .worktrees/
 artifacts/*.png
 artifacts/*.log
+artifacts/meridian-shadow/
 .vercel
 .env*
 public/scripture-frontiers/source.mp4
