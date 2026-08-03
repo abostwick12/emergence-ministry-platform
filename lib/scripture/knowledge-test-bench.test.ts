@@ -63,6 +63,21 @@ describe("Meridian test bench", () => {
         decision: "generate",
         decisionReasons: ["Every required facet has approved, permitted support."]
       },
+      attributionBridge: {
+        version: "1",
+        mode: "shadow",
+        providerContext: '{"version":"1","mode":"shadow_claim_attribution","facets":[{"handle":"Q1"}]}',
+        ledger: {
+          version: "1",
+          mode: "shadow",
+          facets: [{ handle: "Q1", facetId: "facet-1", required: true, claimHandles: ["C1", "C2"] }],
+          claims: [
+            { handle: "C1", claimId: "claim-1", facetHandles: ["Q1"], fragmentHandles: ["F1"] },
+            { handle: "C2", claimId: "claim-2", facetHandles: ["Q1"], fragmentHandles: ["F1"] }
+          ],
+          fragments: [{ handle: "F1", fragmentId: "fragment-1", sourceId: "source-1" }]
+        }
+      },
       shadowTrace: {
         version: "1",
         mode: "shadow",
@@ -108,6 +123,17 @@ describe("Meridian test bench", () => {
         uncertainty: ["The passage does not explain every specific cause of suffering."],
         pastoralCare: ["Do not rush a hurting student toward a tidy explanation."],
         questionsForLeader: ["What is the student's lived context?"],
+        materialClaims: [{
+          statement: "Romans 8 does not call suffering good, but it places suffering inside Christian hope.",
+          facetHandle: "Q1",
+          claimHandle: "C1",
+          fragmentHandles: ["F1"]
+        }, {
+          statement: "Hope is not denial of pain.",
+          facetHandle: "Q1",
+          claimHandle: "C1",
+          fragmentHandles: ["F1"]
+        }],
         requiresHumanReview: true
       },
       safetyLabel: "safe",
@@ -153,6 +179,7 @@ describe("Meridian test bench", () => {
     });
     expect(result.grounding).not.toHaveProperty("providerContext");
     expect(result.grounding).not.toHaveProperty("evidenceMap");
+    expect(result.grounding).not.toHaveProperty("attributionBridge");
     expect(result.grounding.shadowTrace).toMatchObject({ mode: "shadow", intentRoute: "mixed" });
     expect(result.nextStep.readingPlan.title).toBe("Romans 8 and patient hope");
     expect(result.aiDraft).toMatchObject({
@@ -184,9 +211,10 @@ describe("Meridian test bench", () => {
       question: "How do I trust God when suffering feels pointless?",
       scriptureReference: "Romans 8:18",
       studentJourneyContext: "Source 1: Romans 8 and patient hope",
-      approvedEvidenceContext: "Approved evidence pack.",
+      approvedEvidenceContext: '{"version":"1","mode":"shadow_claim_attribution","facets":[{"handle":"Q1"}]}',
       groundingStatus: "grounded",
-      requireStructuredAnswer: true
+      requireStructuredAnswer: true,
+      requireClaimAttribution: true
     });
     expect(result.aiDraft).toMatchObject({
       ok: true,
@@ -202,7 +230,49 @@ describe("Meridian test bench", () => {
       mode: "shadow",
       status: "pass"
     });
-    expect(result.shadowEvaluation.gates).toContainEqual(expect.objectContaining({ id: "claim_attribution", status: "not_measured" }));
+    expect(result.shadowEvaluation.gates).toContainEqual(expect.objectContaining({ id: "claim_attribution", status: "pass" }));
+    expect(result.aiDraft.ok && result.aiDraft.answerDraft).not.toHaveProperty("materialClaims");
+    expect(JSON.stringify(result)).not.toContain("claim-1");
+    expect(JSON.stringify(result)).not.toContain('"C1"');
+  });
+
+  it("fails the attribution gate for invented provider handles while keeping them out of the browser result", async () => {
+    isGlooConfiguredMock.mockReturnValue(true);
+    generateGlooDiscussionDraftMock.mockResolvedValueOnce({
+      ok: true,
+      provider: "gloo",
+      model: "GPT-5 Nano",
+      modelTier: "default",
+      confidence: 0.88,
+      discussionPrompt: "Where does Romans 8 make room for honest pain and hope?",
+      answerDraft: {
+        directAnswer: "A plausible answer with a fabricated citation.",
+        keyDistinctions: [],
+        scriptureReferences: ["Romans 8:18-39"],
+        uncertainty: ["The passage does not explain every cause."],
+        pastoralCare: ["Do not rush a hurting student."],
+        questionsForLeader: ["What is the student's context?"],
+        materialClaims: [{
+          statement: "A plausible answer with a fabricated citation.",
+          facetHandle: "Q1",
+          claimHandle: "C99",
+          fragmentHandles: ["F99"]
+        }],
+        requiresHumanReview: true
+      },
+      safetyLabel: "needs_leader_care",
+      safetyNotes: "Leader review required."
+    });
+
+    const result = await runKnowledgeTestBench(session("leader"), {
+      question: "How do I trust God when suffering feels pointless?",
+      scriptureReference: "Romans 8:18"
+    });
+
+    expect(result.shadowEvaluation).toMatchObject({ status: "fail" });
+    expect(result.shadowEvaluation.gates).toContainEqual(expect.objectContaining({ id: "claim_attribution", status: "fail" }));
+    expect(JSON.stringify(result)).not.toContain("C99");
+    expect(JSON.stringify(result)).not.toContain("F99");
   });
 
   it("blocks student accounts from the leader preview", async () => {

@@ -10,7 +10,7 @@ import { SupabaseMeridianKnowledgeRepository } from "@/lib/meridian/knowledge/re
 import { prepareMeridianGeneration } from "@/lib/meridian/knowledge/service";
 import { summarizeMeridianEvidenceMap, unavailableMeridianEvidenceMapSummary } from "@/lib/meridian/knowledge/evidence-map";
 import { classifyMeridianIntent, deriveMeridianResponseRequirements } from "@/lib/meridian/knowledge/question-plan";
-import type { MeridianEvidenceMap, MeridianEvidenceMapSummary } from "@/lib/meridian/knowledge/types";
+import type { MeridianClaimAttributionBridge, MeridianEvidenceMap, MeridianEvidenceMapSummary } from "@/lib/meridian/knowledge/types";
 
 export type StudentKnowledgeMatch = StudentDiscussionKnowledgeContext;
 
@@ -21,6 +21,7 @@ export type ApprovedMeridianGrounding = {
   decision: "generate" | "generate_for_review" | "abstain" | "unavailable";
   providerContext: string;
   evidenceMap?: MeridianEvidenceMap;
+  attributionBridge?: MeridianClaimAttributionBridge;
   shadowTrace: MeridianEvidenceMapSummary;
   approvedClaimCount: number;
   approvedSourceCount: number;
@@ -427,6 +428,7 @@ export async function getApprovedMeridianGrounding(
       decision: prepared.decision,
       providerContext: status === "grounded" ? prepared.providerContext ?? "" : "",
       evidenceMap: prepared.evidenceMap,
+      attributionBridge: status === "grounded" ? prepared.attributionBridge : undefined,
       shadowTrace: summarizeMeridianEvidenceMap(prepared.evidenceMap),
       approvedClaimCount: prepared.pack.approvedClaims.length,
       approvedSourceCount: prepared.pack.sources.length,

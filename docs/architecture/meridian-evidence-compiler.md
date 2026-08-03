@@ -67,7 +67,19 @@ Evidence Map version `1` runs beside the compatibility provider path before it c
 - evidence issues, prohibited conclusions, and a deterministic generation decision;
 - safe leader-facing counts that exclude raw claim IDs, fragment IDs, relationship rationale, and provider context.
 
-The shadow scorer measures required-facet evidence, supplied-anchor retention, structured output, pastoral care, uncertainty, and mandatory human review. Claim-to-fragment attribution remains explicitly `not_measured` because the compatibility provider contract does not yet return citations. Shadow results cannot authorize student-facing output, and the compiler cannot become authoritative until attribution is measurable.
+The shadow scorer measures required-facet evidence, supplied-anchor retention, structured output, pastoral care, uncertainty, mandatory human review, and declared claim-to-fragment attribution. Shadow results cannot authorize student-facing output.
+
+### Claim-attribution shadow extension
+
+The provider receives a request-scoped evidence view with opaque handles instead of governed database identifiers:
+
+- `Q#` identifies one explicit question facet;
+- `C#` identifies one approved claim available to that facet;
+- `F#` identifies one citation-permitted supporting fragment for that claim.
+
+Every material theological statement in the structured provider draft must declare one facet handle, one claim handle, and at least one permitted fragment handle. The server retains the only ledger mapping those handles back to governed objects. It rejects invented handles, cross-facet claims, fragments that do not support the cited claim, fragments without citation permission, and responses that leave a supported required facet uncited.
+
+The provider attribution payload and raw ledger are removed before the leader-browser response. Leaders see only the safe pass/fail gate and aggregate detail. This gate proves that the provider declared valid support paths; it does not independently prove theological correctness or semantic entailment. Human review, held-out production evaluation, and explicit release approval remain mandatory.
 
 ## Grounding labels
 
