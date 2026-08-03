@@ -12,6 +12,7 @@ import {
 import { buildMinistryChatAudit } from "@/lib/emma/ministry-chat-audit";
 import { AssistantBrief, AssistantWorkspace } from "@/components/platform-ui";
 import type { MinistryAlignmentProfile } from "@/lib/ministry/alignment";
+import type { AuthenticatedMinistryNarrativeId } from "@/lib/ministry/authenticated-narratives";
 import type { GuestMinistryNarrativeId } from "@/lib/guest/ministry-narratives";
 
 type EmmaPresentation = "inline" | "floating";
@@ -47,6 +48,7 @@ export function MinistryEmmaPanel({
   page,
   presentation = "inline",
   selectedGuestNarrativeId,
+  selectedMinistryNarrativeId,
   staticSignals = [],
   title = "EMMA Ministry Assistant",
   promptTemplates = ministryEmmaUniversalPromptTemplates
@@ -61,6 +63,7 @@ export function MinistryEmmaPanel({
   title?: string;
   promptTemplates?: readonly string[];
   selectedGuestNarrativeId?: GuestMinistryNarrativeId;
+  selectedMinistryNarrativeId?: AuthenticatedMinistryNarrativeId;
 }) {
   const staticSignalKey = staticSignals.join("\n");
   const stableStaticSignals = useMemo(() => (staticSignalKey ? staticSignalKey.split("\n") : []), [staticSignalKey]);
@@ -159,7 +162,8 @@ export function MinistryEmmaPanel({
           page,
           prompt: trimmedPrompt,
           createProposal: allowProposal && createProposal,
-          selectedGuestNarrativeId
+          selectedGuestNarrativeId,
+          selectedMinistryNarrativeId
         })
       });
       const payload = (await response.json().catch(() => ({}))) as Partial<EmmaChatResult> & { ok?: boolean; error?: string };

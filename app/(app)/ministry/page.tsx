@@ -2,9 +2,10 @@ import { GuestMinistryNarrativeHub } from "@/components/guest-ministry-narrative
 import { MinistryAlignmentWorkspace } from "@/components/ministry-alignment-workspace";
 import { PageIntro, QuietState, StatusBadge } from "@/components/platform-ui";
 import { requireEmergeOperationsAccess } from "@/lib/app-area-access";
-import { getOverview } from "@/lib/data/ministry-repository";
 import { buildGuestMinistryNarratives } from "@/lib/guest/ministry-narratives";
 import { defaultMinistryAlignmentProfile } from "@/lib/ministry/alignment";
+import { buildAuthenticatedMinistryNarratives } from "@/lib/ministry/authenticated-narratives";
+import { getAuthenticatedMinistryNarrativeContext } from "@/lib/ministry/narrative-repository";
 
 export default async function MinistryHubPage() {
   const access = await requireEmergeOperationsAccess();
@@ -26,7 +27,8 @@ export default async function MinistryHubPage() {
   }
 
   try {
-    const overview = await getOverview(access.session);
+    const context = await getAuthenticatedMinistryNarrativeContext(access.session);
+    const narratives = buildAuthenticatedMinistryNarratives(context);
 
     return (
       <section className="ministry-launch-page ministry-conversation-first" aria-labelledby="ministry-hub-title">
@@ -37,9 +39,9 @@ export default async function MinistryHubPage() {
           actions={<StatusBadge tone="info">Architecture Evolution - Phase 1-3</StatusBadge>}
         />
         <MinistryAlignmentWorkspace
-          generatedAt={new Date().toISOString()}
           initialProfile={defaultMinistryAlignmentProfile}
-          overview={overview}
+          narratives={narratives}
+          overview={context.overview}
         />
       </section>
     );

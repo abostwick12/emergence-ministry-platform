@@ -13,6 +13,7 @@ import { ministryPageChatSchema } from "@/lib/emma/providers/ministry-page-chat"
 import { __resetEmmaMockStoreForTests, __setEmmaRepositorySupabaseClientForTests, getEmmaAuditTrail } from "@/lib/emma/repository";
 import type { MinistryEmmaOverview } from "@/lib/emma/ministry-page-assistant";
 import { defaultMinistryAlignmentProfile } from "@/lib/ministry/alignment";
+import type { AuthenticatedMinistryNarrativeContext } from "@/lib/ministry/authenticated-narratives";
 
 type TestSession = AuthSession & { testMinistryId: string };
 
@@ -592,6 +593,60 @@ describe("ministry page server-backed EMMA chat", () => {
     expect(trail.runs[0]?.contextManifest.entries.some((entry) => entry.sourceTable === "*")).toBe(false);
   });
 
+  it("rebuilds a selected authenticated narrative and keeps the interaction read-only", async () => {
+    const admin = session();
+    const context = authenticatedNarrativeContext();
+    const result = await runMinistryPageServerChat({
+      narrativeContext: context,
+      overview: context.overview,
+      rawInput: {
+        page: "dashboard",
+        prompt: "What should leadership discuss?",
+        selectedMinistryNarrativeId: "participation-rhythm",
+        createProposal: true,
+        alignmentProfile: defaultMinistryAlignmentProfile
+      },
+      session: admin
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.response.summary).toContain("record-backed observation");
+    expect(result.data.response.points.join(" ")).toContain("Early four-week average");
+    expect(result.data.proposalCreated).toBe(false);
+
+    const trail = await getEmmaAuditTrail(admin, result.data.requestId);
+    expect(trail.proposals).toHaveLength(0);
+    expect(trail.runs[0]?.contextManifest.entries).toContainEqual({
+      recordId: "participation-rhythm",
+      recordType: "ministry_narrative",
+      category: "activity_log",
+      sourceTable: "application_derived_narratives"
+    });
+    expect(JSON.stringify(trail)).not.toContain("student-private-id");
+  });
+
+  it("rejects unknown and cross-mode narrative selections", async () => {
+    const context = authenticatedNarrativeContext();
+    const unknown = await runMinistryPageServerChat({
+      narrativeContext: context,
+      overview: context.overview,
+      rawInput: { page: "dashboard", prompt: "Discuss this", selectedMinistryNarrativeId: "unknown-pattern" },
+      session: session()
+    });
+    expect(unknown.ok).toBe(false);
+
+    const guestSelection = await runMinistryPageServerChat({
+      overview: overview(),
+      rawInput: { page: "dashboard", prompt: "Discuss this", selectedGuestNarrativeId: "small-group-growth" },
+      session: session()
+    });
+    expect(guestSelection).toEqual({
+      ok: false,
+      error: { code: "FORBIDDEN", message: "Guest narratives are not available to authenticated ministry chat." }
+    });
+  });
+
   it("returns deterministic chat when audit persistence is unavailable", async () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon-key";
@@ -729,3 +784,25 @@ describe("ministry page server-backed EMMA chat", () => {
     expect(JSON.stringify(readiness)).not.toContain("azure-secret");
   });
 });
+
+function authenticatedNarrativeContext(): AuthenticatedMinistryNarrativeContext {
+  const ministryOverview = overview();
+  const weeks = ["2026-06-07", "2026-06-14", "2026-06-21", "2026-06-28", "2026-07-05", "2026-07-12", "2026-07-19", "2026-07-26"];
+  return {
+    overview: ministryOverview,
+    planningCenter: {
+      available: true,
+      connectionStatus: "connected",
+      lastSyncAt: "2026-08-01T10:00:00.000Z",
+      attendance: weeks.flatMap((date, weekIndex) => ["student-private-id", `student-${weekIndex}`].map((externalPersonId, index) => ({
+        id: `attendance-${weekIndex}-${index}`,
+        externalPersonId,
+        externalEventId: `pc-session-${weekIndex}`,
+        sessionLabel: "Students",
+        locationLabel: "Student Center",
+        checkedInAt: `${date}T09:00:00.000Z`
+      })))
+    },
+    volunteerHub: { available: true, assignmentsAvailable: true, groupsAvailable: true, leaders: [], groups: [], members: [], assignments: [] }
+  };
+}
