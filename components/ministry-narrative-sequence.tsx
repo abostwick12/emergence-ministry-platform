@@ -1,14 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { ArrowDown, BookOpenCheck, MessageCircle, Search, ShieldCheck } from "lucide-react";
+import { useMemo, useState } from "react";
+import { ArrowDown, BookOpenCheck, ExternalLink, MessageCircle, Search, ShieldCheck } from "lucide-react";
 
 import { MinistryEmmaPanel } from "@/components/ministry-emma-panel";
 import type { MinistryOverview } from "@/lib/data/ministry-repository";
-import type { GuestMinistryNarrativeId } from "@/lib/guest/ministry-narratives";
+import { buildGuestNarrativeEmmaResponse, type GuestMinistryNarrativeId } from "@/lib/guest/ministry-narratives";
 import type { MinistryAlignmentProfile } from "@/lib/ministry/alignment";
-import type { AuthenticatedMinistryNarrativeId } from "@/lib/ministry/authenticated-narratives";
+import { buildAuthenticatedNarrativeEmmaResponse, type AuthenticatedMinistryNarrativeId } from "@/lib/ministry/authenticated-narratives";
+import { defaultNarrativeSignal, rankMinistryNarratives } from "@/lib/ministry/narrative-ranking";
 import type { MinistryNarrative } from "@/lib/ministry/narrative-types";
 
 export function MinistryNarrativeSequence({
@@ -24,7 +25,8 @@ export function MinistryNarrativeSequence({
 }) {
   const [selectedEmmaNarrativeId, setSelectedEmmaNarrativeId] = useState<string | null>(null);
   const [openEvidenceId, setOpenEvidenceId] = useState<string | null>(null);
-  const [primary, ...additional] = narratives;
+  const rankedNarratives = useMemo(() => rankMinistryNarratives(narratives, alignmentProfile), [alignmentProfile, narratives]);
+  const [primary, ...additional] = rankedNarratives;
 
   if (!primary) return null;
 
@@ -52,7 +54,10 @@ export function MinistryNarrativeSequence({
           {additional.map((narrative, index) => (
             <a key={narrative.id} href={`#ministry-story-${narrative.id}`}>
               <span>0{index + 2}</span>
-              {narrative.navigationLabel}
+              <span className="guest-ministry-pattern-link-copy">
+                <strong>{narrative.navigationLabel}</strong>
+                <small>{signalFor(narrative).attention === "high" ? "High attention" : signalFor(narrative).attention === "watch" ? "Watch closely" : "Build context"} · {signalFor(narrative).confidence} confidence</small>
+              </span>
               <ArrowDown aria-hidden="true" />
             </a>
           ))}
@@ -106,6 +111,7 @@ function NarrativeStory({
 }) {
   const visibleEvidence = primary ? narrative.evidence.slice(0, 3) : narrative.evidence;
   const evidenceGap = narrative.status === "insufficient_evidence";
+  const storySignal = signalFor(narrative);
 
   return (
     <article
@@ -117,6 +123,11 @@ function NarrativeStory({
       <div className="guest-ministry-story-body">
         <header className="guest-ministry-story-header">
           <p className="eyebrow">{narrative.eyebrow}</p>
+          <div className="ministry-narrative-signal-strip" aria-label="Signal quality">
+            <span className={`ministry-signal-attention ${storySignal.attention}`}>{storySignal.attention === "high" ? "High attention" : storySignal.attention === "watch" ? "Watch closely" : "Build context"}</span>
+            <span>{storySignal.confidence} confidence</span>
+            <span>{storySignal.freshness}</span>
+          </div>
           <h2 id={`ministry-story-title-${narrative.id}`}>{narrative.headline}</h2>
           <div className="guest-ministry-change">
             <span>{evidenceGap ? "Evidence status" : "What changed"}</span>
@@ -170,6 +181,12 @@ function NarrativeStory({
               {narrative.action.label}
             </Link>
           ) : null}
+          {narrative.evidence.length && narrative.action ? (
+            <Link className="button" href={narrative.action.href}>
+              <ExternalLink aria-hidden="true" />
+              {narrative.action.label}
+            </Link>
+          ) : null}
           <button className="button primary" type="button" aria-expanded={emmaOpen} onClick={onEmmaToggle}>
             <MessageCircle aria-hidden="true" />
             {emmaOpen ? "Close EMMA" : "Discuss with EMMA"}
@@ -178,6 +195,7 @@ function NarrativeStory({
 
         <section className="guest-ministry-meaning" aria-labelledby={`meaning-${narrative.id}`}>
           <h3 id={`meaning-${narrative.id}`}>Why it deserves attention</h3>
+          <p className="ministry-narrative-surfaced"><strong>Why this surfaced:</strong> {storySignal.whySurfaced}</p>
           {narrative.whyItMayMatter.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
         </section>
 
@@ -193,6 +211,10 @@ function NarrativeStory({
           <div>
             <dt>When</dt>
             <dd>{narrative.timeframe}</dd>
+          </div>
+          <div>
+            <dt>Evidence coverage</dt>
+            <dd>{storySignal.coverage}</dd>
           </div>
         </dl>
 
@@ -213,9 +235,12 @@ function NarrativeStory({
               alignmentProfile={alignmentProfile}
               allowProposal={false}
               defaultExpanded
+              initialResponse={mode === "authenticated"
+                ? buildAuthenticatedNarrativeEmmaResponse(narrative as Parameters<typeof buildAuthenticatedNarrativeEmmaResponse>[0])
+                : buildGuestNarrativeEmmaResponse(narrative as Parameters<typeof buildGuestNarrativeEmmaResponse>[0], narrative.discernmentQuestion)}
               key={narrative.id}
               overview={overview}
-              page="dashboard"
+              page="ministry"
               promptTemplates={[narrative.discernmentQuestion]}
               selectedGuestNarrativeId={mode === "guest" ? narrative.id as GuestMinistryNarrativeId : undefined}
               selectedMinistryNarrativeId={mode === "authenticated" ? narrative.id as AuthenticatedMinistryNarrativeId : undefined}
@@ -229,6 +254,10 @@ function NarrativeStory({
       </div>
     </article>
   );
+}
+
+function signalFor(narrative: MinistryNarrative) {
+  return narrative.signal ?? defaultNarrativeSignal(narrative);
 }
 
 function EvidenceDetail({ narrative }: { narrative: MinistryNarrative }) {

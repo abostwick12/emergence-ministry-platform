@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import type { MinistryOverview } from "@/lib/data/ministry-repository";
@@ -11,20 +13,24 @@ import type { ActiveTask, MinistryEvent, User } from "@/lib/types";
 const now = new Date("2026-08-02T12:00:00.000Z");
 
 describe("authenticated Ministry Hub narratives", () => {
-  it("builds four deterministic record-backed narratives without guest fixture content", () => {
+  it("does not import guest fixtures or guest narrative context", () => {
+    const source = readFileSync(join(process.cwd(), "lib/ministry/authenticated-narratives.ts"), "utf8");
+    const repositorySource = readFileSync(join(process.cwd(), "lib/ministry/narrative-repository.ts"), "utf8");
+    expect(`${source}\n${repositorySource}`).not.toMatch(/@\/lib\/guest|guest fixture|buildLeadEmergenceDemoContext/);
+  });
+
+  it("builds eight deterministic, ranked record-backed narratives without guest fixture content", () => {
     const context = fullContext();
     const first = buildAuthenticatedMinistryNarratives(context, now);
     const second = buildAuthenticatedMinistryNarratives(context, now);
 
     expect(first).toEqual(second);
-    expect(first).toHaveLength(4);
+    expect(first).toHaveLength(8);
     expect(first.every((item) => item.status === "supported")).toBe(true);
-    expect(first.map((item) => item.id)).toEqual([
-      "participation-rhythm",
-      "shared-responsibility",
-      "volunteer-serving-rhythm",
-      "relational-capacity"
-    ]);
+    expect(new Set(first.map((item) => item.id))).toEqual(new Set([
+      "participation-rhythm", "participation-continuity", "shared-responsibility", "operational-follow-through",
+      "volunteer-serving-rhythm", "volunteer-readiness", "relational-capacity", "relational-coverage"
+    ]));
 
     const rendered = JSON.stringify(first);
     expect(rendered).not.toMatch(/guest_|Mason Bridge|Eli Fable|Marcus Bright|MS 6th Grade North/);
@@ -35,7 +41,7 @@ describe("authenticated Ministry Hub narratives", () => {
     const narrative = buildAuthenticatedMinistryNarrativeById("participation-rhythm", fullContext(), now);
 
     expect(narrative.status).toBe("supported");
-    expect(narrative.whatChanged).toContain("2 to 4");
+    expect(narrative.whatChanged).toContain("10 to 12");
     expect(narrative.evidence[0]?.calculation).toContain("distinct Planning Center person references");
     expect(JSON.stringify(narrative.evidence)).not.toContain("student-alpha");
   });
@@ -57,7 +63,7 @@ describe("authenticated Ministry Hub narratives", () => {
     expect(serving.status).toBe("supported");
     expect(serving.whatChanged).toContain("Jordan Leader");
     expect(capacity.status).toBe("supported");
-    expect(capacity.whatChanged).toContain("4 linked students");
+    expect(capacity.whatChanged).toContain("12 linked memberships");
     expect(`${capacity.headline} ${capacity.whatChanged}`).not.toMatch(/grew|growing|growth/i);
   });
 
@@ -68,7 +74,9 @@ describe("authenticated Ministry Hub narratives", () => {
     sparse.planningCenter.connectionStatus = "disconnected";
     sparse.planningCenter.lastSyncAt = undefined;
     sparse.planningCenter.attendance = [];
-    sparse.volunteerHub = { available: false, assignmentsAvailable: false, groupsAvailable: false, leaders: [], groups: [], members: [], assignments: [] };
+    sparse.planningCenter.peopleAvailable = false;
+    sparse.planningCenter.people = [];
+    sparse.volunteerHub = { available: false, assignmentsAvailable: false, groupsAvailable: false, readinessAvailable: false, followUpsAvailable: false, leaders: [], groups: [], members: [], assignments: [], requiredItems: [], itemProgress: [], followUps: [] };
 
     const gaps = buildAuthenticatedMinistryNarratives(sparse, now);
     expect(gaps.every((item) => item.status === "insufficient_evidence")).toBe(true);
@@ -106,28 +114,40 @@ function fullContext(): AuthenticatedMinistryNarrativeContext {
     overview: { events, tasks, users, expenses: [], activity: [] } satisfies MinistryOverview,
     planningCenter: {
       available: true,
+      peopleAvailable: true,
+      syncHistoryAvailable: true,
       connectionStatus: "connected",
       lastSyncAt: "2026-08-01T10:00:00.000Z",
-      attendance: attendanceRecords()
+      attendance: attendanceRecords(),
+      people: Array.from({ length: 12 }, (_, index) => ({ externalPersonId: `student-${index}`, grade: index < 6 ? "7" : "8", ageBand: "middle_school", lastSyncedAt: "2026-08-01T10:00:00.000Z" })),
+      syncRuns: [{ status: "succeeded", peopleCount: 12, attendanceCount: 88, startedAt: "2026-08-01T09:00:00.000Z", completedAt: "2026-08-01T10:00:00.000Z" }]
     },
     volunteerHub: {
       available: true,
       assignmentsAvailable: true,
       groupsAvailable: true,
+      readinessAvailable: true,
+      followUpsAvailable: true,
       leaders: [
-        { id: "leader-jordan", name: "Jordan Leader", roleLabel: "Leader" },
-        { id: "leader-casey", name: "Casey Guide", roleLabel: "Volunteer" }
+        { id: "leader-jordan", profileUserId: "user-alex", name: "Jordan Leader", roleLabel: "Leader", servingAreas: ["Students"], availability: "Sundays", skills: ["Groups"], backgroundCheckExpires: "2027-01-01" },
+        { id: "leader-casey", profileUserId: "user-riley", name: "Casey Guide", roleLabel: "Volunteer", servingAreas: ["Students"], availability: "Sundays", skills: ["Welcome"], backgroundCheckExpires: "2027-02-01" }
       ],
       groups: [
         { id: "group-one", name: "Middle School Group", leaderId: "leader-jordan", coLeaderId: "leader-casey", serviceTime: "Sunday" }
       ],
-      members: Array.from({ length: 4 }, () => ({ groupId: "group-one" })),
+      members: Array.from({ length: 12 }, (_, index) => ({ groupId: "group-one", studentSource: "planning_center" as const, studentRefId: `student-${index}`, createdAt: "2026-06-01" })),
       assignments: [
         { eventId: "event-1", leaderId: "leader-jordan", createdAt: "2026-05-01" },
         { eventId: "event-2", leaderId: "leader-jordan", createdAt: "2026-05-02" },
         { eventId: "event-3", leaderId: "leader-jordan", createdAt: "2026-05-03" },
         { eventId: "event-4", leaderId: "leader-casey", createdAt: "2026-05-04" }
-      ]
+      ],
+      requiredItems: [{ id: "training-one", itemType: "training", title: "Safe ministry training", dueDate: "2026-07-01", required: true, blocksStudentContact: true }],
+      itemProgress: [
+        { itemId: "training-one", userId: "user-alex", completed: true, completedAt: "2026-06-01" },
+        { itemId: "training-one", userId: "user-riley", completed: true, completedAt: "2026-06-02" }
+      ],
+      followUps: []
     }
   };
 }
@@ -135,9 +155,7 @@ function fullContext(): AuthenticatedMinistryNarrativeContext {
 function attendanceRecords() {
   const weeks = ["2026-06-07", "2026-06-14", "2026-06-21", "2026-06-28", "2026-07-05", "2026-07-12", "2026-07-19", "2026-07-26"];
   return weeks.flatMap((date, weekIndex) => {
-    const people = weekIndex < 4
-      ? ["student-alpha", "student-beta"]
-      : ["student-alpha", "student-beta", "student-gamma", "student-delta"];
+    const people = Array.from({ length: weekIndex < 4 ? 10 : 12 }, (_, index) => `student-${index}`);
     return people.map((externalPersonId, personIndex) => ({
       id: `attendance-${weekIndex}-${personIndex}`,
       externalPersonId,

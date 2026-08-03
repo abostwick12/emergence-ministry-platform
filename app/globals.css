@@ -24121,6 +24121,36 @@ body:has(.login-shell) h3 {
   line-height: 1.04;
 }
 
+.ministry-narrative-signal-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.ministry-narrative-signal-strip > span {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  padding: 5px 9px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 800;
+  text-transform: capitalize;
+}
+
+.ministry-narrative-signal-strip .ministry-signal-attention.high {
+  border-color: color-mix(in srgb, var(--warning) 48%, var(--line));
+  background: color-mix(in srgb, var(--warning) 11%, var(--surface));
+  color: var(--text);
+}
+
+.ministry-narrative-signal-strip .ministry-signal-attention.watch {
+  border-color: color-mix(in srgb, var(--primary) 38%, var(--line));
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
 .guest-ministry-change {
   max-width: 820px;
   display: grid;
@@ -24145,7 +24175,7 @@ body:has(.login-shell) h3 {
 
 .guest-ministry-context {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0;
   margin: 0;
   border-top: 1px solid var(--line);
@@ -24185,6 +24215,12 @@ body:has(.login-shell) h3 {
 .guest-ministry-meaning {
   max-width: 840px;
   gap: 10px;
+}
+
+.guest-ministry-meaning .ministry-narrative-surfaced {
+  border-left: 3px solid var(--primary);
+  padding-left: 12px;
+  color: var(--text);
 }
 
 .guest-ministry-meaning h3,
@@ -24496,6 +24532,19 @@ body:has(.login-shell) h3 {
 .guest-ministry-pattern-links a span,
 .guest-ministry-pattern-links a svg {
   color: var(--primary);
+}
+
+.guest-ministry-pattern-links .guest-ministry-pattern-link-copy {
+  display: grid;
+  gap: 2px;
+  color: var(--text);
+}
+
+.guest-ministry-pattern-link-copy small {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 650;
+  text-transform: capitalize;
 }
 
 .guest-ministry-story-sequence {

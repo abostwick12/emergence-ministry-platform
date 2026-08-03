@@ -623,6 +623,7 @@ describe("ministry page server-backed EMMA chat", () => {
       category: "activity_log",
       sourceTable: "application_derived_narratives"
     });
+    expect(trail.runs[0]?.contextManifest.entries.some((entry) => ["events", "tasks", "activity_logs"].includes(entry.sourceTable ?? ""))).toBe(false);
     expect(JSON.stringify(trail)).not.toContain("student-private-id");
   });
 
@@ -792,8 +793,12 @@ function authenticatedNarrativeContext(): AuthenticatedMinistryNarrativeContext 
     overview: ministryOverview,
     planningCenter: {
       available: true,
+      peopleAvailable: false,
+      syncHistoryAvailable: false,
       connectionStatus: "connected",
       lastSyncAt: "2026-08-01T10:00:00.000Z",
+      people: [],
+      syncRuns: [],
       attendance: weeks.flatMap((date, weekIndex) => ["student-private-id", `student-${weekIndex}`].map((externalPersonId, index) => ({
         id: `attendance-${weekIndex}-${index}`,
         externalPersonId,
@@ -803,6 +808,19 @@ function authenticatedNarrativeContext(): AuthenticatedMinistryNarrativeContext 
         checkedInAt: `${date}T09:00:00.000Z`
       })))
     },
-    volunteerHub: { available: true, assignmentsAvailable: true, groupsAvailable: true, leaders: [], groups: [], members: [], assignments: [] }
+    volunteerHub: {
+      available: true,
+      assignmentsAvailable: true,
+      groupsAvailable: true,
+      readinessAvailable: false,
+      followUpsAvailable: false,
+      leaders: [],
+      groups: [],
+      members: [],
+      assignments: [],
+      requiredItems: [],
+      itemProgress: [],
+      followUps: []
+    }
   };
 }
