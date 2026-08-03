@@ -1,7 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 
 test.describe("Ministry Hub alignment workspace", () => {
-  test("leads with editable alignment context and keeps signals evidence-first", async ({ page }) => {
+  test("leads with editable alignment context and keeps narratives evidence-first", async ({ page }) => {
     await login(page);
     await clearAlignmentStorage(page);
     await page.goto("/ministry");
@@ -25,17 +25,21 @@ test.describe("Ministry Hub alignment workspace", () => {
     await expect(editor).toHaveCount(0);
     await expect(alignment.getByText("Students practice following Jesus with Scripture, prayer, and service.")).toBeVisible();
 
-    const memory = page.getByRole("region", { name: "Public demo organizational memory" });
-    await expect(memory).toBeVisible();
-    await expect(memory.getByText(/ministry history, modeled for discernment/)).toBeVisible();
-    await expect(memory.getByText("Demo data, no live sync")).toBeVisible();
-    await expect(memory.getByText("Planning Center attendance snapshots")).toBeVisible();
-    await expect(memory.getByText("Compare this year's retreat plan with the last four retreats.")).toBeVisible();
-
-    await expect(page.getByText("Current Ministry Signals", { exact: true })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "What EMMA is allowed to consider" })).toBeVisible();
-    await expect(page.locator(".ministry-launch-panel[open]").first()).toBeVisible();
+    const hub = page.getByRole("region", { name: "Authenticated Ministry Hub narrative review" });
+    await expect(hub).toBeVisible();
+    await expect(hub.getByRole("heading", { name: "What deserves leadership attention?" })).toBeVisible();
+    await expect(hub.getByRole("article")).toHaveCount(5);
+    await expect(hub.getByRole("heading", { name: "Participation patterns need more current attendance evidence." })).toBeVisible();
+    await expect(hub.getByText("No sample values or guest records have been substituted for this missing ministry evidence.").first()).toBeVisible();
+    await expect(page.getByRole("region", { name: "Public demo organizational memory" })).toHaveCount(0);
+    await expect(page.getByText("Current Ministry Signals", { exact: true })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "What EMMA is allowed to consider" })).toHaveCount(0);
     await expect(page.getByText(/alignment score|percentage alignment|Season score|Mission: Strong/i)).toHaveCount(0);
+    await expect(page.getByText(/Mason Bridge|Eli Fable|Marcus Bright|MS 6th Grade North/)).toHaveCount(0);
+    await page.screenshot({ path: "test-results/authenticated-ministry-hub-desktop.png", fullPage: true });
+    const firstNarrative = hub.getByRole("article", { name: "Participation patterns need more current attendance evidence." });
+    await firstNarrative.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: "test-results/authenticated-ministry-hub-narratives-desktop.png" });
   });
 
   test("passes alignment context into EMMA without rendering a score", async ({ page }) => {
@@ -43,22 +47,19 @@ test.describe("Ministry Hub alignment workspace", () => {
     await clearAlignmentStorage(page);
     await page.goto("/ministry");
 
-    const emma = page.locator(".ministry-emma-panel").first();
-    await expect(emma.getByRole("button", { name: "EMMA" })).toBeVisible();
-    await emma.getByRole("button", { name: "EMMA" }).click();
-    const dialog = page.getByRole("dialog", { name: "Ask EMMA" });
-    await expect(dialog).toBeVisible();
-    await dialog.getByLabel("Message EMMA").fill("Where does the evidence support our Success Looks Like criteria?");
+    const participation = page.getByRole("article", { name: "Participation patterns need more current attendance evidence." });
+    await participation.getByRole("button", { name: "Discuss with EMMA" }).click();
+    await participation.getByLabel("Message EMMA").fill("What should we review before interpreting participation?");
     const request = page.waitForRequest((item) => item.url().endsWith("/api/ai/emma") && item.method() === "POST");
     const response = page.waitForResponse((item) => item.url().endsWith("/api/ai/emma") && item.request().method() === "POST");
-    await dialog.getByRole("button", { name: "Ask EMMA", exact: true }).click();
+    await participation.getByRole("button", { name: "Ask EMMA", exact: true }).click();
 
-    const postData = (await request).postDataJSON() as { alignmentProfile?: unknown };
+    const postData = (await request).postDataJSON() as { alignmentProfile?: unknown; selectedMinistryNarrativeId?: string };
     expect(postData.alignmentProfile).toBeTruthy();
+    expect(postData.selectedMinistryNarrativeId).toBe("participation-rhythm");
     expect((await response).status()).toBe(200);
-    await expect(dialog.locator(".ministry-emma-message").last()).toContainText("Leadership stated:");
-    await expect(dialog.locator(".ministry-emma-message").last()).toContainText(/priority ranking|not a verdict/i);
-    await expect(dialog.getByText(/alignment score|percentage alignment|Season score/i)).toHaveCount(0);
+    await expect(participation.locator(".ministry-emma-message").last()).toContainText("do not support a stronger conclusion");
+    await expect(participation.getByText(/alignment score|percentage alignment|Season score/i)).toHaveCount(0);
   });
 
   test("guest mode leads with four canonical ministry narratives instead of KPI tiles", async ({ page }) => {
@@ -141,9 +142,10 @@ test.describe("Ministry Hub alignment workspace", () => {
 
     await expect(page.getByRole("heading", { name: "Ministry Alignment" }).first()).toBeVisible();
     await expect(page.getByRole("article", { name: "Ministry Alignment" })).toBeVisible();
-    await expect(page.getByRole("region", { name: "Public demo organizational memory" })).toBeVisible();
-    await expect(page.locator(".ministry-emma-panel").first().getByRole("button", { name: "EMMA" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Authenticated Ministry Hub narrative review" })).toBeVisible();
+    await expect(page.getByText("No sample values or guest records have been substituted for this missing ministry evidence.").first()).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
+    await page.screenshot({ path: "test-results/authenticated-ministry-hub-mobile.png", fullPage: true });
   });
 
   test("keeps the guest narrative sequence readable on mobile without horizontal tables", async ({ page }) => {

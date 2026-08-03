@@ -25,6 +25,14 @@ import {
   guestMinistryNarrativeIds
 } from "@/lib/guest/ministry-narratives";
 import {
+  authenticatedMinistryNarrativeIds,
+  buildAuthenticatedMinistryNarrativeById,
+  buildAuthenticatedNarrativeEmmaContext,
+  buildAuthenticatedNarrativeEmmaResponse,
+  type AuthenticatedMinistryNarrative,
+  type AuthenticatedMinistryNarrativeContext
+} from "@/lib/ministry/authenticated-narratives";
+import {
   completeAiRun,
   createActionProposal,
   createAiRequest,
@@ -59,6 +67,7 @@ const ministryPageChatInputSchema = z
     page: ministryEmmaPageSchema,
     prompt: z.string().trim().min(1).max(MAX_PROMPT_CHARS),
     selectedGuestNarrativeId: z.enum(guestMinistryNarrativeIds).optional(),
+    selectedMinistryNarrativeId: z.enum(authenticatedMinistryNarrativeIds).optional(),
     selectedEventId: z.string().trim().min(1).optional(),
     createProposal: z.boolean().optional()
   })
@@ -138,10 +147,12 @@ export function getMinistryEmmaReadiness(input: { session?: AuthSession | null; 
 }
 
 export async function runMinistryPageServerChat({
+  narrativeContext,
   overview,
   rawInput,
   session
 }: {
+  narrativeContext?: AuthenticatedMinistryNarrativeContext;
   overview: MinistryEmmaOverview;
   rawInput: unknown;
   session: AuthSession | null;
@@ -151,6 +162,7 @@ export async function runMinistryPageServerChat({
     if (!session) throw emmaErrors.unauthorized();
     input = parseInput(rawInput);
     if (session.isGuest) {
+      if (input.selectedMinistryNarrativeId) throw emmaErrors.forbidden("Authenticated ministry narratives are not available in guest mode.");
       const selectedNarrative = input.selectedGuestNarrativeId
         ? buildGuestMinistryNarrativeById(input.selectedGuestNarrativeId)
         : null;
@@ -171,25 +183,37 @@ export async function runMinistryPageServerChat({
     }
 
     assertCanChat(session);
+    if (input.selectedGuestNarrativeId) throw emmaErrors.forbidden("Guest narratives are not available to authenticated ministry chat.");
+    const selectedNarrative = input.selectedMinistryNarrativeId
+      ? narrativeContext
+        ? buildAuthenticatedMinistryNarrativeById(input.selectedMinistryNarrativeId, narrativeContext)
+        : null
+      : null;
+    if (input.selectedMinistryNarrativeId && !selectedNarrative) {
+      throw emmaErrors.validation("Authenticated narrative context is unavailable.");
+    }
+    if (selectedNarrative) input = { ...input, createProposal: false };
 
-    const fallbackResponse = answerMinistryEmmaPrompt({
-      alignmentProfile: normalizeMinistryAlignmentProfile(input.alignmentProfile),
-      overview,
-      page: input.page,
-      prompt: input.prompt
-    });
+    const fallbackResponse = selectedNarrative
+      ? buildAuthenticatedNarrativeEmmaResponse(selectedNarrative)
+      : answerMinistryEmmaPrompt({
+          alignmentProfile: normalizeMinistryAlignmentProfile(input.alignmentProfile),
+          overview,
+          page: input.page,
+          prompt: input.prompt
+        });
     const alignmentProfile = normalizeMinistryAlignmentProfile(input.alignmentProfile);
-    const contextManifest = buildMinistryPageContextManifest(overview, input.selectedEventId, alignmentProfile);
+    const contextManifest = buildMinistryPageContextManifest(overview, input.selectedEventId, alignmentProfile, selectedNarrative ?? undefined);
 
     const shouldAttemptProvider = shouldAttemptLiveProvider(session);
     if (shouldAttemptProvider) {
-      const live = await runLiveProviderChat({ contextManifest, fallbackResponse, input, overview, session });
+      const live = await runLiveProviderChat({ contextManifest, fallbackResponse, input, overview, selectedNarrative: selectedNarrative ?? undefined, session });
       if (live.ok) return live;
     }
 
     return await runAuditedFallbackChat({ contextManifest, fallbackResponse, input, session });
   } catch (error) {
-    if (session && input && canUseLocalFallback(session)) {
+    if (session && input && !input.selectedMinistryNarrativeId && !input.selectedGuestNarrativeId && canUseLocalFallback(session)) {
       const response = answerMinistryEmmaPrompt({
         alignmentProfile: normalizeMinistryAlignmentProfile(input.alignmentProfile),
         overview,
@@ -283,12 +307,14 @@ async function runLiveProviderChat({
   fallbackResponse,
   input,
   overview,
+  selectedNarrative,
   session
 }: {
   contextManifest: ContextManifest;
   fallbackResponse: MinistryEmmaResponse;
   input: MinistryPageServerChatInput;
   overview: MinistryEmmaOverview;
+  selectedNarrative?: AuthenticatedMinistryNarrative;
   session: AuthSession;
 }): Promise<EmmaResponse<MinistryPageServerChatResult>> {
   const request = await createAiRequest(session, {
@@ -306,7 +332,7 @@ async function runLiveProviderChat({
     featureKey: "ministry_page_chat",
     contextManifest,
     systemPrompt: ministryPageChatSystemPrompt,
-    userPrompt: buildMinistryPageUserPrompt({ input, overview }),
+    userPrompt: buildMinistryPageUserPrompt({ input, overview, selectedNarrative }),
     outputSchema: ministryPageChatSchema,
     maxOutputTokens: 700,
     temperature: 0.2
@@ -318,6 +344,7 @@ async function runLiveProviderChat({
       contextManifest,
       input,
       overview,
+      selectedNarrative,
       primaryError: providerResult.error.message,
       requestId: request.id,
       session
@@ -372,6 +399,7 @@ async function runMinistryChatProviderFailovers({
   contextManifest,
   input,
   overview,
+  selectedNarrative,
   primaryError,
   requestId,
   session
@@ -379,6 +407,7 @@ async function runMinistryChatProviderFailovers({
   contextManifest: ContextManifest;
   input: MinistryPageServerChatInput;
   overview: MinistryEmmaOverview;
+  selectedNarrative?: AuthenticatedMinistryNarrative;
   primaryError: string;
   requestId: string;
   session: AuthSession;
@@ -431,7 +460,7 @@ async function runMinistryChatProviderFailovers({
       model: failover.model,
       contextManifest,
       systemPrompt: ministryPageChatSystemPrompt,
-      userPrompt: buildMinistryPageUserPrompt({ input, overview }),
+      userPrompt: buildMinistryPageUserPrompt({ input, overview, selectedNarrative }),
       outputSchema: ministryPageChatSchema,
       maxOutputTokens: 700,
       temperature: 0.2
@@ -562,7 +591,8 @@ function toMinistryEmmaResponse(output: MinistryPageChatOutput): MinistryEmmaRes
 function buildMinistryPageContextManifest(
   overview: MinistryEmmaOverview,
   selectedEventId?: string,
-  alignmentProfile?: MinistryAlignmentProfile
+  alignmentProfile?: MinistryAlignmentProfile,
+  selectedNarrative?: AuthenticatedMinistryNarrative
 ): ContextManifest {
   const selectedEvent = selectedEventId ? overview.events.find((event) => event.id === selectedEventId) : undefined;
   const events = selectedEvent ? [selectedEvent] : overview.events.slice(0, 8);
@@ -575,6 +605,18 @@ function buildMinistryPageContextManifest(
         category: "voice_profile" as const,
         sourceTable: "application_alignment_context"
       }] : []),
+      ...(selectedNarrative ? [{
+        recordId: selectedNarrative.id,
+        recordType: "ministry_narrative",
+        category: "activity_log" as const,
+        sourceTable: "application_derived_narratives"
+      }] : []),
+      ...(selectedNarrative?.evidence.flatMap((evidence) => evidence.sourceRecords).map((record) => ({
+        recordId: record.id,
+        recordType: record.type,
+        category: narrativeManifestCategory(record.type),
+        sourceTable: narrativeSourceTable(record.type)
+      })) ?? []),
       ...events.map((event) => ({
         recordId: event.id,
         recordType: "event",
@@ -605,10 +647,12 @@ function buildMinistryPageContextManifest(
 
 function buildMinistryPageUserPrompt({
   input,
-  overview
+  overview,
+  selectedNarrative
 }: {
   input: MinistryPageServerChatInput;
   overview: MinistryEmmaOverview;
+  selectedNarrative?: AuthenticatedMinistryNarrative;
 }): string {
   const selectedEvent = input.selectedEventId ? overview.events.find((event) => event.id === input.selectedEventId) : null;
   const alignmentProfile = normalizeMinistryAlignmentProfile(input.alignmentProfile);
@@ -639,6 +683,7 @@ function buildMinistryPageUserPrompt({
       evidenceBoundary: "Spiritual maturity, love for Christ, and the work of the Holy Spirit cannot be measured directly by operational data."
     },
     decisionSupport: buildDecisionSupportSignals(overview),
+    selectedNarrative: selectedNarrative ? buildAuthenticatedNarrativeEmmaContext(selectedNarrative) : null,
     selectedEvent: selectedEvent ? safeEvent(selectedEvent) : null,
     snapshot: {
       eventCount: overview.events.length,
@@ -682,6 +727,21 @@ function buildMinistryPageUserPrompt({
       }))
     }
   });
+}
+
+function narrativeManifestCategory(type: AuthenticatedMinistryNarrative["evidence"][number]["sourceRecords"][number]["type"]) {
+  if (type === "event") return "event" as const;
+  if (type === "task") return "task" as const;
+  return "profile" as const;
+}
+
+function narrativeSourceTable(type: AuthenticatedMinistryNarrative["evidence"][number]["sourceRecords"][number]["type"]) {
+  if (type === "attendance_session") return "planning_center_attendance_refs";
+  if (type === "serving_assignment") return "volunteer_hub_event_leader_assignments";
+  if (type === "small_group") return "volunteer_hub_small_groups";
+  if (type === "volunteer") return "volunteer_hub_leaders";
+  if (type === "task") return "tasks";
+  return "events";
 }
 
 function buildDecisionSupportSignals(overview: MinistryEmmaOverview) {

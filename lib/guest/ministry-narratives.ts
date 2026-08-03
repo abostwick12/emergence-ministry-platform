@@ -1,4 +1,9 @@
 import type { MinistryEmmaResponse } from "@/lib/emma/ministry-page-assistant";
+import type {
+  MinistryNarrative,
+  MinistryNarrativeEvidence,
+  MinistryNarrativeSourceRecord
+} from "@/lib/ministry/narrative-types";
 import {
   buildLeadEmergenceDemoContext,
   LEAD_EMERGENCE_DEMO_HISTORY_YEAR,
@@ -15,36 +20,9 @@ export const guestMinistryNarrativeIds = [
 
 export type GuestMinistryNarrativeId = (typeof guestMinistryNarrativeIds)[number];
 
-export type GuestNarrativeSourceRecord = {
-  id: string;
-  type: "occurrence" | "event_outcome" | "task" | "serving_assignment" | "small_group" | "volunteer";
-  label: string;
-  date?: string;
-};
-
-export type GuestNarrativeEvidence = {
-  label: string;
-  value: string;
-  explanation: string;
-  calculation: string;
-  sourceDateRange: string;
-  sourceRecords: GuestNarrativeSourceRecord[];
-};
-
-export type GuestMinistryNarrative = {
-  id: GuestMinistryNarrativeId;
-  eyebrow: string;
-  headline: string;
-  ministryArea: string;
-  timeframe: string;
-  people: string[];
-  groupName?: string;
-  whatChanged: string;
-  whyItMayMatter: string[];
-  evidence: GuestNarrativeEvidence[];
-  unknowns: string[];
-  discernmentQuestion: string;
-};
+export type GuestNarrativeSourceRecord = MinistryNarrativeSourceRecord;
+export type GuestNarrativeEvidence = MinistryNarrativeEvidence;
+export type GuestMinistryNarrative = MinistryNarrative<GuestMinistryNarrativeId>;
 
 export function buildGuestMinistryNarratives(
   context: LeadEmergenceDemoContext = buildLeadEmergenceDemoContext()
@@ -124,6 +102,8 @@ function buildAttendanceNarrative(context: LeadEmergenceDemoContext): GuestMinis
 
   return {
     id: "sunday-friday-shift",
+    status: "supported",
+    navigationLabel: "Participation rhythm",
     eyebrow: "Participation rhythm",
     headline: "Sunday participation fell while Friday event attendance grew.",
     ministryArea: "Middle School, High School, and NextGen Shared Events",
@@ -206,6 +186,8 @@ function buildStaffNarrative(context: LeadEmergenceDemoContext): GuestMinistryNa
 
   return {
     id: "staff-responsibility-concentration",
+    status: "supported",
+    navigationLabel: "Shared staff responsibility",
     eyebrow: "Shared responsibility",
     headline: "Shared ministry work is concentrated with Mason Bridge.",
     ministryArea: "Middle School operations and NextGen Shared Events",
@@ -280,6 +262,8 @@ function buildVolunteerNarrative(context: LeadEmergenceDemoContext): GuestMinist
 
   return {
     id: "volunteer-serving-pattern",
+    status: "supported",
+    navigationLabel: "Volunteer serving rhythm",
     eyebrow: "Serving rhythm",
     headline: "Eli Fable and Marcus Bright appear on far more assignments than four other group leaders.",
     ministryArea: "Middle School, High School, and NextGen Shared Events",
@@ -359,6 +343,8 @@ function buildGroupNarrative(context: LeadEmergenceDemoContext): GuestMinistryNa
 
   return {
     id: "small-group-growth",
+    status: "supported",
+    navigationLabel: "Small-group relational scale",
     eyebrow: "Relational scale",
     headline: "MS 6th Grade North grew from 10 to 16 students across seven Sundays.",
     ministryArea: "Middle School Bible Study",
@@ -437,7 +423,7 @@ function eventOwner(context: LeadEmergenceDemoContext, occurrence: DemoOccurrenc
 }
 
 function occurrenceSource(occurrence: DemoOccurrence): GuestNarrativeSourceRecord {
-  return { id: occurrence.id, type: "occurrence", label: occurrence.title, date: occurrence.date };
+  return { id: occurrence.id, type: "attendance_session", label: occurrence.title, date: occurrence.date };
 }
 
 function outcomeSource(context: LeadEmergenceDemoContext, occurrence: DemoOccurrence): GuestNarrativeSourceRecord {
