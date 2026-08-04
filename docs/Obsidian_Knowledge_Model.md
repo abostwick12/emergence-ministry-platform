@@ -6,6 +6,10 @@
 
 Obsidian is the first practical container for Meridian artifacts. It gives approved ministry memory a readable folder hierarchy, stable Markdown files, and front matter that future retrieval can filter before semantic matching.
 
+Obsidian also has a separate future role as an opt-in private discovery source for a user's personal AI workspace. In that flow, selected notes may help the user think and draft in Codex, but raw note text does not enter Lead Emergence's normal final-answer generator or become shared organizational memory. Drafts submitted to Lead Emergence must pass exact/fuzzy private-note leakage protection, and reusable ideas still require explicit Meridian promotion.
+
+The connected Codex, Meridian, EMMA, and platform workflow is defined in [Personal AI Platform MCP Roadmap](architecture/personal-ai-platform-mcp.md).
+
 ## Folder Direction
 
 ```text

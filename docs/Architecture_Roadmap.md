@@ -46,6 +46,34 @@ No migrations, route renames, Volunteer Hub split, live Meridian publishing, ali
 - Scope-first retrieval with Journey Journal exclusion tests.
 - Meridian Web and Vision Platform after the competition build is stable.
 
+## Approved Direction: Personal AI Platform MCP
+
+The existing Meridian MCP will evolve into a permission-aware connection between a user's personal AI client and the Lead Emergence platform. This is a governed extension of the current `search`, `fetch`, and `submit_resource_draft` tools, not direct database access and not a replacement for EMMA.
+
+The intended flow is:
+
+```text
+opt-in private Obsidian discovery
+  -> personal Codex creation
+  -> approved Meridian grounding
+  -> authenticated platform placement
+  -> EMMA alignment and safety review
+  -> human approval
+```
+
+The delivery order is:
+
+1. permission-filtered reads for events, tasks, sermon workspaces, and resource bundles;
+2. controlled, idempotent draft creation and event/resource updates;
+3. linked sermon resource bundles for guides, questions, slides, activities, and related materials;
+4. user-owned, opt-in Obsidian discovery with raw-note isolation and leakage protection;
+5. a versioned EMMA review gate that returns ready, changes-required, or blocked; and
+6. an administrator/leader pilot before volunteer-safe expansion.
+
+Every action must use the authenticated user's ministry, role, capabilities, and record access. Generated work remains draft-only, EMMA cannot self-approve, and publication or external communication continues to require a person.
+
+The complete target architecture, phased tool surface, Obsidian boundary, EMMA contract, and release gates are defined in [Personal AI Platform MCP Roadmap](architecture/personal-ai-platform-mcp.md).
+
 ## Approval Gates
 
 Wait for explicit approval before:
@@ -56,5 +84,7 @@ Wait for explicit approval before:
 - moving Volunteer Hub operational behavior
 - exposing leader-level volunteer analytics in the Volunteer Hub
 - implementing live Obsidian writes
+- exposing new platform-wide MCP write capabilities
+- allowing MCP-driven publishing, sending, deleting, or bulk mutation
 - changing retrieval rules for student-facing generation
 - touching Camp or medical/restricted data paths

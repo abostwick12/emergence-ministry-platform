@@ -6,6 +6,16 @@ Lead Emergence exposes a provider-independent, tool-only MCP endpoint at `/mcp`.
 
 The MCP server never invokes Gloo, OpenAI, or another model provider. Inference is performed by the connected client under that user's account or membership.
 
+## Approved north-star expansion
+
+The three-tool Meridian surface is the safe foundation for a future permission-aware platform MCP. The target is for an authenticated user to work from a personal AI client, retrieve only the Lead Emergence records they may access, create or update controlled platform drafts, assemble sermon resource bundles in the correct event or teaching workspace, and submit the result through EMMA's alignment and safety review.
+
+Private Obsidian material remains a separate, user-owned, opt-in discovery source. Raw notes do not become shared Meridian context, and a resource influenced by private discovery must pass exact/fuzzy leakage protection before entering the platform review queue.
+
+The expansion does not change the current endpoint's trust model: OAuth establishes identity, explicit capabilities authorize tools, application services enforce record permissions, Supabase RLS provides defense in depth, generated artifacts remain drafts, EMMA cannot self-approve, and people retain final authority.
+
+See [Personal AI Platform MCP Roadmap](personal-ai-platform-mcp.md) for the proposed event/resource tools, linked sermon-bundle model, EMMA review contract, and phased release gates. None of those proposed tools should be described as live until its corresponding phase is implemented and verified.
+
 ## First production slice
 
 The tool surface is deliberately small:
