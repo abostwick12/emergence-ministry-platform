@@ -64,3 +64,11 @@ The MCP rollout order is:
 3. Add an admin grant screen and leader review queue.
 4. Pilot with a small group using approved synthetic or reviewed corpus material.
 5. Preserve platform-funded API generation only for student-facing and unattended workflows that cannot originate in a user's AI client.
+
+## Reviewed authored-corpus bridge
+
+The Resource Hub now exposes an admin-only, claim-by-claim review path for the existing source library. Academic papers, curriculum materials, and sermons share the `andrew_authored_ministry` corpus while retaining distinct source types and priority. The old library remains a holding area; visibility and authorship never confer Meridian authority.
+
+Each review requires an exact excerpt, an atomic proposition, explicit authority, confidence, attribution when scholarly, sensitivity, rationale, and separate use permissions. The database verifies that the excerpt is an unchanged substring of the selected legacy chunk, preserves source/chunk provenance, blocks YouVersion substitution, and commits the governed objects atomically. Private Obsidian candidates remain on the separate discovery-only promotion path.
+
+Production content remains intentionally empty until an admin uses this workflow to approve a small first corpus. Start with a few academically strongest papers, then curriculum sequences, then representative sermons. Evaluate retrieval and MCP output after each small batch instead of bulk-promoting the 80 legacy records.
