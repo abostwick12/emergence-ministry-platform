@@ -92,7 +92,11 @@ function fakeRepository(): MeridianMcpRepository {
       userId: session.user.id,
       accessLevel: "volunteer_creator",
       canSearch: true,
-      canSaveDrafts: true
+      canSaveDrafts: true,
+      canReadPlatform: true,
+      canManageEvents: true,
+      canManageTasks: true,
+      canSaveResources: true
     }),
     search: vi.fn().mockResolvedValue([]),
     fetch: vi.fn().mockResolvedValue(null),

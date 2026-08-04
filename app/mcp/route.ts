@@ -2,6 +2,7 @@ import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/
 
 import { authenticateMeridianMcpRequest, meridianMcpUnauthorizedResponse } from "@/lib/meridian/mcp/auth";
 import { SupabaseMeridianMcpRepository } from "@/lib/meridian/mcp/repository";
+import { SupabasePlatformMcpRepository } from "@/lib/meridian/mcp/platform-repository";
 import { createMeridianMcpServer } from "@/lib/meridian/mcp/server";
 
 export const runtime = "nodejs";
@@ -19,6 +20,7 @@ async function handleMeridianMcp(request: Request) {
   const server = createMeridianMcpServer({
     session: authenticated.session,
     repository: new SupabaseMeridianMcpRepository(),
+    platformRepository: new SupabasePlatformMcpRepository(),
     clientName
   });
   await server.connect(transport);

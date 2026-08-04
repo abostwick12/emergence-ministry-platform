@@ -20,7 +20,13 @@ type GrantRow = {
   access_level: MeridianMcpGrant["accessLevel"];
   can_search: boolean;
   can_save_drafts: boolean;
+  can_read_platform: boolean;
+  can_manage_events: boolean;
+  can_manage_tasks: boolean;
+  can_save_resources: boolean;
 };
+
+type LegacyGrantRow = Omit<GrantRow, "can_read_platform" | "can_manage_events" | "can_manage_tasks" | "can_save_resources">;
 
 type ClaimRow = {
   id: string;
@@ -66,16 +72,35 @@ export class SupabaseMeridianMcpRepository implements MeridianMcpRepository {
     }
     const ministryId = await requireMinistryId(session);
     const supabase = getSupabaseAuthClient(session.accessToken);
-    const result = await supabase
+    let result = await supabase
       .from("meridian_mcp_access_grants")
-      .select("ministry_id,user_id,access_level,can_search,can_save_drafts")
+      .select("ministry_id,user_id,access_level,can_search,can_save_drafts,can_read_platform,can_manage_events,can_manage_tasks,can_save_resources")
       .eq("ministry_id", ministryId)
       .eq("user_id", session.user.id)
       .is("revoked_at", null)
       .maybeSingle<GrantRow>();
+    if (result.error && isMissingPlatformGrantColumns(result.error)) {
+      const legacyResult = await supabase
+        .from("meridian_mcp_access_grants")
+        .select("ministry_id,user_id,access_level,can_search,can_save_drafts")
+        .eq("ministry_id", ministryId)
+        .eq("user_id", session.user.id)
+        .is("revoked_at", null)
+        .maybeSingle<LegacyGrantRow>();
+      result = {
+        ...legacyResult,
+        data: legacyResult.data ? {
+          ...legacyResult.data,
+          can_read_platform: false,
+          can_manage_events: false,
+          can_manage_tasks: false,
+          can_save_resources: false
+        } : null
+      } as typeof result;
+    }
     if (result.error) throw storageError(result.error.message);
     const row = result.data;
-    const allowed = capability === "search" ? row?.can_search : row?.can_save_drafts;
+    const allowed = row ? capabilityAllowed(row, capability) : false;
     if (!row || !allowed) {
       throw new MeridianMcpError("mcp_access_denied", 403, "Your ministry has not granted this Meridian MCP capability.");
     }
@@ -84,7 +109,11 @@ export class SupabaseMeridianMcpRepository implements MeridianMcpRepository {
       userId: row.user_id,
       accessLevel: row.access_level,
       canSearch: row.can_search,
-      canSaveDrafts: row.can_save_drafts
+      canSaveDrafts: row.can_save_drafts,
+      canReadPlatform: row.can_read_platform,
+      canManageEvents: row.can_manage_events,
+      canManageTasks: row.can_manage_tasks,
+      canSaveResources: row.can_save_resources
     };
   }
 
@@ -247,4 +276,18 @@ function truncate(value: string, max: number) {
 
 function storageError(_message: string) {
   return new MeridianMcpError("mcp_storage_unavailable", 503, "Meridian MCP storage is not ready. No data was changed.");
+}
+
+function capabilityAllowed(row: GrantRow, capability: MeridianMcpCapability) {
+  if (capability === "search") return row.can_search;
+  if (capability === "save_drafts") return row.can_save_drafts;
+  if (capability === "read_platform") return row.can_read_platform;
+  if (capability === "manage_events") return row.can_manage_events;
+  if (capability === "manage_tasks") return row.can_manage_tasks;
+  return row.can_save_resources;
+}
+
+function isMissingPlatformGrantColumns(error: { code?: string; message?: string }) {
+  const message = error.message?.toLowerCase() ?? "";
+  return error.code === "42703" || message.includes("can_read_platform") || message.includes("can_manage_events") || message.includes("can_manage_tasks") || message.includes("can_save_resources");
 }
