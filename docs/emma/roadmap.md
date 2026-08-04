@@ -4,6 +4,12 @@
 
 EMMA should be introduced as a sequence of narrow, testable vertical slices. Do not build the router, communications, RAG, Planning Center, and provider waterfall at the same time.
 
+### Future personal-AI platform role
+
+EMMA is the final automated alignment and safety reviewer for resource bundles created through the future permission-aware platform MCP. A connected personal AI client performs user-directed creative work; Meridian supplies approved organizational grounding; EMMA checks the completed draft for theology, ministry culture, Scripture provenance, citation integrity, audience fit, privacy leakage, prohibited inference, and permission boundaries before human review.
+
+EMMA returns `ready_for_human_review`, `changes_required`, or `blocked`. It does not silently rewrite the creator's voice, approve its own output, publish, send, or turn AI output into approved Meridian knowledge. Implementation must follow the phased [Personal AI Platform MCP Roadmap](../architecture/personal-ai-platform-mcp.md) rather than expanding EMMA and MCP writes simultaneously.
+
 The recommended order is:
 
 1. contract and audit foundation
