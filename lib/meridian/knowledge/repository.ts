@@ -11,6 +11,20 @@ import type {
   MeridianSource,
   MeridianTaskContext
 } from "@/lib/meridian/knowledge/types";
+import { andrewAuthoredSourceKinds, type AndrewAuthoredSourceKind } from "@/lib/meridian/knowledge/authored-corpus";
+
+const approvedAuthoredAuthorities = new Set<MeridianClaim["authorityClass"]>([
+  "adopted_doctrine",
+  "approved_teaching",
+  "attributed_scholarship"
+]);
+const approvedAuthoredClaimKinds = new Set<MeridianClaim["kind"]>([
+  "doctrinal_position",
+  "teaching_history",
+  "scholarly_perspective",
+  "interpretation",
+  "recommendation"
+]);
 
 export type MeridianApprovedEvidence = {
   questionPlan: MeridianQuestionPlan;
@@ -51,12 +65,19 @@ export type MeridianPromotionInput = {
   };
 };
 
+export type MeridianLegacyPromotionInput = Omit<MeridianPromotionInput, "candidateId"> & {
+  legacySourceId: string;
+  legacyChunkId: string;
+  sourceKind: AndrewAuthoredSourceKind;
+};
+
 export interface MeridianGenerationRepository {
   loadApprovedEvidence(session: AuthSession, task: MeridianTaskContext): Promise<MeridianApprovedEvidence>;
 }
 
 export interface MeridianPromotionRepository {
   promoteCandidate(session: AuthSession, input: MeridianPromotionInput): Promise<{ sourceId: string; fragmentId: string; claimId: string }>;
+  promoteLegacyClaim(session: AuthSession, input: MeridianLegacyPromotionInput): Promise<{ sourceId: string; fragmentId: string; claimId: string; sourceKind: AndrewAuthoredSourceKind }>;
 }
 
 type ClaimRow = {
@@ -268,6 +289,69 @@ export class SupabaseMeridianKnowledgeRepository implements MeridianGenerationRe
       throw new MeridianKnowledgeRepositoryError("promotion_failed", 500, "Meridian promotion did not return object identifiers.");
     }
     return { sourceId: data.sourceId, fragmentId: data.fragmentId, claimId: data.claimId };
+  }
+
+  async promoteLegacyClaim(session: AuthSession, input: MeridianLegacyPromotionInput) {
+    if (session.user.role !== "admin") {
+      throw new MeridianKnowledgeRepositoryError("forbidden", 403, "Only admins can approve Meridian knowledge.");
+    }
+    if (!andrewAuthoredSourceKinds.includes(input.sourceKind)) {
+      throw new MeridianKnowledgeRepositoryError("invalid_source_kind", 400, "Choose academic paper, curriculum material, or sermon.");
+    }
+    if (!input.fragment.text.trim() || !input.claim.proposition.trim()) {
+      throw new MeridianKnowledgeRepositoryError("invalid_promotion", 400, "An exact supporting excerpt and atomic claim are required.");
+    }
+    if (input.source.authorityClass === "none" || input.claim.authorityClass === "none") {
+      throw new MeridianKnowledgeRepositoryError("invalid_authority", 400, "Approval requires an explicit authority class.");
+    }
+    if (input.source.authorityClass === "canonical_scripture" || input.claim.authorityClass === "canonical_scripture" || input.claim.kind === "scripture_text") {
+      throw new MeridianKnowledgeRepositoryError("invalid_scripture_source", 400, "Canonical Scripture must come from YouVersion, not the source library.");
+    }
+    if (!approvedAuthoredAuthorities.has(input.source.authorityClass) || !approvedAuthoredAuthorities.has(input.claim.authorityClass)) {
+      throw new MeridianKnowledgeRepositoryError("invalid_authority", 400, "Authored material may be approved only as doctrine, teaching history, or attributed scholarship.");
+    }
+    if (!approvedAuthoredClaimKinds.has(input.claim.kind)) {
+      throw new MeridianKnowledgeRepositoryError("invalid_claim_kind", 400, "The selected claim type is not valid for reviewed authored material.");
+    }
+    if (input.fragment.canQuote && input.source.quotePolicy !== "allowed") {
+      throw new MeridianKnowledgeRepositoryError("invalid_quote_permission", 400, "Quote permission requires an allowed quote policy.");
+    }
+    if (!input.fragment.canUseFinalAnswer) {
+      throw new MeridianKnowledgeRepositoryError("missing_final_answer_permission", 400, "Approved retrieval requires explicit final-answer permission.");
+    }
+    if (input.fragment.canUseExternalCommunication && input.source.externalVisibility !== "external") {
+      throw new MeridianKnowledgeRepositoryError("invalid_external_permission", 400, "External communication requires external source visibility.");
+    }
+    if (input.claim.kind === "scholarly_perspective" && !input.claim.attribution?.trim()) {
+      throw new MeridianKnowledgeRepositoryError("missing_attribution", 400, "Scholarly perspectives require attribution.");
+    }
+
+    const supabase = getSupabaseAuthClient(session.accessToken);
+    const result = await supabase.rpc("promote_legacy_meridian_claim", {
+      p_legacy_source_id: input.legacySourceId,
+      p_legacy_chunk_id: input.legacyChunkId,
+      p_source_kind: input.sourceKind,
+      p_source: input.source,
+      p_fragment: input.fragment,
+      p_claim: input.claim,
+      p_rationale: input.rationale
+    });
+    throwIfError(result.error);
+    const data = result.data as { sourceId?: unknown; fragmentId?: unknown; claimId?: unknown; sourceKind?: unknown } | null;
+    if (
+      typeof data?.sourceId !== "string" ||
+      typeof data.fragmentId !== "string" ||
+      typeof data.claimId !== "string" ||
+      !andrewAuthoredSourceKinds.includes(data.sourceKind as AndrewAuthoredSourceKind)
+    ) {
+      throw new MeridianKnowledgeRepositoryError("promotion_failed", 500, "Meridian approval did not return valid object identifiers.");
+    }
+    return {
+      sourceId: data.sourceId,
+      fragmentId: data.fragmentId,
+      claimId: data.claimId,
+      sourceKind: data.sourceKind as AndrewAuthoredSourceKind
+    };
   }
 }
 

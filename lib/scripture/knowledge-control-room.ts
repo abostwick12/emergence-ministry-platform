@@ -2,6 +2,7 @@ import { isSupabaseConfigured } from "@/lib/auth/config";
 import type { AuthSession } from "@/lib/auth/server";
 import { getSupabaseAuthClient } from "@/lib/auth/server";
 import { resolveMinistryScope } from "@/lib/ministry/scope";
+import type { AndrewAuthoredSourceKind } from "@/lib/meridian/knowledge/authored-corpus";
 
 export const knowledgeSourceKinds = ["own_voice", "scholar_reference", "app_resource", "curated_note"] as const;
 export const knowledgeHemispheres = ["own_voice", "scholar", "platform"] as const;
@@ -37,6 +38,17 @@ export type KnowledgeSourceControlItem = {
   chunks: KnowledgeSourceChunkPreview[];
   updatedAt: string;
   createdAt: string;
+  meridianReview: {
+    ready: boolean;
+    sourceId?: string;
+    sourceKind?: AndrewAuthoredSourceKind;
+    authorityClass?: "adopted_doctrine" | "approved_teaching" | "attributed_scholarship";
+    externalVisibility?: "ministry" | "external";
+    quotePolicy?: "never" | "review_required" | "allowed";
+    sensitivity?: "general" | "internal" | "safeguarding";
+    attribution?: string;
+    approvedClaimCount: number;
+  };
 };
 
 export type KnowledgeControlRoomState = {
@@ -54,6 +66,7 @@ export type KnowledgeControlRoomState = {
   };
   permissions: {
     canManageInternalGrounding: boolean;
+    canPromoteMeridian: boolean;
   };
 };
 
@@ -107,6 +120,43 @@ type KnowledgeChunkRow = {
   updated_at: string;
 };
 
+type MeridianLegacySourcePromotionRow = {
+  id: string;
+  legacy_source_id: string;
+  meridian_source_id: string;
+  source_kind: AndrewAuthoredSourceKind;
+};
+
+type MeridianLegacyClaimPromotionRow = {
+  source_promotion_id: string;
+};
+
+type MeridianReviewedSourceRow = {
+  id: string;
+  authority_class: "adopted_doctrine" | "approved_teaching" | "attributed_scholarship";
+  external_visibility: "ministry" | "external";
+  quote_policy: "never" | "review_required" | "allowed";
+  sensitivity: "general" | "internal" | "safeguarding";
+  attribution: string | null;
+};
+
+type MeridianLegacyReview = {
+  ready: boolean;
+  sourceId?: string;
+  sourceKind?: AndrewAuthoredSourceKind;
+  authorityClass?: "adopted_doctrine" | "approved_teaching" | "attributed_scholarship";
+  externalVisibility?: "ministry" | "external";
+  quotePolicy?: "never" | "review_required" | "allowed";
+  sensitivity?: "general" | "internal" | "safeguarding";
+  attribution?: string;
+  approvedClaimCount: number;
+};
+
+type MeridianLegacyReviewState = {
+  ready: boolean;
+  reviews: Map<string, MeridianLegacyReview>;
+};
+
 const MAX_TITLE_LENGTH = 240;
 const MAX_SUMMARY_LENGTH = 800;
 const MAX_CONTENT_LENGTH = 24000;
@@ -131,8 +181,13 @@ export async function getKnowledgeControlRoomState(session: AuthSession): Promis
   throwIfSupabaseError(sourceResult.error);
   const sources = sourceResult.data ?? [];
   const sourceIds = sources.map((source) => source.id);
-  const chunkRows = sourceIds.length ? await getChunksForSources(session, sourceIds) : [];
-  return toControlRoomState(sources, chunkRows, session);
+  const [chunkRows, meridianReviews] = await Promise.all([
+    sourceIds.length ? getChunksForSources(session, sourceIds) : Promise.resolve([]),
+    sourceIds.length && isAdmin(session)
+      ? getMeridianReviews(session, sourceIds)
+      : Promise.resolve({ ready: false, reviews: new Map<string, MeridianLegacyReview>() })
+  ]);
+  return toControlRoomState(sources, chunkRows, session, meridianReviews);
 }
 
 export async function createKnowledgeSource(session: AuthSession, input: CreateKnowledgeSourceInput): Promise<KnowledgeSourceControlItem> {
@@ -282,7 +337,67 @@ async function getChunksForSources(session: AuthSession, sourceIds: string[]) {
   return result.data ?? [];
 }
 
-function toControlRoomState(sourceRows: KnowledgeSourceRow[], chunkRows: KnowledgeChunkRow[], session?: AuthSession): KnowledgeControlRoomState {
+async function getMeridianReviews(session: AuthSession, sourceIds: string[]) {
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const sourceResult = await supabase
+    .from("meridian_legacy_source_promotions")
+    .select("id,legacy_source_id,meridian_source_id,source_kind")
+    .in("legacy_source_id", sourceIds)
+    .returns<MeridianLegacySourcePromotionRow[]>();
+
+  if (sourceResult.error) return { ready: false, reviews: new Map<string, MeridianLegacyReview>() };
+  const promotions = sourceResult.data ?? [];
+  const promotionIds = promotions.map((promotion) => promotion.id);
+  const meridianSourceIds = promotions.map((promotion) => promotion.meridian_source_id);
+  const [claimResult, reviewedSourceResult] = await Promise.all([
+    promotionIds.length
+      ? supabase
+        .from("meridian_legacy_claim_promotions")
+        .select("source_promotion_id")
+        .in("source_promotion_id", promotionIds)
+        .returns<MeridianLegacyClaimPromotionRow[]>()
+      : Promise.resolve({ data: [] as MeridianLegacyClaimPromotionRow[], error: null }),
+    meridianSourceIds.length
+      ? supabase
+          .from("meridian_sources")
+          .select("id,authority_class,external_visibility,quote_policy,sensitivity,attribution")
+          .in("id", meridianSourceIds)
+          .returns<MeridianReviewedSourceRow[]>()
+      : Promise.resolve({ data: [] as MeridianReviewedSourceRow[], error: null })
+  ]);
+
+  if (claimResult.error || reviewedSourceResult.error) return { ready: false, reviews: new Map<string, MeridianLegacyReview>() };
+  const claimCountByPromotion = new Map<string, number>();
+  for (const claim of claimResult.data ?? []) {
+    claimCountByPromotion.set(claim.source_promotion_id, (claimCountByPromotion.get(claim.source_promotion_id) ?? 0) + 1);
+  }
+  const reviewedSourceById = new Map((reviewedSourceResult.data ?? []).map((source) => [source.id, source]));
+
+  return {
+    ready: true,
+    reviews: new Map(promotions.map((promotion) => [
+      promotion.legacy_source_id,
+      {
+        ready: true,
+        sourceId: promotion.meridian_source_id,
+        sourceKind: promotion.source_kind,
+        authorityClass: reviewedSourceById.get(promotion.meridian_source_id)?.authority_class,
+        externalVisibility: reviewedSourceById.get(promotion.meridian_source_id)?.external_visibility,
+        quotePolicy: reviewedSourceById.get(promotion.meridian_source_id)?.quote_policy,
+        sensitivity: reviewedSourceById.get(promotion.meridian_source_id)?.sensitivity,
+        attribution: reviewedSourceById.get(promotion.meridian_source_id)?.attribution ?? undefined,
+        approvedClaimCount: claimCountByPromotion.get(promotion.id) ?? 0
+      }
+    ]))
+  };
+}
+
+function toControlRoomState(
+  sourceRows: KnowledgeSourceRow[],
+  chunkRows: KnowledgeChunkRow[],
+  session?: AuthSession,
+  meridianReviewState: MeridianLegacyReviewState = { ready: false, reviews: new Map<string, MeridianLegacyReview>() }
+): KnowledgeControlRoomState {
   const chunksBySource = new Map<string, KnowledgeChunkRow[]>();
   for (const chunk of chunkRows) {
     const chunks = chunksBySource.get(chunk.source_id) ?? [];
@@ -290,7 +405,12 @@ function toControlRoomState(sourceRows: KnowledgeSourceRow[], chunkRows: Knowled
     chunksBySource.set(chunk.source_id, chunks);
   }
 
-  const sources = sourceRows.map((source) => toControlItem(source, chunksBySource.get(source.id) ?? []));
+  const sources = sourceRows.map((source) => toControlItem(
+    source,
+    chunksBySource.get(source.id) ?? [],
+    meridianReviewState.reviews.get(source.id),
+    meridianReviewState.ready
+  ));
   return {
     readiness: {
       liveStorage: true,
@@ -305,12 +425,18 @@ function toControlRoomState(sourceRows: KnowledgeSourceRow[], chunkRows: Knowled
       chunkCount: sources.reduce((total, source) => total + source.chunkCount, 0)
     },
     permissions: {
-      canManageInternalGrounding: Boolean(session && isAdmin(session))
+      canManageInternalGrounding: Boolean(session && isAdmin(session)),
+      canPromoteMeridian: Boolean(session && isAdmin(session) && meridianReviewState.ready)
     }
   };
 }
 
-function toControlItem(source: KnowledgeSourceRow, chunks: KnowledgeChunkRow[]): KnowledgeSourceControlItem {
+function toControlItem(
+  source: KnowledgeSourceRow,
+  chunks: KnowledgeChunkRow[],
+  meridianReview?: MeridianLegacyReview,
+  meridianReviewReady = false
+): KnowledgeSourceControlItem {
   return {
     id: source.id,
     title: source.title,
@@ -324,7 +450,11 @@ function toControlItem(source: KnowledgeSourceRow, chunks: KnowledgeChunkRow[]):
     chunkCount: chunks.length,
     chunks: chunks.map(toChunkPreview),
     createdAt: source.created_at,
-    updatedAt: source.updated_at
+    updatedAt: source.updated_at,
+    meridianReview: meridianReview ?? {
+      ready: meridianReviewReady,
+      approvedClaimCount: 0
+    }
   };
 }
 
@@ -436,7 +566,8 @@ function emptyKnowledgeState(message: string): KnowledgeControlRoomState {
       chunkCount: 0
     },
     permissions: {
-      canManageInternalGrounding: false
+      canManageInternalGrounding: false,
+      canPromoteMeridian: false
     }
   };
 }

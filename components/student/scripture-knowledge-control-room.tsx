@@ -28,6 +28,49 @@ type TestBenchResponse = {
   result?: KnowledgeTestBenchResult;
 };
 
+type MeridianPromotionPayload = {
+  legacyChunkId: string;
+  sourceKind: "academic_paper" | "curriculum_material" | "sermon";
+  rationale: string;
+  source: {
+    title: string;
+    attribution?: string;
+    authorityClass: "adopted_doctrine" | "approved_teaching" | "attributed_scholarship";
+    externalVisibility: "ministry" | "external";
+    quotePolicy: "never" | "review_required" | "allowed";
+    sensitivity: "general" | "internal" | "safeguarding";
+  };
+  fragment: {
+    text: string;
+    locator: { kind: "record"; value: string };
+    canQuote: boolean;
+    canParaphrase: boolean;
+    canCite: boolean;
+    canUseFinalAnswer: true;
+    canUseExternalCommunication: boolean;
+  };
+  claim: {
+    proposition: string;
+    kind: "doctrinal_position" | "teaching_history" | "scholarly_perspective" | "interpretation" | "recommendation";
+    attribution?: string;
+    authorityClass: "adopted_doctrine" | "approved_teaching" | "attributed_scholarship";
+    confidence: number;
+    scope: {
+      sensitivity: Array<"general" | "internal" | "safeguarding">;
+      scriptureReferences?: string[];
+      topics?: string[];
+    };
+  };
+};
+
+type MeridianPromotionResponse = {
+  ok?: boolean;
+  error?: string;
+  sourceId?: string;
+  claimId?: string;
+  sourceKind?: MeridianPromotionPayload["sourceKind"];
+};
+
 const visibilityActions: Array<{ visibility: KnowledgeVisibility; label: string; note: string }> = [
   { visibility: "student_visible", label: "Use for Matching", note: "Can inform follow-up, but publish student-facing helps below." },
   { visibility: "internal_grounding", label: "Internal Grounding", note: "Admin-only. Shapes theology, voice, questions, and journeys without student exposure." },
@@ -49,6 +92,7 @@ export function ScriptureKnowledgeControlRoom({ initialDiscussionState, initialS
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<KnowledgeTestBenchResult | null>(null);
   const [updatingId, setUpdatingId] = useState("");
+  const [promotingId, setPromotingId] = useState("");
   const stats = useMemo(() => buildStats(sources, initialState.stats.chunkCount), [sources, initialState.stats.chunkCount]);
   const canWrite = initialState.readiness.liveStorage && !saving;
   const approvedPrompts = useMemo(
@@ -158,7 +202,9 @@ export function ScriptureKnowledgeControlRoom({ initialDiscussionState, initialS
         return;
       }
 
-      setSources((current) => current.map((source) => (source.id === payload.source!.id ? payload.source! : source)));
+      setSources((current) => current.map((source) => source.id === payload.source!.id
+        ? { ...payload.source!, meridianReview: source.meridianReview }
+        : source));
       setStatus(visibility === "student_visible" ? "Source can now inform matching. Publish student-facing helps below." : "Source visibility updated.");
     } catch {
       setStatus("The source visibility could not be updated.");
@@ -190,7 +236,9 @@ export function ScriptureKnowledgeControlRoom({ initialDiscussionState, initialS
         return;
       }
 
-      setSources((current) => current.map((source) => (source.id === payload.source!.id ? payload.source! : source)));
+      setSources((current) => current.map((source) => source.id === payload.source!.id
+        ? { ...payload.source!, meridianReview: source.meridianReview }
+        : source));
       setStatus("Source details saved. Rerun the Meridian test to check the updated retrieval path.");
     } catch {
       setStatus("The source details could not be saved.");
@@ -226,6 +274,45 @@ export function ScriptureKnowledgeControlRoom({ initialDiscussionState, initialS
       setStatus("The Meridian preview could not run.");
     } finally {
       setTesting(false);
+    }
+  }
+
+  async function promoteMeridianClaim(sourceId: string, payload: MeridianPromotionPayload) {
+    setPromotingId(sourceId);
+    setStatus("Approving one grounded claim for Meridian...");
+    try {
+      const response = await fetch(`/api/meridian/knowledge/legacy-sources/${sourceId}/promote`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const result = (await response.json()) as MeridianPromotionResponse;
+      if (!response.ok || !result.ok || !result.sourceId || !result.claimId || !result.sourceKind) {
+        setStatus(result.error ?? "The claim could not be approved for Meridian.");
+        return;
+      }
+
+      setSources((current) => current.map((source) => source.id === sourceId
+        ? {
+            ...source,
+            meridianReview: {
+              ready: true,
+              sourceId: result.sourceId,
+              sourceKind: result.sourceKind,
+              authorityClass: payload.source.authorityClass,
+              externalVisibility: payload.source.externalVisibility,
+              quotePolicy: payload.source.quotePolicy,
+              sensitivity: payload.source.sensitivity,
+              attribution: payload.source.attribution,
+              approvedClaimCount: source.meridianReview.approvedClaimCount + 1
+            }
+          }
+        : source));
+      setStatus("Claim approved. Meridian search can now retrieve it with its exact supporting excerpt.");
+    } catch {
+      setStatus("The claim could not be approved for Meridian.");
+    } finally {
+      setPromotingId("");
     }
   }
 
@@ -389,9 +476,12 @@ export function ScriptureKnowledgeControlRoom({ initialDiscussionState, initialS
             sources.map((source) => (
               <SourceCard
                 canWrite={initialState.readiness.liveStorage && !updatingId}
+                canPromoteMeridian={initialState.permissions.canPromoteMeridian}
                 isUpdating={updatingId === source.id}
+                isPromoting={promotingId === source.id}
                 key={source.id}
                 onDetailsSave={updateDetails}
+                onMeridianPromote={promoteMeridianClaim}
                 onVisibilityChange={updateVisibility}
                 showInternalGroundingAction={initialState.permissions.canManageInternalGrounding}
                 source={source}
@@ -701,16 +791,22 @@ function VideoMeta({ label, value }: { label: string; value: string }) {
 }
 
 function SourceCard({
+  canPromoteMeridian,
   canWrite,
+  isPromoting,
   isUpdating,
   onDetailsSave,
+  onMeridianPromote,
   onVisibilityChange,
   showInternalGroundingAction,
   source
 }: {
+  canPromoteMeridian: boolean;
   canWrite: boolean;
+  isPromoting: boolean;
   isUpdating: boolean;
   onDetailsSave: (sourceId: string, form: HTMLFormElement) => Promise<void>;
+  onMeridianPromote: (sourceId: string, payload: MeridianPromotionPayload) => Promise<void>;
   onVisibilityChange: (sourceId: string, visibility: KnowledgeVisibility) => Promise<void>;
   showInternalGroundingAction: boolean;
   source: KnowledgeSourceControlItem;
@@ -729,6 +825,11 @@ function SourceCard({
       </header>
 
       <div className="knowledge-source-tags">
+        {source.meridianReview.sourceKind ? (
+          <span>Meridian: {source.meridianReview.sourceKind.replace(/_/g, " ")} / {source.meridianReview.approvedClaimCount} approved</span>
+        ) : (
+          <span>Meridian: not reviewed</span>
+        )}
         {source.tags.slice(0, 6).map((tag) => (
           <span key={tag}>{tag}</span>
         ))}
@@ -746,6 +847,15 @@ function SourceCard({
           </details>
         ))}
       </div>
+
+      {canPromoteMeridian && source.chunks.length ? (
+        <MeridianPromotionForm
+          disabled={!canWrite || isUpdating || isPromoting}
+          isPromoting={isPromoting}
+          onPromote={(payload) => onMeridianPromote(source.id, payload)}
+          source={source}
+        />
+      ) : null}
 
       <details className="knowledge-source-edit">
         <summary>Curate source details</summary>
@@ -819,6 +929,191 @@ function SourceCard({
   );
 }
 
+function MeridianPromotionForm({
+  disabled,
+  isPromoting,
+  onPromote,
+  source
+}: {
+  disabled: boolean;
+  isPromoting: boolean;
+  onPromote: (payload: MeridianPromotionPayload) => Promise<void>;
+  source: KnowledgeSourceControlItem;
+}) {
+  const [selectedChunkId, setSelectedChunkId] = useState(source.chunks[0]?.id ?? "");
+  const selectedChunk = source.chunks.find((chunk) => chunk.id === selectedChunkId) ?? source.chunks[0];
+  const existingReview = source.meridianReview.sourceId ? source.meridianReview : undefined;
+
+  return (
+    <details className="knowledge-source-edit">
+      <summary>{existingReview ? "Approve another Meridian claim" : "Review for Meridian"}</summary>
+      <form
+        className="knowledge-source-edit-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!selectedChunk) return;
+          const form = new FormData(event.currentTarget);
+          const sourceKind = String(form.get("meridianSourceKind")) as MeridianPromotionPayload["sourceKind"];
+          const authorityClass = String(form.get("meridianAuthority")) as MeridianPromotionPayload["source"]["authorityClass"];
+          const claimKind = String(form.get("meridianClaimKind")) as MeridianPromotionPayload["claim"]["kind"];
+          const sensitivity = String(form.get("meridianSensitivity")) as MeridianPromotionPayload["source"]["sensitivity"];
+          const attribution = String(form.get("meridianAttribution") || "").trim() || undefined;
+          const canQuote = form.get("meridianCanQuote") === "on";
+          const canUseExternalCommunication = form.get("meridianCanUseExternal") === "on";
+
+          void onPromote({
+            legacyChunkId: selectedChunk.id,
+            sourceKind,
+            rationale: String(form.get("meridianRationale") || ""),
+            source: {
+              title: source.title,
+              attribution,
+              authorityClass: existingReview?.authorityClass ?? authorityClass,
+              externalVisibility: existingReview?.externalVisibility ?? (canUseExternalCommunication ? "external" : "ministry"),
+              quotePolicy: existingReview?.quotePolicy ?? (canQuote ? "allowed" : "review_required"),
+              sensitivity: existingReview?.sensitivity ?? sensitivity
+            },
+            fragment: {
+              text: String(form.get("meridianExcerpt") || ""),
+              locator: { kind: "record", value: `Legacy chunk ${selectedChunk.chunkIndex + 1}` },
+              canQuote,
+              canParaphrase: form.get("meridianCanParaphrase") === "on",
+              canCite: form.get("meridianCanCite") === "on",
+              canUseFinalAnswer: true,
+              canUseExternalCommunication
+            },
+            claim: {
+              proposition: String(form.get("meridianClaim") || ""),
+              kind: claimKind,
+              attribution,
+              authorityClass,
+              confidence: Number(form.get("meridianConfidence") || 0.9),
+              scope: {
+                sensitivity: [sensitivity],
+                scriptureReferences: selectedChunk.scriptureReferences.length ? selectedChunk.scriptureReferences : undefined,
+                topics: source.tags.length ? source.tags : undefined
+              }
+            }
+          });
+        }}
+      >
+        <div>
+          <p className="eyebrow">Governed knowledge</p>
+          <strong>Approve one claim, not the whole document.</strong>
+          <p className="muted">Choose its role, state one atomic claim, and confirm the exact words that support it. Obsidian notes never enter this workflow.</p>
+        </div>
+
+        <div className="knowledge-source-field-grid">
+          <label className="leader-review-field">
+            <span>Material type</span>
+            {existingReview?.sourceKind ? (
+              <>
+                <input name="meridianSourceKind" type="hidden" value={existingReview.sourceKind} />
+                <input className="input" disabled value={sourceKindLabel(existingReview.sourceKind)} />
+              </>
+            ) : (
+              <select className="input" defaultValue="" name="meridianSourceKind" required>
+                <option disabled value="">Choose the material type</option>
+                <option value="academic_paper">Academic paper</option>
+                <option value="curriculum_material">Curriculum material</option>
+                <option value="sermon">Sermon / teaching history</option>
+              </select>
+            )}
+          </label>
+
+          <label className="leader-review-field">
+            <span>Authority</span>
+            <select className="input" defaultValue={existingReview?.authorityClass ?? "approved_teaching"} name="meridianAuthority" required>
+              <option value="approved_teaching">Approved teaching</option>
+              <option value="attributed_scholarship">Attributed scholarship</option>
+              <option value="adopted_doctrine">Adopted church doctrine</option>
+            </select>
+          </label>
+        </div>
+
+        <div className="knowledge-source-field-grid">
+          <label className="leader-review-field">
+            <span>Claim type</span>
+            <select className="input" defaultValue="interpretation" name="meridianClaimKind" required>
+              <option value="interpretation">Theological interpretation</option>
+              <option value="teaching_history">Teaching history</option>
+              <option value="scholarly_perspective">Scholarly perspective</option>
+              <option value="doctrinal_position">Doctrinal position</option>
+              <option value="recommendation">Ministry recommendation</option>
+            </select>
+          </label>
+
+          <label className="leader-review-field">
+            <span>Confidence</span>
+            <select className="input" defaultValue="0.9" name="meridianConfidence">
+              <option value="1">Settled / explicit</option>
+              <option value="0.9">Strongly supported</option>
+              <option value="0.75">Qualified / contextual</option>
+            </select>
+          </label>
+        </div>
+
+        <label className="leader-review-field">
+          <span>Atomic claim</span>
+          <textarea name="meridianClaim" placeholder="State one proposition Meridian may rely on. Include nuance or limits in the claim itself." required />
+        </label>
+
+        <label className="leader-review-field">
+          <span>Attribution</span>
+          <input
+            className="input"
+            defaultValue={existingReview?.attribution ?? source.citation}
+            name="meridianAttribution"
+            placeholder="Author, course, curriculum, or sermon date"
+          />
+        </label>
+
+        <label className="leader-review-field">
+          <span>Supporting source section</span>
+          <select className="input" onChange={(event) => setSelectedChunkId(event.target.value)} value={selectedChunkId}>
+            {source.chunks.map((chunk) => (
+              <option key={chunk.id} value={chunk.id}>Section {chunk.chunkIndex + 1}: {chunk.title}</option>
+            ))}
+          </select>
+        </label>
+
+        <label className="leader-review-field">
+          <span>Exact supporting excerpt</span>
+          <textarea defaultValue={selectedChunk?.body ?? ""} key={selectedChunkId} name="meridianExcerpt" required />
+          <small>This must remain an exact, unedited portion of the selected section.</small>
+        </label>
+
+        <div className="knowledge-source-field-grid">
+          <label className="leader-review-field">
+            <span>Sensitivity</span>
+            <select className="input" defaultValue={existingReview?.sensitivity ?? "internal"} name="meridianSensitivity">
+              <option value="internal">Internal ministry</option>
+              <option value="general">General</option>
+              <option value="safeguarding">Safeguarding</option>
+            </select>
+          </label>
+          <label className="leader-review-field">
+            <span>Review rationale</span>
+            <input className="input" name="meridianRationale" placeholder="Why this claim is reliable and appropriately scoped" required />
+          </label>
+        </div>
+
+        <div className="knowledge-source-tags" aria-label="Meridian use permissions">
+          <label><input defaultChecked name="meridianCanParaphrase" type="checkbox" /> Allow paraphrase</label>
+          <label><input defaultChecked name="meridianCanCite" type="checkbox" /> Allow citation</label>
+          <label><input name="meridianCanQuote" type="checkbox" /> Allow direct quotation</label>
+          <label><input name="meridianCanUseExternal" type="checkbox" /> Allow external communication</label>
+          <span>Final-answer use: explicitly approved by this action</span>
+        </div>
+
+        <button className="button primary" disabled={disabled} type="submit">
+          {isPromoting ? "Approving claim..." : "Approve Claim for Meridian"}
+        </button>
+      </form>
+    </details>
+  );
+}
+
 function StatTile({ label, value }: { label: string; value: number }) {
   return (
     <div className="leader-review-meta-tile">
@@ -841,6 +1136,12 @@ function buildStats(sources: KnowledgeSourceControlItem[], fallbackChunkCount: n
 function sourceLabel(source: KnowledgeSourceControlItem) {
   const side = source.hemisphere === "own_voice" ? "Own voice" : source.hemisphere === "scholar" ? "Scholar" : "Platform";
   return `${side} / ${source.sourceKind.replace(/_/g, " ")}`;
+}
+
+function sourceKindLabel(sourceKind: MeridianPromotionPayload["sourceKind"]) {
+  if (sourceKind === "academic_paper") return "Academic paper";
+  if (sourceKind === "curriculum_material") return "Curriculum material";
+  return "Sermon / teaching history";
 }
 
 function visibilityClassName(visibility: KnowledgeVisibility) {
