@@ -1,7 +1,13 @@
 import type { AuthSession } from "@/lib/auth/server";
 import type { MeridianAuthorityClass, MeridianClaimKind } from "@/lib/meridian/knowledge/types";
 
-export type MeridianMcpCapability = "search" | "save_drafts";
+export type MeridianMcpCapability =
+  | "search"
+  | "save_drafts"
+  | "read_platform"
+  | "manage_events"
+  | "manage_tasks"
+  | "save_resources";
 
 export type MeridianMcpGrant = {
   ministryId: string;
@@ -9,6 +15,10 @@ export type MeridianMcpGrant = {
   accessLevel: "volunteer_creator" | "leader_creator" | "admin";
   canSearch: boolean;
   canSaveDrafts: boolean;
+  canReadPlatform: boolean;
+  canManageEvents: boolean;
+  canManageTasks: boolean;
+  canSaveResources: boolean;
 };
 
 export type MeridianMcpSearchResult = {

@@ -8531,6 +8531,21 @@ html:has(.app-shell-camp) body {
   font-size: 13px;
 }
 
+.meridian-personal-ai-permissions {
+  display: grid;
+  justify-items: start;
+  gap: 7px;
+  max-width: 340px;
+  padding: 10px 12px;
+  border: 1px solid #dbe4ee;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.meridian-personal-ai-permissions input {
+  flex: 0 0 auto;
+}
+
 .meridian-personal-ai-endpoint {
   max-width: 360px;
   display: flex;

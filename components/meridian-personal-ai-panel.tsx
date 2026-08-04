@@ -8,10 +8,23 @@ type MeridianConnectionResponse = {
   endpoint?: string;
   canManage?: boolean;
   oauthReady?: boolean;
-  grant?: { enabled: boolean; canSearch: boolean; canSaveDrafts: boolean; accessLevel: string | null } | null;
+  grant?: MeridianGrant | null;
   oauthGrants?: Array<{ clientId: string; clientName: string; clientUri: string; scopes: string[]; grantedAt: string }>;
   error?: string;
 };
+
+type MeridianGrant = {
+  enabled: boolean;
+  canSearch: boolean;
+  canSaveDrafts: boolean;
+  canReadPlatform: boolean;
+  canManageEvents: boolean;
+  canManageTasks: boolean;
+  canSaveResources: boolean;
+  accessLevel: string | null;
+};
+
+type GrantPermissions = Pick<MeridianGrant, "canSaveDrafts" | "canReadPlatform" | "canManageEvents" | "canManageTasks" | "canSaveResources">;
 
 export function MeridianPersonalAiPanel({ canManage }: { canManage: boolean }) {
   const [state, setState] = useState<MeridianConnectionResponse>({});
@@ -37,14 +50,14 @@ export function MeridianPersonalAiPanel({ canManage }: { canManage: boolean }) {
     void load();
   }, [load]);
 
-  async function saveGrant(enabled: boolean, canSaveDrafts: boolean) {
+  async function saveGrant(enabled: boolean, permissions: GrantPermissions) {
     setBusy("grant");
     setMessage(null);
     try {
       const response = await fetch("/api/settings/meridian-mcp", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enabled, canSaveDrafts })
+        body: JSON.stringify({ enabled, ...permissions })
       });
       const payload = (await response.json().catch(() => ({}))) as MeridianConnectionResponse;
       if (!response.ok || !payload.grant) {
@@ -95,6 +108,7 @@ export function MeridianPersonalAiPanel({ canManage }: { canManage: boolean }) {
   }
 
   const grant = state.grant;
+  const permissions = grantPermissions(grant);
   const connections = state.oauthGrants ?? [];
   return (
     <section className="website-access-panel meridian-personal-ai-panel" id="meridian-personal-ai" aria-labelledby="meridian-personal-ai-title">
@@ -112,8 +126,20 @@ export function MeridianPersonalAiPanel({ canManage }: { canManage: boolean }) {
           <span>1</span><div><strong>Grant Meridian access</strong><p>This is separate from OAuth and remains under ministry control.</p></div>
           {canManage ? (
             <div className="meridian-personal-ai-actions">
-              <button className="button" type="button" disabled={loading || busy === "grant"} onClick={() => void saveGrant(!grant?.enabled, Boolean(grant?.canSaveDrafts))}>{grant?.enabled ? "Disable tools" : "Enable approved search"}</button>
-              {grant?.enabled ? <label><input type="checkbox" checked={grant.canSaveDrafts} disabled={busy === "grant"} onChange={(event) => void saveGrant(true, event.target.checked)} /> Allow review-only draft submission</label> : null}
+              <button className="button" type="button" disabled={loading || busy === "grant"} onClick={() => void saveGrant(!grant?.enabled, permissions)}>{grant?.enabled ? "Disable tools" : "Enable approved search"}</button>
+              {grant?.enabled ? (
+                <div className="meridian-personal-ai-permissions" aria-label="Personal AI permissions">
+                  <label><input type="checkbox" checked={grant.canSaveDrafts} disabled={busy === "grant"} onChange={(event) => void saveGrant(true, { ...permissions, canSaveDrafts: event.target.checked })} /> Allow review-only Meridian draft submission</label>
+                  <label><input type="checkbox" checked={grant.canReadPlatform} disabled={busy === "grant"} onChange={(event) => void saveGrant(true, {
+                    ...permissions,
+                    canReadPlatform: event.target.checked,
+                    ...(!event.target.checked ? { canManageEvents: false, canManageTasks: false, canSaveResources: false } : {})
+                  })} /> Allow event, task, team, and resource viewing</label>
+                  <label><input type="checkbox" checked={grant.canManageEvents} disabled={busy === "grant" || !grant.canReadPlatform} onChange={(event) => void saveGrant(true, { ...permissions, canManageEvents: event.target.checked })} /> Allow confirmed event creation and editing</label>
+                  <label><input type="checkbox" checked={grant.canManageTasks} disabled={busy === "grant" || !grant.canReadPlatform} onChange={(event) => void saveGrant(true, { ...permissions, canManageTasks: event.target.checked })} /> Allow confirmed task creation and editing</label>
+                  <label><input type="checkbox" checked={grant.canSaveResources} disabled={busy === "grant" || !grant.canReadPlatform} onChange={(event) => void saveGrant(true, { ...permissions, canSaveResources: event.target.checked })} /> Allow private resource bundles for review</label>
+                </div>
+              ) : null}
             </div>
           ) : <p className="muted">An administrator must grant this access.</p>}
         </div>
@@ -140,4 +166,14 @@ export function MeridianPersonalAiPanel({ canManage }: { canManage: boolean }) {
       {message ? <p className={message.tone === "error" ? "auth-error" : "auth-success"} role="status">{message.text}</p> : null}
     </section>
   );
+}
+
+function grantPermissions(grant: MeridianGrant | null | undefined): GrantPermissions {
+  return {
+    canSaveDrafts: Boolean(grant?.canSaveDrafts),
+    canReadPlatform: Boolean(grant?.canReadPlatform),
+    canManageEvents: Boolean(grant?.canManageEvents),
+    canManageTasks: Boolean(grant?.canManageTasks),
+    canSaveResources: Boolean(grant?.canSaveResources)
+  };
 }

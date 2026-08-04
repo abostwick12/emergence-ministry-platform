@@ -273,7 +273,8 @@ export async function createMinistryEvent(
     contactOwnerId?: string;
     supportNeeds?: EventSupportNeed[];
     supportNotes?: string;
-  }
+  },
+  options: { recordId?: string; suppressExternalSync?: boolean } = {}
 ) {
   if (await shouldUseSessionOnlySandbox(session)) return createGuestEvent(sessionSandboxId(session), { ...input, plannerRole: session.user.role });
   if (shouldUseMock(session)) {
@@ -288,6 +289,7 @@ export async function createMinistryEvent(
   const defaultVolunteers = input.type === "conference" ? 6 : input.type === "missions_trip" ? 4 : 2;
 
   const baseRow = {
+    ...(options.recordId ? { id: options.recordId } : {}),
     ...ministryScopeColumns(ministryId),
     title: input.title,
     ministry_area: input.type,
@@ -322,19 +324,28 @@ export async function createMinistryEvent(
     insertResult = await supabase.from("events").insert(baseRow).select("*").single<SupabaseEventRow>();
   }
 
+  if (options.recordId && isDuplicateKeyError(insertResult.error)) {
+    return getEventWorkspace(session, options.recordId);
+  }
+
   throwIfSupabaseError(insertResult.error);
   if (!insertResult.data) return undefined;
 
   await createActivityLog(session, insertResult.data.id, null, `Created event: ${input.title}`);
   await generateTemplateTasks(session, insertResult.data);
   await generateSupportTasks(session, insertResult.data, input.supportNeeds ?? []);
-  await syncSavedEventToGoogleDemo(session, insertResult.data.id, input.title);
+  if (!options.suppressExternalSync) await syncSavedEventToGoogleDemo(session, insertResult.data.id, input.title);
   const workspace = await stagePlanningCenterSpaceOwnerDraft(session, insertResult.data.id);
   if (workspace) return workspace;
   return getEventWorkspace(session, insertResult.data.id);
 }
 
-export async function updateMinistryEvent(session: AuthSession, eventId: string, input: Partial<MinistryEvent>) {
+export async function updateMinistryEvent(
+  session: AuthSession,
+  eventId: string,
+  input: Partial<MinistryEvent>,
+  options: { suppressExternalSync?: boolean } = {}
+) {
   if (await shouldUseSessionOnlySandbox(session)) return updateGuestEvent(sessionSandboxId(session), eventId, input);
   if (shouldUseMock(session)) {
     return mockStore.updateEvent(eventId, input);
@@ -401,7 +412,7 @@ export async function updateMinistryEvent(session: AuthSession, eventId: string,
       : `Updated event information: ${result.data.title}`
   );
   await syncEventStatusFromTasks(session, eventId);
-  await syncSavedEventToGoogleDemo(session, eventId, result.data.title);
+  if (!options.suppressExternalSync) await syncSavedEventToGoogleDemo(session, eventId, result.data.title);
   return getEventWorkspace(session, eventId);
 }
 
@@ -499,7 +510,8 @@ export async function createMinistryTask(
     dueDate: string;
     assignedUserId: string;
     status?: TaskStatus;
-  }
+  },
+  options: { recordId?: string } = {}
 ) {
   if (await shouldUseSessionOnlySandbox(session)) return createGuestTask(sessionSandboxId(session), input);
   if (shouldUseMock(session)) {
@@ -511,6 +523,7 @@ export async function createMinistryTask(
   const result = await supabase
     .from("tasks")
     .insert({
+      ...(options.recordId ? { id: options.recordId } : {}),
       ...ministryScopeColumns(ministryId),
       event_id: input.eventId,
       title: input.taskTitle,
@@ -524,6 +537,10 @@ export async function createMinistryTask(
     })
     .select("*")
     .single<SupabaseTaskRow>();
+
+  if (options.recordId && isDuplicateKeyError(result.error)) {
+    return (await listMinistryTasks(session)).find((task) => task.id === options.recordId);
+  }
 
   throwIfSupabaseError(result.error);
   if (!result.data) return undefined;
@@ -939,5 +956,9 @@ function isMissingColumnError(error: { message?: string; code?: string } | null)
   if (!error) return false;
   if (error.code === "PGRST204" || error.code === "42703") return true;
   return /could not find the .* column|column .* does not exist|schema cache/i.test(error.message ?? "");
+}
+
+function isDuplicateKeyError(error: { message?: string; code?: string } | null): boolean {
+  return error?.code === "23505" || Boolean(error?.message?.toLowerCase().includes("duplicate key"));
 }
 

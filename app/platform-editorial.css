@@ -1939,6 +1939,15 @@
   color: var(--platform-muted);
 }
 
+.app-shell:not(.app-shell-camp) .meridian-personal-ai-permissions {
+  border-color: rgba(129, 164, 214, 0.18);
+  background: rgba(3, 12, 25, 0.64);
+}
+
+.app-shell:not(.app-shell-camp) .meridian-personal-ai-permissions input {
+  accent-color: var(--platform-cyan);
+}
+
 .app-shell:not(.app-shell-camp) .meridian-personal-ai-endpoint {
   border-color: rgba(129, 164, 214, 0.18);
   background: rgba(3, 12, 25, 0.64);

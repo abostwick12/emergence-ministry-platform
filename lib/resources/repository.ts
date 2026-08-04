@@ -72,6 +72,15 @@ export type CreateResourceAttachmentInput = {
   visibility?: string;
 };
 
+export type CreateMcpTextResourceAttachmentInput = {
+  attachmentId: string;
+  bodyMarkdown: string;
+  description?: string;
+  parentId: string;
+  parentType: "event" | "weekly_leader_prep";
+  title: string;
+};
+
 export type UpdateResourceAttachmentInput = {
   description?: string;
   displayOrder?: number;
@@ -178,6 +187,46 @@ export async function createResourceAttachment(session: AuthSession, input: Crea
   }
 
   return createExternalResource(session, parent, input, notificationIntent);
+}
+
+export async function createMcpTextResourceAttachment(
+  session: AuthSession,
+  input: CreateMcpTextResourceAttachmentInput
+) {
+  if (!isUuid(input.attachmentId)) {
+    throw new ResourceAttachmentError("MCP resource identifier is invalid.", 400, "invalid_attachment_id");
+  }
+  const parent = await resolveResourceParent(session, input.parentType, input.parentId, { requireWritableScope: true });
+  assertCanManageResources(session, parent.parentType);
+
+  const existing = await findResourceAttachmentById(session, input.attachmentId);
+  if (existing) {
+    if (
+      existing.organizationId !== parent.organizationId
+      || existing.parentType !== parent.parentType
+      || existing.parentId !== parent.parentId
+      || existing.uploadedBy !== session.user.id
+    ) {
+      throw new ResourceAttachmentError("That idempotency key is already attached to a different resource.", 409, "idempotency_conflict");
+    }
+    return existing;
+  }
+
+  const body = input.bodyMarkdown.trim();
+  if (!body) throw new ResourceAttachmentError("Resource body is required.", 400, "missing_file");
+  const filename = `${encodePathSegment(input.title).slice(0, 100) || "resource-draft"}.md`;
+  const file = new File([body], filename, { type: "text/plain" });
+  return createUploadedResource(session, parent, {
+    file,
+    title: input.title,
+    description: input.description ?? "Draft created through MCP. EMMA review has not been completed. Human review is required.",
+    parentId: input.parentId,
+    parentType: input.parentType,
+    visibility: "volunteer_leaders",
+    notificationIntent: "none",
+    isDownloadable: true,
+    opensInNewTab: true
+  }, "none", { attachmentId: input.attachmentId });
 }
 
 export async function prepareResourceAttachmentUpload(session: AuthSession, input: PrepareResourceAttachmentUploadInput) {
@@ -552,12 +601,13 @@ async function createUploadedResource(
   session: AuthSession,
   parent: ParentResolution,
   input: CreateResourceAttachmentInput,
-  notificationIntent: ResourceNotificationIntent
+  notificationIntent: ResourceNotificationIntent,
+  options: { attachmentId?: string } = {}
 ) {
   if (!input.file) throw new ResourceAttachmentError("File is required.", 400, "missing_file");
   const bytes = Buffer.from(await input.file.arrayBuffer());
   const validated = validateResourceFile({ bytes, filename: input.file.name, declaredMimeType: input.file.type });
-  const attachmentId = randomUUID();
+  const attachmentId = options.attachmentId ?? randomUUID();
   const storagePath = buildStoragePath({
     attachmentId,
     filename: validated.safeFilename,
@@ -665,8 +715,12 @@ async function resolveResourceParent(
       .maybeSingle<{ id: string; ministry_id: string | null }>();
     throwIfResourceError(result.error, "Parent record could not be verified.");
     if (!result.data) throw new ResourceAttachmentError("The linked parent record could not be found.", 404, "parent_not_found");
+    const ministryId = await requiredMinistryId(session);
+    if (!result.data.ministry_id || result.data.ministry_id !== ministryId) {
+      throw new ResourceAttachmentError("The linked parent record could not be found.", 404, "parent_not_found");
+    }
     return {
-      organizationId: result.data.ministry_id ?? (await requiredMinistryId(session)),
+      organizationId: ministryId,
       parentId,
       parentType
     };
@@ -844,6 +898,18 @@ function findLocalResource(attachmentId: string) {
     if (resource) return resource;
   }
   return undefined;
+}
+
+async function findResourceAttachmentById(session: AuthSession, attachmentId: string) {
+  if (!shouldUseLiveResources(session)) return findLocalResource(attachmentId);
+  const result = await getSupabaseAdminClient()
+    .from("resource_attachments")
+    .select("*")
+    .eq("id", attachmentId)
+    .maybeSingle<ResourceAttachmentRow>();
+  if (isMissingResourceTableError(result.error)) return findLocalResource(attachmentId);
+  throwIfResourceError(result.error, "Resource could not be checked.");
+  return result.data ? toResourceAttachment(result.data, "live") : undefined;
 }
 
 function localResourcesForParent(parent: Pick<ResourceAttachment, "organizationId" | "parentId" | "parentType">) {

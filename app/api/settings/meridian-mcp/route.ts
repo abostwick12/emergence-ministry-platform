@@ -8,8 +8,14 @@ type GrantRow = {
   access_level: "volunteer_creator" | "leader_creator" | "admin";
   can_search: boolean;
   can_save_drafts: boolean;
+  can_read_platform: boolean;
+  can_manage_events: boolean;
+  can_manage_tasks: boolean;
+  can_save_resources: boolean;
   revoked_at: string | null;
 };
+
+type LegacyGrantRow = Omit<GrantRow, "can_read_platform" | "can_manage_events" | "can_manage_tasks" | "can_save_resources">;
 
 export async function GET(request: Request) {
   const session = await getServerSession();
@@ -24,12 +30,30 @@ export async function GET(request: Request) {
   if (!ministryId) return NextResponse.json({ error: "Your account does not have a ministry workspace." }, { status: 403 });
 
   const supabase = getSupabaseAuthClient(session.accessToken);
-  const grantResult = await supabase
+  let grantResult = await supabase
     .from("meridian_mcp_access_grants")
-    .select("access_level,can_search,can_save_drafts,revoked_at")
+    .select("access_level,can_search,can_save_drafts,can_read_platform,can_manage_events,can_manage_tasks,can_save_resources,revoked_at")
     .eq("ministry_id", ministryId)
     .eq("user_id", session.user.id)
     .maybeSingle<GrantRow>();
+  if (grantResult.error && isMissingPlatformGrantColumns(grantResult.error)) {
+    const legacyResult = await supabase
+      .from("meridian_mcp_access_grants")
+      .select("access_level,can_search,can_save_drafts,revoked_at")
+      .eq("ministry_id", ministryId)
+      .eq("user_id", session.user.id)
+      .maybeSingle<LegacyGrantRow>();
+    grantResult = {
+      ...legacyResult,
+      data: legacyResult.data ? {
+        ...legacyResult.data,
+        can_read_platform: false,
+        can_manage_events: false,
+        can_manage_tasks: false,
+        can_save_resources: false
+      } : null
+    } as typeof grantResult;
+  }
   if (grantResult.error) {
     return NextResponse.json({ error: "Meridian connection permissions could not be loaded." }, { status: 503 });
   }
@@ -59,14 +83,31 @@ export async function PATCH(request: Request) {
   const ministryId = await resolveMinistryScope(session);
   if (!ministryId) return NextResponse.json({ error: "Your account does not have a ministry workspace." }, { status: 403 });
 
-  let body: { enabled?: unknown; canSaveDrafts?: unknown } = {};
+  let body: {
+    enabled?: unknown;
+    canSaveDrafts?: unknown;
+    canReadPlatform?: unknown;
+    canManageEvents?: unknown;
+    canManageTasks?: unknown;
+    canSaveResources?: unknown;
+  } = {};
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Connection permissions are required." }, { status: 400 });
   }
-  if (typeof body.enabled !== "boolean" || typeof body.canSaveDrafts !== "boolean") {
+  if (
+    typeof body.enabled !== "boolean"
+    || typeof body.canSaveDrafts !== "boolean"
+    || typeof body.canReadPlatform !== "boolean"
+    || typeof body.canManageEvents !== "boolean"
+    || typeof body.canManageTasks !== "boolean"
+    || typeof body.canSaveResources !== "boolean"
+  ) {
     return NextResponse.json({ error: "Connection permissions are invalid." }, { status: 400 });
+  }
+  if (!body.canReadPlatform && (body.canManageEvents || body.canManageTasks || body.canSaveResources)) {
+    return NextResponse.json({ error: "Platform read access is required before platform changes can be enabled." }, { status: 400 });
   }
 
   const supabase = getSupabaseAuthClient(session.accessToken);
@@ -77,7 +118,7 @@ export async function PATCH(request: Request) {
       .eq("ministry_id", ministryId)
       .eq("user_id", session.user.id);
     if (result.error) return NextResponse.json({ error: "Meridian access could not be disabled." }, { status: 503 });
-    return NextResponse.json({ grant: { enabled: false, canSearch: false, canSaveDrafts: false, accessLevel: null } });
+    return NextResponse.json({ grant: disabledGrant() });
   }
 
   const result = await supabase
@@ -88,10 +129,14 @@ export async function PATCH(request: Request) {
       access_level: "admin",
       can_search: true,
       can_save_drafts: body.canSaveDrafts,
+      can_read_platform: body.canReadPlatform,
+      can_manage_events: body.canManageEvents,
+      can_manage_tasks: body.canManageTasks,
+      can_save_resources: body.canSaveResources,
       created_by_user_id: session.user.id,
       revoked_at: null
     }, { onConflict: "ministry_id,user_id" })
-    .select("access_level,can_search,can_save_drafts,revoked_at")
+    .select("access_level,can_search,can_save_drafts,can_read_platform,can_manage_events,can_manage_tasks,can_save_resources,revoked_at")
     .single<GrantRow>();
   if (result.error || !result.data) {
     return NextResponse.json({ error: "Meridian access could not be enabled." }, { status: 503 });
@@ -125,6 +170,28 @@ function toGrant(row: GrantRow | null) {
     enabled,
     canSearch: enabled,
     canSaveDrafts: enabled && Boolean(row?.can_save_drafts),
+    canReadPlatform: enabled && Boolean(row?.can_read_platform),
+    canManageEvents: enabled && Boolean(row?.can_read_platform) && Boolean(row?.can_manage_events),
+    canManageTasks: enabled && Boolean(row?.can_read_platform) && Boolean(row?.can_manage_tasks),
+    canSaveResources: enabled && Boolean(row?.can_read_platform) && Boolean(row?.can_save_resources),
     accessLevel: enabled ? row?.access_level ?? null : null
   };
+}
+
+function disabledGrant() {
+  return {
+    enabled: false,
+    canSearch: false,
+    canSaveDrafts: false,
+    canReadPlatform: false,
+    canManageEvents: false,
+    canManageTasks: false,
+    canSaveResources: false,
+    accessLevel: null
+  };
+}
+
+function isMissingPlatformGrantColumns(error: { code?: string; message?: string }) {
+  const message = error.message?.toLowerCase() ?? "";
+  return error.code === "42703" || message.includes("can_read_platform") || message.includes("can_manage_events") || message.includes("can_manage_tasks") || message.includes("can_save_resources");
 }

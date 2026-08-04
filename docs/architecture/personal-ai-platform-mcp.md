@@ -166,6 +166,23 @@ Findings must identify the affected artifact and explain the evidence or rule. E
 
 ## Delivery roadmap
 
+### Current implementation slice (built, migration and deployment pending)
+
+The first operational slice intentionally combines Phases 1 through 3 where they share the same permission and idempotency boundaries. It adds:
+
+- `list_events`, `get_event`, `list_tasks`, `list_team_members`, and `list_resources`;
+- confirmed, idempotent `create_event`, `update_event`, `create_task`, and `update_task` tools;
+- `create_resource_bundle` for one to eight Markdown drafts placed in an event or the current weekly leader-prep workspace;
+- separate opt-in grants for platform reads, event changes, task changes, and resource placement;
+- role, active-account, platform-save, tenant, parent-record, and resource-visibility enforcement behind every tool;
+- stable identifiers, structured MCP output, platform links, no-op update detection, and deterministic retry identifiers;
+- review-only bundle state with `emma_status = not_reviewed`; and
+- suppression of external Google synchronization for MCP event writes.
+
+This slice does **not** run an EMMA review yet. A saved bundle is limited to authenticated ministry leaders, unpublished, unsent, and clearly marked as requiring human review. It also does not expose delete, archive, publish, communication, Camp, medical, pastoral, student-person, or private-Obsidian tools. The current sermon destination is the shared weekly leader-prep workspace because the sermon editor is still browser-local; a persisted sermon workspace remains a later migration.
+
+Production activation requires applying `20260804193736_platform_mcp_operations.sql`, deploying the matching application commit, and then explicitly enabling each desired capability in Settings. Existing knowledge-only grants remain knowledge-only after migration.
+
 ### Phase 0 - Meridian MCP foundation (implemented)
 
 - OAuth-protected `/mcp` endpoint
@@ -177,7 +194,7 @@ Findings must identify the affected artifact and explain the evidence or rule. E
 
 The endpoint is intentionally empty of approved production claims until a human promotes the first corpus.
 
-### Phase 1 - Authenticated platform reads
+### Phase 1 - Authenticated platform reads (first operational slice implemented)
 
 - define shared MCP tool, error, pagination, link, and audit contracts;
 - expose permission-filtered event, task, sermon-workspace, and resource-bundle reads;
@@ -185,7 +202,7 @@ The endpoint is intentionally empty of approved production claims until a human 
 - verify tenant isolation, role boundaries, revoked grants, sensitive-field exclusion, and audit completeness; and
 - provide clear client responses when a record is absent versus inaccessible without leaking its existence.
 
-### Phase 2 - Controlled event and resource writes
+### Phase 2 - Controlled event and resource writes (first operational slice implemented)
 
 - add idempotent event-draft, event-update, task, and resource-draft actions;
 - require previews or confirmations for significant changes;
@@ -193,7 +210,7 @@ The endpoint is intentionally empty of approved production claims until a human 
 - prevent publish, send, delete, and bulk mutation; and
 - return stable platform links after successful writes.
 
-### Phase 3 - Sermon resource bundles
+### Phase 3 - Sermon resource bundles (event and weekly leader-prep placement implemented)
 
 - create the linked resource-bundle model and workspace placement rules;
 - support sermon, leader-guide, questions, slides, activity, and devotional artifacts;
