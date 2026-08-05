@@ -50,6 +50,8 @@ const promotionSchema = z.object({
       taskTypes: z.array(z.string().trim().min(1).max(120)).max(20).optional(),
       traditions: z.array(z.string().trim().min(1).max(120)).max(20).optional(),
       sensitivity: z.array(z.enum(["general", "internal", "pastoral", "person_specific", "safeguarding"])).max(5).optional(),
+      scriptureReferences: z.array(z.string().trim().min(1).max(120)).max(20).optional(),
+      topics: z.array(z.string().trim().min(1).max(120)).max(20).optional(),
       validFrom: z.string().datetime().optional(),
       validUntil: z.string().datetime().optional()
     })
@@ -61,6 +63,9 @@ export async function POST(request: Request, { params }: { params: { id: string 
   if (!session) return unauthorizedResponse();
   if (session.user.role !== "admin") {
     return NextResponse.json({ ok: false, code: "forbidden", error: "Only admins can promote Meridian knowledge." }, { status: 403 });
+  }
+  if (!z.string().uuid().safeParse(params.id).success) {
+    return NextResponse.json({ ok: false, code: "invalid_candidate_id", error: "Candidate identifier is invalid." }, { status: 400 });
   }
 
   let payload: unknown;

@@ -3,6 +3,10 @@ import type { AuthSession } from "@/lib/auth/server";
 import { getSupabaseAuthClient } from "@/lib/auth/server";
 import { resolveMinistryScope } from "@/lib/ministry/scope";
 import type { AndrewAuthoredSourceKind } from "@/lib/meridian/knowledge/authored-corpus";
+import {
+  SupabaseMeridianKnowledgeRepository,
+  type MeridianCandidateReviewItem
+} from "@/lib/meridian/knowledge/repository";
 
 export const knowledgeSourceKinds = ["own_voice", "scholar_reference", "app_resource", "curated_note"] as const;
 export const knowledgeHemispheres = ["own_voice", "scholar", "platform"] as const;
@@ -57,6 +61,7 @@ export type KnowledgeControlRoomState = {
     message: string;
   };
   sources: KnowledgeSourceControlItem[];
+  candidates: MeridianCandidateReviewItem[];
   stats: {
     totalSources: number;
     reviewSources: number;
@@ -67,6 +72,7 @@ export type KnowledgeControlRoomState = {
   permissions: {
     canManageInternalGrounding: boolean;
     canPromoteMeridian: boolean;
+    canReviewCandidates: boolean;
   };
 };
 
@@ -181,13 +187,16 @@ export async function getKnowledgeControlRoomState(session: AuthSession): Promis
   throwIfSupabaseError(sourceResult.error);
   const sources = sourceResult.data ?? [];
   const sourceIds = sources.map((source) => source.id);
-  const [chunkRows, meridianReviews] = await Promise.all([
+  const [chunkRows, meridianReviews, candidates] = await Promise.all([
     sourceIds.length ? getChunksForSources(session, sourceIds) : Promise.resolve([]),
     sourceIds.length && isAdmin(session)
       ? getMeridianReviews(session, sourceIds)
-      : Promise.resolve({ ready: false, reviews: new Map<string, MeridianLegacyReview>() })
+      : Promise.resolve({ ready: false, reviews: new Map<string, MeridianLegacyReview>() }),
+    isAdmin(session)
+      ? new SupabaseMeridianKnowledgeRepository().listCandidates(session)
+      : Promise.resolve([])
   ]);
-  return toControlRoomState(sources, chunkRows, session, meridianReviews);
+  return toControlRoomState(sources, chunkRows, session, meridianReviews, candidates);
 }
 
 export async function createKnowledgeSource(session: AuthSession, input: CreateKnowledgeSourceInput): Promise<KnowledgeSourceControlItem> {
@@ -396,7 +405,8 @@ function toControlRoomState(
   sourceRows: KnowledgeSourceRow[],
   chunkRows: KnowledgeChunkRow[],
   session?: AuthSession,
-  meridianReviewState: MeridianLegacyReviewState = { ready: false, reviews: new Map<string, MeridianLegacyReview>() }
+  meridianReviewState: MeridianLegacyReviewState = { ready: false, reviews: new Map<string, MeridianLegacyReview>() },
+  candidates: MeridianCandidateReviewItem[] = []
 ): KnowledgeControlRoomState {
   const chunksBySource = new Map<string, KnowledgeChunkRow[]>();
   for (const chunk of chunkRows) {
@@ -417,6 +427,7 @@ function toControlRoomState(
       message: "Knowledge source control is connected to live storage."
     },
     sources,
+    candidates,
     stats: {
       totalSources: sources.length,
       reviewSources: sources.filter((source) => source.visibility === "private_review").length,
@@ -426,7 +437,8 @@ function toControlRoomState(
     },
     permissions: {
       canManageInternalGrounding: Boolean(session && isAdmin(session)),
-      canPromoteMeridian: Boolean(session && isAdmin(session) && meridianReviewState.ready)
+      canPromoteMeridian: Boolean(session && isAdmin(session) && meridianReviewState.ready),
+      canReviewCandidates: Boolean(session && isAdmin(session))
     }
   };
 }
@@ -558,6 +570,7 @@ function emptyKnowledgeState(message: string): KnowledgeControlRoomState {
       message
     },
     sources: [],
+    candidates: [],
     stats: {
       totalSources: 0,
       reviewSources: 0,
@@ -567,7 +580,8 @@ function emptyKnowledgeState(message: string): KnowledgeControlRoomState {
     },
     permissions: {
       canManageInternalGrounding: false,
-      canPromoteMeridian: false
+      canPromoteMeridian: false,
+      canReviewCandidates: false
     }
   };
 }
