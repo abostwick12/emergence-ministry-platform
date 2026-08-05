@@ -125,12 +125,98 @@ describe("Supabase Meridian repository boundaries", () => {
     await expect(
       repository.promoteCandidate(session("admin"), { ...input, claim: { ...input.claim, authorityClass: "canonical_scripture" } })
     ).rejects.toMatchObject({ code: "invalid_scripture_source" });
+    await expect(
+      repository.promoteCandidate(session("admin"), { ...input, fragment: { ...input.fragment, canUseFinalAnswer: false } })
+    ).rejects.toMatchObject({ code: "missing_final_answer_permission" });
+    await expect(
+      repository.promoteCandidate(session("admin"), { ...input, claim: { ...input.claim, authorityClass: "approved_teaching" } })
+    ).rejects.toMatchObject({ code: "authority_mismatch" });
+    expect(getSupabaseAuthClientMock).not.toHaveBeenCalled();
+  });
+
+  it("lists admin candidates with their immutable review history", async () => {
+    const candidateQuery = listQueryBuilder([candidateRow()]);
+    const eventQuery = listQueryBuilder([reviewEventRow()]);
+    getSupabaseAuthClientMock.mockReturnValue({
+      from(table: string) {
+        if (table === "meridian_candidates") return candidateQuery;
+        if (table === "meridian_review_events") return eventQuery;
+        throw new Error(`Unexpected table ${table}`);
+      }
+    });
+
+    const result = await new SupabaseMeridianKnowledgeRepository().listCandidates(session("admin"));
+
+    expect(result).toEqual([
+      expect.objectContaining({
+        id: "candidate-1",
+        objectType: "doctrine",
+        claimProposals: ["God is one."],
+        reviewEvents: [expect.objectContaining({ decision: "started_review" })]
+      })
+    ]);
+    expect(candidateQuery.eq).toHaveBeenCalledWith("ministry_id", "ministry-a");
+    expect(eventQuery.in).toHaveBeenCalledWith("candidate_id", ["candidate-1"]);
+  });
+
+  it("records candidate review transitions through one transactional RPC", async () => {
+    const rpc = vi.fn(async () => ({
+      data: {
+        candidateId: "candidate-1",
+        approvalStatus: "in_review",
+        eventId: "event-1",
+        eventCreatedAt: "2026-08-05T00:00:00.000Z"
+      },
+      error: null
+    }));
+    getSupabaseAuthClientMock.mockReturnValue({ rpc });
+
+    await expect(new SupabaseMeridianKnowledgeRepository().reviewCandidate(session("admin"), {
+      candidateId: "candidate-1",
+      decision: "started_review",
+      rationale: "Compare the source carefully."
+    })).resolves.toEqual({
+      candidateId: "candidate-1",
+      approvalStatus: "in_review",
+      event: {
+        id: "event-1",
+        decision: "started_review",
+        rationale: "Compare the source carefully.",
+        createdAt: "2026-08-05T00:00:00.000Z"
+      }
+    });
+    expect(rpc).toHaveBeenCalledWith("review_meridian_candidate", {
+      p_candidate_id: "candidate-1",
+      p_decision: "started_review",
+      p_rationale: "Compare the source carefully."
+    });
+  });
+
+  it("requires a rejection rationale and blocks non-admin candidate review", async () => {
+    const repository = new SupabaseMeridianKnowledgeRepository();
+    await expect(repository.reviewCandidate(session("leader"), {
+      candidateId: "candidate-1",
+      decision: "started_review",
+      rationale: ""
+    })).rejects.toMatchObject({ code: "forbidden" });
+    await expect(repository.reviewCandidate(session("admin"), {
+      candidateId: "candidate-1",
+      decision: "rejected",
+      rationale: ""
+    })).rejects.toMatchObject({ code: "missing_rationale" });
     expect(getSupabaseAuthClientMock).not.toHaveBeenCalled();
   });
 
   it("delegates a valid promotion to the single transactional RPC", async () => {
     const rpc = vi.fn(async () => ({ data: { sourceId: "source-1", fragmentId: "fragment-1", claimId: "claim-1" }, error: null }));
-    getSupabaseAuthClientMock.mockReturnValue({ rpc });
+    const promotionQuery = singleQueryBuilder({ metadata: { objectType: "doctrine" }, approval_status: "in_review" });
+    getSupabaseAuthClientMock.mockReturnValue({
+      rpc,
+      from(table: string) {
+        if (table === "meridian_candidates") return promotionQuery;
+        throw new Error(`Unexpected table ${table}`);
+      }
+    });
     const repository = new SupabaseMeridianKnowledgeRepository();
 
     await expect(repository.promoteCandidate(session("admin"), promotionInput())).resolves.toEqual({
@@ -139,6 +225,23 @@ describe("Supabase Meridian repository boundaries", () => {
       claimId: "claim-1"
     });
     expect(rpc).toHaveBeenCalledWith("promote_meridian_candidate", expect.objectContaining({ p_candidate_id: "candidate-1" }));
+  });
+
+  it("requires started review and a claim-compatible candidate type before promotion", async () => {
+    const repository = new SupabaseMeridianKnowledgeRepository();
+    const rpc = vi.fn();
+    getSupabaseAuthClientMock.mockReturnValueOnce({
+      rpc,
+      from: () => singleQueryBuilder({ metadata: { objectType: "doctrine" }, approval_status: "unreviewed" })
+    });
+    await expect(repository.promoteCandidate(session("admin"), promotionInput())).rejects.toMatchObject({ code: "review_required" });
+
+    getSupabaseAuthClientMock.mockReturnValueOnce({
+      rpc,
+      from: () => singleQueryBuilder({ metadata: { objectType: "guardrail_proposal" }, approval_status: "in_review" })
+    });
+    await expect(repository.promoteCandidate(session("admin"), promotionInput())).rejects.toMatchObject({ code: "unsupported_candidate_type" });
+    expect(rpc).not.toHaveBeenCalled();
   });
 
   it("keeps legacy authored review admin-only and rejects unsafe permissions", async () => {
@@ -272,6 +375,66 @@ function queryBuilder(data: unknown[]) {
   builder.eq.mockReturnValue(builder);
   builder.in.mockReturnValue(builder);
   return builder;
+}
+
+function listQueryBuilder(data: unknown[]) {
+  const builder = {
+    select: vi.fn(),
+    eq: vi.fn(),
+    in: vi.fn(),
+    order: vi.fn(),
+    limit: vi.fn(),
+    returns: vi.fn(async () => ({ data, error: null }))
+  };
+  builder.select.mockReturnValue(builder);
+  builder.eq.mockReturnValue(builder);
+  builder.in.mockReturnValue(builder);
+  builder.order.mockReturnValue(builder);
+  builder.limit.mockReturnValue(builder);
+  return builder;
+}
+
+function singleQueryBuilder(data: unknown) {
+  const builder = {
+    select: vi.fn(),
+    eq: vi.fn(),
+    single: vi.fn(async () => ({ data, error: null }))
+  };
+  builder.select.mockReturnValue(builder);
+  builder.eq.mockReturnValue(builder);
+  return builder;
+}
+
+function candidateRow() {
+  return {
+    id: "candidate-1",
+    title: "One God and Triune Confession",
+    source_uri: "10 Meridian Candidates/doctrine.md",
+    raw_text: "Reviewed source note",
+    content_hash: "b".repeat(64),
+    approval_status: "in_review",
+    sensitivity: "internal",
+    metadata: {
+      objectType: "doctrine",
+      studentSummary: "A bounded doctrinal candidate.",
+      topicTags: ["trinity"],
+      scriptureReferences: ["Deuteronomy 6:4"],
+      claimProposals: ["God is one."]
+    },
+    created_at: "2026-08-04T00:00:00.000Z",
+    reviewed_at: null,
+    promoted_source_id: null
+  };
+}
+
+function reviewEventRow() {
+  return {
+    id: "event-1",
+    candidate_id: "candidate-1",
+    decision: "started_review",
+    rationale: "Compare the source carefully.",
+    created_at: "2026-08-05T00:00:00.000Z"
+  };
 }
 
 function claimRow() {

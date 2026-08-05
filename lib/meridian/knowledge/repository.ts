@@ -65,6 +65,67 @@ export type MeridianPromotionInput = {
   };
 };
 
+export const meridianCandidateObjectTypes = [
+  "passage",
+  "doctrine",
+  "formation",
+  "question",
+  "guardrail_proposal",
+  "relationship_proposal",
+  "derived_journey"
+] as const;
+
+export type MeridianCandidateObjectType = (typeof meridianCandidateObjectTypes)[number];
+export type MeridianCandidateApprovalStatus = "unreviewed" | "in_review" | "rejected" | "promoted";
+export type MeridianCandidateReviewDecision = "started_review" | "rejected";
+
+export type MeridianCandidateReviewEvent = {
+  id: string;
+  decision: "started_review" | "rejected" | "promoted";
+  rationale: string;
+  createdAt: string;
+};
+
+export type MeridianCandidateReviewItem = {
+  id: string;
+  title: string;
+  sourceUri: string;
+  rawText: string;
+  contentHash: string;
+  approvalStatus: MeridianCandidateApprovalStatus;
+  sensitivity: "internal" | "pastoral" | "person_specific" | "safeguarding";
+  createdAt: string;
+  reviewedAt?: string;
+  promotedSourceId?: string;
+  objectType: MeridianCandidateObjectType | "unknown";
+  studentSummary: string;
+  topicTags: string[];
+  scriptureReferences: string[];
+  claimProposals: string[];
+  questionAliases: string[];
+  questionFacets: string[];
+  prohibitedConclusions: string[];
+  pastoralPosture?: string;
+  traditionScope?: string;
+  consensusStatus?: string;
+  guardrailRationale?: string;
+  relationshipProposal?: {
+    kind?: string;
+    from?: string;
+    to?: string;
+    rationale?: string;
+    scope?: string;
+    confidence?: number;
+  };
+  reviewEvents: MeridianCandidateReviewEvent[];
+};
+
+export type MeridianCandidateDecisionInput = {
+  candidateId: string;
+  decision: MeridianCandidateReviewDecision;
+  rationale: string;
+};
+
 export type MeridianLegacyPromotionInput = Omit<MeridianPromotionInput, "candidateId"> & {
   legacySourceId: string;
   legacyChunkId: string;
@@ -76,6 +137,12 @@ export interface MeridianGenerationRepository {
 }
 
 export interface MeridianPromotionRepository {
+  listCandidates(session: AuthSession): Promise<MeridianCandidateReviewItem[]>;
+  reviewCandidate(session: AuthSession, input: MeridianCandidateDecisionInput): Promise<{
+    candidateId: string;
+    approvalStatus: MeridianCandidateApprovalStatus;
+    event: MeridianCandidateReviewEvent;
+  }>;
   promoteCandidate(session: AuthSession, input: MeridianPromotionInput): Promise<{ sourceId: string; fragmentId: string; claimId: string }>;
   promoteLegacyClaim(session: AuthSession, input: MeridianLegacyPromotionInput): Promise<{ sourceId: string; fragmentId: string; claimId: string; sourceKind: AndrewAuthoredSourceKind }>;
 }
@@ -139,7 +206,112 @@ type RelationshipRow = {
   rationale: string | null;
 };
 
+type CandidateRow = {
+  id: string;
+  title: string;
+  source_uri: string | null;
+  raw_text: string;
+  content_hash: string;
+  approval_status: MeridianCandidateApprovalStatus;
+  sensitivity: MeridianCandidateReviewItem["sensitivity"];
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+  reviewed_at: string | null;
+  promoted_source_id: string | null;
+};
+
+type ReviewEventRow = {
+  id: string;
+  candidate_id: string;
+  decision: MeridianCandidateReviewEvent["decision"];
+  rationale: string;
+  created_at: string;
+};
+
 export class SupabaseMeridianKnowledgeRepository implements MeridianGenerationRepository, MeridianPromotionRepository {
+  async listCandidates(session: AuthSession): Promise<MeridianCandidateReviewItem[]> {
+    assertAdmin(session, "Only admins can review Meridian candidates.");
+    const ministryId = await resolveMinistryScope(session);
+    if (!ministryId) {
+      throw new MeridianKnowledgeRepositoryError("tenant_scope", 403, "Meridian candidates are outside the authenticated ministry scope.");
+    }
+
+    const supabase = getSupabaseAuthClient(session.accessToken);
+    const candidateResult = await supabase
+      .from("meridian_candidates")
+      .select("id,title,source_uri,raw_text,content_hash,approval_status,sensitivity,metadata,created_at,reviewed_at,promoted_source_id")
+      .eq("ministry_id", ministryId)
+      .order("created_at", { ascending: true })
+      .limit(50)
+      .returns<CandidateRow[]>();
+    throwIfError(candidateResult.error);
+
+    const rows = candidateResult.data ?? [];
+    const candidateIds = rows.map((row) => row.id);
+    const eventResult = candidateIds.length
+      ? await supabase
+          .from("meridian_review_events")
+          .select("id,candidate_id,decision,rationale,created_at")
+          .eq("ministry_id", ministryId)
+          .in("candidate_id", candidateIds)
+          .order("created_at", { ascending: false })
+          .returns<ReviewEventRow[]>()
+      : { data: [] as ReviewEventRow[], error: null };
+    throwIfError(eventResult.error);
+
+    const eventsByCandidate = new Map<string, MeridianCandidateReviewEvent[]>();
+    for (const event of eventResult.data ?? []) {
+      const events = eventsByCandidate.get(event.candidate_id) ?? [];
+      events.push(toReviewEvent(event));
+      eventsByCandidate.set(event.candidate_id, events);
+    }
+
+    return rows.map((row) => toCandidateReviewItem(row, eventsByCandidate.get(row.id) ?? []));
+  }
+
+  async reviewCandidate(session: AuthSession, input: MeridianCandidateDecisionInput) {
+    assertAdmin(session, "Only admins can review Meridian candidates.");
+    if (!input.candidateId.trim() || !["started_review", "rejected"].includes(input.decision)) {
+      throw new MeridianKnowledgeRepositoryError("invalid_decision", 400, "Choose a valid candidate review decision.");
+    }
+    if (input.decision === "rejected" && !input.rationale.trim()) {
+      throw new MeridianKnowledgeRepositoryError("missing_rationale", 400, "Rejection requires a review rationale.");
+    }
+
+    const supabase = getSupabaseAuthClient(session.accessToken);
+    const result = await supabase.rpc("review_meridian_candidate", {
+      p_candidate_id: input.candidateId,
+      p_decision: input.decision,
+      p_rationale: input.rationale.trim()
+    });
+    throwIfError(result.error);
+    const data = result.data as {
+      candidateId?: unknown;
+      approvalStatus?: unknown;
+      eventId?: unknown;
+      eventCreatedAt?: unknown;
+    } | null;
+    if (
+      typeof data?.candidateId !== "string" ||
+      !isCandidateApprovalStatus(data.approvalStatus) ||
+      typeof data.eventId !== "string" ||
+      typeof data.eventCreatedAt !== "string"
+    ) {
+      throw new MeridianKnowledgeRepositoryError("review_failed", 500, "Meridian review did not return a valid decision record.");
+    }
+
+    return {
+      candidateId: data.candidateId,
+      approvalStatus: data.approvalStatus,
+      event: {
+        id: data.eventId,
+        decision: input.decision,
+        rationale: input.rationale.trim(),
+        createdAt: data.eventCreatedAt
+      }
+    };
+  }
+
   async loadApprovedEvidence(session: AuthSession, task: MeridianTaskContext): Promise<MeridianApprovedEvidence> {
     assertGenerationRole(session);
     const ministryId = await requireStrictMinistry(session, task.ministryId);
@@ -259,7 +431,7 @@ export class SupabaseMeridianKnowledgeRepository implements MeridianGenerationRe
   }
 
   async promoteCandidate(session: AuthSession, input: MeridianPromotionInput) {
-    if (session.user.role !== "admin") throw new MeridianKnowledgeRepositoryError("forbidden", 403, "Only admins can promote Meridian knowledge.");
+    assertAdmin(session, "Only admins can promote Meridian knowledge.");
     if (!input.fragment.text.trim() || !input.claim.proposition.trim()) {
       throw new MeridianKnowledgeRepositoryError("invalid_promotion", 400, "Reviewed fragment text and an atomic claim are required.");
     }
@@ -272,10 +444,49 @@ export class SupabaseMeridianKnowledgeRepository implements MeridianGenerationRe
     if (input.fragment.canQuote && input.source.quotePolicy !== "allowed") {
       throw new MeridianKnowledgeRepositoryError("invalid_quote_permission", 400, "Quote permission requires an allowed quote policy.");
     }
-    if (input.claim.kind === "scholarly_perspective" && !input.claim.attribution?.trim()) {
+    if (!input.fragment.canUseFinalAnswer) {
+      throw new MeridianKnowledgeRepositoryError("missing_final_answer_permission", 400, "Approved retrieval requires explicit final-answer permission.");
+    }
+    if (input.fragment.canUseExternalCommunication && input.source.externalVisibility !== "external") {
+      throw new MeridianKnowledgeRepositoryError("invalid_external_permission", 400, "External communication requires external source visibility.");
+    }
+    if (input.source.authorityClass !== input.claim.authorityClass) {
+      throw new MeridianKnowledgeRepositoryError("authority_mismatch", 400, "The source and claim must use the same reviewed authority class.");
+    }
+    if (
+      (input.claim.kind === "scholarly_perspective" || input.claim.authorityClass === "attributed_scholarship") &&
+      !input.claim.attribution?.trim()
+    ) {
       throw new MeridianKnowledgeRepositoryError("missing_attribution", 400, "Scholarly perspectives require attribution.");
     }
+
     const supabase = getSupabaseAuthClient(session.accessToken);
+    const ministryId = await resolveMinistryScope(session);
+    if (!ministryId) {
+      throw new MeridianKnowledgeRepositoryError("tenant_scope", 403, "Meridian candidates are outside the authenticated ministry scope.");
+    }
+    const candidateResult = await supabase
+      .from("meridian_candidates")
+      .select("metadata,approval_status")
+      .eq("ministry_id", ministryId)
+      .eq("id", input.candidateId)
+      .single<{ metadata: Record<string, unknown> | null; approval_status: MeridianCandidateApprovalStatus }>();
+    throwIfError(candidateResult.error);
+    if (!candidateResult.data) {
+      throw new MeridianKnowledgeRepositoryError("candidate_not_found", 404, "Meridian candidate was not found.");
+    }
+    if (candidateResult.data.approval_status !== "in_review") {
+      throw new MeridianKnowledgeRepositoryError("review_required", 409, "Start review before promoting a Meridian candidate.");
+    }
+    const objectType = candidateResult.data.metadata?.objectType;
+    if (!isClaimPromotionCandidate(objectType)) {
+      throw new MeridianKnowledgeRepositoryError(
+        "unsupported_candidate_type",
+        409,
+        "This candidate requires its dedicated governed destination instead of claim promotion."
+      );
+    }
+
     const result = await supabase.rpc("promote_meridian_candidate", {
       p_candidate_id: input.candidateId,
       p_source: input.source,
@@ -352,6 +563,88 @@ export class SupabaseMeridianKnowledgeRepository implements MeridianGenerationRe
       claimId: data.claimId,
       sourceKind: data.sourceKind as AndrewAuthoredSourceKind
     };
+  }
+}
+
+function toCandidateReviewItem(row: CandidateRow, reviewEvents: MeridianCandidateReviewEvent[]): MeridianCandidateReviewItem {
+  const metadata = row.metadata ?? {};
+  const relationship = isRecord(metadata.relationshipProposal) ? metadata.relationshipProposal : undefined;
+  return {
+    id: row.id,
+    title: row.title,
+    sourceUri: row.source_uri ?? "",
+    rawText: row.raw_text,
+    contentHash: row.content_hash,
+    approvalStatus: row.approval_status,
+    sensitivity: row.sensitivity,
+    createdAt: row.created_at,
+    reviewedAt: row.reviewed_at ?? undefined,
+    promotedSourceId: row.promoted_source_id ?? undefined,
+    objectType: isCandidateObjectType(metadata.objectType) ? metadata.objectType : "unknown",
+    studentSummary: stringValue(metadata.studentSummary),
+    topicTags: stringList(metadata.topicTags),
+    scriptureReferences: stringList(metadata.scriptureReferences),
+    claimProposals: stringList(metadata.claimProposals),
+    questionAliases: stringList(metadata.questionAliases),
+    questionFacets: stringList(metadata.questionFacets),
+    prohibitedConclusions: stringList(metadata.prohibitedConclusions),
+    pastoralPosture: optionalString(metadata.pastoralPosture),
+    traditionScope: optionalString(metadata.traditionScope),
+    consensusStatus: optionalString(metadata.consensusStatus),
+    guardrailRationale: optionalString(metadata.guardrailRationale),
+    relationshipProposal: relationship ? {
+      kind: optionalString(relationship.kind),
+      from: optionalString(relationship.from),
+      to: optionalString(relationship.to),
+      rationale: optionalString(relationship.rationale),
+      scope: optionalString(relationship.scope),
+      confidence: typeof relationship.confidence === "number" ? relationship.confidence : undefined
+    } : undefined,
+    reviewEvents
+  };
+}
+
+function toReviewEvent(row: ReviewEventRow): MeridianCandidateReviewEvent {
+  return {
+    id: row.id,
+    decision: row.decision,
+    rationale: row.rationale,
+    createdAt: row.created_at
+  };
+}
+
+function isCandidateObjectType(value: unknown): value is MeridianCandidateObjectType {
+  return typeof value === "string" && meridianCandidateObjectTypes.includes(value as MeridianCandidateObjectType);
+}
+
+function isClaimPromotionCandidate(value: unknown): value is "passage" | "doctrine" | "formation" {
+  return value === "passage" || value === "doctrine" || value === "formation";
+}
+
+function isCandidateApprovalStatus(value: unknown): value is MeridianCandidateApprovalStatus {
+  return typeof value === "string" && ["unreviewed", "in_review", "rejected", "promoted"].includes(value);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function stringValue(value: unknown) {
+  return typeof value === "string" ? value : "";
+}
+
+function optionalString(value: unknown) {
+  const normalized = stringValue(value).trim();
+  return normalized || undefined;
+}
+
+function stringList(value: unknown) {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && Boolean(item.trim())) : [];
+}
+
+function assertAdmin(session: AuthSession, message: string) {
+  if (!session.accessToken || session.user.role !== "admin") {
+    throw new MeridianKnowledgeRepositoryError("forbidden", 403, message);
   }
 }
 

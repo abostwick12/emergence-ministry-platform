@@ -63,6 +63,17 @@ Every candidate is forced to:
 
 Sensitive keyword matches are quarantined before candidate creation. Raw text lives only in the admin-only candidate table. Promotion requires an authenticated ministry admin, reviewed replacement fragment text, an atomic claim, explicit authority and permissions, and a rationale. The transaction creates immutable approved objects and an audit event; it does not mutate or reinterpret the raw candidate.
 
+The Discipleship administration workspace now exposes an admin-only candidate review queue. A reviewer must explicitly move an unreviewed candidate into review before any promotion attempt. Starting review and rejection are atomic database transitions that append immutable review events; rejection requires a rationale. The UI keeps source path, content fingerprint, raw note text, proposed claims, Scripture locators, question facets, and proposal boundaries visible during the decision.
+
+Candidate type determines its allowed destination:
+
+- `passage`, `doctrine`, and `formation` candidates may be narrowed into one approved claim supported by one exact reviewed excerpt.
+- `question` candidates remain query-decomposition maps and cannot be converted into answer claims.
+- `guardrail_proposal` candidates require rule-by-rule approval and enforcement semantics before a guardrail row can be activated.
+- `relationship_proposal` candidates require both reviewed endpoint objects before an edge can be created.
+
+This type gate prevents a generic approval control from flattening structurally different knowledge into plausible but incorrectly governed claims.
+
 Person-specific and pastoral fragments cannot be used in a final answer or external communication. They are excluded in database checks, RLS, repository filters, and the domain policy layer.
 
 ## Scripture boundary
@@ -72,6 +83,8 @@ Canonical Scripture text is retrieved transiently from YouVersion. The adapter r
 ## Migration and rollout
 
 Migration: `supabase/migrations/20260801120000_meridian_primitive_knowledge.sql`.
+
+Candidate review transitions: `supabase/migrations/20260805012832_meridian_candidate_review_decisions.sql`.
 
 Reviewed legacy-source bridge: `supabase/migrations/20260804130000_meridian_legacy_source_review.sql`.
 
@@ -91,9 +104,9 @@ Rollback is additive: disable new retrieval, leave the new tables intact for aud
 
 ## Deferred work and risks
 
-- No production Obsidian vault content has been ingested.
-- No migration has been applied to a live Supabase project.
+- Six source-reviewed Obsidian candidates are in the production private review queue; none is promoted or available to generation.
+- The candidate review transition migration in this slice has not been applied to a live Supabase project.
 - Static migration tests supplement, but do not replace, a real local/branch database RLS test matrix.
 - Hybrid semantic retrieval is deferred until primitive promotion quality is stable and embeddings can be versioned. The first slice uses indexed PostgreSQL full-text search; the next retrieval phase should add pgvector/HNSW and reciprocal-rank fusion without weakening RLS or approval filters.
-- The existing control-room UI still manages the legacy corpus. The protected promotion API is the first affordance; a full typed review UI is a separate visual slice.
+- Dedicated promotion transactions and review forms for question maps, guardrails, and relationships remain follow-up work. Their claim-promotion controls stay locked until those destination-specific paths exist.
 - Provider traces have governed tables and domain types; wiring every legacy Meridian provider call into those traces remains follow-up work.

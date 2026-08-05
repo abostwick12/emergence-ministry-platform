@@ -13160,6 +13160,306 @@ html:has(.app-shell-camp) body {
   margin-top: 6px;
 }
 
+.meridian-candidate-review {
+  display: grid;
+  gap: 14px;
+  border: 1px solid color-mix(in srgb, var(--primary) 30%, var(--line));
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  padding: 18px;
+}
+
+.meridian-candidate-review-heading,
+.meridian-candidate-card-heading,
+.meridian-candidate-actions {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.meridian-candidate-review-heading h2,
+.meridian-candidate-card-heading h3 {
+  margin: 4px 0 0;
+  color: var(--text);
+  line-height: 1.2;
+}
+
+.meridian-candidate-review-heading h2 {
+  font-size: var(--text-2xl);
+}
+
+.meridian-candidate-card-heading h3 {
+  font-size: var(--text-xl);
+}
+
+.meridian-candidate-review-heading p,
+.meridian-candidate-card-heading p,
+.meridian-candidate-route-lock p,
+.meridian-candidate-empty p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 750;
+  line-height: 1.55;
+}
+
+.meridian-candidate-review-heading > div:first-child {
+  max-width: 720px;
+}
+
+.meridian-candidate-counts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(84px, 1fr));
+  gap: 8px;
+}
+
+.meridian-candidate-counts > div {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  padding: 10px;
+}
+
+.meridian-candidate-counts strong,
+.meridian-candidate-counts span {
+  display: block;
+}
+
+.meridian-candidate-counts strong {
+  color: var(--text);
+  font-size: var(--text-xl);
+}
+
+.meridian-candidate-counts span {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.meridian-candidate-list {
+  display: grid;
+  gap: 14px;
+}
+
+.meridian-candidate-card,
+.meridian-candidate-empty {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  padding: 16px;
+}
+
+.meridian-candidate-card {
+  display: grid;
+  gap: 14px;
+}
+
+.meridian-candidate-card-heading > small,
+.meridian-candidate-history li > span {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 800;
+}
+
+.meridian-candidate-status {
+  border-color: color-mix(in srgb, var(--warning) 30%, var(--line));
+  color: var(--warning);
+}
+
+.meridian-candidate-status.promoted {
+  border-color: color-mix(in srgb, var(--success) 30%, var(--line));
+  color: var(--success);
+}
+
+.meridian-candidate-status.rejected {
+  border-color: color-mix(in srgb, var(--danger) 30%, var(--line));
+  color: var(--danger);
+}
+
+.meridian-candidate-provenance {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(160px, 0.35fr);
+  gap: 10px;
+  margin: 0;
+}
+
+.meridian-candidate-provenance > div {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  padding: 10px;
+}
+
+.meridian-candidate-provenance dt {
+  color: var(--primary);
+  font-size: var(--text-xs);
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.meridian-candidate-provenance dd {
+  margin: 6px 0 0;
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: 750;
+}
+
+.meridian-candidate-evidence {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.meridian-candidate-evidence > div,
+.meridian-candidate-evidence > p,
+.meridian-candidate-route-lock,
+.meridian-candidate-terminal {
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  padding: 12px;
+}
+
+.meridian-candidate-evidence strong,
+.meridian-candidate-route-lock strong,
+.meridian-candidate-empty strong {
+  color: var(--text);
+  font-size: var(--text-sm);
+}
+
+.meridian-candidate-evidence ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.meridian-candidate-evidence li,
+.meridian-candidate-evidence p {
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.meridian-candidate-evidence li + li,
+.meridian-candidate-evidence p + p {
+  margin-top: 6px;
+}
+
+.meridian-candidate-source,
+.meridian-candidate-decision,
+.meridian-candidate-history {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.meridian-candidate-source > summary,
+.meridian-candidate-decision > summary,
+.meridian-candidate-history > summary {
+  cursor: pointer;
+  color: var(--primary);
+  font-size: var(--text-sm);
+  font-weight: 900;
+  padding: 12px;
+}
+
+.meridian-candidate-source pre {
+  max-height: 420px;
+  margin: 0;
+  overflow: auto;
+  border-top: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  padding: 14px;
+  white-space: pre-wrap;
+}
+
+.meridian-candidate-actions {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
+.meridian-candidate-decision-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(260px, 0.6fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.meridian-candidate-decision.danger {
+  border-color: color-mix(in srgb, var(--danger) 26%, var(--line));
+}
+
+.meridian-candidate-decision form {
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid var(--line);
+  padding: 12px;
+}
+
+.meridian-candidate-decision form > p,
+.meridian-candidate-decision form > small {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 750;
+  line-height: 1.5;
+}
+
+.meridian-candidate-terminal {
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: 800;
+}
+
+.meridian-candidate-terminal.green {
+  border-color: color-mix(in srgb, var(--success) 30%, var(--line));
+}
+
+.meridian-candidate-terminal.red,
+.meridian-candidate-route-lock {
+  border-color: color-mix(in srgb, var(--danger) 24%, var(--line));
+}
+
+.meridian-candidate-history ol {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  border-top: 1px solid var(--line);
+  padding: 12px 12px 12px 30px;
+}
+
+.meridian-candidate-history li {
+  color: var(--text);
+  font-size: var(--text-sm);
+}
+
+.meridian-candidate-history li > span {
+  margin-left: 8px;
+}
+
+.meridian-candidate-history p,
+.meridian-candidate-history-empty {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  line-height: 1.5;
+}
+
 @media (max-width: 900px) {
   .student-feed {
     grid-template-columns: minmax(0, 1fr);
@@ -13177,6 +13477,10 @@ html:has(.app-shell-camp) body {
   .scripture-trial-grid,
   .scripture-trial-question,
   .knowledge-source-field-grid,
+  .meridian-candidate-counts,
+  .meridian-candidate-provenance,
+  .meridian-candidate-evidence,
+  .meridian-candidate-decision-grid,
   .resource-video-grid,
   .student-knowledge-path-list,
   .student-resource-step-grid,
@@ -13217,6 +13521,8 @@ html:has(.app-shell-camp) body {
   .leader-review-structured-heading,
   .leader-video-script-heading,
   .resource-video-heading,
+  .meridian-candidate-review-heading,
+  .meridian-candidate-card-heading,
   .student-resource-steps-heading {
     align-items: flex-start;
     flex-direction: column;
@@ -13228,6 +13534,11 @@ html:has(.app-shell-camp) body {
 
   .student-feed-rail {
     position: static;
+  }
+
+  .meridian-candidate-counts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
   }
 
   .student-shell-topline,

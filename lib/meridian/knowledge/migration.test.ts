@@ -12,6 +12,10 @@ const legacyReviewMigration = readFileSync(
   join(process.cwd(), "supabase/migrations/20260804130000_meridian_legacy_source_review.sql"),
   "utf8"
 );
+const candidateReviewMigration = readFileSync(
+  join(process.cwd(), "supabase/migrations/20260805012832_meridian_candidate_review_decisions.sql"),
+  "utf8"
+);
 
 describe("Meridian primitive knowledge migration", () => {
   it("creates every primitive plus audited promotion and answer provenance", () => {
@@ -108,5 +112,25 @@ describe("Meridian reviewed authored-corpus migration", () => {
     expect(legacyReviewMigration).toContain("'legacyChunkId', legacy_chunk.id");
     expect(legacyReviewMigration).not.toContain("meridian_candidates");
     expect(legacyReviewMigration).not.toContain("obsidian_note");
+  });
+});
+
+describe("Meridian candidate review decisions migration", () => {
+  it("records start and reject transitions atomically with an immutable event", () => {
+    expect(candidateReviewMigration).toContain("create or replace function public.review_meridian_candidate");
+    expect(candidateReviewMigration).toContain("for update");
+    expect(candidateReviewMigration).toContain("approval_status = next_status");
+    expect(candidateReviewMigration).toContain("insert into public.meridian_review_events");
+    expect(candidateReviewMigration).toContain("returning id, created_at into event_id, event_created_at");
+    expect(candidateReviewMigration).toContain("grant insert on public.meridian_review_events to authenticated");
+  });
+
+  it("keeps review admin-only, tenant-bound, invoker-secured, and unauthenticated roles blocked", () => {
+    expect(candidateReviewMigration).toContain("p.ministry_id = candidate.ministry_id");
+    expect(candidateReviewMigration).toContain("p.role = 'admin'");
+    expect(candidateReviewMigration).toContain("security invoker");
+    expect(candidateReviewMigration).toContain("set search_path = ''");
+    expect(candidateReviewMigration).toContain("revoke all on function public.review_meridian_candidate(uuid, text, text) from public, anon");
+    expect(candidateReviewMigration).toContain("grant execute on function public.review_meridian_candidate(uuid, text, text) to authenticated");
   });
 });

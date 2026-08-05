@@ -8,6 +8,7 @@ import type { DiscussionWorkflowState } from "@/lib/scripture/discussion-workflo
 import type { KnowledgeControlRoomState, KnowledgeSourceControlItem, KnowledgeVisibility } from "@/lib/scripture/knowledge-control-room";
 import type { KnowledgeTestBenchResult } from "@/lib/scripture/knowledge-test-bench";
 import type { StudentDiscussionPrompt } from "@/lib/scripture/types";
+import { MeridianCandidateReviewQueue } from "@/components/student/meridian-candidate-review-queue";
 
 type ScriptureKnowledgeControlRoomProps = {
   initialDiscussionState?: DiscussionWorkflowState;
@@ -336,6 +337,10 @@ export function ScriptureKnowledgeControlRoom({ initialDiscussionState, initialS
       <p className="leader-review-status" aria-live="polite">
         {status}
       </p>
+
+      {initialState.permissions.canReviewCandidates ? (
+        <MeridianCandidateReviewQueue initialCandidates={initialState.candidates} />
+      ) : null}
 
       <ResourceVideoPackagePanel
         copyStatus={videoCopyStatus}
