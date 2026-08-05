@@ -8,6 +8,10 @@ const relevanceFloorMigration = readFileSync(
   join(process.cwd(), "supabase/migrations/20260802185307_meridian_retrieval_relevance_floor.sql"),
   "utf8"
 );
+const legacyReviewMigration = readFileSync(
+  join(process.cwd(), "supabase/migrations/20260804130000_meridian_legacy_source_review.sql"),
+  "utf8"
+);
 
 describe("Meridian primitive knowledge migration", () => {
   it("creates every primitive plus audited promotion and answer provenance", () => {
@@ -77,5 +81,32 @@ describe("Meridian retrieval relevance-floor migration", () => {
     expect(relevanceFloorMigration).toContain("set search_path = ''");
     expect(relevanceFloorMigration).toContain("revoke all on function public.search_meridian_approved_claims");
     expect(relevanceFloorMigration).toContain("grant execute on function public.search_meridian_approved_claims");
+  });
+});
+
+describe("Meridian reviewed authored-corpus migration", () => {
+  it("records source and claim approvals without converting legacy visibility into authority", () => {
+    expect(legacyReviewMigration).toContain("create table if not exists public.meridian_legacy_source_promotions");
+    expect(legacyReviewMigration).toContain("create table if not exists public.meridian_legacy_claim_promotions");
+    expect(legacyReviewMigration).toContain("p_source_kind not in ('academic_paper','curriculum_material','sermon')");
+    expect(legacyReviewMigration).toContain("position(reviewed_text in legacy_chunk.body) = 0");
+    expect(legacyReviewMigration).toContain("'andrew_authored_ministry'");
+  });
+
+  it("keeps promotion tenant-scoped, admin-only, and permission-explicit", () => {
+    expect(legacyReviewMigration).toContain("profile.ministry_id = legacy_source.ministry_id");
+    expect(legacyReviewMigration).toContain("profile.role = 'admin'");
+    expect(legacyReviewMigration).toContain("if can_quote and source_quote_policy <> 'allowed'");
+    expect(legacyReviewMigration).toContain("if not can_use_final_answer");
+    expect(legacyReviewMigration).toContain("if can_use_external_communication and source_visibility <> 'external'");
+    expect(legacyReviewMigration).toContain("revoke all on function public.promote_legacy_meridian_claim");
+    expect(legacyReviewMigration).toContain("revoke all on public.meridian_legacy_source_promotions from anon");
+  });
+
+  it("preserves exact provenance and never routes Obsidian candidates through the bridge", () => {
+    expect(legacyReviewMigration).toContain("'legacySourceId', legacy_source.id");
+    expect(legacyReviewMigration).toContain("'legacyChunkId', legacy_chunk.id");
+    expect(legacyReviewMigration).not.toContain("meridian_candidates");
+    expect(legacyReviewMigration).not.toContain("obsidian_note");
   });
 });

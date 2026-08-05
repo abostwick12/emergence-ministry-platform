@@ -73,6 +73,10 @@ Canonical Scripture text is retrieved transiently from YouVersion. The adapter r
 
 Migration: `supabase/migrations/20260801120000_meridian_primitive_knowledge.sql`.
 
+Reviewed legacy-source bridge: `supabase/migrations/20260804130000_meridian_legacy_source_review.sql`.
+
+The bridge does not reinterpret `student_visible`, `own_voice`, or any other legacy label as approval. An authenticated ministry admin must classify a source as an academic paper, curriculum material, or sermon, state one atomic claim, select one exact supporting excerpt, assign authority and sensitivity, and independently approve quotation, paraphrase, citation, final-answer use, and external-communication use. The transaction preserves the legacy source/chunk identifiers and creates the governed Source, Fragment, Claim, support relationship, and audit rows together. Obsidian candidates are excluded from this path.
+
 The pre-evolution performance and quality baseline is recorded in [the Journey Journal benchmark](../benchmarks/meridian-pre-evolution-2026-08-01.md).
 
 1. Review SQL and run Supabase database/security advisors in the target project.

@@ -140,6 +140,42 @@ describe("Supabase Meridian repository boundaries", () => {
     });
     expect(rpc).toHaveBeenCalledWith("promote_meridian_candidate", expect.objectContaining({ p_candidate_id: "candidate-1" }));
   });
+
+  it("keeps legacy authored review admin-only and rejects unsafe permissions", async () => {
+    const repository = new SupabaseMeridianKnowledgeRepository();
+    const input = legacyPromotionInput();
+
+    await expect(repository.promoteLegacyClaim(session("leader"), input)).rejects.toMatchObject({ code: "forbidden" });
+    await expect(repository.promoteLegacyClaim(session("admin"), {
+      ...input,
+      fragment: { ...input.fragment, canUseFinalAnswer: false }
+    })).rejects.toMatchObject({ code: "missing_final_answer_permission" });
+    await expect(repository.promoteLegacyClaim(session("admin"), {
+      ...input,
+      fragment: { ...input.fragment, canUseExternalCommunication: true }
+    })).rejects.toMatchObject({ code: "invalid_external_permission" });
+    expect(getSupabaseAuthClientMock).not.toHaveBeenCalled();
+  });
+
+  it("promotes one reviewed legacy claim through the transactional RPC", async () => {
+    const rpc = vi.fn(async () => ({
+      data: { sourceId: "source-1", fragmentId: "fragment-1", claimId: "claim-1", sourceKind: "academic_paper" },
+      error: null
+    }));
+    getSupabaseAuthClientMock.mockReturnValue({ rpc });
+
+    await expect(new SupabaseMeridianKnowledgeRepository().promoteLegacyClaim(session("admin"), legacyPromotionInput())).resolves.toEqual({
+      sourceId: "source-1",
+      fragmentId: "fragment-1",
+      claimId: "claim-1",
+      sourceKind: "academic_paper"
+    });
+    expect(rpc).toHaveBeenCalledWith("promote_legacy_meridian_claim", expect.objectContaining({
+      p_legacy_source_id: "0d94e9ae-f40e-48dd-9380-6dcf6932822a",
+      p_legacy_chunk_id: "39eb5e80-a439-4ad9-8629-145ee467a9ea",
+      p_source_kind: "academic_paper"
+    }));
+  });
 });
 
 function session(role: string): AuthSession {
@@ -187,6 +223,40 @@ function promotionInput() {
       authorityClass: "current_strategy" as const,
       confidence: 0.9,
       scope: {}
+    }
+  };
+}
+
+function legacyPromotionInput() {
+  return {
+    legacySourceId: "0d94e9ae-f40e-48dd-9380-6dcf6932822a",
+    legacyChunkId: "39eb5e80-a439-4ad9-8629-145ee467a9ea",
+    sourceKind: "academic_paper" as const,
+    rationale: "The claim and its limits are explicit in the reviewed paper.",
+    source: {
+      title: "Synthetic academic paper",
+      attribution: "Synthetic author",
+      authorityClass: "approved_teaching" as const,
+      externalVisibility: "ministry" as const,
+      quotePolicy: "review_required" as const,
+      sensitivity: "internal" as const
+    },
+    fragment: {
+      text: "Synthetic exact supporting excerpt.",
+      locator: { kind: "record", value: "Legacy chunk 1" },
+      canQuote: false,
+      canParaphrase: true,
+      canCite: true,
+      canUseFinalAnswer: true,
+      canUseExternalCommunication: false
+    },
+    claim: {
+      proposition: "The synthetic claim is explicit and appropriately qualified.",
+      kind: "interpretation" as const,
+      attribution: "Synthetic author",
+      authorityClass: "approved_teaching" as const,
+      confidence: 0.9,
+      scope: { topics: ["synthetic"] }
     }
   };
 }

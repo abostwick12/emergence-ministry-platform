@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { AuthSession } from "@/lib/auth/server";
 import {
   createResourceAttachment,
+  createMcpTextResourceAttachment,
   getResourceAttachmentOpenUrl,
   listResourceAttachments,
   resetLocalResourceAttachmentsForTests
@@ -98,6 +99,27 @@ describe("resource attachment repository", () => {
         title: "Leader link"
       })
     ).rejects.toThrow("permission to manage");
+  });
+
+  it("replays deterministic MCP text attachments without duplicating a draft", async () => {
+    const attachmentId = "123e4567-e89b-42d3-a456-426614174000";
+    const input = {
+      attachmentId,
+      parentId: "current-week",
+      parentType: "weekly_leader_prep" as const,
+      title: "Leader guide",
+      bodyMarkdown: "# Leader guide\n\nA synthetic draft for review."
+    };
+    const first = await createMcpTextResourceAttachment(session("admin"), input);
+    const replay = await createMcpTextResourceAttachment(session("admin"), input);
+    const resources = await listResourceAttachments(session("admin"), {
+      parentId: "current-week",
+      parentType: "weekly_leader_prep"
+    });
+    expect(first.id).toBe(attachmentId);
+    expect(replay.id).toBe(attachmentId);
+    expect(resources.filter((resource) => resource.id === attachmentId)).toHaveLength(1);
+    expect(first.visibility).toBe("volunteer_leaders");
   });
 });
 
