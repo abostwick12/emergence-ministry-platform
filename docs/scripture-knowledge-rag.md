@@ -40,6 +40,8 @@ Embeddings are schema-ready through `knowledge_chunks.embedding`, but the first 
 
 ## Obsidian Candidate Importer
 
+The curated overlay uses the versioned templates in [`docs/templates/meridian-candidates`](templates/meridian-candidates/README.md). Copy only the needed template into `10 Meridian Candidates/` inside the existing vault; source notes do not need to move.
+
 Dry-run the importer before writing anything to Supabase:
 
 ```bash
@@ -54,7 +56,9 @@ Use a custom vault or output file when needed:
 node scripts/obsidian-rag-import.mjs --vault "C:\Users\awbostwick\Desktop\two-hemisphere brain" --out tmp/launch-pack-preview.json
 ```
 
-The importer requires explicit frontmatter `meridian_ingest: candidate`, then applies risk filters for private, leadership-review, military, personal, medical/care, counseling, family, abuse, and trauma material. It never infers approval from visibility, note location, quality, or editing.
+The importer requires explicit frontmatter `meridian_ingest: candidate`, `meridian_schema: "1"`, and a supported `meridian_object_type`. It then applies object-specific readiness checks for Scripture locators, claim proposals, question facets, doctrine boundaries, formation posture, typed relationship rationale/confidence/scope, guardrails, and derived-artifact provenance. It also applies risk filters for private, leadership-review, military, personal, medical/care, counseling, family, abuse, and trauma material. It never infers approval from visibility, note location, quality, or editing.
+
+The preview separates contract-ready `candidates` from redacted `blockedCandidates`. Blocked entries contain file, object type, and issue codes only—not the note body. Apply mode refuses the entire batch while any opted-in candidate is blocked, preventing partial imports from hiding structural failures.
 
 By default, the launch pack is capped to 80 sources and near-duplicate lesson title clusters are collapsed so the first contest dataset stays broad and reviewable. Use `--max-sources all` only after reviewing the preview output.
 
@@ -64,4 +68,4 @@ Candidate writes require all of these:
 node scripts/obsidian-rag-import.mjs --apply --confirm-production-write --ministry-id "<ministry uuid>" --created-by-user-id "<admin profile uuid>"
 ```
 
-Apply mode also requires `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`. It writes only private, unreviewed, discovery-only `meridian_candidates`; it never writes to the normal generation corpus. Do not run apply mode until the dry-run preview has been reviewed.
+Apply mode also requires `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`. It writes only contract-ready, private, unreviewed, discovery-only `meridian_candidates`; it never writes to the normal generation corpus. Do not run apply mode until the dry-run preview has been reviewed.

@@ -165,6 +165,8 @@ Raw note growth and raw link count are informational only and must not become op
 - review and promote a small representative corpus;
 - preserve existing vault paths and raw-source provenance.
 
+The first implementation phase is complete when the versioned candidate templates and fail-closed readiness audit are merged. The audit accepts passage, doctrine, formation, question, relationship proposal, guardrail proposal, and derived journey candidates; validates their object-specific metadata; redacts blocked note bodies; and prevents apply mode from partially importing a structurally invalid batch. The [private-vault readiness record](../benchmarks/meridian-vault-readiness-2026-08-03.md) first scanned 566 notes and correctly produced zero candidates because none had explicitly opted in. After controlled curation, the follow-up scan found six contract-ready candidates across passage, doctrine, formation, question, relationship, and guardrail types with zero blockers. The [source-fidelity review and import verification](../benchmarks/meridian-candidate-source-review-2026-08-03.md) checked those candidates against the original Word sources, narrowed three statements, and verified the six-row private candidate import. Apply mode now sends each ready set as one transactional PostgREST batch rather than a sequence of independent requests. No provider call or promotion occurred. The remaining Slice 3 work is explicit human review and promotion decisions.
+
 ### Slice 4 — Hybrid retrieval
 
 - add versioned embeddings only to approved fragments;
