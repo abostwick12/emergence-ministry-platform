@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { describe, expect, it, vi } from "vitest";
 
 import type { AuthSession } from "@/lib/auth/server";
@@ -63,6 +65,7 @@ describe("platform MCP service", () => {
       id: input.id,
       status: "review_required",
       emmaStatus: "not_reviewed",
+      privateDiscoveryStatus: input.privateDiscoveryStatus,
       destinationType: input.destinationType,
       destinationId: input.destinationId,
       itemIds: input.items.map((item) => item.id),
@@ -85,6 +88,57 @@ describe("platform MCP service", () => {
       items: [expect.objectContaining({ id: expect.stringMatching(/^[0-9a-f-]{36}$/), attachmentId: expect.stringMatching(/^[0-9a-f-]{36}$/) })]
     }));
     expect(result).toMatchObject({ status: "review_required", emmaStatus: "not_reviewed" });
+  });
+
+  it("blocks private-note overlap before storing and passes only hashes after a clean check", async () => {
+    const repository = fakePlatformRepository();
+    const service = new PlatformMcpService(fakeGrantRepository(), repository);
+    const privateRawText = "The blue lantern meeting must remain confined to the pastoral review team.";
+    const privateContentHash = createHash("sha256").update(privateRawText).digest("hex");
+    const privateDiscovery = [{
+      sourceReference: "note:12345678",
+      contentHash: privateContentHash,
+      rawText: privateRawText
+    }];
+    await expect(service.createResourceBundle(session, {
+      title: "Unsafe private bundle",
+      destinationType: "weekly_leader_prep",
+      destinationId: "current-week",
+      items: [{ kind: "leader_guide", title: "Guide", bodyMarkdown: "The blue lantern meeting must remain confined to the pastoral review team." }],
+      privateDiscovery,
+      confirmed: true,
+      clientName: "Codex",
+      idempotencyKey: "resource-bundle-private-block"
+    })).rejects.toMatchObject({ code: "private_discovery_leakage", status: 422 });
+    expect(repository.createResourceBundle).not.toHaveBeenCalled();
+
+    repository.createResourceBundle = vi.fn().mockImplementation(async (_session: AuthSession, input: CreatePlatformResourceBundleInput) => ({
+      id: input.id,
+      status: "review_required",
+      emmaStatus: "not_reviewed",
+      privateDiscoveryStatus: input.privateDiscoveryStatus,
+      destinationType: input.destinationType,
+      destinationId: input.destinationId,
+      itemIds: input.items.map((item) => item.id),
+      attachmentIds: input.items.map((item) => item.attachmentId),
+      url: "https://www.leademergence.com/leader-prep",
+      idempotentReplay: false
+    }));
+    await service.createResourceBundle(session, {
+      title: "Safe private bundle",
+      destinationType: "weekly_leader_prep",
+      destinationId: "current-week",
+      items: [{ kind: "leader_guide", title: "Guide", bodyMarkdown: "Use the approved strategy and ask a leader to review the plan." }],
+      privateDiscovery,
+      confirmed: true,
+      clientName: "Codex",
+      idempotencyKey: "resource-bundle-private-pass"
+    });
+    expect(repository.createResourceBundle).toHaveBeenCalledWith(session, expect.objectContaining({
+      privateDiscoveryStatus: "passed",
+      privateDiscoveryProvenance: [{ sourceReference: "note:12345678", contentHash: privateContentHash }]
+    }));
+    expect(JSON.stringify(vi.mocked(repository.createResourceBundle).mock.calls)).not.toContain("blue lantern");
   });
 
   it("blocks prohibited personal diagnoses before a resource bundle is stored", async () => {
@@ -111,6 +165,7 @@ function fakeGrantRepository(): MeridianMcpRepository {
       accessLevel: "leader_creator",
       canSearch: true,
       canSaveDrafts: true,
+      canSubmitCandidates: true,
       canReadPlatform: true,
       canManageEvents: true,
       canManageTasks: true,
@@ -118,7 +173,8 @@ function fakeGrantRepository(): MeridianMcpRepository {
     }),
     search: vi.fn(),
     fetch: vi.fn(),
-    submitDraft: vi.fn()
+    submitDraft: vi.fn(),
+    submitPrivateCandidate: vi.fn()
   };
 }
 

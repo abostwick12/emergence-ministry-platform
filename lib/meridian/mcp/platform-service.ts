@@ -1,6 +1,7 @@
 import type { AuthSession } from "@/lib/auth/server";
 import { deterministicMcpUuid } from "@/lib/meridian/mcp/idempotency";
 import { detectProhibitedInference } from "@/lib/meridian/knowledge/policy";
+import { inspectPrivateFragmentLeakage } from "@/lib/meridian/knowledge/leakage-firewall";
 import type { MeridianMcpRepository } from "@/lib/meridian/mcp/types";
 import { MeridianMcpError } from "@/lib/meridian/mcp/types";
 import type {
@@ -182,6 +183,7 @@ export class PlatformMcpService {
     destinationType: "event" | "weekly_leader_prep";
     destinationId: string;
     items: Array<{ kind: PlatformResourceKind; title: string; bodyMarkdown: string }>;
+    privateDiscovery?: Array<{ sourceReference: string; contentHash: string; rawText: string }>;
   } & MutationMeta) {
     const grant = await this.grantRepository.requireGrant(session, "save_resources");
     requireConfirmation(input.confirmed);
@@ -198,6 +200,24 @@ export class PlatformMcpService {
         422,
         "This resource bundle makes a prohibited personal, spiritual, medical, mental-health, motive, or divine-intent inference. Revise it before saving."
       );
+    }
+    const privateDiscovery = await normalizePrivateDiscovery(input.privateDiscovery ?? []);
+    if (privateDiscovery.length) {
+      const leakage = await inspectPrivateFragmentLeakage(
+        input.items.map((item) => `${item.title}\n${item.bodyMarkdown}`).join("\n\n"),
+        privateDiscovery.map((fragment) => ({
+          id: fragment.sourceReference,
+          contentHash: fragment.contentHash,
+          rawText: fragment.rawText
+        }))
+      );
+      if (!leakage.ok) {
+        throw new MeridianMcpError(
+          "private_discovery_leakage",
+          422,
+          "This bundle contains exact or high-similarity private-note language. Revise it locally before saving; no resource was stored."
+        );
+      }
     }
     const bundleId = mutationId(grant.ministryId, session.user.id, "create_resource_bundle", input.idempotencyKey);
     const items = input.items.map((item, position) => ({
@@ -217,9 +237,45 @@ export class PlatformMcpService {
       title: requireText(input.title, "title", 240),
       destinationType: input.destinationType,
       destinationId,
+      privateDiscoveryStatus: privateDiscovery.length ? "passed" : "not_used",
+      privateDiscoveryProvenance: privateDiscovery.map(({ sourceReference, contentHash }) => ({ sourceReference, contentHash })),
       items
     });
   }
+}
+
+async function normalizePrivateDiscovery(
+  fragments: Array<{ sourceReference: string; contentHash: string; rawText: string }>
+) {
+  if (fragments.length > 16) {
+    throw new MeridianMcpError("private_discovery_limit", 400, "At most 16 private discovery notes may influence one bundle.");
+  }
+  const seen = new Set<string>();
+  const normalized = [];
+  for (const fragment of fragments) {
+    const sourceReference = fragment.sourceReference.trim();
+    const contentHash = fragment.contentHash.trim().toLowerCase();
+    const rawText = fragment.rawText.trim();
+    if (!/^[a-zA-Z0-9._:-]{8,128}$/.test(sourceReference) || !/^[0-9a-f]{64}$/.test(contentHash)) {
+      throw new MeridianMcpError("invalid_private_discovery_provenance", 400, "Private discovery provenance must come from the local Obsidian connector.");
+    }
+    if (!rawText || rawText.length > 60000) {
+      throw new MeridianMcpError("invalid_private_discovery_text", 400, "Private discovery text must contain 1 to 60000 characters.");
+    }
+    if (await sha256(rawText) !== contentHash) {
+      throw new MeridianMcpError("private_content_hash_mismatch", 400, "Private discovery text no longer matches its local content hash.");
+    }
+    const key = `${sourceReference}:${contentHash}`;
+    if (seen.has(key)) throw new MeridianMcpError("duplicate_private_discovery_source", 400, "Private discovery provenance cannot contain duplicates.");
+    seen.add(key);
+    normalized.push({ sourceReference, contentHash, rawText });
+  }
+  return normalized;
+}
+
+async function sha256(value: string) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 function mutationId(ministryId: string, userId: string, tool: string, idempotencyKey: string) {

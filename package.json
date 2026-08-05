@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:unit": "vitest run",
+    "mcp:obsidian-private": "node scripts/obsidian-private-discovery-mcp.mjs",
     "test:e2e": "node scripts/run-e2e.mjs",
     "perf:audit": "node scripts/performance-audit.mjs",
     "design-check": "node scripts/design-check.mjs",

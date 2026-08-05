@@ -16,6 +16,8 @@ The expansion does not change the current endpoint's trust model: OAuth establis
 
 See [Personal AI Platform MCP Roadmap](personal-ai-platform-mcp.md) for the proposed event/resource tools, linked sermon-bundle model, EMMA review contract, and phased release gates. None of those proposed tools should be described as live until its corresponding phase is implemented and verified.
 
+The local/private half of Phase 4 is documented in [Private Obsidian discovery](private-obsidian-discovery.md). Vault discovery runs in a separate user-owned STDIO server; the hosted Meridian endpoint receives private text only transiently for a requested leakage check or through a separately confirmed candidate nomination.
+
 ## First production slice
 
 The tool surface is deliberately small:

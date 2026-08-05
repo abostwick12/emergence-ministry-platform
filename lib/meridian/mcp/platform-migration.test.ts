@@ -7,6 +7,10 @@ const migration = readFileSync(
   join(process.cwd(), "supabase/migrations/20260804193736_platform_mcp_operations.sql"),
   "utf8"
 );
+const privateDiscoveryMigration = readFileSync(
+  join(process.cwd(), "supabase/migrations/20260805171914_platform_mcp_private_discovery.sql"),
+  "utf8"
+);
 
 describe("platform MCP operations migration", () => {
   it("keeps every platform capability explicit and disabled by default", () => {
@@ -35,5 +39,44 @@ describe("platform MCP operations migration", () => {
     expect(migration).toContain("grant update (status)");
     expect(migration).not.toContain("grant update (status, emma_status)");
     expect(migration).not.toContain("emma_status = 'passed'");
+  });
+});
+
+describe("platform MCP private discovery migration", () => {
+  it("keeps candidate submission opt-in and stores no private note text in bundle provenance", () => {
+    expect(privateDiscoveryMigration).toContain("can_submit_candidates boolean not null default false");
+    expect(privateDiscoveryMigration).toContain("create table if not exists public.meridian_mcp_bundle_private_provenance");
+    expect(privateDiscoveryMigration).toContain("source_reference text not null");
+    expect(privateDiscoveryMigration).toContain("content_hash text not null");
+    const provenanceTable = privateDiscoveryMigration.slice(
+      privateDiscoveryMigration.indexOf("create table if not exists public.meridian_mcp_bundle_private_provenance"),
+      privateDiscoveryMigration.indexOf(");", privateDiscoveryMigration.indexOf("create table if not exists public.meridian_mcp_bundle_private_provenance"))
+    );
+    expect(provenanceTable).not.toMatch(/raw_text|body_text|note_text/i);
+  });
+
+  it("requires a passed provenance row before a bundle may claim private discovery passed", () => {
+    expect(privateDiscoveryMigration).toContain("private_discovery_status in ('not_used','passed')");
+    expect(privateDiscoveryMigration).toContain("private_discovery_status = 'not_used'");
+    expect(privateDiscoveryMigration).toContain("from public.meridian_mcp_bundle_private_provenance provenance");
+    expect(privateDiscoveryMigration).toContain("provenance.check_status = 'passed'");
+  });
+
+  it("limits candidate submission to confirmed review-only defaults and keeps promotion admin-owned", () => {
+    expect(privateDiscoveryMigration).toContain("metadata ->> 'privateDiscoveryExplicitSubmission' = 'true'");
+    expect(privateDiscoveryMigration).toContain("meridian_candidates_raw_text_hash_matches");
+    expect(privateDiscoveryMigration).toContain("source_uri ~ '^obsidian-private://");
+    expect(privateDiscoveryMigration).toContain("grant_row.access_level in ('leader_creator','admin')");
+    expect(privateDiscoveryMigration).toContain("authority_class = 'none'");
+    expect(privateDiscoveryMigration).toContain("quote_policy = 'never'");
+    expect(privateDiscoveryMigration).toContain("generation_policy = 'discovery_only'");
+    expect(privateDiscoveryMigration).toContain("security invoker");
+    expect(privateDiscoveryMigration).not.toContain("update public.meridian_candidates set approval_status = 'promoted'");
+  });
+
+  it("enables RLS and grants no anonymous or delete access", () => {
+    expect(privateDiscoveryMigration).toContain("alter table public.meridian_mcp_bundle_private_provenance enable row level security");
+    expect(privateDiscoveryMigration).toContain("revoke all on public.meridian_mcp_bundle_private_provenance from anon");
+    expect(privateDiscoveryMigration).not.toMatch(/grant[^;]*delete[^;]*meridian_mcp_bundle_private_provenance/i);
   });
 });

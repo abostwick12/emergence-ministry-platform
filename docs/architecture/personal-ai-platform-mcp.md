@@ -218,13 +218,16 @@ The endpoint is intentionally empty of approved production claims until a human 
 - attach artifacts to the correct event, series, sermon, audience, and ministry; and
 - make partial failure recoverable without duplicating artifacts.
 
-### Phase 4 - Private Obsidian discovery
+### Phase 4 - Private Obsidian discovery (implemented, migration and deployment pending)
 
-- implement a user-owned connector for opt-in folders or frontmatter;
-- keep raw notes outside Lead Emergence generation and shared storage;
-- separate discovery results from approved Meridian generation evidence;
-- add deterministic exact/fuzzy leakage protection; and
-- provide explicit candidate submission and promotion workflows for reusable knowledge.
+- a user-owned local STDIO MCP connector searches only explicitly selected folders or frontmatter-opted notes;
+- sensitive folder and frontmatter classes fail closed, and symlinks are not traversed;
+- hosted Meridian never browses the vault and continues to expose only approved organizational evidence;
+- resource bundles influenced by private discovery undergo deterministic exact/fuzzy leakage checks before storage;
+- passing bundles retain only opaque source references and content hashes, while unsafe overlap stores no bundle; and
+- a separate confirmed capability nominates one selected note into the existing private, unreviewed, never-quote admin promotion queue.
+
+See [Private Obsidian discovery](private-obsidian-discovery.md) for local setup, the transient check contract, candidate boundaries, and synthetic acceptance tests. Production activation requires applying `20260805171914_platform_mcp_private_discovery.sql` and deploying the matching application commit.
 
 ### Phase 5 - EMMA review gate
 

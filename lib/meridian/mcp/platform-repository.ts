@@ -36,8 +36,15 @@ type BundleRow = {
   destination_id: string;
   status: "creating" | "review_required";
   emma_status: "not_reviewed";
+  private_discovery_status: "not_used" | "passed";
   client_name: string;
   idempotency_key: string;
+};
+
+type PrivateProvenanceRow = {
+  source_reference: string;
+  content_hash: string;
+  check_status: "passed";
 };
 
 type BundleItemRow = {
@@ -128,7 +135,7 @@ export class SupabasePlatformMcpRepository implements PlatformMcpRepository {
     const supabase = getSupabaseAuthClient(session.accessToken);
     const existingResult = await supabase
       .from("meridian_mcp_resource_bundles")
-      .select("id,ministry_id,created_by_user_id,title,destination_type,destination_id,status,emma_status,client_name,idempotency_key")
+      .select("id,ministry_id,created_by_user_id,title,destination_type,destination_id,status,emma_status,private_discovery_status,client_name,idempotency_key")
       .eq("id", input.id)
       .maybeSingle<BundleRow>();
     if (existingResult.error) throw storageError();
@@ -148,13 +155,47 @@ export class SupabasePlatformMcpRepository implements PlatformMcpRepository {
           destination_id: input.destinationId,
           status: "creating",
           emma_status: "not_reviewed",
+          private_discovery_status: "not_used",
           client_name: input.clientName,
           idempotency_key: input.idempotencyKey
         })
-        .select("id,ministry_id,created_by_user_id,title,destination_type,destination_id,status,emma_status,client_name,idempotency_key")
+        .select("id,ministry_id,created_by_user_id,title,destination_type,destination_id,status,emma_status,private_discovery_status,client_name,idempotency_key")
         .single<BundleRow>();
       if (insertResult.error || !insertResult.data) throw storageError();
       bundle = insertResult.data;
+    }
+
+    const provenanceResult = await supabase
+      .from("meridian_mcp_bundle_private_provenance")
+      .select("source_reference,content_hash,check_status")
+      .eq("bundle_id", input.id)
+      .order("source_reference", { ascending: true })
+      .returns<PrivateProvenanceRow[]>();
+    if (provenanceResult.error) throw storageError();
+    let savedProvenance = provenanceResult.data ?? [];
+    if (input.privateDiscoveryProvenance.length && !savedProvenance.length) {
+      const insertProvenance = await supabase
+        .from("meridian_mcp_bundle_private_provenance")
+        .insert(input.privateDiscoveryProvenance.map((source) => ({
+          ministry_id: input.ministryId,
+          bundle_id: input.id,
+          source_reference: source.sourceReference,
+          content_hash: source.contentHash,
+          check_status: "passed"
+        })))
+        .select("source_reference,content_hash,check_status")
+        .returns<PrivateProvenanceRow[]>();
+      if (insertProvenance.error) throw storageError();
+      savedProvenance = insertProvenance.data ?? [];
+    }
+    assertSamePrivateProvenance(savedProvenance, input);
+    if (input.privateDiscoveryStatus === "passed" && bundle.private_discovery_status !== "passed") {
+      const markPrivateCheck = await supabase
+        .from("meridian_mcp_resource_bundles")
+        .update({ private_discovery_status: "passed" })
+        .eq("id", input.id);
+      if (markPrivateCheck.error) throw storageError();
+      bundle.private_discovery_status = "passed";
     }
 
     const itemResult = await supabase
@@ -224,6 +265,7 @@ export class SupabasePlatformMcpRepository implements PlatformMcpRepository {
       id: input.id,
       status: "review_required",
       emmaStatus: "not_reviewed",
+      privateDiscoveryStatus: input.privateDiscoveryStatus,
       destinationType: input.destinationType,
       destinationId: input.destinationId,
       itemIds: input.items.map((item) => item.id),
@@ -288,6 +330,17 @@ function assertSameBundle(bundle: BundleRow, input: CreatePlatformResourceBundle
     || bundle.destination_id !== input.destinationId
     || bundle.idempotency_key !== input.idempotencyKey
   ) throw new MeridianMcpError("idempotency_conflict", 409, "That idempotency key has already been used for a different resource bundle.");
+}
+
+function assertSamePrivateProvenance(rows: PrivateProvenanceRow[], input: CreatePlatformResourceBundleInput) {
+  if (rows.length !== input.privateDiscoveryProvenance.length) {
+    throw new MeridianMcpError("idempotency_conflict", 409, "That resource bundle does not match the prior private-discovery check.");
+  }
+  for (const source of input.privateDiscoveryProvenance) {
+    if (!rows.some((row) => row.source_reference === source.sourceReference && row.content_hash === source.contentHash && row.check_status === "passed")) {
+      throw new MeridianMcpError("idempotency_conflict", 409, "That resource bundle does not match the prior private-discovery check.");
+    }
+  }
 }
 
 function assertSameItems(rows: BundleItemRow[], input: CreatePlatformResourceBundleInput) {
