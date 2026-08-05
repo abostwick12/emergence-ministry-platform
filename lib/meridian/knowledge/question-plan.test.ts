@@ -5,7 +5,7 @@ import {
   deriveMeridianResponseRequirements,
   meridianSearchText
 } from "@/lib/meridian/knowledge/question-plan";
-import type { MeridianTaskContext } from "@/lib/meridian/knowledge/types";
+import type { MeridianQuestionMap, MeridianTaskContext } from "@/lib/meridian/knowledge/types";
 
 describe("Meridian question planning", () => {
   it("preserves one question and its Scripture anchor", () => {
@@ -68,6 +68,33 @@ describe("Meridian question planning", () => {
       uncertainty: false
     });
   });
+
+  it("uses a strongly matched reviewed map without replacing the user's question", () => {
+    const plan = buildMeridianQuestionPlan(task({
+      query: "If God is three persons, why isn't that basically three gods?"
+    }), [questionMap()]);
+
+    expect(plan).toMatchObject({
+      question: "If God is three persons, why isn't that basically three gods?",
+      matchedQuestionMap: { id: "map-trinity", title: "Trinity and monotheism" },
+      facets: [
+        { query: "one divine being", required: true, route: "doctrine" },
+        { query: "real personal distinction", required: true, route: "doctrine" },
+        { query: "why this is not tritheism", required: true, route: "doctrine" }
+      ]
+    });
+  });
+
+  it("fails closed when a reviewed map is weak, cross-tenant, or tied", () => {
+    const question = task({ query: "Why does God allow suffering?" });
+    expect(buildMeridianQuestionPlan(question, [questionMap()]).matchedQuestionMap).toBeUndefined();
+    expect(buildMeridianQuestionPlan(question, [{ ...questionMap(), ministryId: "ministry-b" }]).matchedQuestionMap).toBeUndefined();
+
+    const tiedMap = { ...questionMap(), id: "map-trinity-2", title: "Triune monotheism" };
+    expect(buildMeridianQuestionPlan(task({
+      query: "If God is three persons, why isn't that basically three gods?"
+    }), [questionMap(), tiedMap]).matchedQuestionMap).toBeUndefined();
+  });
 });
 
 function task(overrides: Partial<MeridianTaskContext>): MeridianTaskContext {
@@ -79,5 +106,17 @@ function task(overrides: Partial<MeridianTaskContext>): MeridianTaskContext {
     at: "2026-08-02T12:00:00.000Z",
     externalCommunication: false,
     ...overrides
+  };
+}
+
+function questionMap(): MeridianQuestionMap {
+  return {
+    id: "map-trinity",
+    ministryId: "ministry-a",
+    title: "Trinity and monotheism",
+    aliases: ["If God is three persons, isn't that three gods?"],
+    facets: ["one divine being", "real personal distinction", "why this is not tritheism"],
+    topics: ["trinity", "monotheism"],
+    scriptureReferences: []
   };
 }

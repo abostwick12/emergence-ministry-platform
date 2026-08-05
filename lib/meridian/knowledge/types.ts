@@ -204,6 +204,16 @@ export type MeridianQuestionFacet = {
   route: MeridianFacetRoute;
 };
 
+export type MeridianQuestionMap = {
+  id: string;
+  ministryId: string;
+  title: string;
+  aliases: string[];
+  facets: string[];
+  topics: string[];
+  scriptureReferences: string[];
+};
+
 export type MeridianQuestionPlan = {
   question: string;
   scriptureReferences: string[];
@@ -211,6 +221,10 @@ export type MeridianQuestionPlan = {
   facets: MeridianQuestionFacet[];
   ambiguous: boolean;
   ambiguityReason?: "missing_question" | "too_many_facets";
+  matchedQuestionMap?: {
+    id: string;
+    title: string;
+  };
 };
 
 export type MeridianFacetCoverage = {

@@ -64,16 +64,46 @@ describe("Supabase Meridian repository boundaries", () => {
       query: "How are we saved by grace, and how should we understand faith and works?"
     });
 
-    expect(rpc).toHaveBeenCalledTimes(2);
-    expect(rpc).toHaveBeenNthCalledWith(1, "search_meridian_approved_claims", expect.objectContaining({
+    expect(rpc).toHaveBeenCalledTimes(3);
+    expect(rpc).toHaveBeenNthCalledWith(1, "search_meridian_question_maps", expect.objectContaining({
+      p_query_text: "How are we saved by grace, and how should we understand faith and works?",
+      p_match_count: 8
+    }));
+    expect(rpc).toHaveBeenNthCalledWith(2, "search_meridian_approved_claims", expect.objectContaining({
       p_query_text: "How are we saved by grace",
       p_match_count: 16
     }));
-    expect(rpc).toHaveBeenNthCalledWith(2, "search_meridian_approved_claims", expect.objectContaining({
+    expect(rpc).toHaveBeenNthCalledWith(3, "search_meridian_approved_claims", expect.objectContaining({
       p_query_text: "how should we understand faith and works?",
       p_match_count: 16
     }));
     expect(result.facetCoverage).toHaveLength(2);
+  });
+
+  it("retrieves approved claims through strongly matched reviewed question facets", async () => {
+    const rpc = vi.fn(async (name: string) => {
+      if (name === "search_meridian_question_maps") return { data: [questionMapRow()], error: null };
+      if (name === "search_meridian_approved_claims") return { data: [], error: null };
+      throw new Error(`Unexpected RPC ${name}`);
+    });
+    getSupabaseAuthClientMock.mockReturnValue({ rpc });
+
+    const result = await new SupabaseMeridianKnowledgeRepository().loadApprovedEvidence(session("leader"), {
+      ...task("ministry-a"),
+      query: "If God is three persons, why isn't that basically three gods?"
+    });
+
+    expect(result.questionPlan.matchedQuestionMap).toEqual({ id: "map-trinity", title: "Trinity and monotheism" });
+    expect(result.questionPlan.facets.map((facet) => facet.query)).toEqual([
+      "one divine being",
+      "real personal distinction",
+      "why this is not tritheism"
+    ]);
+    expect(rpc).toHaveBeenCalledTimes(4);
+    expect(rpc).toHaveBeenNthCalledWith(2, "search_meridian_approved_claims", expect.objectContaining({
+      p_query_text: "one divine being",
+      p_match_count: 10
+    }));
   });
 
   it("does not execute a broad claim search when the question is missing", async () => {
@@ -98,6 +128,7 @@ describe("Supabase Meridian repository boundaries", () => {
       throw new Error(`Unexpected table ${table}`);
     });
     const rpc = vi.fn(async (name: string) => {
+      if (name === "search_meridian_question_maps") return { data: [], error: null };
       if (name === "search_meridian_approved_claims") return { data: [claimRow()], error: null };
       if (name === "fetch_meridian_generation_fragments") return { data: [fragmentRow()], error: null };
       throw new Error(`Unexpected RPC ${name}`);
@@ -225,6 +256,66 @@ describe("Supabase Meridian repository boundaries", () => {
       claimId: "claim-1"
     });
     expect(rpc).toHaveBeenCalledWith("promote_meridian_candidate", expect.objectContaining({ p_candidate_id: "candidate-1" }));
+  });
+
+  it("promotes a reviewed question candidate into a planning-only map", async () => {
+    const rpc = vi.fn(async () => ({
+      data: {
+        candidateId: "candidate-1",
+        questionMapId: "map-trinity",
+        eventId: "event-2",
+        eventCreatedAt: "2026-08-05T12:00:00.000Z"
+      },
+      error: null
+    }));
+    getSupabaseAuthClientMock.mockReturnValue({
+      rpc,
+      from: () => singleQueryBuilder({ metadata: { objectType: "question" }, approval_status: "in_review" })
+    });
+
+    await expect(new SupabaseMeridianKnowledgeRepository().promoteQuestionMap(session("admin"), questionMapPromotionInput())).resolves.toEqual({
+      candidateId: "candidate-1",
+      questionMapId: "map-trinity",
+      event: {
+        id: "event-2",
+        decision: "promoted",
+        rationale: "These facets preserve the actual objection without embedding an answer.",
+        createdAt: "2026-08-05T12:00:00.000Z"
+      }
+    });
+    expect(rpc).toHaveBeenCalledWith("promote_meridian_question_map", {
+      p_candidate_id: "candidate-1",
+      p_aliases: ["If God is three persons, isn't that three gods?"],
+      p_facets: ["one divine being", "real personal distinction", "why this is not tritheism"],
+      p_topics: ["trinity", "monotheism"],
+      p_rationale: "These facets preserve the actual objection without embedding an answer."
+    });
+  });
+
+  it("requires a reviewed question candidate and bounded map fields", async () => {
+    const repository = new SupabaseMeridianKnowledgeRepository();
+    await expect(repository.promoteQuestionMap(session("leader"), questionMapPromotionInput())).rejects.toMatchObject({ code: "forbidden" });
+    await expect(repository.promoteQuestionMap(session("admin"), {
+      ...questionMapPromotionInput(),
+      facets: [],
+      rationale: ""
+    })).rejects.toMatchObject({ code: "invalid_question_map" });
+    await expect(repository.promoteQuestionMap(session("admin"), {
+      ...questionMapPromotionInput(),
+      aliases: ["x".repeat(501)]
+    })).rejects.toMatchObject({ code: "invalid_question_map" });
+
+    getSupabaseAuthClientMock.mockReturnValueOnce({
+      rpc: vi.fn(),
+      from: () => singleQueryBuilder({ metadata: { objectType: "question" }, approval_status: "unreviewed" })
+    });
+    await expect(repository.promoteQuestionMap(session("admin"), questionMapPromotionInput())).rejects.toMatchObject({ code: "review_required" });
+
+    getSupabaseAuthClientMock.mockReturnValueOnce({
+      rpc: vi.fn(),
+      from: () => singleQueryBuilder({ metadata: { objectType: "doctrine" }, approval_status: "in_review" })
+    });
+    await expect(repository.promoteQuestionMap(session("admin"), questionMapPromotionInput())).rejects.toMatchObject({ code: "unsupported_candidate_type" });
   });
 
   it("requires started review and a claim-compatible candidate type before promotion", async () => {
@@ -427,6 +518,16 @@ function candidateRow() {
   };
 }
 
+function questionMapPromotionInput() {
+  return {
+    candidateId: "candidate-1",
+    aliases: ["If God is three persons, isn't that three gods?"],
+    facets: ["one divine being", "real personal distinction", "why this is not tritheism"],
+    topics: ["trinity", "monotheism"],
+    rationale: "These facets preserve the actual objection without embedding an answer."
+  };
+}
+
 function reviewEventRow() {
   return {
     id: "event-1",
@@ -490,5 +591,17 @@ function sourceRow() {
     origin_mode: "direct",
     approved_by_user_id: "admin-1",
     approved_at: "2026-08-01T00:00:00.000Z"
+  };
+}
+
+function questionMapRow() {
+  return {
+    id: "map-trinity",
+    ministry_id: "ministry-a",
+    title: "Trinity and monotheism",
+    aliases: ["If God is three persons, isn't that three gods?"],
+    facets: ["one divine being", "real personal distinction", "why this is not tritheism"],
+    topics: ["trinity", "monotheism"],
+    scripture_references: []
   };
 }

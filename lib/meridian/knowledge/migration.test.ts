@@ -16,6 +16,10 @@ const candidateReviewMigration = readFileSync(
   join(process.cwd(), "supabase/migrations/20260805012832_meridian_candidate_review_decisions.sql"),
   "utf8"
 );
+const questionMapMigration = readFileSync(
+  join(process.cwd(), "supabase/migrations/20260805132517_meridian_question_map_promotion.sql"),
+  "utf8"
+);
 
 describe("Meridian primitive knowledge migration", () => {
   it("creates every primitive plus audited promotion and answer provenance", () => {
@@ -132,5 +136,37 @@ describe("Meridian candidate review decisions migration", () => {
     expect(candidateReviewMigration).toContain("set search_path = ''");
     expect(candidateReviewMigration).toContain("revoke all on function public.review_meridian_candidate(uuid, text, text) from public, anon");
     expect(candidateReviewMigration).toContain("grant execute on function public.review_meridian_candidate(uuid, text, text) to authenticated");
+  });
+});
+
+describe("Meridian reviewed question-map migration", () => {
+  it("creates planning-only maps with bounded fields and indexed retrieval", () => {
+    expect(questionMapMigration).toContain("create table if not exists public.meridian_question_maps");
+    expect(questionMapMigration).toContain("cardinality(aliases) between 1 and 20");
+    expect(questionMapMigration).toContain("cardinality(facets) between 1 and 4");
+    expect(questionMapMigration).toContain("jsonb_typeof(candidate.metadata -> 'scriptureReferences') = 'array'");
+    expect(questionMapMigration).toContain("search_vector tsvector generated always as");
+    expect(questionMapMigration).toContain("idx_meridian_question_maps_search");
+    expect(questionMapMigration).not.toContain("meridian_claims(");
+  });
+
+  it("promotes only an in-review question candidate in one audited transaction", () => {
+    expect(questionMapMigration).toContain("create or replace function public.promote_meridian_question_map");
+    expect(questionMapMigration).toContain("for update");
+    expect(questionMapMigration).toContain("candidate.approval_status <> 'in_review'");
+    expect(questionMapMigration).toContain("candidate.metadata ->> 'objectType' is distinct from 'question'");
+    expect(questionMapMigration).toContain("insert into public.meridian_review_events");
+    expect(questionMapMigration).toContain("approval_status = 'promoted'");
+  });
+
+  it("keeps maps tenant-scoped, RLS-protected, invoker-secured, and anonymous-blocked", () => {
+    expect(questionMapMigration).toContain("alter table public.meridian_question_maps enable row level security");
+    expect(questionMapMigration).toContain("p.ministry_id = meridian_question_maps.ministry_id");
+    expect(questionMapMigration).toContain("security invoker");
+    expect(questionMapMigration).toContain("set search_path = ''");
+    expect(questionMapMigration).toContain("revoke all on public.meridian_question_maps from anon");
+    expect(questionMapMigration).toContain("revoke all on function public.promote_meridian_question_map");
+    expect(questionMapMigration).toContain("revoke all on function public.search_meridian_question_maps");
+    expect(questionMapMigration).toContain("coalesce(p_match_count, 8)");
   });
 });

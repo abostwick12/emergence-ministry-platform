@@ -87,3 +87,5 @@ The importer was subsequently hardened to send a ready set as one PostgREST batc
 ## Next gate
 
 Promotion remains a later, explicit human decision after reviewing the imported candidate records and their source provenance. No candidate may become generation evidence merely because it was imported successfully.
+
+The review workspace now has a dedicated question-map promotion path that keeps aliases and required retrieval facets separate from approved answer claims. Its database migration was applied and verified in production as `20260805194617`; the Trinity question-map candidate remains unreviewed until an administrator makes a separate content decision.
