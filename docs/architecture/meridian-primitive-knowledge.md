@@ -68,7 +68,7 @@ The Discipleship administration workspace now exposes an admin-only candidate re
 Candidate type determines its allowed destination:
 
 - `passage`, `doctrine`, and `formation` candidates may be narrowed into one approved claim supported by one exact reviewed excerpt.
-- `question` candidates remain query-decomposition maps and cannot be converted into answer claims.
+- `question` candidates may become reviewed query-decomposition maps through their own admin-only transaction. Approved aliases and facets may shape retrieval planning after a strong, unambiguous lexical match, but they cannot become answer claims, quotations, authority, or generation evidence. Weak, tied, or cross-ministry matches fall back to the original user question and deterministic heuristic plan.
 - `guardrail_proposal` candidates require rule-by-rule approval and enforcement semantics before a guardrail row can be activated.
 - `relationship_proposal` candidates require both reviewed endpoint objects before an edge can be created.
 
@@ -85,6 +85,8 @@ Canonical Scripture text is retrieved transiently from YouVersion. The adapter r
 Migration: `supabase/migrations/20260801120000_meridian_primitive_knowledge.sql`.
 
 Candidate review transitions: `supabase/migrations/20260805012832_meridian_candidate_review_decisions.sql`.
+
+Question-map promotion and bounded retrieval: `supabase/migrations/20260805132517_meridian_question_map_promotion.sql`.
 
 Reviewed legacy-source bridge: `supabase/migrations/20260804130000_meridian_legacy_source_review.sql`.
 
@@ -105,8 +107,8 @@ Rollback is additive: disable new retrieval, leave the new tables intact for aud
 ## Deferred work and risks
 
 - Six source-reviewed Obsidian candidates are in the production private review queue; none is promoted or available to generation.
-- The candidate review transition migration in this slice has not been applied to a live Supabase project.
+- The candidate review transition and question-map migrations were applied and verified in production on 2026-08-05. The production question-map migration is recorded as `20260805194617`; no candidate decision is part of this code slice.
 - Static migration tests supplement, but do not replace, a real local/branch database RLS test matrix.
 - Hybrid semantic retrieval is deferred until primitive promotion quality is stable and embeddings can be versioned. The first slice uses indexed PostgreSQL full-text search; the next retrieval phase should add pgvector/HNSW and reciprocal-rank fusion without weakening RLS or approval filters.
-- Dedicated promotion transactions and review forms for question maps, guardrails, and relationships remain follow-up work. Their claim-promotion controls stay locked until those destination-specific paths exist.
+- Dedicated promotion transactions and review forms for guardrails and relationships remain follow-up work. Their claim-promotion controls stay locked until those destination-specific paths exist.
 - Provider traces have governed tables and domain types; wiring every legacy Meridian provider call into those traces remains follow-up work.

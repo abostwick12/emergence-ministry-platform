@@ -6,6 +6,7 @@ import type {
   MeridianClaim,
   MeridianFacetCoverage,
   MeridianFragment,
+  MeridianQuestionMap,
   MeridianQuestionPlan,
   MeridianRelationship,
   MeridianSource,
@@ -63,6 +64,14 @@ export type MeridianPromotionInput = {
     confidence: number;
     scope: MeridianClaim["scope"];
   };
+};
+
+export type MeridianQuestionMapPromotionInput = {
+  candidateId: string;
+  aliases: string[];
+  facets: string[];
+  topics: string[];
+  rationale: string;
 };
 
 export const meridianCandidateObjectTypes = [
@@ -143,6 +152,11 @@ export interface MeridianPromotionRepository {
     approvalStatus: MeridianCandidateApprovalStatus;
     event: MeridianCandidateReviewEvent;
   }>;
+  promoteQuestionMap(session: AuthSession, input: MeridianQuestionMapPromotionInput): Promise<{
+    candidateId: string;
+    questionMapId: string;
+    event: MeridianCandidateReviewEvent;
+  }>;
   promoteCandidate(session: AuthSession, input: MeridianPromotionInput): Promise<{ sourceId: string; fragmentId: string; claimId: string }>;
   promoteLegacyClaim(session: AuthSession, input: MeridianLegacyPromotionInput): Promise<{ sourceId: string; fragmentId: string; claimId: string; sourceKind: AndrewAuthoredSourceKind }>;
 }
@@ -204,6 +218,16 @@ type RelationshipRow = {
   from_object_id: string;
   to_object_id: string;
   rationale: string | null;
+};
+
+type QuestionMapRow = {
+  id: string;
+  ministry_id: string;
+  title: string;
+  aliases: string[];
+  facets: string[];
+  topics: string[];
+  scripture_references: string[];
 };
 
 type CandidateRow = {
@@ -316,7 +340,16 @@ export class SupabaseMeridianKnowledgeRepository implements MeridianGenerationRe
     assertGenerationRole(session);
     const ministryId = await requireStrictMinistry(session, task.ministryId);
     const supabase = getSupabaseAuthClient(session.accessToken);
-    const questionPlan = buildMeridianQuestionPlan(task);
+    const initialQuestionPlan = buildMeridianQuestionPlan(task);
+    if (initialQuestionPlan.ambiguous || !initialQuestionPlan.facets.length) return emptyApprovedEvidence(initialQuestionPlan);
+
+    const questionMapResult = await supabase.rpc("search_meridian_question_maps", {
+      p_ministry_id: ministryId,
+      p_query_text: initialQuestionPlan.question,
+      p_match_count: 8
+    }) as unknown as { data: QuestionMapRow[] | null; error: { message: string } | null };
+    throwIfError(questionMapResult.error);
+    const questionPlan = buildMeridianQuestionPlan(task, (questionMapResult.data ?? []).map(toQuestionMap));
     if (questionPlan.ambiguous || !questionPlan.facets.length) return emptyApprovedEvidence(questionPlan);
 
     const matchCount = Math.max(6, Math.floor(32 / questionPlan.facets.length));
@@ -427,6 +460,89 @@ export class SupabaseMeridianKnowledgeRepository implements MeridianGenerationRe
         toId: row.to_object_id,
         rationale: row.rationale ?? undefined
       }))
+    };
+  }
+
+  async promoteQuestionMap(session: AuthSession, input: MeridianQuestionMapPromotionInput) {
+    assertAdmin(session, "Only admins can promote Meridian question maps.");
+    const aliases = normalizedReviewList(input.aliases);
+    const facets = normalizedReviewList(input.facets);
+    const topics = normalizedReviewList(input.topics);
+    const rationale = input.rationale.trim();
+    if (
+      !input.candidateId.trim() ||
+      !aliases.length || aliases.length > 20 ||
+      !facets.length || facets.length > 4 ||
+      topics.length > 20 ||
+      aliases.some((value) => value.length > 500) ||
+      facets.some((value) => value.length > 500) ||
+      topics.some((value) => value.length > 120) ||
+      !rationale || rationale.length > 1200
+    ) {
+      throw new MeridianKnowledgeRepositoryError(
+        "invalid_question_map",
+        400,
+        "Question-map promotion requires reviewed aliases, facets, and a rationale."
+      );
+    }
+
+    const supabase = getSupabaseAuthClient(session.accessToken);
+    const ministryId = await resolveMinistryScope(session);
+    if (!ministryId) {
+      throw new MeridianKnowledgeRepositoryError("tenant_scope", 403, "Meridian candidates are outside the authenticated ministry scope.");
+    }
+    const candidateResult = await supabase
+      .from("meridian_candidates")
+      .select("metadata,approval_status")
+      .eq("ministry_id", ministryId)
+      .eq("id", input.candidateId)
+      .single<{ metadata: Record<string, unknown> | null; approval_status: MeridianCandidateApprovalStatus }>();
+    throwIfError(candidateResult.error);
+    if (!candidateResult.data) {
+      throw new MeridianKnowledgeRepositoryError("candidate_not_found", 404, "Meridian candidate was not found.");
+    }
+    if (candidateResult.data.approval_status !== "in_review") {
+      throw new MeridianKnowledgeRepositoryError("review_required", 409, "Start review before promoting a Meridian question map.");
+    }
+    if (candidateResult.data.metadata?.objectType !== "question") {
+      throw new MeridianKnowledgeRepositoryError(
+        "unsupported_candidate_type",
+        409,
+        "Only a question candidate may become a Meridian question map."
+      );
+    }
+
+    const result = await supabase.rpc("promote_meridian_question_map", {
+      p_candidate_id: input.candidateId,
+      p_aliases: aliases,
+      p_facets: facets,
+      p_topics: topics,
+      p_rationale: rationale
+    });
+    throwIfError(result.error);
+    const data = result.data as {
+      candidateId?: unknown;
+      questionMapId?: unknown;
+      eventId?: unknown;
+      eventCreatedAt?: unknown;
+    } | null;
+    if (
+      typeof data?.candidateId !== "string" ||
+      typeof data.questionMapId !== "string" ||
+      typeof data.eventId !== "string" ||
+      typeof data.eventCreatedAt !== "string"
+    ) {
+      throw new MeridianKnowledgeRepositoryError("promotion_failed", 500, "Meridian question-map promotion did not return valid identifiers.");
+    }
+    return {
+      candidateId: data.candidateId,
+      questionMapId: data.questionMapId,
+      event: {
+        id: data.eventId,
+        decision: "promoted" as const,
+        rationale,
+        createdAt: data.eventCreatedAt
+      }
     };
   }
 
@@ -613,6 +729,18 @@ function toReviewEvent(row: ReviewEventRow): MeridianCandidateReviewEvent {
   };
 }
 
+function toQuestionMap(row: QuestionMapRow): MeridianQuestionMap {
+  return {
+    id: row.id,
+    ministryId: row.ministry_id,
+    title: row.title,
+    aliases: row.aliases,
+    facets: row.facets,
+    topics: row.topics,
+    scriptureReferences: row.scripture_references
+  };
+}
+
 function isCandidateObjectType(value: unknown): value is MeridianCandidateObjectType {
   return typeof value === "string" && meridianCandidateObjectTypes.includes(value as MeridianCandidateObjectType);
 }
@@ -640,6 +768,10 @@ function optionalString(value: unknown) {
 
 function stringList(value: unknown) {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && Boolean(item.trim())) : [];
+}
+
+function normalizedReviewList(values: string[]) {
+  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
 }
 
 function assertAdmin(session: AuthSession, message: string) {

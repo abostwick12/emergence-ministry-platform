@@ -6,7 +6,8 @@ import { useMemo, useState } from "react";
 import type {
   MeridianCandidateApprovalStatus,
   MeridianCandidateReviewItem,
-  MeridianPromotionInput
+  MeridianPromotionInput,
+  MeridianQuestionMapPromotionInput
 } from "@/lib/meridian/knowledge/repository";
 
 type MeridianCandidateReviewQueueProps = {
@@ -29,7 +30,16 @@ type PromotionResponse = {
   claimId?: string;
 };
 
+type QuestionMapPromotionResponse = {
+  ok?: boolean;
+  error?: string;
+  candidateId?: string;
+  questionMapId?: string;
+  event?: MeridianCandidateReviewItem["reviewEvents"][number];
+};
+
 type PromotionPayload = Omit<MeridianPromotionInput, "candidateId">;
+type QuestionMapPromotionPayload = Omit<MeridianQuestionMapPromotionInput, "candidateId">;
 
 const claimPromotionTypes = new Set(["passage", "doctrine", "formation"]);
 
@@ -119,6 +129,37 @@ export function MeridianCandidateReviewQueue({ initialCandidates }: MeridianCand
     }
   }
 
+  async function submitQuestionMapPromotion(candidateId: string, payload: QuestionMapPromotionPayload) {
+    setBusyId(candidateId);
+    setStatus("Approving a question map for retrieval planning only...");
+    try {
+      const response = await fetch(`/api/meridian/knowledge/candidates/${candidateId}/promote-question-map`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const result = (await response.json()) as QuestionMapPromotionResponse;
+      if (!response.ok || !result.ok || !result.candidateId || !result.questionMapId || !result.event) {
+        setStatus(result.error ?? "The question map could not be promoted.");
+        return;
+      }
+
+      setCandidates((current) => current.map((candidate) => candidate.id === result.candidateId
+        ? {
+            ...candidate,
+            approvalStatus: "promoted",
+            reviewedAt: result.event!.createdAt,
+            reviewEvents: [result.event!, ...candidate.reviewEvents]
+          }
+        : candidate));
+      setStatus("Question map promoted. It may improve retrieval planning, but it cannot supply answer content or authority.");
+    } catch {
+      setStatus("The question map could not be promoted.");
+    } finally {
+      setBusyId("");
+    }
+  }
+
   return (
     <section className="meridian-candidate-review" aria-label="Meridian candidate review queue">
       <div className="meridian-candidate-review-heading">
@@ -149,6 +190,7 @@ export function MeridianCandidateReviewQueue({ initialCandidates }: MeridianCand
               key={candidate.id}
               onDecision={submitDecision}
               onPromote={submitPromotion}
+              onPromoteQuestionMap={submitQuestionMapPromotion}
             />
           ))}
         </div>
@@ -175,12 +217,14 @@ function CandidateReviewCard({
   candidate,
   isBusy,
   onDecision,
-  onPromote
+  onPromote,
+  onPromoteQuestionMap
 }: {
   candidate: MeridianCandidateReviewItem;
   isBusy: boolean;
   onDecision: (candidateId: string, decision: "started_review" | "rejected", rationale: string) => Promise<void>;
   onPromote: (candidateId: string, payload: PromotionPayload) => Promise<void>;
+  onPromoteQuestionMap: (candidateId: string, payload: QuestionMapPromotionPayload) => Promise<void>;
 }) {
   const canPromoteClaim = claimPromotionTypes.has(candidate.objectType);
   return (
@@ -234,6 +278,12 @@ function CandidateReviewCard({
         <div className="meridian-candidate-decision-grid">
           {canPromoteClaim ? (
             <CandidatePromotionForm candidate={candidate} disabled={isBusy} onPromote={onPromote} />
+          ) : candidate.objectType === "question" ? (
+            <CandidateQuestionMapPromotionForm
+              candidate={candidate}
+              disabled={isBusy}
+              onPromote={onPromoteQuestionMap}
+            />
           ) : (
             <div className="meridian-candidate-route-lock">
               <strong>{candidateTypeLabel(candidate.objectType)} promotion stays locked.</strong>
@@ -350,6 +400,63 @@ function CandidatePromotionForm({
   );
 }
 
+function CandidateQuestionMapPromotionForm({
+  candidate,
+  disabled,
+  onPromote
+}: {
+  candidate: MeridianCandidateReviewItem;
+  disabled: boolean;
+  onPromote: (candidateId: string, payload: QuestionMapPromotionPayload) => Promise<void>;
+}) {
+  return (
+    <details className="meridian-candidate-decision" open>
+      <summary>Approve retrieval question map</summary>
+      <form onSubmit={(event) => {
+        event.preventDefault();
+        const form = new FormData(event.currentTarget);
+        void onPromote(candidate.id, {
+          aliases: lineList(String(form.get("questionAliases") || "")),
+          facets: lineList(String(form.get("questionFacets") || "")),
+          topics: reviewedCommaList(String(form.get("topics") || "")),
+          rationale: String(form.get("rationale") || "").trim()
+        });
+      }}>
+        <p>
+          Approve only alternate ways students ask this question and the required parts Meridian should retrieve.
+          This map cannot provide a model answer, claim, quotation, or theological authority.
+        </p>
+        <label className="leader-review-field">
+          <span>Reviewed question aliases</span>
+          <textarea name="questionAliases" defaultValue={candidate.questionAliases.join("\n")} required />
+          <small>One complete student question per line. Remove wording that could route unrelated questions here.</small>
+        </label>
+        <label className="leader-review-field">
+          <span>Required retrieval facets</span>
+          <textarea name="questionFacets" defaultValue={candidate.questionFacets.join("\n")} required />
+          <small>One bounded facet per line, with no model-answer prose. At most four facets will be approved.</small>
+        </label>
+        <label className="leader-review-field">
+          <span>Topic labels</span>
+          <input className="input" name="topics" defaultValue={candidate.topicTags.join(", ")} />
+        </label>
+        <label className="leader-review-field">
+          <span>Approval rationale</span>
+          <textarea
+            name="rationale"
+            placeholder="Why do these aliases and facets improve question fidelity without embedding an answer?"
+            required
+          />
+        </label>
+        <button className="button primary" disabled={disabled} type="submit">
+          {disabled ? "Saving decision..." : "Approve Question Map"}
+        </button>
+        <small>Activation is fail-closed: weak or ambiguous matches keep the original user question and heuristic plan.</small>
+      </form>
+    </details>
+  );
+}
+
 function CandidateRejectionForm({
   candidate,
   disabled,
@@ -444,6 +551,14 @@ function submitPromotionForm(
 
 function commaList(value: string) {
   return value.split(",").map((item) => item.trim()).filter(Boolean).slice(0, 20);
+}
+
+function reviewedCommaList(value: string) {
+  return Array.from(new Set(value.split(",").map((item) => item.trim()).filter(Boolean)));
+}
+
+function lineList(value: string) {
+  return Array.from(new Set(value.split(/\r?\n/).map((item) => item.trim()).filter(Boolean)));
 }
 
 function defaultClaimKind(objectType: MeridianCandidateReviewItem["objectType"]): MeridianPromotionInput["claim"]["kind"] {
