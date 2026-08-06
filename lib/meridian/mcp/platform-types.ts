@@ -29,6 +29,39 @@ export const platformResourceKinds = [
 
 export type PlatformResourceKind = (typeof platformResourceKinds)[number];
 
+export const platformEmmaReviewOutcomes = [
+  "ready_for_human_review",
+  "changes_required",
+  "blocked"
+] as const;
+
+export const platformEmmaReviewCategories = [
+  "grounding",
+  "culture",
+  "theology",
+  "scripture",
+  "privacy",
+  "permission",
+  "prohibited_inference",
+  "citation",
+  "audience_fit",
+  "temporal_fit",
+  "linkage"
+] as const;
+
+export type PlatformEmmaReviewOutcome = (typeof platformEmmaReviewOutcomes)[number];
+export type PlatformEmmaReviewCategory = (typeof platformEmmaReviewCategories)[number];
+export type PlatformEmmaReviewSeverity = "advisory" | "required_change" | "blocker";
+
+export type PlatformEmmaReviewFinding = {
+  code: string;
+  category: PlatformEmmaReviewCategory;
+  severity: PlatformEmmaReviewSeverity;
+  artifactId: string | null;
+  message: string;
+  evidenceRefs: string[];
+};
+
 export type PlatformEventSummary = Pick<
   MinistryEvent,
   "id" | "title" | "description" | "type" | "startTime" | "endTime" | "status" | "location" | "targetGroup" | "priority" | "contactOwnerId" | "notes"
@@ -116,6 +149,90 @@ export type PlatformResourceBundleResult = {
   idempotentReplay: boolean;
 };
 
+export type PlatformResourceBundleReviewSnapshot = {
+  id: string;
+  ministryId: string;
+  createdByUserId: string;
+  title: string;
+  destinationType: "event" | "weekly_leader_prep";
+  destinationId: string;
+  status: "creating" | "review_required" | "changes_requested" | "blocked";
+  emmaStatus: "not_reviewed" | "changes_required" | "blocked" | "passed";
+  humanReviewStatus: "pending" | "approved" | "changes_requested" | "rejected";
+  privateDiscoveryStatus: "not_used" | "passed";
+  items: Array<{
+    id: string;
+    kind: PlatformResourceKind;
+    title: string;
+    contentHash: string;
+    attachmentId: string | null;
+    position: number;
+    status: "creating" | "review_required" | "changes_requested" | "blocked";
+  }>;
+};
+
+export type PlatformResourceBundleReviewEvidence = {
+  itemId: string;
+  claimId: string;
+  fragmentIds: string[];
+  authorityClass: string;
+  quotePermission: "allowed" | "not_allowed";
+};
+
+export type SavePlatformResourceBundleReviewInput = {
+  id: string;
+  bundleId: string;
+  ministryId: string;
+  userId: string;
+  idempotencyKey: string;
+  contractVersion: "1.0";
+  contentFingerprint: string;
+  outcome: PlatformEmmaReviewOutcome | "failed";
+  summary: string | null;
+  findings: PlatformEmmaReviewFinding[];
+  evidence: PlatformResourceBundleReviewEvidence[];
+  provider: string | null;
+  model: string | null;
+  emmaRequestId: string;
+  emmaRunId: string | null;
+  failureCode: string | null;
+  privateDiscoveryStatus: "not_used" | "passed";
+};
+
+export type PlatformResourceBundleReviewResult = {
+  id: string;
+  bundleId: string;
+  contractVersion: "1.0";
+  outcome: PlatformEmmaReviewOutcome;
+  summary: string;
+  findings: PlatformEmmaReviewFinding[];
+  provider: string;
+  model: string;
+  emmaRequestId: string;
+  emmaRunId: string;
+  humanReviewRequired: true;
+  humanReviewStatus: "pending";
+  url: string;
+  idempotentReplay: boolean;
+};
+
+export type StoredPlatformResourceBundleReview = Omit<PlatformResourceBundleReviewResult, "idempotentReplay"> | {
+  id: string;
+  bundleId: string;
+  contractVersion: "1.0";
+  outcome: "failed";
+  summary: null;
+  findings: [];
+  provider: null;
+  model: null;
+  emmaRequestId: string;
+  emmaRunId: null;
+  humanReviewRequired: true;
+  humanReviewStatus: "pending";
+  url: string;
+  failureCode: string;
+};
+
 export interface PlatformMcpRepository {
   listEvents(session: AuthSession): Promise<PlatformEventSummary[]>;
   getEvent(session: AuthSession, eventId: string): Promise<(PlatformEventSummary & { tasks: PlatformTaskSummary[] }) | null>;
@@ -127,4 +244,7 @@ export interface PlatformMcpRepository {
   createTask(session: AuthSession, input: CreatePlatformTaskInput): Promise<PlatformTaskSummary>;
   updateTask(session: AuthSession, taskId: string, input: UpdatePlatformTaskInput): Promise<PlatformTaskSummary | null>;
   createResourceBundle(session: AuthSession, input: CreatePlatformResourceBundleInput): Promise<PlatformResourceBundleResult>;
+  getResourceBundleForReview(session: AuthSession, bundleId: string): Promise<PlatformResourceBundleReviewSnapshot | null>;
+  findResourceBundleReview(session: AuthSession, bundleId: string, idempotencyKey: string): Promise<StoredPlatformResourceBundleReview | null>;
+  saveResourceBundleReview(session: AuthSession, input: SavePlatformResourceBundleReviewInput): Promise<StoredPlatformResourceBundleReview>;
 }

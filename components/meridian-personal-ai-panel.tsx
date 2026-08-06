@@ -22,10 +22,11 @@ type MeridianGrant = {
   canManageEvents: boolean;
   canManageTasks: boolean;
   canSaveResources: boolean;
+  canReviewResources: boolean;
   accessLevel: string | null;
 };
 
-type GrantPermissions = Pick<MeridianGrant, "canSaveDrafts" | "canSubmitCandidates" | "canReadPlatform" | "canManageEvents" | "canManageTasks" | "canSaveResources">;
+type GrantPermissions = Pick<MeridianGrant, "canSaveDrafts" | "canSubmitCandidates" | "canReadPlatform" | "canManageEvents" | "canManageTasks" | "canSaveResources" | "canReviewResources">;
 
 export function MeridianPersonalAiPanel({ canManage }: { canManage: boolean }) {
   const [state, setState] = useState<MeridianConnectionResponse>({});
@@ -135,11 +136,12 @@ export function MeridianPersonalAiPanel({ canManage }: { canManage: boolean }) {
                   <label><input type="checkbox" checked={grant.canReadPlatform} disabled={busy === "grant"} onChange={(event) => void saveGrant(true, {
                     ...permissions,
                     canReadPlatform: event.target.checked,
-                    ...(!event.target.checked ? { canManageEvents: false, canManageTasks: false, canSaveResources: false } : {})
+                    ...(!event.target.checked ? { canManageEvents: false, canManageTasks: false, canSaveResources: false, canReviewResources: false } : {})
                   })} /> Allow event, task, team, and resource viewing</label>
                   <label><input type="checkbox" checked={grant.canManageEvents} disabled={busy === "grant" || !grant.canReadPlatform} onChange={(event) => void saveGrant(true, { ...permissions, canManageEvents: event.target.checked })} /> Allow confirmed event creation and editing</label>
                   <label><input type="checkbox" checked={grant.canManageTasks} disabled={busy === "grant" || !grant.canReadPlatform} onChange={(event) => void saveGrant(true, { ...permissions, canManageTasks: event.target.checked })} /> Allow confirmed task creation and editing</label>
                   <label><input type="checkbox" checked={grant.canSaveResources} disabled={busy === "grant" || !grant.canReadPlatform} onChange={(event) => void saveGrant(true, { ...permissions, canSaveResources: event.target.checked })} /> Allow private resource bundles for review</label>
+                  <label><input type="checkbox" checked={grant.canReviewResources} disabled={busy === "grant" || !grant.canReadPlatform} onChange={(event) => void saveGrant(true, { ...permissions, canReviewResources: event.target.checked })} /> Allow confirmed EMMA bundle review</label>
                 </div>
               ) : null}
             </div>
@@ -177,6 +179,7 @@ function grantPermissions(grant: MeridianGrant | null | undefined): GrantPermiss
     canReadPlatform: Boolean(grant?.canReadPlatform),
     canManageEvents: Boolean(grant?.canManageEvents),
     canManageTasks: Boolean(grant?.canManageTasks),
-    canSaveResources: Boolean(grant?.canSaveResources)
+    canSaveResources: Boolean(grant?.canSaveResources),
+    canReviewResources: Boolean(grant?.canReviewResources)
   };
 }

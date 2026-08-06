@@ -229,13 +229,16 @@ The endpoint is intentionally empty of approved production claims until a human 
 
 See [Private Obsidian discovery](private-obsidian-discovery.md) for local setup, the transient check contract, candidate boundaries, and synthetic acceptance tests. Production activation requires applying `20260805171914_platform_mcp_private_discovery.sql` and deploying the matching application commit.
 
-### Phase 5 - EMMA review gate
+### Phase 5 - EMMA review gate (implemented, migration and deployment pending)
 
-- define the versioned bundle-review response contract;
-- run grounding, culture, theology, Scripture, privacy, permission, and prohibited-inference checks;
-- store findings and review provenance without unnecessary private-note content;
-- support ready, changes-required, and blocked states; and
-- require human approval before publication or external communication.
+- `submit_bundle_for_emma_review` requires a separate grant, explicit confirmation, an exact saved-bundle match, and approved Meridian claim identifiers;
+- contract `1.0` runs grounding, culture, theology, Scripture, privacy, permission, citation, audience, linkage, and prohibited-inference checks through the audited provider abstraction;
+- deterministic linkage, grounding, content-hash, and prohibited-inference checks can only strengthen the provider outcome;
+- append-only review and evidence records retain findings, provider/run provenance, claim/fragment links, and hash-based private-discovery status without storing prompts or private-note text;
+- ready, changes-required, blocked, and safe provider-failure states map atomically to bundle/item review status; and
+- every successful automated outcome leaves human review pending, while no publish or external-communication action is exposed.
+
+See [MCP EMMA bundle review](mcp-emma-bundle-review.md) for contract, storage, failure, and synthetic activation checks. Production activation requires Phase 4, additive migration `20260805190000_platform_mcp_emma_review.sql`, and the matching application deployment before `can_review_resources` is enabled.
 
 ### Phase 6 - Pilot and expansion
 

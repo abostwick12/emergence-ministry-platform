@@ -155,6 +155,269 @@ describe("platform MCP service", () => {
     })).rejects.toMatchObject({ code: "prohibited_inference", status: 422 });
     expect(repository.createResourceBundle).not.toHaveBeenCalled();
   });
+
+  it("runs the exact saved bundle through the versioned EMMA contract and leaves human approval pending", async () => {
+    const repository = fakePlatformRepository();
+    const grants = fakeGrantRepository();
+    const bodyMarkdown = "# Guide\n\nGrace forms faithful action in community.";
+    repository.getResourceBundleForReview = vi.fn().mockResolvedValue(reviewBundle(bodyMarkdown));
+    repository.saveResourceBundleReview = vi.fn().mockImplementation(async (_session, input) => ({
+      id: input.id,
+      bundleId: input.bundleId,
+      contractVersion: "1.0",
+      outcome: input.outcome,
+      summary: input.summary,
+      findings: input.findings,
+      provider: input.provider,
+      model: input.model,
+      emmaRequestId: input.emmaRequestId,
+      emmaRunId: input.emmaRunId,
+      humanReviewRequired: true,
+      humanReviewStatus: "pending",
+      url: "https://www.leademergence.com/leader-prep"
+    }));
+    grants.fetch = vi.fn().mockResolvedValue(approvedClaim());
+    const reviewProvider = vi.fn().mockResolvedValue({
+      ok: true,
+      requestId: "523e4567-e89b-42d3-a456-426614174000",
+      runId: "623e4567-e89b-42d3-a456-426614174000",
+      provider: "mock",
+      model: "mock-emma-model",
+      review: { contractVersion: "1.0", outcome: "ready_for_human_review", summary: "Ready for a person.", findings: [] }
+    });
+    const result = await new PlatformMcpService(grants, repository, reviewProvider).submitBundleForEmmaReview(session, {
+      bundleId: "423e4567-e89b-42d3-a456-426614174000",
+      audience: "student ministry leaders",
+      items: [{ itemId: "723e4567-e89b-42d3-a456-426614174000", bodyMarkdown, claimIds: ["823e4567-e89b-42d3-a456-426614174000"] }],
+      confirmed: true,
+      clientName: "Codex",
+      idempotencyKey: "bundle-review-001"
+    });
+    expect(grants.requireGrant).toHaveBeenCalledWith(session, "review_resources");
+    expect(reviewProvider).toHaveBeenCalledWith(session, expect.objectContaining({
+      privateDiscoveryStatus: "passed",
+      items: [expect.objectContaining({ bodyMarkdown, evidence: [expect.objectContaining({ id: "823e4567-e89b-42d3-a456-426614174000" })] })]
+    }));
+    expect(repository.saveResourceBundleReview).toHaveBeenCalledWith(session, expect.objectContaining({
+      contractVersion: "1.0",
+      outcome: "ready_for_human_review",
+      summary: "Ready for a person.",
+      evidence: [expect.objectContaining({ itemId: "723e4567-e89b-42d3-a456-426614174000", claimId: "823e4567-e89b-42d3-a456-426614174000" })]
+    }));
+    expect(result).toMatchObject({ outcome: "ready_for_human_review", summary: "Ready for a person.", humanReviewRequired: true, humanReviewStatus: "pending", idempotentReplay: false });
+    expect(JSON.stringify(vi.mocked(repository.saveResourceBundleReview).mock.calls)).not.toContain("Grace forms faithful action");
+  });
+
+  it("can only make the provider outcome stricter when grounding or deterministic safety checks fail", async () => {
+    const repository = fakePlatformRepository();
+    const bodyMarkdown = "# Guide\n\nThis volunteer has clinical depression and cannot lead.";
+    repository.getResourceBundleForReview = vi.fn().mockResolvedValue(reviewBundle(bodyMarkdown));
+    repository.saveResourceBundleReview = vi.fn().mockImplementation(async (_session, input) => ({
+      id: input.id,
+      bundleId: input.bundleId,
+      contractVersion: "1.0",
+      outcome: input.outcome,
+      summary: input.summary,
+      findings: input.findings,
+      provider: input.provider,
+      model: input.model,
+      emmaRequestId: input.emmaRequestId,
+      emmaRunId: input.emmaRunId,
+      humanReviewRequired: true,
+      humanReviewStatus: "pending",
+      url: "https://www.leademergence.com/leader-prep"
+    }));
+    const reviewProvider = vi.fn().mockResolvedValue({
+      ok: true,
+      requestId: "523e4567-e89b-42d3-a456-426614174000",
+      runId: "623e4567-e89b-42d3-a456-426614174000",
+      provider: "mock",
+      model: "mock-emma-model",
+      review: { contractVersion: "1.0", outcome: "ready_for_human_review", summary: "Ready.", findings: [] }
+    });
+    const result = await new PlatformMcpService(fakeGrantRepository(), repository, reviewProvider).submitBundleForEmmaReview(session, {
+      bundleId: "423e4567-e89b-42d3-a456-426614174000",
+      audience: "leaders",
+      items: [{ itemId: "723e4567-e89b-42d3-a456-426614174000", bodyMarkdown, claimIds: [] }],
+      confirmed: true,
+      clientName: "Codex",
+      idempotencyKey: "bundle-review-blocked"
+    });
+    expect(result.outcome).toBe("blocked");
+    expect(result.findings).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "approved_grounding_missing", severity: "required_change" }),
+      expect.objectContaining({ code: "mental_health_diagnosis", severity: "blocker" })
+    ]));
+  });
+
+  it("returns changes required when deterministic grounding is missing even if the provider reports ready", async () => {
+    const repository = fakePlatformRepository();
+    const bodyMarkdown = "# Guide\n\nAsk leaders to review the application together.";
+    repository.getResourceBundleForReview = vi.fn().mockResolvedValue(reviewBundle(bodyMarkdown));
+    repository.saveResourceBundleReview = vi.fn().mockImplementation(async (_session, input) => ({
+      id: input.id,
+      bundleId: input.bundleId,
+      contractVersion: "1.0",
+      outcome: input.outcome,
+      summary: input.summary,
+      findings: input.findings,
+      provider: input.provider,
+      model: input.model,
+      emmaRequestId: input.emmaRequestId,
+      emmaRunId: input.emmaRunId,
+      humanReviewRequired: true,
+      humanReviewStatus: "pending",
+      url: "https://www.leademergence.com/leader-prep"
+    }));
+    const reviewProvider = vi.fn().mockResolvedValue({
+      ok: true,
+      requestId: "523e4567-e89b-42d3-a456-426614174000",
+      runId: "623e4567-e89b-42d3-a456-426614174000",
+      provider: "mock",
+      model: "mock-emma-model",
+      review: { contractVersion: "1.0", outcome: "ready_for_human_review", summary: "Ready.", findings: [] }
+    });
+    const result = await new PlatformMcpService(fakeGrantRepository(), repository, reviewProvider).submitBundleForEmmaReview(session, {
+      bundleId: "423e4567-e89b-42d3-a456-426614174000",
+      audience: "leaders",
+      items: [{ itemId: "723e4567-e89b-42d3-a456-426614174000", bodyMarkdown, claimIds: [] }],
+      confirmed: true,
+      clientName: "Codex",
+      idempotencyKey: "bundle-review-changes"
+    });
+    expect(result).toMatchObject({ outcome: "changes_required", humanReviewStatus: "pending" });
+  });
+
+  it("replays a stored review without another provider call or duplicate write", async () => {
+    const repository = fakePlatformRepository();
+    repository.findResourceBundleReview = vi.fn().mockResolvedValue({
+      id: "523e4567-e89b-42d3-a456-426614174000",
+      bundleId: "423e4567-e89b-42d3-a456-426614174000",
+      contractVersion: "1.0",
+      outcome: "ready_for_human_review",
+      summary: "Ready for a person.",
+      findings: [],
+      provider: "mock",
+      model: "mock-emma-model",
+      emmaRequestId: "623e4567-e89b-42d3-a456-426614174000",
+      emmaRunId: "723e4567-e89b-42d3-a456-426614174000",
+      humanReviewRequired: true,
+      humanReviewStatus: "pending",
+      url: "https://www.leademergence.com/leader-prep"
+    });
+    const reviewProvider = vi.fn();
+    const result = await new PlatformMcpService(fakeGrantRepository(), repository, reviewProvider).submitBundleForEmmaReview(session, {
+      bundleId: "423e4567-e89b-42d3-a456-426614174000",
+      audience: "leaders",
+      items: [{ itemId: "723e4567-e89b-42d3-a456-426614174000", bodyMarkdown: "ignored on replay", claimIds: [] }],
+      confirmed: true,
+      clientName: "Codex",
+      idempotencyKey: "bundle-review-001"
+    });
+    expect(result.idempotentReplay).toBe(true);
+    expect(repository.getResourceBundleForReview).not.toHaveBeenCalled();
+    expect(repository.saveResourceBundleReview).not.toHaveBeenCalled();
+    expect(reviewProvider).not.toHaveBeenCalled();
+  });
+
+  it("records a failed provider attempt without changing the bundle review state", async () => {
+    const repository = fakePlatformRepository();
+    const bodyMarkdown = "# Guide\n\nReview this with a leader.";
+    repository.getResourceBundleForReview = vi.fn().mockResolvedValue(reviewBundle(bodyMarkdown));
+    repository.saveResourceBundleReview = vi.fn().mockImplementation(async (_session, input) => ({
+      id: input.id,
+      bundleId: input.bundleId,
+      contractVersion: "1.0",
+      outcome: "failed",
+      summary: null,
+      findings: [],
+      provider: null,
+      model: null,
+      emmaRequestId: input.emmaRequestId,
+      emmaRunId: null,
+      humanReviewRequired: true,
+      humanReviewStatus: "pending",
+      url: "https://www.leademergence.com/leader-prep",
+      failureCode: input.failureCode
+    }));
+    const reviewProvider = vi.fn().mockResolvedValue({ ok: false, requestId: "523e4567-e89b-42d3-a456-426614174000", failureCode: "provider_error" });
+    await expect(new PlatformMcpService(fakeGrantRepository(), repository, reviewProvider).submitBundleForEmmaReview(session, {
+      bundleId: "423e4567-e89b-42d3-a456-426614174000",
+      audience: "leaders",
+      items: [{ itemId: "723e4567-e89b-42d3-a456-426614174000", bodyMarkdown, claimIds: [] }],
+      confirmed: true,
+      clientName: "Codex",
+      idempotencyKey: "bundle-review-failed"
+    })).rejects.toMatchObject({ code: "emma_review_failed", status: 503 });
+    expect(repository.saveResourceBundleReview).toHaveBeenCalledWith(session, expect.objectContaining({ outcome: "failed", provider: null, emmaRunId: null }));
+  });
+
+  it("fails closed when provider findings cite an invented rule", async () => {
+    const repository = fakePlatformRepository();
+    const bodyMarkdown = "# Guide\n\nReview this with a leader.";
+    repository.getResourceBundleForReview = vi.fn().mockResolvedValue(reviewBundle(bodyMarkdown));
+    repository.saveResourceBundleReview = vi.fn().mockImplementation(async (_session, input) => ({
+      id: input.id,
+      bundleId: input.bundleId,
+      contractVersion: "1.0",
+      outcome: "failed",
+      summary: null,
+      findings: [],
+      provider: null,
+      model: null,
+      emmaRequestId: input.emmaRequestId,
+      emmaRunId: null,
+      humanReviewRequired: true,
+      humanReviewStatus: "pending",
+      url: "https://www.leademergence.com/leader-prep",
+      failureCode: input.failureCode
+    }));
+    const reviewProvider = vi.fn().mockResolvedValue({
+      ok: true,
+      requestId: "523e4567-e89b-42d3-a456-426614174000",
+      runId: "623e4567-e89b-42d3-a456-426614174000",
+      provider: "mock",
+      model: "mock-emma-model",
+      review: {
+        contractVersion: "1.0",
+        outcome: "ready_for_human_review",
+        summary: "Ready.",
+        findings: [{
+          code: "invented_rule",
+          category: "grounding",
+          severity: "advisory",
+          artifactId: "723e4567-e89b-42d3-a456-426614174000",
+          message: "Unsupported reference.",
+          evidenceRefs: ["rule:provider_invented_this"]
+        }]
+      }
+    });
+    await expect(new PlatformMcpService(fakeGrantRepository(), repository, reviewProvider).submitBundleForEmmaReview(session, {
+      bundleId: "423e4567-e89b-42d3-a456-426614174000",
+      audience: "leaders",
+      items: [{ itemId: "723e4567-e89b-42d3-a456-426614174000", bodyMarkdown, claimIds: [] }],
+      confirmed: true,
+      clientName: "Codex",
+      idempotencyKey: "bundle-review-invented-rule"
+    })).rejects.toMatchObject({ code: "invalid_emma_review", status: 503 });
+    expect(repository.saveResourceBundleReview).toHaveBeenCalledWith(session, expect.objectContaining({ outcome: "failed", failureCode: "invalid_emma_review" }));
+  });
+
+  it("rejects changed artifact content before any provider or review write", async () => {
+    const repository = fakePlatformRepository();
+    repository.getResourceBundleForReview = vi.fn().mockResolvedValue(reviewBundle("# Saved\n\nOriginal content."));
+    const reviewProvider = vi.fn();
+    await expect(new PlatformMcpService(fakeGrantRepository(), repository, reviewProvider).submitBundleForEmmaReview(session, {
+      bundleId: "423e4567-e89b-42d3-a456-426614174000",
+      audience: "leaders",
+      items: [{ itemId: "723e4567-e89b-42d3-a456-426614174000", bodyMarkdown: "# Changed\n\nDifferent content.", claimIds: [] }],
+      confirmed: true,
+      clientName: "Codex",
+      idempotencyKey: "bundle-review-changed"
+    })).rejects.toMatchObject({ code: "bundle_content_changed", status: 409 });
+    expect(reviewProvider).not.toHaveBeenCalled();
+    expect(repository.saveResourceBundleReview).not.toHaveBeenCalled();
+  });
 });
 
 function fakeGrantRepository(): MeridianMcpRepository {
@@ -169,7 +432,8 @@ function fakeGrantRepository(): MeridianMcpRepository {
       canReadPlatform: true,
       canManageEvents: true,
       canManageTasks: true,
-      canSaveResources: true
+      canSaveResources: true,
+      canReviewResources: true
     }),
     search: vi.fn(),
     fetch: vi.fn(),
@@ -189,7 +453,10 @@ function fakePlatformRepository(): PlatformMcpRepository {
     updateEvent: vi.fn().mockResolvedValue(event()),
     createTask: vi.fn().mockResolvedValue(task()),
     updateTask: vi.fn().mockResolvedValue(task()),
-    createResourceBundle: vi.fn()
+    createResourceBundle: vi.fn(),
+    getResourceBundleForReview: vi.fn().mockResolvedValue(null),
+    findResourceBundleReview: vi.fn().mockResolvedValue(null),
+    saveResourceBundleReview: vi.fn()
   };
 }
 
@@ -230,5 +497,46 @@ function eventInput() {
     confirmed: true as const,
     clientName: "Codex",
     idempotencyKey: "event-create-001"
+  };
+}
+
+function reviewBundle(bodyMarkdown: string) {
+  return {
+    id: "423e4567-e89b-42d3-a456-426614174000",
+    ministryId: "ministry-1",
+    createdByUserId: userId,
+    title: "Sunday resource set",
+    destinationType: "weekly_leader_prep" as const,
+    destinationId: "current-week",
+    status: "review_required" as const,
+    emmaStatus: "not_reviewed" as const,
+    humanReviewStatus: "pending" as const,
+    privateDiscoveryStatus: "passed" as const,
+    items: [{
+      id: "723e4567-e89b-42d3-a456-426614174000",
+      kind: "leader_guide" as const,
+      title: "Leader guide",
+      contentHash: createHash("sha256").update(bodyMarkdown.trim()).digest("hex"),
+      attachmentId: "923e4567-e89b-42d3-a456-426614174000",
+      position: 0,
+      status: "review_required" as const
+    }]
+  };
+}
+
+function approvedClaim() {
+  return {
+    id: "823e4567-e89b-42d3-a456-426614174000",
+    title: "Approved formation claim",
+    text: "Approved claim: Grace forms faithful action in community.",
+    url: "https://www.leademergence.com/settings?section=meridian-knowledge",
+    metadata: {
+      claimKind: "formation" as const,
+      authorityClass: "approved_teaching" as const,
+      approvalStatus: "approved" as const,
+      quotePermission: "not_allowed" as const,
+      sourceTitles: ["Reviewed teaching"],
+      fragmentIds: ["a23e4567-e89b-42d3-a456-426614174000"]
+    }
   };
 }

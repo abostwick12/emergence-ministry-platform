@@ -17,10 +17,10 @@ export function createMeridianMcpServer(input: {
   const service = new MeridianMcpService(input.repository);
   const platform = new PlatformMcpService(input.repository, input.platformRepository);
   const server = new McpServer(
-    { name: "lead-emergence-meridian", version: "0.3.0" },
+    { name: "lead-emergence-meridian", version: "0.4.0" },
     {
       instructions:
-        "Lead Emergence tools act as the signed-in user and require explicit grants. Use approved Meridian evidence for theology and culture. Read before changing records, confirm every write, and reuse idempotency keys. Private Obsidian discovery stays in the user's local connector; when it influences a bundle, pass its transient check payload so the server can block leakage and retain hashes only. Never claim drafts are EMMA-reviewed, approved, published, sent, or synchronized. No delete, publish, send, vault-browsing, pastoral, Camp, medical, or mental-health tools are available."
+        "Lead Emergence tools act as the signed-in user and require explicit grants. Use approved Meridian evidence for theology and culture. Read before changing records, confirm every write, and reuse idempotency keys. Private Obsidian discovery stays in the user's local connector; when it influences a bundle, pass its transient check payload so the server can block leakage and retain hashes only. Submit the exact saved bundle to EMMA with approved claim IDs before describing it as reviewed. EMMA outcomes still require a person and never approve, publish, send, or synchronize. No delete, publish, send, vault-browsing, pastoral, Camp, medical, or mental-health tools are available."
     }
   );
 
@@ -281,6 +281,27 @@ export function createMeridianMcpServer(input: {
       _meta: { securitySchemes: meridianToolSecuritySchemes }
     },
     async (toolInput) => mcpToolResult(async () => platform.createResourceBundle(input.session, { ...toolInput, clientName: input.clientName }))
+  );
+
+  server.registerTool(
+    "submit_bundle_for_emma_review",
+    {
+      title: "Submit a saved bundle for EMMA review",
+      description: "Run the complete saved resource bundle through the versioned EMMA alignment, grounding, Scripture, privacy, permission, citation, audience, and safety contract. Submit every exact saved artifact and its approved Meridian claim IDs. The result is ready for human review, changes required, or blocked; it never grants human approval or publishes anything.",
+      inputSchema: {
+        bundleId: z.string().uuid(),
+        audience: z.string().trim().min(1).max(240),
+        items: z.array(z.object({
+          itemId: z.string().uuid(),
+          bodyMarkdown: z.string().trim().min(1).max(30000),
+          claimIds: z.array(z.string().uuid()).max(20)
+        })).min(1).max(8),
+        ...mutationMeta
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      _meta: { securitySchemes: meridianToolSecuritySchemes }
+    },
+    async (toolInput) => mcpToolResult(async () => platform.submitBundleForEmmaReview(input.session, { ...toolInput, clientName: input.clientName }))
   );
 
   return server;
