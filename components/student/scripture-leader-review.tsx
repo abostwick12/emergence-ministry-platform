@@ -10,6 +10,7 @@ import { buildLeaderReviewDraft, buildLocalDiscussionDraftForPrompt, type Leader
 import { buildQuestionNextStep, type StudentQuestionNextStep } from "@/lib/scripture/student-home";
 import { matchQuestionToStoryline, type StorylineQuestionMatch } from "@/lib/scripture/storyline-guide";
 import type { StudentDiscussionPrompt, StudentDiscussionStatus } from "@/lib/scripture/types";
+import { isJourneyFormationContentReady } from "@/lib/scripture/student-journey-draft";
 import type { StudentGroupLeaderState } from "@/lib/student/groups";
 
 type ScriptureLeaderReviewProps = {
@@ -25,6 +26,7 @@ type ReviewAction =
   | "post"
   | "regenerate"
   | "use_local_draft"
+  | "assign_journey_passage"
   | "promote_canonical"
   | "mark_discussed"
   | "flag_follow_up";
@@ -99,14 +101,30 @@ export function ScriptureLeaderReview({ compact = false, initialGroupState, init
     }
   }, [filteredPrompts, visibleSelectedId]);
 
-  async function decidePrompt(id: string, action: ReviewAction, leaderNotes: string, discussionPrompt: string) {
+  async function decidePrompt(
+    id: string,
+    action: ReviewAction,
+    leaderNotes: string,
+    discussionPrompt: string,
+    journeyAssignment?: { scriptureReference: string; whyThisPassage: string }
+  ) {
     setSavingAction(action);
     setStatus(statusForSaving(action));
     try {
       const response = await fetch(`/api/student/scripture/discussion/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, leaderNotes, discussionPrompt })
+        body: JSON.stringify({
+          action,
+          leaderNotes,
+          discussionPrompt,
+          ...(journeyAssignment
+            ? {
+                journeyScriptureReference: journeyAssignment.scriptureReference,
+                journeyWhyThisPassage: journeyAssignment.whyThisPassage
+              }
+            : {})
+        })
       });
       const payload = (await response.json()) as DecisionResponse;
       if (!response.ok || !payload.ok || !payload.prompt) {
@@ -470,7 +488,13 @@ function LeaderDiscussionGuide({
 }: {
   reviewReady: boolean;
   onClose: () => void;
-  onDecide: (id: string, action: ReviewAction, leaderNotes: string, discussionPrompt: string) => Promise<void>;
+  onDecide: (
+    id: string,
+    action: ReviewAction,
+    leaderNotes: string,
+    discussionPrompt: string,
+    journeyAssignment?: { scriptureReference: string; whyThisPassage: string }
+  ) => Promise<void>;
   prompt: StudentDiscussionPrompt;
   savingAction: ReviewAction | "";
 }) {
@@ -838,18 +862,26 @@ function LeaderReviewDetail({
   aiReady: boolean;
   canPromoteCanonical: boolean;
   reviewReady: boolean;
-  onDecide: (id: string, action: ReviewAction, leaderNotes: string, discussionPrompt: string) => Promise<void>;
+  onDecide: (
+    id: string,
+    action: ReviewAction,
+    leaderNotes: string,
+    discussionPrompt: string,
+    journeyAssignment?: { scriptureReference: string; whyThisPassage: string }
+  ) => Promise<void>;
   onOpenGuide: (prompt: StudentDiscussionPrompt) => void;
   prompt: StudentDiscussionPrompt;
   savingAction: ReviewAction | "";
 }) {
   const [leaderNotes, setLeaderNotes] = useState(prompt.leaderNotes);
   const [discussionPrompt, setDiscussionPrompt] = useState(prompt.discussionPrompt);
+  const [journeyScriptureReference, setJourneyScriptureReference] = useState(prompt.journeySelection?.primaryReference ?? prompt.scriptureReference);
+  const [journeyWhyThisPassage, setJourneyWhyThisPassage] = useState(prompt.journeySelection?.whyThisPassage ?? "");
   const [videoScriptOpen, setVideoScriptOpen] = useState(false);
   const [videoCopyStatus, setVideoCopyStatus] = useState("");
   const localDraft = useMemo(() => buildLocalDiscussionDraftForPrompt(prompt), [prompt]);
-  const storylineMatch = useMemo(() => matchQuestionToStoryline(prompt), [prompt]);
   const studentNextStep = useMemo(() => buildQuestionNextStep(prompt, prompt.knowledgeContext ?? []), [prompt]);
+  const storylineMatch = studentNextStep.storylineMatch;
   const videoScript = useMemo(() => buildDiscussionVideoScript({ ...prompt, discussionPrompt }), [discussionPrompt, prompt]);
   const reviewDraft = useMemo(() => buildLeaderReviewDraft(prompt, localDraft), [localDraft, prompt]);
   const formationReadiness = useMemo(
@@ -858,16 +890,19 @@ function LeaderReviewDetail({
   );
   const passageLabel = passageLabelForPrompt(prompt, storylineMatch);
   const canSave = reviewReady && !savingAction;
-  const canApprove = canSave && discussionPrompt.trim().length > 0 && prompt.status !== "posted";
+  const journeyReady = studentNextStep.journeySelection.status === "matched" && isJourneyFormationContentReady(prompt.journeyContent);
+  const canApprove = canSave && discussionPrompt.trim().length > 0 && journeyReady && prompt.status !== "posted";
   const canPost = canSave && prompt.status === "approved";
   const canPromote = canSave && canPromoteCanonical && (prompt.status === "approved" || prompt.status === "posted");
-  const canRegenerate = canSave && aiReady && prompt.status !== "posted";
+  const canRegenerate = canSave && aiReady && studentNextStep.journeySelection.status === "matched" && prompt.status !== "posted";
   const canSaveLocalDraft = canSave && prompt.status !== "posted";
   const canPrepareVideo = prompt.status === "approved" || prompt.status === "posted";
 
   useEffect(() => {
     setLeaderNotes(prompt.leaderNotes);
     setDiscussionPrompt(prompt.discussionPrompt);
+    setJourneyScriptureReference(prompt.journeySelection?.primaryReference ?? prompt.scriptureReference);
+    setJourneyWhyThisPassage(prompt.journeySelection?.whyThisPassage ?? "");
     setVideoScriptOpen(false);
     setVideoCopyStatus("");
   }, [prompt]);
@@ -903,6 +938,59 @@ function LeaderReviewDetail({
       <LeaderFormationReadiness items={formationReadiness} />
       <LeaderStorylineContext match={storylineMatch} />
       <LeaderStudentJourneyContext nextStep={studentNextStep} prompt={prompt} />
+
+      {!journeyReady ? (
+        <section className="leader-review-care" aria-label="Journey approval blocker">
+          <p className="eyebrow">Journey approval blocker</p>
+          <p>
+            {studentNextStep.journeySelection.status === "leader_assignment_required"
+              ? "Assign a directly relevant passage before generating or approving this Journey Journal. Meridian intentionally abstained instead of guessing."
+              : "Generate a complete source-supported five-stage Journey Journal draft, then review it before approval."}
+          </p>
+        </section>
+      ) : null}
+
+      {studentNextStep.journeySelection.status === "leader_assignment_required" ? (
+        <section className="leader-review-guidance" aria-label="Assign Journey Journal passage">
+          <div className="leader-review-structured-heading">
+            <div>
+              <p className="eyebrow">Leader passage assignment</p>
+              <h3>Choose the text before generating the journey</h3>
+            </div>
+            <span>No thematic guesses</span>
+          </div>
+          <label className="leader-review-field">
+            <span>Primary Scripture passage</span>
+            <input
+              onChange={(event) => setJourneyScriptureReference(event.target.value)}
+              placeholder="Example: 1 Samuel 8-12"
+              value={journeyScriptureReference}
+            />
+          </label>
+          <label className="leader-review-field">
+            <span>Why this passage directly addresses the question</span>
+            <textarea
+              onChange={(event) => setJourneyWhyThisPassage(event.target.value)}
+              placeholder="Name the same narrative, figures, or explicit biblical cross-reference."
+              value={journeyWhyThisPassage}
+            />
+          </label>
+          <button
+            className="button primary"
+            disabled={!canSave || !journeyScriptureReference.trim() || !journeyWhyThisPassage.trim()}
+            onClick={() => onDecide(
+              prompt.id,
+              "assign_journey_passage",
+              leaderNotes,
+              discussionPrompt,
+              { scriptureReference: journeyScriptureReference, whyThisPassage: journeyWhyThisPassage }
+            )}
+            type="button"
+          >
+            {savingAction === "assign_journey_passage" ? "Assigning..." : "Assign passage"}
+          </button>
+        </section>
+      ) : null}
 
       <section className="leader-review-guidance" aria-label="Structured leader review draft">
         <StructuredReviewDraft draft={reviewDraft} />
@@ -1129,11 +1217,21 @@ function buildLeaderFormationReadiness(
   return [
     {
       label: "Passage anchor",
-      value: prompt.scriptureReference || match.keyPassages[0] || "Open the primary passage before approving."
+      value: nextStep.journeySelection.status === "matched"
+        ? nextStep.journeySelection.primaryReference
+        : "Leader assignment required / no passage guessed"
+    },
+    {
+      label: "Routing check",
+      value: nextStep.journeySelection.status === "matched"
+        ? `${Math.round(nextStep.journeySelection.confidence * 100)}% / direct narrative or textual match`
+        : "Abstained / leader must choose the passage"
     },
     {
       label: "Student posture",
-      value: reflected ? "Student has begun reflecting before the group conversation." : "Student has a private journey ready while leaders review."
+      value: reflected
+        ? "Student has prior reflection history; the new AI-assisted journey remains hidden until approval."
+        : "The AI-assisted Journey Journal remains hidden from the student until leader approval."
     },
     {
       label: "Group aim",
@@ -1147,7 +1245,9 @@ function buildLeaderFormationReadiness(
 }
 
 function passageLabelForPrompt(prompt: StudentDiscussionPrompt, match = matchQuestionToStoryline(prompt)) {
-  return prompt.scriptureReference || match.keyPassages[0] || "Passage anchor pending";
+  const nextStep = buildQuestionNextStep(prompt, prompt.knowledgeContext ?? []);
+  if (nextStep.journeySelection.status === "leader_assignment_required") return "Leader passage assignment required";
+  return nextStep.journeySelection.primaryReference || prompt.scriptureReference || match.keyPassages[0] || "Passage anchor pending";
 }
 
 function stripPromptPrefix(value: string) {
@@ -1165,6 +1265,8 @@ function LeaderStudentJourneyContext({
   prompt: StudentDiscussionPrompt;
 }) {
   const reflected = (prompt.studentReflectionCount ?? 0) > 0;
+  const content = prompt.journeyContent;
+  const selection = nextStep.journeySelection;
 
   return (
     <section className="leader-student-journey-context" aria-label="Student journey context">
@@ -1173,7 +1275,7 @@ function LeaderStudentJourneyContext({
           <p className="eyebrow">Student Journey</p>
           <h3>{reflected ? "Student has started wrestling with it" : "Student next steps are ready"}</h3>
           <p>
-            This shows the guided path the student receives while the question is with leaders. Private journal notes stay private to the student.
+            This shows the guided path the student will receive only after leader approval. Private journal notes stay private to the student.
           </p>
         </div>
         <div className="leader-student-journey-signals" aria-label="Reflection signals">
@@ -1181,6 +1283,52 @@ function LeaderStudentJourneyContext({
           <MetaTile label="Latest" value={prompt.studentLastReflectedAt ? formatShortDate(prompt.studentLastReflectedAt) : "Waiting"} />
         </div>
       </div>
+
+      <div className="leader-student-journey-together">
+        <span>Why this passage / {Math.round(selection.confidence * 100)}% routing confidence</span>
+        <p>{selection.whyThisPassage}</p>
+      </div>
+
+      {selection.passageReasons.length ? (
+        <div className="leader-student-journey-grid" aria-label="Passage relationship evidence">
+          {selection.passageReasons.map((passage) => (
+            <article key={passage.reference}>
+              <span>{passage.relationship.replace(/_/g, " ")}</span>
+              <strong>{passage.reference}</strong>
+              <p>{passage.reason}</p>
+            </article>
+          ))}
+        </div>
+      ) : null}
+
+      {content ? (
+        <section className="leader-review-structured-draft" aria-label="AI-assisted Journey Journal content">
+          <div className="leader-review-structured-heading">
+            <div>
+              <p className="eyebrow">AI-assisted commentary / leader review required</p>
+              <h3>Receive, Explore, Practice, Walk, See draft</h3>
+            </div>
+            <span>{content.provider} / {content.model}</span>
+          </div>
+          {content.sourceStatus === "source_incomplete" ? (
+            <div className="leader-student-journey-together">
+              <span>Source support incomplete / approval blocked</span>
+              <p>{content.missingSourceFields.join(" / ")}</p>
+            </div>
+          ) : null}
+          <div className="leader-student-journey-grid">
+            <JourneyPreview title="Receive / Historical background" items={[content.receive.historicalBackground.text]} />
+            <JourneyPreview title="Explore / Worked example" items={[content.explore.repeatedPhrase.text, content.explore.workedExample.text, content.explore.wholeStoryBridge.text]} />
+            <JourneyPreview title="Practice / Prayer and response" items={[content.practice.slowReadingPrayer.text, content.practice.responseStarter.text]} />
+            <JourneyPreview title="Walk / Concrete actions" items={content.walk.exampleActions.map((action) => action.text)} />
+            <JourneyPreview title={`See / ${content.see.biblicalStandardReference}`} items={[content.see.fruitToWatch.text]} />
+          </div>
+          <div className="leader-student-journey-together">
+            <span>Reviewed sources</span>
+            <p>{content.sources.map((source) => `${source.title} (${source.locator})`).join(" / ")}</p>
+          </div>
+        </section>
+      ) : null}
 
       <div className="leader-student-journey-grid">
         <JourneyPreview title="Wrestle with it" items={nextStep.wrestleQuestions.slice(0, 2)} />
@@ -1202,8 +1350,8 @@ function JourneyPreview({ items, title }: { items: string[]; title: string }) {
     <article>
       <span>{title}</span>
       <ul>
-        {items.map((item) => (
-          <li key={item}>{item}</li>
+        {items.map((item, index) => (
+          <li key={`${title}-${index}`}>{item || "Unavailable — no approved source support was supplied."}</li>
         ))}
       </ul>
     </article>
@@ -1391,6 +1539,7 @@ function emptyText(tab: ReviewTab["id"]) {
 }
 
 function statusForSaving(action: ReviewAction) {
+  if (action === "assign_journey_passage") return "Saving the leader-assigned Journey passage...";
   if (action === "use_local_draft") return "Saving a knowledge-guided fallback draft...";
   if (action === "regenerate") return "Requesting a fresh AI draft...";
   if (action === "promote_canonical") return "Promoting this approved prompt into Meridian knowledge...";
@@ -1401,6 +1550,7 @@ function statusForSaving(action: ReviewAction) {
 }
 
 function statusForSaved(action: ReviewAction) {
+  if (action === "assign_journey_passage") return "Journey passage assigned. Generate the source-supported five-stage draft next.";
   if (action === "use_local_draft") return "Knowledge-guided fallback draft saved for leader review.";
   if (action === "regenerate") return "AI draft regenerated for leader review.";
   if (action === "promote_canonical") return "Approved prompt promoted into Meridian knowledge.";

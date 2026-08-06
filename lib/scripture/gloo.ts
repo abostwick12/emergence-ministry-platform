@@ -2,10 +2,16 @@ import type { MetanarrativeMovement } from "@/lib/scripture/types";
 import { measureServerOperation } from "@/lib/performance/timing";
 import { deriveMeridianResponseRequirements } from "@/lib/meridian/knowledge/question-plan";
 import type { MeridianProviderClaimAttribution } from "@/lib/meridian/knowledge/types";
+import {
+  buildStudentJourneyFormationContentFromAi,
+  type StudentJourneyGenerationContext
+} from "@/lib/scripture/student-journey-content";
+import type { StudentJourneyFormationContent } from "@/lib/scripture/student-journey-draft";
 
 const PROVIDER_TIMEOUT_MS = 45_000;
 const PROVIDER_MAX_OUTPUT_TOKENS = 1_200;
 const GLOO_DISCUSSION_MAX_OUTPUT_TOKENS = 1_800;
+const GLOO_JOURNEY_MAX_OUTPUT_TOKENS = 3_200;
 const GLOO_TOKEN_URL = "https://platform.ai.gloo.com/oauth2/token";
 const GLOO_DEFAULT_API_BASE_URL = "https://platform.ai.gloo.com/ai/v2";
 const GLOO_TOKEN_REFRESH_BUFFER_MS = 60_000;
@@ -43,6 +49,7 @@ export type GlooDiscussionDraftInput = {
   requireStructuredAnswer?: boolean;
   requireClaimAttribution?: boolean;
   internalGroundingContext?: string;
+  journeyContext?: StudentJourneyGenerationContext;
 };
 
 type GlooAnswerRequirements = {
@@ -146,6 +153,7 @@ export type GlooDiscussionPreview =
       confidence: number;
       discussionPrompt: string;
       answerDraft?: GlooTheologicalAnswerDraft;
+      journeyContent?: StudentJourneyFormationContent;
       scriptureReference?: string;
       safetyLabel: "safe" | "needs_leader_care" | "pastoral_escalation";
       safetyNotes: string;
@@ -195,6 +203,7 @@ type GlooChatResponse = {
 type ParsedDraft = {
   discussionPrompt?: unknown;
   answerDraft?: unknown;
+  journeyDraft?: unknown;
   scriptureReference?: unknown;
   safetyLabel?: unknown;
   safetyNotes?: unknown;
@@ -245,7 +254,7 @@ export function selectGlooModelPolicy(
   const escalationModel = normalizeGlooModelId(env.GLOO_AI_ESCALATION_MODEL);
   const longContextModel = normalizeGlooModelId(env.GLOO_AI_LONG_CONTEXT_MODEL);
   const topicFlags = findSensitiveTopicFlags(input.question);
-  const contextSize = `${input.question}\n${input.scriptureReference}\n${input.studentJourneyContext ?? input.retrievedContext ?? ""}\n${input.approvedEvidenceContext ?? ""}\n${input.internalGroundingContext ?? ""}`.length;
+  const contextSize = `${input.question}\n${input.scriptureReference}\n${input.studentJourneyContext ?? input.retrievedContext ?? ""}\n${input.approvedEvidenceContext ?? ""}\n${input.internalGroundingContext ?? ""}\n${input.journeyContext?.sourceContext ?? ""}`.length;
 
   if (longContextModel && contextSize > 12000) {
     return {
@@ -621,9 +630,9 @@ async function requestGlooDiscussionDraft(
       return { ok: false, code: "provider_error", message: failure.message };
     }
 
-    const parsed = parseDraftContent(content, selection, answerRequirements(input));
+    const parsed = parseDraftContent(content, selection, answerRequirements(input), input.journeyContext);
     if (!parsed) {
-      if (input.requireStructuredAnswer) {
+      if (input.requireStructuredAnswer || input.journeyContext) {
         const repaired = await requestGlooStructuredRepair(input, selection, url, accessToken, content);
         if (repaired) return repaired;
         const failure = { message: "Gloo AI Studio returned an invalid structured answer after one constrained repair attempt.", url: redactGlooUrl(url) };
@@ -668,7 +677,7 @@ async function requestGlooStructuredRepair(
     const payload = (await response.json()) as GlooChatResponse;
     const content = extractGlooTextContent(payload);
     if (typeof content !== "string") return undefined;
-    const repaired = parseDraftContent(content, selection, answerRequirements(input));
+    const repaired = parseDraftContent(content, selection, answerRequirements(input), input.journeyContext);
     return repaired?.ok ? repaired : undefined;
   } catch {
     return undefined;
@@ -709,15 +718,18 @@ function extractGlooTextContent(payload: GlooChatResponse): string | undefined {
 
 function createGlooDraftRequestBody(input: GlooDiscussionDraftInput, selection: GlooModelSelection) {
   const requirements = answerRequirements(input);
+  const journeyInstruction = input.journeyContext
+    ? " Also return journeyDraft with missingSourceFields, receive.historicalBackground, explore.repeatedPhrase, explore.workedExample, explore.wholeStoryBridge, practice.slowReadingPrayer, practice.responseStarter, walk.exampleActions, and see.biblicalStandardReference plus see.fruitToWatch. Every prose field is an object with text and sourceIds; every action is also an object with text and sourceIds. Use only the supplied journey source IDs. Historical background must be 2-4 sentences supported by the approved reference source. The repeated phrase must occur in the supplied passage text and the worked example must model one real observation before asking the student to try. The slow-reading prayer must contain actual prayer text and the response starter must be one usable sentence stem. Supply 2-3 concrete, passage-specific actions. biblicalStandardReference must be Galatians 5:22-23. If a field is not supported, leave its text empty and name its dotted field path in missingSourceFields; never invent support."
+    : " Do not return journeyDraft when no locked Journey Journal source packet is supplied.";
   return JSON.stringify({
     model: selection.model,
     temperature: 0.2,
-    max_tokens: GLOO_DISCUSSION_MAX_OUTPUT_TOKENS,
+    max_tokens: input.journeyContext ? GLOO_JOURNEY_MAX_OUTPUT_TOKENS : GLOO_DISCUSSION_MAX_OUTPUT_TOKENS,
     messages: [
       {
         role: "system",
         content:
-          "You help student ministry leaders prepare careful theological answers and discussion prompts. Only the approved answer-evidence section may count as Meridian grounding. Related student resources may shape reading recommendations and discussion questions, but they are not evidence for theological claims and must not be cited as if they answered the question. Internal ministry context may shape posture, voice, and formation goals only; never quote, summarize, cite, reveal, or assign it to students. Return only JSON with keys discussionPrompt, answerDraft, scriptureReference, safetyLabel, safetyNotes, confidence, topicTags, escalationRecommended, escalationReason. answerDraft must contain directAnswer, keyDistinctions, scriptureReferences, uncertainty, pastoralCare, questionsForLeader, materialClaims, and requiresHumanReview. materialClaims is an array of objects with statement, facetHandle, claimHandle, and fragmentHandles. It must enumerate every sentence in directAnswer and every keyDistinction using only request-scoped evidence handles; statement must repeat the cited sentence or distinction exactly. requiresHumanReview must be true. Address the student's actual question directly, distinguish major interpretations when needed, and state when approved evidence is insufficient. Do not invent Lead Emergence doctrine or unsupported certainty. scriptureReference must be one concise Bible reference that directly grounds the response; retain a user-supplied reference when present. The safetyLabel must be one of safe, needs_leader_care, pastoral_escalation. confidence must be a number from 0 to 1. topicTags must be short lowercase strings. Do not claim pastoral authority, infer God's private intent in suffering, give crisis counseling, or include full Bible text."
+          "You help student ministry leaders prepare careful theological answers and discussion prompts. Only the approved answer-evidence section may count as Meridian grounding. Related student resources may shape reading recommendations and discussion questions, but they are not evidence for theological claims and must not be cited as if they answered the question. Internal ministry context may shape posture, voice, and formation goals only; never quote, summarize, cite, reveal, or assign it to students. Return only JSON with keys discussionPrompt, answerDraft, journeyDraft, scriptureReference, safetyLabel, safetyNotes, confidence, topicTags, escalationRecommended, escalationReason. answerDraft must contain directAnswer, keyDistinctions, scriptureReferences, uncertainty, pastoralCare, questionsForLeader, materialClaims, and requiresHumanReview. materialClaims is an array of objects with statement, facetHandle, claimHandle, and fragmentHandles. It must enumerate every sentence in directAnswer and every keyDistinction using only request-scoped evidence handles; statement must repeat the cited sentence or distinction exactly. requiresHumanReview must be true. Address the student's actual question directly, distinguish major interpretations when needed, and state when approved evidence is insufficient. Do not invent Lead Emergence doctrine or unsupported certainty. scriptureReference must be one concise Bible reference that directly grounds the response; retain a user-supplied reference when present. The safetyLabel must be one of safe, needs_leader_care, pastoral_escalation. confidence must be a number from 0 to 1. topicTags must be short lowercase strings. Do not claim pastoral authority, infer God's private intent in suffering, give crisis counseling, or include full Bible text." + journeyInstruction
       },
       {
         role: "user",
@@ -729,12 +741,15 @@ function createGlooDraftRequestBody(input: GlooDiscussionDraftInput, selection: 
           `Approved answer evidence:\n${input.approvedEvidenceContext || "No approved answer evidence available."}\n\n` +
           `Related student resources (not answer evidence):\n${input.studentJourneyContext ?? input.retrievedContext ?? "No related student resources available."}\n\n` +
           `Internal ministry context for posture only:\n${input.internalGroundingContext || "No internal ministry context available."}\n\n` +
+          (input.journeyContext
+            ? `Locked Journey Journal passage: ${input.journeyContext.selection.primaryReference}\nWhy this passage: ${input.journeyContext.selection.whyThisPassage}\nThe locked passage may not be substituted.\n\nJourney source packet:\n${input.journeyContext.sourceContext}\n\n`
+            : "No Journey Journal source packet was supplied.\n\n") +
           `Structured answer required: ${requirements.requireStructuredAnswer ? "yes" : "no"}. ` +
           `Claim attribution required: ${requirements.requireClaimAttribution ? "yes; materialClaims must cite only the Q/C/F handles in approved answer evidence" : "no; use an empty array when no evidence-handle ledger is supplied"}. ` +
           `Pastoral care required: ${requirements.requirePastoralCare ? "yes; pastoralCare must contain at least one concrete leader-facing safeguard" : "no; use an empty array when none is needed"}. ` +
           `Interpretive uncertainty required: ${requirements.requireUncertainty ? "yes; uncertainty must name at least one real limit or faithful disagreement" : "no; use an empty array only when the evidence warrants clarity"}.\n\n` +
           `Model routing: ${selection.reason}${selection.escalationReason ? ` Escalation reason: ${selection.escalationReason}` : ""}\n\n` +
-          "Draft a direct but humble answer for leader review and one Socratic small-group discussion prompt. Ground theological claims only in approved answer evidence and Scripture references. Use related resources only for student next steps. If approved evidence does not support a confident theological conclusion, identify that limit explicitly for the leader instead of filling the gap from speculation."
+          "Draft a direct but humble answer for leader review and one Socratic small-group discussion prompt. Ground theological claims only in approved answer evidence and Scripture references. Use related resources only for student next steps. If a locked Journey Journal packet is present, enrich only that passage and cite its supplied source IDs in every journey field. If approved evidence does not support a confident theological conclusion, identify that limit explicitly for the leader instead of filling the gap from speculation."
       }
     ]
   });
@@ -828,7 +843,8 @@ function parseDraftContent(
     requirePastoralCare: false,
     requireUncertainty: false,
     requireClaimAttribution: false
-  }
+  },
+  journeyContext?: StudentJourneyGenerationContext
 ): GlooDiscussionDraftResult | undefined {
   let parsed: ParsedDraft;
   try {
@@ -839,6 +855,14 @@ function parseDraftContent(
 
   const discussionPrompt = typeof parsed.discussionPrompt === "string" ? parsed.discussionPrompt.trim() : "";
   const answerDraft = parseTheologicalAnswerDraft(parsed.answerDraft, requirements.requireClaimAttribution);
+  const journeyContent = journeyContext
+    ? buildStudentJourneyFormationContentFromAi({
+        value: parsed.journeyDraft,
+        provider: "gloo",
+        model: selection.model,
+        sources: journeyContext.sources
+      })
+    : undefined;
   const scriptureReference = normalizeText(parsed.scriptureReference, 160);
   const safetyLabel = normalizeSafetyLabel(parsed.safetyLabel);
   const safetyNotes = typeof parsed.safetyNotes === "string" ? parsed.safetyNotes.trim() : "";
@@ -853,9 +877,11 @@ function parseDraftContent(
       : selection.escalationReason || (escalationRecommended ? "default model requested escalation" : "");
 
   if (!discussionPrompt || !safetyLabel || !safetyNotes) return undefined;
+  if (journeyContext && normalizeReferenceKey(scriptureReference) !== normalizeReferenceKey(journeyContext.selection.primaryReference)) return undefined;
   if (requirements.requireStructuredAnswer && !answerDraft) return undefined;
   if (requirements.requirePastoralCare && !answerDraft?.pastoralCare.length) return undefined;
   if (requirements.requireUncertainty && !answerDraft?.uncertainty.length) return undefined;
+  if (journeyContext && !journeyContent) return undefined;
 
   return {
     ok: true,
@@ -868,10 +894,15 @@ function parseDraftContent(
     confidence,
     discussionPrompt: limitText(discussionPrompt, 1800),
     ...(answerDraft ? { answerDraft } : {}),
+    ...(journeyContent ? { journeyContent } : {}),
     ...(scriptureReference ? { scriptureReference } : {}),
     safetyLabel,
     safetyNotes: limitText(safetyNotes, 900)
   };
+}
+
+function normalizeReferenceKey(value: string) {
+  return value.normalize("NFKC").toLowerCase().replace(/[–—]/g, "-").replace(/\s+/g, "").trim();
 }
 
 function createGlooStructuredRepairBody(
@@ -880,15 +911,18 @@ function createGlooStructuredRepairBody(
   originalOutput: string
 ) {
   const requirements = answerRequirements(input);
+  const journeyRepairInstruction = input.journeyContext
+    ? " Preserve and repair journeyDraft using only the supplied source IDs. It must contain every requested stage field, 2-3 walk actions, Galatians 5:22-23 as the fruit standard, and missingSourceFields. Do not substitute the locked passage or add unsupported background claims."
+    : " Omit journeyDraft because no Journey Journal source packet was supplied.";
   return JSON.stringify({
     model: selection.model,
     temperature: 0,
-    max_tokens: GLOO_DISCUSSION_MAX_OUTPUT_TOKENS,
+    max_tokens: input.journeyContext ? GLOO_JOURNEY_MAX_OUTPUT_TOKENS : GLOO_DISCUSSION_MAX_OUTPUT_TOKENS,
     messages: [
       {
         role: "system",
         content:
-          "Repair one provider draft into valid JSON. Preserve the answer's meaning; do not add new factual claims, certainty, or doctrinal conclusions. You may attach only the evidence handles present in the approved evidence context. Return only JSON with keys discussionPrompt, answerDraft, scriptureReference, safetyLabel, safetyNotes, confidence, topicTags, escalationRecommended, escalationReason. answerDraft must contain directAnswer, keyDistinctions, scriptureReferences, uncertainty, pastoralCare, questionsForLeader, materialClaims, and requiresHumanReview=true."
+          "Repair one provider draft into valid JSON. Preserve the answer's meaning; do not add new factual claims, certainty, or doctrinal conclusions. You may attach only the evidence handles present in the approved evidence context. Return only JSON with keys discussionPrompt, answerDraft, journeyDraft, scriptureReference, safetyLabel, safetyNotes, confidence, topicTags, escalationRecommended, escalationReason. answerDraft must contain directAnswer, keyDistinctions, scriptureReferences, uncertainty, pastoralCare, questionsForLeader, materialClaims, and requiresHumanReview=true." + journeyRepairInstruction
       },
       {
         role: "user",
@@ -899,6 +933,9 @@ function createGlooStructuredRepairBody(
           `Uncertainty array must be non-empty: ${requirements.requireUncertainty ? "yes" : "no"}\n` +
           `Claim attribution must be non-empty: ${requirements.requireClaimAttribution ? "yes" : "no"}\n` +
           `Grounding status: ${input.groundingStatus ?? "not evaluated"}\n\n` +
+          (input.journeyContext
+            ? `Locked Journey Journal passage: ${input.journeyContext.selection.primaryReference}\nJourney source IDs: ${input.journeyContext.sources.map((source) => source.id).join(", ")}\n\n`
+            : "") +
           `Approved evidence handles:\n${input.approvedEvidenceContext || "No approved evidence handles available."}\n\n` +
           `Provider output to repair:\n${originalOutput.slice(0, 12_000)}`
       }

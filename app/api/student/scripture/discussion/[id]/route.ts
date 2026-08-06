@@ -12,6 +12,8 @@ type DecisionRequestBody = {
   action?: unknown;
   leaderNotes?: unknown;
   discussionPrompt?: unknown;
+  journeyScriptureReference?: unknown;
+  journeyWhyThisPassage?: unknown;
 };
 
 const validActions = new Set([
@@ -21,6 +23,7 @@ const validActions = new Set([
   "post",
   "regenerate",
   "use_local_draft",
+  "assign_journey_passage",
   "promote_canonical",
   "mark_discussed",
   "flag_follow_up"
@@ -52,11 +55,21 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     return NextResponse.json({ ok: false, code: "invalid_prompt", error: "Discussion prompt must be text." }, { status: 400 });
   }
 
+  if (body.journeyScriptureReference !== undefined && typeof body.journeyScriptureReference !== "string") {
+    return NextResponse.json({ ok: false, code: "invalid_journey_reference", error: "Journey Scripture reference must be text." }, { status: 400 });
+  }
+
+  if (body.journeyWhyThisPassage !== undefined && typeof body.journeyWhyThisPassage !== "string") {
+    return NextResponse.json({ ok: false, code: "invalid_journey_reason", error: "Why-this-passage reasoning must be text." }, { status: 400 });
+  }
+
   try {
     const prompt = await decideStudentDiscussionPrompt(access.session, params.id, {
       action: body.action as DecideStudentDiscussionInput["action"],
       leaderNotes: body.leaderNotes,
-      discussionPrompt: body.discussionPrompt
+      discussionPrompt: body.discussionPrompt,
+      journeyScriptureReference: body.journeyScriptureReference,
+      journeyWhyThisPassage: body.journeyWhyThisPassage
     });
     return NextResponse.json({ ok: true, prompt });
   } catch (error) {

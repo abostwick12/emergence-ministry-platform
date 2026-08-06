@@ -270,10 +270,10 @@ describe("student home feed personalization", () => {
       title: "Garden Question Journey",
       readingPath: expect.arrayContaining([
         expect.objectContaining({
-          reference: "Genesis 1:26-31"
+          reference: "Genesis 2:4-17"
         }),
         expect.objectContaining({
-          reference: "Genesis 2:4-17"
+          reference: "Genesis 3:1-13"
         })
       ]),
       spiritualPractice: expect.objectContaining({
@@ -295,9 +295,9 @@ describe("student home feed personalization", () => {
     expect([wordTool.category, passageTool.category]).toEqual(expect.arrayContaining(["Word Level"]));
     expect([wordTool.storageStudyPath, passageTool.storageStudyPath].sort()).toEqual(["inductive", "word"]);
     expect(buildJourneyExploreGuide(wordTool, nextStep.journeyJournal)).toMatchObject({
-      passageFocus: expect.stringContaining("Genesis 1:26-31"),
-      textClue: expect.stringMatching(/God speaks|Track/),
-      storylineBridge: expect.stringContaining("Genesis 2:4-17"),
+      passageFocus: expect.stringContaining("Genesis 2:4-17"),
+      textClue: expect.stringMatching(/forms|places|boundary/i),
+      storylineBridge: expect.stringContaining("Genesis 3:1-13"),
       studyHabit: expect.stringMatching(/passage|context|sentence/i),
       nextQuestion: expect.any(String)
     });
@@ -317,9 +317,9 @@ describe("student home feed personalization", () => {
     expect(nextStep.journeyJournal).toMatchObject({
       title: "Image Bearer Calling Journey",
       readingPath: [
-        expect.objectContaining({ reference: "Genesis 1:26-31" }),
+        expect.objectContaining({ reference: "Genesis 1:26" }),
         expect.objectContaining({ reference: "Psalm 8" }),
-        expect.objectContaining({ reference: "Colossians 3:9-17" })
+        expect.objectContaining({ reference: "Colossians 3:9-11" })
       ],
       spiritualPractice: expect.objectContaining({
         title: "Practice honoring image-bearers"
@@ -389,7 +389,7 @@ describe("student home feed personalization", () => {
       readingPath: [
         expect.objectContaining({ reference: "Mark 1:14-15" }),
         expect.objectContaining({ reference: "1 Corinthians 15:1-8" }),
-        expect.objectContaining({ reference: "Romans 3:21-26" })
+        expect.objectContaining({ reference: "Ephesians 2:8-10" })
       ]
     });
     expect(nextStep.journeyJournal.readingPath.map((reading) => reading.reference)).not.toContain("Matthew 13:24-30");
@@ -400,9 +400,9 @@ describe("student home feed personalization", () => {
       "Gospel Storyline Journey"
     ]);
     expect(nextStep.journeyJournalEntries[1].readingPath.map((reading) => reading.reference)).toEqual([
-      "Ephesians 2:1-10",
-      "2 Corinthians 5:17-21",
-      "Luke 4:16-21"
+      "Mark 1:14-15",
+      "1 Corinthians 15:1-8",
+      "Ephesians 2:8-10"
     ]);
     expect(nextStep.journeyJournalEntries[1].followUpQuestions).not.toEqual(nextStep.journeyJournalEntries[0].followUpQuestions);
     expect(nextStep.journeyJournalEntries[2].spiritualPractice.title).toBe("Practice a humble gospel witness");

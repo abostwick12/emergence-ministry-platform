@@ -9,6 +9,15 @@ import { generateMeridianDiscussionDraft, getMeridianAiReadiness, type MeridianD
 import { buildMeridianSynthesisBrief } from "@/lib/scripture/meridian-synthesis";
 import { formatStudentKnowledgeContextForGloo, getInternalGroundingContext, getStudentKnowledgeMatches, getStudentKnowledgeMatchesBatch } from "@/lib/scripture/knowledge";
 import { buildLocalDiscussionDraft, buildLocalDiscussionDraftForPrompt } from "@/lib/scripture/local-discussion-draft";
+import { buildStudentJourneyGenerationContext, buildSeededSaulJourneyContent } from "@/lib/scripture/student-journey-content";
+import {
+  isJourneyFormationContentReady,
+  parseStudentJourneyFormationContent,
+  parseStudentJourneySelection,
+  type StudentJourneyFormationContent,
+  type StudentJourneySelection
+} from "@/lib/scripture/student-journey-draft";
+import { selectStudentQuestionJourney } from "@/lib/scripture/student-journey-selection";
 import { deliverDiscussionPromptToSlack, isSlackDiscussionDeliveryConfigured } from "@/lib/scripture/slack";
 import {
   decideLocalStudentDiscussionPrompt,
@@ -18,7 +27,7 @@ import {
   shouldUseLocalStudentState
 } from "@/lib/scripture/student-local-state";
 import type { StudentGroupDiscussionItem } from "@/lib/scripture/student-home";
-import { sanitizeScriptureReference } from "@/lib/scripture/youversion";
+import { lookupYouVersionPassage, sanitizeScriptureReference } from "@/lib/scripture/youversion";
 import { getPrimaryStudentGroupId } from "@/lib/student/groups";
 import type {
   MetanarrativeMovement,
@@ -55,11 +64,14 @@ export type DecideStudentDiscussionInput = {
     | "post"
     | "regenerate"
     | "use_local_draft"
+    | "assign_journey_passage"
     | "promote_canonical"
     | "mark_discussed"
     | "flag_follow_up";
   leaderNotes?: string;
   discussionPrompt?: string;
+  journeyScriptureReference?: string;
+  journeyWhyThisPassage?: string;
 };
 
 type StudentDiscussionPromptRow = {
@@ -84,6 +96,8 @@ type StudentDiscussionPromptRow = {
   safety_label: "safe" | "needs_leader_care" | "pastoral_escalation" | "unreviewed";
   safety_notes: string | null;
   discussion_prompt: string | null;
+  journey_selection: unknown | null;
+  journey_content: unknown | null;
   leader_notes: string | null;
   status: StudentDiscussionStatus;
   delivery_channel: string | null;
@@ -143,7 +157,7 @@ const MAX_NOTES_LENGTH = 1200;
 const MAX_DISCUSSION_PROMPT_LENGTH = 1800;
 const MISSING_STUDENT_PROFILE_MESSAGE =
   "Your student profile is not connected to a ministry yet. Join through your group invite again, or ask your leader for a fresh invite.";
-const STUDENT_DISCUSSION_SELECT = "id,ministry_id,group_id,submitted_by_user_id,submitted_by_name,submitted_by_email,question,scripture_reference,scripture_passage_id,metanarrative_movement,ai_provider,ai_status,ai_model,ai_model_tier,ai_model_reason,ai_confidence,topic_tags,escalation_reason,safety_label,safety_notes,discussion_prompt,leader_notes,status,delivery_channel,delivery_status,delivery_message,approved_by_user_id,approved_at,posted_at,created_at,updated_at";
+const STUDENT_DISCUSSION_SELECT = "id,ministry_id,group_id,submitted_by_user_id,submitted_by_name,submitted_by_email,question,scripture_reference,scripture_passage_id,metanarrative_movement,ai_provider,ai_status,ai_model,ai_model_tier,ai_model_reason,ai_confidence,topic_tags,escalation_reason,safety_label,safety_notes,discussion_prompt,journey_selection,journey_content,leader_notes,status,delivery_channel,delivery_status,delivery_message,approved_by_user_id,approved_at,posted_at,created_at,updated_at";
 
 export function getStudentDiscussionReadiness(session: AuthSession): DiscussionReadiness {
   const ai = getMeridianAiReadiness();
@@ -199,7 +213,10 @@ export function getStudentDiscussionReadiness(session: AuthSession): DiscussionR
 export async function getStudentDiscussionWorkflowState(session: AuthSession): Promise<DiscussionWorkflowState> {
   const readiness = getStudentDiscussionReadiness(session);
   if (!readiness.liveStorage) {
-    return { readiness, prompts: listLocalStudentDiscussionPrompts(session) };
+    return {
+      readiness,
+      prompts: applyJourneyVisibilityForSession(session, listLocalStudentDiscussionPrompts(session))
+    };
   }
 
   const supabase = getSupabaseAuthClient(session.accessToken);
@@ -216,16 +233,23 @@ export async function getStudentDiscussionWorkflowState(session: AuthSession): P
     session,
     prompts.map((prompt) => prompt.id)
   );
+  const promptsWithKnowledge = await withKnowledgeContext(
+    session,
+    prompts.map((prompt) => ({
+      ...prompt,
+      ...eventSummaries[prompt.id]
+    }))
+  );
   return {
     readiness,
-    prompts: await withKnowledgeContext(
-      session,
-      prompts.map((prompt) => ({
-        ...prompt,
-        ...eventSummaries[prompt.id]
-      }))
-    )
+    prompts: applyJourneyVisibilityForSession(session, promptsWithKnowledge)
   };
+}
+
+export function toStudentVisibleDiscussionPrompt(prompt: StudentDiscussionPrompt): StudentDiscussionPrompt {
+  if ((prompt.status === "approved" || prompt.status === "posted") && isJourneyFormationContentReady(prompt.journeyContent)) return prompt;
+  const { journeyContent: _unapprovedJourneyContent, ...visiblePrompt } = prompt;
+  return visiblePrompt;
 }
 
 export async function getStudentCareDiscussionState(session: AuthSession): Promise<DashboardCareDiscussion> {
@@ -304,6 +328,12 @@ export async function createStudentDiscussionPrompt(session: AuthSession, input:
   const question = normalizeRequiredText(input.question, "Question", MAX_QUESTION_LENGTH);
   const scripture = normalizeScriptureReference(input.scriptureReference ?? "");
   const metanarrativeMovement = input.metanarrativeMovement ?? inferMetanarrativeMovement(question, scripture.reference);
+  const journeySelection = selectStudentQuestionJourney({
+    question,
+    scriptureReference: scripture.reference,
+    topicTags: []
+  }).selection;
+  const generationReference = journeySelection.status === "matched" ? journeySelection.primaryReference : scripture.reference;
   const readiness = getStudentDiscussionReadiness(session);
   if (!readiness.canSubmit) {
     throw new DiscussionWorkflowError(readiness.message, 503, readiness.liveStorage ? "ai_not_configured" : "live_storage_not_configured");
@@ -322,11 +352,14 @@ export async function createStudentDiscussionPrompt(session: AuthSession, input:
           scriptureReference: scripture.reference
         }).catch(() => "")
       : "";
+    const journeyContext = ai.configured && allowAiProvider
+      ? await prepareStudentJourneyGenerationContext(question, journeySelection)
+      : undefined;
     const synthesisBrief = buildMeridianSynthesisBrief({
       taskType: "discussion_prompt",
       request: question,
       audience: "students in a leader-reviewed small group",
-      scriptureReference: scripture.reference,
+      scriptureReference: generationReference,
       metanarrativeMovement,
       knowledgeMatches: knowledgeContext,
       internalGroundingContext: groundingContext
@@ -334,11 +367,12 @@ export async function createStudentDiscussionPrompt(session: AuthSession, input:
     const aiDraft = ai.configured && allowAiProvider
       ? await generateMeridianDiscussionDraft({
           question,
-          scriptureReference: scripture.reference,
+          scriptureReference: generationReference,
           metanarrativeMovement,
           retrievedContext: formatStudentKnowledgeContextForGloo(knowledgeContext),
           internalGroundingContext: groundingContext,
-          synthesisBrief
+          synthesisBrief,
+          journeyContext
         })
       : {
           ok: false as const,
@@ -361,6 +395,9 @@ export async function createStudentDiscussionPrompt(session: AuthSession, input:
           escalationReason: aiDraft.escalationReason
         }
       : localDraft;
+    const journeyContent = aiDraft.ok
+      ? aiDraft.journeyContent
+      : seededJourneyContentForLocalQuestion(question, journeySelection);
 
     return saveLocalStudentDiscussionPrompt(session, {
       question,
@@ -369,6 +406,8 @@ export async function createStudentDiscussionPrompt(session: AuthSession, input:
       metanarrativeMovement,
       draft,
       knowledgeContext,
+      journeySelection,
+      journeyContent,
       ai: aiDraft.ok
         ? {
             provider: aiDraft.provider,
@@ -399,11 +438,14 @@ export async function createStudentDiscussionPrompt(session: AuthSession, input:
       }).catch(() => "")
     : "";
   const retrievedContext = formatStudentKnowledgeContextForGloo(knowledgeContext);
+  const journeyContext = ai.configured
+    ? await prepareStudentJourneyGenerationContext(question, journeySelection)
+    : undefined;
   const synthesisBrief = buildMeridianSynthesisBrief({
     taskType: "discussion_prompt",
     request: question,
     audience: "students in a leader-reviewed small group",
-    scriptureReference: scripture.reference,
+    scriptureReference: generationReference,
     metanarrativeMovement,
     knowledgeMatches: knowledgeContext,
     internalGroundingContext: groundingContext
@@ -411,11 +453,12 @@ export async function createStudentDiscussionPrompt(session: AuthSession, input:
   const draft = ai.configured
     ? await generateMeridianDiscussionDraft({
         question,
-        scriptureReference: scripture.reference,
+        scriptureReference: generationReference,
         metanarrativeMovement,
         retrievedContext,
         internalGroundingContext: groundingContext,
-        synthesisBrief
+        synthesisBrief,
+        journeyContext
       })
     : {
         ok: false as const,
@@ -451,6 +494,8 @@ export async function createStudentDiscussionPrompt(session: AuthSession, input:
     safety_label: draft.ok ? draft.safetyLabel : localDraft.safetyLabel,
     safety_notes: draft.ok ? draft.safetyNotes : localDraft.safetyNotes,
     discussion_prompt: draft.ok ? draft.discussionPrompt : localDraft.discussionPrompt,
+    journey_selection: journeySelection,
+    journey_content: draft.ok ? draft.journeyContent ?? null : null,
     leader_notes: null,
     status: "pending_review",
     delivery_status: "not_requested",
@@ -513,7 +558,9 @@ export async function decideStudentDiscussionPrompt(session: AuthSession, id: st
         return decideLocalStudentDiscussionPrompt(session, id, {
           action: localAction,
           leaderNotes: input.leaderNotes,
-          discussionPrompt: input.discussionPrompt
+          discussionPrompt: input.discussionPrompt,
+          journeyScriptureReference: input.journeyScriptureReference,
+          journeyWhyThisPassage: input.journeyWhyThisPassage
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : "Local student discussion workflow is unavailable.";
@@ -524,6 +571,9 @@ export async function decideStudentDiscussionPrompt(session: AuthSession, id: st
   }
 
   const prompt = await getPromptById(session, id);
+  if (input.action === "assign_journey_passage") {
+    return assignJourneyPassage(session, prompt, input);
+  }
   if (input.action === "regenerate") {
     return regenerateDiscussionDraft(session, prompt);
   }
@@ -558,6 +608,7 @@ export async function decideStudentDiscussionPrompt(session: AuthSession, id: st
     if (!discussionPrompt && !prompt.discussionPrompt) {
       throw new DiscussionWorkflowError("Write a discussion prompt before approving this question.", 409, "missing_discussion_prompt");
     }
+    assertJourneyReadyForApproval(prompt);
     update.approved_by_user_id = session.user.id;
     update.approved_at = now;
   }
@@ -615,6 +666,18 @@ async function regenerateDiscussionDraft(session: AuthSession, prompt: StudentDi
   }
 
   const knowledgeContext = prompt.knowledgeContext?.length ? prompt.knowledgeContext : await getStudentKnowledgeMatches(session, prompt);
+  const journeySelection = prompt.journeySelection ?? selectStudentQuestionJourney({
+    question: prompt.question,
+    scriptureReference: prompt.scriptureReference,
+    topicTags: prompt.topicTags
+  }).selection;
+  if (journeySelection.status !== "matched") {
+    throw new DiscussionWorkflowError(
+      "Assign a directly relevant Scripture passage before generating Journey Journal content.",
+      409,
+      "journey_assignment_required"
+    );
+  }
   const groundingContext = await getInternalGroundingContext(session, prompt);
   if (requiresApprovedMeridianGrounding(session) && !groundingContext.trim()) {
     return saveLocalDiscussionDraft(
@@ -623,22 +686,31 @@ async function regenerateDiscussionDraft(session: AuthSession, prompt: StudentDi
       "Approved Meridian evidence did not cover every required part of the question, so provider regeneration was blocked."
     );
   }
+  const journeyContext = await prepareStudentJourneyGenerationContext(prompt.question, journeySelection);
+  if (!journeyContext) {
+    throw new DiscussionWorkflowError(
+      "The locked Scripture passage or its reviewed background source could not be loaded. Journey content was not generated.",
+      503,
+      "journey_sources_unavailable"
+    );
+  }
   const synthesisBrief = buildMeridianSynthesisBrief({
     taskType: "discussion_prompt",
     request: prompt.question,
     audience: "students in a leader-reviewed small group",
-    scriptureReference: prompt.scriptureReference,
+    scriptureReference: journeySelection.primaryReference,
     metanarrativeMovement: prompt.metanarrativeMovement ?? inferMetanarrativeMovement(prompt.question, prompt.scriptureReference),
     knowledgeMatches: knowledgeContext,
     internalGroundingContext: groundingContext
   });
   const draft = await generateMeridianDiscussionDraft({
     question: prompt.question,
-    scriptureReference: prompt.scriptureReference,
+    scriptureReference: journeySelection.primaryReference,
     metanarrativeMovement: prompt.metanarrativeMovement ?? inferMetanarrativeMovement(prompt.question, prompt.scriptureReference),
     retrievedContext: formatStudentKnowledgeContextForGloo(knowledgeContext),
     internalGroundingContext: groundingContext,
-    synthesisBrief
+    synthesisBrief,
+    journeyContext
   });
   const localDraft = buildLocalDiscussionDraftForPrompt({ ...prompt, knowledgeContext });
 
@@ -653,7 +725,9 @@ async function regenerateDiscussionDraft(session: AuthSession, prompt: StudentDi
     escalation_reason: draft.ok ? draft.escalationReason : localDraft.escalationReason || prompt.escalationReason,
     safety_label: draft.ok ? draft.safetyLabel : localDraft.safetyLabel,
     safety_notes: draft.ok ? draft.safetyNotes : `${draft.message} A knowledge-guided fallback draft is available for leader review.`,
-    discussion_prompt: draft.ok ? draft.discussionPrompt : localDraft.discussionPrompt
+    discussion_prompt: draft.ok ? draft.discussionPrompt : localDraft.discussionPrompt,
+    journey_selection: journeySelection,
+    journey_content: draft.ok ? draft.journeyContent ?? null : prompt.journeyContent ?? null
   };
 
   const supabase = getSupabaseAuthClient(session.accessToken);
@@ -681,8 +755,67 @@ async function regenerateDiscussionDraft(session: AuthSession, prompt: StudentDi
   return withKnowledgeContext(session, toPrompt(result.data));
 }
 
+async function assignJourneyPassage(
+  session: AuthSession,
+  prompt: StudentDiscussionPrompt,
+  input: DecideStudentDiscussionInput
+) {
+  const sanitized = sanitizeScriptureReference(input.journeyScriptureReference ?? "");
+  if (!sanitized.ok) {
+    throw new DiscussionWorkflowError(sanitized.message, 400, "invalid_journey_reference");
+  }
+  const whyThisPassage = normalizeOptionalText(input.journeyWhyThisPassage, MAX_NOTES_LENGTH);
+  if (!whyThisPassage) {
+    throw new DiscussionWorkflowError(
+      "Explain why this passage directly addresses the student's question.",
+      400,
+      "missing_journey_reason"
+    );
+  }
+  const resolved = selectStudentQuestionJourney({
+    question: prompt.question,
+    scriptureReference: sanitized.reference,
+    topicTags: []
+  }).selection;
+  if (resolved.status !== "matched") {
+    throw new DiscussionWorkflowError(
+      "That passage conflicts with the question or is not specific enough for the strict matcher. Choose the same narrative, figures, or an explicit cross-reference.",
+      409,
+      "journey_reference_conflict"
+    );
+  }
+
+  const journeySelection: StudentJourneySelection = {
+    ...resolved,
+    confidence: 1,
+    whyThisPassage,
+    matchSignals: [`Leader assigned: ${sanitized.reference}`, "Leader supplied the direct-relevance rationale."],
+    passageReasons: resolved.passageReasons.map((passage, index) =>
+      index === 0
+        ? { ...passage, reason: whyThisPassage, relationship: "leader_assigned" as const }
+        : passage
+    )
+  };
+  const update: Partial<StudentDiscussionPromptRow> = {
+    journey_selection: journeySelection,
+    journey_content: null,
+    status: "pending_review",
+    approved_by_user_id: null,
+    approved_at: null
+  };
+  const supabase = getSupabaseAuthClient(session.accessToken);
+  const result = await supabase.from("student_discussion_prompts").update(update).eq("id", prompt.id).select("*").single<StudentDiscussionPromptRow>();
+  throwIfSupabaseError(result.error);
+  if (!result.data) throw new DiscussionWorkflowError("The Journey passage assignment was not saved.", 500, "missing_journey_assignment");
+  await logPromptEvent(session, prompt.id, "journey_passage_assigned", {
+    reference: sanitized.reference,
+    whyThisPassage
+  });
+  return withKnowledgeContext(session, toPrompt(result.data));
+}
+
 function requiresApprovedMeridianGrounding(session: AuthSession) {
-  return ["admin", "leader", "staff"].includes(session.user.role);
+  return ["admin", "leader", "staff"].includes(session.user.role.trim().toLowerCase());
 }
 
 async function saveLocalDiscussionDraft(session: AuthSession, prompt: StudentDiscussionPrompt, reason = "Knowledge-guided fallback draft saved for leader review.") {
@@ -909,6 +1042,8 @@ async function getStudentPromptEventSummaries(session: AuthSession, promptIds: s
 }
 
 function toPrompt(row: StudentDiscussionPromptRow): StudentDiscussionPrompt {
+  const journeySelection = parseStudentJourneySelection(row.journey_selection);
+  const journeyContent = parseStudentJourneyFormationContent(row.journey_content);
   return {
     id: row.id,
     groupId: row.group_id ?? undefined,
@@ -930,6 +1065,8 @@ function toPrompt(row: StudentDiscussionPromptRow): StudentDiscussionPrompt {
     safetyLabel: row.safety_label,
     safetyNotes: row.safety_notes ?? "",
     discussionPrompt: row.discussion_prompt ?? "",
+    ...(journeySelection ? { journeySelection } : {}),
+    ...(journeyContent ? { journeyContent } : {}),
     leaderNotes: row.leader_notes ?? "",
     status: row.status,
     studentReflectionCount: 0,
@@ -943,6 +1080,46 @@ function toPrompt(row: StudentDiscussionPromptRow): StudentDiscussionPrompt {
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
+}
+
+async function prepareStudentJourneyGenerationContext(question: string, selection: StudentJourneySelection) {
+  if (selection.status !== "matched") return undefined;
+  const passage = await lookupYouVersionPassage({ reference: selection.primaryReference }).catch(() => undefined);
+  if (!passage?.ok) return undefined;
+  return buildStudentJourneyGenerationContext({
+    question,
+    selection,
+    scriptureText: passage.passage.content
+  });
+}
+
+function seededJourneyContentForLocalQuestion(
+  question: string,
+  selection: StudentJourneySelection
+): StudentJourneyFormationContent | undefined {
+  if (selection.status === "matched" && /\bsaul\b/i.test(question) && /^1\s*samuel\s+8\b/i.test(selection.primaryReference)) {
+    return buildSeededSaulJourneyContent();
+  }
+  return undefined;
+}
+
+function assertJourneyReadyForApproval(prompt: StudentDiscussionPrompt) {
+  // Legacy prompts created before the Journey draft migration remain reviewable.
+  if (!prompt.journeySelection) return;
+  if (prompt.journeySelection.status !== "matched") {
+    throw new DiscussionWorkflowError(
+      "Assign a directly relevant Scripture passage before approving this question.",
+      409,
+      "journey_assignment_required"
+    );
+  }
+  if (!isJourneyFormationContentReady(prompt.journeyContent)) {
+    throw new DiscussionWorkflowError(
+      "Generate and review source-supported Journey Journal content before approving this question.",
+      409,
+      "journey_content_not_ready"
+    );
+  }
 }
 
 function toGroupDiscussionItem(row: ApprovedStudentDiscussionRow, summary?: StudentReflectionSummary): StudentGroupDiscussionItem {
@@ -1057,10 +1234,19 @@ function assertLeader(session: AuthSession) {
   }
 }
 
+function applyJourneyVisibilityForSession(
+  session: AuthSession,
+  prompts: StudentDiscussionPrompt[]
+): StudentDiscussionPrompt[] {
+  const role = session.user.role.trim().toLowerCase();
+  if (role === "admin" || role === "leader") return prompts;
+  return prompts.map(toStudentVisibleDiscussionPrompt);
+}
+
 function toStatusForAction(
   action: Exclude<
     DecideStudentDiscussionInput["action"],
-    "post" | "regenerate" | "use_local_draft" | "promote_canonical" | "mark_discussed" | "flag_follow_up"
+    "post" | "regenerate" | "use_local_draft" | "assign_journey_passage" | "promote_canonical" | "mark_discussed" | "flag_follow_up"
   >
 ): StudentDiscussionStatus {
   switch (action) {

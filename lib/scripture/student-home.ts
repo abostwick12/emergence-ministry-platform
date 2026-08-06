@@ -12,6 +12,12 @@ import {
 import type { StudentJourneyStudyPath } from "@/lib/scripture/student-journey-entry-shared";
 import { matchQuestionToStoryline, type StorylineQuestionMatch } from "@/lib/scripture/storyline-guide";
 import type { ScripturePlan, ScriptureResource, StudentDiscussionPrompt, StudentDiscussionStatus } from "@/lib/scripture/types";
+import type {
+  StudentJourneyFormationContent,
+  StudentJourneyPassageReason,
+  StudentJourneySelection
+} from "@/lib/scripture/student-journey-draft";
+import { selectStudentQuestionJourney } from "@/lib/scripture/student-journey-selection";
 
 export type StudentGroupDiscussionItem = {
   id: string;
@@ -118,6 +124,9 @@ export type StudentJourneyJournal = {
   title: string;
   subtitle: string;
   openingPrompt: string;
+  whyThisPassage?: string;
+  passageReasons?: StudentJourneyPassageReason[];
+  formationContent?: StudentJourneyFormationContent;
   rhythm?: {
     receive: string;
     explore: string;
@@ -149,6 +158,7 @@ export type StudentQuestionNextStep = {
   resource: StudentKeepReadingItem;
   resourceSteps: StudentResourceStep[];
   storylineMatch: StorylineQuestionMatch;
+  journeySelection: StudentJourneySelection;
   journeyJournal: StudentJourneyJournal;
   journeyJournalEntries: StudentJourneyJournal[];
   meridianProvenance?: MeridianGenerationProvenance;
@@ -463,6 +473,9 @@ type ReadingSource = {
   aiModelReason?: string;
   discussionPrompt?: string;
   safetyLabel?: StudentDiscussionPrompt["safetyLabel"];
+  status?: StudentDiscussionPrompt["status"];
+  journeySelection?: StudentJourneySelection;
+  journeyContent?: StudentJourneyFormationContent;
 };
 
 export function buildStudentHomeFeed(
@@ -523,7 +536,12 @@ export function buildQuestionNextStep(
     metanarrativeMovement: prompt.metanarrativeMovement,
     knowledgeMatches
   });
-  const storylineMatch = matchQuestionToStoryline(prompt);
+  const strictJourney = selectStudentQuestionJourney({
+    ...prompt,
+    scriptureReference: prompt.journeySelection?.primaryReference ?? prompt.scriptureReference
+  });
+  const journeySelection = prompt.journeySelection ?? strictJourney.selection;
+  const storylineMatch = strictJourney.storylineMatch;
   const wrestleQuestions = wrestleQuestionsForPrompt(prompt);
   const promptDigQuestions = digQuestionsForPrompt(prompt);
   const digQuestions = primaryKnowledge?.digQuestions?.length
@@ -536,10 +554,15 @@ export function buildQuestionNextStep(
   const wrestleTogetherPrompt = wrestleTogetherPromptForPrompt(prompt, primaryKnowledge);
   const readingPlan = primaryKnowledge ? knowledgeItem(primaryKnowledge, primaryKnowledge.label) : storylineItem(storylineMatch);
   const nextResource = secondaryKnowledge ? knowledgeItem(secondaryKnowledge, "Keep digging") : resourceItem(resource, "Practice this");
-  const baseJourneyJournal = buildJourneyJournal(prompt, storylineMatch, primaryKnowledge);
-  const proposedJourneyJournalEntries = buildJourneyJournalEntries(prompt, storylineMatch, primaryKnowledge, baseJourneyJournal, journeySynthesis);
-  const journeyJournalEntries = proposedJourneyJournalEntries.every((entry) =>
-    validateJourneyScriptureAnchor(prompt.scriptureReference, entry.readingPath).ok
+  const baseJourneyJournal = journeySelection.status === "matched"
+    ? applyJourneySelection(buildJourneyJournal(prompt, storylineMatch, primaryKnowledge), journeySelection, prompt.journeyContent)
+    : buildLeaderAssignmentJourney(prompt, journeySelection);
+  const proposedJourneyJournalEntries = journeySelection.status === "matched"
+    ? buildJourneyJournalEntries(prompt, storylineMatch, primaryKnowledge, baseJourneyJournal, journeySynthesis)
+        .map((entry) => applyJourneySelection(entry, journeySelection, prompt.journeyContent))
+    : [baseJourneyJournal];
+  const journeyJournalEntries = journeySelection.status === "leader_assignment_required" || proposedJourneyJournalEntries.every((entry) =>
+    validateJourneyScriptureAnchor(journeySelection.primaryReference, entry.readingPath).ok
   )
     ? proposedJourneyJournalEntries
     : [baseJourneyJournal];
@@ -601,6 +624,7 @@ export function buildQuestionNextStep(
       wrestleTogetherPrompt
     }),
     storylineMatch,
+    journeySelection,
     journeyJournal,
     journeyJournalEntries,
     meridianProvenance
@@ -728,6 +752,7 @@ function savedRecommendationsToNextStep(
       wrestleTogetherPrompt: wrestleTogether?.title || fallback.wrestleTogetherPrompt
     }),
     storylineMatch: fallback.storylineMatch,
+    journeySelection: fallback.journeySelection,
     journeyJournal: journeyJournalEntries[0] ?? fallback.journeyJournal,
     journeyJournalEntries
   };
@@ -1114,6 +1139,76 @@ function buildJourneyJournal(
     keyWords: keyWordsForJourney(storylineMatch),
     spiritualPractice: practiceForJourney(prompt, storylineMatch)
   };
+}
+
+function applyJourneySelection(
+  journey: StudentJourneyJournal,
+  selection: StudentJourneySelection,
+  formationContent?: StudentJourneyFormationContent
+): StudentJourneyJournal {
+  if (selection.status !== "matched") return journey;
+  const existingByReference = new Map(journey.readingPath.map((reading) => [normalizeJourneyReference(reading.reference), reading]));
+  const readingPath = selection.passageReasons.map((passage, index) => {
+    const existing = existingByReference.get(normalizeJourneyReference(passage.reference));
+    return {
+      id: existing?.id ?? `${journey.id}-strict-reading-${index + 1}`,
+      reference: passage.reference,
+      lookupReference: existing?.lookupReference ?? lookupReferenceFor(passage.reference),
+      title: existing?.title ?? (index === 0 ? "Start with the directly relevant passage" : index === 1 ? "Stay in the same narrative" : "Check the explicit biblical bridge"),
+      guidance: passage.reason,
+      practice:
+        existing?.practice ??
+        (index === 0
+          ? "Write one observation that directly addresses the people, event, or question named by the student."
+          : "Name the clear textual relationship to the primary passage before drawing an application.")
+    };
+  });
+
+  return {
+    ...journey,
+    whyThisPassage: selection.whyThisPassage,
+    passageReasons: selection.passageReasons,
+    ...(formationContent ? { formationContent } : {}),
+    readingPath
+  };
+}
+
+function buildLeaderAssignmentJourney(prompt: ReadingSource, selection: StudentJourneySelection): StudentJourneyJournal {
+  return {
+    id: `journey-assignment-required-${"id" in prompt && typeof prompt.id === "string" ? prompt.id : "question"}`,
+    title: "Leader passage assignment required",
+    subtitle: "Meridian did not guess. A ministry leader must choose a directly relevant Scripture passage before this journey can begin.",
+    openingPrompt: selection.whyThisPassage,
+    whyThisPassage: selection.whyThisPassage,
+    passageReasons: [],
+    rhythm: {
+      receive: "Waiting for a passage",
+      explore: "Waiting for a passage",
+      practice: "Waiting for leader review",
+      walk: "Waiting for leader review",
+      see: "Waiting for leader review"
+    },
+    followUpQuestions: [
+      {
+        id: "leader-assignment-question-focus",
+        label: "Clarify the question",
+        prompt: "Which person, event, teaching, or Bible passage is this question asking about?",
+        placeholder: "I am asking about..."
+      }
+    ],
+    readingPath: [],
+    keyWords: [],
+    spiritualPractice: {
+      title: "Wait for a faithful starting point",
+      summary: "No practice was generated because no passage met the direct-relevance threshold.",
+      steps: ["A leader will choose the primary passage before Journey Journal content is generated."],
+      reflectionPrompt: "What detail could help your leader understand the exact question you are asking?"
+    }
+  };
+}
+
+function normalizeJourneyReference(value: string) {
+  return value.normalize("NFKC").toLowerCase().replace(/[–—]/g, "-").replace(/\s+/g, "").trim();
 }
 
 function buildJourneyJournalEntries(
