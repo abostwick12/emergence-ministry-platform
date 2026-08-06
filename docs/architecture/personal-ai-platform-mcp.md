@@ -240,13 +240,16 @@ See [Private Obsidian discovery](private-obsidian-discovery.md) for local setup,
 
 See [MCP EMMA bundle review](mcp-emma-bundle-review.md) for contract, storage, failure, and synthetic activation checks. Production activation requires Phase 4, additive migration `20260805190000_platform_mcp_emma_review.sql`, and the matching application deployment before `can_review_resources` is enabled.
 
-### Phase 6 - Pilot and expansion
+### Phase 6 - Pilot readiness implemented; activation pending
 
-- pilot with administrators and a small number of leaders before volunteers;
-- measure correct record placement, grounding, privacy, review usefulness, latency, and duplicate-write rates;
-- add volunteer-safe capabilities only after role-boundary tests pass;
-- expand to schedules, teams, files, and other domains through narrow tools; and
-- consider publishing or communication actions only through separate approval and execution projects.
+- administrator-controlled cohorts are default-off, capped at two administrators and three leaders, and exclude volunteers;
+- every platform tool now requires both its existing capability and a pilot preflight, while leader enrollment begins read-only;
+- payload-free events measure placement, grounding counts, privacy blocks, review outcomes, latency, and duplicate-safe replays;
+- categorical human feedback measures review usefulness, grounding help, privacy handling, placement, and reported duplicate writes without changing approval state;
+- Settings exposes cohort controls, a 30-day metric rollup, and recent-review evaluation; and
+- schedules, broader teams/files, volunteer tools, publishing, communication, and external execution remain separate gated projects.
+
+See [Platform MCP pilot readiness](mcp-pilot-readiness.md) for cohort limits, stored fields, exit thresholds, activation order, and explicitly deferred scope. The Phase 6 migration and deployment remain unapplied, and no participant is enrolled by this implementation.
 
 ## Release gates
 

@@ -23,7 +23,73 @@ type MeridianGrant = {
   canManageTasks: boolean;
   canSaveResources: boolean;
   canReviewResources: boolean;
+  pilotStage: PilotStage;
   accessLevel: string | null;
+};
+
+type PilotStage = "not_enrolled" | "admin_pilot" | "leader_pilot";
+type PilotMember = {
+  userId: string;
+  name: string;
+  role: "admin" | "leader";
+  grantEnabled: boolean;
+  pilotStage: PilotStage;
+  canReadPlatform: boolean;
+  canManageEvents: boolean;
+  canManageTasks: boolean;
+  canSaveResources: boolean;
+  canReviewResources: boolean;
+};
+type PilotMetrics = {
+  windowDays: number;
+  cohort: { admins: number; leaders: number };
+  calls: number;
+  successfulCalls: number;
+  rejectedCalls: number;
+  failedCalls: number;
+  duplicateSafeReplays: number;
+  privacyBlocks: number;
+  placementVerifiedWrites: number;
+  successfulWrites: number;
+  medianLatencyMs: number;
+  p95LatencyMs: number;
+  reviewOutcomes: { ready: number; changesRequired: number; blocked: number };
+  feedback: { responses: number; useful: number; mixed: number; notUseful: number; placementCorrect: number; groundingHelpful: number; privacyConcerns: number; duplicateWriteIncidents: number };
+};
+type PilotReview = {
+  reviewId: string;
+  bundleId: string;
+  bundleTitle: string;
+  destinationType: "event" | "weekly_leader_prep";
+  destinationId: string;
+  outcome: "ready_for_human_review" | "changes_required" | "blocked";
+  summary: string;
+  humanReviewStatus: "pending";
+  createdAt: string;
+  feedback: null | {
+    usefulness: "useful" | "mixed" | "not_useful";
+    placementCorrect: boolean;
+    groundingHelpful: boolean;
+    privacyHandling: "correct" | "concern" | "not_applicable";
+    issueCodes: string[];
+    createdAt: string;
+  };
+};
+type PilotDashboard = {
+  available?: boolean;
+  isAdmin?: boolean;
+  pilotStage?: PilotStage;
+  members?: PilotMember[];
+  metrics?: PilotMetrics | null;
+  reviews?: PilotReview[];
+  error?: string;
+};
+type FeedbackDraft = {
+  usefulness: "useful" | "mixed" | "not_useful";
+  placementCorrect: boolean;
+  groundingHelpful: boolean;
+  privacyHandling: "correct" | "concern" | "not_applicable";
+  issueCode: "" | "wrong_destination" | "weak_grounding" | "citation_problem" | "privacy_concern" | "permission_concern" | "theology_concern" | "audience_mismatch" | "too_many_false_positives" | "duplicate_write";
 };
 
 type GrantPermissions = Pick<MeridianGrant, "canSaveDrafts" | "canSubmitCandidates" | "canReadPlatform" | "canManageEvents" | "canManageTasks" | "canSaveResources" | "canReviewResources">;
@@ -33,6 +99,8 @@ export function MeridianPersonalAiPanel({ canManage }: { canManage: boolean }) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState<{ tone: "error" | "success"; text: string } | null>(null);
+  const [pilot, setPilot] = useState<PilotDashboard>({});
+  const [feedbackDrafts, setFeedbackDrafts] = useState<Record<string, FeedbackDraft>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -41,6 +109,9 @@ export function MeridianPersonalAiPanel({ canManage }: { canManage: boolean }) {
       const payload = (await response.json().catch(() => ({}))) as MeridianConnectionResponse;
       if (!response.ok) setMessage({ tone: "error", text: payload.error ?? "Personal AI settings could not be loaded." });
       setState(payload);
+      const pilotResponse = await fetch("/api/settings/meridian-mcp/pilot", { cache: "no-store" });
+      const pilotPayload = (await pilotResponse.json().catch(() => ({}))) as PilotDashboard;
+      setPilot(pilotResponse.ok || pilotPayload.available === false ? pilotPayload : {});
     } catch {
       setMessage({ tone: "error", text: "Personal AI settings could not be loaded." });
     } finally {
@@ -94,6 +165,61 @@ export function MeridianPersonalAiPanel({ canManage }: { canManage: boolean }) {
       setMessage({ tone: "success", text: `${clientName} was disconnected.` });
     } catch {
       setMessage({ tone: "error", text: "The AI connection could not be revoked." });
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function updatePilotMember(member: PilotMember, pilotStage: PilotStage) {
+    setBusy(`pilot-member-${member.userId}`);
+    setMessage(null);
+    try {
+      const response = await fetch("/api/settings/meridian-mcp/pilot", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: member.userId, pilotStage })
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) {
+        setMessage({ tone: "error", text: payload.error ?? "Pilot enrollment could not be updated." });
+        return;
+      }
+      await load();
+      setMessage({ tone: "success", text: pilotStage === "not_enrolled" ? `${member.name} was removed from the platform pilot.` : `${member.name} is enrolled in the ${member.role} pilot.` });
+    } catch {
+      setMessage({ tone: "error", text: "Pilot enrollment could not be updated." });
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function savePilotFeedback(review: PilotReview) {
+    const draft = feedbackDrafts[review.reviewId] ?? defaultFeedbackDraft();
+    setBusy(`pilot-feedback-${review.reviewId}`);
+    setMessage(null);
+    try {
+      const response = await fetch("/api/settings/meridian-mcp/pilot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reviewId: review.reviewId,
+          idempotencyKey: `pilot-feedback-${crypto.randomUUID()}`,
+          usefulness: draft.usefulness,
+          placementCorrect: draft.placementCorrect,
+          groundingHelpful: draft.groundingHelpful,
+          privacyHandling: draft.privacyHandling,
+          issueCodes: draft.issueCode ? [draft.issueCode] : []
+        })
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) {
+        setMessage({ tone: "error", text: payload.error ?? "Pilot feedback could not be saved." });
+        return;
+      }
+      await load();
+      setMessage({ tone: "success", text: "Pilot feedback was saved without changing the human review decision." });
+    } catch {
+      setMessage({ tone: "error", text: "Pilot feedback could not be saved." });
     } finally {
       setBusy("");
     }
@@ -159,6 +285,78 @@ export function MeridianPersonalAiPanel({ canManage }: { canManage: boolean }) {
         </div>
       </div>
 
+      {pilot.available ? (
+        <div className="meridian-pilot" aria-labelledby="meridian-pilot-title">
+          <div className="meridian-pilot-heading">
+            <div>
+              <p className="eyebrow">Controlled rollout</p>
+              <h3 id="meridian-pilot-title">Platform MCP pilot</h3>
+              <p>Platform tools stay behind an administrator-managed cohort gate. Metrics retain IDs, counts, outcomes, and timing only—never prompts, draft bodies, note text, or pastoral details.</p>
+            </div>
+            <span className={`status-badge ${pilot.pilotStage && pilot.pilotStage !== "not_enrolled" ? "tone-success" : "tone-info"}`}>
+              {pilotStageLabel(pilot.pilotStage ?? grant?.pilotStage ?? "not_enrolled")}
+            </span>
+          </div>
+
+          {pilot.isAdmin && pilot.metrics ? (
+            <>
+              <div className="meridian-pilot-metrics" aria-label="Last 30 days of MCP pilot metrics">
+                {pilotMetricEntries(pilot.metrics).map((metric) => <div key={metric.label}><small>{metric.label}</small><strong>{metric.value}</strong></div>)}
+              </div>
+
+              <div className="meridian-pilot-members">
+                <h4>Pilot cohort</h4>
+                <p>Leaders enter read-only by default. Write capabilities remain separately granted, and removing someone immediately disables all platform capabilities.</p>
+                {(pilot.members ?? []).map((member) => {
+                  const enrolledStage = member.role === "admin" ? "admin_pilot" : "leader_pilot";
+                  return (
+                    <div key={member.userId}>
+                      <span><strong>{member.name}</strong><small>{member.role} · {pilotStageLabel(member.pilotStage)}</small></span>
+                      <button
+                        className="button"
+                        type="button"
+                        disabled={busy === `pilot-member-${member.userId}`}
+                        onClick={() => void updatePilotMember(member, member.pilotStage === "not_enrolled" ? enrolledStage : "not_enrolled")}
+                      >
+                        {member.pilotStage === "not_enrolled" ? "Enroll" : "Remove"}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          ) : null}
+
+          {(pilot.reviews ?? []).length ? (
+            <div className="meridian-pilot-reviews">
+              <h4>Human usefulness check</h4>
+              <p>Feedback evaluates EMMA’s review; it does not approve, reject, publish, or send the bundle.</p>
+              {(pilot.reviews ?? []).map((review) => {
+                const draft = feedbackDrafts[review.reviewId] ?? defaultFeedbackDraft();
+                return (
+                  <article key={review.reviewId}>
+                    <header>
+                      <span><strong>{review.bundleTitle}</strong><small>{reviewOutcomeLabel(review.outcome)} · {new Date(review.createdAt).toLocaleDateString()}</small></span>
+                      <a className="button" href={pilotReviewUrl(review)}>Open workspace</a>
+                    </header>
+                    <p>{review.summary}</p>
+                    {review.feedback ? <p className="auth-success">Feedback recorded {new Date(review.feedback.createdAt).toLocaleDateString()}. You may submit a corrected evaluation below; history is retained.</p> : null}
+                    <div className="meridian-pilot-feedback">
+                      <label>Usefulness<select value={draft.usefulness} onChange={(event) => setFeedbackDrafts((current) => ({ ...current, [review.reviewId]: { ...draft, usefulness: event.target.value as FeedbackDraft["usefulness"] } }))}><option value="useful">Useful</option><option value="mixed">Mixed</option><option value="not_useful">Not useful</option></select></label>
+                      <label>Privacy handling<select value={draft.privacyHandling} onChange={(event) => setFeedbackDrafts((current) => ({ ...current, [review.reviewId]: { ...draft, privacyHandling: event.target.value as FeedbackDraft["privacyHandling"] } }))}><option value="correct">Correct</option><option value="concern">Concern</option><option value="not_applicable">Not applicable</option></select></label>
+                      <label>Primary issue<select value={draft.issueCode} onChange={(event) => setFeedbackDrafts((current) => ({ ...current, [review.reviewId]: { ...draft, issueCode: event.target.value as FeedbackDraft["issueCode"] } }))}><option value="">None</option><option value="wrong_destination">Wrong destination</option><option value="weak_grounding">Weak grounding</option><option value="citation_problem">Citation problem</option><option value="privacy_concern">Privacy concern</option><option value="permission_concern">Permission concern</option><option value="theology_concern">Theology concern</option><option value="audience_mismatch">Audience mismatch</option><option value="too_many_false_positives">Too many false positives</option><option value="duplicate_write">Duplicate write</option></select></label>
+                      <label className="meridian-pilot-check"><input type="checkbox" checked={draft.placementCorrect} onChange={(event) => setFeedbackDrafts((current) => ({ ...current, [review.reviewId]: { ...draft, placementCorrect: event.target.checked } }))} /> Correct workspace placement</label>
+                      <label className="meridian-pilot-check"><input type="checkbox" checked={draft.groundingHelpful} onChange={(event) => setFeedbackDrafts((current) => ({ ...current, [review.reviewId]: { ...draft, groundingHelpful: event.target.checked } }))} /> Grounding review was helpful</label>
+                      <button className="button" type="button" disabled={busy === `pilot-feedback-${review.reviewId}`} onClick={() => void savePilotFeedback(review)}>Save evaluation</button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          ) : null}
+        </div>
+      ) : canManage && pilot.available === false ? <p className="website-access-notice">The platform MCP pilot remains inactive until its additive migration and matching application release are deliberately activated.</p> : null}
+
       {connections.length ? (
         <div className="meridian-personal-ai-connections">
           <h3>Authorized AI clients</h3>
@@ -182,4 +380,46 @@ function grantPermissions(grant: MeridianGrant | null | undefined): GrantPermiss
     canSaveResources: Boolean(grant?.canSaveResources),
     canReviewResources: Boolean(grant?.canReviewResources)
   };
+}
+
+function defaultFeedbackDraft(): FeedbackDraft {
+  return {
+    usefulness: "useful",
+    placementCorrect: true,
+    groundingHelpful: true,
+    privacyHandling: "correct",
+    issueCode: ""
+  };
+}
+
+function pilotStageLabel(stage: PilotStage) {
+  if (stage === "admin_pilot") return "Admin pilot";
+  if (stage === "leader_pilot") return "Leader pilot";
+  return "Not enrolled";
+}
+
+function reviewOutcomeLabel(outcome: PilotReview["outcome"]) {
+  if (outcome === "ready_for_human_review") return "Ready for human review";
+  if (outcome === "changes_required") return "Changes required";
+  return "Blocked";
+}
+
+function pilotReviewUrl(review: PilotReview) {
+  return review.destinationType === "event"
+    ? `/events?eventId=${encodeURIComponent(review.destinationId)}`
+    : "/leader-prep";
+}
+
+function pilotMetricEntries(metrics: PilotMetrics) {
+  return [
+    { label: "Pilot cohort", value: `${metrics.cohort.admins} admin · ${metrics.cohort.leaders} leader` },
+    { label: "Successful calls", value: `${metrics.successfulCalls} / ${metrics.calls}` },
+    { label: "P95 latency", value: `${Math.round(metrics.p95LatencyMs)} ms` },
+    { label: "Verified write placement", value: `${metrics.placementVerifiedWrites} / ${metrics.successfulWrites}` },
+    { label: "Duplicate-safe replays", value: String(metrics.duplicateSafeReplays) },
+    { label: "Reported duplicate writes", value: String(metrics.feedback.duplicateWriteIncidents) },
+    { label: "Privacy blocks", value: String(metrics.privacyBlocks) },
+    { label: "Useful reviews", value: `${metrics.feedback.useful} / ${metrics.feedback.responses}` },
+    { label: "Review outcomes", value: `${metrics.reviewOutcomes.ready} ready · ${metrics.reviewOutcomes.changesRequired} change · ${metrics.reviewOutcomes.blocked} blocked` }
+  ];
 }

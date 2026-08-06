@@ -8627,9 +8627,134 @@ html:has(.app-shell-camp) body {
   color: #64748b;
 }
 
+.meridian-pilot {
+  display: grid;
+  gap: 16px;
+  padding-top: 20px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.meridian-pilot-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.meridian-pilot-heading h3,
+.meridian-pilot-members h4,
+.meridian-pilot-reviews h4 {
+  margin: 3px 0 6px;
+}
+
+.meridian-pilot-heading p,
+.meridian-pilot-members > p,
+.meridian-pilot-reviews > p,
+.meridian-pilot-reviews article > p {
+  margin: 0;
+  color: #64748b;
+}
+
+.meridian-pilot-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.meridian-pilot-metrics > div {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  padding: 13px;
+  border: 1px solid #e2e8f0;
+  border-radius: 13px;
+  background: #f8fafc;
+}
+
+.meridian-pilot-metrics small,
+.meridian-pilot-members small,
+.meridian-pilot-reviews small {
+  color: #64748b;
+}
+
+.meridian-pilot-metrics strong {
+  overflow-wrap: anywhere;
+  font-size: 15px;
+}
+
+.meridian-pilot-members,
+.meridian-pilot-reviews {
+  display: grid;
+  gap: 10px;
+}
+
+.meridian-pilot-members > div,
+.meridian-pilot-reviews article {
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+.meridian-pilot-members > div,
+.meridian-pilot-reviews article > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+}
+
+.meridian-pilot-members span,
+.meridian-pilot-reviews article header span {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.meridian-pilot-reviews article > p {
+  padding: 0 14px 12px;
+}
+
+.meridian-pilot-feedback {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  padding: 12px 14px 14px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.meridian-pilot-feedback label {
+  display: grid;
+  gap: 5px;
+  color: #334155;
+  font-size: 13px;
+}
+
+.meridian-pilot-feedback select {
+  min-width: 0;
+  width: 100%;
+  padding: 8px 9px;
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  background: #fff;
+  color: #0f172a;
+}
+
+.meridian-pilot-feedback .meridian-pilot-check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.meridian-pilot-feedback .button {
+  align-self: end;
+  justify-self: start;
+}
+
 @media (max-width: 760px) {
   .oauth-consent-heading,
-  .meridian-personal-ai-heading {
+  .meridian-personal-ai-heading,
+  .meridian-pilot-heading {
     flex-direction: column;
   }
 
@@ -8653,6 +8778,24 @@ html:has(.app-shell-camp) body {
     width: 100%;
     max-width: none;
     justify-items: start;
+  }
+
+  .meridian-pilot-metrics,
+  .meridian-pilot-feedback {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .meridian-pilot-metrics,
+  .meridian-pilot-feedback {
+    grid-template-columns: 1fr;
+  }
+
+  .meridian-pilot-members > div,
+  .meridian-pilot-reviews article > header {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
 

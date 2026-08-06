@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import type { AuthSession } from "@/lib/auth/server";
 import { meridianToolSecuritySchemes } from "@/lib/meridian/mcp/oauth";
+import { runPlatformMcpPilotOperation, type PlatformMcpPilotContext, type PlatformMcpPilotRepository, type PlatformMcpPilotTool } from "@/lib/meridian/mcp/pilot";
 import { PlatformMcpService } from "@/lib/meridian/mcp/platform-service";
 import { platformEventTypes, platformResourceKinds, platformTaskStatuses, type PlatformMcpRepository } from "@/lib/meridian/mcp/platform-types";
 import { MeridianMcpService } from "@/lib/meridian/mcp/service";
@@ -13,16 +14,30 @@ export function createMeridianMcpServer(input: {
   repository: MeridianMcpRepository;
   platformRepository: PlatformMcpRepository;
   clientName: string;
+  pilotRepository?: PlatformMcpPilotRepository;
 }) {
   const service = new MeridianMcpService(input.repository);
   const platform = new PlatformMcpService(input.repository, input.platformRepository);
   const server = new McpServer(
-    { name: "lead-emergence-meridian", version: "0.4.0" },
+    { name: "lead-emergence-meridian", version: "0.5.0" },
     {
       instructions:
-        "Lead Emergence tools act as the signed-in user and require explicit grants. Use approved Meridian evidence for theology and culture. Read before changing records, confirm every write, and reuse idempotency keys. Private Obsidian discovery stays in the user's local connector; when it influences a bundle, pass its transient check payload so the server can block leakage and retain hashes only. Submit the exact saved bundle to EMMA with approved claim IDs before describing it as reviewed. EMMA outcomes still require a person and never approve, publish, send, or synchronize. No delete, publish, send, vault-browsing, pastoral, Camp, medical, or mental-health tools are available."
+        "Lead Emergence tools act as the signed-in user and require explicit grants. Platform tools also require enrollment in the administrator-controlled pilot cohort and record payload-free safety metrics. Use approved Meridian evidence for theology and culture. Read before changing records, confirm every write, and reuse idempotency keys. Private Obsidian discovery stays in the user's local connector; when it influences a bundle, pass its transient check payload so the server can block leakage and retain hashes only. Submit the exact saved bundle to EMMA with approved claim IDs before describing it as reviewed. EMMA outcomes still require a person and never approve, publish, send, or synchronize. No delete, publish, send, vault-browsing, pastoral, Camp, medical, mental-health, or volunteer platform tools are available."
     }
   );
+
+  const runPlatformTool = <T>(
+    toolName: PlatformMcpPilotTool,
+    context: PlatformMcpPilotContext,
+    run: () => Promise<T>
+  ) => runPlatformMcpPilotOperation({
+    session: input.session,
+    toolName,
+    clientName: input.clientName,
+    context,
+    run,
+    repository: input.pilotRepository
+  });
 
   server.registerTool(
     "search",
@@ -106,7 +121,7 @@ export function createMeridianMcpServer(input: {
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       _meta: { securitySchemes: meridianToolSecuritySchemes }
     },
-    async (toolInput) => mcpToolResult(async () => platform.listEvents(input.session, toolInput))
+    async (toolInput) => mcpToolResult(async () => runPlatformTool("list_events", { operationKind: "read" }, () => platform.listEvents(input.session, toolInput)))
   );
 
   server.registerTool(
@@ -118,7 +133,7 @@ export function createMeridianMcpServer(input: {
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       _meta: { securitySchemes: meridianToolSecuritySchemes }
     },
-    async ({ eventId }) => mcpToolResult(async () => platform.getEvent(input.session, eventId))
+    async ({ eventId }) => mcpToolResult(async () => runPlatformTool("get_event", { operationKind: "read", targetRecordType: "event", targetRecordId: eventId }, () => platform.getEvent(input.session, eventId)))
   );
 
   server.registerTool(
@@ -133,7 +148,10 @@ export function createMeridianMcpServer(input: {
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       _meta: { securitySchemes: meridianToolSecuritySchemes }
     },
-    async (toolInput) => mcpToolResult(async () => platform.listTasks(input.session, toolInput))
+    async (toolInput) => mcpToolResult(async () => runPlatformTool("list_tasks", {
+      operationKind: "read",
+      ...(toolInput.eventId ? { parentRecordType: "event" as const, parentRecordId: toolInput.eventId } : {})
+    }, () => platform.listTasks(input.session, toolInput)))
   );
 
   server.registerTool(
@@ -145,7 +163,7 @@ export function createMeridianMcpServer(input: {
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       _meta: { securitySchemes: meridianToolSecuritySchemes }
     },
-    async () => mcpToolResult(async () => platform.listTeamMembers(input.session))
+    async () => mcpToolResult(async () => runPlatformTool("list_team_members", { operationKind: "read" }, () => platform.listTeamMembers(input.session)))
   );
 
   server.registerTool(
@@ -160,7 +178,11 @@ export function createMeridianMcpServer(input: {
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       _meta: { securitySchemes: meridianToolSecuritySchemes }
     },
-    async (toolInput) => mcpToolResult(async () => platform.listResources(input.session, toolInput))
+    async (toolInput) => mcpToolResult(async () => runPlatformTool("list_resources", {
+      operationKind: "read",
+      parentRecordType: toolInput.destinationType,
+      parentRecordId: toolInput.destinationId
+    }, () => platform.listResources(input.session, toolInput)))
   );
 
   const mutationMeta = {
@@ -188,7 +210,7 @@ export function createMeridianMcpServer(input: {
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       _meta: { securitySchemes: meridianToolSecuritySchemes }
     },
-    async (toolInput) => mcpToolResult(async () => platform.createEvent(input.session, { ...toolInput, clientName: input.clientName }))
+    async (toolInput) => mcpToolResult(async () => runPlatformTool("create_event", { operationKind: "write", targetRecordType: "event" }, () => platform.createEvent(input.session, { ...toolInput, clientName: input.clientName })))
   );
 
   server.registerTool(
@@ -214,7 +236,7 @@ export function createMeridianMcpServer(input: {
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       _meta: { securitySchemes: meridianToolSecuritySchemes }
     },
-    async ({ eventId, ...toolInput }) => mcpToolResult(async () => platform.updateEvent(input.session, eventId, { ...toolInput, clientName: input.clientName }))
+    async ({ eventId, ...toolInput }) => mcpToolResult(async () => runPlatformTool("update_event", { operationKind: "write", targetRecordType: "event", targetRecordId: eventId }, () => platform.updateEvent(input.session, eventId, { ...toolInput, clientName: input.clientName })))
   );
 
   server.registerTool(
@@ -233,7 +255,12 @@ export function createMeridianMcpServer(input: {
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       _meta: { securitySchemes: meridianToolSecuritySchemes }
     },
-    async (toolInput) => mcpToolResult(async () => platform.createTask(input.session, { ...toolInput, clientName: input.clientName }))
+    async (toolInput) => mcpToolResult(async () => runPlatformTool("create_task", {
+      operationKind: "write",
+      targetRecordType: "task",
+      parentRecordType: "event",
+      parentRecordId: toolInput.eventId
+    }, () => platform.createTask(input.session, { ...toolInput, clientName: input.clientName })))
   );
 
   server.registerTool(
@@ -253,7 +280,7 @@ export function createMeridianMcpServer(input: {
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       _meta: { securitySchemes: meridianToolSecuritySchemes }
     },
-    async ({ taskId, ...toolInput }) => mcpToolResult(async () => platform.updateTask(input.session, taskId, { ...toolInput, clientName: input.clientName }))
+    async ({ taskId, ...toolInput }) => mcpToolResult(async () => runPlatformTool("update_task", { operationKind: "write", targetRecordType: "task", targetRecordId: taskId }, () => platform.updateTask(input.session, taskId, { ...toolInput, clientName: input.clientName })))
   );
 
   server.registerTool(
@@ -280,7 +307,14 @@ export function createMeridianMcpServer(input: {
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       _meta: { securitySchemes: meridianToolSecuritySchemes }
     },
-    async (toolInput) => mcpToolResult(async () => platform.createResourceBundle(input.session, { ...toolInput, clientName: input.clientName }))
+    async (toolInput) => mcpToolResult(async () => runPlatformTool("create_resource_bundle", {
+      operationKind: "write",
+      targetRecordType: "resource_bundle",
+      parentRecordType: toolInput.destinationType,
+      parentRecordId: toolInput.destinationId,
+      artifactCount: toolInput.items.length,
+      privateDiscoveryStatus: toolInput.privateDiscovery?.length ? "passed" : "not_used"
+    }, () => platform.createResourceBundle(input.session, { ...toolInput, clientName: input.clientName })))
   );
 
   server.registerTool(
@@ -301,7 +335,13 @@ export function createMeridianMcpServer(input: {
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       _meta: { securitySchemes: meridianToolSecuritySchemes }
     },
-    async (toolInput) => mcpToolResult(async () => platform.submitBundleForEmmaReview(input.session, { ...toolInput, clientName: input.clientName }))
+    async (toolInput) => mcpToolResult(async () => runPlatformTool("submit_bundle_for_emma_review", {
+      operationKind: "write",
+      targetRecordType: "resource_bundle",
+      targetRecordId: toolInput.bundleId,
+      artifactCount: toolInput.items.length,
+      groundingClaimCount: toolInput.items.reduce((total, item) => total + new Set(item.claimIds).size, 0)
+    }, () => platform.submitBundleForEmmaReview(input.session, { ...toolInput, clientName: input.clientName })))
   );
 
   return server;
