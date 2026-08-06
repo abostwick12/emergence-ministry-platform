@@ -35,6 +35,7 @@ export const EMMA_WORKFLOWS = [
   "DRAFT_PARENT_EMAIL",
   "DRAFT_LEADER_GROUPME",
   "DRAFT_SMS",
+  "REVIEW_RESOURCE_BUNDLE",
   "ANALYZE_VOLUNTEER_GAPS",
   "GENERATE_MINISTRY_SUMMARY",
   "DRAFT_STUDENT_FOLLOW_UP",
@@ -49,6 +50,7 @@ export const EMMA_REQUEST_SOURCES = [
   "task_action",
   "dashboard",
   "assistant_panel",
+  "platform_mcp",
   "scheduled",
   "system",
   "planning_center"
@@ -113,7 +115,8 @@ export const EMMA_CONTEXT_CATEGORIES = [
   "workflow_template",
   "voice_profile",
   "budget",
-  "communication_draft"
+  "communication_draft",
+  "resource_bundle"
 ] as const;
 export type EmmaContextCategory = (typeof EMMA_CONTEXT_CATEGORIES)[number];
 
@@ -150,6 +153,7 @@ export const EMMA_WORKFLOW_META: Record<EmmaWorkflow, EmmaWorkflowMeta> = {
   DRAFT_PARENT_EMAIL: { domain: "COMMUNICATIONS", risk: "high", actionType: "create_communication_draft", externalFacing: true, enabled: true, requiresApproval: true },
   DRAFT_LEADER_GROUPME: { domain: "COMMUNICATIONS", risk: "high", actionType: "create_communication_draft", externalFacing: true, enabled: true, requiresApproval: true },
   DRAFT_SMS: { domain: "COMMUNICATIONS", risk: "high", actionType: "create_communication_draft", externalFacing: true, enabled: true, requiresApproval: true },
+  REVIEW_RESOURCE_BUNDLE: { domain: "RESEARCH", risk: "high", actionType: "none", externalFacing: false, enabled: true, requiresApproval: true },
   ANALYZE_VOLUNTEER_GAPS: { domain: "VOLUNTEERS", risk: "low", actionType: "none", externalFacing: false, enabled: true, requiresApproval: false },
   GENERATE_MINISTRY_SUMMARY: { domain: "REPORTING", risk: "low", actionType: "none", externalFacing: false, enabled: true, requiresApproval: false },
   // Deferred until the Planning Center and RAG phases.

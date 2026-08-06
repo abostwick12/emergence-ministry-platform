@@ -19,6 +19,9 @@ import type {
   PlatformEventSummary,
   PlatformMcpRepository,
   PlatformResourceBundleResult,
+  PlatformResourceBundleReviewSnapshot,
+  SavePlatformResourceBundleReviewInput,
+  StoredPlatformResourceBundleReview,
   PlatformTaskSummary,
   UpdatePlatformEventInput,
   UpdatePlatformTaskInput
@@ -34,8 +37,9 @@ type BundleRow = {
   title: string;
   destination_type: "event" | "weekly_leader_prep";
   destination_id: string;
-  status: "creating" | "review_required";
-  emma_status: "not_reviewed";
+  status: "creating" | "review_required" | "changes_requested" | "blocked";
+  emma_status: "not_reviewed" | "changes_required" | "blocked" | "passed";
+  human_review_status?: "pending" | "approved" | "changes_requested" | "rejected";
   private_discovery_status: "not_used" | "passed";
   client_name: string;
   idempotency_key: string;
@@ -55,7 +59,22 @@ type BundleItemRow = {
   content_hash: string;
   attachment_id: string | null;
   position: number;
-  status: "creating" | "review_required";
+  status: "creating" | "review_required" | "changes_requested" | "blocked";
+};
+
+type BundleReviewRow = {
+  id: string;
+  bundle_id: string;
+  contract_version: "1.0";
+  outcome: "ready_for_human_review" | "changes_required" | "blocked" | "failed";
+  summary: string | null;
+  findings: StoredPlatformResourceBundleReview["findings"];
+  provider: string | null;
+  model: string | null;
+  emma_request_id: string;
+  emma_run_id: string | null;
+  human_review_status: "pending";
+  failure_code: string | null;
 };
 
 export class SupabasePlatformMcpRepository implements PlatformMcpRepository {
@@ -274,6 +293,148 @@ export class SupabasePlatformMcpRepository implements PlatformMcpRepository {
       idempotentReplay: replay
     };
   }
+
+  async getResourceBundleForReview(session: AuthSession, bundleId: string): Promise<PlatformResourceBundleReviewSnapshot | null> {
+    await requireWriteAccess(session);
+    if (!session.accessToken || session.isMock || session.isGuest) {
+      throw new MeridianMcpError("live_storage_required", 409, "EMMA bundle review requires a live Lead Emergence workspace.");
+    }
+    const supabase = getSupabaseAuthClient(session.accessToken);
+    const bundleResult = await supabase
+      .from("meridian_mcp_resource_bundles")
+      .select("id,ministry_id,created_by_user_id,title,destination_type,destination_id,status,emma_status,private_discovery_status,human_review_status,client_name,idempotency_key")
+      .eq("id", bundleId)
+      .maybeSingle<BundleRow>();
+    if (bundleResult.error) throw storageError();
+    if (!bundleResult.data) return null;
+    const itemResult = await supabase
+      .from("meridian_mcp_resource_bundle_items")
+      .select("id,bundle_id,artifact_kind,title,content_hash,attachment_id,position,status")
+      .eq("bundle_id", bundleId)
+      .order("position", { ascending: true })
+      .returns<BundleItemRow[]>();
+    if (itemResult.error) throw storageError();
+    const bundle = bundleResult.data;
+    return {
+      id: bundle.id,
+      ministryId: bundle.ministry_id,
+      createdByUserId: bundle.created_by_user_id,
+      title: bundle.title,
+      destinationType: bundle.destination_type,
+      destinationId: bundle.destination_id,
+      status: bundle.status,
+      emmaStatus: bundle.emma_status,
+      humanReviewStatus: bundle.human_review_status ?? "pending",
+      privateDiscoveryStatus: bundle.private_discovery_status,
+      items: (itemResult.data ?? []).map((item) => ({
+        id: item.id,
+        kind: item.artifact_kind,
+        title: item.title,
+        contentHash: item.content_hash,
+        attachmentId: item.attachment_id,
+        position: item.position,
+        status: item.status
+      }))
+    };
+  }
+
+  async findResourceBundleReview(
+    session: AuthSession,
+    bundleId: string,
+    idempotencyKey: string
+  ): Promise<StoredPlatformResourceBundleReview | null> {
+    await requireWriteAccess(session);
+    if (!session.accessToken || session.isMock || session.isGuest) return null;
+    const supabase = getSupabaseAuthClient(session.accessToken);
+    const result = await supabase
+      .from("meridian_mcp_bundle_reviews")
+      .select("id,bundle_id,contract_version,outcome,summary,findings,provider,model,emma_request_id,emma_run_id,human_review_status,failure_code")
+      .eq("bundle_id", bundleId)
+      .eq("created_by_user_id", session.user.id)
+      .eq("idempotency_key", idempotencyKey)
+      .maybeSingle<BundleReviewRow>();
+    if (result.error) throw storageError();
+    if (!result.data) return null;
+    const bundle = await this.getResourceBundleForReview(session, bundleId);
+    if (!bundle) return null;
+    return toStoredReview(result.data, reviewUrl(bundle));
+  }
+
+  async saveResourceBundleReview(
+    session: AuthSession,
+    input: SavePlatformResourceBundleReviewInput
+  ): Promise<StoredPlatformResourceBundleReview> {
+    await requireWriteAccess(session);
+    if (!session.accessToken || session.isMock || session.isGuest) {
+      throw new MeridianMcpError("live_storage_required", 409, "EMMA bundle review requires a live Lead Emergence workspace.");
+    }
+    const supabase = getSupabaseAuthClient(session.accessToken);
+    const result = await supabase.rpc("save_meridian_mcp_bundle_review", {
+      p_review_id: input.id,
+      p_bundle_id: input.bundleId,
+      p_ministry_id: input.ministryId,
+      p_idempotency_key: input.idempotencyKey,
+      p_contract_version: input.contractVersion,
+      p_content_fingerprint: input.contentFingerprint,
+      p_outcome: input.outcome,
+      p_summary: input.summary,
+      p_findings: input.findings,
+      p_evidence: input.evidence,
+      p_provider: input.provider,
+      p_model: input.model,
+      p_emma_request_id: input.emmaRequestId,
+      p_emma_run_id: input.emmaRunId,
+      p_failure_code: input.failureCode,
+      p_private_discovery_status: input.privateDiscoveryStatus
+    });
+    if (result.error) throw storageError();
+    const saved = await this.findResourceBundleReview(session, input.bundleId, input.idempotencyKey);
+    if (!saved) throw storageError();
+    return saved;
+  }
+}
+
+function toStoredReview(row: BundleReviewRow, url: string): StoredPlatformResourceBundleReview {
+  if (row.outcome === "failed") {
+    return {
+      id: row.id,
+      bundleId: row.bundle_id,
+      contractVersion: row.contract_version,
+      outcome: "failed",
+      summary: null,
+      findings: [],
+      provider: null,
+      model: null,
+      emmaRequestId: row.emma_request_id,
+      emmaRunId: null,
+      humanReviewRequired: true,
+      humanReviewStatus: "pending",
+      url,
+      failureCode: row.failure_code ?? "provider_error"
+    };
+  }
+  if (!row.summary || !row.provider || !row.model || !row.emma_run_id) throw storageError();
+  return {
+    id: row.id,
+    bundleId: row.bundle_id,
+    contractVersion: row.contract_version,
+    outcome: row.outcome,
+    summary: row.summary,
+    findings: row.findings,
+    provider: row.provider,
+    model: row.model,
+    emmaRequestId: row.emma_request_id,
+    emmaRunId: row.emma_run_id,
+    humanReviewRequired: true,
+    humanReviewStatus: "pending",
+    url
+  };
+}
+
+function reviewUrl(bundle: Pick<PlatformResourceBundleReviewSnapshot, "destinationType" | "destinationId">) {
+  return bundle.destinationType === "event"
+    ? `${publicOrigin()}/events?eventId=${encodeURIComponent(bundle.destinationId)}`
+    : `${publicOrigin()}/leader-prep`;
 }
 
 async function requireReadAccess(session: AuthSession) {

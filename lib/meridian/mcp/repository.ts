@@ -27,9 +27,11 @@ type GrantRow = {
   can_manage_events: boolean;
   can_manage_tasks: boolean;
   can_save_resources: boolean;
+  can_review_resources: boolean;
 };
 
-type PlatformGrantWithoutCandidatesRow = Omit<GrantRow, "can_submit_candidates">;
+type PhaseFourGrantRow = Omit<GrantRow, "can_review_resources">;
+type PlatformGrantWithoutCandidatesRow = Omit<PhaseFourGrantRow, "can_submit_candidates">;
 type LegacyGrantRow = Omit<PlatformGrantWithoutCandidatesRow, "can_read_platform" | "can_manage_events" | "can_manage_tasks" | "can_save_resources">;
 
 type ClaimRow = {
@@ -78,43 +80,58 @@ export class SupabaseMeridianMcpRepository implements MeridianMcpRepository {
     const supabase = getSupabaseAuthClient(session.accessToken);
     let result = await supabase
       .from("meridian_mcp_access_grants")
-      .select("ministry_id,user_id,access_level,can_search,can_save_drafts,can_submit_candidates,can_read_platform,can_manage_events,can_manage_tasks,can_save_resources")
+      .select("ministry_id,user_id,access_level,can_search,can_save_drafts,can_submit_candidates,can_read_platform,can_manage_events,can_manage_tasks,can_save_resources,can_review_resources")
       .eq("ministry_id", ministryId)
       .eq("user_id", session.user.id)
       .is("revoked_at", null)
       .maybeSingle<GrantRow>();
     if (result.error && isMissingPlatformGrantColumns(result.error)) {
-      const platformResult = await supabase
+      const phaseFourResult = await supabase
         .from("meridian_mcp_access_grants")
-        .select("ministry_id,user_id,access_level,can_search,can_save_drafts,can_read_platform,can_manage_events,can_manage_tasks,can_save_resources")
+        .select("ministry_id,user_id,access_level,can_search,can_save_drafts,can_submit_candidates,can_read_platform,can_manage_events,can_manage_tasks,can_save_resources")
         .eq("ministry_id", ministryId)
         .eq("user_id", session.user.id)
         .is("revoked_at", null)
-        .maybeSingle<PlatformGrantWithoutCandidatesRow>();
-      if (!platformResult.error) {
+        .maybeSingle<PhaseFourGrantRow>();
+      if (!phaseFourResult.error) {
         result = {
-          ...platformResult,
-          data: platformResult.data ? { ...platformResult.data, can_submit_candidates: false } : null
+          ...phaseFourResult,
+          data: phaseFourResult.data ? { ...phaseFourResult.data, can_review_resources: false } : null
         } as unknown as typeof result;
       } else {
-        const legacyResult = await supabase
-        .from("meridian_mcp_access_grants")
-        .select("ministry_id,user_id,access_level,can_search,can_save_drafts")
-        .eq("ministry_id", ministryId)
-        .eq("user_id", session.user.id)
-        .is("revoked_at", null)
-        .maybeSingle<LegacyGrantRow>();
-        result = {
-          ...legacyResult,
-          data: legacyResult.data ? {
-            ...legacyResult.data,
-            can_read_platform: false,
-            can_submit_candidates: false,
-            can_manage_events: false,
-            can_manage_tasks: false,
-            can_save_resources: false
-          } : null
-        } as unknown as typeof result;
+        const platformResult = await supabase
+          .from("meridian_mcp_access_grants")
+          .select("ministry_id,user_id,access_level,can_search,can_save_drafts,can_read_platform,can_manage_events,can_manage_tasks,can_save_resources")
+          .eq("ministry_id", ministryId)
+          .eq("user_id", session.user.id)
+          .is("revoked_at", null)
+          .maybeSingle<PlatformGrantWithoutCandidatesRow>();
+        if (!platformResult.error) {
+          result = {
+            ...platformResult,
+            data: platformResult.data ? { ...platformResult.data, can_submit_candidates: false, can_review_resources: false } : null
+          } as unknown as typeof result;
+        } else {
+          const legacyResult = await supabase
+            .from("meridian_mcp_access_grants")
+            .select("ministry_id,user_id,access_level,can_search,can_save_drafts")
+            .eq("ministry_id", ministryId)
+            .eq("user_id", session.user.id)
+            .is("revoked_at", null)
+            .maybeSingle<LegacyGrantRow>();
+          result = {
+            ...legacyResult,
+            data: legacyResult.data ? {
+              ...legacyResult.data,
+              can_read_platform: false,
+              can_submit_candidates: false,
+              can_manage_events: false,
+              can_manage_tasks: false,
+              can_save_resources: false,
+              can_review_resources: false
+            } : null
+          } as unknown as typeof result;
+        }
       }
     }
     if (result.error) throw storageError(result.error.message);
@@ -133,7 +150,8 @@ export class SupabaseMeridianMcpRepository implements MeridianMcpRepository {
       canReadPlatform: row.can_read_platform,
       canManageEvents: row.can_manage_events,
       canManageTasks: row.can_manage_tasks,
-      canSaveResources: row.can_save_resources
+      canSaveResources: row.can_save_resources,
+      canReviewResources: row.can_review_resources
     };
   }
 
@@ -351,10 +369,11 @@ function capabilityAllowed(row: GrantRow, capability: MeridianMcpCapability) {
   if (capability === "read_platform") return row.can_read_platform;
   if (capability === "manage_events") return row.can_manage_events;
   if (capability === "manage_tasks") return row.can_manage_tasks;
-  return row.can_save_resources;
+  if (capability === "save_resources") return row.can_save_resources;
+  return row.can_review_resources;
 }
 
 function isMissingPlatformGrantColumns(error: { code?: string; message?: string }) {
   const message = error.message?.toLowerCase() ?? "";
-  return error.code === "42703" || message.includes("can_submit_candidates") || message.includes("can_read_platform") || message.includes("can_manage_events") || message.includes("can_manage_tasks") || message.includes("can_save_resources");
+  return error.code === "42703" || message.includes("can_review_resources") || message.includes("can_submit_candidates") || message.includes("can_read_platform") || message.includes("can_manage_events") || message.includes("can_manage_tasks") || message.includes("can_save_resources");
 }

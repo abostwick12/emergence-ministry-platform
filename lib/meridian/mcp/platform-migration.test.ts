@@ -11,6 +11,10 @@ const privateDiscoveryMigration = readFileSync(
   join(process.cwd(), "supabase/migrations/20260805171914_platform_mcp_private_discovery.sql"),
   "utf8"
 );
+const emmaReviewMigration = readFileSync(
+  join(process.cwd(), "supabase/migrations/20260805190000_platform_mcp_emma_review.sql"),
+  "utf8"
+);
 
 describe("platform MCP operations migration", () => {
   it("keeps every platform capability explicit and disabled by default", () => {
@@ -78,5 +82,46 @@ describe("platform MCP private discovery migration", () => {
     expect(privateDiscoveryMigration).toContain("alter table public.meridian_mcp_bundle_private_provenance enable row level security");
     expect(privateDiscoveryMigration).toContain("revoke all on public.meridian_mcp_bundle_private_provenance from anon");
     expect(privateDiscoveryMigration).not.toMatch(/grant[^;]*delete[^;]*meridian_mcp_bundle_private_provenance/i);
+  });
+});
+
+describe("platform MCP EMMA review migration", () => {
+  it("keeps EMMA bundle review separately granted and human approval pending", () => {
+    expect(emmaReviewMigration).toContain("can_review_resources boolean not null default false");
+    expect(emmaReviewMigration).toContain("human_review_status text not null default 'pending'");
+    expect(emmaReviewMigration).toContain("human_review_status = 'pending'");
+    expect(emmaReviewMigration).not.toContain("human_review_status = 'approved'");
+  });
+
+  it("stores the versioned three-outcome contract and audited provider provenance", () => {
+    expect(emmaReviewMigration).toContain("create table if not exists public.meridian_mcp_bundle_reviews");
+    expect(emmaReviewMigration).toContain("contract_version text not null check (contract_version = '1.0')");
+    expect(emmaReviewMigration).toContain("'ready_for_human_review','changes_required','blocked','failed'");
+    expect(emmaReviewMigration).toContain("summary text check (summary is null or char_length(summary) between 1 and 1200)");
+    expect(emmaReviewMigration).toContain("emma_request_id uuid not null references public.ai_requests");
+    expect(emmaReviewMigration).toContain("emma_run_id uuid references public.ai_runs");
+  });
+
+  it("retains only approved claim and fragment links and no prompt or private-note body", () => {
+    expect(emmaReviewMigration).toContain("create table if not exists public.meridian_mcp_bundle_review_evidence");
+    expect(emmaReviewMigration).toContain("claim.approval_status = 'approved'");
+    expect(emmaReviewMigration).toContain("claim.authority_class <> 'none'");
+    const reviewTables = emmaReviewMigration.slice(
+      emmaReviewMigration.indexOf("create table if not exists public.meridian_mcp_bundle_reviews"),
+      emmaReviewMigration.indexOf("alter table public.meridian_mcp_resource_bundles\n  add column if not exists active_emma_review_id")
+    );
+    expect(reviewTables).not.toMatch(/raw_text|body_markdown|prompt|private_note/i);
+  });
+
+  it("uses RLS, a locked-down transactional function, atomic outcome mapping, and no direct review writes", () => {
+    expect(emmaReviewMigration).toContain("alter table public.meridian_mcp_bundle_reviews enable row level security");
+    expect(emmaReviewMigration).toContain("security definer");
+    expect(emmaReviewMigration).toContain("set search_path = ''");
+    expect(emmaReviewMigration).toContain("revoke insert, update, delete on public.meridian_mcp_bundle_reviews from authenticated");
+    expect(emmaReviewMigration).toContain("revoke update (emma_status, human_review_status, active_emma_review_id)");
+    expect(emmaReviewMigration).toContain("when 'ready_for_human_review' then 'passed'");
+    expect(emmaReviewMigration).toContain("when 'changes_required' then 'changes_requested'");
+    expect(emmaReviewMigration).toContain("revoke all on public.meridian_mcp_bundle_reviews from anon");
+    expect(emmaReviewMigration).not.toMatch(/grant[^;]*delete[^;]*meridian_mcp_bundle_reviews/i);
   });
 });

@@ -8,7 +8,8 @@ export type MeridianMcpCapability =
   | "read_platform"
   | "manage_events"
   | "manage_tasks"
-  | "save_resources";
+  | "save_resources"
+  | "review_resources";
 
 export type MeridianMcpGrant = {
   ministryId: string;
@@ -21,6 +22,7 @@ export type MeridianMcpGrant = {
   canManageEvents: boolean;
   canManageTasks: boolean;
   canSaveResources: boolean;
+  canReviewResources: boolean;
 };
 
 export const meridianMcpCandidateObjectTypes = ["passage", "doctrine", "formation", "question"] as const;

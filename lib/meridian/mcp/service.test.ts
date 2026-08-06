@@ -131,7 +131,8 @@ function fakeRepository(): MeridianMcpRepository {
       canReadPlatform: true,
       canManageEvents: true,
       canManageTasks: true,
-      canSaveResources: true
+      canSaveResources: true,
+      canReviewResources: true
     }),
     search: vi.fn().mockResolvedValue([]),
     fetch: vi.fn().mockResolvedValue(null),

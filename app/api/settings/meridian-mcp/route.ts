@@ -13,10 +13,12 @@ type GrantRow = {
   can_manage_events: boolean;
   can_manage_tasks: boolean;
   can_save_resources: boolean;
+  can_review_resources: boolean;
   revoked_at: string | null;
 };
 
-type PlatformGrantWithoutCandidatesRow = Omit<GrantRow, "can_submit_candidates">;
+type PhaseFourGrantRow = Omit<GrantRow, "can_review_resources">;
+type PlatformGrantWithoutCandidatesRow = Omit<PhaseFourGrantRow, "can_submit_candidates">;
 type LegacyGrantRow = Omit<PlatformGrantWithoutCandidatesRow, "can_read_platform" | "can_manage_events" | "can_manage_tasks" | "can_save_resources">;
 
 export async function GET(request: Request) {
@@ -34,40 +36,54 @@ export async function GET(request: Request) {
   const supabase = getSupabaseAuthClient(session.accessToken);
   let grantResult = await supabase
     .from("meridian_mcp_access_grants")
-    .select("access_level,can_search,can_save_drafts,can_submit_candidates,can_read_platform,can_manage_events,can_manage_tasks,can_save_resources,revoked_at")
+    .select("access_level,can_search,can_save_drafts,can_submit_candidates,can_read_platform,can_manage_events,can_manage_tasks,can_save_resources,can_review_resources,revoked_at")
     .eq("ministry_id", ministryId)
     .eq("user_id", session.user.id)
     .maybeSingle<GrantRow>();
   if (grantResult.error && isMissingPlatformGrantColumns(grantResult.error)) {
-    const platformResult = await supabase
+    const phaseFourResult = await supabase
       .from("meridian_mcp_access_grants")
-      .select("access_level,can_search,can_save_drafts,can_read_platform,can_manage_events,can_manage_tasks,can_save_resources,revoked_at")
+      .select("access_level,can_search,can_save_drafts,can_submit_candidates,can_read_platform,can_manage_events,can_manage_tasks,can_save_resources,revoked_at")
       .eq("ministry_id", ministryId)
       .eq("user_id", session.user.id)
-      .maybeSingle<PlatformGrantWithoutCandidatesRow>();
-    if (!platformResult.error) {
+      .maybeSingle<PhaseFourGrantRow>();
+    if (!phaseFourResult.error) {
       grantResult = {
-        ...platformResult,
-        data: platformResult.data ? { ...platformResult.data, can_submit_candidates: false } : null
+        ...phaseFourResult,
+        data: phaseFourResult.data ? { ...phaseFourResult.data, can_review_resources: false } : null
       } as unknown as typeof grantResult;
     } else {
-      const legacyResult = await supabase
+      const platformResult = await supabase
         .from("meridian_mcp_access_grants")
-        .select("access_level,can_search,can_save_drafts,revoked_at")
+        .select("access_level,can_search,can_save_drafts,can_read_platform,can_manage_events,can_manage_tasks,can_save_resources,revoked_at")
         .eq("ministry_id", ministryId)
         .eq("user_id", session.user.id)
-        .maybeSingle<LegacyGrantRow>();
-      grantResult = {
-        ...legacyResult,
-        data: legacyResult.data ? {
-          ...legacyResult.data,
-          can_submit_candidates: false,
-          can_read_platform: false,
-          can_manage_events: false,
-          can_manage_tasks: false,
-          can_save_resources: false
-        } : null
-      } as unknown as typeof grantResult;
+        .maybeSingle<PlatformGrantWithoutCandidatesRow>();
+      if (!platformResult.error) {
+        grantResult = {
+          ...platformResult,
+          data: platformResult.data ? { ...platformResult.data, can_submit_candidates: false, can_review_resources: false } : null
+        } as unknown as typeof grantResult;
+      } else {
+        const legacyResult = await supabase
+          .from("meridian_mcp_access_grants")
+          .select("access_level,can_search,can_save_drafts,revoked_at")
+          .eq("ministry_id", ministryId)
+          .eq("user_id", session.user.id)
+          .maybeSingle<LegacyGrantRow>();
+        grantResult = {
+          ...legacyResult,
+          data: legacyResult.data ? {
+            ...legacyResult.data,
+            can_submit_candidates: false,
+            can_read_platform: false,
+            can_manage_events: false,
+            can_manage_tasks: false,
+            can_save_resources: false,
+            can_review_resources: false
+          } : null
+        } as unknown as typeof grantResult;
+      }
     }
   }
   if (grantResult.error) {
@@ -107,6 +123,7 @@ export async function PATCH(request: Request) {
     canManageEvents?: unknown;
     canManageTasks?: unknown;
     canSaveResources?: unknown;
+    canReviewResources?: unknown;
   } = {};
   try {
     body = await request.json();
@@ -121,10 +138,11 @@ export async function PATCH(request: Request) {
     || typeof body.canManageEvents !== "boolean"
     || typeof body.canManageTasks !== "boolean"
     || typeof body.canSaveResources !== "boolean"
+    || typeof body.canReviewResources !== "boolean"
   ) {
     return NextResponse.json({ error: "Connection permissions are invalid." }, { status: 400 });
   }
-  if (!body.canReadPlatform && (body.canManageEvents || body.canManageTasks || body.canSaveResources)) {
+  if (!body.canReadPlatform && (body.canManageEvents || body.canManageTasks || body.canSaveResources || body.canReviewResources)) {
     return NextResponse.json({ error: "Platform read access is required before platform changes can be enabled." }, { status: 400 });
   }
 
@@ -152,10 +170,11 @@ export async function PATCH(request: Request) {
       can_manage_events: body.canManageEvents,
       can_manage_tasks: body.canManageTasks,
       can_save_resources: body.canSaveResources,
+      can_review_resources: body.canReviewResources,
       created_by_user_id: session.user.id,
       revoked_at: null
     }, { onConflict: "ministry_id,user_id" })
-    .select("access_level,can_search,can_save_drafts,can_submit_candidates,can_read_platform,can_manage_events,can_manage_tasks,can_save_resources,revoked_at")
+    .select("access_level,can_search,can_save_drafts,can_submit_candidates,can_read_platform,can_manage_events,can_manage_tasks,can_save_resources,can_review_resources,revoked_at")
     .single<GrantRow>();
   if (result.error || !result.data) {
     return NextResponse.json({ error: "Meridian access could not be enabled." }, { status: 503 });
@@ -194,6 +213,7 @@ function toGrant(row: GrantRow | null) {
     canManageEvents: enabled && Boolean(row?.can_read_platform) && Boolean(row?.can_manage_events),
     canManageTasks: enabled && Boolean(row?.can_read_platform) && Boolean(row?.can_manage_tasks),
     canSaveResources: enabled && Boolean(row?.can_read_platform) && Boolean(row?.can_save_resources),
+    canReviewResources: enabled && Boolean(row?.can_read_platform) && Boolean(row?.can_review_resources),
     accessLevel: enabled ? row?.access_level ?? null : null
   };
 }
@@ -208,11 +228,12 @@ function disabledGrant() {
     canManageEvents: false,
     canManageTasks: false,
     canSaveResources: false,
+    canReviewResources: false,
     accessLevel: null
   };
 }
 
 function isMissingPlatformGrantColumns(error: { code?: string; message?: string }) {
   const message = error.message?.toLowerCase() ?? "";
-  return error.code === "42703" || message.includes("can_submit_candidates") || message.includes("can_read_platform") || message.includes("can_manage_events") || message.includes("can_manage_tasks") || message.includes("can_save_resources");
+  return error.code === "42703" || message.includes("can_review_resources") || message.includes("can_submit_candidates") || message.includes("can_read_platform") || message.includes("can_manage_events") || message.includes("can_manage_tasks") || message.includes("can_save_resources");
 }

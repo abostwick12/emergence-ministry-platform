@@ -30,7 +30,9 @@ export function createMockEmmaProvider(options?: { scenario?: MockProviderScenar
       return {
         provider: "mock",
         model: request.model || "mock-emma-model",
-        output: activeScenario === "invalid_json" ? { invalid: true } : (options?.output ?? defaultInternalSummary),
+        output: activeScenario === "invalid_json"
+          ? { invalid: true }
+          : (options?.output ?? defaultOutputFor(request)),
         usage: {
           totalTokens: 0,
           promptTokens: 0,
@@ -39,6 +41,18 @@ export function createMockEmmaProvider(options?: { scenario?: MockProviderScenar
       };
     }
   };
+}
+
+function defaultOutputFor(request: EmmaProviderRequest) {
+  if (request.systemPrompt.includes("resource-bundle-review-v1")) {
+    return {
+      contractVersion: "1.0",
+      outcome: "ready_for_human_review",
+      summary: "Mock EMMA completed the bundle review contract; human review is still required.",
+      findings: []
+    };
+  }
+  return defaultInternalSummary;
 }
 
 function scenarioFromModel(model: string): MockProviderScenario | undefined {

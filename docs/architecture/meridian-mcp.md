@@ -2,9 +2,9 @@
 
 ## Outcome
 
-Lead Emergence exposes a provider-independent, tool-only MCP endpoint at `/mcp`. A leader or volunteer can use an external AI client for creative reasoning while Lead Emergence remains responsible for tenant boundaries, approved knowledge, quotation rules, draft provenance, and human review.
+Lead Emergence exposes a tool-only MCP endpoint at `/mcp`. A leader or volunteer can use an external AI client for creative reasoning while Lead Emergence remains responsible for tenant boundaries, approved knowledge, quotation rules, draft provenance, automated review, and human authority.
 
-The MCP server never invokes Gloo, OpenAI, or another model provider. Inference is performed by the connected client under that user's account or membership.
+Normal Meridian search, fetch, and creative drafting use the connected client's model account. The separately granted Phase 5 bundle-review tool invokes Lead Emergence's audited, provider-independent EMMA abstraction only for the final structured alignment and safety check. Provider failure cannot approve or advance a bundle.
 
 ## Approved north-star expansion
 
@@ -17,6 +17,8 @@ The expansion does not change the current endpoint's trust model: OAuth establis
 See [Personal AI Platform MCP Roadmap](personal-ai-platform-mcp.md) for the proposed event/resource tools, linked sermon-bundle model, EMMA review contract, and phased release gates. None of those proposed tools should be described as live until its corresponding phase is implemented and verified.
 
 The local/private half of Phase 4 is documented in [Private Obsidian discovery](private-obsidian-discovery.md). Vault discovery runs in a separate user-owned STDIO server; the hosted Meridian endpoint receives private text only transiently for a requested leakage check or through a separately confirmed candidate nomination.
+
+The Phase 5 review contract is documented in [MCP EMMA bundle review](mcp-emma-bundle-review.md). EMMA stores findings and approved evidence links, not provider prompts or private-note bodies, and every outcome remains pending human review.
 
 ## First production slice
 
