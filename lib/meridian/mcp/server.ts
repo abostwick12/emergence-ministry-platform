@@ -6,7 +6,7 @@ import { meridianToolSecuritySchemes } from "@/lib/meridian/mcp/oauth";
 import { PlatformMcpService } from "@/lib/meridian/mcp/platform-service";
 import { platformEventTypes, platformResourceKinds, platformTaskStatuses, type PlatformMcpRepository } from "@/lib/meridian/mcp/platform-types";
 import { MeridianMcpService } from "@/lib/meridian/mcp/service";
-import { MeridianMcpError, meridianResourceTypes, type MeridianMcpRepository } from "@/lib/meridian/mcp/types";
+import { MeridianMcpError, meridianMcpCandidateObjectTypes, meridianResourceTypes, type MeridianMcpRepository } from "@/lib/meridian/mcp/types";
 
 export function createMeridianMcpServer(input: {
   session: AuthSession;
@@ -17,10 +17,10 @@ export function createMeridianMcpServer(input: {
   const service = new MeridianMcpService(input.repository);
   const platform = new PlatformMcpService(input.repository, input.platformRepository);
   const server = new McpServer(
-    { name: "lead-emergence-meridian", version: "0.2.0" },
+    { name: "lead-emergence-meridian", version: "0.3.0" },
     {
       instructions:
-        "Lead Emergence tools use the signed-in user's ministry, role, save rights, and explicit MCP grants. Use approved Meridian search/fetch results for theology and culture. Read before changing records, ask for explicit confirmation before every write, reuse the same idempotency key when retrying, and never claim generated resources are EMMA-reviewed, approved, published, sent, or externally communicated. No delete, publish, send, private-note, pastoral-note, Camp, medical, or mental-health operations are available."
+        "Lead Emergence tools act as the signed-in user and require explicit grants. Use approved Meridian evidence for theology and culture. Read before changing records, confirm every write, and reuse idempotency keys. Private Obsidian discovery stays in the user's local connector; when it influences a bundle, pass its transient check payload so the server can block leakage and retain hashes only. Never claim drafts are EMMA-reviewed, approved, published, sent, or synchronized. No delete, publish, send, vault-browsing, pastoral, Camp, medical, or mental-health tools are available."
     }
   );
 
@@ -66,6 +66,31 @@ export function createMeridianMcpServer(input: {
       _meta: { securitySchemes: meridianToolSecuritySchemes }
     },
     async (draft) => mcpToolResult(async () => service.submitDraft(input.session, draft, input.clientName))
+  );
+
+  server.registerTool(
+    "submit_private_discovery_candidate",
+    {
+      title: "Nominate private discovery material for Meridian review",
+      description: "Submit one explicitly selected local Obsidian note to the Meridian candidate queue only after the user confirms. It remains private, unreviewed, authority-none, never-quote, and unusable for generation until an administrator reviews and promotes it.",
+      inputSchema: {
+        title: z.string().trim().min(1).max(240),
+        sourceReference: z.string().trim().min(8).max(128).regex(/^[a-zA-Z0-9._:-]+$/),
+        rawText: z.string().trim().min(1).max(60000),
+        contentHash: z.string().regex(/^[0-9a-f]{64}$/),
+        objectType: z.enum(meridianMcpCandidateObjectTypes),
+        summary: z.string().trim().min(1).max(800),
+        topicTags: z.array(z.string().trim().min(1).max(120)).max(20).default([]),
+        scriptureReferences: z.array(z.string().trim().min(1).max(120)).max(20).default([]),
+        claimProposals: z.array(z.string().trim().min(1).max(500)).max(16).default([]),
+        questionAliases: z.array(z.string().trim().min(1).max(500)).max(20).default([]),
+        questionFacets: z.array(z.string().trim().min(1).max(500)).max(4).default([]),
+        confirmed: z.literal(true).describe("Set to true only after the user explicitly confirms submission of this exact private note.")
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      _meta: { securitySchemes: meridianToolSecuritySchemes }
+    },
+    async (candidate) => mcpToolResult(async () => service.submitPrivateCandidate(input.session, candidate))
   );
 
   server.registerTool(
@@ -245,6 +270,11 @@ export function createMeridianMcpServer(input: {
           title: z.string().trim().min(1).max(160),
           bodyMarkdown: z.string().trim().min(1).max(30000)
         })).min(1).max(8),
+        privateDiscovery: z.array(z.object({
+          sourceReference: z.string().trim().min(8).max(128).regex(/^[a-zA-Z0-9._:-]+$/),
+          contentHash: z.string().regex(/^[0-9a-f]{64}$/),
+          rawText: z.string().trim().min(1).max(60000)
+        })).max(16).optional().describe("Transient local-note check payload from the user-owned Obsidian connector. Required whenever private discovery influenced this bundle; raw text is checked and discarded, while only opaque references and hashes are retained."),
         ...mutationMeta
       },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },

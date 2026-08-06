@@ -88,6 +88,11 @@ export type CreatePlatformResourceBundleInput = {
   title: string;
   destinationType: "event" | "weekly_leader_prep";
   destinationId: string;
+  privateDiscoveryStatus: "not_used" | "passed";
+  privateDiscoveryProvenance: Array<{
+    sourceReference: string;
+    contentHash: string;
+  }>;
   items: Array<{
     id: string;
     attachmentId: string;
@@ -102,6 +107,7 @@ export type PlatformResourceBundleResult = {
   id: string;
   status: "review_required";
   emmaStatus: "not_reviewed";
+  privateDiscoveryStatus: "not_used" | "passed";
   destinationType: "event" | "weekly_leader_prep";
   destinationId: string;
   itemIds: string[];

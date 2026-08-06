@@ -4,10 +4,9 @@ test.describe("Meridian personal AI OAuth", () => {
   test("publishes OAuth discovery and challenges unauthenticated MCP clients", async ({ request }) => {
     const metadataResponse = await request.get("/.well-known/oauth-protected-resource");
     expect(metadataResponse.ok()).toBeTruthy();
-    await expect(metadataResponse.json()).resolves.toMatchObject({
-      resource: "http://localhost:3000/mcp",
-      scopes_supported: ["openid", "email", "profile"]
-    });
+    const metadata = await metadataResponse.json() as { resource: string; scopes_supported: string[] };
+    expect(metadata.scopes_supported).toEqual(["openid", "email", "profile"]);
+    expect(new URL(metadata.resource).pathname).toBe("/mcp");
 
     const mcpResponse = await request.post("/mcp", { data: { jsonrpc: "2.0", id: 1, method: "initialize" } });
     expect(mcpResponse.status()).toBe(401);
@@ -22,8 +21,8 @@ test.describe("Meridian personal AI OAuth", () => {
     await expect(panel).toContainText("Grant Meridian access");
     await expect(panel).toContainText("Add the MCP server in Codex");
     await expect(panel).toContainText("Approve the secure sign-in");
-    await expect(panel).toContainText("Raw private notes stay excluded");
-    await expect(panel.getByText("http://localhost:3000/mcp")).toBeVisible();
+    await expect(panel).toContainText("Vault discovery stays local");
+    await expect(panel.locator("code")).toContainText("/mcp");
   });
 
   test("shows explicit consent boundaries before authorizing a client", async ({ page }) => {

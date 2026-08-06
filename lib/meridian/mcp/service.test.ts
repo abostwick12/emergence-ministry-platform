@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { describe, expect, it, vi } from "vitest";
 
 import type { AuthSession } from "@/lib/auth/server";
@@ -83,6 +85,38 @@ describe("Meridian MCP service", () => {
     }));
     expect(result).toMatchObject({ status: "submitted", safetyStatus: "review_required", reviewRequired: true });
   });
+
+  it("requires confirmation and an exact local content hash before nominating a private note", async () => {
+    const repository = fakeRepository();
+    const rawText = "Private formation note prepared for explicit leader review.";
+    repository.submitPrivateCandidate = vi.fn().mockResolvedValue({
+      id: "candidate-1",
+      approvalStatus: "unreviewed",
+      quotePolicy: "never",
+      reviewRequired: true,
+      idempotentReplay: false
+    });
+    const result = await new MeridianMcpService(repository).submitPrivateCandidate(session, {
+      title: "Formation candidate",
+      sourceReference: "note:12345678",
+      rawText,
+      contentHash: createHash("sha256").update(rawText).digest("hex"),
+      objectType: "formation",
+      summary: "A private idea nominated for review.",
+      topicTags: ["formation"],
+      scriptureReferences: ["Romans 12:1-2"],
+      claimProposals: ["Formation includes embodied response."],
+      questionAliases: [],
+      questionFacets: [],
+      confirmed: true
+    });
+    expect(repository.requireGrant).toHaveBeenCalledWith(session, "submit_candidates");
+    expect(repository.submitPrivateCandidate).toHaveBeenCalledWith(session, expect.objectContaining({
+      sourceReference: "note:12345678",
+      contentHash: expect.stringMatching(/^[0-9a-f]{64}$/)
+    }));
+    expect(result).toMatchObject({ approvalStatus: "unreviewed", quotePolicy: "never", reviewRequired: true });
+  });
 });
 
 function fakeRepository(): MeridianMcpRepository {
@@ -90,9 +124,10 @@ function fakeRepository(): MeridianMcpRepository {
     requireGrant: vi.fn().mockResolvedValue({
       ministryId: "ministry-1",
       userId: session.user.id,
-      accessLevel: "volunteer_creator",
+      accessLevel: "leader_creator",
       canSearch: true,
       canSaveDrafts: true,
+      canSubmitCandidates: true,
       canReadPlatform: true,
       canManageEvents: true,
       canManageTasks: true,
@@ -100,7 +135,8 @@ function fakeRepository(): MeridianMcpRepository {
     }),
     search: vi.fn().mockResolvedValue([]),
     fetch: vi.fn().mockResolvedValue(null),
-    submitDraft: vi.fn()
+    submitDraft: vi.fn(),
+    submitPrivateCandidate: vi.fn()
   };
 }
 

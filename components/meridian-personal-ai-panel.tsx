@@ -17,6 +17,7 @@ type MeridianGrant = {
   enabled: boolean;
   canSearch: boolean;
   canSaveDrafts: boolean;
+  canSubmitCandidates: boolean;
   canReadPlatform: boolean;
   canManageEvents: boolean;
   canManageTasks: boolean;
@@ -24,7 +25,7 @@ type MeridianGrant = {
   accessLevel: string | null;
 };
 
-type GrantPermissions = Pick<MeridianGrant, "canSaveDrafts" | "canReadPlatform" | "canManageEvents" | "canManageTasks" | "canSaveResources">;
+type GrantPermissions = Pick<MeridianGrant, "canSaveDrafts" | "canSubmitCandidates" | "canReadPlatform" | "canManageEvents" | "canManageTasks" | "canSaveResources">;
 
 export function MeridianPersonalAiPanel({ canManage }: { canManage: boolean }) {
   const [state, setState] = useState<MeridianConnectionResponse>({});
@@ -130,6 +131,7 @@ export function MeridianPersonalAiPanel({ canManage }: { canManage: boolean }) {
               {grant?.enabled ? (
                 <div className="meridian-personal-ai-permissions" aria-label="Personal AI permissions">
                   <label><input type="checkbox" checked={grant.canSaveDrafts} disabled={busy === "grant"} onChange={(event) => void saveGrant(true, { ...permissions, canSaveDrafts: event.target.checked })} /> Allow review-only Meridian draft submission</label>
+                  <label><input type="checkbox" checked={grant.canSubmitCandidates} disabled={busy === "grant"} onChange={(event) => void saveGrant(true, { ...permissions, canSubmitCandidates: event.target.checked })} /> Allow confirmed private-note nominations for admin review</label>
                   <label><input type="checkbox" checked={grant.canReadPlatform} disabled={busy === "grant"} onChange={(event) => void saveGrant(true, {
                     ...permissions,
                     canReadPlatform: event.target.checked,
@@ -151,7 +153,7 @@ export function MeridianPersonalAiPanel({ canManage }: { canManage: boolean }) {
 
         <div className="meridian-personal-ai-step">
           <span>3</span><div><strong>Approve the secure sign-in</strong><p>OAuth proves who you are. Your Meridian grant decides what Codex may do.</p></div>
-          <p className="meridian-personal-ai-boundary"><KeyRound aria-hidden="true" /> Raw private notes stay excluded. All saved work remains an unapproved draft until human review.</p>
+          <p className="meridian-personal-ai-boundary"><KeyRound aria-hidden="true" /> Vault discovery stays local. Draft checks retain hashes only; an explicitly nominated note enters the private admin review queue.</p>
         </div>
       </div>
 
@@ -171,6 +173,7 @@ export function MeridianPersonalAiPanel({ canManage }: { canManage: boolean }) {
 function grantPermissions(grant: MeridianGrant | null | undefined): GrantPermissions {
   return {
     canSaveDrafts: Boolean(grant?.canSaveDrafts),
+    canSubmitCandidates: Boolean(grant?.canSubmitCandidates),
     canReadPlatform: Boolean(grant?.canReadPlatform),
     canManageEvents: Boolean(grant?.canManageEvents),
     canManageTasks: Boolean(grant?.canManageTasks),

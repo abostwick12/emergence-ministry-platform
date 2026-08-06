@@ -4,6 +4,7 @@ import type { MeridianAuthorityClass, MeridianClaimKind } from "@/lib/meridian/k
 export type MeridianMcpCapability =
   | "search"
   | "save_drafts"
+  | "submit_candidates"
   | "read_platform"
   | "manage_events"
   | "manage_tasks"
@@ -15,10 +16,36 @@ export type MeridianMcpGrant = {
   accessLevel: "volunteer_creator" | "leader_creator" | "admin";
   canSearch: boolean;
   canSaveDrafts: boolean;
+  canSubmitCandidates: boolean;
   canReadPlatform: boolean;
   canManageEvents: boolean;
   canManageTasks: boolean;
   canSaveResources: boolean;
+};
+
+export const meridianMcpCandidateObjectTypes = ["passage", "doctrine", "formation", "question"] as const;
+export type MeridianMcpCandidateObjectType = (typeof meridianMcpCandidateObjectTypes)[number];
+
+export type SubmitMeridianPrivateCandidateInput = {
+  title: string;
+  sourceReference: string;
+  rawText: string;
+  contentHash: string;
+  objectType: MeridianMcpCandidateObjectType;
+  summary: string;
+  topicTags: string[];
+  scriptureReferences: string[];
+  claimProposals: string[];
+  questionAliases: string[];
+  questionFacets: string[];
+};
+
+export type SubmittedMeridianPrivateCandidate = {
+  id: string;
+  approvalStatus: "unreviewed";
+  quotePolicy: "never";
+  reviewRequired: true;
+  idempotentReplay: boolean;
 };
 
 export type MeridianMcpSearchResult = {
@@ -81,6 +108,7 @@ export interface MeridianMcpRepository {
   search(session: AuthSession, query: string): Promise<MeridianMcpSearchResult[]>;
   fetch(session: AuthSession, id: string): Promise<MeridianMcpFetchedItem | null>;
   submitDraft(session: AuthSession, input: SubmitMeridianResourceDraftInput): Promise<SubmittedMeridianResourceDraft>;
+  submitPrivateCandidate(session: AuthSession, input: SubmitMeridianPrivateCandidateInput): Promise<SubmittedMeridianPrivateCandidate>;
 }
 
 export class MeridianMcpError extends Error {
