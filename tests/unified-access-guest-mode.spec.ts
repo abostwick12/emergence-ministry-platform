@@ -20,13 +20,16 @@ test.describe("Unified access and competition guest mode", () => {
     await enterGuestMode(page);
 
     await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible();
-    const judgePath = page.locator('[aria-label="Competition review path"]:visible');
+    const desktopDashboard = page.locator(".desktop-dashboard-workspace");
+    await expect(desktopDashboard).toBeVisible();
+    await expect(page.locator(".mobile-field-dashboard")).toBeHidden();
+    const judgePath = desktopDashboard.getByLabel("Competition review path");
     await expect(judgePath).toContainText("Inspect the platform story in order.");
     await expect(judgePath).toContainText("provider-verified EMMA alignment");
     await expect(judgePath.getByRole("link", { name: /Ministry Alignment/ })).toHaveAttribute("href", "/ministry");
     await expect(judgePath.getByRole("link", { name: /YouVersion Reader/ })).toHaveAttribute("href", "/student/scripture/resources?reference=John%203%3A16");
     await expect(judgePath.getByRole("link", { name: /Discipleship Review/ })).toHaveAttribute("href", "/discipleship");
-    const aiReadiness = page.locator('[aria-label="Submission AI readiness"]:visible');
+    const aiReadiness = desktopDashboard.getByLabel("Submission AI readiness");
     await expect(aiReadiness).toContainText("Provider-aware, guarded actions");
     await expect(aiReadiness).toContainText("Guest AI generation and guest sandbox edits are independent server-side controls");
     await expect(aiReadiness).toContainText("Human approval required");
@@ -142,8 +145,11 @@ test.describe("Unified access and competition guest mode", () => {
   test("mobile login replaces guest mode in the same browser context", async ({ context, page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await enterGuestMode(page);
-    await expect(page.locator('[aria-label="Competition review path"]:visible')).toContainText("YouVersion Reader");
-    await expect(page.locator('[aria-label="Submission AI readiness"]:visible')).toContainText("Provider badge reflects the signed-in production responder");
+    const mobileDashboard = page.locator(".mobile-field-dashboard");
+    await expect(mobileDashboard).toBeVisible();
+    await expect(page.locator(".desktop-dashboard-workspace")).toBeHidden();
+    await expect(mobileDashboard.getByLabel("Competition review path")).toContainText("YouVersion Reader");
+    await expect(mobileDashboard.getByLabel("Submission AI readiness")).toContainText("Provider badge reflects the signed-in production responder");
 
     await page.goto("/settings");
     await expect(page).toHaveURL(/\/login$/);
