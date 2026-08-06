@@ -14,10 +14,12 @@ type GrantRow = {
   can_manage_tasks: boolean;
   can_save_resources: boolean;
   can_review_resources: boolean;
+  pilot_stage: "not_enrolled" | "admin_pilot" | "leader_pilot";
   revoked_at: string | null;
 };
 
-type PhaseFourGrantRow = Omit<GrantRow, "can_review_resources">;
+type PhaseFiveGrantRow = Omit<GrantRow, "pilot_stage">;
+type PhaseFourGrantRow = Omit<PhaseFiveGrantRow, "can_review_resources">;
 type PlatformGrantWithoutCandidatesRow = Omit<PhaseFourGrantRow, "can_submit_candidates">;
 type LegacyGrantRow = Omit<PlatformGrantWithoutCandidatesRow, "can_read_platform" | "can_manage_events" | "can_manage_tasks" | "can_save_resources">;
 
@@ -36,36 +38,48 @@ export async function GET(request: Request) {
   const supabase = getSupabaseAuthClient(session.accessToken);
   let grantResult = await supabase
     .from("meridian_mcp_access_grants")
-    .select("access_level,can_search,can_save_drafts,can_submit_candidates,can_read_platform,can_manage_events,can_manage_tasks,can_save_resources,can_review_resources,revoked_at")
+    .select("access_level,can_search,can_save_drafts,can_submit_candidates,can_read_platform,can_manage_events,can_manage_tasks,can_save_resources,can_review_resources,pilot_stage,revoked_at")
     .eq("ministry_id", ministryId)
     .eq("user_id", session.user.id)
     .maybeSingle<GrantRow>();
   if (grantResult.error && isMissingPlatformGrantColumns(grantResult.error)) {
-    const phaseFourResult = await supabase
+    const phaseFiveResult = await supabase
+      .from("meridian_mcp_access_grants")
+      .select("access_level,can_search,can_save_drafts,can_submit_candidates,can_read_platform,can_manage_events,can_manage_tasks,can_save_resources,can_review_resources,revoked_at")
+      .eq("ministry_id", ministryId)
+      .eq("user_id", session.user.id)
+      .maybeSingle<PhaseFiveGrantRow>();
+    if (!phaseFiveResult.error) {
+      grantResult = {
+        ...phaseFiveResult,
+        data: phaseFiveResult.data ? { ...phaseFiveResult.data, pilot_stage: "not_enrolled" } : null
+      } as unknown as typeof grantResult;
+    } else {
+      const phaseFourResult = await supabase
       .from("meridian_mcp_access_grants")
       .select("access_level,can_search,can_save_drafts,can_submit_candidates,can_read_platform,can_manage_events,can_manage_tasks,can_save_resources,revoked_at")
       .eq("ministry_id", ministryId)
       .eq("user_id", session.user.id)
       .maybeSingle<PhaseFourGrantRow>();
-    if (!phaseFourResult.error) {
-      grantResult = {
-        ...phaseFourResult,
-        data: phaseFourResult.data ? { ...phaseFourResult.data, can_review_resources: false } : null
-      } as unknown as typeof grantResult;
-    } else {
-      const platformResult = await supabase
+      if (!phaseFourResult.error) {
+        grantResult = {
+          ...phaseFourResult,
+          data: phaseFourResult.data ? { ...phaseFourResult.data, can_review_resources: false, pilot_stage: "not_enrolled" } : null
+        } as unknown as typeof grantResult;
+      } else {
+        const platformResult = await supabase
         .from("meridian_mcp_access_grants")
         .select("access_level,can_search,can_save_drafts,can_read_platform,can_manage_events,can_manage_tasks,can_save_resources,revoked_at")
         .eq("ministry_id", ministryId)
         .eq("user_id", session.user.id)
         .maybeSingle<PlatformGrantWithoutCandidatesRow>();
-      if (!platformResult.error) {
-        grantResult = {
-          ...platformResult,
-          data: platformResult.data ? { ...platformResult.data, can_submit_candidates: false, can_review_resources: false } : null
-        } as unknown as typeof grantResult;
-      } else {
-        const legacyResult = await supabase
+        if (!platformResult.error) {
+          grantResult = {
+            ...platformResult,
+            data: platformResult.data ? { ...platformResult.data, can_submit_candidates: false, can_review_resources: false, pilot_stage: "not_enrolled" } : null
+          } as unknown as typeof grantResult;
+        } else {
+          const legacyResult = await supabase
           .from("meridian_mcp_access_grants")
           .select("access_level,can_search,can_save_drafts,revoked_at")
           .eq("ministry_id", ministryId)
@@ -80,9 +94,11 @@ export async function GET(request: Request) {
             can_manage_events: false,
             can_manage_tasks: false,
             can_save_resources: false,
-            can_review_resources: false
+            can_review_resources: false,
+            pilot_stage: "not_enrolled"
           } : null
         } as unknown as typeof grantResult;
+        }
       }
     }
   }
@@ -148,34 +164,94 @@ export async function PATCH(request: Request) {
 
   const supabase = getSupabaseAuthClient(session.accessToken);
   if (!body.enabled) {
+    const pilotResult = await supabase.rpc("set_meridian_mcp_pilot_member", {
+      p_user_id: session.user.id,
+      p_pilot_stage: "not_enrolled"
+    });
+    if (pilotResult.error && !isMissingPilotFunction(pilotResult.error)) {
+      return NextResponse.json({ error: "Meridian pilot access could not be disabled safely." }, { status: 503 });
+    }
     const result = await supabase
       .from("meridian_mcp_access_grants")
-      .update({ revoked_at: new Date().toISOString() })
+      .update({
+        revoked_at: new Date().toISOString(),
+        can_read_platform: false,
+        can_manage_events: false,
+        can_manage_tasks: false,
+        can_save_resources: false,
+        can_review_resources: false
+      })
       .eq("ministry_id", ministryId)
       .eq("user_id", session.user.id);
     if (result.error) return NextResponse.json({ error: "Meridian access could not be disabled." }, { status: 503 });
     return NextResponse.json({ grant: disabledGrant() });
   }
 
-  const result = await supabase
+  const grantPayload = {
+    ministry_id: ministryId,
+    user_id: session.user.id,
+    access_level: "admin",
+    can_search: true,
+    can_save_drafts: body.canSaveDrafts,
+    can_submit_candidates: body.canSubmitCandidates,
+    can_read_platform: body.canReadPlatform,
+    can_manage_events: body.canManageEvents,
+    can_manage_tasks: body.canManageTasks,
+    can_save_resources: body.canSaveResources,
+    can_review_resources: body.canReviewResources,
+    created_by_user_id: session.user.id,
+    revoked_at: null
+  };
+  const grantUpdates = {
+    access_level: grantPayload.access_level,
+    can_search: grantPayload.can_search,
+    can_save_drafts: grantPayload.can_save_drafts,
+    can_submit_candidates: grantPayload.can_submit_candidates,
+    can_read_platform: grantPayload.can_read_platform,
+    can_manage_events: grantPayload.can_manage_events,
+    can_manage_tasks: grantPayload.can_manage_tasks,
+    can_save_resources: grantPayload.can_save_resources,
+    can_review_resources: grantPayload.can_review_resources,
+    revoked_at: grantPayload.revoked_at
+  };
+  let result = await supabase
     .from("meridian_mcp_access_grants")
-    .upsert({
-      ministry_id: ministryId,
-      user_id: session.user.id,
-      access_level: "admin",
-      can_search: true,
-      can_save_drafts: body.canSaveDrafts,
-      can_submit_candidates: body.canSubmitCandidates,
-      can_read_platform: body.canReadPlatform,
-      can_manage_events: body.canManageEvents,
-      can_manage_tasks: body.canManageTasks,
-      can_save_resources: body.canSaveResources,
-      can_review_resources: body.canReviewResources,
-      created_by_user_id: session.user.id,
-      revoked_at: null
-    }, { onConflict: "ministry_id,user_id" })
-    .select("access_level,can_search,can_save_drafts,can_submit_candidates,can_read_platform,can_manage_events,can_manage_tasks,can_save_resources,can_review_resources,revoked_at")
-    .single<GrantRow>();
+    .update(grantUpdates)
+    .eq("ministry_id", ministryId)
+    .eq("user_id", session.user.id)
+    .select("access_level,can_search,can_save_drafts,can_submit_candidates,can_read_platform,can_manage_events,can_manage_tasks,can_save_resources,can_review_resources,pilot_stage,revoked_at")
+    .maybeSingle<GrantRow>();
+  if (result.error && isMissingPlatformGrantColumns(result.error)) {
+    const phaseFiveResult = await supabase
+      .from("meridian_mcp_access_grants")
+      .update(grantUpdates)
+      .eq("ministry_id", ministryId)
+      .eq("user_id", session.user.id)
+      .select("access_level,can_search,can_save_drafts,can_submit_candidates,can_read_platform,can_manage_events,can_manage_tasks,can_save_resources,can_review_resources,revoked_at")
+      .maybeSingle<PhaseFiveGrantRow>();
+    result = {
+      ...phaseFiveResult,
+      data: phaseFiveResult.data ? { ...phaseFiveResult.data, pilot_stage: "not_enrolled" } : null
+    } as unknown as typeof result;
+  }
+  if (!result.error && !result.data) {
+    result = await supabase
+      .from("meridian_mcp_access_grants")
+      .insert(grantPayload)
+      .select("access_level,can_search,can_save_drafts,can_submit_candidates,can_read_platform,can_manage_events,can_manage_tasks,can_save_resources,can_review_resources,pilot_stage,revoked_at")
+      .single<GrantRow>();
+    if (result.error && isMissingPlatformGrantColumns(result.error)) {
+      const phaseFiveResult = await supabase
+        .from("meridian_mcp_access_grants")
+        .insert(grantPayload)
+        .select("access_level,can_search,can_save_drafts,can_submit_candidates,can_read_platform,can_manage_events,can_manage_tasks,can_save_resources,can_review_resources,revoked_at")
+        .single<PhaseFiveGrantRow>();
+      result = {
+        ...phaseFiveResult,
+        data: phaseFiveResult.data ? { ...phaseFiveResult.data, pilot_stage: "not_enrolled" } : null
+      } as unknown as typeof result;
+    }
+  }
   if (result.error || !result.data) {
     return NextResponse.json({ error: "Meridian access could not be enabled." }, { status: 503 });
   }
@@ -214,6 +290,7 @@ function toGrant(row: GrantRow | null) {
     canManageTasks: enabled && Boolean(row?.can_read_platform) && Boolean(row?.can_manage_tasks),
     canSaveResources: enabled && Boolean(row?.can_read_platform) && Boolean(row?.can_save_resources),
     canReviewResources: enabled && Boolean(row?.can_read_platform) && Boolean(row?.can_review_resources),
+    pilotStage: enabled ? row?.pilot_stage ?? "not_enrolled" : "not_enrolled",
     accessLevel: enabled ? row?.access_level ?? null : null
   };
 }
@@ -229,11 +306,17 @@ function disabledGrant() {
     canManageTasks: false,
     canSaveResources: false,
     canReviewResources: false,
+    pilotStage: "not_enrolled",
     accessLevel: null
   };
 }
 
 function isMissingPlatformGrantColumns(error: { code?: string; message?: string }) {
   const message = error.message?.toLowerCase() ?? "";
-  return error.code === "42703" || message.includes("can_review_resources") || message.includes("can_submit_candidates") || message.includes("can_read_platform") || message.includes("can_manage_events") || message.includes("can_manage_tasks") || message.includes("can_save_resources");
+  return error.code === "42703" || message.includes("pilot_stage") || message.includes("can_review_resources") || message.includes("can_submit_candidates") || message.includes("can_read_platform") || message.includes("can_manage_events") || message.includes("can_manage_tasks") || message.includes("can_save_resources");
+}
+
+function isMissingPilotFunction(error: { code?: string; message?: string }) {
+  const message = error.message?.toLowerCase() ?? "";
+  return error.code === "PGRST202" || error.code === "42883" || message.includes("set_meridian_mcp_pilot_member");
 }
