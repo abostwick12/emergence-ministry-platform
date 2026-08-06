@@ -6,6 +6,10 @@ import type { StudentQuestionReflection } from "@/lib/scripture/student-reflecti
 import { buildLocalDiscussionDraftForPrompt, type LocalDiscussionDraft } from "@/lib/scripture/local-discussion-draft";
 import type { StudentGroupDiscussionItem } from "@/lib/scripture/student-home";
 import type { StudentDiscussionKnowledgeContext, StudentDiscussionPrompt, StudentDiscussionStatus } from "@/lib/scripture/types";
+import type { StudentJourneyFormationContent, StudentJourneySelection } from "@/lib/scripture/student-journey-draft";
+import { buildSeededSaulJourneyContent } from "@/lib/scripture/student-journey-content";
+import { selectStudentQuestionJourney } from "@/lib/scripture/student-journey-selection";
+import { sanitizeScriptureReference } from "@/lib/scripture/youversion";
 import type { StudentHowToReadProgress } from "@/lib/scripture/how-to-read-progress";
 import type { SaveStudentJourneyEntryInput, StudentJourneyEntry } from "@/lib/scripture/student-journey-entry-shared";
 import { competitionGuestQuestions } from "@/lib/guest/competition-demo-content";
@@ -29,6 +33,8 @@ type SaveLocalPromptInput = {
   metanarrativeMovement: StudentDiscussionPrompt["metanarrativeMovement"];
   draft: LocalDiscussionDraft;
   knowledgeContext: StudentDiscussionKnowledgeContext[];
+  journeySelection?: StudentJourneySelection;
+  journeyContent?: StudentJourneyFormationContent;
   ai?: {
     provider?: StudentDiscussionPrompt["aiProvider"];
     status: StudentDiscussionPrompt["aiStatus"];
@@ -47,10 +53,13 @@ type LocalDiscussionDecisionInput = {
     | "post"
     | "regenerate"
     | "use_local_draft"
+    | "assign_journey_passage"
     | "mark_discussed"
     | "flag_follow_up";
   leaderNotes?: string;
   discussionPrompt?: string;
+  journeyScriptureReference?: string;
+  journeyWhyThisPassage?: string;
 };
 
 const localStudentStateKey = Symbol.for("lead-emergence.local-student-state");
@@ -128,6 +137,8 @@ export function saveLocalStudentDiscussionPrompt(session: AuthSession, input: Sa
     safetyLabel: input.draft.safetyLabel,
     safetyNotes: input.draft.safetyNotes,
     discussionPrompt: input.draft.discussionPrompt,
+    ...(input.journeySelection ? { journeySelection: input.journeySelection } : {}),
+    ...(input.journeyContent ? { journeyContent: input.journeyContent } : {}),
     leaderNotes: "",
     status: "pending_review",
     knowledgeContext: input.knowledgeContext,
@@ -158,6 +169,38 @@ export function decideLocalStudentDiscussionPrompt(session: AuthSession, id: str
     updatedAt: now
   };
 
+  if (input.action === "assign_journey_passage") {
+    const sanitized = sanitizeScriptureReference(input.journeyScriptureReference ?? "");
+    if (!sanitized.ok) throw new Error(sanitized.message);
+    const whyThisPassage = normalizeLocalText(input.journeyWhyThisPassage);
+    if (!whyThisPassage) throw new Error("Explain why this passage directly addresses the student's question.");
+    const selection = selectStudentQuestionJourney({
+      question: prompt.question,
+      scriptureReference: sanitized.reference,
+      topicTags: []
+    }).selection;
+    if (selection.status !== "matched") {
+      throw new Error("Choose a passage from the same narrative, figures, or an explicit biblical cross-reference.");
+    }
+    updated.journeySelection = {
+      ...selection,
+      confidence: 1,
+      whyThisPassage,
+      matchSignals: [`Leader assigned: ${sanitized.reference}`, "Leader supplied the direct-relevance rationale."],
+      passageReasons: selection.passageReasons.map((passage, index) =>
+        index === 0
+          ? { ...passage, reason: whyThisPassage, relationship: "leader_assigned" as const }
+          : passage
+      )
+    };
+    updated.journeyContent = /\bsaul\b/i.test(prompt.question) && /^1\s*samuel\s+8\b/i.test(selection.primaryReference)
+      ? buildSeededSaulJourneyContent(now)
+      : undefined;
+    updated.status = "pending_review";
+    updated.approvedAt = undefined;
+    updated.approvedByUserId = undefined;
+  }
+
   if (input.action === "regenerate" || input.action === "use_local_draft") {
     const localDraft = buildLocalDiscussionDraftForPrompt(prompt);
     updated.aiStatus = "not_configured";
@@ -171,6 +214,12 @@ export function decideLocalStudentDiscussionPrompt(session: AuthSession, id: str
 
   if (input.action === "approve") {
     if (!updated.discussionPrompt.trim()) throw new Error("Write a discussion prompt before approving this question.");
+    if (updated.journeySelection && updated.journeySelection.status !== "matched") {
+      throw new Error("Assign a directly relevant Scripture passage before approving this question.");
+    }
+    if (updated.journeySelection && (!updated.journeyContent || updated.journeyContent.sourceStatus !== "supported" || updated.journeyContent.missingSourceFields.length)) {
+      throw new Error("Generate and review source-supported Journey Journal content before approving this question.");
+    }
     updated.status = "approved";
     updated.approvedByUserId = session.user.id;
     updated.approvedAt = now;

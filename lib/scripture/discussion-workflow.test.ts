@@ -14,6 +14,7 @@ const {
   isSupabaseAdminConfiguredMock,
   isSupabaseConfiguredMock,
   formatStudentKnowledgeContextForGlooMock,
+  lookupYouVersionPassageMock,
   resolveMinistryScopeMock
 } = vi.hoisted(() => ({
   generateMeridianDiscussionDraftMock: vi.fn(),
@@ -27,6 +28,16 @@ const {
   isSupabaseAdminConfiguredMock: vi.fn(),
   isSupabaseConfiguredMock: vi.fn(),
   formatStudentKnowledgeContextForGlooMock: vi.fn(),
+  lookupYouVersionPassageMock: vi.fn().mockResolvedValue({
+    ok: true,
+    passageId: "1SA.8",
+    passage: {
+      id: "1SA.8",
+      content: "The elders asked Samuel for a king to judge them like the nations. Samuel warned them what a king would take.",
+      reference: "1 Samuel 8",
+      provenance: { provider: "YouVersion", passageId: "1SA.8", bibleId: 3034, translationName: "BSB", retrievedAt: "2026-08-06T00:00:00.000Z" }
+    }
+  }),
   resolveMinistryScopeMock: vi.fn()
 }));
 
@@ -59,6 +70,11 @@ vi.mock("@/lib/scripture/knowledge", () => ({
 vi.mock("@/lib/student/groups", () => ({
   getPrimaryStudentGroupId: getPrimaryStudentGroupIdMock
 }));
+
+vi.mock("@/lib/scripture/youversion", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/scripture/youversion")>("@/lib/scripture/youversion");
+  return { ...actual, lookupYouVersionPassage: lookupYouVersionPassageMock };
+});
 
 import {
   createStudentDiscussionPrompt,
@@ -308,18 +324,32 @@ describe("local student discussion workflow", () => {
     formatStudentKnowledgeContextForGlooMock.mockReturnValue("");
   });
 
-  it("lets a locally submitted student question move through leader approval and the group feed", async () => {
+  it("routes the Saul question to a source-supported 1 Samuel journey and keeps it hidden until approval", async () => {
     const prompt = await createStudentDiscussionPrompt(session(), {
-      question: "Why did God put the tree in the garden?",
-      scriptureReference: "Genesis 3"
+      question: "Why do the people choose Saul to be their first king?"
     });
+
+    expect(prompt.journeySelection).toMatchObject({
+      status: "matched",
+      primaryReference: "1 Samuel 8",
+      supportingReferences: ["1 Samuel 9-10", "1 Samuel 11-12"]
+    });
+    expect(prompt.journeySelection?.supportingReferences).not.toEqual(expect.arrayContaining(["Genesis 12:1-3", "Genesis 15", "Exodus 19"]));
+    expect(prompt.journeyContent).toMatchObject({
+      label: "AI-assisted commentary",
+      sourceStatus: "supported",
+      see: { biblicalStandardReference: "Galatians 5:22-23" }
+    });
+    expect((await getStudentDiscussionWorkflowState(session())).prompts[0].journeyContent).toBeUndefined();
+    expect((await getStudentDiscussionWorkflowState(leaderSession())).prompts[0].journeyContent).toBeDefined();
 
     const approved = await decideStudentDiscussionPrompt(leaderSession(), prompt.id, {
       action: "approve",
       leaderNotes: "Use this Wednesday.",
-      discussionPrompt: "Where does Genesis 3 show trust breaking and God still pursuing?"
+      discussionPrompt: "Why did Israel ask for a king, and what warning did Samuel give them?"
     });
     const feed = await getApprovedStudentDiscussionFeed(session());
+    const studentVisible = await getStudentDiscussionWorkflowState(session());
 
     expect(approved).toMatchObject({
       id: prompt.id,
@@ -329,10 +359,11 @@ describe("local student discussion workflow", () => {
     expect(feed).toEqual([
       expect.objectContaining({
         id: prompt.id,
-        discussionPrompt: "Where does Genesis 3 show trust breaking and God still pursuing?",
+        discussionPrompt: "Why did Israel ask for a king, and what warning did Samuel give them?",
         status: "approved"
       })
     ]);
+    expect(studentVisible.prompts[0].journeyContent).toBeDefined();
     expect(getSupabaseAuthClientMock).not.toHaveBeenCalled();
     expect(getSupabaseAdminClientMock).not.toHaveBeenCalled();
   });
@@ -393,6 +424,21 @@ describe("local student discussion workflow", () => {
       })
     }));
     expect(getSupabaseAuthClientMock).not.toHaveBeenCalled();
+  });
+
+  it("flags an ambiguous question for leader assignment instead of guessing a journey", async () => {
+    const prompt = await createStudentDiscussionPrompt(session(), { question: "Why did they do that?" });
+
+    expect(prompt.journeySelection).toMatchObject({
+      status: "leader_assignment_required",
+      primaryReference: "",
+      confidence: 0
+    });
+    expect(prompt.journeyContent).toBeUndefined();
+    await expect(decideStudentDiscussionPrompt(leaderSession(), prompt.id, { action: "approve" })).rejects.toMatchObject({
+      code: "local_decision_error",
+      status: 409
+    } satisfies Partial<DiscussionWorkflowError>);
   });
 
 });

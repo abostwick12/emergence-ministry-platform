@@ -20191,6 +20191,103 @@ body:has(.login-shell) h3 {
   margin: 0;
 }
 
+.app-shell:not(.app-shell-camp) .student-lovable-formation-guide-wrap,
+.app-shell:not(.app-shell-camp) .student-journal-fruit-history {
+  display: grid;
+  gap: 10px;
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-ai-label {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+}
+
+.app-shell:not(.app-shell-camp) .student-lovable-ai-label small {
+  color: var(--platform-muted);
+  font-family: var(--font-platform-mono), ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  line-height: 1.5;
+  text-transform: uppercase;
+}
+
+.app-shell:not(.app-shell-camp) .student-journal-sentence-stem {
+  border: 1px solid rgba(22, 217, 245, 0.2);
+  border-radius: 10px;
+  background: rgba(22, 217, 245, 0.06);
+  overflow: hidden;
+}
+
+.app-shell:not(.app-shell-camp) .student-journal-sentence-stem summary {
+  cursor: pointer;
+  color: var(--platform-cyan);
+  font-family: var(--font-platform-mono), ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  list-style: none;
+  padding: 11px 13px;
+  text-transform: uppercase;
+}
+
+.app-shell:not(.app-shell-camp) .student-journal-sentence-stem summary::-webkit-details-marker {
+  display: none;
+}
+
+.app-shell:not(.app-shell-camp) .student-journal-sentence-stem p {
+  margin: 0;
+  border-top: 1px solid rgba(22, 217, 245, 0.14);
+  color: #d8e5f5;
+  font-family: var(--font-platform-serif), Georgia, serif;
+  font-size: 16px;
+  line-height: 1.5;
+  padding: 12px 14px;
+}
+
+.app-shell:not(.app-shell-camp) .student-journal-fruit-history {
+  border: 1px solid rgba(190, 146, 64, 0.2);
+  border-radius: 12px;
+  background: rgba(190, 146, 64, 0.06);
+  padding: 14px;
+}
+
+.app-shell:not(.app-shell-camp) .student-journal-fruit-history > p {
+  margin: 0;
+  color: var(--platform-muted);
+  line-height: 1.5;
+}
+
+.app-shell:not(.app-shell-camp) .student-journal-fruit-history ol {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.app-shell:not(.app-shell-camp) .student-journal-fruit-history li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  border-top: 1px solid rgba(190, 146, 64, 0.14);
+  color: #d8e5f5;
+  line-height: 1.5;
+  padding-top: 8px;
+}
+
+.app-shell:not(.app-shell-camp) .student-journal-fruit-history li strong {
+  color: var(--platform-gold);
+  font-size: 12px;
+}
+
+.app-shell:not(.app-shell-camp) .student-journey-review-gate {
+  border-color: color-mix(in srgb, var(--warning) 34%, var(--line));
+  background: color-mix(in srgb, var(--warning) 8%, var(--surface));
+}
+
 .app-shell:not(.app-shell-camp) .student-lovable-formation-guide div {
   display: grid;
   align-content: start;

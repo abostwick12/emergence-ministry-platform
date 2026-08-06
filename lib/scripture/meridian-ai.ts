@@ -23,6 +23,8 @@ import {
 } from "@/lib/scripture/meridian-synthesis";
 import type { MetanarrativeMovement, StudentDiscussionPrompt } from "@/lib/scripture/types";
 import type { StudentDiscussionKnowledgeContext } from "@/lib/scripture/types";
+import { buildStudentJourneyFormationContentFromAi } from "@/lib/scripture/student-journey-content";
+import type { StudentJourneyFormationContent } from "@/lib/scripture/student-journey-draft";
 
 export type MeridianAiProviderId = "gloo" | "gemini" | "openai";
 
@@ -46,6 +48,7 @@ export type MeridianDiscussionDraftResult =
       topicTags: string[];
       confidence: number;
       discussionPrompt: string;
+      journeyContent?: StudentJourneyFormationContent;
       scriptureReference?: string;
       safetyLabel: Exclude<StudentDiscussionPrompt["safetyLabel"], "unreviewed">;
       safetyNotes: string;
@@ -137,6 +140,7 @@ type FallbackProviderConfig = {
 
 type ParsedDiscussionDraft = {
   discussionPrompt?: unknown;
+  journeyDraft?: unknown;
   scriptureReference?: unknown;
   safetyLabel?: unknown;
   safetyNotes?: unknown;
@@ -233,10 +237,10 @@ export async function generateMeridianDiscussionDraft(input: MeridianDiscussionD
         systemPrompt: discussionSystemPrompt(),
         userPrompt: discussionUserPrompt(providerInput, fallback.id, lastFailure, synthesisBrief),
         temperature: 0.25,
-        maxOutputTokens: 900,
+        maxOutputTokens: input.journeyContext ? 2_600 : 900,
         timeoutMs: 15_000
       });
-      const parsed = parseDiscussionOutput(result.output, fallback.id, result.model || fallback.model, synthesisBrief);
+      const parsed = parseDiscussionOutput(result.output, fallback.id, result.model || fallback.model, synthesisBrief, providerInput);
       if (parsed) return parsed;
       lastFailure = `${fallback.id} returned an unusable discussion draft.`;
     } catch (error) {
@@ -427,7 +431,8 @@ function parseDiscussionOutput(
   output: unknown,
   provider: EmmaProviderId,
   model: string,
-  synthesisBrief: MeridianSynthesisBrief
+  synthesisBrief: MeridianSynthesisBrief,
+  input: MeridianDiscussionDraftInput
 ): Extract<MeridianDiscussionDraftResult, { ok: true }> | undefined {
   if (provider !== "gemini" && provider !== "openai") return undefined;
   if (!output || typeof output !== "object") return undefined;
@@ -437,6 +442,16 @@ function parseDiscussionOutput(
   const safetyLabel = normalizeSafetyLabel(parsed.safetyLabel);
   const safetyNotes = textValue(parsed.safetyNotes, 900);
   if (!discussionPrompt || !safetyLabel || !safetyNotes) return undefined;
+  const journeyContent = input.journeyContext
+    ? buildStudentJourneyFormationContentFromAi({
+        value: parsed.journeyDraft,
+        provider,
+        model,
+        sources: input.journeyContext.sources
+      })
+    : undefined;
+  if (input.journeyContext && !journeyContent) return undefined;
+  if (input.journeyContext && normalizeReferenceKey(scriptureReference) !== normalizeReferenceKey(input.journeyContext.selection.primaryReference)) return undefined;
   const validation = validateMeridianArtifact({ taskType: "discussion_prompt", content: discussionPrompt });
   if (!validation.ok) return undefined;
 
@@ -450,6 +465,7 @@ function parseDiscussionOutput(
     topicTags: normalizeStringArray(parsed.topicTags, 8),
     confidence: normalizeConfidence(parsed.confidence),
     discussionPrompt,
+    ...(journeyContent ? { journeyContent } : {}),
     ...(scriptureReference ? { scriptureReference } : {}),
     safetyLabel,
     safetyNotes,
@@ -523,7 +539,11 @@ function parseReadingPlanOutput(
 }
 
 function discussionSystemPrompt() {
-  return "You help student ministry leaders prepare careful, Scripture-grounded discussion prompts. Return only JSON with keys discussionPrompt, scriptureReference, safetyLabel, safetyNotes, confidence, topicTags, escalationReason. scriptureReference must be one concise Bible reference that directly grounds the response; retain a user-supplied reference when present. safetyLabel must be safe, needs_leader_care, or pastoral_escalation. Keep the draft leader-reviewed, humble, and usable with real students. Do not include full Bible text or crisis counseling.";
+  return "You help student ministry leaders prepare careful, Scripture-grounded discussion prompts and Journey Journal drafts. Return only JSON with keys discussionPrompt, journeyDraft, scriptureReference, safetyLabel, safetyNotes, confidence, topicTags, escalationReason. When a locked Journey Journal source packet is supplied, journeyDraft must include missingSourceFields; receive.historicalBackground; explore.repeatedPhrase, workedExample, and wholeStoryBridge; practice.slowReadingPrayer and responseStarter; walk.exampleActions; and see.biblicalStandardReference plus fruitToWatch. Every prose value and action must be an object with text and sourceIds drawn only from the supplied source IDs. Supply 2-3 concrete actions and set biblicalStandardReference to Galatians 5:22-23. If support is absent, leave the text empty and list the dotted field path in missingSourceFields. scriptureReference must be one concise Bible reference that directly grounds the response; retain the locked or user-supplied reference. safetyLabel must be safe, needs_leader_care, or pastoral_escalation. Keep every draft leader-reviewed, humble, and usable with real students. Do not include full Bible text, invent background claims, or provide crisis counseling.";
+}
+
+function normalizeReferenceKey(value: string) {
+  return value.normalize("NFKC").toLowerCase().replace(/[–—]/g, "-").replace(/\s+/g, "").trim();
 }
 
 function discussionUserPrompt(
@@ -539,7 +559,10 @@ function discussionUserPrompt(
     `Scripture reference: ${input.scriptureReference || "not selected"}\n` +
     `Story-lens hint: ${input.metanarrativeMovement ?? "infer from the question and passage"}\n\n` +
     `Meridian Synthesis Brief:\n${formatMeridianSynthesisBriefForAi(synthesisBrief)}\n\n` +
-    "Draft one Socratic small-group discussion prompt for leader review. Synthesize the brief naturally; do not cite internal documents or sources."
+    (input.journeyContext
+      ? `Locked Journey Journal passage: ${input.journeyContext.selection.primaryReference}\nWhy this passage: ${input.journeyContext.selection.whyThisPassage}\nDo not substitute another passage.\n\nJourney source packet:\n${input.journeyContext.sourceContext}\n\n`
+      : "No Journey Journal source packet was supplied; omit journeyDraft.\n\n") +
+    "Draft one Socratic small-group discussion prompt for leader review. When a Journey source packet is present, write substantive middle-school-ready content for every supported stage and cite the supplied source IDs in each field. Synthesize the brief naturally; do not expose internal documents or sources."
   );
 }
 
@@ -858,6 +881,12 @@ function discussionInputWithSynthesis(
     question: input.question,
     scriptureReference: input.scriptureReference,
     metanarrativeMovement: input.metanarrativeMovement,
+    studentJourneyContext: input.studentJourneyContext,
+    approvedEvidenceContext: input.approvedEvidenceContext,
+    groundingStatus: input.groundingStatus,
+    requireStructuredAnswer: input.requireStructuredAnswer,
+    requireClaimAttribution: input.requireClaimAttribution,
+    journeyContext: input.journeyContext,
     retrievedContext: [
       "Meridian Synthesis Brief:",
       formatMeridianSynthesisBriefForAi(synthesisBrief),

@@ -8,6 +8,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { StudentQuestionComposer } from "@/components/student/student-question-composer";
 import { StudentReflectionPanel } from "@/components/student/student-reflection-panel";
 import type { DiscussionWorkflowState } from "@/lib/scripture/discussion-workflow";
+import { isJourneyFormationContentReady } from "@/lib/scripture/student-journey-draft";
 import { howToReadModules, studentHowToReadLocalProgressKey } from "@/lib/scripture/how-to-read";
 import {
   studentCuratedResourceStageLabels,
@@ -329,6 +330,32 @@ function StudentQuestionJourneyCard({
   reflection?: StudentQuestionReflection;
 }) {
   const hasLeaderResponse = prompt.status === "approved" || prompt.status === "posted";
+  const journeyReady = hasLeaderResponse &&
+    nextStep.journeySelection.status === "matched" &&
+    isJourneyFormationContentReady(prompt.journeyContent);
+
+  if (!journeyReady) {
+    return (
+      <section className="student-question-journey student-active-journey-card student-journey-review-gate" aria-label="Question journey awaiting leader review">
+        <div className="student-active-journey-overview">
+          <p className="eyebrow">Leader review required</p>
+          <h2>{nextStep.journeySelection.status === "leader_assignment_required" ? "A leader needs to choose the passage" : "Your Journey Journal is being reviewed"}</h2>
+          <p>{nextStep.journeySelection.whyThisPassage}</p>
+          <span className="pill blue">With leader</span>
+        </div>
+        <aside className="student-last-step-flyover" aria-label="Review status">
+          <div>
+            <p className="eyebrow">Why the wait?</p>
+            <p>
+              {nextStep.journeySelection.status === "leader_assignment_required"
+                ? "Meridian will not guess from a broad theme. A leader will assign a passage tied to the same narrative, figures, or an explicit biblical cross-reference."
+                : "The passage match, source notes, prayer, examples, actions, and fruit rubric stay hidden until a leader approves them."}
+            </p>
+          </div>
+        </aside>
+      </section>
+    );
+  }
   const reading = nextStep.journeyJournal.readingPath[0];
   const practice = nextStep.journeyJournal.spiritualPractice;
   const progressStep = reflection?.reflectedAt ? 5 : hasLeaderResponse ? 4 : 3;
@@ -695,7 +722,9 @@ function QuestionFeedRow({
   return (
     <article className="student-feed-row">
       <div>
-        <span>{prompt.scriptureReference || nextStep?.storylineMatch.keyPassages[0] || "Passage anchor pending"}</span>
+        <span>{nextStep?.journeySelection.status === "leader_assignment_required"
+          ? "Leader passage assignment required"
+          : prompt.scriptureReference || nextStep?.journeySelection.primaryReference || "Passage anchor pending"}</span>
         <h3>{prompt.question}</h3>
         <p>{statusText(prompt)}</p>
       </div>

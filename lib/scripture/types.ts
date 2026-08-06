@@ -1,3 +1,5 @@
+import type { StudentJourneyFormationContent, StudentJourneySelection } from "@/lib/scripture/student-journey-draft";
+
 export const metanarrativeMovements = [
   "Creation",
   "Fall",
@@ -100,6 +102,8 @@ export type StudentDiscussionPrompt = {
   safetyLabel: "safe" | "needs_leader_care" | "pastoral_escalation" | "unreviewed";
   safetyNotes: string;
   discussionPrompt: string;
+  journeySelection?: StudentJourneySelection;
+  journeyContent?: StudentJourneyFormationContent;
   leaderNotes: string;
   status: StudentDiscussionStatus;
   knowledgeContext?: StudentDiscussionKnowledgeContext[];

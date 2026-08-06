@@ -21,6 +21,7 @@ import {
 import { studentJourneyEntryKey, type StudentJourneyEntry } from "@/lib/scripture/student-journey-entry-shared";
 import type { StudentQuestionReflection } from "@/lib/scripture/student-reflections";
 import type { StudentDiscussionPrompt } from "@/lib/scripture/types";
+import { isJourneyFormationContentReady } from "@/lib/scripture/student-journey-draft";
 import { buildYouVersionReaderLink } from "@/lib/scripture/youversion";
 
 type StudentQuestionsExperienceProps = {
@@ -63,6 +64,13 @@ export function StudentQuestionsExperience({ initialJourneyEntries, initialRefle
   const visibleSelectedEntries = selectedEntries.length ? selectedEntries : [1];
   const requestedEntrySequence = activeEntryByJourney[selectedJourneyId] ?? visibleSelectedEntries[0] ?? 1;
   const activeEntrySequence = Math.min(requestedEntrySequence, maxJournalEntries);
+  const selectedJourneyApproved = selectedPrompt?.status === "approved" || selectedPrompt?.status === "posted";
+  const selectedJourneyReady = Boolean(
+    selectedPrompt &&
+      selectedNextStep?.journeySelection.status === "matched" &&
+      selectedJourneyApproved &&
+      isJourneyFormationContentReady(selectedPrompt.journeyContent)
+  );
 
   useEffect(() => {
     setArchivedPromptIds(readArchivedPromptIds());
@@ -229,7 +237,7 @@ export function StudentQuestionsExperience({ initialJourneyEntries, initialRefle
               </button>
             ))}
             {selectedPrompt ? (
-              <button className="add-entry" disabled={visibleSelectedEntries.length >= maxJournalEntries} onClick={() => addEntry(selectedPrompt.id)} type="button">
+              <button className="add-entry" disabled={!selectedJourneyReady || visibleSelectedEntries.length >= maxJournalEntries} onClick={() => addEntry(selectedPrompt.id)} type="button">
                 <Plus aria-hidden="true" size={15} />
                 {visibleSelectedEntries.length >= maxJournalEntries ? "All paths open" : "Add entry"}
               </button>
@@ -244,10 +252,11 @@ export function StudentQuestionsExperience({ initialJourneyEntries, initialRefle
           journeys={studentLeaderFormationJourney.entries}
           journeyKind="formation"
           onJourneyEntrySaved={updateJourneyEntry}
+          previousFruitEntries={previousFruitEntriesFor(journeyEntries, studentLeaderFormationJourney.id, activeEntrySequence)}
           studentId={studentId}
         />
       ) : null}
-      {selectedPrompt && selectedNextStep ? (
+      {selectedPrompt && selectedNextStep && selectedJourneyReady ? (
         <StudentLovableJournalEntry
           key={selectedPrompt.id}
           accountEntry={journeyEntries[studentJourneyEntryKey(selectedPrompt.id, activeEntrySequence)]}
@@ -257,11 +266,27 @@ export function StudentQuestionsExperience({ initialJourneyEntries, initialRefle
           journeyKind="question"
           onJourneyEntrySaved={updateJourneyEntry}
           onReflectionSaved={updateReflection}
+          previousFruitEntries={previousFruitEntriesFor(journeyEntries, selectedPrompt.id, activeEntrySequence)}
           prompt={selectedPrompt}
           reflection={reflections[selectedPrompt.id]}
           studentId={studentId}
           walkPrompt={selectedNextStep.wrestleTogetherPrompt.replace(/^Bring this to group:\s*/i, "")}
         />
+      ) : null}
+      {selectedPrompt && selectedNextStep && !selectedJourneyReady ? (
+        <section className="student-feed-section student-journey-review-gate" aria-label="Journey awaiting leader review">
+          <div className="student-feed-section-heading">
+            <p className="eyebrow">Leader review required</p>
+            <h2>{selectedNextStep.journeySelection.status === "leader_assignment_required" ? "A leader needs to choose the passage" : "Your journey is still being reviewed"}</h2>
+          </div>
+          <p>{selectedNextStep.journeySelection.whyThisPassage}</p>
+          <p>
+            {selectedNextStep.journeySelection.status === "leader_assignment_required"
+              ? "Meridian did not guess from broad themes. Your leader will assign a passage from the same narrative, figures, or an explicit biblical cross-reference."
+              : "The passage match and every AI-assisted stage field must be source-supported and leader-approved before you can read or save this Journey Journal entry."}
+          </p>
+          <span className="pill blue">{selectedJourneyApproved ? "Content check incomplete" : "With leader"}</span>
+        </section>
       ) : null}
       <details aria-label="Journey History" className="student-feed-section student-journey-history" role="region">
         <summary>
@@ -336,6 +361,7 @@ function StudentLovableJournalEntry({
   journeys,
   onJourneyEntrySaved,
   onReflectionSaved,
+  previousFruitEntries,
   prompt,
   reflection,
   studentId,
@@ -348,6 +374,7 @@ function StudentLovableJournalEntry({
   journeys: StudentJourneyJournal[];
   onJourneyEntrySaved: (entry: StudentJourneyEntry) => void;
   onReflectionSaved?: (reflection: StudentQuestionReflection) => void;
+  previousFruitEntries: Array<{ entrySequence: number; fruitReflection: string }>;
   prompt?: StudentDiscussionPrompt;
   reflection?: StudentQuestionReflection;
   studentId: string;
@@ -362,6 +389,7 @@ function StudentLovableJournalEntry({
   const [isSaving, setIsSaving] = useState(false);
   const [status, setStatus] = useState("Loading your saved journey...");
   const practice = activeJourney.spiritualPractice;
+  const formationContent = activeJourney.formationContent;
   const readingCards = activeJourney.readingPath.slice(0, 3);
   const selectedReading = readingCards.find((reading) => reading.id === draft.selectedReadingId) ?? readingCards[0];
   const selectedReader = selectedReading ? buildYouVersionReaderLink(selectedReading.lookupReference) : undefined;
@@ -370,11 +398,13 @@ function StudentLovableJournalEntry({
   const exploreTools = getJourneyExploreToolPair(activeJourney.id, entrySequence);
   const selectedExploreTool = exploreTools.find((tool) => tool.storageStudyPath === draft.studyPath) ?? exploreTools[0];
   const selectedExploreGuide = buildJourneyExploreGuide(selectedExploreTool, activeJourney);
-  const receiveGuide = buildReceiveFormationGuide(activeJourney, selectedReading, selectedExploreGuide.passageFocus);
+  const receiveGuide = buildReceiveFormationGuide(activeJourney, selectedReading, selectedExploreGuide.passageFocus, formationContent);
+  const exploreFormationGuide = buildExploreFormationGuide(selectedExploreGuide, formationContent);
   const practiceDetailItems = buildPracticeDetailItems(practice, draft.selectedPractice, guidedPrayer);
-  const practiceGuide = buildPracticeFormationGuide(activeJourney, practice, draft.selectedPractice, guidedPrayer);
-  const walkGuide = buildWalkFormationGuide(activeJourney, prompt, walkPrompt);
-  const seeGuide = buildSeeFormationGuide(activeJourney, prompt);
+  const practiceGuide = buildPracticeFormationGuide(activeJourney, practice, draft.selectedPractice, guidedPrayer, formationContent);
+  const walkGuide = buildWalkFormationGuide(activeJourney, prompt, walkPrompt, formationContent);
+  const seeGuide = buildSeeFormationGuide(activeJourney, prompt, formationContent);
+  const aiSourceTitles = formationContent?.sources.map((source) => source.title) ?? [];
   const youVersionPracticeMedia = practice.youVersionMedia ?? getYouVersionPracticeMedia(activeJourney.id, entrySequence);
   const phases = [
     { label: "Receive", complete: Boolean(draft.scriptureReflection.trim()) },
@@ -510,7 +540,7 @@ function StudentLovableJournalEntry({
             </button>
           ))}
         </div>
-        <FormationGuideList ariaLabel="Receive formation guide" items={receiveGuide} />
+        <FormationGuideList aiAssisted={Boolean(formationContent)} ariaLabel="Receive formation guide" items={receiveGuide} sourceTitles={aiSourceTitles} />
         <YouVersionReaderWindow link={selectedReader?.ok ? selectedReader : undefined} title="Choose a recommended passage" />
         <textarea
           onChange={(event) => updateDraft({ scriptureReflection: event.target.value })}
@@ -518,6 +548,10 @@ function StudentLovableJournalEntry({
           rows={5}
           value={draft.scriptureReflection}
         />
+        <details className="student-journal-sentence-stem">
+          <summary>Not sure where to start?</summary>
+          <p>Try: “I noticed ___ in this passage, and it makes me wonder ___.”</p>
+        </details>
       </LovableJournalSection>
 
       <LovableJournalSection
@@ -539,6 +573,7 @@ function StudentLovableJournalEntry({
             </button>
           ))}
         </div>
+        <FormationGuideList aiAssisted={Boolean(formationContent)} ariaLabel="Explore worked example" items={exploreFormationGuide} sourceTitles={aiSourceTitles} />
         <div className="student-lovable-tool-note" aria-label="Selected Bible study tool">
           <span>{selectedExploreTool.category}</span>
           <strong>{selectedExploreTool.label}</strong>
@@ -588,6 +623,10 @@ function StudentLovableJournalEntry({
           rows={5}
           value={draft.questionReflection}
         />
+        <details className="student-journal-sentence-stem">
+          <summary>Not sure where to start?</summary>
+          <p>Try: “The word or phrase ___ may matter because ___.”</p>
+        </details>
       </LovableJournalSection>
       <LovableJournalSection
         icon={Sprout}
@@ -610,7 +649,7 @@ function StudentLovableJournalEntry({
           <summary>Open practice details</summary>
           <ol>{practiceDetailItems.map((item) => <li key={item}>{item}</li>)}</ol>
         </details>
-        <FormationGuideList ariaLabel="Practice formation guide" items={practiceGuide} />
+        <FormationGuideList aiAssisted={Boolean(formationContent)} ariaLabel="Practice formation guide" items={practiceGuide} sourceTitles={aiSourceTitles} />
         <section className="student-lovable-youversion-practice" aria-label="YouVersion guided prayer media">
           {youVersionPracticeMedia.embedUrl ? (
             <iframe
@@ -634,20 +673,28 @@ function StudentLovableJournalEntry({
           rows={4}
           value={draft.practiceReflection}
         />
+        <details className="student-journal-sentence-stem">
+          <summary>Not sure where to start?</summary>
+          <p>Try: “As I slow down with this passage, I want to respond to God by ___.”</p>
+        </details>
       </LovableJournalSection>
 
       <LovableJournalSection
         icon={Footprints}
         eyebrow="Walk the Story / Step 4"
-        title={activeJourney.rhythm?.walk ?? walkPrompt ?? activeJourney.openingPrompt}
+        title={activeJourney.rhythm?.walk ?? (formationContent ? "Carry this passage into one concrete choice." : walkPrompt ?? activeJourney.openingPrompt)}
       >
-        <FormationGuideList ariaLabel="Walk formation guide" items={walkGuide} />
+        <FormationGuideList aiAssisted={Boolean(formationContent)} ariaLabel="Walk formation guide" items={walkGuide} sourceTitles={aiSourceTitles} />
         <textarea
           onChange={(event) => updateDraft({ livingReflection: event.target.value })}
           placeholder="Where does this touch your actual life - relationships, your week, your phone, your calendar? What is one concrete step?"
           rows={5}
           value={draft.livingReflection}
         />
+        <details className="student-journal-sentence-stem">
+          <summary>Not sure where to start?</summary>
+          <p>Try: “Today, I will ___ at ___ so this passage becomes a concrete step.”</p>
+        </details>
       </LovableJournalSection>
 
       <LovableJournalSection
@@ -655,13 +702,27 @@ function StudentLovableJournalEntry({
         eyebrow="See the Story Growing / Step 5"
         title={activeJourney.rhythm?.see ?? "We learn to recognize what God has been doing all along."}
       >
-        <FormationGuideList ariaLabel="See formation guide" items={seeGuide} />
+        <FormationGuideList aiAssisted={Boolean(formationContent)} ariaLabel="See formation guide" items={seeGuide} sourceTitles={aiSourceTitles} />
+        <div className="student-journal-fruit-history" aria-label="Past fruit reflections">
+          <p className="eyebrow">Notice fruit over time</p>
+          {previousFruitEntries.length ? (
+            <ol>
+              {previousFruitEntries.map((entry) => (
+                <li key={entry.entrySequence}><strong>Entry {entry.entrySequence}</strong><span>{entry.fruitReflection}</span></li>
+              ))}
+            </ol>
+          ) : <p>Your earlier See reflections will appear here as this journey grows.</p>}
+        </div>
         <textarea
           onChange={(event) => updateDraft({ fruitReflection: event.target.value })}
           placeholder="What fruit - however small - is beginning to show? Where is it hard-won? Where has God surprised you?"
           rows={5}
           value={draft.fruitReflection}
         />
+        <details className="student-journal-sentence-stem">
+          <summary>Not sure where to start?</summary>
+          <p>Try: “Compared with an earlier entry, I notice more ___ and less ___.”</p>
+        </details>
       </LovableJournalSection>
 
       <div className="student-lovable-save-row">
@@ -680,27 +741,52 @@ type FormationGuideItem = {
   value: string;
 };
 
-function FormationGuideList({ ariaLabel, items }: { ariaLabel: string; items: FormationGuideItem[] }) {
+function FormationGuideList({
+  aiAssisted = false,
+  ariaLabel,
+  items,
+  sourceTitles = []
+}: {
+  aiAssisted?: boolean;
+  ariaLabel: string;
+  items: FormationGuideItem[];
+  sourceTitles?: string[];
+}) {
   return (
-    <dl className="student-lovable-formation-guide" aria-label={ariaLabel}>
-      {items.map((item) => (
-        <div key={item.label}>
-          <dt>{item.label}</dt>
-          <dd>{item.value}</dd>
+    <div className="student-lovable-formation-guide-wrap">
+      {aiAssisted ? (
+        <div className="student-lovable-ai-label">
+          <span className="pill amber">AI-assisted commentary</span>
+          <small>Leader reviewed / separate from Scripture{sourceTitles.length ? ` / Sources: ${sourceTitles.join(", ")}` : ""}</small>
         </div>
-      ))}
-    </dl>
+      ) : null}
+      <dl className="student-lovable-formation-guide" aria-label={ariaLabel}>
+        {items.map((item) => (
+          <div key={item.label}>
+            <dt>{item.label}</dt>
+            <dd>{item.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
   );
 }
 
 function buildReceiveFormationGuide(
   journey: StudentJourneyJournal,
   reading: StudentJourneyJournal["readingPath"][number] | undefined,
-  passageFocus: string
+  passageFocus: string,
+  formationContent?: StudentJourneyJournal["formationContent"]
 ): FormationGuideItem[] {
   const reference = reading ? `${reading.reference}: ${reading.title}` : journey.title;
 
   return [
+    ...(journey.whyThisPassage
+      ? [{ label: "Why this passage", value: journey.whyThisPassage }]
+      : []),
+    ...(formationContent
+      ? [{ label: "Historical background", value: formationContent.receive.historicalBackground.text }]
+      : []),
     {
       label: "Read slowly for",
       value: passageFocus
@@ -716,15 +802,40 @@ function buildReceiveFormationGuide(
   ];
 }
 
+function buildExploreFormationGuide(
+  guide: ReturnType<typeof buildJourneyExploreGuide>,
+  formationContent?: StudentJourneyJournal["formationContent"]
+): FormationGuideItem[] {
+  if (!formationContent) {
+    return [
+      { label: "Text clue", value: guide.textClue },
+      { label: "Whole-story bridge", value: guide.storylineBridge }
+    ];
+  }
+
+  return [
+    { label: "Repeated phrase in the passage", value: formationContent.explore.repeatedPhrase.text },
+    { label: "Worked example", value: formationContent.explore.workedExample.text },
+    { label: "Whole-story bridge", value: formationContent.explore.wholeStoryBridge.text }
+  ];
+}
+
 function buildPracticeFormationGuide(
   journey: StudentJourneyJournal,
   practice: StudentJourneyPractice,
   selectedPractice: JournalEntryDraft["selectedPractice"],
-  guidedPrayer?: StudentGuidedPrayer
+  guidedPrayer?: StudentGuidedPrayer,
+  formationContent?: StudentJourneyJournal["formationContent"]
 ): FormationGuideItem[] {
   const practiceName = selectedPractice === "guided" && guidedPrayer ? guidedPrayer.title : practice.title;
 
   return [
+    ...(formationContent
+      ? [
+          { label: "Slow reading prayer", value: formationContent.practice.slowReadingPrayer.text },
+          { label: "Read, pause, respond", value: formationContent.practice.responseStarter.text }
+        ]
+      : []),
     {
       label: "Formation aim",
       value: practice.reflectionPrompt
@@ -740,8 +851,16 @@ function buildPracticeFormationGuide(
   ];
 }
 
-function buildWalkFormationGuide(journey: StudentJourneyJournal, prompt?: StudentDiscussionPrompt, walkPrompt?: string): FormationGuideItem[] {
+function buildWalkFormationGuide(
+  journey: StudentJourneyJournal,
+  prompt?: StudentDiscussionPrompt,
+  walkPrompt?: string,
+  formationContent?: StudentJourneyJournal["formationContent"]
+): FormationGuideItem[] {
   return [
+    ...(formationContent
+      ? formationContent.walk.exampleActions.map((action, index) => ({ label: `Example action ${index + 1}`, value: action.text }))
+      : []),
     {
       label: "Ordinary place",
       value: prompt ? `Carry "${prompt.question}" into one real conversation, decision, or temptation this week.` : walkPrompt ?? journey.openingPrompt
@@ -757,11 +876,15 @@ function buildWalkFormationGuide(journey: StudentJourneyJournal, prompt?: Studen
   ];
 }
 
-function buildSeeFormationGuide(journey: StudentJourneyJournal, prompt?: StudentDiscussionPrompt): FormationGuideItem[] {
+function buildSeeFormationGuide(
+  journey: StudentJourneyJournal,
+  prompt?: StudentDiscussionPrompt,
+  formationContent?: StudentJourneyJournal["formationContent"]
+): FormationGuideItem[] {
   return [
     {
-      label: "Fruit to watch",
-      value: journey.rhythm?.see ?? "Look for small signs of repentance, courage, patience, humility, love, or renewed trust."
+      label: formationContent ? `Fruit to watch / ${formationContent.see.biblicalStandardReference}` : "Fruit to watch",
+      value: formationContent?.see.fruitToWatch.text ?? journey.rhythm?.see ?? "Look for small signs of repentance, courage, patience, humility, love, or renewed trust."
     },
     {
       label: "Discernment habit",
@@ -847,7 +970,10 @@ function JourneyRhythmIntro() {
 }
 
 function passageLabelForPrompt(prompt: StudentDiscussionPrompt, nextStep?: StudentQuestionNextStep | null) {
-  return prompt.scriptureReference || nextStep?.storylineMatch.keyPassages[0] || buildQuestionNextStep(prompt).storylineMatch.keyPassages[0] || "Passage anchor pending";
+  const resolvedNextStep = nextStep ?? buildQuestionNextStep(prompt);
+  return resolvedNextStep.journeySelection.status === "leader_assignment_required"
+    ? "Leader passage assignment required"
+    : prompt.scriptureReference || resolvedNextStep.journeySelection.primaryReference || "Passage anchor pending";
 }
 
 const studentQuestionArchiveStorageKey = "lead-emergence:student-question-archives";
@@ -907,6 +1033,18 @@ function composeJourneyPrivateNote(title: string, draft: JournalEntryDraft) {
 
 function indexJourneyEntries(entries: StudentJourneyEntry[]) {
   return Object.fromEntries(entries.map((entry) => [studentJourneyEntryKey(entry.journeyId, entry.entrySequence), entry]));
+}
+
+function previousFruitEntriesFor(
+  entries: Record<string, StudentJourneyEntry>,
+  journeyId: string,
+  activeEntrySequence: number
+) {
+  return Object.values(entries)
+    .filter((entry) => entry.journeyId === journeyId && entry.entrySequence < activeEntrySequence && Boolean(entry.fruitReflection.trim()))
+    .sort((left, right) => right.entrySequence - left.entrySequence)
+    .slice(0, 3)
+    .map((entry) => ({ entrySequence: entry.entrySequence, fruitReflection: entry.fruitReflection }));
 }
 
 function mergeEntrySequences(entries: StudentJourneyEntry[], localEntries: Record<string, number[]>) {

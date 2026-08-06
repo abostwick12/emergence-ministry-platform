@@ -5,7 +5,8 @@ import { isGuestAiGenerationEnabled, isGuestSandboxWritesEnabled } from "@/lib/c
 import {
   createStudentDiscussionPrompt,
   DiscussionWorkflowError,
-  getStudentDiscussionWorkflowState
+  getStudentDiscussionWorkflowState,
+  toStudentVisibleDiscussionPrompt
 } from "@/lib/scripture/discussion-workflow";
 import { listStudentCuratedResources } from "@/lib/scripture/curated-resources";
 import { getStudentKnowledgeMatches, saveStudentQuestionRecommendations } from "@/lib/scripture/knowledge";
@@ -79,8 +80,9 @@ export async function POST(request: Request) {
           question: body.question,
           scriptureReference: body.scriptureReference
         });
-        const nextStep = buildQuestionNextStep(prompt, [], { curatedResources: [] });
-        return NextResponse.json({ ok: true, prompt, nextStep, persistence: "guest_session" }, { status: 201 });
+        const visiblePrompt = toStudentVisibleDiscussionPrompt(prompt);
+        const nextStep = buildQuestionNextStep(visiblePrompt, [], { curatedResources: [] });
+        return NextResponse.json({ ok: true, prompt: visiblePrompt, nextStep, persistence: "guest_session" }, { status: 201 });
       } catch (error) {
         return discussionErrorResponse(error);
       }
@@ -98,7 +100,13 @@ export async function POST(request: Request) {
       scriptureReference: body.scriptureReference
     });
     const nextStep = await buildResilientQuestionNextStep(access.session, prompt);
-    return NextResponse.json({ ok: true, prompt, nextStep, persistence: "ministry" }, { status: 201 });
+    const visiblePrompt = toStudentVisibleDiscussionPrompt(prompt);
+    return NextResponse.json({
+      ok: true,
+      prompt: visiblePrompt,
+      nextStep,
+      persistence: "ministry"
+    }, { status: 201 });
   } catch (error) {
     return discussionErrorResponse(error);
   }
@@ -169,7 +177,7 @@ async function buildResilientQuestionNextStep(session: AuthSession, prompt: Stud
     });
   }
 
-  return nextStep;
+  return buildQuestionNextStep(toStudentVisibleDiscussionPrompt(prompt), knowledgeMatches, { curatedResources });
 }
 
 function discussionErrorResponse(error: unknown) {

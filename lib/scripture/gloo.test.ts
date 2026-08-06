@@ -9,6 +9,7 @@ import {
   selectGlooModelPolicy
 } from "@/lib/scripture/gloo";
 import type { GlooDiscussionDraftInput } from "@/lib/scripture/gloo";
+import { buildSeededSaulJourneyContent } from "@/lib/scripture/student-journey-content";
 
 const baseInput: GlooDiscussionDraftInput = {
   question: "How do we talk about prayer in small group?",
@@ -207,6 +208,68 @@ describe("Gloo model policy", () => {
     expect(body.messages[1].content).toContain("Ask abstract questions that deepen attention.");
     expect(body.messages[1].content).toContain("Draft a direct but humble answer for leader review");
     expect(body.max_tokens).toBe(1800);
+  });
+
+  it("locks the selected passage and parses a complete source-attributed five-stage Journey draft", async () => {
+    process.env.GLOO_AI_STUDIO_API_KEY = "key";
+    process.env.GLOO_AI_STUDIO_API_BASE_URL = "https://example.test";
+    process.env.GLOO_AI_MODEL = "GPT-5 Nano";
+    const seeded = buildSeededSaulJourneyContent();
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({
+      discussionPrompt: "Why did Israel ask for a king, and what did Samuel warn them about?",
+      journeyDraft: {
+        missingSourceFields: [],
+        receive: seeded.receive,
+        explore: seeded.explore,
+        practice: seeded.practice,
+        walk: seeded.walk,
+        see: seeded.see
+      },
+      scriptureReference: "1 Samuel 8",
+      safetyLabel: "safe",
+      safetyNotes: "Leader review required.",
+      confidence: 0.94,
+      topicTags: ["saul", "kingship"],
+      escalationRecommended: false,
+      escalationReason: ""
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await generateGlooDiscussionDraft({
+      question: "Why do the people choose Saul to be their first king?",
+      scriptureReference: "1 Samuel 8",
+      journeyContext: {
+        question: "Why do the people choose Saul to be their first king?",
+        selection: {
+          status: "matched",
+          confidence: 0.96,
+          storylineId: "kingdom-messiah",
+          primaryReference: "1 Samuel 8",
+          supportingReferences: ["1 Samuel 9-10", "1 Samuel 11-12"],
+          whyThisPassage: "This is the same Saul kingship narrative.",
+          matchSignals: ["Direct question signal: Saul"],
+          passageReasons: [{ reference: "1 Samuel 8", reason: "Same narrative.", relationship: "same_narrative" }]
+        },
+        scriptureText: "The elders asked Samuel for a king to judge them like the nations.",
+        sources: seeded.sources,
+        sourceContext: "SOURCE scripture-primary-passage: The elders asked Samuel for a king."
+      }
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      scriptureReference: "1 Samuel 8",
+      journeyContent: {
+        label: "AI-assisted commentary",
+        sourceStatus: "supported",
+        receive: { historicalBackground: expect.objectContaining({ text: expect.stringContaining("Samuel") }) },
+        see: { biblicalStandardReference: "Galatians 5:22-23" }
+      }
+    });
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.max_tokens).toBe(3200);
+    expect(body.messages[1].content).toContain("Locked Journey Journal passage: 1 Samuel 8");
+    expect(body.messages[1].content).toContain("The locked passage may not be substituted.");
   });
 
   it("requires and parses request-scoped evidence handles in the attribution shadow contract", async () => {
