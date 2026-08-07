@@ -19,6 +19,10 @@ const pilotMigration = readFileSync(
   join(process.cwd(), "supabase/migrations/20260805202500_platform_mcp_pilot_readiness.sql"),
   "utf8"
 );
+const privateProvenanceRlsRepairMigration = readFileSync(
+  join(process.cwd(), "supabase/migrations/20260807021000_platform_mcp_private_provenance_rls_repair.sql"),
+  "utf8"
+);
 
 describe("platform MCP operations migration", () => {
   it("keeps every platform capability explicit and disabled by default", () => {
@@ -86,6 +90,27 @@ describe("platform MCP private discovery migration", () => {
     expect(privateDiscoveryMigration).toContain("alter table public.meridian_mcp_bundle_private_provenance enable row level security");
     expect(privateDiscoveryMigration).toContain("revoke all on public.meridian_mcp_bundle_private_provenance from anon");
     expect(privateDiscoveryMigration).not.toMatch(/grant[^;]*delete[^;]*meridian_mcp_bundle_private_provenance/i);
+  });
+});
+
+describe("platform MCP private provenance RLS repair", () => {
+  it("breaks the circular policy lookup without weakening actor, tenant, or review-state checks", () => {
+    expect(privateProvenanceRlsRepairMigration).toContain("create schema if not exists private");
+    expect(privateProvenanceRlsRepairMigration).toContain("security definer");
+    expect(privateProvenanceRlsRepairMigration).toContain("set search_path = ''");
+    expect(privateProvenanceRlsRepairMigration).toContain("bundle.created_by_user_id = (select auth.uid())");
+    expect(privateProvenanceRlsRepairMigration).toContain("bundle.ministry_id = p_ministry_id");
+    expect(privateProvenanceRlsRepairMigration).toContain("grant_row.can_save_resources");
+    expect(privateProvenanceRlsRepairMigration).toContain("provenance.check_status = 'passed'");
+    expect(privateProvenanceRlsRepairMigration).toContain("bundle.human_review_status = 'pending'");
+    expect(privateProvenanceRlsRepairMigration).toContain("bundle.active_emma_review_id is null");
+  });
+
+  it("keeps the helper outside the exposed API schema and limits execution to authenticated policy evaluation", () => {
+    expect(privateProvenanceRlsRepairMigration).toContain("private.meridian_mcp_has_passed_private_provenance");
+    expect(privateProvenanceRlsRepairMigration).toContain("revoke all on schema private from public, anon");
+    expect(privateProvenanceRlsRepairMigration).toContain("revoke all on function private.meridian_mcp_has_passed_private_provenance(uuid, uuid) from public, anon, service_role");
+    expect(privateProvenanceRlsRepairMigration).toContain("grant execute on function private.meridian_mcp_has_passed_private_provenance(uuid, uuid) to authenticated");
   });
 });
 
