@@ -166,7 +166,13 @@ Findings must identify the affected artifact and explain the evidence or rule. E
 
 ## Delivery roadmap
 
-### Current implementation slice (built, migration and deployment pending)
+### Completion status
+
+As of August 6, 2026, the Phase 0 through Phase 6 application implementation is merged into `main`, the matching application code is deployed, and the required CI and Full CI workflows pass. The implementation goal is complete at the code, review, test, and application-deployment layers.
+
+Database activation and pilot operation remain intentionally separate release actions. The Phase 3 through Phase 6 additive migrations have not been applied, platform capabilities remain default-off, and no pilot participant has been enrolled. Those steps require explicit environment approval and the synthetic activation sequence in [Platform MCP pilot readiness](mcp-pilot-readiness.md); they are not implied by application deployment.
+
+### Current implementation slice (built and application deployed; database activation pending)
 
 The first operational slice intentionally combines Phases 1 through 3 where they share the same permission and idempotency boundaries. It adds:
 
@@ -218,7 +224,7 @@ The endpoint is intentionally empty of approved production claims until a human 
 - attach artifacts to the correct event, series, sermon, audience, and ministry; and
 - make partial failure recoverable without duplicating artifacts.
 
-### Phase 4 - Private Obsidian discovery (implemented, migration and deployment pending)
+### Phase 4 - Private Obsidian discovery (implemented and application deployed; migration pending)
 
 - a user-owned local STDIO MCP connector searches only explicitly selected folders or frontmatter-opted notes;
 - sensitive folder and frontmatter classes fail closed, and symlinks are not traversed;
@@ -229,7 +235,7 @@ The endpoint is intentionally empty of approved production claims until a human 
 
 See [Private Obsidian discovery](private-obsidian-discovery.md) for local setup, the transient check contract, candidate boundaries, and synthetic acceptance tests. Production activation requires applying `20260805171914_platform_mcp_private_discovery.sql` and deploying the matching application commit.
 
-### Phase 5 - EMMA review gate (implemented, migration and deployment pending)
+### Phase 5 - EMMA review gate (implemented and application deployed; migration pending)
 
 - `submit_bundle_for_emma_review` requires a separate grant, explicit confirmation, an exact saved-bundle match, and approved Meridian claim identifiers;
 - contract `1.0` runs grounding, culture, theology, Scripture, privacy, permission, citation, audience, linkage, and prohibited-inference checks through the audited provider abstraction;
@@ -240,7 +246,7 @@ See [Private Obsidian discovery](private-obsidian-discovery.md) for local setup,
 
 See [MCP EMMA bundle review](mcp-emma-bundle-review.md) for contract, storage, failure, and synthetic activation checks. Production activation requires Phase 4, additive migration `20260805190000_platform_mcp_emma_review.sql`, and the matching application deployment before `can_review_resources` is enabled.
 
-### Phase 6 - Pilot readiness implemented; activation pending
+### Phase 6 - Pilot readiness implemented and application deployed; activation pending
 
 - administrator-controlled cohorts are default-off, capped at two administrators and three leaders, and exclude volunteers;
 - every platform tool now requires both its existing capability and a pilot preflight, while leader enrollment begins read-only;
@@ -249,7 +255,7 @@ See [MCP EMMA bundle review](mcp-emma-bundle-review.md) for contract, storage, f
 - Settings exposes cohort controls, a 30-day metric rollup, and recent-review evaluation; and
 - schedules, broader teams/files, volunteer tools, publishing, communication, and external execution remain separate gated projects.
 
-See [Platform MCP pilot readiness](mcp-pilot-readiness.md) for cohort limits, stored fields, exit thresholds, activation order, and explicitly deferred scope. The Phase 6 migration and deployment remain unapplied, and no participant is enrolled by this implementation.
+See [Platform MCP pilot readiness](mcp-pilot-readiness.md) for cohort limits, stored fields, exit thresholds, activation order, and explicitly deferred scope. The Phase 6 migration remains unapplied, all capabilities remain default-off, and no participant is enrolled by this implementation.
 
 ## Release gates
 
@@ -269,6 +275,19 @@ No phase advances until its tests demonstrate:
 - complete, human-readable audit history.
 
 Automated tests must use synthetic fixtures and fake providers. Live Gloo verification is limited to a maximum of five calls per evolution cycle; normal unit, integration, permission, and browser tests do not consume that budget.
+
+## Maintenance backlog
+
+### CI-001 - Move GitHub Actions and the CI test runtime off Node 20
+
+- **Status:** Backlog
+- **Priority:** Medium; schedule before the next shared-infrastructure or dependency-upgrade cycle.
+- **Reason:** Node 20 is end-of-life. The current workflows use `actions/checkout@v4`, `actions/setup-node@v4`, and `node-version: 20`; GitHub currently forces the JavaScript actions onto Node 24 and emits a deprecation warning.
+- **Scope:** Upgrade the workflow actions to current Node-24-compatible releases, move the explicit CI test runtime to a supported Node release compatible with Vercel and the application stack, and preserve the existing npm cache behavior.
+- **Safety:** Treat this as a shared-infrastructure upgrade. Do not combine it with MCP capability activation, migrations, provider changes, or application feature work.
+- **Acceptance:** `npm ci`, design check, typecheck, lint, production build, and the complete Playwright suite pass locally and in labeled Full CI; the Vercel preview succeeds; the Node 20 deprecation annotation is absent; and production runtime settings are unchanged unless separately approved.
+
+Reference: [GitHub Actions Node 20 deprecation notice](https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/).
 
 ## Explicit non-goals
 
