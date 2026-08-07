@@ -2,6 +2,8 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import type { AuthSession } from "@/lib/auth/server";
+import { ContentStudioService } from "@/lib/meridian/content-studio/service";
+import { contentGuideKinds, contentPlatforms, type ContentStudioRepository } from "@/lib/meridian/content-studio/types";
 import { meridianToolSecuritySchemes } from "@/lib/meridian/mcp/oauth";
 import { runPlatformMcpPilotOperation, type PlatformMcpPilotContext, type PlatformMcpPilotRepository, type PlatformMcpPilotTool } from "@/lib/meridian/mcp/pilot";
 import { PlatformMcpService } from "@/lib/meridian/mcp/platform-service";
@@ -12,17 +14,19 @@ import { MeridianMcpError, meridianMcpCandidateObjectTypes, meridianResourceType
 export function createMeridianMcpServer(input: {
   session: AuthSession;
   repository: MeridianMcpRepository;
+  contentRepository: ContentStudioRepository;
   platformRepository: PlatformMcpRepository;
   clientName: string;
   pilotRepository?: PlatformMcpPilotRepository;
 }) {
   const service = new MeridianMcpService(input.repository);
+  const contentStudio = new ContentStudioService(input.repository, input.contentRepository);
   const platform = new PlatformMcpService(input.repository, input.platformRepository);
   const server = new McpServer(
-    { name: "lead-emergence-meridian", version: "0.5.0" },
+    { name: "lead-emergence-meridian", version: "0.6.0" },
     {
       instructions:
-        "Lead Emergence tools act as the signed-in user and require explicit grants. Platform tools also require enrollment in the administrator-controlled pilot cohort and record payload-free safety metrics. Use approved Meridian evidence for theology and culture. Read before changing records, confirm every write, and reuse idempotency keys. Private Obsidian discovery stays in the user's local connector; when it influences a bundle, pass its transient check payload so the server can block leakage and retain hashes only. Submit the exact saved bundle to EMMA with approved claim IDs before describing it as reviewed. EMMA outcomes still require a person and never approve, publish, send, or synchronize. No delete, publish, send, vault-browsing, pastoral, Camp, medical, mental-health, or volunteer platform tools are available."
+        "Lead Emergence tools act as the signed-in user and require explicit grants. For ministry content, always offer Start guided interview and Skip interview as equally visible choices. If guided, ask exactly one returned question at a time; let the active interviewer playbook choose follow-ups and stop when it reports ready, when the user finishes, or at six answers. Fetch the active voice, visual, and selected platform guides before drafting. Generate genuinely different platform artifacts, save them only as drafts, and invite positive or corrective feedback after each draft. Feedback only enters a pending batch; it never rewrites an active guide until an administrator explicitly approves the batch. No content tool publishes, sends, schedules, or synchronizes. Platform tools also require enrollment in the administrator-controlled pilot cohort and record payload-free safety metrics. Use approved Meridian evidence for theology and culture. Read before changing records, confirm every write, and reuse idempotency keys. Private Obsidian discovery stays in the user's local connector. EMMA outcomes still require a person. No delete, publish, send, vault-browsing, pastoral, Camp, medical, mental-health, or volunteer platform tools are available."
     }
   );
 
@@ -342,6 +346,155 @@ export function createMeridianMcpServer(input: {
       artifactCount: toolInput.items.length,
       groundingClaimCount: toolInput.items.reduce((total, item) => total + new Set(item.claimIds).size, 0)
     }, () => platform.submitBundleForEmmaReview(input.session, { ...toolInput, clientName: input.clientName })))
+  );
+
+  const contentDesignSchema = z.object({
+    aspectRatio: z.string().trim().max(20).optional(),
+    overlayText: z.string().trim().max(500).optional(),
+    visualDirection: z.string().trim().max(2000).optional(),
+    accessibilityText: z.string().trim().max(1000).optional()
+  });
+
+  server.registerTool(
+    "get_content_guides",
+    {
+      title: "Get active ministry content guides",
+      description: "Fetch the exact active Meridian voice, anti-slop, visual, interviewer, and selected platform guide versions before drafting. Platform rules are real format constraints, not labels.",
+      inputSchema: { platforms: z.array(z.enum(contentPlatforms)).min(1).max(contentPlatforms.length) },
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      _meta: { securitySchemes: meridianToolSecuritySchemes }
+    },
+    async ({ platforms }) => mcpToolResult(async () => contentStudio.getGuides(input.session, platforms))
+  );
+
+  server.registerTool(
+    "start_content_session",
+    {
+      title: "Start or skip the content interview",
+      description: "Start a bounded, playbook-driven interview for one topic, or take the equally supported skip-interview path. When guided, ask only the returned next question and do not invent a static questionnaire.",
+      inputSchema: {
+        topic: z.string().trim().min(1).max(1000),
+        contentType: z.string().trim().min(1).max(120),
+        platforms: z.array(z.enum(contentPlatforms)).min(1).max(contentPlatforms.length),
+        skipInterview: z.boolean().describe("True when the user chose Skip interview; false when they chose Start guided interview.")
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+      _meta: { securitySchemes: meridianToolSecuritySchemes }
+    },
+    async (toolInput) => mcpToolResult(async () => contentStudio.startSession(input.session, toolInput))
+  );
+
+  server.registerTool(
+    "continue_content_interview",
+    {
+      title: "Continue the dynamic content interview",
+      description: "Record one user answer and let the active interviewer playbook choose a contextual follow-up or stop. The loop cannot exceed the session's six-question limit.",
+      inputSchema: {
+        sessionId: z.string().uuid(),
+        answer: z.string().trim().min(1).max(5000),
+        finishNow: z.boolean().default(false).describe("True when the user wants to stop interviewing and draft with the answers already given.")
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+      _meta: { securitySchemes: meridianToolSecuritySchemes }
+    },
+    async (toolInput) => mcpToolResult(async () => contentStudio.continueInterview(input.session, toolInput))
+  );
+
+  server.registerTool(
+    "save_content_draft",
+    {
+      title: "Save a platform-specific content draft",
+      description: "Save one generated platform artifact with its real design specification and exact guide provenance. This tool validates the selected platform guide and has no publish, send, schedule, or sync path.",
+      inputSchema: {
+        sessionId: z.string().uuid(),
+        platform: z.enum(contentPlatforms),
+        bodyMarkdown: z.string().trim().min(1).max(5000),
+        design: contentDesignSchema.default({})
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+      _meta: { securitySchemes: meridianToolSecuritySchemes }
+    },
+    async (toolInput) => mcpToolResult(async () => contentStudio.saveDraft(input.session, toolInput))
+  );
+
+  server.registerTool(
+    "submit_content_feedback",
+    {
+      title: "Log feedback on a content draft",
+      description: "Record positive feedback or a correction in content_feedback. This never changes an active guide; it creates learning evidence for a later reviewed batch.",
+      inputSchema: {
+        draftId: z.string().uuid(),
+        sentiment: z.enum(["positive", "correction"]),
+        feedbackText: z.string().trim().min(1).max(3000),
+        guideTarget: z.enum(["voice", "visual", "platform"])
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+      _meta: { securitySchemes: meridianToolSecuritySchemes }
+    },
+    async (toolInput) => mcpToolResult(async () => contentStudio.submitFeedback(input.session, toolInput))
+  );
+
+  server.registerTool(
+    "propose_content_feedback_batch",
+    {
+      title: "Propose a reviewed content-learning batch",
+      description: "Batch feedback from at least three distinct drafts into explicit proposed guide changes. The batch remains pending and does not change any active guide.",
+      inputSchema: {
+        feedbackIds: z.array(z.string().uuid()).min(3).max(100),
+        changes: z.array(z.object({
+          sourceGuideVersionId: z.string().uuid(),
+          proposedBodyMarkdown: z.string().trim().min(1).max(30000),
+          proposedGuideData: z.record(z.unknown()),
+          changeSummary: z.string().trim().min(1).max(1000)
+        })).min(1).max(9)
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+      _meta: { securitySchemes: meridianToolSecuritySchemes }
+    },
+    async (toolInput) => mcpToolResult(async () => contentStudio.proposeFeedbackBatch(input.session, toolInput))
+  );
+
+  server.registerTool(
+    "approve_content_feedback_batch",
+    {
+      title: "Approve and activate a content-learning batch",
+      description: "Administrator-only activation of a pending batch. Creates new guide versions atomically, retires prior active versions, and preserves history. It never edits a guide in place.",
+      inputSchema: { batchId: z.string().uuid(), confirmed: z.literal(true) },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      _meta: { securitySchemes: meridianToolSecuritySchemes }
+    },
+    async ({ batchId }) => mcpToolResult(async () => contentStudio.approveFeedbackBatch(input.session, batchId))
+  );
+
+  server.registerTool(
+    "list_content_guide_versions",
+    {
+      title: "List content guide version history",
+      description: "Retrieve active and retired voice, visual, interviewer, or platform guide versions with parent links and change summaries.",
+      inputSchema: {
+        kind: z.enum(contentGuideKinds).optional(),
+        platform: z.enum(contentPlatforms).optional()
+      },
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      _meta: { securitySchemes: meridianToolSecuritySchemes }
+    },
+    async (toolInput) => mcpToolResult(async () => contentStudio.listGuideVersions(input.session, toolInput))
+  );
+
+  server.registerTool(
+    "rollback_content_guide",
+    {
+      title: "Roll back a content guide",
+      description: "Administrator-only rollback to a selected historical version. The rollback creates a new active version so the complete audit trail remains retrievable.",
+      inputSchema: {
+        targetVersionId: z.string().uuid(),
+        reason: z.string().trim().min(1).max(1000),
+        confirmed: z.literal(true)
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+      _meta: { securitySchemes: meridianToolSecuritySchemes }
+    },
+    async ({ targetVersionId, reason }) => mcpToolResult(async () => contentStudio.rollbackGuide(input.session, { targetVersionId, reason }))
   );
 
   return server;
