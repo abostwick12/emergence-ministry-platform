@@ -149,6 +149,16 @@ export type ContentFeedbackBatch = {
   approvedAt: string | null;
 };
 
+export type ContentStudioWorkspace = {
+  accessLevel: "volunteer_creator" | "leader_creator" | "admin";
+  batches: ContentFeedbackBatch[];
+  drafts: ContentDraft[];
+  feedback: ContentFeedback[];
+  guides: ContentGuide[];
+  sessions: ContentSession[];
+  source: "live" | "preview";
+};
+
 export type CreateContentSessionInput = Omit<ContentSession, "createdAt" | "updatedAt">;
 export type UpdateContentSessionInput = Pick<ContentSession, "status" | "questionCount" | "coveredDimensions" | "transcript" | "currentQuestion">;
 
@@ -157,12 +167,16 @@ export interface ContentStudioRepository {
   listGuideVersions(session: AuthSession, ministryId: string, kind?: ContentGuideKind, platform?: ContentPlatform): Promise<ContentGuide[]>;
   createSession(session: AuthSession, input: CreateContentSessionInput): Promise<ContentSession>;
   getSession(session: AuthSession, ministryId: string, sessionId: string): Promise<ContentSession | null>;
+  listSessions(session: AuthSession, ministryId: string): Promise<ContentSession[]>;
   updateSession(session: AuthSession, ministryId: string, sessionId: string, input: UpdateContentSessionInput): Promise<ContentSession>;
   saveDraft(session: AuthSession, draft: Omit<ContentDraft, "createdAt">): Promise<ContentDraft>;
   getDraft(session: AuthSession, ministryId: string, draftId: string): Promise<ContentDraft | null>;
+  listDrafts(session: AuthSession, ministryId: string): Promise<ContentDraft[]>;
   saveFeedback(session: AuthSession, feedback: Omit<ContentFeedback, "createdAt" | "batchId">): Promise<ContentFeedback>;
   getFeedback(session: AuthSession, ministryId: string, feedbackIds: string[]): Promise<ContentFeedback[]>;
+  listFeedback(session: AuthSession, ministryId: string): Promise<ContentFeedback[]>;
   createFeedbackBatch(session: AuthSession, batch: Omit<ContentFeedbackBatch, "createdAt" | "approvedAt" | "resultingGuideVersionIds">): Promise<ContentFeedbackBatch>;
+  listFeedbackBatches(session: AuthSession, ministryId: string): Promise<ContentFeedbackBatch[]>;
   approveFeedbackBatch(session: AuthSession, ministryId: string, batchId: string): Promise<ContentFeedbackBatch>;
   rollbackGuide(session: AuthSession, ministryId: string, targetVersionId: string, reason: string): Promise<ContentGuide>;
 }

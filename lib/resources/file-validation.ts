@@ -58,7 +58,7 @@ export type ValidatedResourceFile = {
 
 export function getMaxResourceAttachmentBytes() {
   const configured = Number.parseInt(process.env.RESOURCE_ATTACHMENT_MAX_FILE_SIZE_MB ?? "", 10);
-  const megabytes = Number.isFinite(configured) && configured > 0 ? configured : 25;
+  const megabytes = Number.isFinite(configured) && configured > 0 ? configured : 100;
   return megabytes * 1024 * 1024;
 }
 

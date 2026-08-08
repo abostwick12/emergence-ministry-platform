@@ -21,7 +21,8 @@ import {
   PanelsTopLeft,
   Settings,
   TentTree,
-  Users
+  Users,
+  WandSparkles
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useRole } from "@/components/role-context";
@@ -60,6 +61,7 @@ const navIcons: Record<string, LucideIcon> = {
   "/discipleship": BookOpenText,
   "/tasks": ListChecks,
   "/communications": MessageSquareText,
+  "/content-studio": WandSparkles,
   "/people": Users,
   "/budget": DollarSign,
   "/settings": Settings,
@@ -88,6 +90,7 @@ const pageTitles: Record<string, string> = {
   "/student/scripture/how-to-read": "How to Read",
   "/tasks": "Tasks",
   "/communications": "Communications",
+  "/content-studio": "Content Studio",
   "/people": "Volunteer Hub",
   "/files": "Files",
   "/budget": "Budget",
@@ -107,6 +110,7 @@ const pageSubtitles: Record<string, string> = {
   "/worship": "Shape services where songs, people, rehearsal, and story move together with purpose.",
   "/tasks": "Turn ministry vision into visible next steps, clear ownership, and work that keeps moving.",
   "/communications": "Prepare thoughtful ministry communication with clear review boundaries before anything is sent.",
+  "/content-studio": "Review Meridian drafts, rendered assets, feedback batches, and style guide history before manual publishing.",
   "/people": "Know who is serving, where coverage is needed, and how each volunteer can take a meaningful next step.",
   "/budget": "Steward resources visibly so every dollar supports the ministry purpose it was given for.",
   "/settings": "Shape access, integrations, and safeguards so the platform serves people responsibly.",

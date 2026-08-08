@@ -157,7 +157,7 @@ export function WebsiteAccessPanel({ canManagePlatformAccess }: { canManagePlatf
     }
   }
 
-  async function patchAccess(body: Record<string, unknown>, busy: string, success: string) {
+  async function patchAccess(body: Record<string, unknown>, busy: string, success: string): Promise<boolean> {
     setBusyKey(busy);
     setMessage(null);
     try {
@@ -169,7 +169,7 @@ export function WebsiteAccessPanel({ canManagePlatformAccess }: { canManagePlatf
       const payload = (await response.json().catch(() => ({}))) as AccessResponse & { member?: PlatformAccessMember };
       if (!response.ok) {
         setMessage({ tone: "error", text: payload.error ?? "Access could not be updated." });
-        return;
+        return false;
       }
       if (payload.member) {
         setMembers((current) => current.map((item) => (item.id === payload.member!.id ? payload.member! : item)));
@@ -178,8 +178,10 @@ export function WebsiteAccessPanel({ canManagePlatformAccess }: { canManagePlatf
       }
       if (payload.pages) setPages(payload.pages);
       setMessage({ tone: "success", text: success });
+      return true;
     } catch {
       setMessage({ tone: "error", text: "Access could not be updated." });
+      return false;
     } finally {
       setBusyKey("");
     }
@@ -293,11 +295,14 @@ export function WebsiteAccessPanel({ canManagePlatformAccess }: { canManagePlatf
                 onChange={(event) => {
                   const nextPublic = event.target.checked;
                   if (!confirmAccessChange(`${page.label} will become ${nextPublic ? "public to guest demo visitors" : "login required"}. Continue?`)) return;
+                  setPages((current) => current.map((item) => item.key === page.key ? { ...item, guestPublic: nextPublic } : item));
                   void patchAccess(
                     { guestPageKey: page.key, guestPublic: nextPublic },
                     `guest:${page.key}`,
                     `${page.label} is now ${nextPublic ? "public" : "login required"}.`
-                  );
+                  ).then((saved) => {
+                    if (!saved) setPages((current) => current.map((item) => item.key === page.key ? { ...item, guestPublic: page.guestPublic } : item));
+                  });
                 }}
               />
               <span>{page.label}</span>

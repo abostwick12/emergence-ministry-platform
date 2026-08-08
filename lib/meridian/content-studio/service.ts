@@ -21,6 +21,26 @@ export class ContentStudioService {
     private readonly repository: ContentStudioRepository
   ) {}
 
+  async getWorkspace(session: AuthSession) {
+    const grant = await this.grants.requireGrant(session, "search");
+    const [batches, drafts, feedback, guides, sessions] = await Promise.all([
+      this.repository.listFeedbackBatches(session, grant.ministryId),
+      this.repository.listDrafts(session, grant.ministryId),
+      this.repository.listFeedback(session, grant.ministryId),
+      this.repository.listGuideVersions(session, grant.ministryId),
+      this.repository.listSessions(session, grant.ministryId)
+    ]);
+    return {
+      accessLevel: grant.accessLevel,
+      batches,
+      drafts,
+      feedback,
+      guides,
+      sessions,
+      source: "live" as const
+    };
+  }
+
   async getGuides(session: AuthSession, platforms: ContentPlatform[]) {
     const grant = await this.grants.requireGrant(session, "search");
     const guides = await this.repository.getActiveGuides(session, grant.ministryId, uniquePlatforms(platforms));

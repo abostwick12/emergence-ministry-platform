@@ -28,7 +28,8 @@ const ministryOperationsManagedParents = new Set<ResourceParentType>([
   "leader_guide",
   "small_group_resource",
   "worship_plan",
-  "communication_draft"
+  "communication_draft",
+  "content_draft"
 ]);
 
 export const resourceBucketName = "resource-attachments";
@@ -69,7 +70,8 @@ export const parentResourceTitles: Partial<Record<ResourceParentType, string>> =
   leader_guide: "Leader Guide Resources",
   small_group_resource: "Small-Group Resources",
   worship_plan: "Worship Plan Resources",
-  communication_draft: "Communication Draft Resources"
+  communication_draft: "Communication Draft Resources",
+  content_draft: "Rendered Assets"
 };
 
 export const inheritedVisibilityByParentType: Record<ResourceParentType, ResourceVisibility> = {
@@ -87,7 +89,8 @@ export const inheritedVisibilityByParentType: Record<ResourceParentType, Resourc
   leader_guide: "assigned_leaders",
   small_group_resource: "volunteer_leaders",
   worship_plan: "volunteer_leaders",
-  communication_draft: "staff_admin"
+  communication_draft: "staff_admin",
+  content_draft: "assigned_leaders"
 };
 
 const knownStaticParentIds: Partial<Record<ResourceParentType, Set<string>>> = {

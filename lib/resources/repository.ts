@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 
-import { isSupabaseAdminConfigured, getSupabaseAdminClient, type AuthSession } from "@/lib/auth/server";
+import { getSupabaseAdminClient, getSupabaseAuthClient, isSupabaseAdminConfigured, type AuthSession } from "@/lib/auth/server";
 import { DEFAULT_MINISTRY_ID } from "@/lib/ministry/constants";
 import { resolveMinistryScope } from "@/lib/ministry/scope";
 import { getMaxResourceAttachmentBytes, validateResourceFile, validateResourceUploadFilename } from "@/lib/resources/file-validation";
@@ -681,7 +681,11 @@ async function getResourceAttachmentForRead(session: AuthSession | null, attachm
   }
   throwIfResourceError(result.error, "Resource could not be loaded.");
   if (!result.data) throw new ResourceAttachmentError("Resource not found.", 404, "not_found");
-  return toResourceAttachment(result.data, "live");
+  const resource = toResourceAttachment(result.data, "live");
+  if (resource.parentType === "content_draft") {
+    await resolveResourceParent(session, resource.parentType, resource.parentId);
+  }
+  return resource;
 }
 
 async function getResourceAttachmentForManagement(session: AuthSession, attachmentId: string, options: { includeArchived?: boolean } = {}) {
@@ -701,10 +705,25 @@ async function resolveResourceParent(
   const parentId = rawParentId.trim();
   if (!parentId) throw new ResourceAttachmentError("Parent record is required.", 400, "missing_parent");
 
-  if (parentType === "event" || parentType === "event_task") {
+  if (parentType === "event" || parentType === "event_task" || parentType === "content_draft") {
     if (!session) throw new ResourceAttachmentError("Authentication is required for this resource.", 401, "unauthorized");
     if (!shouldUseLiveResources(session)) {
       return { organizationId: (await resolveMinistryScope(session)) ?? DEFAULT_MINISTRY_ID, parentId, parentType };
+    }
+
+    if (parentType === "content_draft") {
+      const result = await getSupabaseAuthClient(session.accessToken)
+        .from("content_drafts")
+        .select("id,ministry_id")
+        .eq("id", parentId)
+        .maybeSingle<{ id: string; ministry_id: string | null }>();
+      throwIfResourceError(result.error, "Content draft could not be verified.");
+      if (!result.data) throw new ResourceAttachmentError("The linked content draft could not be found.", 404, "parent_not_found");
+      const ministryId = await requiredMinistryId(session);
+      if (!result.data.ministry_id || result.data.ministry_id !== ministryId) {
+        throw new ResourceAttachmentError("The linked content draft could not be found.", 404, "parent_not_found");
+      }
+      return { organizationId: ministryId, parentId, parentType };
     }
 
     const table = parentType === "event" ? "events" : "tasks";
