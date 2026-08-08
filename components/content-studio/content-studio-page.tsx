@@ -555,12 +555,7 @@ function ContentStudioMediaPreview({ draft, format, topic }: { draft?: ContentDr
           </div>
         )}
       </div>
-      {draft ? (
-        <div className="content-studio-preview-caption">
-          <strong>{topic ?? "Current draft"}</strong>
-          <p>{draft.design.accessibilityText ?? draft.bodyMarkdown}</p>
-        </div>
-      ) : <p className="content-studio-empty">No {format.label} draft is available yet.</p>}
+      {!draft ? <p className="content-studio-empty">No {format.label} draft is available yet.</p> : null}
       <button className="button content-studio-drive-button" onClick={prepareForDrive} type="button"><Upload aria-hidden="true" /> Publish to Google Drive <ExternalLink aria-hidden="true" /></button>
       <small className="content-studio-drive-note">Manual handoff only. Nothing is uploaded or published automatically.</small>
       {driveMessage ? <p className="content-studio-form-message" role="status">{driveMessage}</p> : null}
