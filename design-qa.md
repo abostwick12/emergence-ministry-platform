@@ -52,6 +52,49 @@ Checks:
 
 Final result: passed.
 
+## Meridian Content Studio simplification - 2026-08-08
+
+Reference screenshots:
+- `C:\Users\AWBOST~1\AppData\Local\Temp\codex-clipboard-8fcc786b-6e88-4e94-8d44-95b1cfec8a41.png`
+- `C:\Users\AWBOST~1\AppData\Local\Temp\codex-clipboard-8f4cf59a-6f8d-4df8-88e7-c606dc8bde17.png`
+- `C:\Users\AWBOST~1\AppData\Local\Temp\codex-clipboard-9ea00807-4431-4718-a489-1c042ec2a9a4.png`
+
+Implementation captures:
+- `test-results/content-studio-simplified-desktop.png`
+- `test-results/content-studio-simplified-mobile.png`
+- `test-results/content-studio-design-qa-comparison.png`
+- `test-results/content-studio-feedback-qa-comparison.png`
+
+Viewport and state:
+- Desktop viewport: 1440 x 1200 at device scale factor 1.
+- Mobile viewport: 390 x 844 at device scale factor 1; the implementation capture is a full-page image.
+- Mock-auth staff session on `/content-studio`.
+- States checked: default Instagram Reel, Church Ad selection, guided interview questions and answers, skip-interview path, feedback submission, video-preview fallback, and the collapsed/open Meridian guide disclosure.
+
+Comparison evidence:
+- The first Content Studio reference and final desktop capture were placed side by side in `content-studio-design-qa-comparison.png`, with the 3128 x 1738 source proportionally scaled to the implementation width.
+- The feedback reference and final mobile feedback area were placed side by side in `content-studio-feedback-qa-comparison.png`.
+- Full desktop and mobile captures were inspected for hierarchy, wrapping, overflow, format selection, and responsive stacking.
+
+Checks:
+- The Meridian card now leads with its name and seven format buttons, without the removed explanatory paragraphs.
+- The brief follows the format selector and preserves both Guided interview and Skip interview as equally visible paths.
+- The main workspace behaves as a bounded chat interview, supports resources in the composer, and presents saved copy inside the conversation.
+- The preview uses the selected format's actual aspect ratio and renders an attached video with native controls when available.
+- Publish to Google Drive is an explicit manual handoff action; it does not auto-upload, auto-send, or auto-publish.
+- The feedback box retains its existing fields and behavior, while its mobile Keep doing this and Change this controls remain side by side.
+- Style-guide versions and feedback-batch governance are grouped at the bottom in a disclosure that defaults closed.
+- No database schema or runtime integration dependency was added.
+
+Iteration findings:
+- P1: the first mobile pass opened partway down the page because the chat auto-scroll targeted the document. Fixed by scrolling only the chat thread.
+- P2: the first mobile pass hid later formats in a horizontal strip. Fixed with a two-column mobile format grid.
+- P2: segmented controls wrapped awkwardly on mobile. Fixed with full-width, non-wrapping segmented controls.
+- Final P0/P1/P2 findings: none.
+- P3: the established app-shell page title and subtitle remain above the Meridian card; this is intentional and outside the copy the user asked to remove.
+
+Final result: passed.
+
 ## Leader Preparation page - 2026-07-18
 
 Reference screenshots:
