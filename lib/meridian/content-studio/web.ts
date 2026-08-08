@@ -1,7 +1,8 @@
 import type { AuthSession } from "@/lib/auth/server";
+import { previewInterviewPlaybook } from "@/lib/meridian/content-studio/interview";
 import { SupabaseContentStudioRepository } from "@/lib/meridian/content-studio/repository";
 import { ContentStudioService } from "@/lib/meridian/content-studio/service";
-import type { ContentStudioWorkspace } from "@/lib/meridian/content-studio/types";
+import type { ContentGuideData, ContentStudioWorkspace } from "@/lib/meridian/content-studio/types";
 import { SupabaseMeridianMcpRepository } from "@/lib/meridian/mcp/repository";
 
 export function createContentStudioService() {
@@ -145,7 +146,7 @@ export function previewContentStudioWorkspace(): ContentStudioWorkspace {
       guide(instagramGuideId, "platform", "instagram", 1, "Instagram Design Guide", "active", null, "Vertical reel and feed-specific direction."),
       guide(slideGuideId, "platform", "church_slide", 1, "Church Slide Design Guide", "active", null, "Room-distance readability rules."),
       guide(linkedInGuideId, "platform", "linkedin", 1, "LinkedIn Design Guide", "active", null, "Professional reflection and editorial visual direction."),
-      guide(interviewerId, "interviewer", null, 1, "Dynamic Content Interviewer", "active", null, "Adaptive six-answer interview playbook.")
+      guide(interviewerId, "interviewer", null, 1, "Dynamic Content Interviewer", "active", null, "Adaptive six-answer interview playbook.", previewInterviewPlaybook)
     ]
   };
 
@@ -168,8 +169,9 @@ export function previewContentStudioWorkspace(): ContentStudioWorkspace {
     title: string,
     status: "active" | "retired",
     parentVersionId: string | null,
-    changeSummary: string
+    changeSummary: string,
+    guideData: ContentGuideData = {}
   ) {
-    return { id, ministryId, kind, platform, version, title, bodyMarkdown: changeSummary, guideData: {}, status, parentVersionId, changeSummary, createdAt: "2026-08-08T13:00:00.000Z", activatedAt: "2026-08-08T13:00:00.000Z" };
+    return { id, ministryId, kind, platform, version, title, bodyMarkdown: changeSummary, guideData, status, parentVersionId, changeSummary, createdAt: "2026-08-08T13:00:00.000Z", activatedAt: "2026-08-08T13:00:00.000Z" };
   }
 }

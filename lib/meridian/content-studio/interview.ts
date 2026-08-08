@@ -7,6 +7,19 @@ import type {
   InterviewPlaybookData
 } from "@/lib/meridian/content-studio/types";
 
+export const previewInterviewPlaybook: InterviewPlaybookData = {
+  maxQuestions: 6,
+  minQuestions: 3,
+  dimensions: [
+    { id: "purpose", label: "Purpose", objective: "the one outcome this content should create", priority: 100, required: true, platformAffinity: [], minWords: 5, maxAttempts: 2, probes: ["What should be different after someone sees this?"], followups: ["What would a successful response look like in real life?"] },
+    { id: "audience", label: "Audience", objective: "the actual people being addressed", priority: 90, required: true, platformAffinity: ["facebook", "instagram", "groupme", "linkedin", "twitter"], minWords: 8, maxAttempts: 2, probes: ["Who specifically needs to hear this, and what is already on their mind?"], followups: ["What would make that person keep reading?"] },
+    { id: "substance", label: "Substance", objective: "the concrete detail that makes the idea worth sharing", priority: 85, required: true, platformAffinity: ["facebook", "instagram", "linkedin", "twitter"], minWords: 12, maxAttempts: 2, probes: ["What specific detail makes this more than a generic announcement?"], followups: ["Which detail can we verify and safely share?"] },
+    { id: "response", label: "Response", objective: "the next step the audience can actually take", priority: 75, required: true, platformAffinity: ["groupme", "facebook", "instagram", "church_slide"], minWords: 5, maxAttempts: 2, probes: ["What exactly should someone do next, and by when?"], followups: ["If they do only one thing, what should it be?"] },
+    { id: "tone", label: "Tone", objective: "the emotional register that feels natural", priority: 55, required: false, platformAffinity: ["linkedin", "groupme", "twitter"], minWords: 5, maxAttempts: 1, probes: ["How should this feel, and what should it not sound like?"], followups: ["Name one phrase you would naturally say."] },
+    { id: "visual", label: "Visual", objective: "the visual focal point and hierarchy", priority: 70, required: false, platformAffinity: ["instagram", "church_slide"], minWords: 8, maxAttempts: 2, probes: ["What should someone understand from the visual first?"], followups: ["Which words must remain readable at the destination size?"] }
+  ]
+};
+
 export function selectOpeningQuestion(input: {
   playbook: InterviewPlaybookData;
   topic: string;
