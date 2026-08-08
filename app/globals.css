@@ -9013,24 +9013,10 @@ html:has(.app-shell-camp) body {
 }
 
 .content-studio-preview-placeholder span,
-.content-studio-preview-caption p,
 .content-studio-drive-note {
   color: var(--muted);
   font-size: var(--text-sm);
   line-height: 1.5;
-}
-
-.content-studio-preview-caption {
-  display: grid;
-  gap: 5px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  padding: 13px;
-  background: var(--surface-2);
-}
-
-.content-studio-preview-caption p {
-  margin: 0;
 }
 
 .content-studio-drive-button {

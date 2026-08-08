@@ -59,6 +59,7 @@ test.describe("Meridian Content Studio", () => {
   });
 
   test("uses a manual Google Drive handoff and has no social publishing controls", async ({ page }) => {
+    await expect(page.locator(".content-studio-preview-caption")).toHaveCount(0);
     await expect(page.getByRole("button", { name: /Publish to Google Drive/ })).toBeVisible();
     await expect(page.getByText("Manual handoff only. Nothing is uploaded or published automatically.")).toBeVisible();
     await expect(page.getByRole("button", { name: /publish to instagram/i })).toHaveCount(0);
