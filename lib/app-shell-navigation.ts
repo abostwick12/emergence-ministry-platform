@@ -25,6 +25,7 @@ const ministryHubLinks: AppNavLink[] = [
   { href: "/worship", label: "Worship", pageKey: "worship" },
   { href: "/tasks", label: "Tasks", pageKey: "tasks" },
   { href: "/communications", label: "Communications", pageKey: "communications" },
+  { href: "/content-studio", label: "Content Studio", pageKey: "content_studio" },
   { href: "/budget", label: "Budget", pageKey: "budget" }
 ];
 
@@ -80,6 +81,7 @@ function portalLinksForPathname(pathname: string): AppNavLink[] {
     pathname.startsWith("/worship") ||
     pathname.startsWith("/tasks") ||
     pathname.startsWith("/communications") ||
+    pathname.startsWith("/content-studio") ||
     pathname.startsWith("/budget")
   ) return ministryHubLinks;
   return dashboardLinks;
@@ -104,6 +106,7 @@ function pageKeyForHref(href: string): PlatformPageKey | undefined {
     case "/camp": return "camp";
     case "/tasks": return "tasks";
     case "/communications": return "communications";
+    case "/content-studio": return "content_studio";
     case "/people": return "people";
     case "/budget": return "budget";
     case "/settings": return "settings";

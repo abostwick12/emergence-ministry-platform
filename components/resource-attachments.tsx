@@ -39,6 +39,7 @@ import {
 
 type ResourceAttachmentsProps = {
   compact?: boolean;
+  inlineMedia?: boolean;
   parentId: string;
   parentType: ResourceParentType;
   title?: string;
@@ -66,7 +67,7 @@ type PreparedResourceUpload = {
 
 const directUploadThresholdBytes = 4 * 1024 * 1024;
 
-export function ResourceAttachments({ compact = false, parentId, parentType, title }: ResourceAttachmentsProps) {
+export function ResourceAttachments({ compact = false, inlineMedia = false, parentId, parentType, title }: ResourceAttachmentsProps) {
   const [resources, setResources] = useState<ResourceAttachment[]>([]);
   const [canManage, setCanManage] = useState(false);
   const [storageReady, setStorageReady] = useState(false);
@@ -519,6 +520,7 @@ export function ResourceAttachments({ compact = false, parentId, parentType, tit
               editing={editingId === resource.id}
               editState={editingId === resource.id ? editState : null}
               index={index}
+              inlineMedia={inlineMedia}
               key={resource.id}
               resource={resource}
               total={activeResources.length}
@@ -552,6 +554,7 @@ export function ResourceAttachments({ compact = false, parentId, parentType, tit
                 editing={false}
                 editState={null}
                 index={0}
+                inlineMedia={false}
                 key={resource.id}
                 resource={resource}
                 total={archivedResources.length}
@@ -582,6 +585,7 @@ function ResourceCard({
   editing,
   editState,
   index,
+  inlineMedia,
   resource,
   total,
   onArchive,
@@ -599,6 +603,7 @@ function ResourceCard({
   editing: boolean;
   editState: EditState | null;
   index: number;
+  inlineMedia: boolean;
   resource: ResourceAttachment;
   total: number;
   onArchive: () => void;
@@ -675,6 +680,7 @@ function ResourceCard({
               {resource.originalFilename ? <span>{resource.originalFilename}</span> : null}
             </div>
             {resource.resourceType === "youtube" && resource.externalUrl ? <YouTubeResourceEmbed resource={resource} /> : null}
+            {inlineMedia && resource.resourceType === "video" && !archived ? <VideoResourceEmbed resource={resource} /> : null}
           </>
         )}
       </div>
@@ -726,6 +732,37 @@ function ResourceCard({
         ) : null}
       </div>
     </article>
+  );
+}
+
+function VideoResourceEmbed({ resource }: { resource: ResourceAttachment }) {
+  const [url, setUrl] = useState("");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    async function loadVideo() {
+      try {
+        const response = await fetch(`/api/resource-attachments/items/${resource.id}/open`, { cache: "no-store" });
+        const payload = (await response.json().catch(() => ({}))) as { url?: string; error?: string };
+        if (!response.ok || !payload.url) throw new Error(payload.error ?? "Video preview could not be loaded.");
+        if (active) setUrl(payload.url);
+      } catch (loadError) {
+        if (active) setError(loadError instanceof Error ? loadError.message : "Video preview could not be loaded.");
+      }
+    }
+    void loadVideo();
+    return () => { active = false; };
+  }, [resource.id]);
+
+  if (error) return <p className="resource-inline-video-message">{error}</p>;
+  if (!url) return <p className="resource-inline-video-message">Loading video preview...</p>;
+  return (
+    <div className="resource-inline-video">
+      <video controls playsInline preload="metadata" src={url}>
+        Your browser does not support this video preview.
+      </video>
+    </div>
   );
 }
 

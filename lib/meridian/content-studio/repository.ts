@@ -100,6 +100,14 @@ export class SupabaseContentStudioRepository implements ContentStudioRepository 
     return result.data ? toSession(result.data) : null;
   }
 
+  async listSessions(session: AuthSession, ministryId: string) {
+    requireLive(session);
+    const result = await getSupabaseAuthClient(session.accessToken).from("content_interview_sessions")
+      .select("*").eq("ministry_id", ministryId).order("created_at", { ascending: false }).returns<SessionRow[]>();
+    if (result.error) throw storageError();
+    return (result.data ?? []).map(toSession);
+  }
+
   async updateSession(session: AuthSession, ministryId: string, sessionId: string, input: UpdateContentSessionInput) {
     requireLive(session);
     const result = await getSupabaseAuthClient(session.accessToken).from("content_interview_sessions").update({
@@ -131,6 +139,14 @@ export class SupabaseContentStudioRepository implements ContentStudioRepository 
     return result.data ? toDraft(result.data) : null;
   }
 
+  async listDrafts(session: AuthSession, ministryId: string) {
+    requireLive(session);
+    const result = await getSupabaseAuthClient(session.accessToken).from("content_drafts")
+      .select("*").eq("ministry_id", ministryId).order("created_at", { ascending: false }).returns<DraftRow[]>();
+    if (result.error) throw storageError();
+    return (result.data ?? []).map(toDraft);
+  }
+
   async saveFeedback(session: AuthSession, feedback: Omit<ContentFeedback, "createdAt" | "batchId">) {
     requireLive(session);
     const result = await getSupabaseAuthClient(session.accessToken).from("content_feedback").insert({
@@ -147,6 +163,14 @@ export class SupabaseContentStudioRepository implements ContentStudioRepository 
     requireLive(session);
     const result = await getSupabaseAuthClient(session.accessToken).from("content_feedback")
       .select("*").eq("ministry_id", ministryId).in("id", feedbackIds).returns<FeedbackRow[]>();
+    if (result.error) throw storageError();
+    return (result.data ?? []).map(toFeedback);
+  }
+
+  async listFeedback(session: AuthSession, ministryId: string) {
+    requireLive(session);
+    const result = await getSupabaseAuthClient(session.accessToken).from("content_feedback")
+      .select("*").eq("ministry_id", ministryId).order("created_at", { ascending: false }).returns<FeedbackRow[]>();
     if (result.error) throw storageError();
     return (result.data ?? []).map(toFeedback);
   }
@@ -172,6 +196,37 @@ export class SupabaseContentStudioRepository implements ContentStudioRepository 
     const result = await getSupabaseAuthClient(session.accessToken).rpc("approve_content_feedback_batch", { p_batch_id: batchId });
     if (result.error) throw storageError();
     return this.loadBatch(session, ministryId, batchId);
+  }
+
+  async listFeedbackBatches(session: AuthSession, ministryId: string) {
+    requireLive(session);
+    const supabase = getSupabaseAuthClient(session.accessToken);
+    const batchResult = await supabase.from("content_feedback_batches")
+      .select("*").eq("ministry_id", ministryId).order("created_at", { ascending: false }).returns<BatchRow[]>();
+    if (batchResult.error) throw storageError();
+    if (!batchResult.data?.length) return [];
+    const changeResult = await supabase.from("content_feedback_batch_changes")
+      .select("*").in("batch_id", batchResult.data.map((batch) => batch.id)).returns<BatchChangeRow[]>();
+    if (changeResult.error) throw storageError();
+    const changesByBatch = new Map<string, BatchChangeRow[]>();
+    for (const row of changeResult.data ?? []) {
+      const current = changesByBatch.get(row.batch_id) ?? [];
+      current.push(row);
+      changesByBatch.set(row.batch_id, current);
+    }
+    return (batchResult.data ?? []).map((batch) => {
+      const changes = changesByBatch.get(batch.id) ?? [];
+      return {
+        id: batch.id,
+        ministryId: batch.ministry_id,
+        status: batch.status,
+        feedbackIds: batch.feedback_ids,
+        changes: changes.map(toBatchChange),
+        resultingGuideVersionIds: changes.map((row) => row.resulting_guide_version_id).filter((id): id is string => Boolean(id)),
+        createdAt: batch.created_at,
+        approvedAt: batch.approved_at
+      };
+    });
   }
 
   async rollbackGuide(session: AuthSession, ministryId: string, targetVersionId: string, reason: string) {

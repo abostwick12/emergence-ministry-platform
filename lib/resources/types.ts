@@ -13,7 +13,8 @@ export const resourceParentTypes = [
   "leader_guide",
   "small_group_resource",
   "worship_plan",
-  "communication_draft"
+  "communication_draft",
+  "content_draft"
 ] as const;
 
 export const resourceTypes = [

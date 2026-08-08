@@ -195,7 +195,10 @@ function fakeContentRepository(): ContentStudioRepository {
   return {
     getActiveGuides: vi.fn().mockResolvedValue(activeGuides()),
     listGuideVersions: vi.fn().mockResolvedValue(activeGuides()),
-    createSession: vi.fn(), getSession: vi.fn(), updateSession: vi.fn(), saveDraft: vi.fn(), getDraft: vi.fn(),
-    saveFeedback: vi.fn(), getFeedback: vi.fn(), createFeedbackBatch: vi.fn(), approveFeedbackBatch: vi.fn(), rollbackGuide: vi.fn()
+    createSession: vi.fn(), getSession: vi.fn(), listSessions: vi.fn().mockResolvedValue([]), updateSession: vi.fn(),
+    saveDraft: vi.fn(), getDraft: vi.fn(), listDrafts: vi.fn().mockResolvedValue([]),
+    saveFeedback: vi.fn(), getFeedback: vi.fn(), listFeedback: vi.fn().mockResolvedValue([]),
+    createFeedbackBatch: vi.fn(), listFeedbackBatches: vi.fn().mockResolvedValue([]),
+    approveFeedbackBatch: vi.fn(), rollbackGuide: vi.fn()
   };
 }

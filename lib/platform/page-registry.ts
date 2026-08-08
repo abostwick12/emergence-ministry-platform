@@ -9,6 +9,7 @@ export type PlatformPageKey =
   | "worship"
   | "tasks"
   | "communications"
+  | "content_studio"
   | "people"
   | "files"
   | "budget"
@@ -43,6 +44,7 @@ export const platformPages: PlatformPageDefinition[] = [
   page("worship", "Worship", "/worship", "Service, rehearsal, and presentation planning.", true, true, ["admin", "leader"]),
   page("tasks", "Tasks", "/tasks", "Task ownership, status, and due dates.", true, true, ["admin", "leader"]),
   page("communications", "Communications", "/communications", "Preview-only communication preparation.", true, true, ["admin", "leader"]),
+  page("content_studio", "Content Studio", "/content-studio", "Meridian-backed content drafts, rendered assets, feedback, and guide history.", false, false, ["admin", "leader"]),
   page("people", "People", "/people", "People operations and follow-up visibility.", true, true, ["admin", "leader"]),
   page("files", "Files", "/files", "File organization placeholders and Drive-ready planning.", true, true, ["admin", "leader"]),
   page("budget", "Budget", "/budget", "Budget targets and ministry expense visibility.", true, true, ["admin", "leader"]),

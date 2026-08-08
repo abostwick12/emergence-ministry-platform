@@ -72,6 +72,6 @@ describe("volunteer hub navigation", () => {
     ]);
     expect(
       navigation.mobilePortalSections.find((section) => section.label === "Ministry")?.links.map((link) => link.label)
-    ).toEqual(["Ministry Hub", "Events", "Worship", "Tasks", "Communications", "Budget"]);
+    ).toEqual(["Ministry Hub", "Events", "Worship", "Tasks", "Communications", "Content Studio", "Budget"]);
   });
 });
